@@ -106,7 +106,7 @@
       mtctx.fillRect(cellX(i), cellY(i), 1, 1);
     }
     ui.sidebar.dataset.faction = faction;
-    cameoSig = { L: '', R: '' }; selSig = '';
+    cameoSig = { L: '', R: '' }; selSig = ''; lastCredits = null;
     ui.autoBtn.setAttribute('aria-pressed', 'true');
     layout();
     const cy = G.entities.find((e) => e.team === PLAYER && e.type === 'cy');
@@ -612,13 +612,17 @@
   });
   ui.menuBtn.addEventListener('click', togglePause);
 
-  let hudT = 0;
+  let hudT = 0, lastCredits = null;
   function updateSidebar(dt) {
     hudT -= dt;
     if (hudT > 0 || !G) return;
     hudT = 0.1;
     const team = G.teams[PLAYER];
-    ui.credits.textContent = String(Math.max(0, Math.floor(team.shown)));
+    const shown = Math.max(0, Math.floor(team.shown));
+    ui.credits.textContent = String(shown);
+    // Tick while the counter rolls, like the classic sidebar.
+    if (lastCredits !== null && shown !== lastCredits && !G.paused) Sound.play(shown > lastCredits ? 'cashUp' : 'cashDown');
+    lastCredits = shown;
     const autoLabel = team.auto ? `AUTO ${Math.min(team.waiting || 0, GROUP_SIZE)}/${GROUP_SIZE}` : 'AUTO';
     if (ui.autoLabel.textContent !== autoLabel) ui.autoLabel.textContent = autoLabel;
     // Vertical power bar: green fill is output, the red tick is demand.

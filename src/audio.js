@@ -266,11 +266,14 @@ const Sound = (() => {
     },
     sell(t, o) { for (let i = 0; i < 3; i++) noiseHit(t + i * 0.05, 0.05, 'highpass', 5000, 5000, 0.7, 0.25, o); tone(t + 0.16, 'sine', 1560, 1560, 0.4, 0.15, o); tone(t + 0.16, 'sine', 2080, 2080, 0.4, 0.1, o); },
     click(t, o) { tone(t, 'square', 1250, 1150, 0.03, 0.14, o); },
+    // Credits counter ticks: a bright tick as money comes in, a lower one as it is spent.
+    cashUp(t, o) { tone(t, 'triangle', 2100, 2250, 0.03, 0.16, o, 0.001); noiseHit(t, 0.012, 'highpass', 6000, 6000, 0.7, 0.06, o); },
+    cashDown(t, o) { tone(t, 'triangle', 1250, 1150, 0.03, 0.14, o, 0.001); noiseHit(t, 0.012, 'highpass', 5000, 5000, 0.7, 0.05, o); },
     ready(t, o) { tone(t, 'square', 880, 880, 0.06, 0.14, o); tone(t + 0.08, 'square', 1320, 1320, 0.08, 0.14, o); },
     denied(t, o) { tone(t, 'square', 220, 200, 0.18, 0.1, o); },
   };
-  const THROTTLE = { rifle: 0.03, mg: 0.03, cannon: 0.05, cannonHeavy: 0.06, turretGun: 0.06, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, missile: 0.05, flak: 0.06, tesla: 0.1 };
-  const UI_SOUNDS = new Set(['click', 'ready', 'denied', 'sell', 'place']);
+  const THROTTLE = { cashUp: 0.07, cashDown: 0.07, rifle: 0.03, mg: 0.03, cannon: 0.05, cannonHeavy: 0.06, turretGun: 0.06, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, missile: 0.05, flak: 0.06, tesla: 0.1 };
+  const UI_SOUNDS = new Set(['click', 'ready', 'denied', 'sell', 'place', 'cashUp', 'cashDown']);
   // Rough loudness of each effect so distant battles do not drown nearby ones.
   const LEVEL = { rifle: 0.55, mg: 1.0, throw: 0.8, cannon: 0.8, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, missile: 0.7, flak: 0.75, tesla: 0.85,
     hitSmall: 0.7, hitMed: 0.8, explodeVeh: 0.9, explodeBig: 1.0, flame: 0.8, fireHit: 0.8 };
