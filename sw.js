@@ -1,6 +1,6 @@
 // Offline support: serve the game from cache, refresh the cache in the background.
-const CACHE = 'pocket-siege-v1';
-const FILES = ['./', 'index.html', 'style.css', 'game.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/apple-touch-icon.png'];
+const CACHE = 'pocket-siege-v2';
+const FILES = ['./', 'index.html', 'style.css', 'src/data.js', 'src/art.js', 'src/world.js', 'src/ai.js', 'src/ui.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

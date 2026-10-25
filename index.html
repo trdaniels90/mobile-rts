@@ -4,73 +4,92 @@
 <meta charset="utf-8">
 <title>Pocket Siege</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="description" content="A small real-time strategy game for iPhone and web browsers.">
+<meta name="description" content="Allies versus Soviets real-time strategy for iPhone and web browsers.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Pocket Siege">
-<meta name="theme-color" content="#16130f">
+<meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=VT323&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <!-- BEGIN BODY -->
 <canvas id="game" aria-label="Battlefield"></canvas>
 
-<header id="topbar">
-  <div class="res" title="Gold"><span class="coin" aria-hidden="true"></span><span id="gold" class="num">0</span></div>
-  <div class="res" title="Population"><span class="pop" aria-hidden="true">👥</span><span id="supply" class="num">0/10</span></div>
-  <div class="res clock"><span id="clock" class="num">0:00</span></div>
-  <div class="spacer"></div>
-  <button id="idleBtn" class="pill" type="button" title="Select an idle worker">👷 <span class="n num">0</span></button>
-  <button id="armyBtn" class="pill" type="button" title="Select your whole army">⚔️ <span class="n num">0</span></button>
-  <button id="boxBtn" class="pill touch-only" type="button" aria-pressed="false" title="Drag to select a group">⬚</button>
-  <button id="pauseBtn" class="pill" type="button" aria-label="Pause">❚❚</button>
-</header>
+<div id="eva" role="status" hidden></div>
 
-<div id="hint" hidden><span id="hintText"></span><button id="hintCancel" type="button">Cancel</button></div>
-<div id="toast" role="status" hidden></div>
+<div id="selbar" hidden>
+  <div class="sel-info"><span id="selName"></span><span id="selHp" class="bar"></span></div>
+  <div id="selBtns"></div>
+</div>
 
-<section id="panel" class="empty">
-  <div id="selInfo"></div>
-  <div id="actions"></div>
-</section>
-<canvas id="minimap" aria-label="Minimap"></canvas>
+<div id="placebar" hidden>
+  <span id="placeText"></span>
+  <button id="placeOk" type="button">PLACE</button>
+  <button id="placeCancel" type="button">CANCEL</button>
+</div>
+
+<aside id="sidebar" data-faction="allies">
+  <div class="sb-head">
+    <div id="credits" class="credits">$0</div>
+    <button id="menuBtn" class="sb-btn" type="button" aria-label="Pause">❚❚</button>
+    <button id="autoBtn" class="sb-btn auto" type="button" aria-pressed="true">AUTO ATTACK</button>
+    <button id="boxBtn" class="sb-btn touch-only" type="button" aria-pressed="false" aria-label="Drag to select">⬚</button>
+  </div>
+  <div class="sb-radar"><canvas id="radar" aria-label="Radar"></canvas></div>
+  <div class="sb-power"><div id="powerBar" class="power"><i></i></div><span id="powerText">PWR 0/0</span></div>
+  <div id="tabs" class="sb-tabs" role="tablist">
+    <button type="button" role="tab" data-tab="structure" aria-selected="true">BASE</button>
+    <button type="button" role="tab" data-tab="infantry">INF</button>
+    <button type="button" role="tab" data-tab="vehicle">VEH</button>
+    <button type="button" role="tab" data-tab="aircraft">AIR</button>
+  </div>
+  <div id="cameos" class="sb-cameos"></div>
+</aside>
 
 <div id="menu" hidden>
   <div class="card">
-    <p class="eyebrow">A pocket-sized war of gold and steel</p>
+    <p class="eyebrow">Allies vs Soviets</p>
     <h1 id="menuTitle">Pocket Siege</h1>
     <p id="menuSub"></p>
     <div id="stats" hidden></div>
-    <div class="diff" role="group" aria-label="Difficulty">
+    <div class="pick sides" role="group" aria-label="Side">
+      <button type="button" data-faction="allies" aria-pressed="true"><span class="crest"></span>Allies<small>Fast tanks, attack helicopters, gun turrets</small></button>
+      <button type="button" data-faction="soviets" aria-pressed="false"><span class="crest"></span>Soviets<small>Heavy armour, Tesla coils, MiGs</small></button>
+    </div>
+    <div class="pick diff" role="group" aria-label="Difficulty">
       <button type="button" data-diff="easy" aria-pressed="false">Easy</button>
       <button type="button" data-diff="normal" aria-pressed="true">Normal</button>
       <button type="button" data-diff="hard" aria-pressed="false">Hard</button>
     </div>
     <div class="buttons">
-      <button id="resumeBtn" class="primary" type="button" hidden>Resume</button>
-      <button id="startBtn" class="primary" type="button">Start battle</button>
+      <button id="resumeBtn" class="primary alt" type="button" hidden>Resume</button>
+      <button id="startBtn" class="primary" type="button">Start mission</button>
     </div>
     <details class="how">
-      <summary>How to play</summary>
-      <ul id="helpText">
-        <li><b>Workers</b> mine gold on their own. Select one to build a House (+8 population), Barracks or Tower.</li>
-        <li><b>Barracks</b> train Soldiers (tough, close range) and Archers (fragile, long range).</li>
-        <li class="touch-only"><b>Tap</b> a unit to select it, then tap the ground to move or an enemy to attack. <b>Double-tap</b> selects every unit of that kind on screen.</li>
-        <li class="touch-only"><b>Drag</b> to move the map, <b>pinch</b> to zoom. <b>Hold, then drag</b> (or use ⬚) to select a group.</li>
-        <li class="mouse-only"><b>Left click</b> selects, drag a box for groups, <b>right click</b> moves or attacks. WASD or arrows scroll, the wheel zooms. Q attack-move, X stop, H home, Esc cancel.</li>
-        <li>Destroy the red <b>Town Hall</b> to win. Waves of enemies grow over time, so keep your army growing too.</li>
+      <summary>Briefing</summary>
+      <ul>
+        <li>Build from the sidebar: Power Plant, then an Ore Refinery. Every refinery comes with an Ore Truck that harvests on its own.</li>
+        <li>A Barracks, War Factory, Helipad and Airfield unlock infantry, tanks, helicopters and jets.</li>
+        <li>With <b>Auto Attack</b> on, every new combat unit heads straight for the enemy base. Turn it off to keep new units home on guard.</li>
+        <li class="touch-only">Tap a unit, then tap the ground to move or an enemy to attack. Drag to scroll, pinch to zoom, hold then drag to select a group. Hold a build icon to cancel it.</li>
+        <li class="mouse-only">Click a unit, then click the ground to move or an enemy to attack. Drag a box to select a group, right click to deselect. Arrow keys or WASD scroll, the wheel zooms, right click a build icon to cancel it.</li>
+        <li>Keep power above demand or production slows and Tesla coils go dark. Destroy every enemy structure to win.</li>
       </ul>
     </details>
   </div>
 </div>
 <!-- END BODY -->
-<script src="game.js"></script>
+<script src="src/data.js"></script>
+<script src="src/art.js"></script>
+<script src="src/world.js"></script>
+<script src="src/ai.js"></script>
+<script src="src/ui.js"></script>
 </body>
 </html>

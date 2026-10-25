@@ -13,10 +13,11 @@ html = (root / 'index.html').read_text()
 body = re.search(r'<!-- BEGIN BODY -->(.*)<!-- END BODY -->', html, re.S).group(1)
 fonts = re.search(r'<link rel="stylesheet" href="(https://fonts[^"]+)">', html).group(1)
 css = (root / 'style.css').read_text()
-js = (root / 'game.js').read_text()
+scripts = re.findall(r'<script src="([^"]+)"></script>', html)
+js = '\n'.join((root / src).read_text() for src in scripts)
 
 out = f'''<title>Pocket Siege</title>
-<meta name="description" content="A small real-time strategy game for iPhone and web browsers.">
+<meta name="description" content="Allies versus Soviets real-time strategy for iPhone and web browsers.">
 <link rel="stylesheet" href="{fonts}">
 <style>
 {css}
