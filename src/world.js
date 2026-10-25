@@ -442,16 +442,37 @@ function aimY(t) {
 
 function weaponSound(src, w) {
   if (w.proj === 'bullet') return src.cls === 'inf' ? 'rifle' : 'mg';
+  if (w.proj === 'grenade') return 'throw';
   if (w.proj === 'shell') return w.twin ? 'cannonHeavy' : 'cannon';
   return w.proj;
+}
+
+// Fires a weapon. Burst weapons queue their follow-up rounds, fired by tickBurst().
+function shoot(src, w, t) {
+  fireWeapon(src, w, t);
+  if (w.burst > 1) src.burst = { left: w.burst - 1, t: w.gap, w, target: t };
+}
+function tickBurst(u, dt) {
+  const b = u.burst;
+  if (!b) return;
+  if (!b.target.alive || distTo(u, b.target) > b.w.range + 12) { u.burst = null; return; }
+  if ((b.t -= dt) > 0) return;
+  fireWeapon(u, b.w, b.target);
+  b.t = b.w.gap;
+  if (--b.left <= 0) u.burst = null;
 }
 
 function fireWeapon(src, w, t) {
   const m = muzzle(src);
   hooks.sfx(weaponSound(src, w), src.x, src.y);
-  src.fireT = 0.1;
+  src.fireT = w.proj === 'grenade' ? 0.35 : 0.1;
   const ty = aimY(t);
-  if (w.proj === 'bullet') {
+  if (w.proj === 'grenade') {
+    // Lobbed in an arc at where the target stands now; it can miss a moving target.
+    const tx = t.x + (Math.random() - 0.5) * 10, tgy = t.y + (Math.random() - 0.5) * 8;
+    const d = Math.hypot(tx - src.x, tgy - src.y);
+    G.projectiles.push({ kind: 'grenade', x: m.x, y: m.y, sx: m.x, sy: src.y, tx, ty: tgy, t: 0, dur: Math.max(0.35, d / 170), h: 14 + d * 0.18, z: src.y - m.y, w, from: src, team: src.team });
+  } else if (w.proj === 'bullet') {
     const jx = (Math.random() - 0.5) * 6, jy = (Math.random() - 0.5) * 6;
     damage(t, w.dmg, w.wh, src);
     G.effects.push({ type: 'tracer', x: m.x, y: m.y, x2: t.x + jx, y2: ty + jy, t: 0, life: 0.07 });
@@ -473,6 +494,15 @@ function fireWeapon(src, w, t) {
 function updateProjectiles(dt) {
   for (const p of G.projectiles) {
     if (p.delay > 0) { p.delay -= dt; continue; }
+    if (p.kind === 'grenade') {
+      p.t += dt;
+      const k = Math.min(1, p.t / p.dur);
+      p.gx = p.sx + (p.tx - p.sx) * k; p.gy = p.sy + (p.ty - p.sy) * k;
+      p.x = p.gx; p.y = p.gy - (p.z * (1 - k) + p.h * 4 * k * (1 - k));
+      p.a = (p.a || 0) + dt * 14;
+      if (k >= 1) { p.dead = true; grenadeBlast(p); }
+      continue;
+    }
     const t = p.target;
     const tx = t.x, ty = aimY(t);
     const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy), step = p.speed * dt;
@@ -491,6 +521,19 @@ function updateProjectiles(dt) {
     p.x += (dx / d) * step; p.y += (dy / d) * step;
   }
   G.projectiles = G.projectiles.filter((p) => !p.dead);
+}
+
+function grenadeBlast(p) {
+  const { tx: x, ty: y, w } = p;
+  hooks.sfx('hitMed', x, y);
+  G.effects.push({ type: 'expl', x, y: y - 3, size: 9, t: 0, life: 0.5, seed: (Math.random() * 1e6) | 0, debris: true });
+  scorch(G.tctx, x, y, 7, (Math.random() * 1e6) | 0);
+  const from = p.from.alive ? p.from : null;
+  for (const e of G.entities) {
+    if (!e.alive || e.team === p.team || isAirborne(e)) continue;
+    const d = distTo({ x, y }, e);
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.6), w.wh, from);
+  }
 }
 
 function splash(x, y, rad, dmg, team, skip) {
@@ -579,6 +622,7 @@ function kill(e, attacker) {
 function updateUnit(u, dt) {
   u.cd = Math.max(0, u.cd - dt); u.cd2 = Math.max(0, u.cd2 - dt); u.fireT = Math.max(0, u.fireT - dt);
   u.moving = false;
+  tickBurst(u, dt);
   if (u.cls === 'air') { updateAir(u, dt); return; }
   if (u.def.harvester) { updateHarvester(u, dt); followPath(u, dt); checkStuck(u, dt); return; }
 
@@ -629,7 +673,7 @@ function engage(u, t, dt) {
     let aligned = true;
     if (u.cls === 'veh') { u.tface = turnToward(u.tface, ang, 5 * dt); aligned = Math.abs(angDiff(ang, u.tface)) < 0.12; }
     else u.face = ang;
-    if (aligned && u.cd <= 0 && w === u.def.weapon) { fireWeapon(u, w, t); u.cd = w.rof; }
+    if (aligned && u.cd <= 0 && w === u.def.weapon) { shoot(u, w, t); u.cd = w.rof; }
   } else {
     if (!u.needPath && (!u.dest || Math.hypot(u.dest.x - t.x, u.dest.y - t.y) > 40)) goTo(u, t.x, t.y);
     followPath(u, dt);
@@ -846,7 +890,7 @@ function updateAir(u, dt) {
     if (t) {
       const d = distTo(u, t), ang = Math.atan2(t.y - u.y, t.x - u.x);
       if (d <= w.range && Math.abs(angDiff(ang, u.face)) < 0.35 && u.cd <= 0) {
-        fireWeapon(u, w, t); u.cd = w.rof; u.ammo--;
+        shoot(u, w, t); u.cd = w.rof; u.ammo--;
         if (u.ammo <= 0 || Math.random() < 0.5) u.passT = 0.9;
       }
       flyJet(u, t.x, t.y, dt);
@@ -868,7 +912,7 @@ function updateAir(u, dt) {
     if (d > w.range * 0.9) flyHeli(u, t.x, t.y, dt);
     else {
       u.face = turnToward(u.face, ang, 4 * dt);
-      if (Math.abs(angDiff(ang, u.face)) < 0.2 && u.cd <= 0) { fireWeapon(u, w, t); u.cd = w.rof; u.ammo--; }
+      if (Math.abs(angDiff(ang, u.face)) < 0.2 && u.cd <= 0) { shoot(u, w, t); u.cd = w.rof; u.ammo--; }
     }
   } else if (o.type === 'hunt') {
     const b = nearestEnemyBuilding(u);

@@ -85,7 +85,8 @@ const Sound = (() => {
   // ---------------------------------------------------------------------------
   const FX = {
     rifle(t, o) { noiseHit(t, 0.07, 'highpass', 1400, 900, 0.7, 0.55, o); noiseHit(t, 0.06, 'lowpass', 500, 200, 0.7, 0.5, o); },
-    mg(t, o) { for (let i = 0; i < 3; i++) { noiseHit(t + i * 0.055, 0.045, 'highpass', 1600, 1000, 0.7, 0.45, o); noiseHit(t + i * 0.055, 0.04, 'lowpass', 600, 250, 0.7, 0.35, o); } },
+    mg(t, o) { noiseHit(t, 0.05, 'highpass', 1700, 1000, 0.7, 0.5, o); noiseHit(t, 0.045, 'lowpass', 650, 250, 0.7, 0.4, o); },
+    throw(t, o) { noiseHit(t, 0.18, 'bandpass', 900, 2200, 1.5, 0.25, o, 0.04); },
     cannon(t, o, s) {
       const d = shaper(shaperSoft, o);
       tone(t, 'sine', 120, 36, 0.42, 0.9, d);
@@ -140,7 +141,7 @@ const Sound = (() => {
     ready(t, o) { tone(t, 'square', 880, 880, 0.06, 0.14, o); tone(t + 0.08, 'square', 1320, 1320, 0.08, 0.14, o); },
     denied(t, o) { tone(t, 'square', 220, 200, 0.18, 0.1, o); },
   };
-  const THROTTLE = { rifle: 0.035, mg: 0.06, cannon: 0.05, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, missile: 0.05 };
+  const THROTTLE = { rifle: 0.03, mg: 0.03, cannon: 0.05, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, missile: 0.05 };
 
   function play(name, vol, pan) {
     if (!ctx || !settings.sfx || ctx.state !== 'running') return;
@@ -214,10 +215,33 @@ const Sound = (() => {
       envelope(g, t, 0.9, 0.002, 0.32); o.connect(g); g.connect(musicBus); o.start(t); o.stop(t + 0.4);
       noiseHit(t, 0.02, 'highpass', 3000, 3000, 0.7, 0.25, musicBus);
     },
-    snare(t) {
-      const g = noiseHit(t, 0.22, 'bandpass', 1900, 1500, 0.7, 0.55, musicBus);
+    snare(t, v) {
+      v = v || 1;
+      const g = noiseHit(t, v < 1 ? 0.1 : 0.22, 'bandpass', 1900, 1500, 0.7, 0.55 * v, musicBus);
       const s = gain(0.6, verbIn); g.connect(s);
-      tone(t, 'triangle', 200, 160, 0.1, 0.35, musicBus);
+      tone(t, 'triangle', 200, 160, 0.1, 0.35 * v, musicBus);
+    },
+    // Marching boots: a dull stamp with a gravelly scuff.
+    boots(t) {
+      noiseHit(t, 0.12, 'lowpass', 380, 160, 1, 0.75, musicBus);
+      tone(t, 'sine', 90, 55, 0.09, 0.4, musicBus);
+      noiseHit(t + 0.01, 0.06, 'bandpass', 2500, 1800, 1, 0.12, musicBus);
+    },
+    // A gang shout ("Hup!"): buzzy voices through vowel formants.
+    shout(t) {
+      const out = gain(0.55, musicBus); out.connect(gain(0.7, verbIn));
+      const forms = [[650, 1.2, 1], [1080, 1.5, 0.6], [2500, 3, 0.25]];
+      const bus = gain(1, null);
+      for (const [f, q, v] of forms) { const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q * 4; bus.connect(bp); bp.connect(gain(v, out)); }
+      for (let i = 0; i < 4; i++) {
+        const tt = t + i * 0.012, f0 = 120 + i * 17;
+        const o = ctx.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(f0 * 1.25, tt); o.frequency.exponentialRampToValueAtTime(f0, tt + 0.15);
+        const g = ctx.createGain(); envelope(g, tt, 0.5, 0.012, 0.2);
+        o.connect(g); g.connect(bus); o.start(tt); o.stop(tt + 0.3);
+      }
+      const n = noiseHit(t, 0.08, 'highpass', 3000, 3000, 0.7, 0.25, bus);
+      void n;
     },
     hat(t, open) { noiseHit(t, open ? 0.22 : 0.035, 'highpass', 7500, 7500, 0.7, open ? 0.12 : 0.1, musicBus); },
     crash(t) { const g = noiseHit(t, 1.4, 'highpass', 4500, 3500, 0.5, 0.16, musicBus, 0.005); const s = gain(0.4, verbIn); g.connect(s); },
@@ -301,6 +325,35 @@ const Sound = (() => {
   const E = 40; // E2
   const SONGS = [
     {
+      // Original march: boots, drill snare, gang shouts, chugging guitar and a heroic brass line.
+      name: 'Steel Parade', bpm: 104, key: E,
+      parts: {
+        intro: { bars: 4, boots: 'x...x...x...x...', s: 'x.gxx.g.x.gxx.g.', anvil: 'x...............', every: 4, pad: '0 - - - - - - - - - - - - - - -' },
+        call: {
+          bars: 4, boots: 'x...x...x...x...', s: 'x.gxx.g.x.gxx.g.', k: 'x.......x.......',
+          shout: 'x...x...x.x.....', stab: '12 . . . . . . . . . . . 13 . . .|12 . . . . . . . 10 . . . 8 . . .',
+        },
+        riff: {
+          bars: 8, k: 'x...x.x.x...x.x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', boots: 'x...x...x...x...',
+          gtr: '0m 0m 0m . 0m 0m 0m . 1 - 0m 0m 3 - 0m .|0m 0m 0m . 0m 0m 0m . 5 - 3 - 1 - 0 -',
+          bass: '0 0 0 . 0 0 0 . 1 - 0 0 3 - 0 .|0 0 0 . 0 0 0 . 5 - 3 - 1 - 0 -',
+          shout: 'x.......x.......', shoutEvery: 4,
+        },
+        anthem: {
+          bars: 8, k: 'x.x.x.x.x.x.x.x.', s: '....x.......x...', h: 'o...o...o...o...', crash: 'x...............', crashEvery: 4,
+          gtr: '0 - - - - - - - -4 - - - - - - -|1 - - - - - - - 0 - - - - - - -',
+          bass: '0 - - - - - - - -4 - - - - - - -|1 - - - - - - - 0 - - - - - - -',
+          stab: '12 . . . . . . . 8 . . . . . . .|13 . . . . . . . 12 . . . . . . .',
+          lead: '24 - - 24 27 - 26 - 24 - 22 - 19 - - -|20 - - 20 22 - 24 - 25 - 24 - 22 - - -|24 - - 24 27 - 29 - 31 - 29 - 27 - - -|25 - - - 24 - 22 - 24 - - - - - - -',
+        },
+        drill: {
+          bars: 4, boots: 'x...x...x...x...', s: 'xgxgxgxgxxgxxgxx', anvil: 'x.......x.......',
+          shout: 'x...x...x...x...', bass: '0 - - - - - - - 0 - - - - - - -', fill: true,
+        },
+      },
+      order: ['intro', 'call', 'riff', 'anthem', 'riff', 'drill', 'anthem', 'riff'],
+    },
+    {
       name: 'Iron Fist March', bpm: 112, key: E,
       parts: {
         intro: { bars: 4, k: 'x.......x.......', s: '............x...', anvil: 'x...............', pad: '0 - - - - - - - - - - - - - - -|-3 - - - - - - - - - - - - - - -', every: 2 },
@@ -368,7 +421,7 @@ const Sound = (() => {
   }
 
   const Music = {
-    song: Math.floor(Math.random() * SONGS.length), part: 0, bar: 0, step: 0, next: 0, timer: null, started: false,
+    song: 0, part: 0, bar: 0, step: 0, next: 0, timer: null, started: false,
     get name() { return SONGS[this.song].name; },
     start() {
       if (this.started || !ctx) return;
@@ -410,11 +463,13 @@ const Sound = (() => {
         if (st === 12) INST.snare(t);
       } else {
         if (hit(part.k)) INST.kick(t);
-        if (hit(part.s)) INST.snare(t);
+        const sn = hit(part.s); if (sn) INST.snare(t, sn === 'g' ? 0.35 : 1);
+        if (hit(part.boots)) INST.boots(t);
         const h = hit(part.h); if (h) INST.hat(t, h === 'o');
       }
       if (hit(part.crash, part.crashEvery || 1) && bar % (part.crashEvery || 1) === 0) INST.crash(t);
       if (hit(part.anvil, part.every)) INST.anvil(t);
+      if (hit(part.shout) && (!part.shoutEvery || (bar + 1) % part.shoutEvery === 0)) INST.shout(t);
       const mel = (pat, inst, base) => {
         if (!pat) return;
         const barPat = pat[bar % pat.length], tok = barPat[st];

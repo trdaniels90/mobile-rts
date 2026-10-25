@@ -202,7 +202,7 @@ function flash(g, x, y, s) {
 function drawUnit(g, u, t) {
   const pal = palFor(u.faction);
   if (u.cls === 'inf') {
-    const frame = u.moving ? 1 + (Math.floor(u.anim / 4) % 2) : 0;
+    const frame = u.type === 'grenadier' && u.fireT > 0.12 ? 3 : u.moving ? 1 + (Math.floor(u.anim / 4) % 2) : 0;
     blit(g, infSprite(u, pal, frame), u.x, u.y);
     if (u.fireT > 0) flash(g, u.x + Math.cos(u.face) * 10, u.y + Math.sin(u.face) * 10 - 11, 1);
     return;

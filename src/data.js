@@ -32,7 +32,12 @@ const UNIT_DEFS = {
   rifle: {
     name: 'Rifle Infantry', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
     cost: 100, hp: 50, armor: 'inf', speed: 26, sight: 4, r: 5,
-    weapon: { dmg: 14, rof: 0.9, range: 70, wh: 'SA', proj: 'bullet' },
+    weapon: { dmg: 7, rof: 1.3, range: 70, wh: 'SA', proj: 'bullet', burst: 3, gap: 0.11 },
+  },
+  grenadier: {
+    name: 'Grenadier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['soviets'],
+    cost: 160, hp: 50, armor: 'inf', speed: 24, sight: 5, r: 5,
+    weapon: { dmg: 42, rof: 2.0, range: 100, wh: 'HE', proj: 'grenade', splash: 22 },
   },
   rocket: {
     name: 'Rocket Soldier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
@@ -42,7 +47,7 @@ const UNIT_DEFS = {
   ranger: {
     name: 'Ranger', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'jeep',
     cost: 600, hp: 150, armor: 'light', speed: 80, turn: 5, sight: 6, r: 7, size: { len: 15, wid: 10 },
-    weapon: { dmg: 14, rof: 0.5, range: 96, wh: 'SA', proj: 'bullet', air: true },
+    weapon: { dmg: 6, rof: 0.9, range: 96, wh: 'SA', proj: 'bullet', air: true, burst: 4, gap: 0.08 },
   },
   ltank: {
     name: 'Light Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'tank',
@@ -78,7 +83,7 @@ const UNIT_DEFS = {
   hind: {
     name: 'Hind Gunship', cls: 'air', fly: 'heli', cat: 'aircraft', producer: 'helipad', factions: ['soviets'],
     cost: 1200, hp: 240, armor: 'air', speed: 105, sight: 6, r: 10,
-    weapon: { dmg: 14, rof: 0.25, range: 100, wh: 'SA', proj: 'bullet', ammo: 24 },
+    weapon: { dmg: 13, rof: 1.0, range: 100, wh: 'SA', proj: 'bullet', ammo: 6, burst: 5, gap: 0.07 },
   },
   jet: {
     name: 'Strike Jet', cls: 'air', fly: 'jet', cat: 'aircraft', producer: 'airfield', factions: ['allies'],

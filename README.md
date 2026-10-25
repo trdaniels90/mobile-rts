@@ -12,11 +12,11 @@ A Cold War real-time strategy game of Allies versus Soviets, in the pre-rendered
 
 ## Sound
 
-Everything you hear is synthesised live with the Web Audio API; there are no audio files. Weapons, impacts and explosions are positioned by the camera (louder on screen, panned left or right). Announcements and unit acknowledgements use the device's speech voice. The soundtrack is three original pieces in a 90s industrial-metal style, written as a homage to classic RTS scores: *Iron Fist March*, *Grind Protocol* and *Cold Front*. Music, effects and voice can be switched off in Options. On iPhone the game asks for playback audio, so it plays even with the silent switch on.
+Everything you hear is synthesised live with the Web Audio API; there are no audio files. Weapons, impacts and explosions are positioned by the camera (louder on screen, panned left or right). Announcements and unit acknowledgements use the device's speech voice. The soundtrack is four original pieces in a 90s industrial-metal style, written as a homage to classic RTS scores: *Steel Parade* (a marching anthem with boots, drill snare and gang shouts), *Iron Fist March*, *Grind Protocol* and *Cold Front*. Music, effects and voice can be switched off in Options. On iPhone the game asks for playback audio, so it plays even with the silent switch on.
 
 | | Allies | Soviets |
 | --- | --- | --- |
-| Infantry | Rifle Infantry, Rocket Soldier | Rifle Infantry, Rocket Soldier |
+| Infantry | Rifle Infantry, Rocket Soldier | Rifle Infantry, Grenadier, Rocket Soldier |
 | Vehicles | Ranger, Light Tank, Medium Tank, Ore Truck | Heavy Tank, Mammoth Tank, Ore Truck |
 | Aircraft | Attack Helicopter, Strike Jet | Hind Gunship, MiG Fighter |
 | Defences | Gun Turret, AA Gun | Tesla Coil, SAM Site |

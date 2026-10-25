@@ -206,7 +206,7 @@ function jetModel(pal, mig) {
 function infModel(pal, faction, type, frame) {
   const m = new VModel(-8, -5, 11, 5, 21);
   const sov = faction === 'soviets';
-  const step = frame === 1 ? 1.5 : frame === 2 ? -1.5 : 0;
+  const step = frame === 1 ? 1.5 : frame === 2 ? -1.5 : 0, throwing = frame === 3;
   const pants = sov ? '#6a604a' : '#5f6a44', webbing = '#3b3324', helm = sov ? '#7d7a52' : '#7a8a52', skin = '#d29a72';
   // Boots and legs, swinging when walking
   for (const [y0, s] of [[-2, step], [0, -step]]) {
@@ -221,9 +221,16 @@ function infModel(pal, faction, type, frame) {
   m.paint(-1, -2, 9, 1, 2, 14, (x, y, z) => (x === 0 && (y + z) % 5 === 0) ? webbing : undefined);
   m.box(-1, -2, 13, 1, 2, 14, shadeInt(pal.main, 0.8));
   // Arms reaching forward to the weapon, hands in skin tone
-  m.box(-1, -3, 10, 1, -2, 14, pal.main); m.box(-1, 2, 10, 1, 3, 14, pal.main);
-  m.box(1, -3, 10, 3, -2, 11, pal.main); m.box(1, 2, 10, 3, 3, 11, pal.main);
-  m.set(3, -3, 10, skin); m.set(3, 2, 10, skin);
+  if (type === 'grenadier') {
+    m.box(-1, 2, 10, 1, 3, 14, pal.main); m.box(1, 2, 10, 2, 3, 11, pal.main); m.set(2, 2, 10, skin);
+    if (throwing) { m.box(-2, -3, 13, 0, -2, 19, pal.main); m.set(-2, -3, 19, skin); m.box(-3, -3.5, 19, -1, -1.5, 21, '#3f4a2a'); }
+    else { m.box(-1, -3, 9, 1, -2, 14, pal.main); m.set(0, -3, 9, skin); m.box(0, -3.5, 8, 2, -2.5, 9.5, '#3f4a2a'); }
+    for (const y of [-2, 1]) m.box(1, y, 8, 2, y + 1, 9.5, '#3f4a2a');     // grenade pouches
+  } else {
+    m.box(-1, -3, 10, 1, -2, 14, pal.main); m.box(-1, 2, 10, 1, 3, 14, pal.main);
+    m.box(1, -3, 10, 3, -2, 11, pal.main); m.box(1, 2, 10, 3, 3, 11, pal.main);
+    m.set(3, -3, 10, skin); m.set(3, 2, 10, skin);
+  }
   // Pack on the back
   m.box(-3, -1.5, 9, -1, 1.5, 13, C.oliveD);
   m.box(-3, -1.5, 13, -1, 1.5, 14, '#3e4528');
@@ -233,7 +240,9 @@ function infModel(pal, faction, type, frame) {
   m.box(-1.5, -2, 16, 2.5, 2, 17, shadeInt(helm, 0.75));
   m.box(-1, -1.5, 17, 2, 1.5, 18.5, helm);
   if (sov) m.set(2, 0, 17, '#c8281e');
-  if (type === 'rocket') {
+  if (type === 'grenadier') {
+    m.box(-1, -1, 17, 2, 1, 18.5, '#5e4a34');            // field cap instead of a steel helmet
+  } else if (type === 'rocket') {
     m.cylX(-6, 5, -2.5, 15.5, 1.3, '#56603a');
     m.box(5, -3.5, 14.5, 7, -1.5, 16.5, '#2a2a24');
     m.box(-7, -3.5, 14.5, -6, -1.5, 16.5, '#2a2a24');

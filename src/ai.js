@@ -77,7 +77,10 @@ function aiThink(team) {
   const army = G.entities.filter((e) => e.alive && e.team === team.id && e.kind === 'unit' && !e.def.harvester).length;
   if (army > 45) return;
   const iq = team.queues.infantry;
-  if (c.barracks && iq.length < 2 && money > 150) startProduction(team, Math.random() < 0.6 ? 'rifle' : 'rocket');
+  if (c.barracks && iq.length < 2 && money > 150) {
+    const r = Math.random();
+    startProduction(team, r < 0.45 ? 'rifle' : team.faction === 'soviets' && r < 0.72 ? 'grenadier' : 'rocket');
+  }
   if (c.factory && vq.length < 2 && money > 500) {
     const opts = team.faction === 'allies' ? ['ltank', 'mtank', 'mtank', 'ranger'] : ['htank', 'htank', 'htank', 'mammoth'];
     startProduction(team, opts[Math.floor(Math.random() * opts.length)]);
