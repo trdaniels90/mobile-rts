@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pocket Siege</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="description" content="Allies versus Soviets real-time strategy for iPhone and web browsers.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pocket Siege">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@600;700&family=Black+Ops+One&family=VT323&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- BEGIN BODY -->
+<canvas id="game" aria-label="Battlefield"></canvas>
+
+<div id="eva" role="status" hidden></div>
+
+<div id="selbar" hidden>
+  <div class="sel-info"><span id="selName"></span><span id="selHp" class="bar"></span></div>
+  <div id="selBtns"></div>
+</div>
+
+<div id="placebar" hidden>
+  <span id="placeText"></span>
+  <button id="placeOk" type="button">PLACE</button>
+  <button id="placeCancel" type="button">CANCEL</button>
+</div>
+
+<div id="topstrip">
+  <button id="menuBtn" class="tab" type="button">Options</button>
+  <div id="credits" class="tab credits">0</div>
+</div>
+
+<aside id="sidebar" data-faction="allies">
+  <div class="sb-radar"><canvas id="radar" aria-label="Radar"></canvas></div>
+  <div class="sb-buttons">
+    <button id="autoBtn" class="icon auto" type="button" aria-pressed="true" title="Auto attack: new units head for the enemy base"><span>⚔</span><small>AUTO</small></button>
+    <button id="homeBtn" class="icon" type="button" title="Back to base"><span>⌂</span><small>BASE</small></button>
+    <button id="boxBtn" class="icon touch-only" type="button" aria-pressed="false" title="Drag to select units"><span>⬚</span><small>SELECT</small></button>
+  </div>
+  <div class="sb-strips">
+    <div id="powerBar" class="power" title="Power"><i></i><b></b></div>
+    <div id="stripL" class="strip" aria-label="Structures"></div>
+    <div id="stripR" class="strip" aria-label="Units"></div>
+  </div>
+  <div class="sb-arrows">
+    <button type="button" data-scroll="L" data-dir="-1" aria-label="Scroll structures up">▲</button>
+    <button type="button" data-scroll="L" data-dir="1" aria-label="Scroll structures down">▼</button>
+    <button type="button" data-scroll="R" data-dir="-1" aria-label="Scroll units up">▲</button>
+    <button type="button" data-scroll="R" data-dir="1" aria-label="Scroll units down">▼</button>
+  </div>
+</aside>
+
+<div id="menu" hidden>
+  <div class="card">
+    <p class="eyebrow">Allies vs Soviets</p>
+    <h1 id="menuTitle">Pocket Siege</h1>
+    <p id="menuSub"></p>
+    <div id="stats" hidden></div>
+    <div class="pick sides" role="group" aria-label="Side">
+      <button type="button" data-faction="allies" aria-pressed="true"><span class="crest"></span>Allies<small>Fast tanks, attack helicopters, gun turrets</small></button>
+      <button type="button" data-faction="soviets" aria-pressed="false"><span class="crest"></span>Soviets<small>Heavy armour, Tesla coils, MiGs</small></button>
+    </div>
+    <div class="pick diff" role="group" aria-label="Difficulty">
+      <button type="button" data-diff="easy" aria-pressed="false">Easy</button>
+      <button type="button" data-diff="normal" aria-pressed="true">Normal</button>
+      <button type="button" data-diff="hard" aria-pressed="false">Hard</button>
+    </div>
+    <div class="buttons">
+      <button id="resumeBtn" class="primary alt" type="button" hidden>Resume</button>
+      <button id="startBtn" class="primary" type="button">Start mission</button>
+    </div>
+    <div class="audio" role="group" aria-label="Sound">
+      <button type="button" data-audio="music" aria-pressed="true">Music</button>
+      <button type="button" data-audio="sfx" aria-pressed="true">Effects</button>
+      <button type="button" data-audio="voice" aria-pressed="true">Voice</button>
+      <button type="button" id="trackBtn" class="track">Next track <span id="trackName"></span></button>
+      <p id="audioStatus" class="audio-status">Sound: waiting for a tap</p>
+    </div>
+    <details class="how">
+      <summary>Briefing</summary>
+      <ul>
+        <li>The left column of the sidebar builds structures, the right column builds units. Start with a Power Plant, then an Ore Refinery. Every refinery comes with an Ore Truck that harvests on its own.</li>
+        <li>A Barracks, War Factory, Helipad and Airfield unlock infantry, tanks, helicopters and jets.</li>
+        <li>With <b>Auto Attack</b> on, every new combat unit heads straight for the enemy base. Turn it off to keep new units home on guard.</li>
+        <li class="touch-only">Tap a unit, then tap the ground to move or an enemy to attack. Drag to scroll, pinch to zoom, hold then drag to select a group. Hold a build icon to cancel it.</li>
+        <li class="mouse-only">Click a unit, then click the ground to move or an enemy to attack. Drag a box to select a group, right click to deselect. Arrow keys or WASD scroll, the wheel zooms, right click a build icon to cancel it.</li>
+        <li>Keep power above demand or production slows and Tesla coils go dark. Destroy every enemy structure to win.</li>
+      </ul>
+    </details>
+  </div>
+</div>
+<!-- END BODY -->
+<script src="src/data.js"></script>
+<script src="src/voxel.js"></script>
+<script src="src/models.js"></script>
+<script src="src/art.js"></script>
+<script src="src/world.js"></script>
+<script src="src/ai.js"></script>
+<script src="src/voices.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/ui.js"></script>
+</body>
+</html>
