@@ -29,7 +29,6 @@
   if (!FACTIONS[faction]) faction = 'allies';
   if (!DIFFICULTY[diffKey]) diffKey = 'normal';
 
-  buildOreSprites();
 
   // ---------------------------------------------------------------------------
   // EVA messages
@@ -135,9 +134,7 @@
     const r0 = Math.max(0, Math.floor(oy / CELL)), r1 = Math.min(MAP - 1, Math.floor((oy + bh) / CELL));
     for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
       const o = G.ore[idx(cx, cy)];
-      if (!o) continue;
-      const lv = o >= 190 ? 3 : o >= 120 ? 2 : o >= 60 ? 1 : 0;
-      v.drawImage(oreSprites[lv][((cx * 7 + cy * 13) & 3)], cx * CELL, cy * CELL);
+      if (o) drawOre(v, cx, cy, o);
     }
 
     const x0 = ox - 80, y0 = oy - 80, x1 = ox + bw + 80, y1 = oy + bh + 80;
@@ -152,7 +149,7 @@
     const baseY = (e) => e.kind === 'bld' ? (e.cy + e.h) * CELL : e.y;
     ground.sort((a, b) => baseY(a) - baseY(b));
     for (const e of ground) {
-      if (e.kind === 'bld') drawStructure(v, e);
+      if (e.kind === 'bld') drawStructure(v, e, G.t);
       else drawUnit(v, e, G.t);
     }
     for (const p of G.projectiles) {
@@ -180,9 +177,9 @@
         if (sel) brackets(v, bx - 1, by - 1, bx + e.w * CELL, by + e.h * CELL);
         drawHealth(v, e, bx + e.w * CELL / 2, by - 6, Math.min(48, e.w * CELL - 8));
       } else {
-        const r = e.def.r + 2, yy = e.y - (e.alt || 0);
-        if (sel) brackets(v, e.x - r, yy - r - (e.cls === 'inf' ? 4 : 0), e.x + r, yy + r);
-        drawHealth(v, e, e.x, yy - r - (e.cls === 'inf' ? 9 : 5), Math.max(10, r * 2));
+        const r = e.def.r + 2, yy = e.y - (e.alt || 0) - (e.cls === 'inf' ? 5 : 3);
+        if (sel) brackets(v, e.x - r, yy - r - (e.cls === 'inf' ? 3 : 0), e.x + r, yy + r);
+        drawHealth(v, e, e.x, yy - r - (e.cls === 'inf' ? 8 : 5), Math.max(10, r * 2));
       }
     }
 
@@ -215,38 +212,13 @@
     }
   }
 
-  function drawStructure(v, b) {
-    const s = bldSprite(b.type, b.faction);
-    const x = b.cx * CELL, y = b.cy * CELL - BTOP;
-    let k = b.buildT;
-    if (b.sellT > 0) k = Math.min(k, b.sellT / 1.2);
-    if (k < 1) {
-      // Build-up: the structure rises out of its foundation, scaffold first.
-      const hh = Math.max(1, Math.round(s.height * k));
-      v.fillStyle = 'rgba(0,0,0,0.3)'; v.fillRect(x, b.cy * CELL, b.w * CELL, b.h * CELL);
-      v.drawImage(s, 0, s.height - hh, s.width, hh, x, y + s.height - hh, s.width, hh);
-      v.fillStyle = '#d8b13a';
-      v.fillRect(x, y + s.height - hh, b.w * CELL, 1);
-      return;
-    }
-    v.drawImage(s, x, y);
-    drawBuildingTop(v, b, G.t);
-    if (b.repairing && Math.floor(G.t * 3) % 2) {
-      const cx = Math.round(b.x), cy = Math.round(b.cy * CELL + 6);
-      v.fillStyle = '#000'; v.fillRect(cx - 4, cy - 4, 9, 9);
-      v.fillStyle = '#3ed04a'; v.fillRect(cx - 3, cy - 1, 7, 3); v.fillRect(cx - 1, cy - 3, 3, 7);
-    }
-  }
-
   function drawPlacement(v) {
     const p = G.place;
     if (!p || p.cx === undefined) return;
     const d = BUILD_DEFS[p.type];
     const team = G.teams[PLAYER];
     p.ok = canPlace(team, p.type, p.cx, p.cy, 0);
-    v.globalAlpha = 0.55;
-    v.drawImage(bldSprite(p.type, team.faction), p.cx * CELL, p.cy * CELL - BTOP);
-    v.globalAlpha = 1;
+    drawGhost(v, p.type, team.faction, p.cx, p.cy);
     for (let y = 0; y < d.h; y++) for (let x = 0; x < d.w; x++) {
       const c = idx(p.cx + x, p.cy + y);
       const bad = !inMap(p.cx + x, p.cy + y) || G.block[c] || G.bld[c] || G.ore[c] || G.resv[c];

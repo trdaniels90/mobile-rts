@@ -1,6 +1,6 @@
 # Pocket Siege
 
-A real-time strategy game of Allies versus Soviets, drawn in a retro pixel-art style inspired by the mid-90s classics. It runs in any modern browser: iPhone and iPad (Safari), Android and desktop. It is plain HTML, CSS and JavaScript on a canvas, with no build step and no dependencies. All art is drawn in code; no original game assets are used.
+A Cold War real-time strategy game of Allies versus Soviets, in the pre-rendered 3D pixel-art style of the mid-90s classics. It runs in any modern browser: iPhone and iPad (Safari), Android and desktop. It is plain HTML, CSS and JavaScript on a canvas, with no build step and no dependencies. All art is generated in code: every unit, structure, tree and ore pile is a small voxel model rendered with one sun, shading, metal and glass highlights and a cast shadow, then drawn as pixel art. No original game assets are used.
 
 ## How it plays
 
@@ -37,7 +37,9 @@ A real-time strategy game of Allies versus Soviets, drawn in a retro pixel-art s
 ## Files
 
 - `src/data.js`: unit, structure, faction and damage tables
-- `src/art.js`: procedural pixel art for terrain, ore, structures, units, effects and sidebar icons
+- `src/voxel.js`: the voxel renderer (lighting, ambient occlusion, shadows, supersampling)
+- `src/models.js`: voxel models for every unit, structure, tree, rock and ore pile
+- `src/art.js`: terrain painting, sprite drawing, explosions, smoke and sidebar icons
 - `src/world.js`: map generation, pathfinding, combat, harvesting, production, shroud
 - `src/ai.js`: the computer opponent
 - `src/ui.js`: rendering, touch and mouse input, sidebar and menus

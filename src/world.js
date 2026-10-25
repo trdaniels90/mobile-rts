@@ -33,7 +33,7 @@ function newWorld(playerFaction, diffKey, seed) {
   };
   G.teams[ENEMY].credits = G.diff.credits;
   genMap(seed);
-  G.terrainCanvas = paintTerrain(G.terr, seed);
+  G.terrainCanvas = paintTerrain(G.terr, seed, G.road);
   G.tctx = G.terrainCanvas.getContext('2d');
 
   for (const team of G.teams) {
@@ -81,7 +81,7 @@ function genMap(seed) {
   const fields = [center];
   for (const f of fieldsHalf) { fields.push(f, { cx: MAP - 1 - f.cx, cy: MAP - 1 - f.cy, r: f.r, rich: f.rich }); }
   G.oreFields = fields;
-  const protectedCell = (cx, cy) => {
+  let protectedCell = (cx, cy) => {
     for (const s of [P, E]) if (Math.hypot(cx - s.cx, cy - s.cy) < 11) return true;
     for (const f of fields) if (Math.hypot(cx - f.cx, cy - f.cy) < f.r + 1.5) return true;
     return false;
@@ -94,13 +94,31 @@ function genMap(seed) {
       }
     }
   };
+  // A dirt road winds from base to base through the middle of the map.
+  const half = [[P.cx + 3, P.cy - 5], [P.cx + 9 + r() * 3, P.cy - 12 - r() * 3], [27 + r() * 3, 52 + r() * 3], [36 + r() * 2, 47 + r() * 2], [MAP / 2 - 0.5, MAP / 2 - 0.5]];
+  const pts = half.concat(half.slice(0, -1).reverse().map(([x, y]) => [MAP - 1 - x, MAP - 1 - y]));
+  const roadCells = new Set();
+  G.road = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[i + 1], n = Math.ceil(Math.hypot(bx - ax, by - ay) * 4);
+    for (let k = 0; k < n; k++) {
+      const t = k / n, x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+      G.road.push({ x: (x + 0.5) * CELL, y: (y + 0.5) * CELL });
+      for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) if (Math.hypot(ox, oy) <= 1.2) roadCells.add(idx(Math.round(x + ox), Math.round(y + oy)));
+    }
+  }
+  for (const c of roadCells) if (c >= 0 && c < NCELLS) T[c] = 1;
+  const baseProtected = protectedCell;
+  const onRoad = (cx, cy) => { for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) if (roadCells.has(idx(cx + ox, cy + oy))) return true; return false; };
+  protectedCell = (cx, cy) => baseProtected(cx, cy) || onRoad(cx, cy) || onRoad(MAP - 1 - cx, MAP - 1 - cy);
+
   // Generate across the half below the anti-diagonal; set() mirrors it.
-  const half = () => { let x, y; do { x = 2 + r() * (MAP - 4); y = 2 + r() * (MAP - 4); } while (x + y < MAP - 6); return [x, y]; };
-  for (let i = 0; i < 9; i++) { const [x, y] = half(); blob(x, y, 2 + r() * 4, 1, 0.95); }
-  for (let i = 0; i < 2; i++) { const [x, y] = half(); blob(x, y, 2.5 + r() * 2.5, 4, 1); }
-  for (let i = 0; i < 9; i++) { const [x, y] = half(); blob(x, y, 1.5 + r() * 2.8, 2, 0.75); }
+  const halfPt = () => { let x, y; do { x = 2 + r() * (MAP - 4); y = 2 + r() * (MAP - 4); } while (x + y < MAP - 6); return [x, y]; };
+  for (let i = 0; i < 9; i++) { const [x, y] = halfPt(); blob(x, y, 2 + r() * 4, 1, 0.95); }
+  for (let i = 0; i < 2; i++) { const [x, y] = halfPt(); blob(x, y, 2.5 + r() * 2.5, 4, 1); }
+  for (let i = 0; i < 9; i++) { const [x, y] = halfPt(); blob(x, y, 1.5 + r() * 2.8, 2, 0.75); }
   for (let i = 0; i < 6; i++) {
-    let [x, y] = half(); x = Math.floor(x); y = Math.floor(y);
+    let [x, y] = halfPt(); x = Math.floor(x); y = Math.floor(y);
     const len = 3 + Math.floor(r() * 6), dx = r() < 0.5 ? 1 : 0, dy = 1 - dx;
     for (let k = 0; k < len; k++) { if (!protectedCell(x, y)) set(x, y, 3); x += dx + (r() < 0.25 ? 1 : 0); y += dy + (r() < 0.25 ? 1 : 0); }
   }
@@ -403,20 +421,28 @@ function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget 
 // ---------------------------------------------------------------------------
 const PROJ_SPEED = { shell: 430, rocket: 250, missile: 330, flak: 560 };
 
-function muzzle(src, w) {
+function muzzle(src) {
   if (src.kind === 'bld') {
-    if (src.type === 'tesla') return { x: src.cx * CELL + 12, y: src.cy * CELL - 15 };
-    return { x: src.x + Math.cos(src.tface) * 10, y: src.y + Math.sin(src.tface) * 10 - 2 };
+    if (src.type === 'tesla') return { x: src.cx * CELL + 12, y: src.cy * CELL + 35 - 50 * VK };
+    const h = HEADS[src.type];
+    const hx = src.cx * CELL + h[1], hy = src.cy * CELL + h[2] - (h[3] + 2) * VK;
+    return { x: hx + Math.cos(src.tface) * 13, y: hy + Math.sin(src.tface) * 13 };
   }
-  const alt = src.alt || 0, a = src.cls === 'veh' ? src.tface : src.face;
-  const len = src.def.size ? (src.def.size.tur || 0) + (src.def.size.barrel || 6) : 7;
-  return { x: src.x + Math.cos(a) * len, y: src.y - alt + Math.sin(a) * len - (src.cls === 'inf' ? 2 : 0) };
+  if (src.cls === 'air') return { x: src.x + Math.cos(src.face) * 9, y: src.y - (src.alt || 0) + Math.sin(src.face) * 9 };
+  if (src.cls === 'inf') return { x: src.x + Math.cos(src.face) * 7, y: src.y + Math.sin(src.face) * 7 - 7 };
+  const s = src.def.size, len = s.tur ? s.tur + s.barrel : 8, z = (TURRET_Z[src.def.draw] + 1.5) * VK;
+  return { x: src.x + Math.cos(src.tface) * len, y: src.y + Math.sin(src.tface) * len - z };
+}
+// Where shots should land on a target (its body, not its feet).
+function aimY(t) {
+  if (t.kind === 'bld') return t.y - 6;
+  return t.y - (t.alt || 0) - (t.cls === 'inf' ? 5 : 4);
 }
 
 function fireWeapon(src, w, t) {
-  const m = muzzle(src, w);
+  const m = muzzle(src);
   src.fireT = 0.1;
-  const ty = t.y - (t.alt || 0);
+  const ty = aimY(t);
   if (w.proj === 'bullet') {
     const jx = (Math.random() - 0.5) * 6, jy = (Math.random() - 0.5) * 6;
     damage(t, w.dmg, w.wh, src);
@@ -440,7 +466,7 @@ function updateProjectiles(dt) {
   for (const p of G.projectiles) {
     if (p.delay > 0) { p.delay -= dt; continue; }
     const t = p.target;
-    const tx = t.x, ty = t.y - (t.alt || 0);
+    const tx = t.x, ty = aimY(t);
     const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy), step = p.speed * dt;
     p.a = Math.atan2(dy, dx);
     if (p.kind === 'rocket' || p.kind === 'missile') {
@@ -510,9 +536,8 @@ function kill(e, attacker) {
     if (e.cls === 'inf') {
       G.effects.push({ type: 'corpse', x: e.x, y: e.y, faction: e.faction, t: 0, life: 8 });
     } else if (e.cls === 'veh') {
-      const s = e.def.size;
-      G.effects.push({ type: 'expl', x: e.x, y: e.y, size: 14, t: 0, life: 0.8, seed, debris: true });
-      G.effects.push({ type: 'husk', x: e.x, y: e.y, face: e.face, len: s.len, wid: s.wid, t: 0, life: 9 });
+      G.effects.push({ type: 'expl', x: e.x, y: e.y - 4, size: 16, t: 0, life: 0.8, seed, debris: true });
+      G.effects.push({ type: 'husk', x: e.x, y: e.y, face: e.face, tface: e.tface, def: e.def, t: 0, life: 12 });
       for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: e.x + (Math.random() - 0.5) * 8, y: e.y + (Math.random() - 0.5) * 6, t: -i * 0.3, life: 2.5 + Math.random() * 2 });
       scorch(G.tctx, e.x, e.y, 12, seed);
     } else {
@@ -890,10 +915,10 @@ function updateBuilding(b, dt) {
   if (b.smokeT <= 0) {
     const f = b.hp / b.maxHp;
     b.smokeT = 0.18 + Math.random() * 0.2;
-    const px = (b.cx + 0.2 + Math.random() * (b.w - 0.4)) * CELL, py = (b.cy + 0.2 + Math.random() * (b.h - 0.6)) * CELL;
+    const px = (b.cx + 0.2 + Math.random() * (b.w - 0.4)) * CELL, py = (b.cy + 0.2 + Math.random() * (b.h - 0.6)) * CELL - 10;
     if (f < 0.5) G.effects.push({ type: 'smoke', x: px, y: py, vy: -14, vx: 5, r: 3 + Math.random() * 3, t: 0, life: 1.6, alpha: 0.55, color: '#3a3733' });
     if (f < 0.25) G.effects.push({ type: 'fire', x: px, y: py + 4, t: 0, life: 0.6 });
-    if (b.type === 'power' && b.buildT >= 1 && Math.random() < 0.6) G.effects.push({ type: 'smoke', x: b.cx * CELL + 39, y: b.cy * CELL - 17, vy: -16, vx: 6, r: 2.5, t: 0, life: 1.8, alpha: 0.4, color: '#c9c7c0' });
+    if (b.type === 'power' && b.buildT >= 1 && Math.random() < 0.6) G.effects.push({ type: 'smoke', x: b.cx * CELL + 38, y: b.cy * CELL + 14 - 42 * VK, vy: -16, vx: 6, r: 2.5, t: 0, life: 1.8, alpha: 0.4, color: '#c9c7c0' });
   }
   const w = b.def.weapon;
   if (!w || b.buildT < 1) return;
