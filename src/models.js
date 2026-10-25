@@ -206,7 +206,7 @@ function jetModel(pal, mig) {
 function infModel(pal, faction, type, frame) {
   const m = new VModel(-6, -4, 8, 4, 16);
   const step = frame === 1 ? 1 : frame === 2 ? -1 : 0;
-  const pants = faction === 'soviets' ? '#5a5240' : '#55603c';
+  const pants = faction === 'soviets' ? '#6a604a' : '#5f6a44';
   // Legs and boots
   m.box(step, -1.5, 0, step + 1, -0.5, 5, pants); m.box(-step, 0.5, 0, -step + 1, 1.5, 5, pants);
   m.box(step, -1.5, 0, step + 2, -0.5, 1, C.black); m.box(-step, 0.5, 0, -step + 2, 1.5, 1, C.black);
@@ -217,7 +217,7 @@ function infModel(pal, faction, type, frame) {
   m.box(-1.5, -1, 6, -0.5, 1, 9, C.oliveD);                    // pack
   // Head and helmet
   m.box(0, -0.5, 10, 1, 0.5, 12, C.skin);
-  m.box(-0.5, -1, 12, 1.5, 1, 13.5, faction === 'soviets' ? '#6b5a40' : '#5c6a3c');
+  m.box(-0.5, -1, 12, 1.5, 1, 13.5, faction === 'soviets' ? '#8a7656' : '#7a8a52');
   if (type === 'rocket') { m.cylX(-4, 4, 1.8, 11, 1, C.olive); m.box(4, 1, 10, 5, 2.5, 12, C.black); }
   else { m.box(1, 1.5, 8, 7, 2.5, 9, C.gun, M_METAL); }
   return m;
@@ -454,7 +454,7 @@ function turretSprite(u, pal) {
   return null;
 }
 function infSprite(u, pal, frame) {
-  return facingSprite(`I${u.type}${pal.key}${frame}`, () => infModel(pal, u.faction, u.type, frame), u.face, 16);
+  return facingSprite(`I${u.type}${pal.key}${frame}`, () => infModel(pal, u.faction, u.type, frame), u.face, 16, { crisp: true });
 }
 const TURRET_Z = { tank: 7, jeep: 5 };
 

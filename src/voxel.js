@@ -175,7 +175,7 @@ function renderVox(m, angle, opts) {
       for (let xx = Math.max(0, x0); xx < Math.min(BW, x1); xx++) buf[row + xx] = pix;
     }
   }
-  const img = downsample(buf, BW, BH, W, H, false);
+  const img = downsample(buf, BW, BH, W, H, false, opts.crisp);
   const out = { img, ox: minX, oy: minY };
   if (opts.shadow !== false) {
     const SW = Math.max(1, Math.ceil((smaxX - sminX) * scale) + 1), SH = Math.max(1, Math.ceil((smaxY - sminY) * scale) + 1);
@@ -194,7 +194,8 @@ function renderVox(m, angle, opts) {
   return out;
 }
 
-function downsample(buf, BW, BH, W, H, shadow) {
+// `crisp` keeps hard pixel edges (for tiny sprites such as infantry) instead of soft coverage.
+function downsample(buf, BW, BH, W, H, shadow, crisp) {
   const c = mkCanvas(W, H), g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
   const SS = SUPER * SUPER;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -207,9 +208,18 @@ function downsample(buf, BW, BH, W, H, shadow) {
     if (!a) continue;
     const o = (y * W + x) * 4;
     if (shadow) { d[o + 3] = Math.round(a / SS * 255); continue; }
+    if (crisp) {
+      if (a * 2 < SS) continue;
+      // Use one sample rather than the average so colours stay sharp.
+      let p = buf[(y * SUPER + SUPER - 1) * BW + x * SUPER];
+      if (!p) p = buf[(y * SUPER) * BW + x * SUPER + SUPER - 1] || buf[(y * SUPER) * BW + x * SUPER] || buf[(y * SUPER + SUPER - 1) * BW + x * SUPER + SUPER - 1];
+      d[o] = p & 255; d[o + 1] = (p >> 8) & 255; d[o + 2] = (p >> 16) & 255; d[o + 3] = 255;
+      continue;
+    }
     d[o] = r / a; d[o + 1] = gg / a; d[o + 2] = b / a; d[o + 3] = Math.round(a / SS * 255);
   }
   if (!shadow) {
+    const k = crisp ? 0.42 : 0.62;
     // Darken the silhouette edge for the crisp outline of pre-rendered sprites.
     const alpha = new Uint8Array(W * H);
     for (let i = 0; i < W * H; i++) alpha[i] = d[i * 4 + 3];
@@ -217,7 +227,7 @@ function downsample(buf, BW, BH, W, H, shadow) {
       const i = y * W + x;
       if (alpha[i] < 128) continue;
       const edge = x === 0 || y === 0 || x === W - 1 || y === H - 1 || alpha[i - 1] < 128 || alpha[i + 1] < 128 || alpha[i - W] < 128 || alpha[i + W] < 128;
-      if (edge) { d[i * 4] *= 0.62; d[i * 4 + 1] *= 0.62; d[i * 4 + 2] *= 0.62; }
+      if (edge) { d[i * 4] *= k; d[i * 4 + 1] *= k; d[i * 4 + 2] *= k; }
     }
   }
   g.putImageData(img, 0, 0);
