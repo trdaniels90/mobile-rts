@@ -204,22 +204,45 @@ function jetModel(pal, mig) {
 // Infantry: 16 facings x 3 frames (standing, two walking poses)
 // ---------------------------------------------------------------------------
 function infModel(pal, faction, type, frame) {
-  const m = new VModel(-6, -4, 8, 4, 16);
-  const step = frame === 1 ? 1 : frame === 2 ? -1 : 0;
-  const pants = faction === 'soviets' ? '#6a604a' : '#5f6a44';
-  // Legs and boots
-  m.box(step, -1.5, 0, step + 1, -0.5, 5, pants); m.box(-step, 0.5, 0, -step + 1, 1.5, 5, pants);
-  m.box(step, -1.5, 0, step + 2, -0.5, 1, C.black); m.box(-step, 0.5, 0, -step + 2, 1.5, 1, C.black);
-  // Tunic in the side's colour, belt, arms
-  m.box(-0.5, -1.5, 5, 1.5, 1.5, 10, pal.main);
-  m.box(-0.5, -1.5, 6, 1.5, 1.5, 7, '#3a3424');
-  m.box(0, -2.5, 7, 1, -1.5, 10, pal.main); m.box(0, 1.5, 7, 1, 2.5, 10, pal.main);
-  m.box(-1.5, -1, 6, -0.5, 1, 9, C.oliveD);                    // pack
-  // Head and helmet
-  m.box(0, -0.5, 10, 1, 0.5, 12, C.skin);
-  m.box(-0.5, -1, 12, 1.5, 1, 13.5, faction === 'soviets' ? '#8a7656' : '#7a8a52');
-  if (type === 'rocket') { m.cylX(-4, 4, 1.8, 11, 1, C.olive); m.box(4, 1, 10, 5, 2.5, 12, C.black); }
-  else { m.box(1, 1.5, 8, 7, 2.5, 9, C.gun, M_METAL); }
+  const m = new VModel(-8, -5, 11, 5, 21);
+  const sov = faction === 'soviets';
+  const step = frame === 1 ? 1.5 : frame === 2 ? -1.5 : 0;
+  const pants = sov ? '#6a604a' : '#5f6a44', webbing = '#3b3324', helm = sov ? '#7d7a52' : '#7a8a52', skin = '#d29a72';
+  // Boots and legs, swinging when walking
+  for (const [y0, s] of [[-2, step], [0, -step]]) {
+    m.box(s - 1, y0, 0, s + 2, y0 + 2, 2, C.black);
+    m.box(s - 1, y0, 2, s + 1, y0 + 2, 8, pants);
+    m.box(s - 1, y0, 7, s + 1, y0 + 2, 8, shadeInt(pants, 0.82));
+  }
+  // Belt, tunic in the side's colour, webbing straps crossing the chest
+  m.box(-1, -2, 8, 1, 2, 9, webbing);
+  m.set(1, 0, 8, '#c9a227', M_METAL);
+  m.box(-1, -2, 9, 1, 2, 14, pal.main);
+  m.paint(-1, -2, 9, 1, 2, 14, (x, y, z) => (x === 0 && (y + z) % 5 === 0) ? webbing : undefined);
+  m.box(-1, -2, 13, 1, 2, 14, shadeInt(pal.main, 0.8));
+  // Arms reaching forward to the weapon, hands in skin tone
+  m.box(-1, -3, 10, 1, -2, 14, pal.main); m.box(-1, 2, 10, 1, 3, 14, pal.main);
+  m.box(1, -3, 10, 3, -2, 11, pal.main); m.box(1, 2, 10, 3, 3, 11, pal.main);
+  m.set(3, -3, 10, skin); m.set(3, 2, 10, skin);
+  // Pack on the back
+  m.box(-3, -1.5, 9, -1, 1.5, 13, C.oliveD);
+  m.box(-3, -1.5, 13, -1, 1.5, 14, '#3e4528');
+  // Head, face and helmet with a rim
+  m.box(-0.5, -1, 14, 1.5, 1, 17, skin);
+  m.set(1, -1, 15, '#3a2a20'); m.set(1, 0, 15, '#3a2a20');
+  m.box(-1.5, -2, 16, 2.5, 2, 17, shadeInt(helm, 0.75));
+  m.box(-1, -1.5, 17, 2, 1.5, 18.5, helm);
+  if (sov) m.set(2, 0, 17, '#c8281e');
+  if (type === 'rocket') {
+    m.cylX(-6, 5, -2.5, 15.5, 1.3, '#56603a');
+    m.box(5, -3.5, 14.5, 7, -1.5, 16.5, '#2a2a24');
+    m.box(-7, -3.5, 14.5, -6, -1.5, 16.5, '#2a2a24');
+    m.box(1, -3, 13, 2, -2, 15, '#2a2a24');
+  } else {
+    m.box(3, -1, 10, 10, 0, 11, C.gun, M_METAL);
+    m.box(-1, -1, 10, 3, 0, 11.5, '#6a4426');
+    m.box(4, -1, 9, 5, 0, 10, C.gun, M_METAL);
+  }
   return m;
 }
 

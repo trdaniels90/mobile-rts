@@ -14,7 +14,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
 function turnToward(cur, target, step) { const d = angDiff(target, cur); return Math.abs(d) <= step ? target : cur + Math.sign(d) * step; }
 
-let hooks = { eva() {}, gameOver() {} };
+let hooks = { eva() {}, gameOver() {}, sfx() {} };
 
 // ---------------------------------------------------------------------------
 // New game
@@ -430,18 +430,25 @@ function muzzle(src) {
     return { x: hx + Math.cos(src.tface) * 13, y: hy + Math.sin(src.tface) * 13 };
   }
   if (src.cls === 'air') return { x: src.x + Math.cos(src.face) * 9, y: src.y - (src.alt || 0) + Math.sin(src.face) * 9 };
-  if (src.cls === 'inf') return { x: src.x + Math.cos(src.face) * 7, y: src.y + Math.sin(src.face) * 7 - 7 };
+  if (src.cls === 'inf') return { x: src.x + Math.cos(src.face) * 10, y: src.y + Math.sin(src.face) * 10 - 11 };
   const s = src.def.size, len = s.tur ? s.tur + s.barrel : 8, z = (TURRET_Z[src.def.draw] + 1.5) * VK;
   return { x: src.x + Math.cos(src.tface) * len, y: src.y + Math.sin(src.tface) * len - z };
 }
 // Where shots should land on a target (its body, not its feet).
 function aimY(t) {
   if (t.kind === 'bld') return t.y - 6;
-  return t.y - (t.alt || 0) - (t.cls === 'inf' ? 5 : 4);
+  return t.y - (t.alt || 0) - (t.cls === 'inf' ? 8 : 4);
+}
+
+function weaponSound(src, w) {
+  if (w.proj === 'bullet') return src.cls === 'inf' ? 'rifle' : 'mg';
+  if (w.proj === 'shell') return w.twin ? 'cannonHeavy' : 'cannon';
+  return w.proj;
 }
 
 function fireWeapon(src, w, t) {
   const m = muzzle(src);
+  hooks.sfx(weaponSound(src, w), src.x, src.y);
   src.fireT = 0.1;
   const ty = aimY(t);
   if (w.proj === 'bullet') {
@@ -498,6 +505,7 @@ function impact(kind, x, y, inAir) {
     G.effects.push({ type: 'smoke', x, y, r: 4, t: 0, life: 0.6, alpha: 0.8, color: '#2a2826' });
     G.effects.push({ type: 'spark', x, y, t: 0, life: 0.1 });
   } else {
+    hooks.sfx(kind === 'shell' ? 'hitSmall' : 'hitMed', x, y);
     const size = kind === 'shell' ? 6 : 8;
     G.effects.push({ type: 'expl', x, y, size, t: 0, life: 0.45, seed: (Math.random() * 1e6) | 0 });
     if (!inAir && Math.random() < 0.5) scorch(G.tctx, x, y, size * 0.8, (Math.random() * 1e6) | 0);
@@ -537,11 +545,13 @@ function kill(e, attacker) {
     if (e.cls === 'inf') {
       G.effects.push({ type: 'corpse', x: e.x, y: e.y, faction: e.faction, t: 0, life: 8 });
     } else if (e.cls === 'veh') {
+      hooks.sfx('explodeVeh', e.x, e.y);
       G.effects.push({ type: 'expl', x: e.x, y: e.y - 4, size: 16, t: 0, life: 0.8, seed, debris: true });
       G.effects.push({ type: 'husk', x: e.x, y: e.y, face: e.face, tface: e.tface, def: e.def, t: 0, life: 12 });
       for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: e.x + (Math.random() - 0.5) * 8, y: e.y + (Math.random() - 0.5) * 6, t: -i * 0.3, life: 2.5 + Math.random() * 2 });
       scorch(G.tctx, e.x, e.y, 12, seed);
     } else {
+      hooks.sfx('explodeVeh', e.x, e.y);
       G.effects.push({ type: 'expl', x: e.x, y: e.y - (e.alt || 0), size: 12, t: 0, life: 0.7, seed, debris: true });
       G.effects.push({ type: 'expl', x: e.x, y: e.y, size: 10, t: -0.35, life: 0.6, seed: seed + 1 });
       scorch(G.tctx, e.x, e.y, 10, seed);
@@ -551,6 +561,7 @@ function kill(e, attacker) {
     for (let y = e.cy; y < e.cy + e.h; y++) for (let x = e.cx; x < e.cx + e.w; x++) if (G.bld[idx(x, y)] === e.id) G.bld[idx(x, y)] = 0;
     if (e.exitCell !== undefined) G.resv[e.exitCell] = 0;
     if (e.sellT <= 0) {
+      hooks.sfx('explodeBig', e.x, e.y);
       const n = e.w * e.h + 2;
       for (let i = 0; i < n; i++) {
         G.effects.push({ type: 'expl', x: (e.cx + Math.random() * e.w) * CELL, y: (e.cy + Math.random() * e.h) * CELL, size: 10 + Math.random() * 8,
@@ -964,6 +975,7 @@ function placeStructure(team, type, cx, cy) {
   if (!q || !q.ready || q.type !== type || !canPlace(team, type, cx, cy, team.isAI ? 1 : 0)) return false;
   team.queues.structure = null;
   const b = addBuilding(type, team, cx, cy);
+  hooks.sfx('place', b.x, b.y);
   if (type === 'refinery') {
     const p = cellCenter(b.exitCell);
     const h = addUnit('harv', team, p.x, p.y);

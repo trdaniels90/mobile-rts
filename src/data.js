@@ -31,12 +31,12 @@ const WARHEADS = {
 const UNIT_DEFS = {
   rifle: {
     name: 'Rifle Infantry', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
-    cost: 100, hp: 50, armor: 'inf', speed: 26, sight: 4, r: 4,
+    cost: 100, hp: 50, armor: 'inf', speed: 26, sight: 4, r: 5,
     weapon: { dmg: 14, rof: 0.9, range: 70, wh: 'SA', proj: 'bullet' },
   },
   rocket: {
     name: 'Rocket Soldier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
-    cost: 300, hp: 45, armor: 'inf', speed: 24, sight: 5, r: 4,
+    cost: 300, hp: 45, armor: 'inf', speed: 24, sight: 5, r: 5,
     weapon: { dmg: 45, rof: 2.2, range: 120, wh: 'HE', proj: 'rocket', air: true },
   },
   ranger: {

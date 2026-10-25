@@ -223,6 +223,15 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 }
 .primary.alt { color: #06210a; background: linear-gradient(180deg, #7fe07a, #2f9a35); border-color: #b9f5b2 #0f4413 #0f4413 #b9f5b2; }
 .primary:disabled { filter: grayscale(0.6); }
+.audio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.audio button {
+  min-height: 36px; padding: 4px; font-weight: 700; font-size: 14px; color: #8d9286;
+  background: var(--well); border: 2px solid; border-color: var(--metal-lo) var(--metal-hi) var(--metal-hi) var(--metal-lo);
+}
+.audio button[aria-pressed="true"] { color: #fff; border-color: var(--amber); }
+.audio button[aria-pressed="true"]::before { content: '● '; color: var(--green); }
+.audio .track { grid-column: 1 / -1; color: var(--ink); }
+.audio .track span { color: var(--amber); }
 .how summary { cursor: pointer; color: var(--amber); font-size: 16px; font-weight: 700; }
 .how ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 15px; line-height: 1.3; }
 

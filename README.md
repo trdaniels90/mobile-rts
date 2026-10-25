@@ -10,6 +10,10 @@ A Cold War real-time strategy game of Allies versus Soviets, in the pre-rendered
 - Keep power above demand, or production slows and Tesla Coils go dark.
 - Destroy every enemy structure to win.
 
+## Sound
+
+Everything you hear is synthesised live with the Web Audio API; there are no audio files. Weapons, impacts and explosions are positioned by the camera (louder on screen, panned left or right). Announcements and unit acknowledgements use the device's speech voice. The soundtrack is three original pieces in a 90s industrial-metal style, written as a homage to classic RTS scores: *Iron Fist March*, *Grind Protocol* and *Cold Front*. Music, effects and voice can be switched off in Options. On iPhone the game asks for playback audio, so it plays even with the silent switch on.
+
 | | Allies | Soviets |
 | --- | --- | --- |
 | Infantry | Rifle Infantry, Rocket Soldier | Rifle Infantry, Rocket Soldier |
@@ -42,6 +46,7 @@ A Cold War real-time strategy game of Allies versus Soviets, in the pre-rendered
 - `src/art.js`: terrain painting, sprite drawing, explosions, smoke and sidebar icons
 - `src/world.js`: map generation, pathfinding, combat, harvesting, production, shroud
 - `src/ai.js`: the computer opponent
+- `src/audio.js`: synthesised sound effects, voice and the music sequencer
 - `src/ui.js`: rendering, touch and mouse input, sidebar and menus
 - `sw.js`, `manifest.webmanifest`, `icons/`: offline support and home-screen install
 - `scripts/build-single-file.py`: bundles everything into one HTML file

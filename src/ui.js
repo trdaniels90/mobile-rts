@@ -36,6 +36,8 @@
   // ---------------------------------------------------------------------------
   let evaTimer = null;
   function eva(msg) {
+    Sound.say(msg);
+    if (/complete|ready/i.test(msg)) Sound.play('ready');
     ui.eva.textContent = msg;
     ui.eva.hidden = false;
     ui.eva.classList.remove('show'); void ui.eva.offsetWidth; ui.eva.classList.add('show');
@@ -43,7 +45,20 @@
     evaTimer = setTimeout(() => { ui.eva.hidden = true; }, 2400);
   }
   hooks.eva = eva;
-  hooks.gameOver = (won) => setTimeout(() => showMenu('end', won), 2200);
+  hooks.gameOver = (won) => setTimeout(() => { showMenu('end', won); Sound.say(won ? 'Mission accomplished' : 'Mission failed'); }, 2200);
+  // Battle sounds are louder on screen, fade with distance and pan left or right.
+  hooks.sfx = (name, x, y) => {
+    if (!G) return;
+    const hw = W / cam.z / 2, hh = H / cam.z / 2;
+    const dx = (x - (cam.x + hw)) / hw, dy = (y - (cam.y + hh)) / hh;
+    const d = Math.max(Math.abs(dx), Math.abs(dy));
+    const vol = d <= 1 ? 1 : Math.max(0, 1 - (d - 1) * 0.7);
+    Sound.play(name, vol, Math.max(-1, Math.min(1, dx)) * 0.6);
+  };
+  // Audio may only start after the player touches the page.
+  const unlockAudio = () => Sound.init();
+  document.addEventListener('pointerdown', unlockAudio, { capture: true });
+  document.addEventListener('keydown', unlockAudio, { capture: true });
 
   // ---------------------------------------------------------------------------
   // Layout & camera
@@ -65,8 +80,15 @@
   window.addEventListener('resize', layout);
   window.addEventListener('orientationchange', () => setTimeout(layout, 250));
 
+  // Zoom snaps so each game pixel covers a whole number of screen pixels; fractional
+  // scaling makes some pixels wider than others and reads as blur on phones.
+  function snapZ(z) {
+    z = Math.max(0.75, Math.min(3.5, z));
+    if (z * DPR < 1.5) return z;
+    return Math.max(1, Math.round(z * DPR)) / DPR;
+  }
   function clampCam() {
-    cam.z = Math.max(0.75, Math.min(3.5, cam.z));
+    cam.z = snapZ(cam.z);
     const vw = W / cam.z, vh = H / cam.z;
     cam.x = vw >= WORLD ? (WORLD - vw) / 2 : Math.max(0, Math.min(WORLD - vw, cam.x));
     cam.y = vh >= WORLD ? (WORLD - vh) / 2 : Math.max(0, Math.min(WORLD - vh, cam.y));
@@ -177,9 +199,9 @@
         if (sel) brackets(v, bx - 1, by - 1, bx + e.w * CELL, by + e.h * CELL);
         drawHealth(v, e, bx + e.w * CELL / 2, by - 6, Math.min(48, e.w * CELL - 8));
       } else {
-        const r = e.def.r + 2, yy = e.y - (e.alt || 0) - (e.cls === 'inf' ? 5 : 3);
-        if (sel) brackets(v, e.x - r, yy - r - (e.cls === 'inf' ? 3 : 0), e.x + r, yy + r);
-        drawHealth(v, e, e.x, yy - r - (e.cls === 'inf' ? 8 : 5), Math.max(10, r * 2));
+        const r = e.def.r + 2, yy = e.y - (e.alt || 0) - (e.cls === 'inf' ? 8 : 3);
+        if (sel) brackets(v, e.x - r, yy - r - (e.cls === 'inf' ? 5 : 0), e.x + r, yy + r + (e.cls === 'inf' ? 3 : 0));
+        drawHealth(v, e, e.x, yy - r - (e.cls === 'inf' ? 10 : 5), Math.max(10, r * 2));
       }
     }
 
@@ -311,9 +333,10 @@
     if (mine.length) {
       if (e && e.team !== PLAYER && e.team !== undefined) {
         const able = mine.filter((u) => canTarget(u, e));
-        if (able.length) { commandAttack(able, e); marker(e.x, e.y - (e.alt || 0), '#ff4a3a'); return; }
+        if (able.length) { commandAttack(able, e); marker(e.x, e.y - (e.alt || 0), '#ff4a3a'); Sound.ack('attack'); return; }
       }
       commandMove(mine, w.x, w.y);
+      Sound.ack(mine[0].cls);
       marker(w.x, w.y, '#3ed04a');
       return;
     }
@@ -410,7 +433,7 @@
     if (gesture.type === 'pinch') {
       if (pointers.size < 2) return;
       const [a, b] = [...pointers.values()];
-      cam.z = Math.max(0.75, Math.min(3.5, gesture.z0 * Math.hypot(a.x - b.x, a.y - b.y) / gesture.d0));
+      cam.z = snapZ(gesture.z0 * Math.hypot(a.x - b.x, a.y - b.y) / gesture.d0);
       cam.x = gesture.anchor.x - (a.x + b.x) / 2 / cam.z;
       cam.y = gesture.anchor.y - (a.y + b.y) / 2 / cam.z;
       clampCam();
@@ -440,7 +463,7 @@
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const p = local(e), w = s2w(p.x, p.y);
-    cam.z = Math.max(0.75, Math.min(3.5, cam.z * Math.exp(-e.deltaY * 0.0015)));
+    cam.z = snapZ(cam.z + Math.sign(-e.deltaY) * Math.max(1 / DPR, cam.z * 0.12));
     cam.x = w.x - p.x / cam.z; cam.y = w.y - p.y / cam.z;
     clampCam();
   }, { passive: false });
@@ -522,6 +545,7 @@
 
   function cameoAction(type) {
     if (!G || G.over) return;
+    Sound.play('click');
     const team = G.teams[PLAYER];
     const res = startProduction(team, type);
     if (res === 'place') beginPlace(type);
@@ -654,11 +678,11 @@
     const sel = G.selection.filter((x) => x.alive);
     const own = sel.filter((x) => x.team === PLAYER);
     const bld = sel.length === 1 && sel[0].kind === 'bld' && sel[0].team === PLAYER ? sel[0] : null;
-    if (act === 'hunt') { commandHunt(own.filter((u) => u.kind === 'unit')); eva('Attacking enemy base'); }
+    if (act === 'hunt') { commandHunt(own.filter((u) => u.kind === 'unit')); eva('Attacking enemy base'); Sound.ack('attack'); }
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
     else if (act === 'repair' && bld) bld.repairing = !bld.repairing;
     else if (act === 'sell' && bld) {
-      if (sellArmed === bld) { bld.sellT = 1.2; bld.buildT = 1; select([]); sellArmed = null; eva('Structure sold'); }
+      if (sellArmed === bld) { bld.sellT = 1.2; bld.buildT = 1; select([]); sellArmed = null; eva('Structure sold'); Sound.play('sell'); }
       else { sellArmed = bld; setTimeout(() => { sellArmed = null; selSig = ''; }, 2500); }
     } else if (act === 'close') select([]);
     selSig = '';
@@ -688,7 +712,16 @@
     ui.menu.classList.toggle('lost', mode === 'end' && !won);
     syncMenuChoices();
   }
+  for (const b of ui.menu.querySelectorAll('[data-audio]')) b.addEventListener('click', () => {
+    Sound.init();
+    const key = b.dataset.audio;
+    Sound.setOption(key, !Sound.settings[key]);
+    syncMenuChoices();
+  });
+  $('trackBtn').addEventListener('click', () => { Sound.init(); Sound.setOption('music', true); Sound.music.skip(); syncMenuChoices(); });
   function syncMenuChoices() {
+    for (const b of ui.menu.querySelectorAll('[data-audio]')) b.setAttribute('aria-pressed', String(!!Sound.settings[b.dataset.audio]));
+    $('trackName').textContent = '· ' + Sound.music.name;
     for (const b of ui.menu.querySelectorAll('[data-faction]')) b.setAttribute('aria-pressed', String(b.dataset.faction === faction));
     for (const b of ui.menu.querySelectorAll('[data-diff]')) b.setAttribute('aria-pressed', String(b.dataset.diff === diffKey));
     ui.menu.dataset.faction = faction;

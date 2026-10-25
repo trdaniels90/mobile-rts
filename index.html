@@ -79,6 +79,12 @@
       <button id="resumeBtn" class="primary alt" type="button" hidden>Resume</button>
       <button id="startBtn" class="primary" type="button">Start mission</button>
     </div>
+    <div class="audio" role="group" aria-label="Sound">
+      <button type="button" data-audio="music" aria-pressed="true">Music</button>
+      <button type="button" data-audio="sfx" aria-pressed="true">Effects</button>
+      <button type="button" data-audio="voice" aria-pressed="true">Voice</button>
+      <button type="button" id="trackBtn" class="track">Next track <span id="trackName"></span></button>
+    </div>
     <details class="how">
       <summary>Briefing</summary>
       <ul>
@@ -99,6 +105,7 @@
 <script src="src/art.js"></script>
 <script src="src/world.js"></script>
 <script src="src/ai.js"></script>
+<script src="src/audio.js"></script>
 <script src="src/ui.js"></script>
 </body>
 </html>
