@@ -42,6 +42,7 @@ const Sound = (() => {
     for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
     shaperHeavy = curve(140); shaperSoft = curve(12);
     Music.start();
+    preload();
   }
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
@@ -163,46 +164,48 @@ const Sound = (() => {
   }
 
   // ---------------------------------------------------------------------------
-  // Voice: announcements and unit acknowledgements through speech synthesis.
+  // Voice: pre-rendered neural-voice clips (src/voices.js). EVA cuts off her own previous
+  // line, and the music dips while she speaks. Lines without a clip stay silent.
   // ---------------------------------------------------------------------------
-  let voice = null, lastSay = 0, lastAck = 0;
-  function pickVoice() {
-    if (!window.speechSynthesis) return null;
-    const vs = speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang));
-    const pref = ['Samantha', 'Karen', 'Moira', 'Serena', 'Google UK English Female', 'Microsoft Zira', 'Google US English'];
-    for (const n of pref) { const v = vs.find((x) => x.name.includes(n)); if (v) return v; }
-    return vs[0] || null;
-  }
-  if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { voice = pickVoice(); };
-  function speak(text, opts) {
-    if (!settings.voice || !window.speechSynthesis) return;
+  const decoded = new Map();
+  let evaSrc = null, lastAck = 0, ackBusyUntil = 0;
+  function clipBuffer(b64, cb) {
+    if (decoded.has(b64)) { cb(decoded.get(b64)); return; }
+    const bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     try {
-      if (!voice) voice = pickVoice();
-      const u = new SpeechSynthesisUtterance(text);
-      if (voice) u.voice = voice;
-      u.rate = opts.rate || 1.0; u.pitch = opts.pitch || 0.9; u.volume = 0.9;
-      if (opts.interrupt) speechSynthesis.cancel();
-      speechSynthesis.speak(u);
+      ctx.decodeAudioData(bytes.buffer, (buf) => { decoded.set(b64, buf); cb(buf); }, () => {});
     } catch (_) {}
   }
-  function say(msg) {
-    const now = performance.now();
-    if (now - lastSay < 900 && !/attack|lost/i.test(msg)) return;
-    lastSay = now;
-    speak(msg.replace(/\.$/, ''), { rate: 1.02, pitch: 0.85, interrupt: true });
+  function playClip(b64, vol, isEva) {
+    if (!ctx || !settings.voice || ctx.state !== 'running') return;
+    clipBuffer(b64, (buf) => {
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const g = gain(vol, master); src.connect(g);
+      if (isEva) {
+        if (evaSrc) try { evaSrc.stop(); } catch (_) {}
+        evaSrc = src;
+        const now = ctx.currentTime;
+        musicBus.gain.cancelScheduledValues(now);
+        musicBus.gain.setTargetAtTime(settings.music ? 0.22 : 0, now, 0.05);
+        musicBus.gain.setTargetAtTime(settings.music ? 0.42 : 0, now + buf.duration, 0.3);
+      } else ackBusyUntil = ctx.currentTime + buf.duration;
+      src.start();
+    });
   }
-  const ACKS = {
-    inf: ['Acknowledged', 'Yes sir', 'Moving out', 'Affirmative', 'Right away'],
-    veh: ['Rolling out', 'Affirmative', 'Moving', 'Acknowledged', 'Vehicle reporting'],
-    air: ['Roger', 'In the air', 'Affirmative', 'On my way'],
-    attack: ['Engaging', 'Attacking', 'Target acquired', 'Let\'s go'],
-  };
+  const clips = typeof VOICE_CLIPS !== 'undefined' ? VOICE_CLIPS : {};
+  // Warm up the most frequent lines so the first announcement is not delayed by decoding.
+  function preload() { for (const k of ['eva:building', 'eva:construction complete', 'eva:unit ready', 'eva:our base is under attack']) if (clips[k]) clipBuffer(clips[k], () => {}); }
+  function say(msg) {
+    const b64 = clips['eva:' + msg.toLowerCase().replace(/[.!]$/, '')];
+    if (b64) playClip(b64, 1.0, true);
+  }
   function ack(kind) {
-    const now = performance.now();
-    if (now - lastAck < 1800 || (window.speechSynthesis && speechSynthesis.speaking)) return;
+    if (!ctx) return;
+    const now = performance.now(), list = clips['ack:' + kind] || clips['ack:inf'];
+    if (!list || now - lastAck < 1500 || ctx.currentTime < ackBusyUntil) return;
     lastAck = now;
-    const list = ACKS[kind] || ACKS.inf;
-    speak(list[Math.floor(Math.random() * list.length)], { rate: 1.1, pitch: kind === 'air' ? 1.05 : 0.7 });
+    playClip(list[Math.floor(Math.random() * list.length)], 0.8, false);
   }
 
   // ---------------------------------------------------------------------------
@@ -493,7 +496,7 @@ const Sound = (() => {
     if (!ctx) return;
     if (key === 'music') musicBus.gain.setTargetAtTime(on ? 0.42 : 0, ctx.currentTime, 0.1);
     if (key === 'sfx') sfxBus.gain.setTargetAtTime(on ? 0.85 : 0, ctx.currentTime, 0.05);
-    if (key === 'voice' && !on && window.speechSynthesis) speechSynthesis.cancel();
+    if (key === 'voice' && !on && evaSrc) try { evaSrc.stop(); } catch (_) {}
   }
 
   return { init, play, say, ack, settings, setOption, music: Music, get debug() { return { ctx, master }; } };

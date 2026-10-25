@@ -339,7 +339,7 @@
     if (mine.length) {
       if (e && e.team !== PLAYER && e.team !== undefined) {
         const able = mine.filter((u) => canTarget(u, e));
-        if (able.length) { commandAttack(able, e); marker(e.x, e.y - (e.alt || 0), '#ff4a3a'); Sound.ack('attack'); return; }
+        if (able.length) { commandAttack(able, e); marker(e.x, e.y - (e.alt || 0), '#ff4a3a'); Sound.ack(able[0].cls === 'inf' ? 'attack' : able[0].cls); return; }
       }
       commandMove(mine, w.x, w.y);
       Sound.ack(mine[0].cls);
