@@ -318,6 +318,7 @@ function followPath(u, dt) {
   }
   const want = Math.atan2(dy, dx);
   let speed = u.def.speed, mx, my;
+  if (u.groupSpeed && u.order.type === 'hunt' && !u.target) speed = Math.min(speed, u.groupSpeed);
   if (u.cls === 'veh') {
     const diff = angDiff(want, u.face);
     u.face = turnToward(u.face, want, u.def.turn * dt);
@@ -401,19 +402,50 @@ function acquire(src, range, weapons) {
   return best;
 }
 
+// Where attacking units head: the enemy Construction Yard, or failing that the nearest structure.
 function nearestEnemyBuilding(u) {
-  let best = null, bd = Infinity;
+  let best = null, bd = Infinity, cy = null, cd = Infinity;
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.team === u.team) continue;
     const d = dist(u, e);
     if (d < bd) { bd = d; best = e; }
+    if (e.type === 'cy' && d < cd) { cd = d; cy = e; }
   }
-  return best;
+  return cy || best;
+}
+
+// Auto attack holds new units at a rally point in front of the base and sends them
+// out together once a group of this size has gathered.
+const GROUP_SIZE = 5;
+function rallyPoint(team) {
+  const e = enemyOf(team).start, s = team.start;
+  const a = Math.atan2(e.cy - s.cy, e.cx - s.cx);
+  return { x: (s.cx + 0.5 + Math.cos(a) * 7) * CELL, y: (s.cy + 0.5 + Math.sin(a) * 7) * CELL };
+}
+function launchGroups() {
+  for (const team of G.teams) {
+    const rally = rallyPoint(team);
+    const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.def.harvester && u.order.type === 'guard');
+    const ready = waiting.filter((u) => Math.hypot(u.x - rally.x, u.y - rally.y) < CELL * 6);
+    team.waiting = ready.length;
+    if (!team.auto || ready.length < GROUP_SIZE) continue;
+    // March at the pace of the slowest ground unit so the group arrives together.
+    const ground = ready.filter((u) => u.cls !== 'air');
+    const pace = ground.length ? Math.min(...ground.map((u) => u.def.speed)) : 0;
+    for (const u of ready) {
+      setHunt(u);
+      u.staged = false;
+      u.groupSpeed = u.cls === 'air' ? 0 : pace;
+      if (u.cls === 'air' && u.as === 'landed' && u.ammo > 0) u.as = 'takeoff';
+    }
+    team.waiting = 0;
+    if (team.id === PLAYER) hooks.eva('Attack group moving out');
+  }
 }
 
 function setGuard(u, x, y) {
   u.order = { type: 'guard', x: x === undefined ? u.x : x, y: y === undefined ? u.y : y };
-  u.target = null;
+  u.target = null; u.groupSpeed = 0;
 }
 function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget = null; }
 
@@ -1107,14 +1139,12 @@ function spawnUnit(team, type) {
     u.face = u.tface = Math.PI / 2;
   }
   if (d.harvester) return u;
-  if (team.auto) setHunt(u);
-  else {
-    const e = enemyOf(team).start, s = team.start;
-    const a = Math.atan2(e.cy - s.cy, e.cx - s.cx);
-    const gx = (s.cx + Math.cos(a) * 7) * CELL + (Math.random() - 0.5) * 60, gy = (s.cy + Math.sin(a) * 7) * CELL + (Math.random() - 0.5) * 60;
-    setGuard(u, gx, gy);
-    if (u.cls !== 'air') goTo(u, gx, gy);
-  }
+  // New units gather at the rally point; auto attack launches them in groups.
+  const r = rallyPoint(team);
+  const gx = r.x + (Math.random() - 0.5) * 70, gy = r.y + (Math.random() - 0.5) * 70;
+  setGuard(u, gx, gy);
+  u.staged = true;
+  if (u.cls !== 'air') goTo(u, gx, gy);
   return u;
 }
 
@@ -1167,12 +1197,14 @@ function growOre() {
   }
 }
 
+// A side is defeated the moment its Construction Yard is destroyed.
 function checkWin() {
   if (G.over) return;
-  const pb = buildingsOf(PLAYER).length, eb = buildingsOf(ENEMY).length;
-  if (!pb || !eb) {
-    G.over = { won: !eb, t: G.t };
-    hooks.gameOver(!eb);
+  const hasCY = (tid) => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === tid && e.type === 'cy');
+  const p = hasCY(PLAYER), e = hasCY(ENEMY);
+  if (!p || !e) {
+    G.over = { won: !e, t: G.t };
+    hooks.gameOver(!e);
   }
 }
 
@@ -1192,7 +1224,7 @@ function commandMove(units, x, y) {
   const sorted = units.slice().sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
   sorted.forEach((u, i) => {
     const s = spots[i];
-    u.target = null;
+    u.target = null; u.staged = false;
     if (u.def.harvester) {
       const c = cellOfPos(x, y);
       if (G.ore[c] > 0) { u.hcell = c; u.hs = 'seek'; goTo(u, x, y); }
@@ -1210,18 +1242,18 @@ function commandMove(units, x, y) {
 function commandAttack(units, target) {
   for (const u of units) {
     if (u.def.harvester || !canTarget(u, target)) continue;
-    u.order = { type: 'attack', target };
+    u.order = { type: 'attack', target }; u.staged = false;
     u.target = target;
     if (u.cls === 'air' && u.as === 'landed' && u.ammo > 0) u.as = 'takeoff';
   }
 }
 function commandHunt(units) {
-  for (const u of units) if (!u.def.harvester) { setHunt(u); if (u.cls === 'air' && u.as === 'landed' && u.ammo > 0) u.as = 'takeoff'; }
+  for (const u of units) if (!u.def.harvester) { setHunt(u); u.staged = false; if (u.cls === 'air' && u.as === 'landed' && u.ammo > 0) u.as = 'takeoff'; }
 }
 function commandStop(units) {
   for (const u of units) {
     if (u.def.harvester) { u.hs = 'manual'; u.dest = null; u.path = null; continue; }
-    setGuard(u); u.dest = null; u.path = null;
+    setGuard(u); u.dest = null; u.path = null; u.staged = false;
   }
 }
 
@@ -1277,7 +1309,7 @@ function update(dt) {
   if ((T.shroud -= dt) <= 0) { T.shroud = 0.25; revealAround(); }
   if ((T.ore -= dt) <= 0) { T.ore = 2; growOre(); }
   if ((T.ai -= dt) <= 0) { T.ai = 1; if (!G.over) for (const team of G.teams) if (team.isAI) aiThink(team); }
-  if ((T.win -= dt) <= 0) { T.win = 1; checkWin(); }
+  if ((T.win -= dt) <= 0) { T.win = 1; checkWin(); if (!G.over) launchGroups(); }
   for (const fx of G.effects) {
     fx.t += dt;
     if (fx.vy && fx.t > 0) { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }

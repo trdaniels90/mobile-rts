@@ -6,9 +6,9 @@ A Cold War real-time strategy game of Allies versus Soviets, in the pre-rendered
 
 - Start with a Construction Yard and $5000. Build from the sidebar: **Power Plant → Ore Refinery → Barracks → War Factory → Helipad / Airfield**, plus defences.
 - **Ore is automatic.** Every refinery comes with an Ore Truck that finds ore, harvests it and brings it home by itself. Ore fields slowly regrow.
-- **Units attack on their own.** With *Auto Attack* on (the default), every infantry squad, tank, helicopter and jet attack-moves to the enemy base as soon as it rolls out, fighting anything it meets on the way. Turn it off to keep new units home on guard. Helicopters and jets fly back to their Helipad or Airfield to rearm, then rejoin the attack.
+- **Units attack in groups.** New units gather at a rally point in front of the base. With *Auto Attack* on (the default), they move out together once 5 have gathered, marching at the pace of the slowest, and head for the enemy Construction Yard, fighting anything they meet on the way. The AUTO button shows how many are waiting. Turn it off to keep new units home on guard. Helicopters and jets fly back to their Helipad or Airfield to rearm, then rejoin the attack.
 - Keep power above demand, or production slows and Tesla Coils go dark.
-- Destroy every enemy structure to win.
+- Destroy the enemy Construction Yard to win; lose yours and the mission is over. Construction Yards cannot be sold.
 
 ## Sound
 

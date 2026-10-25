@@ -11,7 +11,7 @@
   const ui = {
     sidebar: $('sidebar'), credits: $('credits'), powerBar: $('powerBar'), topstrip: $('topstrip'), homeBtn: $('homeBtn'),
     stripL: $('stripL'), stripR: $('stripR'), strips: document.querySelector('.sb-strips'),
-    autoBtn: $('autoBtn'), menuBtn: $('menuBtn'),
+    autoBtn: $('autoBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'),
     eva: $('eva'), selbar: $('selbar'), selName: $('selName'), selHp: $('selHp'), selBtns: $('selBtns'),
     placebar: $('placebar'), placeText: $('placeText'), placeOk: $('placeOk'), placeCancel: $('placeCancel'),
     menu: $('menu'), menuTitle: $('menuTitle'), menuSub: $('menuSub'), stats: $('stats'),
@@ -598,7 +598,8 @@
     team.auto = !team.auto;
     ui.autoBtn.setAttribute('aria-pressed', String(team.auto));
     if (team.auto) {
-      commandHunt(unitsOf(PLAYER).filter((u) => !u.def.harvester && u.order.type === 'guard'));
+      // Units already guarding join the next attack group.
+      for (const u of unitsOf(PLAYER)) if (!u.def.harvester && u.order.type === 'guard') u.staged = true;
       eva('Auto attack on');
     } else eva('Auto attack off. New units guard the base');
   });
@@ -611,6 +612,8 @@
     hudT = 0.1;
     const team = G.teams[PLAYER];
     ui.credits.textContent = String(Math.max(0, Math.floor(team.shown)));
+    const autoLabel = team.auto ? `AUTO ${Math.min(team.waiting || 0, GROUP_SIZE)}/${GROUP_SIZE}` : 'AUTO';
+    if (ui.autoLabel.textContent !== autoLabel) ui.autoLabel.textContent = autoLabel;
     // Vertical power bar: green fill is output, the red tick is demand.
     const { prod, use } = team.power;
     const top = Math.max(100, prod, use) * 1.15;
@@ -668,7 +671,7 @@
     if (own.some((e) => e.kind === 'unit')) btns.push(['stop', 'STOP']);
     if (bld) {
       btns.push(['repair', bld.repairing ? 'REPAIRING' : 'REPAIR']);
-      if (bld.type !== 'cy' || buildingsOf(PLAYER).length > 1) btns.push(['sell', sellArmed === bld ? 'CONFIRM' : 'SELL']);
+      if (bld.type !== 'cy') btns.push(['sell', sellArmed === bld ? 'CONFIRM' : 'SELL']);
     }
     btns.push(['close', '✕']);
     const sig = btns.map((b) => b.join(':')).join('|');
