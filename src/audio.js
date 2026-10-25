@@ -116,56 +116,133 @@ const Sound = (() => {
   }
 
   // ---------------------------------------------------------------------------
-  // Battlefield effects. `vol` and `pan` come from the camera position.
+  // Battlefield effects, voiced after the weapon/sound pairings of the 1996 classic
+  // (rifle crack, twin tank shells, crunchy small and large "kaboom" impacts, hissing
+  // missiles, double-pom AA, Tesla charge and zap). Every effect runs through a lo-fi
+  // stage that mimics the gritty compressed 22 kHz samples of the era.
+  // `vol` and `pan` come from the camera position.
   // ---------------------------------------------------------------------------
+  let crushCurve = null;
+  function lofiCurve() {
+    // Soft saturation, then quantised to 7 bits: grit on loud sounds, like 90s samples.
+    const n = 4096, c = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const x = i * 2 / n - 1; c[i] = Math.round(Math.tanh(x * 1.6) * 64) / 64; }
+    return c;
+  }
+  // Random clicks and pops: the crackle of debris and burning in an explosion tail.
+  function crackle(t, dur, count, peak, dest) {
+    const src = ctx.createBufferSource(); src.buffer = noise;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1800;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(hp); hp.connect(g); g.connect(dest);
+    const times = [];
+    for (let i = 0; i < count; i++) times.push(Math.random() * dur);
+    times.sort((a, b) => a - b);
+    for (const dt of times) {
+      const k = 1 - dt / dur;
+      g.gain.setValueAtTime(peak * k * (0.3 + Math.random() * 0.7), t + dt);
+      g.gain.setValueAtTime(0, t + dt + 0.003 + Math.random() * 0.006);
+    }
+    src.start(t, Math.random()); src.stop(t + dur + 0.05);
+  }
+  // A crunchy explosion: sharp transient, distorted low-mid body, sub thump and crackle.
+  function kaboom(t, o, s, size) {
+    const dur = 0.35 + size * 0.75;
+    const d = shaper(shaperSoft, o);
+    noiseHit(t, 0.03, 'highpass', 1800, 1800, 0.7, 0.9, o);
+    noiseHit(t, dur, 'lowpass', 2600 + size * 600, 220 - size * 80, 0.9, 1.0, d, 0.004);
+    noiseHit(t, dur * 0.6, 'bandpass', 700, 260, 1.2, 0.7, d, 0.004);
+    tone(t, 'sine', 110 - size * 30, 32, dur * 0.8, 0.95, d);
+    crackle(t + 0.04, dur * 0.9, 12 + size * 40, 0.55, o);
+    s.send(0.25 + size * 0.35);
+  }
   const FX = {
-    rifle(t, o) { noiseHit(t, 0.07, 'highpass', 1400, 900, 0.7, 0.55, o); noiseHit(t, 0.06, 'lowpass', 500, 200, 0.7, 0.5, o); },
-    mg(t, o) { noiseHit(t, 0.05, 'highpass', 1700, 1000, 0.7, 0.5, o); noiseHit(t, 0.045, 'lowpass', 650, 250, 0.7, 0.4, o); },
-    throw(t, o) { noiseHit(t, 0.18, 'bandpass', 900, 2200, 1.5, 0.25, o, 0.04); },
+    // gun11: a short, sharp rifle crack with a little metallic ring.
+    rifle(t, o) {
+      noiseHit(t, 0.05, 'bandpass', 2600, 1600, 0.8, 0.95, o);
+      noiseHit(t, 0.08, 'lowpass', 1000, 280, 0.8, 0.65, o);
+      tone(t, 'square', 2300, 1800, 0.025, 0.05, o);
+    },
+    // pillbox1 / gun13: heavier, lower machine-gun report.
+    mg(t, o) {
+      noiseHit(t, 0.06, 'bandpass', 1700, 1100, 0.8, 0.95, o);
+      noiseHit(t, 0.08, 'lowpass', 750, 220, 0.8, 0.75, o);
+      tone(t, 'sine', 160, 70, 0.06, 0.35, o);
+    },
+    throw(t, o) { noiseHit(t, 0.16, 'bandpass', 700, 2000, 1.4, 0.35, o, 0.05); tone(t + 0.02, 'triangle', 900, 1300, 0.04, 0.05, o); },
+    // cannon1: crack, punchy mid boom, quick sub drop and a short ring of the barrel.
     cannon(t, o, s) {
       const d = shaper(shaperSoft, o);
-      tone(t, 'sine', 120, 36, 0.42, 0.9, d);
-      noiseHit(t, 0.35, 'lowpass', 1800, 260, 0.8, 0.85, o);
-      noiseHit(t, 0.05, 'highpass', 2500, 2500, 0.6, 0.4, o);
-      s.send(0.35);
+      noiseHit(t, 0.025, 'highpass', 2800, 2800, 0.7, 1.0, o);
+      noiseHit(t, 0.26, 'bandpass', 1100, 320, 0.7, 1.0, d, 0.003);
+      tone(t, 'sine', 170, 55, 0.28, 0.9, d);
+      const ring = ctx.createBiquadFilter(); ring.type = 'bandpass'; ring.frequency.value = 1250; ring.Q.value = 12; ring.connect(o);
+      tone(t, 'sawtooth', 1250, 1190, 0.16, 0.08, ring);
+      s.send(0.3);
     },
-    cannonHeavy(t, o, s) { FX.cannon(t, o, s); FX.cannon(t + 0.09, o, s); },
-    rocket(t, o) { noiseHit(t, 0.55, 'bandpass', 2200, 450, 1.2, 1.3, o, 0.02); noiseHit(t, 0.08, 'lowpass', 700, 300, 0.7, 0.5, o); tone(t, 'sawtooth', 320, 110, 0.4, 0.08, o); },
-    missile(t, o) { noiseHit(t, 0.5, 'bandpass', 3000, 900, 1.4, 1.2, o, 0.015); noiseHit(t, 0.07, 'lowpass', 800, 300, 0.7, 0.45, o); tone(t, 'sine', 1100, 520, 0.35, 0.1, o); },
-    flak(t, o) { for (const dt of [0, 0.09]) { noiseHit(t + dt, 0.14, 'lowpass', 1300, 300, 0.7, 1.1, o); tone(t + dt, 'sine', 140, 60, 0.1, 0.5, o); } },
-    tesla(t, o, s) {
-      tone(t, 'sine', 300, 1400, 0.16, 0.12, o, 0.1);
-      const d = shaper(shaperHeavy, null);
-      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 0.8;
-      d.connect(bp);
-      const g = ctx.createGain(); bp.connect(g); g.connect(o);
-      g.gain.setValueAtTime(0.0001, t + 0.12);
-      for (let i = 0; i < 18; i++) g.gain.setValueAtTime(0.15 + Math.random() * 0.45, t + 0.12 + i * 0.022);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
-      for (const [type, f] of [['sawtooth', 55], ['square', 110], ['sawtooth', 163]]) {
-        const osc = ctx.createOscillator(); osc.type = type; osc.frequency.value = f * (0.97 + Math.random() * 0.06);
-        osc.connect(d); osc.start(t + 0.12); osc.stop(t + 0.65);
-      }
-      noiseHit(t + 0.12, 0.45, 'highpass', 4000, 2500, 0.5, 0.25, o);
+    // Heavy and Mammoth tanks fire both barrels together, a split hair apart.
+    cannonHeavy(t, o, s) { FX.cannon(t, o, s); FX.cannon(t + 0.028, o, s); },
+    // turret1: the base defence gun, bigger and deeper than a tank's.
+    turretGun(t, o, s) {
+      const d = shaper(shaperSoft, o);
+      noiseHit(t, 0.03, 'highpass', 2200, 2200, 0.7, 1.0, o);
+      noiseHit(t, 0.4, 'lowpass', 1800, 200, 0.8, 1.0, d, 0.003);
+      tone(t, 'sine', 140, 40, 0.38, 1.0, d);
       s.send(0.4);
     },
-    hitSmall(t, o) { noiseHit(t, 0.18, 'lowpass', 1200, 250, 0.7, 0.5, o); tone(t, 'sine', 95, 45, 0.15, 0.4, o); },
-    hitMed(t, o, s) { noiseHit(t, 0.35, 'lowpass', 1400, 200, 0.7, 0.7, o); tone(t, 'sine', 80, 35, 0.3, 0.6, o); s.send(0.25); },
-    explodeVeh(t, o, s) {
-      const d = shaper(shaperSoft, o);
-      noiseHit(t, 1.0, 'lowpass', 1500, 120, 0.7, 1.0, d);
-      tone(t, 'sine', 70, 26, 0.8, 0.9, d);
-      noiseHit(t + 0.05, 0.4, 'highpass', 3000, 1500, 0.5, 0.25, o);
-      s.send(0.55);
+    // missile6 / missile7: ignition pop, then a hissing rush that falls away.
+    rocket(t, o) {
+      noiseHit(t, 0.05, 'lowpass', 900, 400, 0.8, 0.8, o);
+      noiseHit(t, 0.6, 'bandpass', 4200, 1500, 1.1, 1.0, o, 0.012);
+      noiseHit(t, 0.45, 'lowpass', 1300, 350, 0.7, 0.55, o, 0.02);
     },
-    explodeBig(t, o, s) {
-      for (let i = 0; i < 4; i++) {
-        const tt = t + i * 0.22 + Math.random() * 0.08;
-        noiseHit(tt, 1.3, 'lowpass', 1300, 100, 0.7, 0.9, o);
-        tone(tt, 'sine', 60, 24, 1.0, 0.8, o);
+    missile(t, o) {
+      noiseHit(t, 0.05, 'lowpass', 1000, 400, 0.8, 0.7, o);
+      noiseHit(t, 0.75, 'bandpass', 5200, 1800, 1.2, 1.0, o, 0.01);
+      noiseHit(t, 0.5, 'lowpass', 1500, 400, 0.7, 0.5, o, 0.02);
+      tone(t, 'sine', 1400, 700, 0.4, 0.06, o);
+    },
+    // aacanon3: a quick double "pom-pom" of the anti-aircraft gun.
+    flak(t, o) {
+      for (const dt of [0, 0.075]) {
+        noiseHit(t + dt, 0.02, 'highpass', 2500, 2500, 0.7, 0.7, o);
+        noiseHit(t + dt, 0.13, 'lowpass', 1600, 300, 0.8, 1.0, o);
+        tone(t + dt, 'sine', 150, 65, 0.11, 0.7, o);
       }
-      noiseHit(t + 0.3, 1.6, 'bandpass', 3000, 600, 0.6, 0.18, o, 0.1);   // debris rattle
-      s.send(0.7);
+    },
+    // tesla1: a rising charge whine, then a distorted electric crack and buzz.
+    tesla(t, o, s) {
+      const ch = ctx.createBiquadFilter(); ch.type = 'lowpass'; ch.frequency.value = 2500; ch.connect(o);
+      const cg = ctx.createGain(); cg.gain.setValueAtTime(0.0001, t); cg.gain.exponentialRampToValueAtTime(0.35, t + 0.17); cg.gain.setValueAtTime(0.0001, t + 0.18);
+      cg.connect(ch);
+      const co = ctx.createOscillator(); co.type = 'sawtooth'; co.frequency.setValueAtTime(110, t); co.frequency.exponentialRampToValueAtTime(900, t + 0.18);
+      co.connect(cg); co.start(t); co.stop(t + 0.2);
+      const z = t + 0.18;
+      const d = shaper(shaperHeavy, null);
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1600; bp.Q.value = 0.6;
+      d.connect(bp);
+      const g = ctx.createGain(); bp.connect(g); g.connect(o);
+      g.gain.setValueAtTime(0.0001, z);
+      for (let i = 0; i < 20; i++) g.gain.setValueAtTime((0.25 + Math.random() * 0.75) * (1 - i / 24), z + i * 0.017);
+      g.gain.exponentialRampToValueAtTime(0.0001, z + 0.42);
+      for (const [type, f] of [['square', 58], ['sawtooth', 117], ['square', 233]]) {
+        const osc = ctx.createOscillator(); osc.type = type; osc.frequency.value = f * (0.96 + Math.random() * 0.08);
+        osc.connect(d); osc.start(z); osc.stop(z + 0.45);
+      }
+      noiseHit(z, 0.04, 'highpass', 3000, 3000, 0.7, 1.0, o);
+      crackle(z, 0.4, 40, 0.6, o);
+      s.send(0.45);
+    },
+    // kaboom12: the short crunch of a tank shell landing.
+    hitSmall(t, o, s) { kaboom(t, o, s, 0.12); },
+    // kaboom25: rockets, missiles and grenades.
+    hitMed(t, o, s) { kaboom(t, o, s, 0.4); },
+    // kaboom15 / kaboom22: a vehicle or aircraft going up.
+    explodeVeh(t, o, s) { kaboom(t, o, s, 0.75); crackle(t + 0.3, 0.8, 18, 0.35, o); },
+    // Structures: a rolling chain of big crunches with debris.
+    explodeBig(t, o, s) {
+      for (let i = 0; i < 4; i++) kaboom(t + i * 0.2 + Math.random() * 0.07, o, s, i === 0 ? 1 : 0.6);
+      noiseHit(t + 0.35, 1.4, 'bandpass', 2800, 700, 0.6, 0.2, o, 0.1);
     },
     place(t, o) {
       tone(t, 'sine', 95, 45, 0.3, 0.7, o); noiseHit(t, 0.18, 'lowpass', 500, 200, 0.7, 0.5, o);
@@ -176,7 +253,11 @@ const Sound = (() => {
     ready(t, o) { tone(t, 'square', 880, 880, 0.06, 0.14, o); tone(t + 0.08, 'square', 1320, 1320, 0.08, 0.14, o); },
     denied(t, o) { tone(t, 'square', 220, 200, 0.18, 0.1, o); },
   };
-  const THROTTLE = { rifle: 0.03, mg: 0.03, cannon: 0.05, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, missile: 0.05 };
+  const THROTTLE = { rifle: 0.03, mg: 0.03, cannon: 0.05, cannonHeavy: 0.06, turretGun: 0.06, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, missile: 0.05, flak: 0.06, tesla: 0.1 };
+  const UI_SOUNDS = new Set(['click', 'ready', 'denied', 'sell', 'place']);
+  // Rough loudness of each effect so distant battles do not drown nearby ones.
+  const LEVEL = { rifle: 0.55, mg: 1.0, throw: 0.8, cannon: 0.8, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, missile: 0.7, flak: 0.75, tesla: 0.85,
+    hitSmall: 0.7, hitMed: 0.8, explodeVeh: 0.9, explodeBig: 1.0 };
 
   function play(name, vol, pan) {
     if (!ctx || !settings.sfx || ctx.state !== 'running') return;
@@ -187,14 +268,24 @@ const Sound = (() => {
     if (now - last < (THROTTLE[name] || 0.02)) return;
     if (voices > 28) return;
     lastPlayed.set(name, now);
-    const out = gain(vol * (0.9 + Math.random() * 0.2), null);
+    const v = vol * (LEVEL[name] || 1) * (0.9 + Math.random() * 0.2);
+    const out = gain(v, null);
     let node = out;
     if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan || 0)); out.connect(p); node = p; }
     node.connect(sfxBus);
-    const s = { send(amount) { const g = gain(amount * vol, verbIn); out.connect(g); } };
+    // Battle sounds go through the lo-fi stage before their volume is applied.
+    let into = out;
+    if (!UI_SOUNDS.has(name)) {
+      if (!crushCurve) crushCurve = lofiCurve();
+      const pre = gain(1, null), lo = shaper(crushCurve, null), lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 9500; lp.Q.value = 0.5;
+      pre.connect(lo); lo.connect(lp); lp.connect(out);
+      into = pre;
+    }
+    const s = { send(amount) { const g = gain(amount * v, verbIn); out.connect(g); } };
     voices++;
-    setTimeout(() => { voices--; }, 1500);
-    FX[name](now + 0.005, out, s);
+    setTimeout(() => { voices--; }, 1600);
+    FX[name](now + 0.005, into, s);
   }
 
   // ---------------------------------------------------------------------------

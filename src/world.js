@@ -443,7 +443,7 @@ function aimY(t) {
 function weaponSound(src, w) {
   if (w.proj === 'bullet') return src.cls === 'inf' ? 'rifle' : 'mg';
   if (w.proj === 'grenade') return 'throw';
-  if (w.proj === 'shell') return w.twin ? 'cannonHeavy' : 'cannon';
+  if (w.proj === 'shell') return src.kind === 'bld' ? 'turretGun' : w.twin ? 'cannonHeavy' : 'cannon';
   return w.proj;
 }
 
