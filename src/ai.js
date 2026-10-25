@@ -10,12 +10,13 @@ function aiCount(team) {
 
 function aiNextStructure(team, c) {
   const p = team.power, defense = team.faction === 'allies' ? 'turret' : 'tesla', aa = team.faction === 'allies' ? 'aagun' : 'sam';
+  const antiInf = team.faction === 'allies' ? 'pillbox' : 'ftur';
   const pending = team.queues.structure;
   if (pending) return null;
   const n = (t) => c[t] || 0;
   const powerNeed = (t) => -Math.min(0, BUILD_DEFS[t].power);
   const wants = [
-    ['refinery', 1], ['barracks', 1], ['factory', 1], [defense, 1], ['refinery', 2], ['helipad', 1],
+    ['refinery', 1], ['barracks', 1], [antiInf, 1], ['factory', 1], [defense, 1], ['refinery', 2], ['helipad', 1], [antiInf, 2],
     [defense, 2], [aa, 1], ['airfield', 1], ['factory', 2], [defense, 3], [aa, 2], ['refinery', 3], [defense, 4],
   ];
   for (const [type, count] of wants) {

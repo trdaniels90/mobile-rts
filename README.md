@@ -19,7 +19,7 @@ Effects and music are synthesised live with the Web Audio API. Weapons, impacts 
 | Infantry | Rifle Infantry, Rocket Soldier | Rifle Infantry, Grenadier, Rocket Soldier |
 | Vehicles | Ranger, Light Tank, Medium Tank, Ore Truck | Heavy Tank, Mammoth Tank, Ore Truck |
 | Aircraft | Attack Helicopter, Strike Jet | Hind Gunship, MiG Fighter |
-| Defences | Gun Turret, AA Gun | Tesla Coil, SAM Site |
+| Defences | Pillbox, Gun Turret, AA Gun | Flame Tower, Tesla Coil, SAM Site |
 
 ## Controls
 

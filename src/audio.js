@@ -233,6 +233,22 @@ const Sound = (() => {
       crackle(z, 0.4, 40, 0.6, o);
       s.send(0.45);
     },
+    // Flame tower: a throaty roar as the fireball is launched...
+    flame(t, o, s) {
+      const d = shaper(shaperSoft, o);
+      noiseHit(t, 0.5, 'bandpass', 380, 900, 0.8, 1.0, d, 0.04);
+      noiseHit(t, 0.35, 'highpass', 2500, 1500, 0.6, 0.35, o, 0.03);
+      tone(t, 'sawtooth', 70, 110, 0.4, 0.15, d, 0.04);
+      s.send(0.2);
+    },
+    // ...and a whoomp of fire with crackling when it lands.
+    fireHit(t, o, s) {
+      const d = shaper(shaperSoft, o);
+      noiseHit(t, 0.6, 'lowpass', 1600, 300, 0.8, 1.0, d, 0.01);
+      tone(t, 'sine', 90, 40, 0.35, 0.7, d);
+      crackle(t + 0.05, 0.9, 45, 0.5, o);
+      s.send(0.3);
+    },
     // kaboom12: the short crunch of a tank shell landing.
     hitSmall(t, o, s) { kaboom(t, o, s, 0.12); },
     // kaboom25: rockets, missiles and grenades.
@@ -257,7 +273,7 @@ const Sound = (() => {
   const UI_SOUNDS = new Set(['click', 'ready', 'denied', 'sell', 'place']);
   // Rough loudness of each effect so distant battles do not drown nearby ones.
   const LEVEL = { rifle: 0.55, mg: 1.0, throw: 0.8, cannon: 0.8, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, missile: 0.7, flak: 0.75, tesla: 0.85,
-    hitSmall: 0.7, hitMed: 0.8, explodeVeh: 0.9, explodeBig: 1.0 };
+    hitSmall: 0.7, hitMed: 0.8, explodeVeh: 0.9, explodeBig: 1.0, flame: 0.8, fireHit: 0.8 };
 
   function play(name, vol, pan) {
     if (!ctx || !settings.sfx || ctx.state !== 'running') return;

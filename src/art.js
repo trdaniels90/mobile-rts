@@ -273,6 +273,11 @@ function drawStructure(g, b, t) {
     blit(g, headSprite(b.type, b.faction, b.tface), hx, hy, false);
     if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
   }
+  if ((b.type === 'pillbox' || b.type === 'ftur') && b.fireT > 0) {
+    const m = muzzle(b);
+    if (b.type === 'ftur') { g.fillStyle = 'rgba(255,140,40,0.85)'; g.beginPath(); g.arc(m.x, m.y, 4 + Math.random() * 2, 0, 7); g.fill(); }
+    else flash(g, m.x, m.y, 2);
+  }
   if (b.type === 'tesla' && b.charge > 0) {
     g.fillStyle = `rgba(140,190,255,${0.25 + 0.45 * b.charge})`;
     g.beginPath(); g.arc(x + 12, y + 35 - 50 * VK, 7 + Math.random() * 3, 0, 7); g.fill();

@@ -25,6 +25,7 @@ const WARHEADS = {
   HE:    { inf: 0.5, light: 1.0,  heavy: 0.8,  bld: 0.9, air: 1.0 },   // rockets and missiles
   FLAK:  { inf: 0,   light: 0,    heavy: 0,    bld: 0,   air: 1.0 },
   TESLA: { inf: 1.6, light: 1.0,  heavy: 0.9,  bld: 0.6, air: 0 },
+  FIRE:  { inf: 1.3, light: 0.6,  heavy: 0.3,  bld: 0.7, air: 0 },   // flame tower
 };
 
 // cls: inf | veh | air.  cat: which sidebar tab builds it.  speed in px/s, sight in cells.
@@ -112,6 +113,10 @@ const BUILD_DEFS = {
               weapon: { dmg: 22, rof: 0.35, range: 170, wh: 'FLAK', proj: 'flak', air: true, ground: false } },
   tesla:    { name: 'Tesla Coil',   w: 1, h: 2, hp: 450,  power: -100, cost: 1200, req: ['barracks'], factions: ['soviets'], defense: true,
               weapon: { dmg: 100, rof: 2.6, range: 150, wh: 'TESLA', proj: 'tesla', needsPower: true } },
+  pillbox:  { name: 'Pillbox',      w: 1, h: 1, hp: 400,  power: -15, cost: 400,  req: ['barracks'], factions: ['allies'], defense: true,
+              weapon: { dmg: 9, rof: 1.2, range: 115, wh: 'SA', proj: 'bullet', burst: 5, gap: 0.08 } },
+  ftur:     { name: 'Flame Tower',  w: 1, h: 1, hp: 400,  power: -20, cost: 600,  req: ['barracks'], factions: ['soviets'], defense: true,
+              weapon: { dmg: 40, rof: 2.0, range: 105, wh: 'FIRE', proj: 'fireball', burst: 2, gap: 0.3, splash: 18 } },
   sam:      { name: 'SAM Site',     w: 2, h: 1, hp: 400,  power: -20, cost: 750,  req: ['barracks'], factions: ['soviets'], defense: true, antiAir: true,
               weapon: { dmg: 50, rof: 1.3, range: 180, wh: 'HE', proj: 'missile', air: true, ground: false } },
 };

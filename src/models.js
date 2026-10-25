@@ -422,6 +422,36 @@ const STRUCTURES = {
     m.ellipsoid(12, 35, 50, 6, 6, 5.5, C.steel, M_METAL);
     return m;
   },
+  // Squat concrete bunker with firing slits all round.
+  pillbox(pal) {
+    const m = new VModel(-2, -2, 26, 26, 12);
+    m.box(0, 0, 0, 24, 24, 1, C.bib, M_ROUGH);
+    for (let z = 1; z < 9; z++) {
+      const r = z < 7 ? 10.5 : 10.5 - (z - 6) * 1.6;
+      for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) {
+        const dx = Math.abs(x + 0.5 - 12), dy = Math.abs(y + 0.5 - 12);
+        if (Math.max(dx, dy) + Math.min(dx, dy) * 0.42 <= r) m.set(x, y, z, z % 3 === 0 ? C.wallD : C.wall, M_ROUGH);
+      }
+    }
+    // Firing slits: a dark band broken by concrete pillars.
+    m.paint(0, 0, 4, 24, 24, 6, (x, y) => (Math.round(Math.atan2(y - 12, x - 12) * 4) % 2 === 0) ? '#1d1c1a' : undefined);
+    m.cylZ(12, 12, 9, 10, 2.5, pal.main, M_METAL);
+    for (const [x, y] of [[1, 18], [19, 1], [1, 2]]) sandbagsV(m, x, y, x + 4, y + 4, 3);
+    return m;
+  },
+  // Flame tower: a tapered tower with a nozzle on top and fuel tanks at its foot.
+  ftur(pal) {
+    const m = new VModel(-2, -2, 26, 26, 30);
+    m.box(0, 0, 0, 24, 24, 1, C.bib, M_ROUGH);
+    m.cylZ(12, 13, 1, 4, 10, C.wallD, M_ROUGH);
+    for (let z = 4; z < 22; z++) m.cylZ(12, 13, z, z + 1, 6.5 - (z - 4) * 0.12, z % 5 === 0 ? pal.dark : pal.main, M_METAL);
+    m.cylZ(12, 13, 22, 25, 4.5, C.gun, M_METAL);
+    m.cylZ(12, 13, 24, 25, 2.5, '#120d0a');
+    m.cylZ(12, 13, 23, 24, 3.2, '#ff7a1a', M_GLOW);
+    for (const [x, y] of [[3, 19], [20, 19]]) { m.cylZ(x, y, 1, 9, 2.6, C.red, M_METAL); m.ellipsoid(x, y, 9, 2.6, 2.6, 1.5, C.red, M_METAL); }
+    m.cylX(5, 19, 19, 3, 0.8, C.gun, M_METAL);
+    return m;
+  },
   sam() {
     const m = new VModel(-2, -2, 50, 26, 5);
     slabV(m, 0, 0, 48, 24);

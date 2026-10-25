@@ -452,11 +452,13 @@ function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget 
 // ---------------------------------------------------------------------------
 // Combat
 // ---------------------------------------------------------------------------
-const PROJ_SPEED = { shell: 430, rocket: 250, missile: 330, flak: 560 };
+const PROJ_SPEED = { shell: 430, rocket: 250, missile: 330, flak: 560, fireball: 230 };
 
 function muzzle(src) {
   if (src.kind === 'bld') {
     if (src.type === 'tesla') return { x: src.cx * CELL + 12, y: src.cy * CELL + 35 - 50 * VK };
+    if (src.type === 'pillbox') return { x: src.x + Math.cos(src.tface) * 9, y: src.y - 5 + Math.sin(src.tface) * 7 };
+    if (src.type === 'ftur') return { x: src.cx * CELL + 12, y: src.cy * CELL + 13 - 25 * VK };
     const h = HEADS[src.type];
     const hx = src.cx * CELL + h[1], hy = src.cy * CELL + h[2] - (h[3] + 2) * VK;
     return { x: hx + Math.cos(src.tface) * 13, y: hy + Math.sin(src.tface) * 13 };
@@ -475,6 +477,7 @@ function aimY(t) {
 function weaponSound(src, w) {
   if (w.proj === 'bullet') return src.cls === 'inf' ? 'rifle' : 'mg';
   if (w.proj === 'grenade') return 'throw';
+  if (w.proj === 'fireball') return 'flame';
   if (w.proj === 'shell') return src.kind === 'bld' ? 'turretGun' : w.twin ? 'cannonHeavy' : 'cannon';
   return w.proj;
 }
@@ -542,9 +545,13 @@ function updateProjectiles(dt) {
     if (p.kind === 'rocket' || p.kind === 'missile') {
       p.trail -= dt;
       if (p.trail <= 0) { p.trail = 0.03; G.effects.push({ type: 'smoke', x: p.x, y: p.y, r: 1.6, t: 0, life: 0.5, alpha: 0.5, color: '#9a968c' }); }
+    } else if (p.kind === 'fireball') {
+      p.trail -= dt;
+      if (p.trail <= 0) { p.trail = 0.035; G.effects.push({ type: 'smoke', x: p.x, y: p.y, r: 2, t: 0, life: 0.45, alpha: 0.45, color: '#3a3733' }); }
     }
     if (d <= step + 3 || !t.alive) {
       p.dead = true;
+      if (p.kind === 'fireball') { fireBlast(p, t.alive ? t.x : p.x, t.alive ? t.y : p.y); continue; }
       if (t.alive) damage(t, p.w.dmg, p.w.wh, p.from.alive ? p.from : null);
       impact(p.kind, t.alive ? tx : p.x, t.alive ? ty : p.y, isAirborne(t));
       if (p.w.wh === 'HE' && t.kind === 'unit' && !isAirborne(t)) splash(tx, ty, 14, p.w.dmg * 0.4, p.team, t);
@@ -553,6 +560,20 @@ function updateProjectiles(dt) {
     p.x += (dx / d) * step; p.y += (dy / d) * step;
   }
   G.projectiles = G.projectiles.filter((p) => !p.dead);
+}
+
+// Flame tower fireball: a burst of fire that splashes and leaves flames burning for a moment.
+function fireBlast(p, x, y) {
+  const w = p.w, from = p.from.alive ? p.from : null;
+  hooks.sfx('fireHit', x, y);
+  G.effects.push({ type: 'expl', x, y: y - 3, size: 9, t: 0, life: 0.45, seed: (Math.random() * 1e6) | 0 });
+  for (let i = 0; i < 5; i++) G.effects.push({ type: 'fire', x: x + (Math.random() - 0.5) * 18, y: y + (Math.random() - 0.5) * 12, t: -i * 0.05, life: 1.2 + Math.random() * 1.2 });
+  scorch(G.tctx, x, y, 8, (Math.random() * 1e6) | 0);
+  for (const e of G.entities) {
+    if (!e.alive || e.team === p.team || isAirborne(e)) continue;
+    const d = distTo({ x, y }, e);
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, from);
+  }
 }
 
 function grenadeBlast(p) {
@@ -1010,6 +1031,7 @@ function updateBuilding(b, dt) {
   }
   const w = b.def.weapon;
   if (!w || b.buildT < 1) return;
+  tickBurst(b, dt);
   b.cd = Math.max(0, b.cd - dt);
   if (w.needsPower && team.low) return;
   b.think -= dt;
@@ -1022,7 +1044,7 @@ function updateBuilding(b, dt) {
   if (!t || !t.alive) return;
   const ang = Math.atan2(t.y - (t.alt || 0) - b.y, t.x - b.x);
   if (b.type !== 'tesla') b.tface = turnToward(b.tface, ang, 5 * dt);
-  if (b.cd <= 0 && (b.type === 'tesla' || Math.abs(angDiff(ang, b.tface)) < 0.15)) { fireWeapon(b, w, t); b.cd = w.rof; }
+  if (b.cd <= 0 && (b.type === 'tesla' || Math.abs(angDiff(ang, b.tface)) < 0.15)) { shoot(b, w, t); b.cd = w.rof; }
 }
 
 function canPlace(team, type, cx, cy, gap) {
