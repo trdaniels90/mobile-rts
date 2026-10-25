@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pocket Siege</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="description" content="A small real-time strategy game for iPhone and web browsers.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pocket Siege">
+<meta name="theme-color" content="#16130f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- BEGIN BODY -->
+<canvas id="game" aria-label="Battlefield"></canvas>
+
+<header id="topbar">
+  <div class="res" title="Gold"><span class="coin" aria-hidden="true"></span><span id="gold" class="num">0</span></div>
+  <div class="res" title="Population"><span class="pop" aria-hidden="true">👥</span><span id="supply" class="num">0/10</span></div>
+  <div class="res clock"><span id="clock" class="num">0:00</span></div>
+  <div class="spacer"></div>
+  <button id="idleBtn" class="pill" type="button" title="Select an idle worker">👷 <span class="n num">0</span></button>
+  <button id="armyBtn" class="pill" type="button" title="Select your whole army">⚔️ <span class="n num">0</span></button>
+  <button id="boxBtn" class="pill touch-only" type="button" aria-pressed="false" title="Drag to select a group">⬚</button>
+  <button id="pauseBtn" class="pill" type="button" aria-label="Pause">❚❚</button>
+</header>
+
+<div id="hint" hidden><span id="hintText"></span><button id="hintCancel" type="button">Cancel</button></div>
+<div id="toast" role="status" hidden></div>
+
+<section id="panel" class="empty">
+  <div id="selInfo"></div>
+  <div id="actions"></div>
+</section>
+<canvas id="minimap" aria-label="Minimap"></canvas>
+
+<div id="menu" hidden>
+  <div class="card">
+    <p class="eyebrow">A pocket-sized war of gold and steel</p>
+    <h1 id="menuTitle">Pocket Siege</h1>
+    <p id="menuSub"></p>
+    <div id="stats" hidden></div>
+    <div class="diff" role="group" aria-label="Difficulty">
+      <button type="button" data-diff="easy" aria-pressed="false">Easy</button>
+      <button type="button" data-diff="normal" aria-pressed="true">Normal</button>
+      <button type="button" data-diff="hard" aria-pressed="false">Hard</button>
+    </div>
+    <div class="buttons">
+      <button id="resumeBtn" class="primary" type="button" hidden>Resume</button>
+      <button id="startBtn" class="primary" type="button">Start battle</button>
+    </div>
+    <details class="how">
+      <summary>How to play</summary>
+      <ul id="helpText">
+        <li><b>Workers</b> mine gold on their own. Select one to build a House (+8 population), Barracks or Tower.</li>
+        <li><b>Barracks</b> train Soldiers (tough, close range) and Archers (fragile, long range).</li>
+        <li class="touch-only"><b>Tap</b> a unit to select it, then tap the ground to move or an enemy to attack. <b>Double-tap</b> selects every unit of that kind on screen.</li>
+        <li class="touch-only"><b>Drag</b> to move the map, <b>pinch</b> to zoom. <b>Hold, then drag</b> (or use ⬚) to select a group.</li>
+        <li class="mouse-only"><b>Left click</b> selects, drag a box for groups, <b>right click</b> moves or attacks. WASD or arrows scroll, the wheel zooms. Q attack-move, X stop, H home, Esc cancel.</li>
+        <li>Destroy the red <b>Town Hall</b> to win. Waves of enemies grow over time, so keep your army growing too.</li>
+      </ul>
+    </details>
+  </div>
+</div>
+<!-- END BODY -->
+<script src="game.js"></script>
+</body>
+</html>
