@@ -3,9 +3,9 @@
 // pre-rendered from above-and-south with one sun, ambient occlusion, metal and glass
 // highlights and a cast shadow: the "rendered in 3D Studio" look of 90s RTS sprites.
 
-const VK = 0.8;                    // screen pixels a voxel rises per unit of height (oblique view)
+const VK = 1.0;                    // screen pixels a voxel rises per unit of height (steep three-quarter view)
 const SUPER = 2;                   // supersampling for soft, anti-aliased edges
-const LIGHT = (() => { const v = [-0.52, -0.46, 0.8], l = Math.hypot(...v); return v.map((x) => x / l); })();
+const LIGHT = (() => { const v = [-0.62, 0.22, 0.75], l = Math.hypot(...v); return v.map((x) => x / l); })();
 const HALF = (() => { const v = [LIGHT[0], LIGHT[1] + 0.6, LIGHT[2] + 0.8], l = Math.hypot(...v); return v.map((x) => x / l); })();
 const SHADOW_DX = -LIGHT[0] / LIGHT[2], SHADOW_DY = -LIGHT[1] / LIGHT[2];
 const M_MATTE = 0, M_METAL = 1, M_GLASS = 2, M_GLOW = 3, M_ROUGH = 4;
@@ -156,13 +156,13 @@ function renderVox(m, angle, opts) {
     let lum, spec = 0;
     if (mt === M_GLOW) lum = 1.15;
     else {
-      lum = (0.4 + 0.78 * dif) * s.ao[i];
+      lum = (0.5 + 0.68 * dif) * s.ao[i];
       const nh = Math.max(0, nxr * HALF[0] + nyr * HALF[1] + nzr * HALF[2]);
       if (mt === M_METAL) spec = Math.pow(nh, 14) * 0.4;
       else if (mt === M_GLASS) { spec = Math.pow(nh, 22) * 0.9; lum *= 0.85; }
       else if (mt === M_MATTE) spec = Math.pow(nh, 8) * 0.06;
     }
-    if (mt !== M_GLOW) lum *= mt === M_ROUGH ? 0.86 + hash3(s.xs[i], s.ys[i], z) * 0.28 : 0.95 + hash3(s.xs[i], s.ys[i], z) * 0.1;
+    if (mt !== M_GLOW) lum *= mt === M_ROUGH ? 0.88 + hash3(s.xs[i], s.ys[i], z) * 0.24 : 0.98 + hash3(s.xs[i], s.ys[i], z) * 0.04;
     let c = s.col[i];
     let r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
     if (tint) { r = r * tint[0]; g = g * tint[1]; b = b * tint[2]; }
@@ -208,6 +208,17 @@ function downsample(buf, BW, BH, W, H, shadow) {
     const o = (y * W + x) * 4;
     if (shadow) { d[o + 3] = Math.round(a / SS * 255); continue; }
     d[o] = r / a; d[o + 1] = gg / a; d[o + 2] = b / a; d[o + 3] = Math.round(a / SS * 255);
+  }
+  if (!shadow) {
+    // Darken the silhouette edge for the crisp outline of pre-rendered sprites.
+    const alpha = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) alpha[i] = d[i * 4 + 3];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (alpha[i] < 128) continue;
+      const edge = x === 0 || y === 0 || x === W - 1 || y === H - 1 || alpha[i - 1] < 128 || alpha[i + 1] < 128 || alpha[i - W] < 128 || alpha[i + W] < 128;
+      if (edge) { d[i * 4] *= 0.62; d[i * 4 + 1] *= 0.62; d[i * 4 + 2] *= 0.62; }
+    }
   }
   g.putImageData(img, 0, 0);
   return c;

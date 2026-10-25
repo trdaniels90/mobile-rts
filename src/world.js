@@ -358,6 +358,7 @@ function addBuilding(type, team, cx, cy) {
   };
   for (let y = cy; y < cy + d.h; y++) for (let x = cx; x < cx + d.w; x++) G.bld[idx(x, y)] = b.id;
   if (d.exit) { b.exitCell = idx(cx + Math.floor(d.w / 2), cy + d.h); G.resv[b.exitCell] = 1; }
+  if (G.tctx) bibDecal(G.tctx, cx * CELL, cy * CELL, d.w * CELL, d.h * CELL, b.id * 977);
   G.entities.push(b); G.byId.set(b.id, b);
   team.stats.built++;
   return b;

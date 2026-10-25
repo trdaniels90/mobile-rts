@@ -21,7 +21,7 @@ function blit(g, s, x, y, shadow) {
 // ---------------------------------------------------------------------------
 // Terrain
 // ---------------------------------------------------------------------------
-const TERRAIN_MINI = ['#56652f', '#7a6644', '#2d4620', '#6f6b62', '#2a4664'];
+const TERRAIN_MINI = ['#2f3d23', '#5a4c37', '#1c2a14', '#5e5a52', '#4a6a8a'];
 
 function paintTerrain(terr, seed, road) {
   buildScenery();
@@ -58,52 +58,35 @@ function paintTerrain(terr, seed, road) {
     const a = arr[y0 * MAP + x0], b = arr[y0 * MAP + x0 + 1], cc = arr[(y0 + 1) * MAP + x0], dd = arr[(y0 + 1) * MAP + x0 + 1];
     return (a + (b - a) * tx) * (1 - ty) + (cc + (dd - cc) * tx) * ty;
   }
-  // Temperate palette: olive grass with dry patches, brown earth, wet sand, deep water.
-  const GD = [60, 74, 33], GL = [98, 110, 49], DRY = [116, 112, 62], DD = [96, 79, 52], DL = [138, 114, 78];
-  const SAND = [141, 127, 89], WET = [104, 94, 66], WD = [24, 44, 64], WL = [52, 82, 106];
-  const prev = new Float32Array(WORLD + 1), cur = new Float32Array(WORLD + 1);
+  // A 256-colour era look: a handful of tones per surface, picked with dithered noise.
+  const GRASS = [[30, 40, 24], [38, 50, 29], [46, 60, 34], [56, 70, 40], [70, 84, 48]];
+  const EARTH = [[66, 55, 39], [80, 67, 47], [96, 81, 57], [112, 95, 67]];
+  const SANDS = [[124, 111, 82], [140, 126, 94], [156, 142, 108]];
+  const WATER = [[52, 80, 108], [62, 92, 122], [74, 106, 138], [90, 122, 154]];
+  const pickTone = (pal, v) => pal[Math.max(0, Math.min(pal.length - 1, Math.floor(v * pal.length)))];
   let p = 0;
   for (let y = 0; y < WORLD; y++) {
     const fy = y / CELL - 0.5;
     for (let x = 0; x < WORLD; x++, p += 4) {
       const fx = x / CELL - 0.5;
-      const macro = noise(N3, x, y);
-      const h = noise(N1, x, y) * 0.35 + noise(N2, x, y) * 0.65;   // gently rolling ground
-      cur[x + 1] = noise(N2, x, y) * 0.7 + noise(N1, x, y) * 0.3;
+      const h = noise(N1, x, y) * 0.35 + noise(N2, x, y) * 0.45 + noise(N3, x, y) * 0.2;
       const sp = r();
-      let n = h + (sp - 0.5) * 0.3;
-      let R = GD[0] + (GL[0] - GD[0]) * n, Gc = GD[1] + (GL[1] - GD[1]) * n, B = GD[2] + (GL[2] - GD[2]) * n;
-      const dry = Math.max(0, macro - 0.55) * 1.6;
-      if (dry > 0) { R += (DRY[0] - R) * dry * 0.7; Gc += (DRY[1] - Gc) * dry * 0.7; B += (DRY[2] - B) * dry * 0.7; }
-      if (sp > 0.982) { R += 14; Gc += 18; B += 4; }
-      else if (sp < 0.03) { R -= 16; Gc -= 14; B -= 8; }
+      let col = pickTone(GRASS, h * 1.1 - 0.12 + (sp - 0.5) * 0.55);
+      if (sp > 0.992) col = GRASS[4];
       const near = nearFlag[Math.min(MAP - 1, Math.max(0, Math.round(fy))) * MAP + Math.min(MAP - 1, Math.max(0, Math.round(fx)))];
-      const dv = near & 1 ? bil(dirt, fx, fy) + (h - 0.5) * 0.25 : 0;
-      if (dv > 0.3) {
-        const k = Math.min(1, (dv - 0.3) / 0.3);
-        const dn = h + (sp - 0.5) * 0.45;
-        R += (DD[0] + (DL[0] - DD[0]) * dn - R) * k; Gc += (DD[1] + (DL[1] - DD[1]) * dn - Gc) * k; B += (DD[2] + (DL[2] - DD[2]) * dn - B) * k;
-        if (sp > 0.96) { R += 22; Gc += 20; B += 16; }          // pebbles
-      }
-      const wv = near & 2 ? bil(water, fx, fy) + (h - 0.5) * 0.2 : 0;
+      const dv = near & 1 ? bil(dirt, fx, fy) + (h - 0.5) * 0.3 + (sp - 0.5) * 0.12 : 0;
+      if (dv > 0.42) col = pickTone(EARTH, h * 1.2 - 0.1 + (sp - 0.5) * 0.6);
+      const wv = near & 2 ? bil(water, fx, fy) + (h - 0.5) * 0.22 : 0;
       if (wv > 0.5) {
-        const depth = Math.min(1, (wv - 0.5) * 2.4);
-        const ripple = ((x + Math.floor(y * 0.5)) % 19 === 0 && sp > 0.55) ? 0.35 : 0;
-        const k = Math.max(0, 0.75 - depth * 0.6 + (n - 0.5) * 0.25 + ripple);
-        R = WD[0] + (WL[0] - WD[0]) * k; Gc = WD[1] + (WL[1] - WD[1]) * k; B = WD[2] + (WL[2] - WD[2]) * k;
-        if (wv < 0.54) { R += 30; Gc += 34; B += 30; }          // surf line
-        else if (sp > 0.997) { R = 200; Gc = 215; B = 220; }    // glints
-        cur[x + 1] = 0.5;
+        const crest = ((x * 3 + y * 7 + Math.floor(noise(N1, x * 3, y) * 30)) % 23 === 0) && sp > 0.4;
+        col = crest ? [150, 172, 190] : pickTone(WATER, 0.9 - (wv - 0.5) * 1.6 + (h - 0.5) * 0.5 + (sp - 0.5) * 0.4);
+        if (wv < 0.545) col = sp > 0.35 ? [178, 192, 198] : [120, 140, 156];   // surf
       } else if (wv > 0.36) {
-        const k = (wv - 0.36) / 0.14;
-        R = SAND[0] + (WET[0] - SAND[0]) * k + (n - 0.5) * 26; Gc = SAND[1] + (WET[1] - SAND[1]) * k + (n - 0.5) * 26; B = SAND[2] + (WET[2] - SAND[2]) * k + (n - 0.5) * 20;
+        col = pickTone(SANDS, (wv - 0.36) * 4 + (sp - 0.5) * 0.7);
+        if (sp > 0.93) col = [92, 86, 74];                                   // pebbles
       }
-      // Sun from the north-west: slopes facing it are lit, slopes facing away fall into shade.
-      const slope = (cur[x + 1] - prev[x]) * 3.2;
-      const lit = 1 + Math.max(-0.09, Math.min(0.09, slope));
-      d[p] = R * lit; d[p + 1] = Gc * lit; d[p + 2] = B * lit; d[p + 3] = 255;
+      d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2]; d[p + 3] = 255;
     }
-    prev.set(cur);
   }
   g.putImageData(img, 0, 0);
 
@@ -137,6 +120,8 @@ function paintTerrain(terr, seed, road) {
         }
       } else if (t === 3) {
         stamps.push({ s: scenery.rocks[Math.floor(r() * scenery.rocks.length)], x: x0 + 12 + (r() - 0.5) * 4, y: y0 + 13 + (r() - 0.5) * 4 });
+      } else if (t === 0 && r() < 0.28 && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([ox, oy]) => terr[(cy + oy) * MAP + cx + ox] === 4)) {
+        stamps.push({ s: scenery.rocks[Math.floor(r() * scenery.rocks.length)], x: x0 + r() * CELL, y: y0 + r() * CELL });
       } else if (t === 0 && r() < 0.035) {
         stamps.push({ k: 'bush', x: x0 + r() * CELL, y: y0 + r() * CELL });
       }
@@ -148,9 +133,9 @@ function paintTerrain(terr, seed, road) {
     if (s.s) { g.drawImage(s.s.img, Math.round(s.x + s.s.ox), Math.round(s.y + s.s.oy)); continue; }
     const x = Math.round(s.x), y = Math.round(s.y);
     g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x + 1, y + 1, 5, 2);
-    g.fillStyle = '#2f4a1d'; g.fillRect(x - 2, y - 2, 5, 3);
-    g.fillStyle = '#486a2a'; g.fillRect(x - 1, y - 3, 3, 2);
-    g.fillStyle = '#5d8236'; g.fillRect(x - 1, y - 3, 1, 1);
+    g.fillStyle = '#1f2e15'; g.fillRect(x - 2, y - 2, 5, 3);
+    g.fillStyle = '#304a1d'; g.fillRect(x - 1, y - 3, 3, 2);
+    g.fillStyle = '#46632a'; g.fillRect(x - 1, y - 3, 1, 1);
   }
   return c;
 }
@@ -168,6 +153,16 @@ function scorch(tg, x, y, rad, seed) {
     tg.beginPath(); tg.ellipse(x, y, rad * 0.45, rad * 0.32, 0, 0, 7); tg.fill();
     tg.strokeStyle = 'rgba(150,130,100,0.25)'; tg.lineWidth = 1;
     tg.beginPath(); tg.ellipse(x + 0.5, y + 0.5, rad * 0.5, rad * 0.36, 0, 0.2, 2.6); tg.stroke();
+  }
+}
+// Worn earth around a structure, like the dirt aprons of classic bases.
+function bibDecal(tg, x, y, w, h, seed) {
+  const r = rng(seed), M = 9;
+  const tones = ['#42382a', '#4f4331', '#5c4e39', '#695a42'];
+  for (let py = y - M; py < y + h + M; py++) for (let px = x - M; px < x + w + M; px++) {
+    const dx = Math.max(x - px, 0, px - (x + w - 1)), dy = Math.max(y - py, 0, py - (y + h - 1));
+    const dd = Math.hypot(dx, dy) / M;
+    if (r() < 1.05 - dd * 1.1) { tg.fillStyle = tones[Math.floor(r() * 4)]; tg.fillRect(px, py, 1, 1); }
   }
 }
 function rubble(tg, x, y, w, h, seed) {

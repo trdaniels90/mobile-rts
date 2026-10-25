@@ -15,7 +15,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=VT323&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@600;700&family=Black+Ops+One&family=VT323&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -35,22 +35,29 @@
   <button id="placeCancel" type="button">CANCEL</button>
 </div>
 
+<div id="topstrip">
+  <button id="menuBtn" class="tab" type="button">Options</button>
+  <div id="credits" class="tab credits">0</div>
+</div>
+
 <aside id="sidebar" data-faction="allies">
-  <div class="sb-head">
-    <div id="credits" class="credits">$0</div>
-    <button id="menuBtn" class="sb-btn" type="button" aria-label="Pause">❚❚</button>
-    <button id="autoBtn" class="sb-btn auto" type="button" aria-pressed="true">AUTO ATTACK</button>
-    <button id="boxBtn" class="sb-btn touch-only" type="button" aria-pressed="false" aria-label="Drag to select">⬚</button>
-  </div>
   <div class="sb-radar"><canvas id="radar" aria-label="Radar"></canvas></div>
-  <div class="sb-power"><div id="powerBar" class="power"><i></i></div><span id="powerText">PWR 0/0</span></div>
-  <div id="tabs" class="sb-tabs" role="tablist">
-    <button type="button" role="tab" data-tab="structure" aria-selected="true">BASE</button>
-    <button type="button" role="tab" data-tab="infantry">INF</button>
-    <button type="button" role="tab" data-tab="vehicle">VEH</button>
-    <button type="button" role="tab" data-tab="aircraft">AIR</button>
+  <div class="sb-buttons">
+    <button id="autoBtn" class="icon auto" type="button" aria-pressed="true" title="Auto attack: new units head for the enemy base"><span>⚔</span><small>AUTO</small></button>
+    <button id="homeBtn" class="icon" type="button" title="Back to base"><span>⌂</span><small>BASE</small></button>
+    <button id="boxBtn" class="icon touch-only" type="button" aria-pressed="false" title="Drag to select units"><span>⬚</span><small>SELECT</small></button>
   </div>
-  <div id="cameos" class="sb-cameos"></div>
+  <div class="sb-strips">
+    <div id="powerBar" class="power" title="Power"><i></i><b></b></div>
+    <div id="stripL" class="strip" aria-label="Structures"></div>
+    <div id="stripR" class="strip" aria-label="Units"></div>
+  </div>
+  <div class="sb-arrows">
+    <button type="button" data-scroll="L" data-dir="-1" aria-label="Scroll structures up">▲</button>
+    <button type="button" data-scroll="L" data-dir="1" aria-label="Scroll structures down">▼</button>
+    <button type="button" data-scroll="R" data-dir="-1" aria-label="Scroll units up">▲</button>
+    <button type="button" data-scroll="R" data-dir="1" aria-label="Scroll units down">▼</button>
+  </div>
 </aside>
 
 <div id="menu" hidden>
@@ -75,7 +82,7 @@
     <details class="how">
       <summary>Briefing</summary>
       <ul>
-        <li>Build from the sidebar: Power Plant, then an Ore Refinery. Every refinery comes with an Ore Truck that harvests on its own.</li>
+        <li>The left column of the sidebar builds structures, the right column builds units. Start with a Power Plant, then an Ore Refinery. Every refinery comes with an Ore Truck that harvests on its own.</li>
         <li>A Barracks, War Factory, Helipad and Airfield unlock infantry, tanks, helicopters and jets.</li>
         <li>With <b>Auto Attack</b> on, every new combat unit heads straight for the enemy base. Turn it off to keep new units home on guard.</li>
         <li class="touch-only">Tap a unit, then tap the ground to move or an enemy to attack. Drag to scroll, pinch to zoom, hold then drag to select a group. Hold a build icon to cancel it.</li>

@@ -4,10 +4,10 @@
 
 const C = {
   track: '#2a2925', trackHi: '#3b3a34', wheel: '#55554d', gun: '#34362f', steel: '#9ba1a3', metal: '#7b7e78',
-  conc: '#8f8d84', concD: '#6e6c64', asphalt: '#4b4b46', glass: '#35505f', glow: '#ffe9a0',
+  conc: '#8f8d84', concD: '#6e6c64', wall: '#d6d3c9', wallD: '#b9b6ac', bib: '#6e6352', bibD: '#584e40', asphalt: '#4b4b46', glass: '#35505f', glow: '#ffe9a0',
   sand: '#ad9466', sandD: '#8a744c', olive: '#5a6238', oliveD: '#454b2b', skin: '#c38d66', brick: '#8b4535',
   yellow: '#d0a426', black: '#1c1c1a', copper: '#b4692a', white: '#e4e2d8', red: '#b8302a', tan: '#b5a26c',
-  leaf: ['#2a4219', '#35521f', '#416227', '#4f7430'], pine: ['#1f3517', '#284421', '#33542a'], bark: '#4a3420',
+  leaf: ['#1d2c13', '#26391a', '#304822', '#3c592a'], pine: ['#18291a', '#1f3420', '#294228'], bark: '#4a3420',
   rock: ['#6d685e', '#7d786c', '#5c584f'], ore: ['#b48a1c', '#d2a62a', '#e8c24a', '#9a7414'],
 };
 const BURNT = { key: 'burnt', main: '#3b3631', light: '#4b453d', dark: '#26231f', deep: '#171512' };
@@ -32,10 +32,15 @@ function facingSprite(mkey, build, angle, n, opts) {
 }
 
 // Concrete foundation with expansion joints.
+// Gravel-and-concrete foundation ("bib") under a structure.
 function slabV(m, x0, y0, x1, y1, col, h) {
-  m.box(x0, y0, 0, x1, y1, h || 1, col || C.conc, M_ROUGH);
-  m.paintTop(x0, y0, x1, y1, (x, y) => ((x - x0) % 12 === 0 || (y - y0) % 12 === 0) ? C.concD : undefined);
-  m.paint(x0, y0, 0, x1, y0 + 1, 2, () => shadeInt(col || C.conc, 1.12));
+  m.box(x0, y0, 0, x1, y1, h || 1, col || C.bib, M_ROUGH);
+  m.paintTop(x0, y0, x1, y1, (x, y) => {
+    const n = hash3(x, y, 7);
+    if (!col && ((x - x0) % 12 === 0 || (y - y0) % 12 === 0)) return C.bibD;
+    if (n > 0.86) return col ? undefined : '#857a66';
+    if (n < 0.1) return col ? undefined : '#4b4236';
+  });
 }
 function shadeInt(hex, k) {
   const c = rgbInt(hex), r = Math.min(255, ((c >> 16) & 255) * k), g = Math.min(255, ((c >> 8) & 255) * k), b = Math.min(255, (c & 255) * k);
@@ -225,7 +230,7 @@ const STRUCTURES = {
   cy(pal) {
     const m = new VModel(-2, -2, 76, 76, 48);
     slabV(m, 0, 0, 72, 72);
-    m.box(4, 6, 1, 68, 54, 14, '#7d7f79', M_METAL);
+    m.box(4, 6, 1, 68, 54, 14, C.wall, M_MATTE);
     for (let y = 6; y < 54; y++) {
       const h = Math.round(Math.sqrt(Math.max(0, 24 * 24 - (y + 0.5 - 30) ** 2)) * 0.5);
       if (h > 0) m.box(4, y, 14, 68, y + 1, 14 + h, pal.main, M_METAL);
@@ -250,12 +255,12 @@ const STRUCTURES = {
   power(pal) {
     const m = new VModel(-2, -2, 50, 50, 44);
     slabV(m, 0, 0, 48, 48);
-    m.box(2, 12, 1, 30, 44, 14, '#8a8981', M_ROUGH);
-    m.box(2, 12, 14, 30, 44, 15, '#77766f');
+    m.box(2, 12, 1, 30, 44, 14, C.wall, M_MATTE);
+    m.box(2, 12, 14, 30, 44, 15, pal.main, M_METAL);
     m.paint(2, 16, 13, 30, 20, 15, () => pal.main);
     m.paint(2, 43, 1, 30, 44, 14, (x, y, z) => (z >= 5 && z <= 7 && x % 5 < 2) ? C.glass : undefined);
     m.box(8, 22, 15, 14, 30, 18, '#5d5e58', M_METAL); m.box(18, 22, 15, 24, 30, 18, '#5d5e58', M_METAL);
-    m.cylZ(38, 14, 1, 42, 6, '#9a9a92', M_ROUGH);
+    m.cylZ(38, 14, 1, 42, 6, C.wall, M_MATTE);
     m.cylZ(38, 14, 38, 42, 4.2, null);
     m.paint(31, 7, 30, 46, 22, 33, () => pal.main);
     m.paint(31, 7, 22, 46, 22, 24, () => pal.main);
@@ -269,7 +274,7 @@ const STRUCTURES = {
   refinery(pal) {
     const m = new VModel(-2, -2, 74, 50, 40);
     slabV(m, 0, 0, 72, 48);
-    m.box(2, 4, 1, 42, 44, 16, '#7d7e78', M_METAL);
+    m.box(2, 4, 1, 42, 44, 16, C.wall, M_MATTE);
     m.box(2, 4, 16, 42, 44, 17, pal.main, M_METAL);
     m.paint(2, 4, 16, 42, 44, 17, (x) => x % 6 === 0 ? pal.dark : undefined);
     m.box(24, 10, 17, 38, 22, 22, C.gun, M_METAL);
@@ -277,8 +282,8 @@ const STRUCTURES = {
     m.box(25, 11, 19, 37, 21, 20, C.ore[1], M_METAL);
     m.paint(2, 43, 2, 42, 44, 14, (x, y, z) => (z >= 8 && z <= 9 && x % 6 < 3) ? C.glass : undefined);
     for (const [x, y, r, h] of [[52, 12, 7, 32], [65, 22, 6, 26]]) {
-      m.cylZ(x, y, 1, h, r, C.tan, M_METAL);
-      m.ellipsoid(x, y, h, r, r, 3, C.tan, M_METAL);
+      m.cylZ(x, y, 1, h, r, C.wall, M_MATTE);
+      m.ellipsoid(x, y, h, r, r, 3, C.wallD, M_METAL);
       m.paint(x - r, y - r, h - 8, x + r, y + r, h - 6, () => pal.main);
     }
     m.box(30, 40, 1, 42, 48, 6, C.gun, M_METAL);
@@ -295,7 +300,7 @@ const STRUCTURES = {
       for (const tx of [6, 26]) {
         for (let x = tx; x < tx + 16; x++) {
           const h = 1 + Math.round(10 - Math.abs(x + 0.5 - (tx + 8)) * 1.15);
-          m.box(x, 6, 1, x + 1, 38, h, C.olive, M_ROUGH);
+          m.box(x, 6, 1, x + 1, 38, h, '#8c8a64', M_MATTE);
         }
         m.paint(tx, 6, 1, tx + 16, 38, 13, (x, y, z) => z >= 9 ? pal.main : (y === 37 && Math.abs(x + 0.5 - (tx + 8)) < 2.5 && z < 7 ? C.black : undefined));
       }
@@ -303,9 +308,10 @@ const STRUCTURES = {
       m.box(38, 3, 24, 44, 4, 29, pal.main);
     } else {
       slabV(m, 0, 0, 48, 48);
-      m.box(4, 4, 1, 44, 44, 13, C.brick, M_ROUGH);
-      m.paint(4, 4, 1, 44, 44, 13, (x, y, z) => z % 3 === 0 || ((x + y + (Math.floor(z / 3) % 2) * 3) % 6 === 0) ? '#a87562' : undefined);
-      m.box(3, 3, 13, 45, 45, 14, '#5c524a', M_ROUGH);
+      m.box(4, 4, 1, 44, 44, 13, C.wall, M_MATTE);
+      m.paint(4, 43, 1, 44, 44, 13, (x, y, z) => (z >= 6 && z <= 8 && x % 7 < 3) ? C.glass : undefined);
+      for (let y = 3; y < 45; y++) { const h = Math.round(Math.max(0, 8 - Math.abs(y + 0.5 - 24) * 0.38)); m.box(3, y, 13, 45, y + 1, 14 + h, pal.main, M_METAL); }
+      m.cylZ(10, 10, 14, 28, 2.5, C.wallD, M_MATTE); m.cylZ(38, 10, 14, 28, 2.5, C.wallD, M_MATTE);
       m.paintTop(14, 12, 34, 32, (x, y) => {
         const dx = x + 0.5 - 24, dy = y + 0.5 - 22, a = Math.atan2(dy, dx) + Math.PI / 2, r = Math.hypot(dx, dy);
         const k = Math.abs(((a / (Math.PI * 2 / 5)) % 1 + 1) % 1 - 0.5) * 2;
@@ -319,11 +325,11 @@ const STRUCTURES = {
   factory(pal) {
     const m = new VModel(-2, -2, 74, 50, 34);
     slabV(m, 0, 0, 72, 48);
-    m.box(2, 2, 1, 70, 46, 20, '#80817b', M_METAL);
+    m.box(2, 2, 1, 70, 46, 20, C.wall, M_MATTE);
     for (let k = 0; k < 4; k++) {
       const y0 = 4 + k * 10;
-      for (let y = y0; y < y0 + 10 && y < 46; y++) m.box(2, y, 20, 70, y + 1, 20 + Math.round((y - y0) * 0.5), '#8d8e88', M_METAL);
-      m.box(2, y0 + 9, 20, 70, y0 + 10, 25, C.glass, M_GLASS);
+      for (let y = y0; y < y0 + 10 && y < 46; y++) m.box(2, y, 20, 70, y + 1, 20 + Math.round((y - y0) * 0.5), pal.main, M_METAL);
+      m.box(2, y0 + 9, 22, 70, y0 + 10, 25, '#6f93aa', M_GLASS);
     }
     m.paint(2, 45, 15, 70, 46, 18, () => pal.main);
     m.paint(2, 2, 15, 3, 46, 18, () => pal.main);
@@ -355,18 +361,18 @@ const STRUCTURES = {
       if (x >= 68 && x < 71 && y >= 21 && y < 40 && y % 3 === 0) return C.white;
       if (y === 12 && x > 20) return C.yellow;
     });
-    m.box(2, 2, 1, 16, 18, 14, '#7a7b75', M_ROUGH);
+    m.box(2, 2, 1, 16, 18, 14, C.wall, M_MATTE);
     m.box(3, 3, 14, 15, 17, 19, C.glass, M_GLASS);
     m.box(2, 2, 19, 16, 18, 20, pal.main, M_METAL);
     m.line(9, 9, 20, 9, 9, 27, C.black); m.set(9, 9, 27, '#ff4a30', M_GLOW);
-    m.box(2, 24, 1, 18, 46, 9, '#6e6f69', M_METAL);
+    m.box(2, 24, 1, 18, 46, 9, C.wallD, M_MATTE);
     for (let y = 24; y < 46; y++) { const h = Math.round(Math.sqrt(Math.max(0, 121 - (y + 0.5 - 35) ** 2)) * 0.45); if (h) m.box(2, y, 9, 18, y + 1, 9 + h, pal.main, M_METAL); }
     return m;
   },
   turret() {
     const m = new VModel(-2, -2, 26, 26, 7);
-    m.cylZ(12, 12, 0, 5, 10.5, C.concD, M_ROUGH);
-    m.cylZ(12, 12, 5, 6, 9, C.conc, M_ROUGH);
+    m.cylZ(12, 12, 0, 5, 10.5, C.wallD, M_MATTE);
+    m.cylZ(12, 12, 5, 6, 9, C.wall, M_MATTE);
     return m;
   },
   aagun() {
@@ -378,7 +384,7 @@ const STRUCTURES = {
   tesla() {
     const m = new VModel(-2, -2, 26, 50, 58);
     slabV(m, 0, 22, 24, 48);
-    m.box(4, 26, 1, 20, 44, 6, C.concD, M_ROUGH);
+    m.box(4, 26, 1, 20, 44, 6, C.wall, M_MATTE);
     m.cylZ(12, 35, 6, 46, 2.6, '#3a3a36', M_METAL);
     for (let z = 8; z < 44; z += 4) m.cylZ(12, 35, z, z + 2, 5 - (z > 30 ? 1 : 0), C.copper, M_METAL);
     m.ellipsoid(12, 35, 50, 6, 6, 5.5, C.steel, M_METAL);
@@ -387,7 +393,7 @@ const STRUCTURES = {
   sam() {
     const m = new VModel(-2, -2, 50, 26, 5);
     slabV(m, 0, 0, 48, 24);
-    m.cylZ(24, 12, 1, 3, 8, C.concD, M_ROUGH);
+    m.cylZ(24, 12, 1, 3, 8, C.wall, M_MATTE);
     return m;
   },
 };

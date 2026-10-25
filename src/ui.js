@@ -9,8 +9,9 @@
   const shroudImg = sctx.createImageData(MAP, MAP);
   const miniTerrain = mkCanvas(MAP, MAP), mtctx = miniTerrain.getContext('2d');
   const ui = {
-    sidebar: $('sidebar'), credits: $('credits'), powerBar: $('powerBar'), powerText: $('powerText'),
-    tabs: $('tabs'), cameos: $('cameos'), autoBtn: $('autoBtn'), menuBtn: $('menuBtn'),
+    sidebar: $('sidebar'), credits: $('credits'), powerBar: $('powerBar'), topstrip: $('topstrip'), homeBtn: $('homeBtn'),
+    stripL: $('stripL'), stripR: $('stripR'), strips: document.querySelector('.sb-strips'),
+    autoBtn: $('autoBtn'), menuBtn: $('menuBtn'),
     eva: $('eva'), selbar: $('selbar'), selName: $('selName'), selHp: $('selHp'), selBtns: $('selBtns'),
     placebar: $('placebar'), placeText: $('placeText'), placeOk: $('placeOk'), placeCancel: $('placeCancel'),
     menu: $('menu'), menuTitle: $('menuTitle'), menuSub: $('menuSub'), stats: $('stats'),
@@ -21,7 +22,7 @@
 
   let W = 0, H = 0, DPR = 1;            // game view size in CSS px
   const cam = { x: 0, y: 0, z: 1.5 };
-  let faction = 'allies', diffKey = 'normal', tab = 'structure', boxMode = false;
+  let faction = 'allies', diffKey = 'normal', boxMode = false;
   try {
     faction = localStorage.getItem('ps-faction') || 'allies';
     diffKey = localStorage.getItem('ps-diff') || 'normal';
@@ -49,10 +50,10 @@
   // ---------------------------------------------------------------------------
   function layout() {
     DPR = Math.min(window.devicePixelRatio || 1, 3);
-    const r = ui.sidebar.getBoundingClientRect();
+    const r = ui.sidebar.getBoundingClientRect(), top = Math.round(ui.topstrip.getBoundingClientRect().bottom);
     const portrait = window.innerHeight > window.innerWidth;
     W = portrait ? window.innerWidth : Math.max(100, Math.round(r.left));
-    H = portrait ? Math.max(100, Math.round(r.top)) : window.innerHeight;
+    H = Math.max(100, (portrait ? Math.round(r.top) : window.innerHeight) - top);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
     document.documentElement.style.setProperty('--gw', W + 'px');
@@ -83,8 +84,7 @@
       mtctx.fillRect(cellX(i), cellY(i), 1, 1);
     }
     ui.sidebar.dataset.faction = faction;
-    cameoSig = ''; selSig = ''; tab = 'structure';
-    setTab('structure');
+    cameoSig = { L: '', R: '' }; selSig = '';
     ui.autoBtn.setAttribute('aria-pressed', 'true');
     layout();
     const cy = G.entities.find((e) => e.team === PLAYER && e.type === 'cy');
@@ -353,7 +353,7 @@
   function confirmPlace() {
     const p = G.place;
     if (!p || p.cx === undefined) return;
-    if (placeStructure(G.teams[PLAYER], p.type, p.cx, p.cy)) { endPlace(); cameoSig = ''; }
+    if (placeStructure(G.teams[PLAYER], p.type, p.cx, p.cy)) endPlace();
     else eva('Cannot deploy here');
   }
   function placeTap(w) {
@@ -477,39 +477,48 @@
   // ---------------------------------------------------------------------------
   // Sidebar
   // ---------------------------------------------------------------------------
-  let cameoSig = '';
+  // Left column builds structures, right column builds units, as on the classic sidebar.
+  let cameoSig = { L: '', R: '' };
   const cameoEls = new Map();
-  function setTab(t) {
-    tab = t;
-    for (const b of ui.tabs.querySelectorAll('[data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === t));
-    cameoSig = '';
-  }
-  ui.tabs.addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
-
-  function tabTypes(team, t) {
-    if (t === 'structure') return Object.keys(BUILD_DEFS).filter((k) => available(team, k));
-    return Object.keys(UNIT_DEFS).filter((k) => UNIT_DEFS[k].cat === t && available(team, k));
+  const UNIT_ORDER = ['infantry', 'vehicle', 'aircraft'];
+  function stripTypes(team, side) {
+    if (side === 'L') return Object.keys(BUILD_DEFS).filter((k) => available(team, k));
+    return Object.keys(UNIT_DEFS).filter((k) => available(team, k))
+      .sort((a, b) => UNIT_ORDER.indexOf(UNIT_DEFS[a].cat) - UNIT_ORDER.indexOf(UNIT_DEFS[b].cat));
   }
 
-  function rebuildCameos(team, types) {
-    ui.cameos.innerHTML = '';
-    cameoEls.clear();
+  function rebuildStrip(team, side, types) {
+    const strip = side === 'L' ? ui.stripL : ui.stripR;
+    for (const b of strip.querySelectorAll('.cameo')) cameoEls.delete(b.dataset.type);
+    strip.innerHTML = '';
     if (!types.length) {
       const msg = document.createElement('p');
       msg.className = 'empty';
-      msg.textContent = { structure: 'Construction Yard lost', infantry: 'Build a Barracks', vehicle: 'Build a War Factory', aircraft: 'Build a Helipad or Airfield' }[tab];
-      ui.cameos.appendChild(msg);
+      msg.textContent = side === 'L' ? 'Construction Yard lost' : 'Build a Barracks or War Factory';
+      strip.appendChild(msg);
       return;
     }
     for (const type of types) {
       const d = defOf(type);
       const btn = document.createElement('button');
       btn.type = 'button'; btn.className = 'cameo'; btn.dataset.type = type;
+      btn.title = `${d.name}: $${d.cost}`;
       btn.innerHTML = `<img alt="" src="${cameoURL(type, team.faction)}"><span class="nm">${d.name}</span><span class="cost">$${d.cost}</span><span class="clock"></span><span class="st"></span><span class="ct"></span>`;
-      ui.cameos.appendChild(btn);
+      strip.appendChild(btn);
       cameoEls.set(type, { btn, clock: btn.querySelector('.clock'), st: btn.querySelector('.st'), ct: btn.querySelector('.ct') });
     }
   }
+  for (const b of document.querySelectorAll('.sb-arrows [data-scroll]')) {
+    b.addEventListener('click', () => {
+      const strip = b.dataset.scroll === 'L' ? ui.stripL : ui.stripR, cam = strip.querySelector('.cameo');
+      strip.scrollBy({ top: (+b.dataset.dir) * ((cam ? cam.offsetHeight : 48) + 3) * 2, behavior: 'smooth' });
+    });
+  }
+  ui.homeBtn.addEventListener('click', () => {
+    if (!G) return;
+    const b = G.entities.find((e) => e.team === PLAYER && e.type === 'cy') || buildingsOf(PLAYER)[0];
+    if (b) centerOn(b.x, b.y);
+  });
 
   function cameoAction(type) {
     if (!G || G.over) return;
@@ -530,7 +539,7 @@
   }
   // Tap builds; press and hold (or right click) cancels, like the classic sidebar.
   let holdTimer = null, held = false;
-  ui.cameos.addEventListener('pointerdown', (e) => {
+  ui.strips.addEventListener('pointerdown', (e) => {
     const b = e.target.closest('.cameo');
     if (!b) return;
     held = false;
@@ -539,15 +548,15 @@
     holdTimer = setTimeout(() => { held = true; cameoCancel(b.dataset.type); }, 550);
   });
   const clearHold = () => clearTimeout(holdTimer);
-  ui.cameos.addEventListener('pointerup', clearHold);
-  ui.cameos.addEventListener('pointercancel', clearHold);
-  ui.cameos.addEventListener('pointerleave', clearHold);
-  ui.cameos.addEventListener('click', (e) => {
+  ui.strips.addEventListener('pointerup', clearHold);
+  ui.strips.addEventListener('pointercancel', clearHold);
+  ui.strips.addEventListener('pointerleave', clearHold);
+  ui.strips.addEventListener('click', (e) => {
     const b = e.target.closest('.cameo');
     if (!b || held) { held = false; return; }
     cameoAction(b.dataset.type);
   });
-  ui.cameos.addEventListener('contextmenu', (e) => {
+  ui.strips.addEventListener('contextmenu', (e) => {
     const b = e.target.closest('.cameo');
     e.preventDefault();
     if (b) cameoCancel(b.dataset.type);
@@ -571,38 +580,39 @@
     if (hudT > 0 || !G) return;
     hudT = 0.1;
     const team = G.teams[PLAYER];
-    ui.credits.textContent = '$' + Math.max(0, Math.floor(team.shown));
+    ui.credits.textContent = String(Math.max(0, Math.floor(team.shown)));
+    // Vertical power bar: green fill is output, the red tick is demand.
     const { prod, use } = team.power;
-    ui.powerText.textContent = `PWR ${use}/${prod}`;
-    ui.powerBar.style.setProperty('--p', prod ? Math.min(1, use / prod) : 1);
+    const top = Math.max(100, prod, use) * 1.15;
+    ui.powerBar.style.setProperty('--p', prod / top);
+    ui.powerBar.style.setProperty('--d', use / top);
+    ui.powerBar.title = `Power ${use} used of ${prod}`;
     ui.powerBar.dataset.state = team.low ? 'low' : use > prod * 0.85 ? 'warn' : 'ok';
 
-    for (const b of ui.tabs.querySelectorAll('[data-tab]')) {
-      const t = b.dataset.tab;
-      const busy = t === 'structure' ? team.queues.structure : team.queues[t].length;
-      b.dataset.busy = busy ? (t === 'structure' && team.queues.structure.ready ? 'ready' : 'yes') : '';
-      b.disabled = !tabTypes(team, t).length;
+    for (const side of ['L', 'R']) {
+      const types = stripTypes(team, side), sig = types.join();
+      if (sig !== cameoSig[side]) { cameoSig[side] = sig; rebuildStrip(team, side, types); }
     }
-    const types = tabTypes(team, tab);
-    const sig = tab + types.join();
-    if (sig !== cameoSig) { cameoSig = sig; rebuildCameos(team, types); }
     const sq = team.queues.structure;
     for (const [type, el] of cameoEls) {
       let p = 0, st = '', count = 0, dim = false;
-      if (tab === 'structure') {
+      const cat = catOf(type);
+      if (cat === 'structure') {
         if (sq && sq.type === type) { p = sq.progress; st = sq.ready ? 'READY' : sq.stalled ? 'ON HOLD' : ''; }
         else if (sq) dim = true;
       } else {
-        const list = team.queues[tab];
+        const list = team.queues[cat];
         count = list.filter((i) => i.type === type).length;
         if (list[0] && list[0].type === type) { p = list[0].progress; st = list[0].stalled ? 'ON HOLD' : ''; }
         else if (count) st = 'QUEUED';
+        else if (list.length) dim = true;
       }
       el.clock.style.setProperty('--p', p);
       el.clock.hidden = !(p > 0 && p < 1);
       if (el.st.textContent !== st) el.st.textContent = st;
       el.btn.classList.toggle('ready', st === 'READY');
-      el.btn.classList.toggle('dim', dim || team.credits < 1 && !p);
+      el.btn.classList.toggle('hold', st === 'ON HOLD');
+      el.btn.classList.toggle('dim', dim);
       const ct = count > 1 ? String(count) : '';
       if (el.ct.textContent !== ct) el.ct.textContent = ct;
     }
