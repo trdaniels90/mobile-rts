@@ -1,6 +1,6 @@
 'use strict';
-// Sound effects, spoken announcements and an original industrial-metal soundtrack,
-// all synthesised live with the Web Audio API. No audio files are loaded.
+// Sound effects, spoken announcements and an original industrial-metal soundtrack.
+// Effects and music are synthesised live with the Web Audio API; voice lines come from src/voices.js.
 
 const Sound = (() => {
   const settings = { music: true, sfx: true, voice: true };
@@ -11,8 +11,41 @@ const Sound = (() => {
   const lastPlayed = new Map();
   let voices = 0;
 
+  // Half a second of silence. Keeping a media element playing it puts iOS into "playback"
+  // mode, so older iPhones do not mute Web Audio when the ring/silent switch is on silent.
+  const SILENT = 'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAACQAAA2AAVVVVVVVVVVVVVVVqampqampqampqaoCAgICAgICAgICAlZWVlZWVlZWVlZWqqqqqqqqqqqqqqsDAwMDAwMDAwMDA1dXV1dXV1dXV1dXq6urq6urq6urq6v//////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCYAAAAAAAAANgUN8OnAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+MYxAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MYxDsAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MYxHYAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MYxLEAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MYxMQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MYxMQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/+MYxMQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/+MYxMQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/+MYxMQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV';
+  let keepAlive = null;
+
+  // Called from every tap, click and key press. iOS only lets audio start inside the end of a
+  // touch (or a click), and can suspend it again after calls, app switches or screen locks.
+  function unlock() {
+    init();
+    if (!ctx) return;
+    if (ctx.state !== 'running') { try { ctx.resume().catch(() => {}); } catch (_) {} }
+    try {
+      const b = ctx.createBufferSource();
+      b.buffer = ctx.createBuffer(1, 1, 22050);
+      b.connect(ctx.destination); b.start(0);
+    } catch (_) {}
+    if (!keepAlive && typeof Audio !== 'undefined') {
+      try {
+        keepAlive = new Audio(SILENT);
+        keepAlive.loop = true;
+        keepAlive.setAttribute('playsinline', '');
+        keepAlive.setAttribute('x-webkit-airplay', 'deny');
+        const p = keepAlive.play();
+        if (p && p.catch) p.catch(() => { keepAlive = null; });
+      } catch (_) { keepAlive = null; }
+    } else if (keepAlive && keepAlive.paused) keepAlive.play().catch(() => {});
+  }
+  function status() {
+    if (!(window.AudioContext || window.webkitAudioContext)) return 'not supported by this browser';
+    if (!ctx) return 'waiting for a tap';
+    return ctx.state === 'running' ? 'on' : ctx.state + ' (tap the screen)';
+  }
+
   function init() {
-    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+    if (ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     // Let iOS play game audio even with the ring/silent switch on silent.
@@ -46,7 +79,8 @@ const Sound = (() => {
   }
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
-    if (document.hidden) ctx.suspend(); else ctx.resume();
+    if (document.hidden) { ctx.suspend(); if (keepAlive) keepAlive.pause(); }
+    else { ctx.resume().catch(() => {}); if (keepAlive) keepAlive.play().catch(() => {}); }
   });
 
   function gain(v, dest) { const g = ctx.createGain(); g.gain.value = v; if (dest) g.connect(dest); return g; }
@@ -499,5 +533,5 @@ const Sound = (() => {
     if (key === 'voice' && !on && evaSrc) try { evaSrc.stop(); } catch (_) {}
   }
 
-  return { init, play, say, ack, settings, setOption, music: Music, get debug() { return { ctx, master }; } };
+  return { init: unlock, unlock, status, play, say, ack, settings, setOption, music: Music, get debug() { return { ctx, master }; } };
 })();

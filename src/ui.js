@@ -56,9 +56,9 @@
     Sound.play(name, vol, Math.max(-1, Math.min(1, dx)) * 0.6);
   };
   // Audio may only start after the player touches the page.
-  const unlockAudio = () => Sound.init();
-  document.addEventListener('pointerdown', unlockAudio, { capture: true });
-  document.addEventListener('keydown', unlockAudio, { capture: true });
+  // iOS only grants audio at the end of a touch or on a click, so listen for those too.
+  const unlockAudio = () => Sound.unlock();
+  for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) document.addEventListener(ev, unlockAudio, { capture: true, passive: true });
 
   // ---------------------------------------------------------------------------
   // Layout & camera
@@ -728,6 +728,7 @@
   function syncMenuChoices() {
     for (const b of ui.menu.querySelectorAll('[data-audio]')) b.setAttribute('aria-pressed', String(!!Sound.settings[b.dataset.audio]));
     $('trackName').textContent = '· ' + Sound.music.name;
+    $('audioStatus').textContent = 'Sound: ' + Sound.status();
     for (const b of ui.menu.querySelectorAll('[data-faction]')) b.setAttribute('aria-pressed', String(b.dataset.faction === faction));
     for (const b of ui.menu.querySelectorAll('[data-diff]')) b.setAttribute('aria-pressed', String(b.dataset.diff === diffKey));
     ui.menu.dataset.faction = faction;
@@ -760,6 +761,7 @@
     }, 30);
   });
   ui.resumeBtn.addEventListener('click', hideMenu);
+  setInterval(() => { if (!ui.menu.hidden) $('audioStatus').textContent = 'Sound: ' + Sound.status(); }, 500);
   document.addEventListener('visibilitychange', () => { if (document.hidden && G && !G.paused && !G.over) showMenu('pause'); });
 
   // ---------------------------------------------------------------------------

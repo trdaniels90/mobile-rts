@@ -232,6 +232,7 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 .audio button[aria-pressed="true"]::before { content: '● '; color: var(--green); }
 .audio .track { grid-column: 1 / -1; color: var(--ink); }
 .audio .track span { color: var(--amber); }
+.audio-status { grid-column: 1 / -1; margin: 0; font-size: 13px; color: #8d9286; text-align: center; }
 .how summary { cursor: pointer; color: var(--amber); font-size: 16px; font-weight: 700; }
 .how ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 15px; line-height: 1.3; }
 
