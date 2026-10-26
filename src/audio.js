@@ -578,33 +578,37 @@ const Sound = (() => {
   const E = 40; // E2
   const SONGS = [
     {
-      // Original march: boots, drill snare, gang shouts, chugging guitar and a heroic brass line.
-      name: 'Steel Parade', bpm: 104, key: E,
+      // Fast, driving industrial rock: chugging double-tracked guitars, brass hook, anvil breaks.
+      name: 'Danger Close', bpm: 128, key: E,
       parts: {
-        intro: { bars: 4, boots: 'x...x...x...x...', s: 'x.gxx.g.x.gxx.g.', anvil: 'x...............', timp: 'x.......x.......', every: 4, pad: '0 - - - - - - - - - - - - - - -' },
-        call: {
-          bars: 4, boots: 'x...x...x...x...', s: 'x.gxx.g.x.gxx.g.', k: 'x.......x.......',
-          shout: 'x...x...x.x.....', stab: '12 . . . . . . . . . . . 13 . . .|12 . . . . . . . 10 . . . 8 . . .',
+        intro: {
+          bars: 4, k: 'x.......x.......', h: '..x...x...x...x.', anvil: 'x...............', timp: 'x...............', every: 2,
+          bass: '0 - - - - - - - 0 - - - 0 - 0 -', pad: '0 - - - - - - - - - - - - - - -|-2 - - - - - - - - - - - - - - -',
         },
         riff: {
-          bars: 8, k: 'x...x.x.x...x.x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', boots: 'x...x...x...x...',
-          gtr: '0m 0m 0m . 0m 0m 0m . 1 - 0m 0m 3 - 0m .|0m 0m 0m . 0m 0m 0m . 5 - 3 - 1 - 0 -',
-          bass: '0 0 0 . 0 0 0 . 1 - 0 0 3 - 0 .|0 0 0 . 0 0 0 . 5 - 3 - 1 - 0 -',
-          shout: 'x.......x.......', shoutEvery: 4,
+          bars: 8, k: 'x..x..x.x..x..x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.',
+          gtr: '0m 0m . 0m 0m . 0m 0m 7 - 0m 0m 5 - 3 -|0m 0m . 0m 0m . 0m 0m 3 - 5 - 6 - 7 -',
+          bass: '0 0 . 0 0 . 0 0 7 - 0 0 5 - 3 -|0 0 . 0 0 . 0 0 3 - 5 - 6 - 7 -',
+          stab: '. . . . . . . . 12 . . . . . . .',
         },
-        anthem: {
+        chorus: {
           bars: 8, k: 'x.x.x.x.x.x.x.x.', s: '....x.......x...', h: 'o...o...o...o...', crash: 'x...............', crashEvery: 4,
-          gtr: '0 - - - - - - - -4 - - - - - - -|1 - - - - - - - 0 - - - - - - -',
-          bass: '0 - - - - - - - -4 - - - - - - -|1 - - - - - - - 0 - - - - - - -',
-          stab: '12 . . . . . . . 8 . . . . . . .|13 . . . . . . . 12 . . . . . . .',
-          lead: '24 - - 24 27 - 26 - 24 - 22 - 19 - - -|20 - - 20 22 - 24 - 25 - 24 - 22 - - -|24 - - 24 27 - 29 - 31 - 29 - 27 - - -|25 - - - 24 - 22 - 24 - - - - - - -',
+          gtr: '0 - - - - - - - 3 - - - - - - -|5 - - - - - - - 2 - - - 3 - - -',
+          bass: '0 - - - - - - - 3 - - - - - - -|5 - - - - - - - 2 - - - 3 - - -',
+          lead: '19 - - 22 - - 24 - 26 - 24 - 22 - 19 -|22 - - - - - - - 17 - 19 - 22 - - -|19 - - 22 - - 24 - 27 - 26 - 24 - 22 -|24 - - - - - 22 - 19 - - - - - - -',
         },
-        drill: {
-          bars: 4, boots: 'x...x...x...x...', s: 'xgxgxgxgxxgxxgxx', anvil: 'x.......x.......', timp: 'x...............',
-          shout: 'x...x...x...x...', bass: '0 - - - - - - - 0 - - - - - - -', fill: true,
+        riff2: {
+          bars: 8, k: 'x..x..x.x..x..x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', crash: 'x...............', crashEvery: 8,
+          gtr: '0m 0m . 0m 0m . 0m 0m 7 - 0m 0m 5 - 3 -|0m 0m . 0m 0m . 0m 0m 3 - 5 - 6 - 7 -',
+          bass: '0 0 . 0 0 . 0 0 7 - 0 0 5 - 3 -|0 0 . 0 0 . 0 0 3 - 5 - 6 - 7 -',
+          lead: '. . . . . . . . 24 - 22 - 19 - 17 -|. . . . . . . . 19 - 22 - 24 - 27 -',
+        },
+        break: {
+          bars: 4, k: 'x.......x.......', anvil: 'x.....x.....x...', timp: 'x...............', stab: '12 . . . . . 12 . . . . . 15 . . .',
+          bass: '0 - - - - - - - - - - - . . . .', fill: true,
         },
       },
-      order: ['intro', 'call', 'riff', 'anthem', 'riff', 'drill', 'anthem', 'riff'],
+      order: ['intro', 'riff', 'chorus', 'riff2', 'break', 'chorus', 'riff'],
     },
     {
       name: 'Iron Fist March', bpm: 112, key: E,
