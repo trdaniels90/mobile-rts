@@ -563,6 +563,8 @@ function launchGroups() {
     if (team.auto) for (const u of waiting) if (u.cls === 'air') launchAircraft(u);
     const ready = waiting.filter((u) => u.cls !== 'air' && Math.hypot(u.x - rally.x, u.y - rally.y) < CELL * 6);
     team.waiting = ready.length;
+    // The computer plans its own waves (sizes, formations, routes, targets): see aiLaunch.
+    if (team.isAI && team.auto) { aiLaunch(team, ready); continue; }
     if (!team.auto || ready.length < GROUP_SIZE) continue;
     // March at the pace of the slowest unit, in formation, so the group arrives together.
     const pace = Math.min(...ready.map((u) => u.def.speed));
@@ -637,6 +639,14 @@ function defendBase(team) {
     return;
   }
   team.defending = true; team.calm = 0;
+  // The computer remembers which way attacks come from, to put new defences there.
+  const cy = mine.find((b) => b.type === 'cy');
+  if (team.isAI && cy && G.t - (team.fromT || -99) > 5) {
+    team.fromT = G.t;
+    const t = threats.reduce((a, b) => (dist(a, cy) < dist(b, cy) ? a : b));
+    (team.attackFrom = team.attackFrom || []).push(Math.atan2(t.y - cy.y, t.x - cy.x));
+    if (team.attackFrom.length > 8) team.attackFrom.shift();
+  }
   for (const u of army) {
     let best = null, bd = CELL * 32;
     for (const t of threats) { const d = Math.hypot(u.x - t.x, u.y - t.y); if (d < bd && canTarget(u, t)) { bd = d; best = t; } }
@@ -655,22 +665,47 @@ function defendBase(team) {
 
 // --- Attack-group formations ----------------------------------------------------
 // A group follows one route, led by an invisible marker. Every unit keeps its own slot in a
-// block around the marker (tanks in the front ranks, infantry behind), so the group moves
-// spread out instead of in single file, squeezing through gaps and fanning out again after.
+// formation around the marker (tanks in front, infantry behind), so the group moves spread
+// out instead of in single file, squeezing through gaps and fanning out again after.
+// The player's groups march in a block; the computer picks a shape for each wave, and can send
+// a wave by way of a chosen crossing (`via`).
 const SLOT_GAP = 32, ROW_GAP = 28;
-function makeGroup(team, units, target, pace) {
+function formationSlots(form, n, spread) {
+  const S = SLOT_GAP * spread, R = ROW_GAP * spread, out = [];
+  for (let i = 0; i < n; i++) {
+    let side, back;
+    if (form === 'line') { side = (i - (n - 1) / 2) * S * 0.9; back = 0; }                         // line abreast
+    else if (form === 'column') { side = ((i % 2) - 0.5) * S * 0.8; back = Math.floor(i / 2) * R; }   // two files
+    else if (form === 'wedge') { const k = Math.ceil(i / 2); side = (i % 2 ? -1 : 1) * k * S * 0.75; back = k * R * 0.9; }   // arrowhead
+    else if (form === 'echelon') { side = (i - (n - 1) / 2) * S * 0.7; back = i * R * 0.55; }         // staggered diagonal
+    else if (form === 'skirmish') {                                                                   // loose, uneven spread
+      const cols = Math.max(3, Math.ceil(Math.sqrt(n * 2))), row = Math.floor(i / cols);
+      side = (i % cols - (Math.min(cols, n - row * cols) - 1) / 2) * S * 1.45 + (Math.random() - 0.5) * 14;
+      back = row * R * 1.5 + (Math.random() - 0.5) * 14;
+    } else {                                                                                          // block
+      const cols = Math.min(n, Math.max(3, Math.ceil(Math.sqrt(n * 2)))), row = Math.floor(i / cols);
+      side = (i % cols - (Math.min(cols, n - row * cols) - 1) / 2) * S; back = row * R;
+    }
+    out.push({ side, back });
+  }
+  return out;
+}
+function makeGroup(team, units, target, pace, opts) {
+  opts = opts || {};
   let x = 0, y = 0;
   for (const u of units) { x += u.x; y += u.y; }
   x /= units.length; y /= units.length;
-  const g = { team: team.id, units: units.slice(), x, y, a: Math.atan2(target.y - y, target.x - x), target, pace: pace * 0.9,
-    path: findPath(x, y, target.x, target.y, 10) || [{ x: target.x, y: target.y }], i: 0 };
+  let path = null;
+  if (opts.via) {
+    const a = findPath(x, y, opts.via.x, opts.via.y, 10), b = a && findPath(opts.via.x, opts.via.y, target.x, target.y, 10);
+    if (a && b) path = a.concat(b);
+  }
+  path = path || findPath(x, y, target.x, target.y, 10) || [{ x: target.x, y: target.y }];
+  const g = { team: team.id, units: units.slice(), x, y, a: Math.atan2(path[0].y - y, path[0].x - x), target, pace: pace * 0.9, path, i: 0,
+    form: opts.form || 'block', strike: opts.strike || null };
   g.units.sort((a, b) => (a.cls === 'inf') - (b.cls === 'inf') || b.def.hp - a.def.hp);
-  const n = g.units.length, cols = Math.min(n, Math.max(3, Math.ceil(Math.sqrt(n * 2))));
-  g.units.forEach((u, i) => {
-    const row = Math.floor(i / cols), inRow = Math.min(cols, n - row * cols);
-    u.slot = { side: (i % cols - (inRow - 1) / 2) * SLOT_GAP, back: row * ROW_GAP };
-    u.group = g; u.slotGoal = null;
-  });
+  const slots = formationSlots(g.form, g.units.length, opts.spread || 1);
+  g.units.forEach((u, i) => { u.slot = slots[i]; u.group = g; u.slotGoal = null; });
   G.groups.push(g);
   return g;
 }
@@ -704,6 +739,12 @@ function updateGroups(dt) {
         g.path = findPath(g.x, g.y, near.x, near.y, 10) || [{ x: near.x, y: near.y }]; g.i = 0;
         for (const u of g.units) { u.focus = near; u.slotGoal = null; }
       }
+    }
+    // Closing in on the target: call in the Airfield powers held back for this push.
+    if (g.strike && Math.hypot(g.target.x - g.x, g.target.y - g.y) < CELL * 22) {
+      const team = G.teams[g.team];
+      for (const key of g.strike) launchPower(team, key, g.target.x, g.target.y + (key === 'para' ? CELL * 3 : 0));
+      g.strike = null; team.holdFor = null;
     }
     // Hold the marker back while the group is strung out or busy fighting.
     let err = 0, fighting = 0;

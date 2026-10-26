@@ -1,6 +1,6 @@
 'use strict';
-// Computer opponent. It plays by the same rules as the player: same tech tree, same costs,
-// and its combat units also attack-move to the enemy base as soon as they roll out.
+// Computer opponent. It plays by the same rules as the player: same tech tree, same costs.
+// How it attacks and defends depends on the difficulty (DIFFICULTY[...].ai in data.js).
 
 function aiCount(team) {
   const c = {};
@@ -20,18 +20,39 @@ function aiNextStructure(team, c) {
   if (aiLonelyOutpost(team) && available(team, 'refinery') && n('refinery') < 6) {
     return p.prod - p.use < powerNeed('refinery') + 10 && available(team, pwr) ? pwr : 'refinery';
   }
+  // How many defences it may have depends on the difficulty; more AA once the enemy flies.
+  const A = G.diff.ai, capMain = Math.round(A.defMax * 0.6), capInf = A.defMax - capMain;
+  const enemyAir = unitsOf(enemyOf(team).id).filter((u) => u.cls === 'air' && !u.def.scripted).length;
+  if (enemyAir) team.sawAir = true;
+  const aaWant = team.sawAir ? Math.min(A.aaMax, A.aa + Math.ceil(enemyAir / 2)) : A.aa;
   const wants = [
-    ['refinery', 1], ['barracks', 1], [antiInf, 1], ['factory', 1], [defense, 1], ['refinery', 2], ['helipad', 1], [antiInf, 2],
-    [defense, 2], [aa, 1], ['airfield', 1], ['factory', 2], [defense, 3], [aa, 2], ['refinery', 3], [defense, 4],
+    ['refinery', 1], ['barracks', 1], [antiInf, Math.min(1, capInf)], ['factory', 1], [defense, Math.min(1, capMain)], ['refinery', 2],
+    ['helipad', 1], [antiInf, Math.min(2, capInf)], [defense, Math.min(2, capMain)], [aa, Math.min(1, aaWant)], ['airfield', 1],
+    ['factory', 2], [defense, Math.min(3, capMain)], [aa, aaWant], ['refinery', 3], [defense, Math.min(4, capMain)],
   ];
+  const build = (type) => (p.prod - p.use < powerNeed(type) + 10 && available(team, pwr) ? pwr : type);   // power first if needed
   for (const [type, count] of wants) {
     if (n(type) >= count || !available(team, type)) continue;
-    // Build power first if this structure would push us into low power.
-    if (p.prod - p.use < powerNeed(type) + 10 && available(team, pwr)) return pwr;
-    return type;
+    return build(type);
+  }
+  // Then a gun at each Outpost (and on Hard each outlying refinery), and more defences while rich.
+  if (available(team, defense) && aiGuardSite(team) && n(defense) < capMain) return build(defense);
+  if (team.credits > 1500) {
+    const t = n(defense) / Math.max(1, capMain) <= n(antiInf) / Math.max(1, capInf) ? defense : antiInf;
+    const other = t === defense ? antiInf : defense, cap = (x) => (x === defense ? capMain : capInf);
+    for (const x of [t, other]) if (n(x) < cap(x) && available(team, x)) return build(x);
   }
   if (p.prod - p.use < 40) return pwr;
   return null;
+}
+// An Outpost (or on Hard an outlying refinery) with no gun beside it yet.
+function aiGuardSite(team) {
+  const A = G.diff.ai;
+  if (!A.guard.length) return null;
+  const mine = buildingsOf(team.id), cy = mine.find((b) => b.type === 'cy');
+  const guns = mine.filter((b) => b.def.defense && !b.def.antiAir);
+  return mine.find((b) => A.guard.includes(b.type) && b.buildT >= 1 && (b.type !== 'refinery' || (cy && dist(b, cy) > CELL * 14)) &&
+    !guns.some((d) => dist(d, b) < CELL * 6)) || null;
 }
 
 // Forward mining: an ore field on its own half of the map that its refineries are far from.
@@ -72,10 +93,13 @@ function aiDriveFob(team, u) {
 function aiFindSpot(team, type) {
   const cy = G.entities.find((e) => e.alive && e.team === team.id && e.type === 'cy');
   const lonely = type === 'refinery' && aiLonelyOutpost(team);
-  const anchor = lonely || cy || buildingsOf(team.id)[0];
-  if (!anchor) return null;
   const d = BUILD_DEFS[type], foe = enemyOf(team).start;
-  const toFoe = Math.atan2(foe.cy - anchor.cy, foe.cx - anchor.cx);
+  const guard = d.defense && !d.antiAir && aiGuardSite(team);
+  const anchor = guard || lonely || cy || buildingsOf(team.id)[0];
+  if (!anchor) return null;
+  // Guns face the enemy base, or on Normal and Hard the way recent attacks came from.
+  const from = team.attackFrom && team.attackFrom.length && G.diff.ai.targets !== 'cy' && !guard ? team.attackFrom : null;
+  const toFoe = from ? from[Math.floor(Math.random() * from.length)] : Math.atan2(foe.cy - anchor.cy, foe.cx - anchor.cx);
   // Refineries go toward the nearest ore field so trucks have short trips.
   let toOre = 0;
   if (type === 'refinery') {
@@ -86,8 +110,8 @@ function aiFindSpot(team, type) {
     }
   }
   for (let i = 0; i < 160; i++) {
-    const a = d.defense ? toFoe + (Math.random() - 0.5) * 1.6 : type === 'refinery' && i < 100 ? toOre + (Math.random() - 0.5) * 1.2 : Math.random() * Math.PI * 2;
-    const rad = d.defense ? 5 + Math.random() * 4 + i * 0.02 : 3 + i * 0.06 + Math.random() * 3;
+    const a = d.antiAir ? Math.random() * Math.PI * 2 : d.defense ? toFoe + (Math.random() - 0.5) * 1.6 : type === 'refinery' && i < 100 ? toOre + (Math.random() - 0.5) * 1.2 : Math.random() * Math.PI * 2;
+    const rad = guard ? 2 + Math.random() * 3 + i * 0.03 : d.defense ? 5 + Math.random() * 4 + i * 0.02 : 3 + i * 0.06 + Math.random() * 3;
     const cx = Math.round(anchor.cx + 1 + Math.cos(a) * rad - d.w / 2), cy2 = Math.round(anchor.cy + 1 + Math.sin(a) * rad - d.h / 2);
     if (canPlace(team, type, cx, cy2, 1)) return { cx, cy: cy2 };
   }
@@ -157,12 +181,135 @@ function aiThink(team) {
     else if (c.airfield) startProduction(team, jet);
   }
 
-  // Airfield support powers: bomb the thickest part of the enemy base, drop troops on its economy.
-  if (powerReady(team, 'bomb')) { const t = aiPowerTarget(team, true); if (t) launchPower(team, 'bomb', t.x, t.y); }
-  if (powerReady(team, 'para')) { const t = aiPowerTarget(team, false); if (t) launchPower(team, 'para', t.x, t.y); }
+  // Airfield support powers: bomb the thickest part of the enemy base, drop troops on its economy,
+  // unless they are being held back for a big push (not for more than three minutes).
+  const held = (k) => team.holdFor && team.holdFor.keys.includes(k) && G.t - team.holdFor.since < 180;
+  if (powerReady(team, 'bomb') && !held('bomb')) { const t = aiPowerTarget(team, true); if (t) launchPower(team, 'bomb', t.x, t.y); }
+  if (powerReady(team, 'para') && !held('para')) { const t = aiPowerTarget(team, false); if (t) launchPower(team, 'para', t.x, t.y); }
 
   // Patch up damaged buildings when there is cash to spare.
   if (team.credits > 800) for (const b of buildingsOf(team.id)) if (b.hp < b.maxHp * 0.6) b.repairing = true;
   // Pour surplus cash into extra tanks.
   if (team.credits > 4000 && c.factory && vq.length < 3) startProduction(team, team.faction === 'allies' ? 'mtank' : 'htank');
+}
+
+// --- Attack waves ------------------------------------------------------------------
+// The computer does not wait for groups of eight like the player's Auto Attack. Each wave is
+// planned in advance: an ordinary wave or a big push (sizes by difficulty), a formation, a
+// crossing to go by and a target. Between waves, small raids of its fastest units go after
+// Ore Trucks and outlying sites. Runs once a second with the units waiting at the rally point.
+function aiPlanWave(team) {
+  const A = G.diff.ai, r = Math.random, big = !!A.big && r() < A.bigChance;
+  const [lo, hi] = big ? A.big : A.wave;
+  team.holdFor = big && A.strike.length ? { keys: A.strike, since: G.t } : null;
+  return { size: lo + Math.floor(r() * (hi - lo + 1)), big };
+}
+function aiLaunch(team, ready) {
+  const A = G.diff.ai, r = Math.random;
+  if (!team.plan) team.plan = aiPlanWave(team);
+  if (team.raidAt === undefined) team.raidAt = A.raidFrom + r() * 30;
+  if (G.t >= team.raidAt && ready.length >= 3) {
+    team.raidAt = G.t + A.raidGap[0] + r() * (A.raidGap[1] - A.raidGap[0]);
+    const target = aiRaidTarget(team);
+    if (target) {
+      const fast = ready.slice().sort((a, b) => b.def.speed - a.def.speed).slice(0, Math.min(ready.length, 3 + Math.floor(r() * 3)));
+      aiSend(team, fast, target, { form: ['line', 'wedge', 'skirmish'][Math.floor(r() * 3)], focus: true });
+      ready = ready.filter((u) => !fast.includes(u));
+    }
+  }
+  if (ready.length < team.plan.size) return;
+  const target = aiWaveTarget(team, ready[0]);
+  if (!target) return;
+  const focus = target.type !== 'cy', pick = (l) => l[Math.floor(r() * l.length)];
+  const strike = team.plan.big && A.strike.length ? A.strike : null;
+  if (ready.length >= 6 && r() < A.pincer) {
+    // Pincer: two halves, each by a different crossing, meeting at the target.
+    const c = centreOf(ready), via1 = aiPickCrossing(team, c, target), via2 = aiPickCrossing(team, c, target, via1);
+    ready.sort((a, b) => b.def.hp - a.def.hp);
+    const halves = [ready.filter((u, i) => i % 2 === 0), ready.filter((u, i) => i % 2 === 1)];
+    aiSend(team, halves[0], target, { form: pick(A.forms), via: via1, focus, strike });
+    aiSend(team, halves[1], target, { form: pick(A.forms), via: via2, focus });
+  } else aiSend(team, ready, target, { form: pick(A.forms), focus, strike });
+  team.waves = (team.waves || 0) + 1;
+  team.plan = aiPlanWave(team);
+}
+function centreOf(units) {
+  let x = 0, y = 0;
+  for (const u of units) { x += u.x; y += u.y; }
+  return { x: x / units.length, y: y / units.length };
+}
+function aiSend(team, units, target, o) {
+  const pace = Math.min(...units.map((u) => u.def.speed));
+  for (const u of units) { setHunt(u); u.staged = false; u.groupSpeed = pace; }
+  const via = o.via || aiPickCrossing(team, centreOf(units), target);
+  const g = makeGroup(team, units, target, pace, { form: o.form, via, spread: 0.9 + Math.random() * 0.35, strike: o.strike });
+  if (o.focus) { g.raid = true; for (const u of units) u.focus = target; }
+  return g;
+}
+// What a wave goes for. Easy: the Construction Yard, and one wave in three an outlying site.
+// Normal: a mix of the Construction Yard, refineries, power and outlying sites. Hard: whatever
+// valuable building is least defended.
+function aiWaveTarget(team, from) {
+  const A = G.diff.ai, r = Math.random, foe = enemyOf(team), theirs = buildingsOf(foe.id);
+  if (!theirs.length) return null;
+  const cy = theirs.find((b) => b.type === 'cy');
+  if (A.targets === 'cy') {
+    const exp = expansionsOf(foe, from);
+    return (exp.length && (team.waves || 0) % 3 === 2 ? exp[0] : null) || cy || nearestEnemyBuilding(from);
+  }
+  if (A.targets === 'mixed') {
+    const of = (types) => { const l = theirs.filter((b) => types.includes(b.type)); return l.length ? l[Math.floor(r() * l.length)] : null; };
+    const roll = r();
+    return (roll < 0.45 ? cy : roll < 0.7 ? of(['refinery']) : roll < 0.85 ? of(['power', 'apower']) : expansionsOf(foe, from)[0]) || cy || theirs[0];
+  }
+  // Valuable and lightly guarded scores highest; whatever the last wave went for scores less.
+  const value = { cy: 2.4, refinery: 3, power: 2.6, apower: 2.8, factory: 2.2, outpost: 2.4, airfield: 2, helipad: 1.6, barracks: 1.6 };
+  const guns = theirs.filter((b) => b.def.defense);
+  let best = null, bs = -Infinity;
+  for (const b of theirs) {
+    if (b.def.defense) continue;
+    const sc = (value[b.type] || 1) - guns.filter((d) => dist(d, b) < CELL * 8).length * 0.6 + r() * 2 - (b === team.lastTarget || b.type === team.lastType ? 1.4 : 0);
+    if (sc > bs) { bs = sc; best = b; }
+  }
+  best = best || cy || theirs[0];
+  team.lastTarget = best; team.lastType = best.type;
+  return best;
+}
+// A raid goes for an outlying site or the most exposed Ore Truck.
+function aiRaidTarget(team) {
+  const foe = enemyOf(team), cy = buildingsOf(foe.id).find((b) => b.type === 'cy');
+  const trucks = unitsOf(foe.id).filter((u) => u.def.harvester);
+  const exp = expansionsOf(foe, rallyPoint(team));
+  if (exp.length && (Math.random() < 0.4 || !trucks.length)) return exp[0];
+  if (!trucks.length) return null;
+  return cy ? trucks.reduce((a, b) => (dist(b, cy) > dist(a, cy) ? b : a)) : trucks[0];
+}
+// The ways across the lakes: the centre gap, the two bridges and round both lake ends.
+function aiCrossings() {
+  if (G.crossings) return G.crossings;
+  const pts = [{ x: (MID + 0.5) * CELL, y: (MID + 0.5) * CELL }];
+  for (const b of G.bridges) pts.push({ x: (b.a.x + b.b.x) / 2, y: (b.a.y + b.b.y) / 2 });
+  for (const sg of [-1, 1]) pts.push({ x: (LX(MID + sg * 39 * K, 0) + 0.5) * CELL, y: (LY(MID + sg * 39 * K, 0) + 0.5) * CELL });
+  G.crossings = pts.map((q) => { const c = nearestFreeCell(cellOfPos(q.x, q.y), 8); return c >= 0 ? cellCenter(c) : q; });
+  return G.crossings;
+}
+// Which crossing a wave takes. Easy mostly takes the shortest; Normal favours shorter ones;
+// Hard prefers the one with the fewest enemy guns along it.
+function aiPickCrossing(team, from, target, not) {
+  const A = G.diff.ai, cs = aiCrossings().filter((c) => c !== not), r = Math.random;
+  const L = cs.map((c) => Math.hypot(c.x - from.x, c.y - from.y) + Math.hypot(target.x - c.x, target.y - c.y)), min = Math.min(...L);
+  let w;
+  if (A.route === 'short') {
+    if (r() < 0.75) return cs[L.indexOf(min)];
+    w = cs.map((c, i) => ((aiCrossings().indexOf(c) === 1 || aiCrossings().indexOf(c) === 2) && L[i] > min ? 1 : 0));   // the other bridge
+  } else if (A.route === 'weighted') w = L.map((l) => Math.exp(-(l - min) / (CELL * 14)));
+  else {
+    const guns = buildingsOf(enemyOf(team).id).filter((b) => b.def.defense && !b.def.antiAir);
+    const near = (a, b, p) => { const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy || 1, k = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)); return Math.hypot(a.x + dx * k - p.x, a.y + dy * k - p.y) < CELL * 7; };
+    w = cs.map((c, i) => Math.exp(-(L[i] - min) / (CELL * 20)) * Math.pow(0.35, guns.filter((d) => near(from, c, d) || near(c, target, d)).length));
+  }
+  let sum = w.reduce((a, b) => a + b, 0), x = r() * sum;
+  if (!(sum > 0)) return cs[L.indexOf(min)];
+  for (let i = 0; i < cs.length; i++) if ((x -= w[i]) <= 0) return cs[i];
+  return cs[cs.length - 1];
 }
