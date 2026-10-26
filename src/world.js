@@ -467,7 +467,7 @@ function defendBase(team) {
       if (!u.defending) continue;
       u.defending = false;
       const h = u.post;
-      setGuard(u, h.x, h.y); u.staged = h.staged;
+      setGuard(u, h.x, h.y); u.staged = h.staged; u.order.pad = h.pad;
       if (u.cls !== 'air') goTo(u, h.x, h.y);
     }
     return;
@@ -481,7 +481,7 @@ function defendBase(team) {
     if (!u.defending) {
       // Remember where to return: the guard spot, or for attack groups already out, the rally point.
       const r = rallyPoint(team), g = u.order.type === 'guard';
-      u.post = { x: g ? u.order.x : r.x, y: g ? u.order.y : r.y, staged: u.staged || (team.isAI && !g) };
+      u.post = { x: g ? u.order.x : r.x, y: g ? u.order.y : r.y, staged: u.staged || (team.isAI && !g), pad: g && u.order.pad };
     }
     u.defending = true; u.staged = false;
     setGuard(u, x, y);
@@ -711,11 +711,16 @@ function kill(e, attacker) {
       G.effects.push({ type: 'husk', x: e.x, y: e.y, face: e.face, tface: e.tface, def: e.def, t: 0, life: 12 });
       for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: e.x + (Math.random() - 0.5) * 8, y: e.y + (Math.random() - 0.5) * 6, t: -i * 0.3, life: 2.5 + Math.random() * 2 });
       scorch(G.tctx, e.x, e.y, 12, seed);
+    } else if ((e.alt || 0) > 4) {
+      // Shot down: a burst in the air, the pilot bails out, the airframe falls and crashes.
+      hooks.sfx('hitMed', e.x, e.y);
+      G.effects.push({ type: 'expl', x: e.x, y: e.y - e.alt, size: 10, t: 0, life: 0.6, seed, debris: true });
+      ejectPilot(e);
+      const jet = e.def.fly === 'jet', sp = jet ? (e.speedCur || e.def.speed) * 0.6 : 15;
+      G.effects.push({ type: 'crash', x: e.x, y: e.y, alt: e.alt, vz: 0, face: e.face, spin: jet ? 0.8 : 5 + Math.random() * 3,
+        vx: Math.cos(e.face) * sp, vy: Math.sin(e.face) * sp, def: e.def, faction: e.faction, t: 0, life: 20, smokeT: 0 });
     } else {
-      hooks.sfx('explodeVeh', e.x, e.y);
-      G.effects.push({ type: 'expl', x: e.x, y: e.y - (e.alt || 0), size: 12, t: 0, life: 0.7, seed, debris: true });
-      G.effects.push({ type: 'expl', x: e.x, y: e.y, size: 10, t: -0.35, life: 0.6, seed: seed + 1 });
-      scorch(G.tctx, e.x, e.y, 10, seed);
+      crashLanding(e.x, e.y, e.face, e.def, e.faction, seed);
     }
     if (e.team === PLAYER) notify(team, 'lost', 'Unit lost', 4);
   } else {
@@ -732,6 +737,32 @@ function kill(e, attacker) {
       if (e.team === PLAYER) notify(team, 'slost', 'Structure lost', 4);
     }
   }
+}
+
+// Ground impact of an aircraft: fireball, burning wreck, scorched earth.
+function crashLanding(x, y, face, def, faction, seed) {
+  hooks.sfx('explodeVeh', x, y);
+  G.effects.push({ type: 'expl', x, y: y - 4, size: 15, t: 0, life: 0.8, seed, debris: true });
+  G.effects.push({ type: 'husk', x, y, face, tface: face, def, t: 0, life: 40 });
+  for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: x + (Math.random() - 0.5) * 12, y: y + (Math.random() - 0.5) * 8, t: -i * 0.3, life: 3 + Math.random() * 3 });
+  scorch(G.tctx, x, y, 13, seed);
+  for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - x, e.y - y) < 14) damage(e, 30, 'HE', null);
+}
+function updateCrash(fx, dt) {
+  fx.vz += 60 * dt;
+  fx.alt -= fx.vz * dt;
+  fx.x += fx.vx * dt; fx.y += fx.vy * dt; fx.face += fx.spin * dt;
+  if ((fx.smokeT -= dt) <= 0) { fx.smokeT = 0.05; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y - fx.alt, r: 2.5, t: 0, life: 0.9, alpha: 0.6, color: '#3a3733' }); }
+  if (fx.alt <= 0) { fx.t = fx.life; crashLanding(fx.x, fx.y, fx.face, fx.def, fx.faction, (Math.random() * 1e6) | 0); }
+}
+// The crew of a downed aircraft parachutes down and joins the fight on the ground.
+function ejectPilot(e) {
+  const c = nearestFreeCell(cellOfPos(e.x, e.y), 4);
+  if (c < 0) return;
+  const team = G.teams[e.team], p = cellCenter(c);
+  const u = addUnit('pilot', team, p.x, p.y);
+  u.chute = (e.alt || 30) / 26 + 0.3;
+  if (team.auto) setHunt(u); else setGuard(u);
 }
 
 // ---------------------------------------------------------------------------
@@ -944,10 +975,12 @@ function padFor(u) {
   return best;
 }
 function padSpot(pad, u) {
-  // Spread parked aircraft so they do not stack exactly.
-  const k = u.id % 3;
-  if (pad.type === 'airfield') return { x: pad.cx * CELL + 34 + k * 12, y: pad.cy * CELL + 30 };
-  return { x: pad.x + (k - 1) * 6, y: pad.y + (k - 1) * 3 };
+  // Each aircraft gets its own parking slot: three along the runway, or the pad itself and then
+  // the ground beside it for helicopters.
+  const mates = G.entities.filter((e) => e.alive && e.kind === 'unit' && e.team === u.team && e.def.producer === pad.type);
+  const k = Math.max(0, mates.indexOf(u)) % 3;
+  if (pad.type === 'airfield') return { x: pad.cx * CELL + 14 + k * 22, y: pad.cy * CELL + 27 };
+  return [{ x: pad.x, y: pad.y }, { x: pad.x + 36, y: pad.y - 4 }, { x: pad.x + 34, y: pad.y + 28 }][k];
 }
 
 function airTarget(u) {
@@ -967,7 +1000,8 @@ function updateAir(u, dt) {
     u.alt = 0; u.speedCur = 0;
     u.rt += dt;
     if (u.ammo < maxAmmo && u.rt >= (jet ? 1.5 : 0.5)) { u.ammo++; u.rt = 0; }
-    if (u.ammo >= maxAmmo && u.order.type !== 'rearm-hold') u.as = 'takeoff';
+    // Aircraft told to wait on their pad stay parked until auto attack, an order or a raid sends them up.
+    if (u.ammo >= maxAmmo && u.order.type !== 'rearm-hold' && !(u.order.type === 'guard' && u.order.pad)) u.as = 'takeoff';
     return;
   }
   if (u.as === 'takeoff') {
@@ -978,8 +1012,8 @@ function updateAir(u, dt) {
     return;
   }
 
-  // Out of ammo: head home to rearm.
-  if (u.ammo <= 0) {
+  // Out of ammo, or told to wait on the pad: head home and land.
+  if (u.ammo <= 0 || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {
       const spot = padSpot(pad, u);
@@ -1275,6 +1309,9 @@ function spawnUnit(team, type) {
     const spot = padSpot(p, u);
     u.x = spot.x; u.y = spot.y; u.face = p.type === 'airfield' ? 0 : (team.id === PLAYER ? -0.8 : 2.35);
     u.as = 'landed'; u.alt = 0;
+    setGuard(u); u.order.pad = true; u.staged = true;
+    if (team.auto) launchAircraft(u);
+    return u;
   } else {
     let c = p.exitCell;
     if (c === undefined || !freeCell(c)) c = nearestFreeCell(idx(p.cx + Math.floor(p.w / 2), p.cy + p.h), 6);
@@ -1288,8 +1325,7 @@ function spawnUnit(team, type) {
   const gx = r.x + (Math.random() - 0.5) * 70, gy = r.y + (Math.random() - 0.5) * 70;
   setGuard(u, gx, gy);
   u.staged = true;
-  if (u.cls === 'air') { if (team.auto) launchAircraft(u); }
-  else goTo(u, gx, gy);
+  goTo(u, gx, gy);
   return u;
 }
 
@@ -1458,8 +1494,9 @@ function update(dt) {
   if ((T.ai -= dt) <= 0) { T.ai = 1; if (!G.over) for (const team of G.teams) if (team.isAI) aiThink(team); }
   if ((T.win -= dt) <= 0) { T.win = 1; checkWin(); if (!G.over) launchGroups(); }
   for (const fx of G.effects) {
+    if (fx.type === 'crash') updateCrash(fx, dt);
     fx.t += dt;
-    if (fx.vy && fx.t > 0) { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
+    if (fx.vy && fx.t > 0 && fx.type !== 'crash') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
   }
   G.effects = G.effects.filter((fx) => fx.t < fx.life);
   if (G.entities.some((e) => !e.alive)) {

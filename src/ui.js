@@ -168,7 +168,8 @@
     const ground = [], air = [];
     for (const e of G.entities) {
       if (!inView(e) || !visibleToPlayer(e)) continue;
-      if (e.kind === 'unit' && isAirborne(e)) air.push(e); else ground.push(e);
+      // Parked aircraft too, so they show on top of their Helipad or Airfield.
+      if (e.kind === 'unit' && e.cls === 'air') air.push(e); else ground.push(e);
     }
     const baseY = (e) => e.kind === 'bld' ? (e.cy + e.h) * CELL : e.y;
     ground.sort((a, b) => baseY(a) - baseY(b));
@@ -205,7 +206,7 @@
       }
     }
     for (const fx of G.effects) if (fx.t >= 0 && fx.type !== 'husk' && fx.type !== 'corpse' && fx.x > x0 && fx.x < x1 && fx.y > y0 && fx.y < y1) drawEffect(v, fx);
-    air.sort((a, b) => a.y - b.y);
+    air.sort((a, b) => (a.alt || 0) - (b.alt || 0) || a.y - b.y);
     for (const e of air) drawUnit(v, e, G.t);
 
     // Selection brackets and health bars.

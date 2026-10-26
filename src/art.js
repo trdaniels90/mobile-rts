@@ -229,6 +229,12 @@ function drawUnit(g, u, t) {
       g.beginPath(); g.arc(bx, by, 1.6, 0, 7); g.fill();
     }
     if (u.fireT > 0) flash(g, u.x + Math.cos(u.face) * 10, u.y - alt + Math.sin(u.face) * 10, 2);
+    // Parked: ammunition pips fill up as the ground crew rearms it.
+    if (u.as === 'landed' && u.def.weapon) {
+      const n = u.def.weapon.ammo, x0 = Math.round(u.x - n * 1.5), y0 = Math.round(u.y + 9);
+      g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x0 - 1, y0 - 1, n * 3 + 1, 4);
+      for (let i = 0; i < n; i++) { g.fillStyle = i < u.ammo ? '#e8c64a' : '#4a4436'; g.fillRect(x0 + i * 3, y0, 2, 2); }
+    }
     return;
   }
   blit(g, hullSprite(u, pal), u.x, u.y);
@@ -479,6 +485,15 @@ function drawEffect(g, fx) {
       break;
     }
     case 'husk': drawHusk(g, fx); break;
+    case 'crash': {
+      // A downed aircraft tumbling toward its shadow.
+      const fake = { def: fx.def, face: fx.face, faction: fx.faction }, s = hullSprite(fake, palFor(fx.faction)), hgt = fx.alt / VK;
+      if (s.sh) { g.globalAlpha = 0.3; g.drawImage(s.sh, Math.round(fx.x + hgt * SHADOW_DX + s.sox), Math.round(fx.y + hgt * SHADOW_DY + s.soy)); g.globalAlpha = 1; }
+      blit(g, s, fx.x, fx.y - fx.alt, false);
+      g.fillStyle = Math.random() < 0.5 ? 'rgba(255,170,60,0.85)' : 'rgba(255,110,30,0.85)';
+      g.beginPath(); g.arc(fx.x + (Math.random() - 0.5) * 6, fx.y - fx.alt + (Math.random() - 0.5) * 4, 2.5 + Math.random() * 2, 0, 7); g.fill();
+      break;
+    }
     case 'ring': {
       g.globalAlpha = 1 - k;
       g.strokeStyle = fx.color; g.lineWidth = 1;

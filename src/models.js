@@ -250,9 +250,11 @@ function infModel(pal, faction, type, frame) {
     m.box(1, -3, 10, 3, -2, 11, pal.main); m.box(1, 2, 10, 3, 3, 11, pal.main);
     m.set(3, -3, 10, skin); m.set(3, 2, 10, skin);
   }
-  // Pack on the back
-  m.box(-3, -1.5, 9, -1, 1.5, 13, C.oliveD);
-  m.box(-3, -1.5, 13, -1, 1.5, 14, '#3e4528');
+  // Pack on the back (a pilot carries only his folded parachute harness)
+  if (type !== 'pilot') {
+    m.box(-3, -1.5, 9, -1, 1.5, 13, C.oliveD);
+    m.box(-3, -1.5, 13, -1, 1.5, 14, '#3e4528');
+  } else m.box(-2, -1.5, 9, -1, 1.5, 12, '#6b6450');
   // Head, face and helmet with a rim
   m.box(-0.5, -1, 14, 1.5, 1, 17, skin);
   m.set(1, -1, 15, '#3a2a20'); m.set(1, 0, 15, '#3a2a20');
@@ -261,6 +263,10 @@ function infModel(pal, faction, type, frame) {
   if (sov) m.set(2, 0, 17, '#c8281e');
   if (type === 'grenadier') {
     m.box(-1, -1, 17, 2, 1, 18.5, '#5e4a34');            // field cap instead of a steel helmet
+  } else if (type === 'pilot') {
+    m.box(-1.5, -2, 15, 2.5, 2, 18.5, '#cfcab8');        // flight helmet with a dark visor, sidearm
+    m.box(1.5, -1.5, 15, 2.5, 1.5, 16.5, '#22262a', M_GLASS);
+    m.box(3, -1, 10, 6, 0, 11, C.gun, M_METAL);
   } else if (type === 'rocket') {
     m.cylX(-6, 5, -2.5, 15.5, 1.3, '#56603a');
     m.box(5, -3.5, 14.5, 7, -1.5, 16.5, '#2a2a24');

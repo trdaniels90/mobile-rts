@@ -40,6 +40,11 @@ const UNIT_DEFS = {
     cost: 160, hp: 50, armor: 'inf', speed: 24, sight: 5, r: 5,
     weapon: { dmg: 42, rof: 2.0, range: 100, wh: 'HE', proj: 'grenade', splash: 22 },
   },
+  // Bails out of a downed aircraft. Cannot be built.
+  pilot: {
+    name: 'Pilot', cls: 'inf', cat: 'infantry', factions: [], cost: 0, hp: 35, armor: 'inf', speed: 27, sight: 4, r: 5,
+    weapon: { dmg: 5, rof: 1.1, range: 60, wh: 'SA', proj: 'bullet' },
+  },
   rocket: {
     name: 'Rocket Soldier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
     cost: 300, hp: 45, armor: 'inf', speed: 24, sight: 5, r: 5,
