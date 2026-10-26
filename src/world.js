@@ -57,7 +57,7 @@ function makeTeam(id, faction, isAI) {
     power: { prod: 0, use: 0 }, low: false, auto: true,
     queues: { structure: null, infantry: [], vehicle: [], aircraft: [] },
     stats: { built: 0, lost: 0, killed: 0, harvested: 0 },
-    cool: {}, powers: { spy: 0, para: 0, bomb: 0 },
+    cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, defending: false, calm: 0, harvHit: null,
   };
 }
 
@@ -426,7 +426,7 @@ function launchGroups() {
   for (const team of G.teams) {
     defendBase(team);
     const rally = rallyPoint(team);
-    const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.def.harvester && u.order.type === 'guard');
+    const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.def.harvester && u.order.type === 'guard');
     // Aircraft do not wait for a group: each one heads out on its own.
     if (team.auto) for (const u of waiting) if (u.cls === 'air') launchAircraft(u);
     const ready = waiting.filter((u) => u.cls !== 'air' && Math.hypot(u.x - rally.x, u.y - rally.y) < CELL * 6);
@@ -450,19 +450,29 @@ function launchAircraft(u) {
   if (u.as === 'landed' && u.ammo > 0) u.as = 'takeoff';
 }
 
-// Enemies near or inside a base (paratroopers, flanking squads) are met by every idle unit
-// waiting around that base, on either side and with auto attack on or off. The computer also
-// recalls attack groups still on their way out. Units the player has sent somewhere are left
-// alone. Once the base is clear, defenders go back to where they were waiting.
+// Enemies near or inside a base (paratroopers, flanking squads), or shooting at an Ore Truck,
+// are met by every idle unit close enough to help, on either side and with auto attack on or
+// off. The computer also recalls attack groups still on their way out. Units the player has
+// sent somewhere are left alone. Each defender goes for the nearest raider it can hit; once
+// the area has been quiet for a few seconds, defenders return to where they were waiting.
+// Runs once a second.
+const DEFEND_CALM = 4;
 function defendBase(team) {
   const mine = buildingsOf(team.id);
   const nearBase = (u, r) => mine.some((b) => Math.hypot(b.x - u.x, b.y - u.y) < CELL * r);
-  const threats = unitsOf(enemyOf(team).id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute && nearBase(u, 10));
-  const idle = (u) => u.order.type === 'guard' && nearBase(u, 16);
+  const hh = team.harvHit && team.harvHit.until > G.t ? team.harvHit : null;
+  const nearHarv = (u, r) => hh && Math.hypot(u.x - hh.x, u.y - hh.y) < CELL * r;
+  // Once fighting has started the zone widens, so raiders stepping back do not end the defence.
+  const zone = team.defending ? 16 : 10;
+  const threats = unitsOf(enemyOf(team).id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute &&
+    (nearBase(u, zone) || nearHarv(u, 9)));
+  const idle = (u) => u.order.type === 'guard' && (nearBase(u, 16) || nearHarv(u, 24));
   const army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute &&
     (u.cls !== 'air' || (u.ammo > 0 && u.order.type === 'guard')) &&
     (u.defending || idle(u) || (team.isAI && u.cls !== 'air')));
   if (!threats.length) {
+    if (!team.defending || ++team.calm < DEFEND_CALM) return;
+    team.defending = false;
     for (const u of army) {
       if (!u.defending) continue;
       u.defending = false;
@@ -472,20 +482,20 @@ function defendBase(team) {
     }
     return;
   }
-  let x = 0, y = 0;
-  for (const t of threats) { x += t.x; y += t.y; }
-  x /= threats.length; y /= threats.length;
+  team.defending = true; team.calm = 0;
   for (const u of army) {
-    if (Math.hypot(u.x - x, u.y - y) > CELL * 32) continue;
-    if (u.defending && Math.hypot(u.order.x - x, u.order.y - y) < CELL * 3) continue;
+    let best = null, bd = CELL * 32;
+    for (const t of threats) { const d = Math.hypot(u.x - t.x, u.y - t.y); if (d < bd && canTarget(u, t)) { bd = d; best = t; } }
+    if (!best) continue;
     if (!u.defending) {
       // Remember where to return: the guard spot, or for attack groups already out, the rally point.
       const r = rallyPoint(team), g = u.order.type === 'guard';
       u.post = { x: g ? u.order.x : r.x, y: g ? u.order.y : r.y, staged: u.staged || (team.isAI && !g), pad: g && u.order.pad };
     }
     u.defending = true; u.staged = false;
-    setGuard(u, x, y);
-    if (u.cls !== 'air') goTo(u, x, y);
+    if (u.target === best || (u.target && u.target.alive && threats.includes(u.target))) continue;
+    setGuard(u, best.x, best.y); u.target = best;
+    if (u.cls !== 'air') goTo(u, best.x, best.y);
   }
 }
 
@@ -699,6 +709,8 @@ function damage(t, amount, wh, attacker) {
     if (t.kind === 'bld') notify(team, 'base', 'Our base is under attack', 15);
     else if (t.def.harvester) notify(team, 'harv', 'Ore Truck under attack', 15);
   }
+  // Either side: an Ore Truck under fire calls nearby units to its aid.
+  if (t.def && t.def.harvester && attacker && attacker.kind === 'unit') team.harvHit = { x: t.x, y: t.y, until: G.t + 8 };
   if (attacker && attacker.alive && t.kind === 'unit' && t.order.type === 'guard' && !t.target && canTarget(t, attacker)) t.target = attacker;
   if (t.hp <= 0) kill(t, attacker);
 }

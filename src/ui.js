@@ -654,7 +654,7 @@
     ui.autoBtn.setAttribute('aria-pressed', String(team.auto));
     if (team.auto) {
       // Units already guarding join the next attack group.
-      for (const u of unitsOf(PLAYER)) if (!u.def.harvester && !u.def.scripted && u.order.type === 'guard') u.staged = true;
+      for (const u of unitsOf(PLAYER)) if (!u.def.harvester && !u.def.scripted && !u.defending && u.order.type === 'guard') u.staged = true;
       eva('Auto attack on');
     } else eva('Auto attack off. New units guard the base');
   });
