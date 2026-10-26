@@ -417,7 +417,7 @@ function nearestEnemyBuilding(u) {
 
 // Auto attack holds new units at a rally point in front of the base and sends them
 // out together once a group of this size has gathered.
-const GROUP_SIZE = 5;
+const GROUP_SIZE = 8;
 function rallyPoint(team) {
   const e = enemyOf(team).start, s = team.start;
   const a = Math.atan2(e.cy - s.cy, e.cx - s.cx);
@@ -462,14 +462,17 @@ function launchAircraft(u) {
 const DEFEND_CALM = 4;
 function defendBase(team) {
   const mine = buildingsOf(team.id);
-  const nearBase = (u, r) => mine.some((b) => Math.hypot(b.x - u.x, b.y - u.y) < CELL * r);
+  // Measured from building edges, so a big base is covered all the way round.
+  const nearBase = (u, r) => mine.some((b) => distTo(u, b) < CELL * r);
   const hh = team.harvHit && team.harvHit.until > G.t ? team.harvHit : null;
   const nearHarv = (u, r) => hh && Math.hypot(u.x - hh.x, u.y - hh.y) < CELL * r;
+  const bh = team.baseHit && team.baseHit.until > G.t ? team.baseHit : null;
+  const nearShooter = (u) => bh && Math.hypot(u.x - bh.x, u.y - bh.y) < CELL * 8;
   // Once fighting has started the zone widens, so raiders stepping back do not end the defence.
-  const zone = team.defending ? 16 : 10;
+  const zone = team.defending ? 18 : 14;
   const threats = unitsOf(enemyOf(team).id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute &&
-    (nearBase(u, zone) || nearHarv(u, 9)));
-  const idle = (u) => u.order.type === 'guard' && (nearBase(u, 16) || nearHarv(u, 24));
+    (nearBase(u, zone) || nearHarv(u, 9) || nearShooter(u)));
+  const idle = (u) => u.order.type === 'guard' && (nearBase(u, 16) || nearHarv(u, 24) || nearShooter(u));
   const army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute &&
     (u.cls !== 'air' || (u.ammo > 0 && u.order.type === 'guard')) &&
     (u.defending || idle(u) || (team.isAI && u.cls !== 'air')));
@@ -773,6 +776,8 @@ function damage(t, amount, wh, attacker) {
   }
   // Either side: an Ore Truck under fire calls nearby units to its aid.
   if (t.def && t.def.harvester && attacker && attacker.kind === 'unit') team.harvHit = { x: t.x, y: t.y, until: G.t + 8 };
+  // A structure shot at from outside the base zone: answer the fire wherever it comes from.
+  else if (t.kind === 'bld' && attacker && attacker.kind === 'unit' && !isAirborne(attacker)) team.baseHit = { x: attacker.x, y: attacker.y, until: G.t + 8 };
   if (attacker && attacker.alive && t.kind === 'unit' && t.order.type === 'guard' && !t.target && canTarget(t, attacker)) t.target = attacker;
   if (t.hp <= 0) kill(t, attacker);
 }
@@ -1335,6 +1340,11 @@ function placeStructure(team, type, cx, cy) {
     const p = cellCenter(b.exitCell);
     const h = addUnit('harv', team, p.x, p.y);
     h.face = Math.PI / 2;
+  }
+  // A new Helipad comes with a helicopter and a new Airfield with a jet, parked and ready.
+  if (type === 'helipad' || type === 'airfield') {
+    const free = Object.keys(UNIT_DEFS).find((k) => UNIT_DEFS[k].producer === type && UNIT_DEFS[k].factions.includes(team.faction));
+    if (free) spawnUnit(team, free);
   }
   updatePower();
   return b;
