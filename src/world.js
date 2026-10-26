@@ -560,7 +560,7 @@ function launchGroups() {
     const rally = rallyPoint(team);
     const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.def.harvester && (u.def.weapon || u.cls === 'air') && u.order.type === 'guard');
     // Aircraft do not wait for a group: each one heads out on its own.
-    if (team.auto) for (const u of waiting) if (u.cls === 'air') launchAircraft(u);
+    if (team.auto) for (const u of waiting) if (u.cls === 'air' && !u.interceptor) launchAircraft(u);
     const ready = waiting.filter((u) => u.cls !== 'air' && Math.hypot(u.x - rally.x, u.y - rally.y) < CELL * 6);
     team.waiting = ready.length;
     // The computer plans its own waves (sizes, formations, routes, targets): see aiLaunch.
@@ -1038,6 +1038,7 @@ function damage(t, amount, wh, attacker, from) {
   if (t.def && t.def.harvester && attacker && attacker.kind === 'unit') team.harvHit = { x: t.x, y: t.y, until: G.t + 8 };
   // A structure shot at from outside the base zone: answer the fire wherever it comes from.
   else if (t.kind === 'bld' && attacker && attacker.kind === 'unit' && !isAirborne(attacker)) team.baseHit = { x: attacker.x, y: attacker.y, until: G.t + 8 };
+  if (attacker && attacker.cls === 'air' && !attacker.def.scripted && G.teams[t.team]) { const tm = G.teams[t.team]; tm.airHit = { x: t.x, y: t.y, t: G.t }; tm.sawAir = true; }   // where enemy aircraft strike
   if (attacker && attacker.alive && t.kind === 'unit' && t.order.type === 'guard' && !t.target && canTarget(t, attacker)) t.target = attacker;
   if (t.hp <= 0) kill(t, attacker, wh, from || attacker);
 }
@@ -1535,9 +1536,10 @@ function popFlares(t) {
   if (t.flares > 0 && G.t >= (t.flareCd || 0)) {
     t.flares--; t.flareCd = G.t + 3; t.flareT = G.t + 1.2;
     hooks.sfx('throw', t.x, t.y);
+    // Flares are kicked out behind in a fan, slow quickly in the air and sink as they burn.
     for (let i = 0; i < 6; i++) {
-      const a = t.face + Math.PI + (i - 2.5) * 0.35;
-      G.effects.push({ type: 'flare', x: t.x - Math.cos(t.face) * 10, y: t.y - (t.alt || 0) - Math.sin(t.face) * 10, vx: Math.cos(a) * 40, vy: Math.sin(a) * 20 + 22, t: -i * 0.05, life: 1.3 });
+      const a = t.face + Math.PI + (i - 2.5) * 0.4;
+      G.effects.push({ type: 'flare', x: t.x - Math.cos(t.face) * 10, y: t.y - (t.alt || 0) - Math.sin(t.face) * 10, vx: Math.cos(a) * 34, vy: Math.sin(a) * 20, t: -i * 0.09, life: 2.8, trail: [] });
     }
   }
   return G.t < (t.flareT || 0);
@@ -1964,6 +1966,7 @@ function spawnUnit(team, type) {
     u.x = spot.x; u.y = spot.y; u.face = p.type === 'airfield' ? 0 : (team.id === PLAYER ? -0.8 : 2.35);
     u.as = 'landed'; u.alt = 0;
     setGuard(u); u.order.pad = true; u.staged = true;
+    if (team.isAI && aiKeepInterceptor(team, u)) return u;
     if (team.auto) launchAircraft(u);
     return u;
   } else {
@@ -1974,6 +1977,7 @@ function spawnUnit(team, type) {
     u.face = u.tface = Math.PI / 2;
   }
   if (d.harvester) return u;
+  if (team.isAI && aiHomeGuard(team, u)) return u;
   // New units gather at the rally point; auto attack launches them in groups.
   const r = rallyPoint(team);
   const gx = r.x + (Math.random() - 0.5) * 70, gy = r.y + (Math.random() - 0.5) * 70;
@@ -2154,6 +2158,10 @@ function update(dt) {
     if (fx.type === 'crash') updateCrash(fx, dt);
     else if (fx.type === 'ragdoll') updateRagdoll(fx, dt);
     else if (fx.type === 'turret') updateTurret(fx, dt);
+    else if (fx.type === 'flare' && fx.t >= 0) {
+      fx.vx *= Math.exp(-1.4 * dt); fx.vy += (14 - fx.vy) * (1 - Math.exp(-1.2 * dt));   // drag, then a slow fall
+      if ((fx.trailT = (fx.trailT || 0) - dt) <= 0) { fx.trailT = 0.05; fx.trail.push({ x: fx.x, y: fx.y }); if (fx.trail.length > 18) fx.trail.shift(); }
+    }
     else if (fx.type === 'smoulder' && (fx.puffT -= dt) <= 0) {
       fx.puffT = 0.35 + fx.t / fx.life * 0.6;
       G.effects.push({ type: 'smoke', x: fx.x + (Math.random() - 0.5) * 4, y: fx.y, r: 2.5, t: 0, life: 2.2, alpha: 0.45 * (1 - fx.t / fx.life), color: '#35322e', vy: -9, vx: 3 });

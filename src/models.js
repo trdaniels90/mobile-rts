@@ -195,7 +195,7 @@ function hindModel(pal) {
   return m;
 }
 function jetModel(pal, mig) {
-  const m = new VModel(-16, -13, 15, 13, 9);
+  const m = new VModel(-17, -13, 17, 13, 11);
   if (mig) {
     m.cylX(-13, 11, 0, 3, 2, pal.main, M_METAL);
     m.cylX(10, 14, 0, 3, 1.6, C.gun, M_METAL);
@@ -205,16 +205,31 @@ function jetModel(pal, mig) {
     for (let x = -14; x < -10; x++) { const sp = Math.round((-10 - x) * 1.2) + 1; m.box(x, -sp - 1, 3, x + 1, sp + 1, 4, pal.dark); }
     m.ellipsoid(6, 0, 4.5, 3, 1.2, 1.3, C.glass, M_GLASS);
     m.paintTop(-6, -8, 0, 8, (x, y) => Math.abs(y) === 6 && x < -2 ? C.red : undefined);
+    m.box(-16, -1, 2, -14, 1, 4, C.black);
   } else {
-    m.cylX(-14, 10, 0, 3, 2, pal.main, M_METAL);
-    m.ellipsoid(11, 0, 3, 3.5, 1.7, 1.7, pal.main, M_METAL);
-    for (let x = -9; x < 4; x++) { const span = Math.round((4 - x) * 0.85); m.box(x, -span - 2, 2, x + 1, span + 2, 3, pal.main, M_METAL); }
-    for (const y of [-3, 2]) m.box(-14, y, 3, -10, y + 1, 9, pal.dark, M_METAL);
-    for (let x = -15; x < -11; x++) m.box(x, -6, 2, x + 1, 6, 3, pal.dark);
-    m.ellipsoid(6, 0, 4.5, 3.5, 1.3, 1.4, C.glass, M_GLASS);
-    for (const y of [-7, 7]) m.cylX(-3, 3, y, 1.5, 0.9, C.white);
+    // Strike Eagle: a grey twin-engined airframe with boxy intakes beside a long two-seat canopy,
+    // big clipped delta wings, stabilators and twin canted fins in the side's colour.
+    const body = mixHex(pal.main, '#7a8088', 0.55), hull = shadeInt(body, 0.86), dark = shadeInt(body, 0.7);
+    for (let x = -9; x < 3; x++) {                                                                // swept, clipped wings
+      const span = Math.min(10, 3 + (2 - x) * 1.1);
+      m.box(x, -span, 2, x + 1, span + 1, 3, body, M_METAL);
+      m.set(x, -Math.floor(span), 2, dark, M_METAL); m.set(x, Math.floor(span), 2, dark, M_METAL);
+    }
+    for (let x = -16; x < -11; x++) { const span = Math.min(6.5, 3 + (-11 - x) * 1.2); m.box(x, -span, 2.5, x + 1, span + 1, 3.3, body, M_METAL); }   // stabilators
+    for (const y of [-1.5, 1.5]) m.cylX(-14, 2, y, 3, 1.5, hull, M_METAL);                     // the two engines
+    m.box(-14, -1, 2.5, 2, 1, 4.5, hull, M_METAL);
+    m.cylX(1, 12, 0, 3.2, 1.5, hull, M_METAL);                                                   // forward fuselage
+    m.ellipsoid(13.5, 0, 3.2, 2.8, 1.1, 1.1, hull, M_METAL);                                     // radome
+    for (const y of [-3, 2]) { m.box(0, y, 2, 6, y + 1, 4.5, dark, M_METAL); m.box(6, y, 2, 7, y + 1, 4.5, C.black); }   // intakes
+    m.ellipsoid(8, 0, 4.7, 3.8, 1, 1.2, C.glass, M_GLASS);                                       // two-seat canopy
+    m.set(8, 0, 5, hull, M_METAL);
+    for (const s of [-1, 1]) for (let z = 4; z < 8; z++) {                                        // twin fins, canted out
+      const y = s > 0 ? 2 + Math.floor((z - 4) / 2) : -3 - Math.floor((z - 4) / 2);
+      m.box(-14 + Math.round((z - 4) * 0.6), y, z, -9 - Math.round((z - 4) * 0.9), y + 1, z + 1, pal.main, M_METAL);
+    }
+    for (const y of [-2, 1]) { m.box(-15, y, 2, -14, y + 2, 4, '#2a2a28', M_METAL); m.set(-16, y, 3, C.black); m.set(-16, y + 1, 3, C.black); }   // nozzles
+    for (const y of [-7, 7]) m.cylX(-6, -1, y, 1.5, 0.8, '#5d605a', M_METAL);                     // bombs under the wings
   }
-  m.box(-16, -1, 2, -14, 1, 4, C.black);
   return m;
 }
 

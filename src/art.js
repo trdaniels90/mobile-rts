@@ -715,11 +715,19 @@ function drawEffect(g, fx) {
       break;
     }
     case 'flare': {
-      const a = Math.max(0, 1 - k);
-      g.fillStyle = `rgba(255,170,60,${0.35 * a})`; g.beginPath(); g.arc(fx.x, fx.y, 3.5, 0, 7); g.fill();
-      g.fillStyle = `rgba(255,248,220,${a})`; g.fillRect(Math.round(fx.x - 1), Math.round(fx.y - 1), 2, 2);
-      g.strokeStyle = `rgba(210,206,196,${0.4 * a})`; g.lineWidth = 1;                         // smoke trail
-      g.beginPath(); g.moveTo(fx.x, fx.y); g.lineTo(fx.x - fx.vx * 0.25, fx.y - fx.vy * 0.25); g.stroke();
+      // A burning flare: a flickering white-hot core in an orange glow, trailing a smoke streak
+      // that lingers and drifts after it.
+      const a = Math.max(0, 1 - k), tr = fx.trail || [];
+      for (let i = 1; i < tr.length; i++) {
+        const q = i / tr.length;
+        g.strokeStyle = `rgba(214,210,200,${0.5 * q * (0.4 + 0.6 * a)})`; g.lineWidth = 1 + (1 - q) * 1.5;
+        g.beginPath(); g.moveTo(tr[i - 1].x, tr[i - 1].y); g.lineTo(tr[i].x, tr[i].y); g.stroke();
+      }
+      if (a <= 0) break;
+      const fl = 0.75 + Math.random() * 0.25;
+      g.fillStyle = `rgba(255,150,40,${0.22 * a * fl})`; g.beginPath(); g.arc(fx.x, fx.y, 7, 0, 7); g.fill();
+      g.fillStyle = `rgba(255,190,80,${0.45 * a * fl})`; g.beginPath(); g.arc(fx.x, fx.y, 4, 0, 7); g.fill();
+      g.fillStyle = `rgba(255,252,235,${a})`; g.fillRect(Math.round(fx.x - 1.5), Math.round(fx.y - 1.5), 3, 3);
       break;
     }
     case 'crash': {

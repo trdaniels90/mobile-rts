@@ -45,6 +45,55 @@ function aiNextStructure(team, c) {
   if (p.prod - p.use < 40) return pwr;
   return null;
 }
+// Where the next AA site goes: beside whichever refinery, power plant, Outpost or other key
+// building has the least AA cover, favouring the area enemy aircraft last struck.
+function aiAaSite(team) {
+  const mine = buildingsOf(team.id), aas = mine.filter((b) => b.def.antiAir);
+  const keys = mine.filter((b) => ['refinery', 'power', 'apower', 'outpost', 'cy', 'factory', 'airfield'].includes(b.type) && b.buildT >= 1);
+  const hit = team.airHit && G.t - team.airHit.t < 90 ? team.airHit : null;
+  let best = null, bs = Infinity;
+  for (const b of keys) {
+    const sc = aas.filter((a) => dist(a, b) < CELL * 6).length * 10 + (hit ? Math.hypot(b.x - hit.x, b.y - hit.y) / CELL * 0.3 : Math.random() * 3);
+    if (sc < bs) { bs = sc; best = b; }
+  }
+  return best;
+}
+// Normal and Hard keep a few anti-aircraft soldiers or vehicles at home once enemy aircraft are
+// about, posted beside the key buildings, instead of sending them out with the waves.
+function aiHomeGuard(team, u) {
+  const A = G.diff.ai;
+  const hitsAir = (w) => !!(w && w.air);
+  if (!A.adapt || !team.sawAir || u.cls === 'air' || !(hitsAir(u.def.weapon) || hitsAir(u.def.weapon2))) return false;
+  if (unitsOf(team.id).filter((e) => e.homeGuard).length >= A.homeGuard) return false;
+  const site = aiAaSite(team);
+  if (!site) return false;
+  const a = Math.random() * Math.PI * 2, x = site.x + Math.cos(a) * CELL * 2.5, y = site.y + Math.sin(a) * CELL * 2.5;
+  setGuard(u, x, y); u.staged = false; u.homeGuard = true;
+  goTo(u, x, y);
+  return true;
+}
+// And a fighter or two kept back on the Airfield to go after enemy aircraft over the base.
+function aiKeepInterceptor(team, u) {
+  const A = G.diff.ai;
+  if (!A.adapt || !team.sawAir || !(u.def.weapon2 && u.def.weapon2.air)) return false;
+  if (unitsOf(team.id).filter((e) => e.interceptor).length >= A.interceptors) return false;
+  u.interceptor = true;
+  return true;
+}
+function aiScramble(team) {
+  const A = G.diff.ai;
+  if (!A.adapt || !team.sawAir) return;
+  const mine = buildingsOf(team.id);
+  const intruders = unitsOf(enemyOf(team).id).filter((u) => u.cls === 'air' && !u.def.scripted && isAirborne(u) && mine.some((b) => distTo(u, b) < CELL * 20));
+  for (const u of unitsOf(team.id)) {
+    if (!u.interceptor || u.repairHold || airEmpty(u)) continue;
+    if (intruders.length) {
+      if (u.order.type === 'attack' && u.order.target.alive) continue;
+      const t = intruders.reduce((a, b) => (dist(u, a) < dist(u, b) ? a : b));
+      if (canTarget(u, t)) commandAttack([u], t);
+    } else if (u.order.type !== 'guard' || !u.order.pad) { setGuard(u); u.order.pad = true; }   // all clear: back to the Airfield
+  }
+}
 // An Outpost (or on Hard an outlying refinery) with no gun beside it yet.
 function aiGuardSite(team) {
   const A = G.diff.ai;
@@ -94,7 +143,7 @@ function aiFindSpot(team, type) {
   const cy = G.entities.find((e) => e.alive && e.team === team.id && e.type === 'cy');
   const lonely = type === 'refinery' && aiLonelyOutpost(team);
   const d = BUILD_DEFS[type], foe = enemyOf(team).start;
-  const guard = d.defense && !d.antiAir && aiGuardSite(team);
+  const guard = (d.defense && !d.antiAir && aiGuardSite(team)) || (d.antiAir && G.diff.ai.adapt && aiAaSite(team));
   const anchor = guard || lonely || cy || buildingsOf(team.id)[0];
   if (!anchor) return null;
   // Guns face the enemy base, or on Normal and Hard the way recent attacks came from.
@@ -110,7 +159,7 @@ function aiFindSpot(team, type) {
     }
   }
   for (let i = 0; i < 160; i++) {
-    const a = d.antiAir ? Math.random() * Math.PI * 2 : d.defense ? toFoe + (Math.random() - 0.5) * 1.6 : type === 'refinery' && i < 100 ? toOre + (Math.random() - 0.5) * 1.2 : Math.random() * Math.PI * 2;
+    const a = d.antiAir || guard ? Math.random() * Math.PI * 2 : d.defense ? toFoe + (Math.random() - 0.5) * 1.6 : type === 'refinery' && i < 100 ? toOre + (Math.random() - 0.5) * 1.2 : Math.random() * Math.PI * 2;
     const rad = guard ? 2 + Math.random() * 3 + i * 0.03 : d.defense ? 5 + Math.random() * 4 + i * 0.02 : 3 + i * 0.06 + Math.random() * 3;
     const cx = Math.round(anchor.cx + 1 + Math.cos(a) * rad - d.w / 2), cy2 = Math.round(anchor.cy + 1 + Math.sin(a) * rad - d.h / 2);
     if (canPlace(team, type, cx, cy2, 1)) return { cx, cy: cy2 };
@@ -136,6 +185,7 @@ function aiPowerTarget(team, cluster) {
 
 function aiThink(team) {
   const c = aiCount(team);
+  if (unitsOf(enemyOf(team).id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
   const q = team.queues.structure;
   if (q && q.ready) {
     const spot = aiFindSpot(team, q.type);
@@ -164,22 +214,28 @@ function aiThink(team) {
   const money = team.credits - reserve;
   const army = G.entities.filter((e) => e.alive && e.team === team.id && e.kind === 'unit' && !e.def.harvester).length;
   if (army > 45) return;
+  // Once the enemy flies aircraft (Normal and Hard), lean on units that can shoot them down:
+  // rocket soldiers, Mammoths or Rangers, and fighters rather than helicopters.
+  const A = G.diff.ai, anti = A.adapt && team.sawAir;
   const iq = team.queues.infantry;
-  if (c.barracks && iq.length < 2 && money > 150) {
+  if (c.barracks && iq.length < A.queue && money > 150) {
     const r = Math.random();
-    startProduction(team, r < 0.45 ? 'rifle' : team.faction === 'soviets' && r < 0.72 ? 'grenadier' : 'rocket');
+    startProduction(team, anti && r < 0.5 ? 'rocket' : r < 0.45 ? 'rifle' : team.faction === 'soviets' && r < 0.72 ? 'grenadier' : 'rocket');
   }
-  if (c.factory && vq.length < 2 && money > 500) {
-    const opts = team.faction === 'allies' ? ['ltank', 'mtank', 'mtank', 'ranger'] : ['htank', 'htank', 'htank', 'mammoth'];
+  if (c.factory && vq.length < A.queue && money > 500) {
+    const opts = team.faction === 'allies' ? (anti ? ['mtank', 'mtank', 'ranger', 'ranger', 'ltank'] : ['ltank', 'mtank', 'mtank', 'ranger'])
+      : (anti ? ['htank', 'mammoth', 'mammoth', 'htank'] : ['htank', 'htank', 'htank', 'mammoth']);
     startProduction(team, opts[Math.floor(Math.random() * opts.length)]);
   }
   const aq = team.queues.aircraft;
   const air = G.entities.filter((e) => e.alive && e.team === team.id && e.cls === 'air').length;
-  if (aq.length < 1 && money > 900 && air < 6) {
+  if (aq.length < 1 && money > (anti ? 600 : 900) && air < 6) {
     const heli = team.faction === 'allies' ? 'heli' : 'hind', jet = team.faction === 'allies' ? 'jet' : 'mig';
-    if (c.helipad && (Math.random() < 0.5 || !c.airfield)) startProduction(team, heli);
+    if (c.airfield && anti && Math.random() < 0.8) startProduction(team, jet);
+    else if (c.helipad && (Math.random() < 0.5 || !c.airfield)) startProduction(team, heli);
     else if (c.airfield) startProduction(team, jet);
   }
+  aiScramble(team);
 
   // Airfield support powers: bomb the thickest part of the enemy base, drop troops on its economy,
   // unless they are being held back for a big push (not for more than three minutes).

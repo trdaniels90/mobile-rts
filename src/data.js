@@ -162,16 +162,22 @@ const POWERS = {
 //   targets: 'cy' (the Construction Yard), 'mixed' or 'weak' (least-defended valuable buildings)
 //   strike: Airfield powers held back for big pushes; defMax: ground defences; aa / aaMax: AA
 //   sites at first and once the enemy flies aircraft; guard: also defends Outposts / outlying refineries
+//   adapt: answers enemy aircraft (more anti-air units, fighters, AA beside its economy), with
+//   homeGuard anti-air soldiers kept at home and interceptors (fighters kept back to defend)
+//   queue: units it keeps queued per Barracks / War Factory
 const DIFFICULTY = {
   easy:   { label: 'Easy',   income: 0.7,  speed: 0.8,  credits: 5000,
     ai: { forms: ['line', 'column', 'wedge'], pincer: 0, route: 'short', wave: [4, 7], big: null, bigChance: 0,
-      raidFrom: 360, raidGap: [200, 320], targets: 'cy', strike: [], defMax: 4, aa: 1, aaMax: 1, guard: [] } },
+      raidFrom: 360, raidGap: [200, 320], targets: 'cy', strike: [], defMax: 4, aa: 1, aaMax: 1, guard: [],
+      adapt: false, homeGuard: 0, interceptors: 0, queue: 2 } },
   normal: { label: 'Normal', income: 1.0,  speed: 1.0,  credits: 5000,
     ai: { forms: ['line', 'column', 'wedge', 'echelon', 'skirmish'], pincer: 1 / 6, route: 'weighted', wave: [5, 10], big: [10, 13], bigChance: 0.25,
-      raidFrom: 240, raidGap: [120, 200], targets: 'mixed', strike: ['para'], defMax: 8, aa: 1, aaMax: 3, guard: ['outpost'] } },
+      raidFrom: 240, raidGap: [120, 200], targets: 'mixed', strike: ['para'], defMax: 8, aa: 1, aaMax: 3, guard: ['outpost'],
+      adapt: true, homeGuard: 3, interceptors: 1, queue: 3 } },
   hard:   { label: 'Hard',   income: 1.35, speed: 1.25, credits: 7000,
     ai: { forms: ['line', 'column', 'wedge', 'echelon', 'skirmish'], pincer: 1 / 3, route: 'weak', wave: [6, 12], big: [12, 16], bigChance: 0.35,
-      raidFrom: 180, raidGap: [75, 130], targets: 'weak', strike: ['para', 'bomb'], defMax: 12, aa: 2, aaMax: 5, guard: ['outpost', 'refinery'] } },
+      raidFrom: 180, raidGap: [75, 130], targets: 'weak', strike: ['para', 'bomb'], defMax: 12, aa: 2, aaMax: 5, guard: ['outpost', 'refinery'],
+      adapt: true, homeGuard: 5, interceptors: 2, queue: 3 } },
 };
 
 const CATEGORIES = ['structure', 'infantry', 'vehicle', 'aircraft'];
