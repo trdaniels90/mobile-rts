@@ -9,9 +9,9 @@ const Sound = (() => {
   try { Object.assign(settings, JSON.parse(localStorage.getItem('ps-audio') || '{}')); } catch (_) {}
   const save = () => { try { localStorage.setItem('ps-audio', JSON.stringify(settings)); } catch (_) {} };
 
-  let ctx = null, master, sfxBus, musicBus, verb, verbIn, delayIn, noise, shaperHeavy, shaperSoft;
+  let ctx = null, master, sfxBus, farBus, musicBus, verb, verbIn, delayIn, noise, shaperHeavy, shaperSoft;
   const lastPlayed = new Map();
-  let voices = 0;
+  let voices = 0, farVoices = 0;
 
   // Half a second of silence. Keeping a media element playing it puts iOS into "playback"
   // mode, so older iPhones do not mute Web Audio when the ring/silent switch is on silent.
@@ -59,6 +59,9 @@ const Sound = (() => {
     comp.connect(ctx.destination);
     master = gain(0.75, comp);
     sfxBus = gain(settings.sfx ? 0.85 : 0, master);
+    // Distant battles share one muffled, roomy bus: the far-off rumble of fighting elsewhere.
+    const farLp = ctx.createBiquadFilter(); farLp.type = 'lowpass'; farLp.frequency.value = 1700; farLp.Q.value = 0.4;
+    farBus = gain(1, farLp); farLp.connect(sfxBus);
     musicBus = gain(settings.music ? 0.42 : 0, master);
     // Room reverb from a generated impulse response.
     verb = ctx.createConvolver();
@@ -66,6 +69,7 @@ const Sound = (() => {
     for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
     verb.buffer = ir;
     verbIn = gain(1, verb);
+    farBus.connect(gain(0.6, verbIn));
     verb.connect(gain(0.32, master));
     // Tempo-free echo for lead lines.
     const dl = ctx.createDelay(1); dl.delayTime.value = 0.33;
@@ -281,24 +285,30 @@ const Sound = (() => {
   const LEVEL = { rifle: 0.55, mg: 1.0, throw: 0.8, cannon: 0.8, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, missile: 0.7, flak: 0.75, tesla: 0.85,
     hitSmall: 0.7, hitMed: 0.8, explodeVeh: 0.9, explodeBig: 1.0, flame: 0.8, fireHit: 0.8 };
 
-  function play(name, vol, pan) {
+  // How far each sound carries: the quietest it gets however far away the fighting is.
+  const CARRY = { explodeBig: 0.3, explodeVeh: 0.24, cannon: 0.18, cannonHeavy: 0.2, turretGun: 0.18, hitMed: 0.18, tesla: 0.18,
+    rocket: 0.14, missile: 0.14, flak: 0.12, hitSmall: 0.12, mg: 0.12, fireHit: 0.1, flame: 0.1, rifle: 0.09, throw: 0.06 };
+
+  // dist: screens from the camera (1 = screen edge). Near and far sounds have separate voice
+  // budgets, so a big fight on screen never silences one across the map, and vice versa.
+  function play(name, vol, pan, dist) {
     if (!ctx || !settings.sfx || ctx.state !== 'running') return;
     if (vol === undefined) vol = 1;
-    if (vol < 0.04) return;
-    const now = ctx.currentTime;
-    const last = lastPlayed.get(name) || 0;
-    if (now - last < (THROTTLE[name] || 0.02)) return;
-    // Big battles: keep the voice count low enough for a phone, dropping quiet distant sounds first.
-    if (voices >= 16 || (voices >= 8 && vol < 0.35)) return;
-    lastPlayed.set(name, now);
+    const far = dist > 1.6 && !UI_SOUNDS.has(name);
+    if (far) vol = Math.max(vol, CARRY[name] || 0.06);
+    const now = ctx.currentTime, key = far ? name + '~' : name;
+    const last = lastPlayed.get(key) || 0;
+    if (now - last < (THROTTLE[name] || 0.02) * (far ? 3 : 1)) return;
+    if (far ? farVoices >= 6 : voices >= 14) return;
+    lastPlayed.set(key, now);
     const v = vol * (LEVEL[name] || 1) * (0.9 + Math.random() * 0.2);
     const out = gain(v, null);
     let node = out;
     if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan || 0)); out.connect(p); node = p; }
-    node.connect(sfxBus);
-    const s = { send(amount) { const g = gain(amount * v, verbIn); out.connect(g); } };
-    voices++;
-    setTimeout(() => { voices--; }, 1600);
+    node.connect(far ? farBus : sfxBus);
+    const s = { send(amount) { if (!far) { const g = gain(amount * v, verbIn); out.connect(g); } } };
+    if (far) { farVoices++; setTimeout(() => { farVoices--; }, 1600); }
+    else { voices++; setTimeout(() => { voices--; }, 1600); }
     if (playRecorded(name, out, s)) return;   // recordings already carry their lo-fi treatment
     // Synthesised battle sounds go through the lo-fi stage before their volume is applied.
     let into = out;

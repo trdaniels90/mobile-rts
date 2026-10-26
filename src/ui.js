@@ -51,9 +51,11 @@
     if (!G) return;
     const hw = W / cam.z / 2, hh = H / cam.z / 2;
     const dx = (x - (cam.x + hw)) / hw, dy = (y - (cam.y + hh)) / hh;
+    // d: 1 at the screen edge, 2 one screen beyond it, and so on. Off-screen fighting fades
+    // but never goes silent, panned toward the side it is on.
     const d = Math.max(Math.abs(dx), Math.abs(dy));
-    const vol = d <= 1 ? 1 : Math.max(0, 1 - (d - 1) * 0.7);
-    Sound.play(name, vol, Math.max(-1, Math.min(1, dx)) * 0.6);
+    const pan = d <= 1 ? dx * 0.6 : (dx / d) * 0.85;
+    Sound.play(name, d <= 1 ? 1 : 1 / (1 + (d - 1) * 1.3), pan, d);
   };
   // Audio may only start after the player touches the page.
   // iOS only grants audio at the end of a touch or on a click, so listen for those too.
