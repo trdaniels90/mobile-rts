@@ -23,7 +23,7 @@ function blit(g, s, x, y, shadow) {
 // ---------------------------------------------------------------------------
 const TERRAIN_MINI = ['#2f3d23', '#5a4c37', '#1c2a14', '#5e5a52', '#4a6a8a', '#6b5a3e'];
 
-function paintTerrain(terr, seed, road, bridges) {
+function paintTerrain(terr, seed, roads, bridges) {
   buildScenery();
   const c = mkCanvas(WORLD, WORLD), g = c.getContext('2d');
   const img = g.createImageData(WORLD, WORLD), d = img.data;
@@ -90,8 +90,9 @@ function paintTerrain(terr, seed, road, bridges) {
   }
   g.putImageData(img, 0, 0);
 
-  // Wheel ruts along the road.
-  if (road && road.length > 1) {
+  // Wheel ruts along the roads.
+  for (const road of roads || []) {
+    if (road.length < 2) continue;
     g.lineCap = 'round'; g.lineJoin = 'round';
     for (const [off, col, w] of [[-5, 'rgba(58,44,26,0.45)', 2], [5, 'rgba(58,44,26,0.45)', 2], [-4, 'rgba(170,150,110,0.18)', 1], [6, 'rgba(170,150,110,0.18)', 1]]) {
       g.strokeStyle = col; g.lineWidth = w;
