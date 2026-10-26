@@ -177,6 +177,11 @@
     for (const p of G.projectiles) {
       if (p.delay > 0) continue;
       const a = p.a || 0, ca = Math.cos(a), sa = Math.sin(a);
+      if (p.kind === 'bomb') {
+        v.fillStyle = 'rgba(0,0,0,0.35)'; v.fillRect(Math.round(p.tx - 1), Math.round(p.ty), 3, 2);
+        v.fillStyle = '#1d1f18'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 2), 3, 5);
+        continue;
+      }
       if (p.kind === 'grenade') {
         v.fillStyle = 'rgba(0,0,0,0.35)'; v.fillRect(Math.round(p.gx - 1), Math.round(p.gy), 3, 2);
         v.fillStyle = '#2d351c'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 3, 3);
@@ -249,6 +254,13 @@
 
   function drawPlacement(v) {
     const p = G.place;
+    if (p && p.power && p.x !== undefined) {
+      const r = p.power === 'spy' ? POWERS.spy.reveal * CELL : p.power === 'para' ? 40 : 60;
+      v.strokeStyle = '#ff5a4a'; v.lineWidth = 1;
+      v.setLineDash([4, 3]); v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.stroke(); v.setLineDash([]);
+      v.beginPath(); v.moveTo(p.x - 8, p.y); v.lineTo(p.x + 8, p.y); v.moveTo(p.x, p.y - 8); v.lineTo(p.x, p.y + 8); v.stroke();
+      return;
+    }
     if (!p || p.cx === undefined) return;
     const d = BUILD_DEFS[p.type];
     const team = G.teams[PLAYER];
@@ -295,7 +307,7 @@
   function pick(wx, wy, slop) {
     let best = null, bd = Infinity;
     for (const e of G.entities) {
-      if (!e.alive || !visibleToPlayer(e)) continue;
+      if (!e.alive || !visibleToPlayer(e) || (e.def && e.def.scripted)) continue;
       let d;
       if (e.kind === 'bld') {
         const bx = e.cx * CELL, by = e.cy * CELL;
@@ -332,7 +344,7 @@
       lastTap = { t: now, type: e.type };
       if (dbl && e.kind === 'unit') {
         const vx = cam.x, vy = cam.y, vw = W / cam.z, vh = H / cam.z;
-        select(unitsOf(PLAYER).filter((u) => u.type === e.type && u.x > vx && u.x < vx + vw && u.y > vy && u.y < vy + vh));
+        select(unitsOf(PLAYER).filter((u) => u.type === e.type && !u.chute && u.x > vx && u.x < vx + vw && u.y > vy && u.y < vy + vh));
         return;
       }
       if (shift && e.kind === 'unit') {
@@ -358,7 +370,7 @@
 
   function boxSelect(sx0, sy0, sx1, sy1, add) {
     const a = s2w(Math.min(sx0, sx1), Math.min(sy0, sy1)), b = s2w(Math.max(sx0, sx1), Math.max(sy0, sy1));
-    const inBox = unitsOf(PLAYER).filter((u) => u.x > a.x && u.x < b.x && u.y - (u.alt || 0) > a.y && u.y - (u.alt || 0) < b.y);
+    const inBox = unitsOf(PLAYER).filter((u) => !u.def.scripted && u.x > a.x && u.x < b.x && u.y - (u.alt || 0) > a.y && u.y - (u.alt || 0) < b.y);
     const fighters = inBox.filter((u) => !u.def.harvester);
     const chosen = fighters.length ? fighters : inBox;
     if (add) select(Array.from(new Set(ownUnits().concat(chosen))));
@@ -377,8 +389,20 @@
     ui.placebar.hidden = false;
     refreshPlaceBtn();
   }
-  function endPlace() { if (G) G.place = null; ui.placebar.hidden = true; }
+  // Airfield powers use the same bar: the first tap aims, a second tap (or LAUNCH) calls it in.
+  function beginTarget(key) {
+    G.place = { power: key };
+    select([]);
+    ui.placeText.textContent = `${isTouch ? 'Tap' : 'Click'} the map to target the ${POWERS[key].name}`;
+    ui.placeOk.textContent = 'LAUNCH';
+    ui.placeOk.hidden = !isTouch;
+    ui.placebar.hidden = false;
+    refreshPlaceBtn();
+    eva('Select target');
+  }
+  function endPlace() { if (G) G.place = null; ui.placebar.hidden = true; ui.placeOk.textContent = 'PLACE'; }
   function ghostAt(w) {
+    if (G.place.power) { G.place.x = w.x; G.place.y = w.y; G.place.ok = true; refreshPlaceBtn(); return; }
     const d = BUILD_DEFS[G.place.type];
     G.place.cx = Math.round(w.x / CELL - d.w / 2);
     G.place.cy = Math.round(w.y / CELL - d.h / 2);
@@ -388,12 +412,24 @@
   function refreshPlaceBtn() { ui.placeOk.disabled = !(G.place && G.place.ok); }
   function confirmPlace() {
     const p = G.place;
+    if (p && p.power) {
+      if (p.x === undefined) return;
+      if (launchPower(G.teams[PLAYER], p.power, p.x, p.y)) { marker(p.x, p.y, '#ff4a3a'); Sound.ack('air'); endPlace(); }
+      else { eva('Not available'); endPlace(); }
+      return;
+    }
     if (!p || p.cx === undefined) return;
     if (placeStructure(G.teams[PLAYER], p.type, p.cx, p.cy)) endPlace();
     else eva('Cannot deploy here');
   }
   function placeTap(w) {
-    const p = G.place, d = BUILD_DEFS[p.type];
+    const p = G.place;
+    if (p.power) {
+      if (!isTouch || (p.x !== undefined && Math.hypot(w.x - p.x, w.y - p.y) < 30 / cam.z)) { ghostAt(w); confirmPlace(); }
+      else ghostAt(w);
+      return;
+    }
+    const d = BUILD_DEFS[p.type];
     const cx = Math.floor(w.x / CELL), cy = Math.floor(w.y / CELL);
     // Touch: the first tap drops a ghost; tapping the ghost again builds it.
     if (!isTouch || (p.cx !== undefined && cx >= p.cx && cx < p.cx + d.w && cy >= p.cy && cy < p.cy + d.h)) {
@@ -518,7 +554,10 @@
   const cameoEls = new Map();
   const UNIT_ORDER = ['infantry', 'vehicle', 'aircraft'];
   function stripTypes(team, side) {
-    if (side === 'L') return Object.keys(BUILD_DEFS).filter((k) => available(team, k));
+    if (side === 'L') {
+      const powers = hasBuilt(team, 'airfield') ? Object.keys(POWERS).map((k) => 'pw:' + k) : [];
+      return powers.concat(Object.keys(BUILD_DEFS).filter((k) => available(team, k)));
+    }
     return Object.keys(UNIT_DEFS).filter((k) => available(team, k))
       .sort((a, b) => UNIT_ORDER.indexOf(UNIT_DEFS[a].cat) - UNIT_ORDER.indexOf(UNIT_DEFS[b].cat));
   }
@@ -535,11 +574,11 @@
       return;
     }
     for (const type of types) {
-      const d = defOf(type);
+      const pw = type.startsWith('pw:'), d = pw ? POWERS[type.slice(3)] : defOf(type);
       const btn = document.createElement('button');
       btn.type = 'button'; btn.className = 'cameo'; btn.dataset.type = type;
-      btn.title = `${d.name}: $${d.cost}`;
-      btn.innerHTML = `<img alt="" src="${cameoURL(type, team.faction)}"><span class="nm">${d.name}</span><span class="cost">$${d.cost}</span><span class="clock"></span><span class="st"></span><span class="ct"></span>`;
+      btn.title = pw ? d.name : `${d.name}: $${d.cost}`;
+      btn.innerHTML = `<img alt="" src="${cameoURL(type, team.faction)}"><span class="nm">${d.name}</span><span class="cost">${pw ? '' : '$' + d.cost}</span><span class="clock"></span><span class="st"></span><span class="ct"></span>`;
       strip.appendChild(btn);
       cameoEls.set(type, { btn, clock: btn.querySelector('.clock'), st: btn.querySelector('.st'), ct: btn.querySelector('.ct') });
     }
@@ -560,6 +599,11 @@
     if (!G || G.over) return;
     Sound.play('click');
     const team = G.teams[PLAYER];
+    if (type.startsWith('pw:')) {
+      const key = type.slice(3);
+      if (powerReady(team, key)) beginTarget(key); else eva('Not available');
+      return;
+    }
     const res = startProduction(team, type);
     if (res === 'place') beginPlace(type);
     else if (res === 'busy') eva('Unable to comply. Building in progress');
@@ -571,6 +615,7 @@
   function cameoCancel(type) {
     if (!G) return;
     const team = G.teams[PLAYER];
+    if (type.startsWith('pw:')) { if (G.place && G.place.power === type.slice(3)) endPlace(); return; }
     if (G.place && G.place.type === type) endPlace();
     if (cancelProduction(team, type)) eva('Cancelled');
   }
@@ -606,7 +651,7 @@
     ui.autoBtn.setAttribute('aria-pressed', String(team.auto));
     if (team.auto) {
       // Units already guarding join the next attack group.
-      for (const u of unitsOf(PLAYER)) if (!u.def.harvester && u.order.type === 'guard') u.staged = true;
+      for (const u of unitsOf(PLAYER)) if (!u.def.harvester && !u.def.scripted && u.order.type === 'guard') u.staged = true;
       eva('Auto attack on');
     } else eva('Auto attack off. New units guard the base');
   });
@@ -640,8 +685,12 @@
     const sq = team.queues.structure;
     for (const [type, el] of cameoEls) {
       let p = 0, st = '', count = 0, dim = false;
-      const cat = catOf(type);
-      if (cat === 'structure') {
+      const cat = type.startsWith('pw:') ? 'power' : catOf(type);
+      if (cat === 'power') {
+        const key = type.slice(3);
+        p = team.powers[key] / POWERS[key].charge;
+        st = p >= 1 ? 'READY' : '';
+      } else if (cat === 'structure') {
         if (sq && sq.type === type) { p = sq.progress; st = sq.ready ? 'READY' : sq.stalled ? 'ON HOLD' : ''; }
         else if (sq) dim = true;
       } else {

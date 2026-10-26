@@ -57,7 +57,7 @@ function makeTeam(id, faction, isAI) {
     power: { prod: 0, use: 0 }, low: false, auto: true,
     queues: { structure: null, infantry: [], vehicle: [], aircraft: [] },
     stats: { built: 0, lost: 0, killed: 0, harvested: 0 },
-    cool: {},
+    cool: {}, powers: { spy: 0, para: 0, bomb: 0 },
   };
 }
 
@@ -344,7 +344,7 @@ function addUnit(type, team, x, y) {
   };
   u.tface = u.face;
   if (d.harvester) { u.load = 0; u.hs = 'seek'; u.hcell = -1; u.htimer = 0; }
-  if (d.cls === 'air') { u.ammo = d.weapon.ammo; u.alt = 0; u.as = 'takeoff'; u.rt = 0; u.passT = 0; u.speedCur = 0; }
+  if (d.cls === 'air') { u.ammo = d.weapon ? d.weapon.ammo : 0; u.alt = 0; u.as = 'takeoff'; u.rt = 0; u.passT = 0; u.speedCur = 0; }
   G.entities.push(u); G.byId.set(u.id, u);
   return u;
 }
@@ -426,21 +426,27 @@ function launchGroups() {
   for (const team of G.teams) {
     const rally = rallyPoint(team);
     const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.def.harvester && u.order.type === 'guard');
-    const ready = waiting.filter((u) => Math.hypot(u.x - rally.x, u.y - rally.y) < CELL * 6);
+    // Aircraft do not wait for a group: each one heads out on its own.
+    if (team.auto) for (const u of waiting) if (u.cls === 'air') launchAircraft(u);
+    const ready = waiting.filter((u) => u.cls !== 'air' && Math.hypot(u.x - rally.x, u.y - rally.y) < CELL * 6);
     team.waiting = ready.length;
     if (!team.auto || ready.length < GROUP_SIZE) continue;
-    // March at the pace of the slowest ground unit so the group arrives together.
-    const ground = ready.filter((u) => u.cls !== 'air');
-    const pace = ground.length ? Math.min(...ground.map((u) => u.def.speed)) : 0;
+    // March at the pace of the slowest unit so the group arrives together.
+    const pace = Math.min(...ready.map((u) => u.def.speed));
     for (const u of ready) {
       setHunt(u);
       u.staged = false;
-      u.groupSpeed = u.cls === 'air' ? 0 : pace;
-      if (u.cls === 'air' && u.as === 'landed' && u.ammo > 0) u.as = 'takeoff';
+      u.groupSpeed = pace;
     }
     team.waiting = 0;
     if (team.id === PLAYER) hooks.eva('Attack group moving out');
   }
+}
+
+function launchAircraft(u) {
+  setHunt(u);
+  u.staged = false;
+  if (u.as === 'landed' && u.ammo > 0) u.as = 'takeoff';
 }
 
 function setGuard(u, x, y) {
@@ -529,6 +535,13 @@ function fireWeapon(src, w, t) {
 function updateProjectiles(dt) {
   for (const p of G.projectiles) {
     if (p.delay > 0) { p.delay -= dt; continue; }
+    if (p.kind === 'bomb') {
+      p.t += dt;
+      const k = Math.min(1, p.t / p.dur);
+      p.x = p.tx; p.y = p.ty - p.z * (1 - k * k);
+      if (k >= 1) { p.dead = true; bombBlast(p); }
+      continue;
+    }
     if (p.kind === 'grenade') {
       p.t += dt;
       const k = Math.min(1, p.t / p.dur);
@@ -586,6 +599,18 @@ function grenadeBlast(p) {
     if (!e.alive || e.team === p.team || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
     if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.6), w.wh, from);
+  }
+}
+
+function bombBlast(p) {
+  const { tx: x, ty: y, w } = p;
+  hooks.sfx('explodeVeh', x, y);
+  G.effects.push({ type: 'expl', x, y: y - 4, size: 13, t: 0, life: 0.7, seed: (Math.random() * 1e6) | 0, debris: true });
+  scorch(G.tctx, x, y, 11, (Math.random() * 1e6) | 0);
+  for (const e of G.entities) {
+    if (!e.alive || e.team === p.team || isAirborne(e)) continue;
+    const d = distTo({ x, y }, e);
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, null);
   }
 }
 
@@ -676,6 +701,8 @@ function updateUnit(u, dt) {
   u.cd = Math.max(0, u.cd - dt); u.cd2 = Math.max(0, u.cd2 - dt); u.fireT = Math.max(0, u.fireT - dt);
   u.moving = false;
   tickBurst(u, dt);
+  if (u.def.scripted) { updateFlight(u, dt); return; }
+  if (u.chute > 0) { u.chute -= dt; return; }
   if (u.cls === 'air') { updateAir(u, dt); return; }
   if (u.def.harvester) { updateHarvester(u, dt); followPath(u, dt); checkStuck(u, dt); return; }
 
@@ -996,6 +1023,61 @@ function orbit(u, cx, cy, dt) {
 }
 function clampAir(u) { u.x = Math.max(8, Math.min(WORLD - 8, u.x)); u.y = Math.max(8, Math.min(WORLD - 8, u.y)); }
 
+// --- Airfield support powers ---------------------------------------------------
+function powerReady(team, key) { return hasBuilt(team, 'airfield') && team.powers[key] >= POWERS[key].charge; }
+function updatePowers(team, dt) {
+  if (!hasBuilt(team, 'airfield')) return;
+  for (const [key, p] of Object.entries(POWERS)) {
+    if (team.powers[key] >= p.charge) continue;
+    team.powers[key] = Math.min(p.charge, team.powers[key] + dt * (team.low ? 0.5 : 1));
+    if (team.powers[key] >= p.charge) notify(team, 'pw' + key, p.ready, 1);
+  }
+}
+// The plane takes off from behind its own base and flies straight over the target.
+function launchPower(team, key, x, y) {
+  if (!powerReady(team, key)) return false;
+  team.powers[key] = 0;
+  const type = key === 'spy' ? 'spyplane' : key === 'para' ? 'transport' : 'bomber';
+  const hx = (team.start.cx + 0.5) * CELL, hy = (team.start.cy + 0.5) * CELL;
+  const a = Math.atan2(y - hy, x - hx), back = Math.hypot(x - hx, y - hy) + 260;
+  const u = addUnit(type, team, x - Math.cos(a) * back, y - Math.sin(a) * back);
+  u.face = u.tface = a; u.alt = JET_ALT; u.as = 'fly';
+  u.order = { type: 'flight' };
+  u.flight = { key, tx: x, ty: y, done: false, bombs: 0, bombT: 0 };
+  return true;
+}
+function updateFlight(u, dt) {
+  const f = u.flight, ca = Math.cos(u.face), sa = Math.sin(u.face);
+  u.alt = JET_ALT; u.moving = true; u.speedCur = u.def.speed;
+  u.x += ca * u.def.speed * dt; u.y += sa * u.def.speed * dt;
+  const past = (u.x - f.tx) * ca + (u.y - f.ty) * sa;   // distance flown beyond the target
+  if (f.key === 'spy' && !f.done && past >= 0) {
+    f.done = true;
+    if (u.team === PLAYER) revealCircle(f.tx / CELL, f.ty / CELL, POWERS.spy.reveal);
+  } else if (f.key === 'para' && !f.done && past >= -8) {
+    f.done = true;
+    dropTroops(u, f.tx, f.ty);
+  } else if (f.key === 'bomb' && f.bombs < POWERS.bomb.bombs && past >= -90) {
+    f.bombT -= dt;
+    if (f.bombT <= 0) {
+      f.bombT = 0.085; f.bombs++;
+      G.projectiles.push({ kind: 'bomb', team: u.team, from: u, w: POWERS.bomb.bomb, tx: u.x, ty: u.y, x: u.x, y: u.y - JET_ALT, z: JET_ALT, t: 0, dur: 0.55 });
+    }
+  }
+  if (past > 600) u.alive = false;   // flown off: gone without a wreck
+}
+function dropTroops(plane, x, y) {
+  const team = G.teams[plane.team], squad = POWERS.para.squad[team.faction];
+  squad.forEach((type, i) => {
+    const a = i / squad.length * Math.PI * 2;
+    const c = nearestFreeCell(cellOfPos(x + Math.cos(a) * 16, y + Math.sin(a) * 16), 5);
+    if (c < 0) return;
+    const p = cellCenter(c), u = addUnit(type, team, p.x + (Math.random() - 0.5) * 8, p.y + (Math.random() - 0.5) * 8);
+    u.chute = 1.3 + i * 0.18;
+    if (team.auto) setHunt(u); else setGuard(u);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Structures
 // ---------------------------------------------------------------------------
@@ -1166,7 +1248,8 @@ function spawnUnit(team, type) {
   const gx = r.x + (Math.random() - 0.5) * 70, gy = r.y + (Math.random() - 0.5) * 70;
   setGuard(u, gx, gy);
   u.staged = true;
-  if (u.cls !== 'air') goTo(u, gx, gy);
+  if (u.cls === 'air') { if (team.auto) launchAircraft(u); }
+  else goTo(u, gx, gy);
   return u;
 }
 
@@ -1189,17 +1272,19 @@ function updatePower() {
 // Shroud, ore growth, win check
 // ---------------------------------------------------------------------------
 function revealAround() {
-  const seen = G.seen;
   for (const e of G.entities) {
     if (!e.alive || e.team !== PLAYER) continue;
     const rad = e.kind === 'bld' ? (e.def.sight || 3) + Math.max(e.w, e.h) / 2 : e.def.sight;
-    const cx = e.x / CELL, cy = e.y / CELL;
-    for (let y = Math.floor(cy - rad); y <= cy + rad; y++) {
-      for (let x = Math.floor(cx - rad); x <= cx + rad; x++) {
-        if (!inMap(x, y)) continue;
-        const c = idx(x, y);
-        if (!seen[c] && Math.hypot(x + 0.5 - cx, y + 0.5 - cy) <= rad) { seen[c] = 1; G.shroudDirty = true; }
-      }
+    revealCircle(e.x / CELL, e.y / CELL, rad);
+  }
+}
+function revealCircle(cx, cy, rad) {
+  const seen = G.seen;
+  for (let y = Math.floor(cy - rad); y <= cy + rad; y++) {
+    for (let x = Math.floor(cx - rad); x <= cx + rad; x++) {
+      if (!inMap(x, y)) continue;
+      const c = idx(x, y);
+      if (!seen[c] && Math.hypot(x + 0.5 - cx, y + 0.5 - cy) <= rad) { seen[c] = 1; G.shroudDirty = true; }
     }
   }
 }
@@ -1325,7 +1410,7 @@ function update(dt) {
   separate();
   updateProjectiles(dt);
   processPaths();
-  if (!G.over) for (const team of G.teams) updateProduction(team, dt);
+  if (!G.over) for (const team of G.teams) { updateProduction(team, dt); updatePowers(team, dt); }
   const T = G.timers;
   if ((T.power -= dt) <= 0) { T.power = 0.5; updatePower(); }
   if ((T.shroud -= dt) <= 0) { T.shroud = 0.25; revealAround(); }

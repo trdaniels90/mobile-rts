@@ -91,6 +91,10 @@ const UNIT_DEFS = {
     cost: 1100, hp: 130, armor: 'air', speed: 210, turn: 2.4, sight: 6, r: 9,
     weapon: { dmg: 90, rof: 0.45, range: 130, wh: 'HE', proj: 'missile', ammo: 2 },
   },
+  // Support aircraft called in from the Airfield (see POWERS); they fly a set route and cannot be ordered.
+  spyplane: { name: 'Spy Plane', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 150, armor: 'air', speed: 300, sight: 8, r: 9 },
+  transport: { name: 'Transport', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 420, armor: 'air', speed: 190, sight: 5, r: 14 },
+  bomber: { name: 'Bomber', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 200, sight: 5, r: 14 },
   mig: {
     name: 'MiG Fighter', cls: 'air', fly: 'jet', cat: 'aircraft', producer: 'airfield', factions: ['soviets'],
     cost: 1200, hp: 150, armor: 'air', speed: 225, turn: 2.3, sight: 6, r: 9,
@@ -119,6 +123,15 @@ const BUILD_DEFS = {
               weapon: { dmg: 40, rof: 2.0, range: 105, wh: 'FIRE', proj: 'fireball', burst: 2, gap: 0.3, splash: 18 } },
   sam:      { name: 'SAM Site',     w: 2, h: 1, hp: 400,  power: -20, cost: 750,  req: ['barracks'], factions: ['soviets'], defense: true, antiAir: true,
               weapon: { dmg: 50, rof: 1.3, range: 180, wh: 'HE', proj: 'missile', air: true, ground: false } },
+};
+
+// Airfield support powers: each recharges (in seconds) while its side owns an Airfield,
+// at half speed on low power, then waits until it is called in on a target.
+const POWERS = {
+  spy:  { name: 'Spy Plane',    charge: 60,  ready: 'Spy plane ready',   reveal: 10 },
+  para: { name: 'Paratroopers', charge: 150, ready: 'Paratroopers ready',
+          squad: { allies: ['rifle', 'rifle', 'rifle', 'rifle', 'rocket'], soviets: ['rifle', 'rifle', 'rifle', 'grenadier', 'grenadier'] } },
+  bomb: { name: 'Bombing Run',  charge: 200, ready: 'Bombing run ready', bomb: { dmg: 90, wh: 'HE', splash: 26 }, bombs: 10 },
 };
 
 const DIFFICULTY = {

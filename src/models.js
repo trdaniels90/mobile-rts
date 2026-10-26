@@ -200,6 +200,25 @@ function jetModel(pal, mig) {
   return m;
 }
 
+// Four-engined propeller plane: the paratrooper transport, or (darker, glazed nose) the bomber.
+function cargoModel(pal, bomber) {
+  const m = new VModel(-24, -25, 24, 25, 11);
+  const body = bomber ? pal.dark : pal.main, trim = bomber ? pal.deep : pal.dark;
+  m.cylX(-20, 17, 0, 4, 2.7, body, M_METAL);
+  m.ellipsoid(17, 0, 4, 3.5, 2.6, 2.4, body, M_METAL);
+  if (bomber) m.ellipsoid(19, 0, 4, 2, 1.8, 1.6, C.glass, M_GLASS);
+  m.ellipsoid(14, 0, 5.8, 2.4, 1.6, 1, C.glass, M_GLASS);
+  for (let x = -1; x < 6; x++) { const tip = 23 - Math.max(0, 2 - x); m.box(x, -tip, 5, x + 1, tip + 1, 6, body, M_METAL); }
+  for (const y of [-15, -7, 7, 15]) {
+    m.cylX(-1, 9, y, 4.5, 1.5, trim, M_METAL);
+    m.box(9, y - 3, 4, 10, y + 4, 5, C.black);
+  }
+  for (let x = -22; x < -17; x++) m.box(x, -9, 4, x + 1, 10, 5, body, M_METAL);
+  m.box(-22, 0, 4, -17, 1, 11, trim, M_METAL);
+  m.paintTop(-20, -2, 17, 2, (x, y) => (x + 40) % 9 === 0 && y === 0 ? trim : undefined);
+  return m;
+}
+
 // ---------------------------------------------------------------------------
 // Infantry: 16 facings x 3 frames (standing, two walking poses)
 // ---------------------------------------------------------------------------
@@ -507,7 +526,9 @@ function hullSprite(u, pal) {
   if (d.draw === 'jeep') return facingSprite('J' + key, () => jeepModel(pal), u.face);
   if (d.draw === 'harv') { const full = (u.load || 0) > d.capacity * 0.3; return facingSprite('V' + key + full, () => harvModel(pal, full), u.face); }
   if (d.fly === 'heli') return facingSprite('A' + key, () => d.type === 'hind' ? hindModel(pal) : heliModel(pal), u.face);
-  return facingSprite('A' + key, () => jetModel(pal, d.type === 'mig'), u.face);
+  if (d.draw === 'cargo') return facingSprite('C' + key, () => cargoModel(pal, d.type === 'bomber'), u.face);
+  const mig = d.type === 'mig' || (d.type === 'spyplane' && u.faction === 'soviets');
+  return facingSprite('A' + key + mig, () => jetModel(pal, mig), u.face);
 }
 function turretSprite(u, pal) {
   const d = u.def;

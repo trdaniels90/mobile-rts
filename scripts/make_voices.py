@@ -27,6 +27,11 @@ EVA = {
   'mission failed': 'Mission failed.',
   'auto attack on': 'Auto attack, engaged.',
   'auto attack off. new units guard the base': 'Auto attack, disengaged.',
+  'attack group moving out': 'Attack group, moving out.',
+  'spy plane ready': 'Spy plane ready.',
+  'paratroopers ready': 'Paratroopers ready.',
+  'bombing run ready': 'Bombing run ready.',
+  'select target': 'Select target.',
 }
 ACKS = {
   'inf': ['Acknowledged.', 'Yes sir.', 'Moving out.', 'Affirmative.', 'Right away.'],

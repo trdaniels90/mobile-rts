@@ -53,6 +53,22 @@ function aiFindSpot(team, type) {
   return null;
 }
 
+function aiPowerTarget(team, cluster) {
+  const theirs = buildingsOf(enemyOf(team).id);
+  if (!theirs.length) return null;
+  if (!cluster) {
+    const econ = theirs.filter((b) => b.type === 'refinery' || b.type === 'power');
+    const pick = (econ.length ? econ : theirs)[Math.floor(Math.random() * (econ.length || theirs.length))];
+    return { x: pick.x, y: pick.y + CELL * 2 };
+  }
+  let best = null, bn = -1;
+  for (const b of theirs) {
+    const n = theirs.filter((o) => Math.hypot(o.x - b.x, o.y - b.y) < CELL * 4).length;
+    if (n > bn) { bn = n; best = b; }
+  }
+  return { x: best.x, y: best.y };
+}
+
 function aiThink(team) {
   const c = aiCount(team);
   const q = team.queues.structure;
@@ -93,6 +109,10 @@ function aiThink(team) {
     if (c.helipad && (Math.random() < 0.5 || !c.airfield)) startProduction(team, heli);
     else if (c.airfield) startProduction(team, jet);
   }
+
+  // Airfield support powers: bomb the thickest part of the enemy base, drop troops on its economy.
+  if (powerReady(team, 'bomb')) { const t = aiPowerTarget(team, true); if (t) launchPower(team, 'bomb', t.x, t.y); }
+  if (powerReady(team, 'para')) { const t = aiPowerTarget(team, false); if (t) launchPower(team, 'para', t.x, t.y); }
 
   // Patch up damaged buildings when there is cash to spare.
   if (team.credits > 800) for (const b of buildingsOf(team.id)) if (b.hp < b.maxHp * 0.6) b.repairing = true;

@@ -203,6 +203,7 @@ function drawUnit(g, u, t) {
   const pal = palFor(u.faction);
   if (u.cls === 'inf') {
     const frame = u.type === 'grenadier' && u.fireT > 0.12 ? 3 : u.moving ? 1 + (Math.floor(u.anim / 4) % 2) : 0;
+    if (u.chute > 0) { drawChute(g, u, pal, t); return; }
     blit(g, infSprite(u, pal, frame), u.x, u.y);
     if (u.fireT > 0) flash(g, u.x + Math.cos(u.face) * 10, u.y + Math.sin(u.face) * 10 - 11, 1);
     return;
@@ -241,6 +242,24 @@ function drawUnit(g, u, t) {
       flash(g, tx + Math.cos(u.tface) * len, ty + Math.sin(u.tface) * len - 1.5, u.def.draw === 'jeep' ? 1 : 2);
     }
   }
+}
+
+// Paratrooper on the way down: shadow on the ground, swaying canopy above.
+function drawChute(g, u, pal, t) {
+  const h = u.chute * 26, sway = Math.sin(t * 2.4 + u.id) * 2, x = u.x + sway, y = u.y - h;
+  g.fillStyle = 'rgba(0,0,0,0.25)';
+  g.beginPath(); g.ellipse(u.x, u.y, 6, 3, 0, 0, 7); g.fill();
+  blit(g, infSprite(u, pal, 0), x, y);
+  const cy = y - 31;
+  g.strokeStyle = '#2a2620'; g.lineWidth = 0.8;
+  g.beginPath();
+  for (const dx of [-9, -4, 4, 9]) { g.moveTo(x + dx, cy + 1); g.lineTo(x + dx * 0.15, y - 18); }
+  g.stroke();
+  g.fillStyle = '#d9d2bc';
+  g.beginPath(); g.ellipse(x, cy, 10, 7, 0, Math.PI, 0); g.fill();
+  g.fillStyle = '#a69d82';
+  g.beginPath(); g.ellipse(x, cy, 10, 2, 0, 0, Math.PI); g.fill();
+  g.fillRect(Math.round(x - 1), Math.round(cy - 7), 2, 7);
 }
 
 // Burnt-out wreck: the same model with charred paint.
@@ -484,7 +503,11 @@ function cameoURL(type, faction) {
   g.fillStyle = grd; g.fillRect(0, 0, W, H);
   const pal = palFor(faction);
   let mdl, angle = -0.55, scale;
-  if (BUILD_DEFS[type]) {
+  const power = type.startsWith('pw:') && type.slice(3);
+  if (power) {
+    mdl = power === 'spy' ? jetModel(pal, faction === 'soviets') : cargoModel(pal, power === 'bomb');
+    scale = power === 'spy' ? 1.6 : 1.05;
+  } else if (BUILD_DEFS[type]) {
     mdl = STRUCTURES[type](pal, faction);
     angle = 0;
     const d = BUILD_DEFS[type], fw = d.w * CELL + 4, fh = d.h * CELL + mdl.d * VK;
@@ -500,10 +523,23 @@ function cameoURL(type, faction) {
     scale = d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.fly ? 1.7 : d.size && d.size.len > 22 ? 1.9 : 2.3;
   }
   const s = renderVox(mdl, angle, { scale, shadow: false });
-  const dx = Math.round((W - s.img.width) / 2), dy = Math.round((H - s.img.height) / 2 + (BUILD_DEFS[type] ? 0 : 3));
+  const dx = Math.round((W - s.img.width) / 2), dy = Math.round((H - s.img.height) / 2 + (BUILD_DEFS[type] ? 0 : 3) - (power ? 6 : 0));
   g.drawImage(s.img, dx, dy);
+  if (power === 'para') {
+    for (const [x, y] of [[14, 36], [30, 40], [46, 35]]) {
+      g.fillStyle = '#e4ddc6'; g.beginPath(); g.ellipse(x, y - 5, 6, 4, 0, Math.PI, 0); g.fill();
+      g.strokeStyle = '#3a352c'; g.lineWidth = 0.6; g.beginPath(); g.moveTo(x - 5, y - 5); g.lineTo(x, y + 1); g.lineTo(x + 5, y - 5); g.stroke();
+      g.fillStyle = '#2c3020'; g.fillRect(x - 1, y, 2, 4);
+    }
+  } else if (power === 'bomb') {
+    g.fillStyle = '#1d1f18';
+    for (const [x, y] of [[22, 34], [30, 39], [38, 44]]) { g.fillRect(x - 1, y - 3, 3, 6); g.fillStyle = '#5a5c4c'; g.fillRect(x - 1, y - 3, 1, 3); g.fillStyle = '#1d1f18'; }
+  } else if (power === 'spy') {
+    g.strokeStyle = 'rgba(160,230,140,0.7)'; g.lineWidth = 1;
+    g.beginPath(); g.arc(W / 2, H / 2 + 8, 12, 0.2, Math.PI - 0.2); g.stroke();
+  }
   // Tanks get their turret in the cameo too.
-  const d = UNIT_DEFS[type];
+  const d = !power && UNIT_DEFS[type];
   if (d && (d.draw === 'tank' || d.draw === 'jeep')) {
     const tm = d.draw === 'tank' ? tankTurret(pal, d.size) : mgModel();
     const ts = renderVox(tm, angle, { scale, shadow: false });
