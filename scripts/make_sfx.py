@@ -39,6 +39,11 @@ CLIPS = {
               ('rubberduck_100_metal_11.wav', 0.4, 0.75, ''), ('rubberduck_100_tools_01.wav', 0.5, 0.85, ''),
               ('rubberduck_100_tools_03.wav', 0.5, 0.85, ''), ('rubberduck_100_slam_04.wav', 0.3, 0.7, '')],
     'collapse': [('rubberduck_100_metal_12.wav', 1.4, 0.55, ''), ('rubberduck_100_slam_02.wav', 1.0, 0.5, '')],
+    # Infantry deaths (Michel Baradari, CC-BY 3.0): cries for gunfire, screams for blasts and fire.
+    'die': [('baradari_die1.wav', 0.9, 1.0, ''), ('baradari_die2.wav', 1.0, 1.05, ''), ('baradari_deathh.wav', 0.7, 1.0, ''),
+            ('baradari_pain2.wav', 0.6, 0.95, ''), ('baradari_pain4.wav', 0.65, 1.0, ''), ('baradari_pain5.wav', 0.6, 0.92, '')],
+    'dieBlast': [('baradari_die2.wav', 1.1, 0.95, ''), ('baradari_deathh.wav', 0.75, 0.92, ''), ('baradari_die1.wav', 1.0, 0.9, '')],
+    'dieFire': [('baradari_die1.wav', 1.3, 0.78, ''), ('baradari_die2.wav', 1.4, 0.8, '')],
 }
 # Light 90s treatment: telephone-free but band-limited, a touch of bit grit, tight dynamics.
 LOFI = 'highpass=f=45,lowpass=f=10000,acrusher=bits=11:mix=0.2:mode=log,acompressor=threshold=-16dB:ratio=3:attack=2:release=80'

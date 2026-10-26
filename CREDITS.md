@@ -13,6 +13,7 @@ Sounds are trimmed, pitched, mixed, filtered and level-matched for the game by
 | Rocket and missile launches | [Rocket Launch Pack](https://opengameart.org/content/rocket-launch-pack) | dklon | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 | Missile hits, vehicle explosions | [2 High Quality Explosions](https://opengameart.org/content/2-high-quality-explosions) | qubodup | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 | Vehicle and building explosions | [Big Explosion](https://opengameart.org/content/big-explosion) | Lamoot | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
+| Infantry deaths | [11 male human pain/death sounds](https://opengameart.org/content/11-male-human-paindeath-sounds) | Michel Baradari | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 | Tesla Coil | [Tesla coil powered death ray sound](https://opengameart.org/content/tesla-coil-powered-death-ray-sound) | Varkalandar | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 | Rifles | [Gunshots](https://opengameart.org/content/gunshots) | Kurt | CC0 |
 | Rifles | [Gunshot sound effect](https://opengameart.org/content/gunshot-sound-effect) | hingydunyas | CC0 |

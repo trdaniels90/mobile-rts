@@ -764,7 +764,7 @@ function updateProjectiles(dt) {
       p.dead = true;
       if (p.decoy) { impact('flak', tx, ty, true); continue; }   // burst harmlessly on a flare
       if (p.kind === 'fireball') { fireBlast(p, t.alive ? t.x : p.x, t.alive ? t.y : p.y); continue; }
-      if (t.alive) damage(t, p.w.dmg, p.w.wh, p.from.alive ? p.from : null);
+      if (t.alive) damage(t, p.w.dmg, p.w.wh, p.from.alive ? p.from : null, { x: p.x, y: p.y });
       impact(p.kind, t.alive ? tx : p.x, t.alive ? ty : p.y, isAirborne(t));
       if (p.w.wh === 'HE' && t.kind === 'unit' && !isAirborne(t)) splash(tx, ty, 14, p.w.dmg * 0.4, p.team, t);
       continue;
@@ -784,7 +784,7 @@ function fireBlast(p, x, y) {
   for (const e of G.entities) {
     if (!e.alive || e.team === p.team || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, from);
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, from, { x, y });
   }
 }
 
@@ -798,7 +798,7 @@ function grenadeBlast(p) {
   for (const e of G.entities) {
     if (!e.alive || e.team === p.team || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.6), w.wh, from);
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.6), w.wh, from, { x, y });
   }
 }
 
@@ -811,7 +811,7 @@ function bombBlast(p) {
   for (const e of G.entities) {
     if (!e.alive || e.team === p.team || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, null);
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, null, { x, y });
   }
 }
 
@@ -827,7 +827,7 @@ function smoulder(x, y, life) { G.effects.push({ type: 'smoulder', x, y, t: 0, l
 function splash(x, y, rad, dmg, team, skip) {
   for (const e of G.entities) {
     if (!e.alive || e === skip || e.team === team || e.kind !== 'unit' || isAirborne(e)) continue;
-    if (Math.hypot(e.x - x, e.y - y) < rad) damage(e, dmg, 'HE', null);
+    if (Math.hypot(e.x - x, e.y - y) < rad) damage(e, dmg, 'HE', null, { x, y });
   }
 }
 
@@ -846,7 +846,8 @@ function impact(kind, x, y, inAir) {
   }
 }
 
-function damage(t, amount, wh, attacker) {
+// `from`: where the hit came from (a blast centre or the shooter), for how a soldier falls.
+function damage(t, amount, wh, attacker, from) {
   if (!t.alive) return;
   const armor = t.kind === 'bld' ? 'bld' : isAirborne(t) ? 'air' : t.def.armor === 'air' ? 'light' : t.def.armor;
   const mult = WARHEADS[wh][armor];
@@ -863,7 +864,7 @@ function damage(t, amount, wh, attacker) {
   // A structure shot at from outside the base zone: answer the fire wherever it comes from.
   else if (t.kind === 'bld' && attacker && attacker.kind === 'unit' && !isAirborne(attacker)) team.baseHit = { x: attacker.x, y: attacker.y, until: G.t + 8 };
   if (attacker && attacker.alive && t.kind === 'unit' && t.order.type === 'guard' && !t.target && canTarget(t, attacker)) t.target = attacker;
-  if (t.hp <= 0) kill(t, attacker);
+  if (t.hp <= 0) kill(t, attacker, wh, from || attacker);
 }
 
 function notify(team, key, msg, cooldown) {
@@ -873,7 +874,7 @@ function notify(team, key, msg, cooldown) {
   hooks.eva(msg);
 }
 
-function kill(e, attacker) {
+function kill(e, attacker, wh, from) {
   e.alive = false;
   const team = teamOf(e);
   if (attacker && attacker.team !== e.team) G.teams[attacker.team].stats.killed++;
@@ -881,7 +882,7 @@ function kill(e, attacker) {
   if (e.kind === 'unit') {
     team.stats.lost++;
     if (e.cls === 'inf') {
-      bakeCorpse(G.dctx, e, seed);
+      ragdoll(e, wh, from);
     } else if (e.cls === 'veh') {
       hooks.sfx('explodeVeh', e.x, e.y);
       G.effects.push({ type: 'expl', x: e.x, y: e.y - 4, size: 16, t: 0, life: 0.8, seed, debris: true });
@@ -919,6 +920,46 @@ function kill(e, attacker) {
       if (e.team === PLAYER) notify(team, 'slost', 'Structure lost', 4);
     }
   }
+}
+
+// How a soldier dies: shot ones are knocked back and topple over; blasts throw them into the
+// air, spinning or flipping, before they thump down. Either way the body then stays.
+function ragdoll(e, wh, from) {
+  const r = Math.random;
+  const a = from && (from.x !== e.x || from.y !== e.y) ? Math.atan2(e.y - from.y, e.x - from.x) : r() * Math.PI * 2;
+  const blast = wh === 'HE' || wh === 'AP';
+  const fx = { type: 'ragdoll', x: e.x, y: e.y, z: 0, unitType: e.type, faction: e.faction, face: e.face, rot: 0, t: 0, life: 8 };
+  if (blast) {
+    const p = 25 + r() * 40;
+    Object.assign(fx, { vx: Math.cos(a) * p, vy: Math.sin(a) * p * 0.7, vz: 80 + r() * 80, spin: (r() < 0.5 ? -1 : 1) * (5 + r() * 9), pivot: 8, air: true });
+  } else {
+    Object.assign(fx, { vx: Math.cos(a) * 16, vy: Math.sin(a) * 10, vz: 0, spin: 0, fall: Math.cos(a) >= 0 ? 1 : -1, pivot: 0 });
+    if (r() < 0.3) fx.fall = -fx.fall;
+    if (wh === 'FIRE') for (let i = 0; i < 3; i++) G.effects.push({ type: 'fire', x: e.x + (r() - 0.5) * 6, y: e.y - 4 + (r() - 0.5) * 4, t: -i * 0.15, life: 1.2 + r() });
+    if (wh === 'TESLA') G.effects.push({ type: 'spark', x: e.x, y: e.y - 8, t: 0, life: 0.3 });
+  }
+  hooks.sfx(blast ? 'dieBlast' : wh === 'FIRE' ? 'dieFire' : 'die', e.x, e.y);
+  G.effects.push(fx);
+}
+function updateRagdoll(fx, dt) {
+  if (fx.air) {
+    fx.vz -= 330 * dt; fx.z = Math.max(0, fx.z + fx.vz * dt);
+    fx.x += fx.vx * dt; fx.y += fx.vy * dt; fx.rot += fx.spin * dt;
+    if (fx.z > 0 || fx.vz > 0) return;
+    if (!fx.bounced && fx.vz < -70) { fx.bounced = true; fx.vz = -fx.vz * 0.25; fx.vx *= 0.35; fx.vy *= 0.35; fx.spin *= 0.3; return; }
+    fx.air = false;
+  } else if (Math.abs(fx.rot) < Math.PI / 2) {
+    // Toppling: slow at first, faster as it goes, sliding back a little from the hit.
+    fx.rot += fx.fall * dt * (2.5 + Math.abs(fx.rot) * 6);
+    fx.x += fx.vx * dt; fx.y += fx.vy * dt; fx.vx *= Math.exp(-5 * dt); fx.vy *= Math.exp(-5 * dt);
+    if (Math.abs(fx.rot) < Math.PI / 2) return;
+  }
+  // Down: lie on whichever side is nearer and stay there.
+  const s = Math.sin(fx.rot), lie = (s >= 0 ? 1 : -1) * Math.PI / 2 + (Math.random() - 0.5) * 0.4;
+  fx.t = fx.life;
+  fx.x = Math.max(4, Math.min(WORLD - 4, fx.x)); fx.y = Math.max(4, Math.min(WORLD - 4, fx.y));
+  if (G.terr[cellOfPos(fx.x, fx.y)] >= 4) { G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 3, t: 0, life: 0.6, alpha: 0.5, color: '#c9c7c0' }); return; }
+  bakeCorpse(G.dctx, { x: fx.x, y: fx.y, type: fx.unitType, faction: fx.faction, face: fx.face }, (Math.random() * 1e6) | 0, lie);
 }
 
 // Soldiers stumble out of a destroyed structure and join the defence: more from bigger buildings.
@@ -1784,12 +1825,13 @@ function update(dt) {
   if ((T.win -= dt) <= 0) { T.win = 1; checkWin(); if (!G.over) launchGroups(); }
   for (const fx of G.effects) {
     if (fx.type === 'crash') updateCrash(fx, dt);
+    else if (fx.type === 'ragdoll') updateRagdoll(fx, dt);
     else if (fx.type === 'smoulder' && (fx.puffT -= dt) <= 0) {
       fx.puffT = 0.35 + fx.t / fx.life * 0.6;
       G.effects.push({ type: 'smoke', x: fx.x + (Math.random() - 0.5) * 4, y: fx.y, r: 2.5, t: 0, life: 2.2, alpha: 0.45 * (1 - fx.t / fx.life), color: '#35322e', vy: -9, vx: 3 });
     }
     fx.t += dt;
-    if (fx.vy && fx.t > 0 && fx.type !== 'crash') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
+    if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
   }
   G.effects = G.effects.filter((fx) => fx.t < fx.life);
   if (G.entities.some((e) => !e.alive)) {

@@ -267,6 +267,9 @@ const Sound = (() => {
       for (let i = 0; i < 4; i++) kaboom(t + i * 0.2 + Math.random() * 0.07, o, s, i === 0 ? 1 : 0.6);
       noiseHit(t + 0.35, 1.4, 'bandpass', 2800, 700, 0.6, 0.2, o, 0.1);
     },
+    die(t, o) { tone(t, 'sawtooth', 320, 140, 0.35, 0.12, o); },
+    dieBlast(t, o) { tone(t, 'sawtooth', 380, 120, 0.5, 0.12, o); },
+    dieFire(t, o) { tone(t, 'sawtooth', 420, 180, 0.8, 0.1, o); },
     // Fallbacks for the recorded construction clank and collapse.
     build(t, o) { noiseHit(t, 0.12, 'bandpass', 2200, 1600, 3, 0.4, o); tone(t, 'square', 330, 300, 0.08, 0.12, o); },
     collapse(t, o) { noiseHit(t, 1.2, 'lowpass', 900, 150, 0.8, 0.7, o); noiseHit(t + 0.15, 0.6, 'bandpass', 1800, 900, 2, 0.25, o); },
@@ -282,14 +285,14 @@ const Sound = (() => {
     ready(t, o) { tone(t, 'square', 880, 880, 0.06, 0.14, o); tone(t + 0.08, 'square', 1320, 1320, 0.08, 0.14, o); },
     denied(t, o) { tone(t, 'square', 220, 200, 0.18, 0.1, o); },
   };
-  const THROTTLE = { build: 0.12, collapse: 0.3, cashUp: 0.07, cashDown: 0.07, rifle: 0.03, mg: 0.03, cannon: 0.05, cannonHeavy: 0.06, turretGun: 0.06, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, missile: 0.05, flak: 0.06, tesla: 0.1 };
+  const THROTTLE = { die: 0.09, dieBlast: 0.12, dieFire: 0.2, build: 0.12, collapse: 0.3, cashUp: 0.07, cashDown: 0.07, rifle: 0.03, mg: 0.03, cannon: 0.05, cannonHeavy: 0.06, turretGun: 0.06, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, missile: 0.05, flak: 0.06, tesla: 0.1 };
   const UI_SOUNDS = new Set(['click', 'ready', 'denied', 'sell', 'place', 'cashUp', 'cashDown']);
   // Rough loudness of each effect so distant battles do not drown nearby ones.
   const LEVEL = { rifle: 0.55, mg: 1.0, throw: 0.8, cannon: 0.8, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, missile: 0.7, flak: 0.75, tesla: 0.85,
-    hitSmall: 0.7, hitMed: 0.8, explodeVeh: 0.9, explodeBig: 1.0, flame: 0.8, fireHit: 0.8, build: 0.55, collapse: 1.0 };
+    hitSmall: 0.7, hitMed: 0.8, explodeVeh: 0.9, explodeBig: 1.0, flame: 0.8, fireHit: 0.8, build: 0.55, collapse: 1.0, die: 0.7, dieBlast: 0.75, dieFire: 0.7 };
 
   // How far each sound carries: the quietest it gets however far away the fighting is.
-  const CARRY = { collapse: 0.26, build: 0.05, explodeBig: 0.3, explodeVeh: 0.24, cannon: 0.18, cannonHeavy: 0.2, turretGun: 0.18, hitMed: 0.18, tesla: 0.18,
+  const CARRY = { die: 0.04, dieBlast: 0.05, dieFire: 0.04, collapse: 0.26, build: 0.05, explodeBig: 0.3, explodeVeh: 0.24, cannon: 0.18, cannonHeavy: 0.2, turretGun: 0.18, hitMed: 0.18, tesla: 0.18,
     rocket: 0.14, missile: 0.14, flak: 0.12, hitSmall: 0.12, mg: 0.12, fireHit: 0.1, flame: 0.1, rifle: 0.09, throw: 0.06 };
 
   // dist: screens from the camera (1 = screen edge). Near and far sounds have separate voice

@@ -197,9 +197,9 @@ function bakeWreck(tg, x, y, def, face, tface) {
   if (ts) tg.drawImage(charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - TURRET_Z[def.draw] * VK + ts.oy));
 }
 // A fallen soldier: the unit's own sprite tipped onto its side, a shade darker, over a dark stain.
-function bakeCorpse(tg, u, seed) {
+function bakeCorpse(tg, u, seed, angle) {
   const r = rng(seed), s = infSprite({ type: u.type, faction: u.faction, face: u.face }, palFor(u.faction), 0);
-  const side = r() < 0.5 ? -1 : 1, a = side * (Math.PI / 2) + (r() - 0.5) * 0.5;
+  const a = angle !== undefined ? angle : (r() < 0.5 ? -1 : 1) * (Math.PI / 2) + (r() - 0.5) * 0.5, side = Math.sin(a) >= 0 ? 1 : -1;
   const x = Math.round(u.x), y = Math.round(u.y);
   tg.fillStyle = 'rgba(70,14,10,0.5)';
   tg.beginPath(); tg.ellipse(x + side * 6, y + 1, 6 + r() * 2, 3, 0, 0, 7); tg.fill();
@@ -572,6 +572,16 @@ function drawEffect(g, fx) {
       break;
     }
     case 'husk': drawHusk(g, fx); break;
+    case 'ragdoll': {
+      const s = infSprite({ type: fx.unitType, faction: fx.faction, face: fx.face }, palFor(fx.faction), 0);
+      g.fillStyle = `rgba(0,0,0,${0.3 / (1 + fx.z / 20)})`;
+      g.beginPath(); g.ellipse(fx.x, fx.y + 1, 5, 2, 0, 0, 7); g.fill();
+      g.save();
+      g.translate(Math.round(fx.x), Math.round(fx.y - fx.z - fx.pivot)); g.rotate(fx.rot);
+      g.drawImage(s.img, Math.round(s.ox), Math.round(s.oy + fx.pivot));
+      g.restore();
+      break;
+    }
     case 'flare': {
       const a = Math.max(0, 1 - k);
       g.fillStyle = `rgba(255,170,60,${0.35 * a})`; g.beginPath(); g.arc(fx.x, fx.y, 3.5, 0, 7); g.fill();
