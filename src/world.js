@@ -1535,14 +1535,22 @@ function airWeapons(u) {
 function popFlares(t) {
   if (t.flares > 0 && G.t >= (t.flareCd || 0)) {
     t.flares--; t.flareCd = G.t + 3; t.flareT = G.t + 1.2;
-    hooks.sfx('throw', t.x, t.y);
-    // Flares are kicked out behind in a fan, slow quickly in the air and sink as they burn.
-    for (let i = 0; i < 6; i++) {
-      const a = t.face + Math.PI + (i - 2.5) * 0.4;
-      G.effects.push({ type: 'flare', x: t.x - Math.cos(t.face) * 10, y: t.y - (t.alt || 0) - Math.sin(t.face) * 10, vx: Math.cos(a) * 34, vy: Math.sin(a) * 20, t: -i * 0.09, life: 2.8, trail: [] });
-    }
+    t.flareSeq = { left: 5, next: G.t, side: Math.random() < 0.5 ? 1 : -1 };   // released one at a time: see dropFlare
   }
   return G.t < (t.flareT || 0);
+}
+// A burst of flares comes out one by one, about 0.7 s apart, from wherever the jet is by then,
+// alternating sides, so they string out behind it as it flies on.
+function dropFlare(t) {
+  const q = t.flareSeq;
+  if (!q || G.t < q.next) return;
+  if (q.left-- === 1) t.flareSeq = null;
+  q.next = G.t + 0.6 + Math.random() * 0.2; q.side = -q.side;
+  hooks.sfx('throw', t.x, t.y);
+  // Each keeps some of the jet's speed at first, then drags to a halt and sinks.
+  const a = t.face + Math.PI + q.side * (0.5 + Math.random() * 0.4), sp = (t.speedCur || t.def.speed) * 0.45;
+  G.effects.push({ type: 'flare', x: t.x - Math.cos(t.face) * 10, y: t.y - (t.alt || 0) - Math.sin(t.face) * 10,
+    vx: Math.cos(a) * 34 + Math.cos(t.face) * sp, vy: Math.sin(a) * 20 + Math.sin(t.face) * sp, t: 0, life: 2.8, trail: [] });
 }
 
 const HELI_ALT = 20, JET_ALT = 30;
@@ -1596,6 +1604,7 @@ function airTarget(u) {
 
 function updateAir(u, dt) {
   const w = u.def.weapon, jet = u.def.fly === 'jet';
+  if (u.flareSeq) dropFlare(u);
   if (u.target && !u.target.alive) u.target = null;
 
   if (u.as === 'landed') {
