@@ -908,6 +908,45 @@ function craterAt(x, y, rad) {
   if (G.terr[c] >= 4 || G.bld[c]) return;
   crater(G.tctx, x, y, rad, (Math.random() * 1e6) | 0);
 }
+// Ammunition cook-off: the tank's rounds go up, blowing the turret off into the air, spinning,
+// while flame roars out of the hull and more rounds keep popping. The turret crashes down
+// nearby and stays there as a wreck of its own.
+function cookOff(e, seed) {
+  const r = Math.random, a = r() * Math.PI * 2, p = 14 + r() * 30;
+  G.effects.push({ type: 'turret', x: e.x, y: e.y, z: TURRET_Z.tank, vx: Math.cos(a) * p, vy: Math.sin(a) * p * 0.8, vz: 150 + r() * 100,
+    rot: 0, spin: (r() < 0.5 ? -1 : 1) * (5 + r() * 9), def: e.def, tface: e.tface, seed, t: 0, life: 14, smokeT: 0,
+    hx: e.x, hy: e.y, pops: [0.4 + r() * 0.2, 0.9 + r() * 0.3, 1.5 + r() * 0.4, 2.2 + r() * 0.6].slice(0, 2 + Math.floor(r() * 3)) });
+  for (let i = 0; i < 7; i++) G.effects.push({ type: 'fire', x: e.x + (r() - 0.5) * 4, y: e.y - 6 - r() * 4, t: -i * 0.1, life: 0.8 + r() * 0.6, vy: -16 - r() * 10 });
+  G.effects.push({ type: 'expl', x: e.x, y: e.y - 10, size: 11, t: -0.05, life: 0.6, seed: seed + 3 });
+}
+function updateTurret(fx, dt) {
+  const r = Math.random;
+  while (fx.pops.length && fx.t >= fx.pops[0]) {   // rounds still cooking off in the hull
+    fx.pops.shift();
+    hooks.sfx('hitMed', fx.hx, fx.hy);
+    G.effects.push({ type: 'expl', x: fx.hx + (r() - 0.5) * 8, y: fx.hy - 5 + (r() - 0.5) * 5, size: 5 + r() * 4, t: 0, life: 0.4, seed: (r() * 1e6) | 0 });
+    for (let i = 0; i < 2; i++) G.effects.push({ type: 'fire', x: fx.hx + (r() - 0.5) * 5, y: fx.hy - 7, t: -i * 0.1, life: 0.6 + r() * 0.4, vy: -20 });
+  }
+  if (!fx.down) {
+    fx.vz -= 420 * dt; fx.z += fx.vz * dt; fx.x += fx.vx * dt; fx.y += fx.vy * dt; fx.rot += fx.spin * dt;
+    if ((fx.smokeT -= dt) <= 0) { fx.smokeT = 0.05; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y - fx.z, r: 2 + r(), t: 0, life: 1.1, alpha: 0.5, color: '#3a3631', vy: -6 }); }
+    if (fx.z <= 0 && fx.vz < 0) {
+      fx.z = 0;
+      if (!fx.bounced && fx.vz < -60) {
+        fx.bounced = true; fx.vz *= -0.28; fx.vx *= 0.4; fx.vy *= 0.4; fx.spin *= 0.35;
+        hooks.sfx('hitMed', fx.x, fx.y);
+        G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 4, t: 0, life: 0.8, alpha: 0.45, color: '#8a7a62' });
+      } else {
+        fx.down = true;
+        fx.x = Math.max(6, Math.min(WORLD - 6, fx.x)); fx.y = Math.max(6, Math.min(WORLD - 6, fx.y));
+        if (G.terr[cellOfPos(fx.x, fx.y)] >= 4 && G.terr[cellOfPos(fx.x, fx.y)] !== 5) G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 5, t: 0, life: 0.9, alpha: 0.5, color: '#c9c7c0' });
+        else { craterAt(fx.x, fx.y, 3); bakeTurret(G.dctx, fx); smoulder(fx.x, fx.y - 2, 10); }
+      }
+    }
+  }
+  if (fx.down && !fx.pops.length) fx.t = fx.life;
+}
+
 // A wreck smoulders for a while after the flames die down.
 function smoulder(x, y, life) { G.effects.push({ type: 'smoulder', x, y, t: 0, life, puffT: 0 }); }
 
@@ -979,11 +1018,13 @@ function kill(e, attacker, wh, from) {
     if (e.cls === 'inf') {
       ragdoll(e, wh, from);
     } else if (e.cls === 'veh') {
+      const cook = e.def.draw === 'tank' && Math.random() < 0.35;   // ammunition cook-off
       hooks.sfx('explodeVeh', e.x, e.y);
       G.effects.push({ type: 'expl', x: e.x, y: e.y - 4, size: 16, t: 0, life: 0.8, seed, debris: true });
       scorch(G.tctx, e.x, e.y, 12, seed);
       craterAt(e.x + Math.cos(e.face) * 6, e.y + Math.sin(e.face) * 6, 5);
-      bakeWreck(G.dctx, e.x, e.y, e.def, e.face, e.tface);
+      bakeWreck(G.dctx, e.x, e.y, e.def, e.face, e.tface, cook);
+      if (cook) cookOff(e, seed);
       for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: e.x + (Math.random() - 0.5) * 8, y: e.y + (Math.random() - 0.5) * 6, t: -i * 0.3, life: 2.5 + Math.random() * 2 });
       smoulder(e.x, e.y - 4, 25);
     } else if ((e.alt || 0) > 4) {
@@ -1034,7 +1075,7 @@ function ragdoll(e, wh, from) {
   const r = Math.random;
   const a = from && (from.x !== e.x || from.y !== e.y) ? Math.atan2(e.y - from.y, e.x - from.x) : r() * Math.PI * 2;
   const blast = wh === 'HE' || wh === 'AP';
-  const fx = { type: 'ragdoll', x: e.x, y: e.y, unitType: e.type, faction: e.faction, face: e.face, t: 0, life: 9, age: 0, still: 0, acc: 0 };
+  const fx = { type: 'ragdoll', x: e.x, y: e.y, unitType: e.type, faction: e.faction, face: e.face, t: 0, life: 14, age: 0, still: 0, acc: 0 };
   // Joints in world space, standing as the soldier stood.
   const n = RAG_PTS.length, ca = Math.cos(e.face), sa = Math.sin(e.face);
   const P = new Float32Array(n * 3), V = new Float32Array(n * 3);
@@ -1117,6 +1158,11 @@ function updateRagdoll(fx, dt) {
     if (r() < dt * 5) G.effects.push({ type: 'fire', x: fx.x + (r() - 0.5) * 4, y: fx.y - 6, t: 0, life: 0.7 });
     return;
   }
+  if (fx.pool) {   // lying still while the blood spreads; then painted into the ground
+    fx.pool.t += dt;
+    if (fx.pool.t >= fx.pool.dur) { fx.t = fx.life; bakeRagdoll(G.dctx, fx); }
+    return;
+  }
   if (fx.shock > 0) { fx.shock -= dt; if (r() < dt * 8) G.effects.push({ type: 'spark', x: fx.x + (r() - 0.5) * 6, y: fx.y - 6 - r() * 6, t: 0, life: 0.15 }); return; }
   const h = 1 / 60, P = fx.P, Q = fx.Q, nS = RAG_STICKS.length;
   fx.acc += dt;
@@ -1142,9 +1188,9 @@ function updateRagdoll(fx, dt) {
   }
   fx.x = P[6]; fx.y = P[7];
   if (fx.still <= 0.3 && fx.age <= 5) return;
-  fx.t = fx.life;
-  if (G.terr[cellOfPos(Math.max(0, Math.min(WORLD - 1, fx.x)), Math.max(0, Math.min(WORLD - 1, fx.y)))] >= 4) { G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 3, t: 0, life: 0.6, alpha: 0.5, color: '#c9c7c0' }); return; }
-  bakeRagdoll(G.dctx, fx);
+  if (G.terr[cellOfPos(Math.max(0, Math.min(WORLD - 1, fx.x)), Math.max(0, Math.min(WORLD - 1, fx.y)))] >= 4) { fx.t = fx.life; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 3, t: 0, life: 0.6, alpha: 0.5, color: '#c9c7c0' }); return; }
+  if (fx.burnt) { fx.t = fx.life; bakeRagdoll(G.dctx, fx); return; }
+  fx.pool = { t: 0, dur: 2 + r() * 1.5, r: 3.6 + r() * 2.4, seed: (r() * 1e6) | 0, a: r() * Math.PI * 2 };
 }
 
 // Mobile Outpost: unpack into an Outpost on the spot, or the nearest clear 2x2 ground beside it.
@@ -2066,12 +2112,13 @@ function update(dt) {
   for (const fx of G.effects) {
     if (fx.type === 'crash') updateCrash(fx, dt);
     else if (fx.type === 'ragdoll') updateRagdoll(fx, dt);
+    else if (fx.type === 'turret') updateTurret(fx, dt);
     else if (fx.type === 'smoulder' && (fx.puffT -= dt) <= 0) {
       fx.puffT = 0.35 + fx.t / fx.life * 0.6;
       G.effects.push({ type: 'smoke', x: fx.x + (Math.random() - 0.5) * 4, y: fx.y, r: 2.5, t: 0, life: 2.2, alpha: 0.45 * (1 - fx.t / fx.life), color: '#35322e', vy: -9, vx: 3 });
     }
     fx.t += dt;
-    if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
+    if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
   }
   G.effects = G.effects.filter((fx) => fx.t < fx.life);
   if (G.entities.some((e) => !e.alive)) {

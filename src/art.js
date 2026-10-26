@@ -189,13 +189,29 @@ function crater(tg, x, y, rad, seed) {
   oval(x - rad * 0.06, y, rad * 0.36, ry * 0.3, 'rgba(16,12,8,0.6)');
 }
 // A burnt-out wreck painted into the ground, so it stays for the rest of the battle.
-function bakeWreck(tg, x, y, def, face, tface) {
+function bakeWreck(tg, x, y, def, face, tface, noTurret) {
   const fake = { def, face, tface, load: 0 }, seed = (Math.random() * 1e6) | 0;
   const hs = hullSprite(fake, BURNT);
   if (hs.sh) { tg.globalAlpha = 0.45; tg.drawImage(hs.sh, Math.round(x + hs.sox), Math.round(y + hs.soy)); tg.globalAlpha = 1; }
   tg.drawImage(charred(hs.img, seed), Math.round(x + hs.ox), Math.round(y + hs.oy));
-  const ts = turretSprite(fake, BURNT);
+  const ts = !noTurret && turretSprite(fake, BURNT);
   if (ts) tg.drawImage(charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - TURRET_Z[def.draw] * VK + ts.oy));
+}
+// A turret blown off by a cook-off, charred, at its height above the ground and turned by rot.
+function turretImg(fx) {
+  if (!fx.img) fx.img = charred(turretSprite({ def: fx.def, tface: fx.tface }, BURNT).img, fx.seed);
+  return fx.img;
+}
+function drawTurretAt(g, fx, z) {
+  const img = turretImg(fx);
+  g.save(); g.translate(Math.round(fx.x), Math.round(fx.y - z - 3)); g.rotate(fx.rot);
+  g.drawImage(img, -Math.round(img.width / 2), -Math.round(img.height / 2));
+  g.restore();
+}
+function bakeTurret(tg, fx) {
+  tg.fillStyle = 'rgba(0,0,0,0.35)';
+  tg.beginPath(); tg.ellipse(fx.x + 2, fx.y + 1, 9, 4, 0, 0, 7); tg.fill();
+  drawTurretAt(tg, fx, 0);
 }
 // A fallen soldier: the unit's own sprite tipped onto its side, a shade darker, over a dark stain.
 function bakeCorpse(tg, u, seed, angle) {
@@ -243,6 +259,22 @@ function drawRagBody(g, fx) {
   g.fillStyle = burnt ? BURNT.light : head;
   g.fillRect(Math.round(hx + ux / ul * 1.2 - 1.5), Math.round(hy + uy / ul * 1.2 - 1.5), 3, 2);
 }
+// A pool of blood spreading from under the chest: a few overlapping blots, darker at the edge,
+// with a glint of wet highlight. k runs from 0 (just started) to 1 (full size).
+function drawPool(g, fx, k) {
+  const P = fx.P, pl = fx.pool, r = rng(pl.seed), s = pl.r * (1 - (1 - k) * (1 - k));
+  if (s < 0.6) return;
+  // Centred under the chest but running out to one side, as blood pools away from a body.
+  const cx = (P[3] + P[6]) / 2 * 0.6 + P[6] * 0.4 + Math.cos(pl.a) * s * 0.55, cy = (P[4] + P[7]) / 2 * 0.6 + P[7] * 0.4 + Math.sin(pl.a) * s * 0.4;
+  const blots = [];
+  for (let i = 0; i < 6; i++) blots.push([(r() - 0.5) * s * 1.1, (r() - 0.5) * s * 0.7, s * (0.45 + r() * 0.45)]);
+  for (const [col, grow] of [['rgba(54,6,6,0.88)', 0.7], ['rgba(106,14,10,0.9)', 0]]) {
+    g.fillStyle = col;
+    for (const [ox, oy, rr] of blots) { g.beginPath(); g.ellipse(cx + ox, cy + oy, rr + grow, (rr + grow) * 0.62, 0, 0, 7); g.fill(); }
+  }
+  g.fillStyle = 'rgba(190,70,60,0.5)';
+  g.fillRect(Math.round(cx - s * 0.3), Math.round(cy - s * 0.25), s > 3 ? 2 : 1, 1);
+}
 // Pixel-crisp line with a square brush.
 function pxLine(g, x0, y0, x1, y1, w, col) {
   g.fillStyle = col;
@@ -255,9 +287,11 @@ function pxLine(g, x0, y0, x1, y1, w, col) {
 // A settled ragdoll painted into the ground for good: a dark stain, then the body a shade dimmer.
 function bakeRagdoll(tg, fx) {
   const P = fx.P, cx = Math.round(P[6]), cy = Math.round(P[7]), R = 26;
-  const mx = (P[3] + P[6]) / 2, my = (P[4] + P[7]) / 2;
-  tg.fillStyle = fx.burnt ? 'rgba(20,16,12,0.45)' : 'rgba(70,14,10,0.5)';
-  tg.beginPath(); tg.ellipse(mx, my + 1, 5 + Math.random() * 2, 3, Math.atan2(P[4] - P[7], P[3] - P[6]), 0, 7); tg.fill();
+  if (fx.pool) drawPool(tg, fx, 1);
+  else {   // a scorched patch under a burnt body
+    tg.fillStyle = 'rgba(20,16,12,0.45)';
+    tg.beginPath(); tg.ellipse((P[3] + P[6]) / 2, (P[4] + P[7]) / 2 + 1, 5, 3, Math.atan2(P[4] - P[7], P[3] - P[6]), 0, 7); tg.fill();
+  }
   const c = mkCanvas(R * 2, R * 2), g = c.getContext('2d');
   g.translate(R - cx, R - cy); drawRagBody(g, fx);
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -669,9 +703,15 @@ function drawEffect(g, fx) {
         break;
       }
       const z = fx.P[8];
-      g.fillStyle = `rgba(0,0,0,${0.3 / (1 + z / 20)})`;
-      g.beginPath(); g.ellipse(fx.P[6], fx.P[7] + 1, 6, 2.5, 0, 0, 7); g.fill();
+      if (fx.pool) drawPool(g, fx, Math.min(1, fx.pool.t / fx.pool.dur));
+      else { g.fillStyle = `rgba(0,0,0,${0.3 / (1 + z / 20)})`; g.beginPath(); g.ellipse(fx.P[6], fx.P[7] + 1, 6, 2.5, 0, 0, 7); g.fill(); }
       drawRagBody(g, fx);
+      break;
+    }
+    case 'turret': {
+      const sh = 0.4 / (1 + fx.z / 25);
+      g.fillStyle = `rgba(0,0,0,${sh})`; g.beginPath(); g.ellipse(fx.x, fx.y + 1, 7, 3, 0, 0, 7); g.fill();
+      drawTurretAt(g, fx, fx.z);
       break;
     }
     case 'flare': {
