@@ -634,6 +634,7 @@ function grenadeBlast(p) {
   hooks.sfx('hitMed', x, y);
   G.effects.push({ type: 'expl', x, y: y - 3, size: 9, t: 0, life: 0.5, seed: (Math.random() * 1e6) | 0, debris: true });
   scorch(G.tctx, x, y, 7, (Math.random() * 1e6) | 0);
+  craterAt(x, y, 4);
   const from = p.from.alive ? p.from : null;
   for (const e of G.entities) {
     if (!e.alive || e.team === p.team || isAirborne(e)) continue;
@@ -647,12 +648,22 @@ function bombBlast(p) {
   hooks.sfx('explodeVeh', x, y);
   G.effects.push({ type: 'expl', x, y: y - 4, size: 13, t: 0, life: 0.7, seed: (Math.random() * 1e6) | 0, debris: true });
   scorch(G.tctx, x, y, 11, (Math.random() * 1e6) | 0);
+  craterAt(x, y, 8);
   for (const e of G.entities) {
     if (!e.alive || e.team === p.team || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
     if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, null);
   }
 }
+
+// Craters only on open ground: not in water or under a structure.
+function craterAt(x, y, rad) {
+  const c = cellOfPos(x, y);
+  if (G.terr[c] === 4 || G.bld[c]) return;
+  crater(G.tctx, x, y, rad, (Math.random() * 1e6) | 0);
+}
+// A wreck smoulders for a while after the flames die down.
+function smoulder(x, y, life) { G.effects.push({ type: 'smoulder', x, y, t: 0, life, puffT: 0 }); }
 
 function splash(x, y, rad, dmg, team, skip) {
   for (const e of G.entities) {
@@ -669,7 +680,10 @@ function impact(kind, x, y, inAir) {
     hooks.sfx(kind === 'shell' ? 'hitSmall' : 'hitMed', x, y);
     const size = kind === 'shell' ? 6 : 8;
     G.effects.push({ type: 'expl', x, y, size, t: 0, life: 0.45, seed: (Math.random() * 1e6) | 0 });
-    if (!inAir && Math.random() < 0.5) scorch(G.tctx, x, y, size * 0.8, (Math.random() * 1e6) | 0);
+    if (!inAir) {
+      if (Math.random() < 0.5) scorch(G.tctx, x, y, size * 0.8, (Math.random() * 1e6) | 0);
+      if (kind !== 'shell' || Math.random() < 0.6) craterAt(x + (Math.random() - 0.5) * 3, y + (Math.random() - 0.5) * 3, kind === 'shell' ? 3 : 4.5);
+    }
   }
 }
 
@@ -708,9 +722,11 @@ function kill(e, attacker) {
     } else if (e.cls === 'veh') {
       hooks.sfx('explodeVeh', e.x, e.y);
       G.effects.push({ type: 'expl', x: e.x, y: e.y - 4, size: 16, t: 0, life: 0.8, seed, debris: true });
-      G.effects.push({ type: 'husk', x: e.x, y: e.y, face: e.face, tface: e.tface, def: e.def, t: 0, life: 12 });
-      for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: e.x + (Math.random() - 0.5) * 8, y: e.y + (Math.random() - 0.5) * 6, t: -i * 0.3, life: 2.5 + Math.random() * 2 });
       scorch(G.tctx, e.x, e.y, 12, seed);
+      craterAt(e.x + Math.cos(e.face) * 6, e.y + Math.sin(e.face) * 6, 5);
+      bakeWreck(G.tctx, e.x, e.y, e.def, e.face, e.tface);
+      for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: e.x + (Math.random() - 0.5) * 8, y: e.y + (Math.random() - 0.5) * 6, t: -i * 0.3, life: 2.5 + Math.random() * 2 });
+      smoulder(e.x, e.y - 4, 25);
     } else if ((e.alt || 0) > 4) {
       // Shot down: a burst in the air, the pilot bails out, the airframe falls and crashes.
       hooks.sfx('hitMed', e.x, e.y);
@@ -743,9 +759,13 @@ function kill(e, attacker) {
 function crashLanding(x, y, face, def, faction, seed) {
   hooks.sfx('explodeVeh', x, y);
   G.effects.push({ type: 'expl', x, y: y - 4, size: 15, t: 0, life: 0.8, seed, debris: true });
-  G.effects.push({ type: 'husk', x, y, face, tface: face, def, t: 0, life: 40 });
-  for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: x + (Math.random() - 0.5) * 12, y: y + (Math.random() - 0.5) * 8, t: -i * 0.3, life: 3 + Math.random() * 3 });
   scorch(G.tctx, x, y, 13, seed);
+  if (G.terr[cellOfPos(x, y)] !== 4) {
+    craterAt(x, y, 9);
+    bakeWreck(G.tctx, x, y, def, face, face);
+    smoulder(x, y - 3, 30);
+  }
+  for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: x + (Math.random() - 0.5) * 12, y: y + (Math.random() - 0.5) * 8, t: -i * 0.3, life: 3 + Math.random() * 3 });
   for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - x, e.y - y) < 14) damage(e, 30, 'HE', null);
 }
 function updateCrash(fx, dt) {
@@ -1495,6 +1515,10 @@ function update(dt) {
   if ((T.win -= dt) <= 0) { T.win = 1; checkWin(); if (!G.over) launchGroups(); }
   for (const fx of G.effects) {
     if (fx.type === 'crash') updateCrash(fx, dt);
+    else if (fx.type === 'smoulder' && (fx.puffT -= dt) <= 0) {
+      fx.puffT = 0.35 + fx.t / fx.life * 0.6;
+      G.effects.push({ type: 'smoke', x: fx.x + (Math.random() - 0.5) * 4, y: fx.y, r: 2.5, t: 0, life: 2.2, alpha: 0.45 * (1 - fx.t / fx.life), color: '#35322e', vy: -9, vx: 3 });
+    }
     fx.t += dt;
     if (fx.vy && fx.t > 0 && fx.type !== 'crash') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
   }

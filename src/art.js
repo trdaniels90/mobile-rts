@@ -155,6 +155,43 @@ function scorch(tg, x, y, rad, seed) {
     tg.beginPath(); tg.ellipse(x + 0.5, y + 0.5, rad * 0.5, rad * 0.36, 0, 0.2, 2.6); tg.stroke();
   }
 }
+// Shell crater: thrown-out earth, a raised rim, a dark pit whose far wall catches the light.
+function crater(tg, x, y, rad, seed) {
+  const r = rng(seed), ry = rad * 0.7;
+  const oval = (cx, cy, rx, ryy, col) => { tg.fillStyle = col; tg.beginPath(); tg.ellipse(cx, cy, rx, ryy, 0, 0, 7); tg.fill(); };
+  for (let i = 0; i < rad * 6; i++) {
+    const a = r() * Math.PI * 2, d = rad * (0.9 + r() * 0.9);
+    tg.fillStyle = r() < 0.5 ? 'rgba(92,74,52,0.55)' : 'rgba(58,46,32,0.55)';
+    tg.fillRect(Math.round(x + Math.cos(a) * d), Math.round(y + Math.sin(a) * d * 0.7), r() < 0.3 ? 2 : 1, 1);
+  }
+  oval(x, y, rad, ry, 'rgba(106,88,62,0.6)');
+  oval(x - rad * 0.08, y - ry * 0.06, rad * 0.78, ry * 0.76, 'rgba(30,24,17,0.78)');
+  oval(x + rad * 0.2, y + ry * 0.08, rad * 0.48, ry * 0.44, 'rgba(84,67,48,0.5)');
+  oval(x - rad * 0.06, y, rad * 0.36, ry * 0.3, 'rgba(16,12,8,0.6)');
+}
+// A burnt-out wreck painted into the ground, so it stays for the rest of the battle.
+function bakeWreck(tg, x, y, def, face, tface) {
+  const fake = { def, face, tface, load: 0 }, seed = (Math.random() * 1e6) | 0;
+  const hs = hullSprite(fake, BURNT);
+  if (hs.sh) { tg.globalAlpha = 0.45; tg.drawImage(hs.sh, Math.round(x + hs.sox), Math.round(y + hs.soy)); tg.globalAlpha = 1; }
+  tg.drawImage(charred(hs.img, seed), Math.round(x + hs.ox), Math.round(y + hs.oy));
+  const ts = turretSprite(fake, BURNT);
+  if (ts) tg.drawImage(charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - TURRET_Z[def.draw] * VK + ts.oy));
+}
+// Blackened, soot-streaked copy of a sprite, with a few rust patches.
+function charred(img, seed) {
+  const r = rng(seed), c = mkCanvas(img.width, img.height), g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = 'rgba(22,18,14,0.62)'; g.fillRect(0, 0, c.width, c.height);
+  for (let i = 0; i < c.width * c.height / 14; i++) {
+    const v = r();
+    g.fillStyle = v < 0.5 ? 'rgba(8,6,4,0.55)' : v < 0.8 ? 'rgba(96,52,26,0.45)' : 'rgba(120,112,100,0.3)';
+    g.fillRect((r() * c.width) | 0, (r() * c.height) | 0, 1 + (r() * 2 | 0), 1);
+  }
+  return c;
+}
+
 // Worn earth around a structure, like the dirt aprons of classic bases.
 function bibDecal(tg, x, y, w, h, seed) {
   const r = rng(seed), M = 9;
