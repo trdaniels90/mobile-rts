@@ -265,7 +265,7 @@ function drawPool(g, fx, k) {
   const P = fx.P, pl = fx.pool, r = rng(pl.seed), s = pl.r * (1 - (1 - k) * (1 - k));
   if (s < 0.6) return;
   // Centred under the chest but running out to one side, as blood pools away from a body.
-  const cx = (P[3] + P[6]) / 2 * 0.6 + P[6] * 0.4 + Math.cos(pl.a) * s * 0.55, cy = (P[4] + P[7]) / 2 * 0.6 + P[7] * 0.4 + Math.sin(pl.a) * s * 0.4;
+  const cx = (P[3] + P[6]) / 2 * 0.6 + P[6] * 0.4 + Math.cos(pl.a) * s * 0.75, cy = (P[4] + P[7]) / 2 * 0.6 + P[7] * 0.4 + Math.sin(pl.a) * s * 0.55;
   const blots = [];
   for (let i = 0; i < 6; i++) blots.push([(r() - 0.5) * s * 1.1, (r() - 0.5) * s * 0.7, s * (0.45 + r() * 0.45)]);
   for (const [col, grow] of [['rgba(54,6,6,0.88)', 0.7], ['rgba(106,14,10,0.9)', 0]]) {

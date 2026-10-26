@@ -1190,7 +1190,7 @@ function updateRagdoll(fx, dt) {
   if (fx.still <= 0.3 && fx.age <= 5) return;
   if (G.terr[cellOfPos(Math.max(0, Math.min(WORLD - 1, fx.x)), Math.max(0, Math.min(WORLD - 1, fx.y)))] >= 4) { fx.t = fx.life; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 3, t: 0, life: 0.6, alpha: 0.5, color: '#c9c7c0' }); return; }
   if (fx.burnt) { fx.t = fx.life; bakeRagdoll(G.dctx, fx); return; }
-  fx.pool = { t: 0, dur: 2 + r() * 1.5, r: 3.6 + r() * 2.4, seed: (r() * 1e6) | 0, a: r() * Math.PI * 2 };
+  fx.pool = { t: 0, dur: 2 + r() * 1.5, r: 3 + r() * 2, seed: (r() * 1e6) | 0, a: r() * Math.PI * 2 };
 }
 
 // Mobile Outpost: unpack into an Outpost on the spot, or the nearest clear 2x2 ground beside it.
