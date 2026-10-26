@@ -244,61 +244,83 @@ function cargoModel(pal, bomber) {
 function infModel(pal, faction, type, frame) {
   if (frame === 5) return proneModel(pal, faction, type);
   if (frame === 4) return crouched(infModel(pal, faction, type, 0));
-  const m = new VModel(-8, -5, 11, 5, 21);
+  const m = new VModel(-8, -5, 11, 5, 22);
   const sov = faction === 'soviets';
   const step = frame === 1 ? 1.5 : frame === 2 ? -1.5 : 0, throwing = frame === 3;
-  const pants = sov ? '#6a604a' : '#5f6a44', webbing = '#3b3324', helm = sov ? '#7d7a52' : '#7a8a52', skin = '#d29a72';
-  // Boots and legs, swinging when walking
+  const K = infKit(pal, faction), tunic = pal.main, sleeve = shadeInt(pal.main, 0.86);
+  // Boots and trousers, legs swinging when walking; a darker seam between the legs.
   for (const [y0, s] of [[-2, step], [0, -step]]) {
     m.box(s - 1, y0, 0, s + 2, y0 + 2, 2, C.black);
-    m.box(s - 1, y0, 2, s + 1, y0 + 2, 8, pants);
-    m.box(s - 1, y0, 7, s + 1, y0 + 2, 8, shadeInt(pants, 0.82));
+    m.box(s - 1, y0, 2, s + 2, y0 + 2, 8, K.pants);
+    m.box(s - 1, y0, 6, s + 2, y0 + 2, 7, shadeInt(K.pants, 0.85));   // knee crease
   }
-  // Belt, tunic in the side's colour, webbing straps crossing the chest
-  m.box(-1, -2, 8, 1, 2, 9, webbing);
-  m.set(1, 0, 8, '#c9a227', M_METAL);
-  m.box(-1, -2, 9, 1, 2, 14, pal.main);
-  m.paint(-1, -2, 9, 1, 2, 14, (x, y, z) => (x === 0 && (y + z) % 5 === 0) ? webbing : undefined);
-  m.box(-1, -2, 13, 1, 2, 14, shadeInt(pal.main, 0.8));
-  // Arms reaching forward to the weapon, hands in skin tone
+  // Belt with pouches, then a stocky tunic in the side's colour: chest, shoulders, collar.
+  m.box(-2, -2, 8, 2, 2, 9, K.web);
+  m.box(1, -2, 8, 2, -1, 9.5, K.pouch); m.box(1, 1, 8, 2, 2, 9.5, K.pouch);
+  m.set(1, 0, 8, '#c9a227', M_METAL);                                    // buckle
+  m.box(-2, -2, 9, 2, 2, 13, tunic);
+  m.box(-2, -3, 12, 2, 3, 14, tunic);                                    // shoulders
+  m.paint(-2, -2, 9, 2, 2, 13, (x, y, z) => (x === 1 && y === z - 11) ? K.web : undefined);   // strap across the chest
+  m.box(-1, -1, 13, 1, 1, 14, shadeInt(tunic, 0.75));                    // collar
+  // Arms: sleeves down the sides, forearms forward to the weapon, hands in skin tone.
   if (type === 'grenadier') {
-    m.box(-1, 2, 10, 1, 3, 14, pal.main); m.box(1, 2, 10, 2, 3, 11, pal.main); m.set(2, 2, 10, skin);
-    if (throwing) { m.box(-2, -3, 13, 0, -2, 19, pal.main); m.set(-2, -3, 19, skin); m.box(-3, -3.5, 19, -1, -1.5, 21, '#3f4a2a'); }
-    else { m.box(-1, -3, 9, 1, -2, 14, pal.main); m.set(0, -3, 9, skin); m.box(0, -3.5, 8, 2, -2.5, 9.5, '#3f4a2a'); }
-    for (const y of [-2, 1]) m.box(1, y, 8, 2, y + 1, 9.5, '#3f4a2a');     // grenade pouches
-  } else {
-    m.box(-1, -3, 10, 1, -2, 14, pal.main); m.box(-1, 2, 10, 1, 3, 14, pal.main);
-    m.box(1, -3, 10, 3, -2, 11, pal.main); m.box(1, 2, 10, 3, 3, 11, pal.main);
-    m.set(3, -3, 10, skin); m.set(3, 2, 10, skin);
-  }
-  // Pack on the back (a pilot carries only his folded parachute harness)
-  if (type !== 'pilot') {
-    m.box(-3, -1.5, 9, -1, 1.5, 13, C.oliveD);
-    m.box(-3, -1.5, 13, -1, 1.5, 14, '#3e4528');
-  } else m.box(-2, -1.5, 9, -1, 1.5, 12, '#6b6450');
-  // Head, face and helmet with a rim
-  m.box(-0.5, -1, 14, 1.5, 1, 17, skin);
-  m.set(1, -1, 15, '#3a2a20'); m.set(1, 0, 15, '#3a2a20');
-  m.box(-1.5, -2, 16, 2.5, 2, 17, shadeInt(helm, 0.75));
-  m.box(-1, -1.5, 17, 2, 1.5, 18.5, helm);
-  if (sov) m.set(2, 0, 17, '#c8281e');
-  if (type === 'grenadier') {
-    m.box(-1, -1, 17, 2, 1, 18.5, '#5e4a34');            // field cap instead of a steel helmet
-  } else if (type === 'pilot') {
-    m.box(-1.5, -2, 15, 2.5, 2, 18.5, '#cfcab8');        // flight helmet with a dark visor, sidearm
-    m.box(1.5, -1.5, 15, 2.5, 1.5, 16.5, '#22262a', M_GLASS);
-    m.box(3, -1, 10, 6, 0, 11, C.gun, M_METAL);
+    m.box(-2, 2, 10, 1, 3, 13, sleeve); m.box(1, 2, 10, 2, 3, 11, sleeve); m.set(2, 2, 10, K.skin);
+    if (throwing) { m.box(-2, -3, 13, 0, -2, 19, sleeve); m.set(-2, -3, 19, K.skin); m.box(-3, -4, 19, -1, -2, 21, '#3f4a2a'); }
+    else { m.box(-2, -3, 9, 1, -2, 12, sleeve); m.set(0, -3, 9, K.skin); m.box(0, -4, 8, 2, -3, 9.5, '#3f4a2a'); }
   } else if (type === 'rocket') {
-    m.cylX(-6, 5, -2.5, 15.5, 1.3, '#56603a');
-    m.box(5, -3.5, 14.5, 7, -1.5, 16.5, '#2a2a24');
-    m.box(-7, -3.5, 14.5, -6, -1.5, 16.5, '#2a2a24');
-    m.box(1, -3, 13, 2, -2, 15, '#2a2a24');
+    m.box(-2, 2, 11, 1, 3, 13, sleeve); m.box(1, 2, 12, 3, 3, 13, sleeve); m.set(3, 2, 13, K.skin);   // hand up on the grip
+    m.box(-2, -3, 10, 1, -2, 12, sleeve); m.box(1, -3, 10, 3, -2, 11, sleeve); m.set(3, -3, 10, K.skin);
   } else {
-    m.box(3, -1, 10, 10, 0, 11, C.gun, M_METAL);
-    m.box(-1, -1, 10, 3, 0, 11.5, '#6a4426');
-    m.box(4, -1, 9, 5, 0, 10, C.gun, M_METAL);
+    m.box(-2, -3, 10, 1, -2, 12, sleeve); m.box(-2, 2, 10, 1, 3, 12, sleeve);
+    m.box(1, -3, 10, 4, -2, 11, sleeve); m.box(1, 2, 10, 3, 3, 11, sleeve);
+    m.set(4, -3, 10, K.skin); m.set(3, 2, 10, K.skin);
+  }
+  // Pack on the back (a pilot carries only his folded parachute harness).
+  if (type !== 'pilot') { m.box(-3, -2, 9, -2, 2, 13, C.oliveD); m.box(-3, -2, 12, -2, 2, 13, '#3e4528'); m.box(-4, -1, 9, -3, 1, 10, '#6b6450'); }
+  else m.box(-3, -2, 9, -2, 2, 12, '#6b6450');
+  // Head: face front with eyes, ears at the sides.
+  m.box(-1, -1, 14, 2, 2, 17, K.skin);
+  m.set(1, -1, 16, '#2a1e18'); m.set(1, 1, 16, '#2a1e18');
+  m.set(1, 0, 14, shadeInt(K.skin, 0.8));
+  // Headgear.
+  if (type === 'grenadier') {
+    m.box(-1, -1, 17, 2, 2, 18, '#5e4a34'); m.box(-1, -2, 17, 2, 3, 17.5, '#5e4a34'); m.box(2, -1, 17, 3, 2, 17.5, '#4a3a28');   // field cap
+  } else if (type === 'pilot') {
+    m.box(-2, -2, 15, 2, 3, 18, '#cfcab8'); m.box(-1, -1, 18, 2, 2, 19, '#cfcab8');                  // flight helmet, dark visor
+    m.box(2, -1, 15, 3, 2, 17, '#22262a', M_GLASS);
+    m.box(3, 1, 10, 6, 2, 11, C.gun, M_METAL);                                                         // sidearm
+  } else if (sov) {
+    m.box(-2, -2, 16, 3, 3, 17, shadeInt(K.helm, 0.72)); m.box(-2, -2, 17, 3, 3, 18, K.helm);          // round steel helmet
+    m.box(-1, -1, 18, 2, 2, 18.5, K.helm);
+    m.set(2, 0, 17, '#c8281e');                                                                        // red star
+  } else {
+    m.box(-2, -2, 17, 3, 3, 17.5, shadeInt(K.helm, 0.75));                                            // wide brim
+    m.box(-1, -1, 17, 2, 2, 18.5, K.helm);
+  }
+  // Weapon.
+  if (type === 'rocket') {
+    m.cylX(-6, 6, 2.5, 15, 1.3, '#56603a');
+    m.box(6, 1, 14, 8, 4, 16, '#2a2a24');                                  // muzzle
+    m.box(-7, 1, 14, -6, 4, 16, '#2a2a24');                                // exhaust
+    m.box(2, 2, 12, 3, 3, 14, '#2a2a24');                                  // grip
+  } else if (type !== 'grenadier' && type !== 'pilot') {
+    m.box(2, -1, 10, 10, 0, 11, C.gun, M_METAL);                           // barrel and receiver
+    m.box(0, -1, 10, 3, 0, 11.5, '#6a4426');                               // wooden stock
+    m.box(5, -1, 9, 6, 0, 10, C.gun, M_METAL);                             // magazine
   }
   return m;
+}
+function mixHex(a, b, k) {
+  const p = rgbInt(a), q = rgbInt(b), ch = (s) => Math.round(((p >> s) & 255) * (1 - k) + ((q >> s) & 255) * k);
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
+// Uniform colours shared by the standing and prone figures.
+function infKit(pal, faction) {
+  const sov = faction === 'soviets';
+  return {
+    pants: mixHex(pal.dark, sov ? '#5e5644' : '#4f5a3c', 0.55), web: '#3b3324', pouch: '#4a4630', skin: '#d6a07a',
+    helm: mixHex(pal.dark, sov ? '#6a7050' : '#6f7e4a', sov ? 0.78 : 0.5),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -619,16 +641,15 @@ function crouched(m) {
 // Prone: lying on the stomach, legs back, weapon forward.
 function proneModel(pal, faction, type) {
   const m = new VModel(-15, -5, 13, 5, 7);
-  const sov = faction === 'soviets';
-  const pants = sov ? '#6a604a' : '#5f6a44', webbing = '#3b3324', helm = sov ? '#7d7a52' : '#7a8a52', skin = '#d29a72';
-  for (const y0 of [-2, 0]) { m.box(-14, y0, 0, -13, y0 + 2, 2, C.black); m.box(-13, y0, 0, -6, y0 + 2, 2, pants); }
-  m.box(-6, -2, 0, 2, 2, 3, pal.main); m.box(-6, -2, 2, 2, 2, 3, shadeInt(pal.main, 0.85));
-  m.box(-6, -2, 0, -5, 2, 3, webbing);
-  if (type !== 'pilot') m.box(-5, -1.5, 3, -1, 1.5, 4, C.oliveD);
-  m.box(2, -1, 0, 4, 1, 3, skin);
-  m.box(1.5, -1.5, 2, 4.5, 1.5, 4, type === 'pilot' ? '#cfcab8' : type === 'grenadier' ? '#5e4a34' : helm);
-  for (const y of [-3, 2]) { m.box(1, y, 0, 5, y + 1, 1.5, pal.main); m.set(5, y, 0, skin); }
-  if (type === 'rocket') { m.cylX(-4, 8, -2.5, 3.5, 1.3, '#56603a'); m.box(8, -3.5, 2.5, 9, -1.5, 4.5, '#2a2a24'); }
+  const K = infKit(pal, faction);
+  for (const y0 of [-2, 0]) { m.box(-14, y0, 0, -13, y0 + 2, 2, C.black); m.box(-13, y0, 0, -6, y0 + 2, 2, K.pants); }
+  m.box(-6, -2, 0, 2, 2, 3, pal.main); m.box(-6, -3, 2, 2, 3, 3, shadeInt(pal.main, 0.9));
+  m.box(-6, -2, 0, -5, 2, 3, K.web);
+  if (type !== 'pilot') m.box(-5, -2, 3, -1, 2, 4, C.oliveD);
+  m.box(2, -1, 0, 5, 2, 3, K.skin);
+  m.box(1, -2, 2, 5, 3, 4, type === 'pilot' ? '#cfcab8' : type === 'grenadier' ? '#5e4a34' : K.helm);
+  for (const y of [-3, 2]) { m.box(1, y, 0, 5, y + 1, 1.5, shadeInt(pal.main, 0.86)); m.set(5, y, 0, K.skin); }
+  if (type === 'rocket') { m.cylX(-4, 8, -2.5, 3.5, 1.3, '#56603a'); m.box(8, -4, 2, 10, -1, 5, '#2a2a24'); }
   else if (type === 'grenadier') m.box(5, 1, 0, 7, 3, 1.5, '#3f4a2a');
   else { m.box(4, -1, 0.5, 12, 0, 1.5, C.gun, M_METAL); m.box(1, -1, 0.5, 4, 0, 2, '#6a4426'); }
   return m;
