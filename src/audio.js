@@ -1,7 +1,8 @@
 'use strict';
 // Sound effects, spoken announcements and an original industrial-metal soundtrack.
-// Battle effects are recordings from src/sfx.js (with synthesised fallbacks), music is
-// synthesised live with the Web Audio API, and voice lines come from src/voices.js.
+// Battle effects are recordings from src/sfx.js, the music is sequenced live from recorded
+// instruments in src/music.js (both with synthesised fallbacks), and voice lines come from
+// src/voices.js.
 
 const Sound = (() => {
   const settings = { music: true, sfx: true, voice: true };
@@ -369,6 +370,7 @@ const Sound = (() => {
   function preload() {
     for (const k of ['eva:building', 'eva:construction complete', 'eva:unit ready', 'eva:our base is under attack']) if (clips[k]) clipBuffer(clips[k], () => {});
     for (const list of Object.values(RECORDED)) for (const b64 of list) clipBuffer(b64, () => {});
+    loadMusic();
   }
   function say(msg) {
     const b64 = clips['eva:' + msg.toLowerCase().replace(/[.!]$/, '')];
@@ -385,8 +387,60 @@ const Sound = (() => {
   // ---------------------------------------------------------------------------
   // Music: a step sequencer playing original tracks in a 90s industrial-metal style.
   // ---------------------------------------------------------------------------
+  // Recorded instruments (src/music.js) are decoded up front so every note lands on the beat.
+  // Until a clip is ready, or if music.js is missing, its instrument falls back to synthesis.
+  const MBUF = {};
+  function loadMusic() {
+    if (typeof MUSIC_CLIPS === 'undefined') return;
+    for (const [key, list] of Object.entries(MUSIC_CLIPS)) {
+      list.forEach((b64, i) => clipBuffer(b64, (buf) => { (MBUF[key] || (MBUF[key] = []))[i] = { buf, at: leadIn(buf) }; }));
+    }
+  }
+  // MP3 decoders add a little silence in front; skip it so hits are tight.
+  function leadIn(buf) {
+    const d = buf.getChannelData(0);
+    let peak = 0;
+    for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+    for (let i = 0; i < d.length; i++) if (Math.abs(d[i]) > peak * 0.03) return Math.max(0, i / buf.sampleRate - 0.002);
+    return 0;
+  }
+  // Play clip `i` (random when omitted) of `key` at time t. o: vol, rate, dur + rel (cut with a
+  // fade), lp (low-pass Hz), pan. Returns the output gain for effect sends, or null.
+  function samp(key, t, o) {
+    const list = MBUF[key];
+    if (!list) return null;
+    const pick = list[o.i != null ? o.i : Math.floor(Math.random() * list.length)];
+    if (!pick) return null;
+    const src = ctx.createBufferSource(); src.buffer = pick.buf;
+    if (o.rate) src.playbackRate.value = o.rate;
+    const g = ctx.createGain(); g.gain.value = o.vol;
+    let node = src;
+    if (o.lp) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = o.lp; f.Q.value = 0.8; src.connect(f); node = f; }
+    node.connect(g);
+    if (o.pan && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = o.pan; g.connect(p); p.connect(musicBus); }
+    else g.connect(musicBus);
+    src.start(t, pick.at);
+    if (o.dur) {
+      const rel = o.rel || 0.06;
+      g.gain.setValueAtTime(o.vol, t + o.dur);
+      g.gain.linearRampToValueAtTime(0, t + o.dur + rel);
+      src.stop(t + o.dur + rel + 0.02);
+    }
+    return g;
+  }
+  // Pitched clips: the take recorded nearest the note, re-pitched the rest of the way.
+  function note(key, t, midi, o) {
+    const roots = typeof MUSIC_ROOTS !== 'undefined' && MUSIC_ROOTS[key];
+    if (!roots) return null;
+    let i = 0;
+    for (let j = 1; j < roots.length; j++) if (Math.abs(roots[j] - midi) < Math.abs(roots[i] - midi)) i = j;
+    return samp(key, t, Object.assign({ i, rate: Math.pow(2, (midi - roots[i]) / 12) }, o));
+  }
+  const send = (g, amount, dest) => { if (g) g.connect(gain(amount, dest)); return g; };
+
   const INST = {
     kick(t) {
+      if (samp('kick', t, { vol: 0.95 })) return;
       const o = ctx.createOscillator(), g = ctx.createGain();
       o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.13);
       envelope(g, t, 0.9, 0.002, 0.32); o.connect(g); g.connect(musicBus); o.start(t); o.stop(t + 0.4);
@@ -394,18 +448,21 @@ const Sound = (() => {
     },
     snare(t, v) {
       v = v || 1;
+      if (send(samp(v < 1 ? 'ghost' : 'snare', t, { vol: v < 1 ? 0.45 : 0.7 }), 0.35, verbIn)) return;
       const g = noiseHit(t, v < 1 ? 0.1 : 0.22, 'bandpass', 1900, 1500, 0.7, 0.55 * v, musicBus);
       const s = gain(0.6, verbIn); g.connect(s);
       tone(t, 'triangle', 200, 160, 0.1, 0.35 * v, musicBus);
     },
     // Marching boots: a dull stamp with a gravelly scuff.
     boots(t) {
+      if (samp('boots', t, { vol: 0.75 })) return;
       noiseHit(t, 0.12, 'lowpass', 380, 160, 1, 0.75, musicBus);
       tone(t, 'sine', 90, 55, 0.09, 0.4, musicBus);
       noiseHit(t + 0.01, 0.06, 'bandpass', 2500, 1800, 1, 0.12, musicBus);
     },
     // A gang shout ("Hup!"): buzzy voices through vowel formants.
     shout(t) {
+      if (send(samp('shout', t, { vol: 0.5 }), 0.6, verbIn)) return;
       const out = gain(0.55, musicBus); out.connect(gain(0.7, verbIn));
       const forms = [[650, 1.2, 1], [1080, 1.5, 0.6], [2500, 3, 0.25]];
       const bus = gain(1, null);
@@ -420,15 +477,29 @@ const Sound = (() => {
       const n = noiseHit(t, 0.08, 'highpass', 3000, 3000, 0.7, 0.25, bus);
       void n;
     },
-    hat(t, open) { noiseHit(t, open ? 0.22 : 0.035, 'highpass', 7500, 7500, 0.7, open ? 0.12 : 0.1, musicBus); },
-    crash(t) { const g = noiseHit(t, 1.4, 'highpass', 4500, 3500, 0.5, 0.16, musicBus, 0.005); const s = gain(0.4, verbIn); g.connect(s); },
-    tom(t, f) { tone(t, 'sine', f * 1.6, f, 0.3, 0.55, musicBus); },
+    hat(t, open) {
+      if (samp(open ? 'ohat' : 'hat', t, { vol: open ? 0.2 : 0.22, dur: open ? 0.3 : 0, rel: 0.15 })) return;
+      noiseHit(t, open ? 0.22 : 0.035, 'highpass', 7500, 7500, 0.7, open ? 0.12 : 0.1, musicBus); },
+    crash(t) {
+      if (send(samp('crash', t, { vol: 0.32 }), 0.3, verbIn)) return;
+      const g = noiseHit(t, 1.4, 'highpass', 4500, 3500, 0.5, 0.16, musicBus, 0.005); const s = gain(0.4, verbIn); g.connect(s); },
+    tom(t, f, i) {
+      if (send(samp('tom', t, { i, vol: 0.6 }), 0.25, verbIn)) return;
+      tone(t, 'sine', f * 1.6, f, 0.3, 0.55, musicBus); },
+    timp(t) {
+      if (send(samp('timp', t, { vol: 0.7 }), 0.4, verbIn)) return;
+      tone(t, 'sine', 90, 70, 1.2, 0.6, musicBus);
+    },
     anvil(t) {
+      if (send(samp('anvil', t, { vol: 0.32 }), 0.7, verbIn)) return;
       const out = gain(0.18, musicBus), s = gain(0.9, verbIn); out.connect(s);
       for (const f of [420, 583, 911, 1307]) tone(t, 'square', f, f * 0.99, 0.7, 0.25, out);
       noiseHit(t, 0.08, 'bandpass', 2500, 2500, 1, 0.5, out);
     },
     guitar(t, midi, dur, mute) {
+      // Two recorded takes panned left and right, like double-tracked rhythm guitars.
+      const o = mute ? { vol: 0.42, dur: Math.min(dur, 0.12), rel: 0.03, lp: 1300 } : { vol: 0.3, dur, rel: 0.08 };
+      if (note('gtr1', t, midi, Object.assign({ pan: -0.55 }, o)) && note('gtr2', t + 0.004, midi, Object.assign({ pan: 0.55 }, o))) return;
       const f = 440 * Math.pow(2, (midi - 69) / 12);
       const d = shaper(shaperHeavy, null);
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = mute ? 900 : 3400; lp.Q.value = 0.9;
@@ -446,6 +517,7 @@ const Sound = (() => {
       }
     },
     bass(t, midi, dur) {
+      if (note('bass', t, midi, { vol: 0.55, dur, rel: 0.05 })) return;
       const f = 440 * Math.pow(2, (midi - 69) / 12);
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 4;
       lp.frequency.setValueAtTime(1400, t); lp.frequency.exponentialRampToValueAtTime(220, t + Math.min(dur, 0.3));
@@ -457,6 +529,8 @@ const Sound = (() => {
       o.start(t); o.stop(t + dur + 0.1); sub.start(t); sub.stop(t + dur + 0.1);
     },
     lead(t, midi, dur) {
+      const lg = note('lead', t, midi, { vol: 0.34, dur, rel: 0.15 });
+      if (lg) { send(lg, 0.45, delayIn); send(lg, 0.35, verbIn); return; }
       const f = 440 * Math.pow(2, (midi - 69) / 12);
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.Q.value = 2;
       const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.13, t + 0.02);
@@ -472,6 +546,7 @@ const Sound = (() => {
       vib.start(t); vib.stop(t + dur + 0.2);
     },
     stab(t, midi, dur) {
+      if (send(note('stab', t, midi, { vol: 0.34, dur: Math.max(0.3, dur), rel: 0.25 }), 0.45, verbIn)) return;
       const f = 440 * Math.pow(2, (midi - 69) / 12);
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 1;
       lp.frequency.setValueAtTime(3200, t); lp.frequency.exponentialRampToValueAtTime(700, t + 0.25);
@@ -485,6 +560,7 @@ const Sound = (() => {
       }
     },
     pad(t, midi, dur) {
+      if (send(note('pad', t, midi, { vol: 0.26, dur, rel: 0.8 }), 0.6, verbIn)) return;
       const f = 440 * Math.pow(2, (midi - 69) / 12);
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
       const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.05, t + 0.5);
@@ -505,7 +581,7 @@ const Sound = (() => {
       // Original march: boots, drill snare, gang shouts, chugging guitar and a heroic brass line.
       name: 'Steel Parade', bpm: 104, key: E,
       parts: {
-        intro: { bars: 4, boots: 'x...x...x...x...', s: 'x.gxx.g.x.gxx.g.', anvil: 'x...............', every: 4, pad: '0 - - - - - - - - - - - - - - -' },
+        intro: { bars: 4, boots: 'x...x...x...x...', s: 'x.gxx.g.x.gxx.g.', anvil: 'x...............', timp: 'x.......x.......', every: 4, pad: '0 - - - - - - - - - - - - - - -' },
         call: {
           bars: 4, boots: 'x...x...x...x...', s: 'x.gxx.g.x.gxx.g.', k: 'x.......x.......',
           shout: 'x...x...x.x.....', stab: '12 . . . . . . . . . . . 13 . . .|12 . . . . . . . 10 . . . 8 . . .',
@@ -524,7 +600,7 @@ const Sound = (() => {
           lead: '24 - - 24 27 - 26 - 24 - 22 - 19 - - -|20 - - 20 22 - 24 - 25 - 24 - 22 - - -|24 - - 24 27 - 29 - 31 - 29 - 27 - - -|25 - - - 24 - 22 - 24 - - - - - - -',
         },
         drill: {
-          bars: 4, boots: 'x...x...x...x...', s: 'xgxgxgxgxxgxxgxx', anvil: 'x.......x.......',
+          bars: 4, boots: 'x...x...x...x...', s: 'xgxgxgxgxxgxxgxx', anvil: 'x.......x.......', timp: 'x...............',
           shout: 'x...x...x...x...', bass: '0 - - - - - - - 0 - - - - - - -', fill: true,
         },
       },
@@ -533,7 +609,7 @@ const Sound = (() => {
     {
       name: 'Iron Fist March', bpm: 112, key: E,
       parts: {
-        intro: { bars: 4, k: 'x.......x.......', s: '............x...', anvil: 'x...............', pad: '0 - - - - - - - - - - - - - - -|-3 - - - - - - - - - - - - - - -', every: 2 },
+        intro: { bars: 4, k: 'x.......x.......', s: '............x...', anvil: 'x...............', timp: '........x.......', pad: '0 - - - - - - - - - - - - - - -|-3 - - - - - - - - - - - - - - -', every: 2 },
         verse: {
           bars: 8, k: 'x...x...x...x.x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.',
           gtr: '0m 0m 0m 0m 0m 0m 3 - 0m 0m 0m 0m 1 - - -|0m 0m 0m 0m 0m 0m 5 - 0m 0m 3 - 1 - 0 -',
@@ -636,7 +712,7 @@ const Sound = (() => {
       const hit = (pat, every) => pat && (!every || bar % every === 0) && pat[st] !== '.' ? pat[st] : null;
       // Drum fill on the last bar of a part.
       if (lastBar && st >= 12 && (part.fill || part.k)) {
-        INST.tom(t, [180, 150, 120, 95][st - 12]);
+        INST.tom(t, [180, 150, 120, 95][st - 12], st - 12);
         if (st === 12) INST.snare(t);
       } else {
         if (hit(part.k)) INST.kick(t);
@@ -646,6 +722,7 @@ const Sound = (() => {
       }
       if (hit(part.crash, part.crashEvery || 1) && bar % (part.crashEvery || 1) === 0) INST.crash(t);
       if (hit(part.anvil, part.every)) INST.anvil(t);
+      if (hit(part.timp, part.every)) INST.timp(t);
       if (hit(part.shout) && (!part.shoutEvery || (bar + 1) % part.shoutEvery === 0)) INST.shout(t);
       const mel = (pat, inst, base) => {
         if (!pat) return;
@@ -673,5 +750,5 @@ const Sound = (() => {
     if (key === 'voice' && !on && evaSrc) try { evaSrc.stop(); } catch (_) {}
   }
 
-  return { init: unlock, unlock, status, play, say, ack, settings, setOption, music: Music, get debug() { return { ctx, master }; } };
+  return { init: unlock, unlock, status, play, say, ack, settings, setOption, music: Music, get debug() { return { ctx, master, musicClips: Object.values(MBUF).reduce((n, l) => n + l.filter(Boolean).length, 0) }; } };
 })();

@@ -1,8 +1,9 @@
 # Credits
 
-Pocket Siege's code, art, music and synthesised sounds are original. The recorded sound
-effects and voices below come from freely licensed sources. They are trimmed, pitched,
-filtered and level-matched for the game by `scripts/make_sfx.py` and `scripts/make_voices.py`.
+Pocket Siege's code, art, music compositions and interface sounds are original. The recorded
+sound effects, instrument samples, voices and fonts below come from freely licensed sources.
+Sounds are trimmed, pitched, mixed, filtered and level-matched for the game by
+`scripts/make_sfx.py`, `scripts/make_music.py` and `scripts/make_voices.py`.
 
 ## Sound effects (OpenGameArt.org)
 
@@ -21,6 +22,33 @@ filtered and level-matched for the game by `scripts/make_sfx.py` and `scripts/ma
 | Flame Tower | [Catching fire](https://opengameart.org/content/catching-fire) | themightyglider | CC0 |
 | Flame Tower | [Fire Crackling](https://opengameart.org/content/fire-crackling) | Antum Deluge | CC0 |
 
+## Music instruments
+
+The four soundtrack pieces are original. They are played on these recorded instruments,
+cut into single notes, power chords, brass stabs, string chords and drum hits:
+
+| Used for | Sample library | Author | Licence |
+|---|---|---|---|
+| Drums: kick, snare, hi-hats, crash, china, toms, marching boots | [MuldjordKit](https://github.com/freepats/muldjordkit) (FreePats version) | Lars Muldjord; FreePats edition by Roberto (zenvoid.org) | [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| Rhythm guitars | [Electric Guitar FSBS dist1](https://github.com/freepats/electric-guitar-FSBS-dist1) | FreePats (Roberto, zenvoid.org) | CC0 |
+| Bass | [Picked Bass YR](https://github.com/freepats/electric-bass-YR) | Andrea Biasior; edited for FreePats by Roberto (zenvoid.org) | CC0 |
+| Brass lead, brass stabs, string pads | [VSCO 2 Community Edition](https://github.com/sgossner/VSCO-2-CE): trumpet, French horn, tenor trombone, cello and viola sections | Versilian Studios (Samuel Gossner) | CC0 |
+| Anvil, brake drum, timpani | [Versilian Community Sample Library](https://github.com/sgossner/VCSL) | Versilian Studios (Samuel Gossner) | CC0 |
+
+Changes to the MuldjordKit samples: single hits were chosen, trimmed, mixed to mono and
+re-encoded; the marching boots mix a soft kick with a dampened snare.
+
 ## Voices
 
-Generated with [Kokoro](https://github.com/thewh1teagle/kokoro-onnx) (Apache-2.0).
+EVA announcements, unit replies and the soundtrack's gang shouts are generated with
+[Kokoro](https://github.com/thewh1teagle/kokoro-onnx) (Apache-2.0).
+
+## Fonts
+
+Loaded from Google Fonts under the [SIL Open Font License 1.1](https://openfontlicense.org/):
+
+| Font | Designer |
+|---|---|
+| [Black Ops One](https://fonts.google.com/specimen/Black+Ops+One) | James Grieshaber, Eben Sorkin |
+| [VT323](https://fonts.google.com/specimen/VT323) | Peter Hull |
+| [Archivo Narrow](https://fonts.google.com/specimen/Archivo+Narrow) | Omnibus-Type |
