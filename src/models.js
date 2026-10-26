@@ -275,8 +275,18 @@ function infModel(pal, faction, type, frame) {
     m.box(1, -3, 10, 4, -2, 11, sleeve); m.box(1, 2, 10, 3, 3, 11, sleeve);
     m.set(4, -3, 10, K.skin); m.set(3, 2, 10, K.skin);
   }
-  // Pack on the back (a pilot carries only his folded parachute harness).
-  if (type !== 'pilot') { m.box(-3, -2, 9, -2, 2, 13, C.oliveD); m.box(-3, -2, 12, -2, 2, 13, '#3e4528'); m.box(-4, -1, 9, -3, 1, 10, '#6b6450'); }
+  // A grenadier wears a pale bandolier of grenades across the chest and back and carries a
+  // big grenade satchel on his hip instead of a pack.
+  if (type === 'grenadier') {
+    const band = '#b49a5e', gren = '#2f3a20';
+    m.paint(-2, -3, 9, 2, 3, 14, (x, y, z) => ((x === 1 || x === -2) && y === z - 11) ? band : undefined);
+    for (const [y, z] of [[-2, 9], [0, 11], [2, 13]]) { m.set(2, y, z, gren, M_METAL); m.set(2, y, z + 1, '#7d7d70', M_METAL); }   // grenades, fuse caps
+    for (const [y, z] of [[1, 10], [-1, 12]]) m.set(-3, y, z, gren, M_METAL);
+    for (const [y0, y1] of [[3, 6], [-6, -3]]) {                                  // canvas grenade bags on both hips
+      m.box(-2, y0, 5, 2, y1, 9, '#9a8e58'); m.box(-2, y0, 8, 2, y1, 9, '#6e6338');
+      m.set(1, y0 + 1, 6, '#c9a227', M_METAL);
+    }
+  } else if (type !== 'pilot') { m.box(-3, -2, 9, -2, 2, 13, C.oliveD); m.box(-3, -2, 12, -2, 2, 13, '#3e4528'); m.box(-4, -1, 9, -3, 1, 10, '#6b6450'); }
   else m.box(-3, -2, 9, -2, 2, 12, '#6b6450');
   // Head: face front with eyes, ears at the sides.
   m.box(-1, -1, 14, 2, 2, 17, K.skin);
