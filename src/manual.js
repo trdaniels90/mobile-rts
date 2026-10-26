@@ -109,7 +109,7 @@ const Manual = (() => {
     { ch: 'Contents', title: '', html: () => `
       <div class="fm-cover">
         <p class="fm-stamp">Restricted</p>
-        <h2>Pocket Siege</h2>
+        <h2>Red Horizon</h2>
         <p class="fm-sub">Field Manual for Allied and Soviet Commanders</p>
         <ol class="fm-toc">${CHAPTERS.slice(1).map((c) => `<li><button type="button" data-goto="${c.page}">${c.name}</button><span>${c.page + 1}</span></li>`).join('')}</ol>
       </div>` },

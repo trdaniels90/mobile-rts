@@ -1,6 +1,6 @@
 # Credits
 
-Pocket Siege's code, art, music compositions and interface sounds are original. The recorded
+Red Horizon's code, art, music compositions and interface sounds are original. The recorded
 sound effects, instrument samples, voices and fonts below come from freely licensed sources.
 Sounds are trimmed, pitched, mixed, filtered and level-matched for the game by
 `scripts/make_sfx.py`, `scripts/make_music.py` and `scripts/make_voices.py`.

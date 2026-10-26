@@ -1,4 +1,4 @@
-# Pocket Siege
+# Red Horizon
 
 A Cold War real-time strategy game of Allies versus Soviets, in the pre-rendered 3D pixel-art style of the mid-90s classics. It runs in any modern browser: iPhone and iPad (Safari), Android and desktop. It is plain HTML, CSS and JavaScript on a canvas, with no build step and no dependencies. All art is generated in code: every unit, structure, tree and ore pile is a small voxel model rendered with one sun, shading, metal and glass highlights and a cast shadow, then drawn as pixel art. No original game assets are used.
 

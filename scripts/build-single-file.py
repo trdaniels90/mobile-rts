@@ -16,7 +16,7 @@ css = (root / 'style.css').read_text()
 scripts = re.findall(r'<script src="([^"]+)"></script>', html)
 js = '\n'.join((root / src).read_text() for src in scripts)
 
-out = f'''<title>Pocket Siege</title>
+out = f'''<title>Red Horizon</title>
 <meta name="description" content="Allies versus Soviets real-time strategy for iPhone and web browsers.">
 <link rel="stylesheet" href="{fonts}">
 <style>
@@ -27,7 +27,7 @@ out = f'''<title>Pocket Siege</title>
 {js}
 </script>
 '''
-dest = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'dist' / 'pocket-siege.html'
+dest = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'dist' / 'red-horizon.html'
 dest.parent.mkdir(parents=True, exist_ok=True)
 dest.write_text(out)
 print(f'Wrote {dest} ({len(out) // 1024} KB)')

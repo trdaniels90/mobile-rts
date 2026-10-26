@@ -814,7 +814,7 @@
     ui.resumeBtn.hidden = mode !== 'pause';
     ui.stats.hidden = mode !== 'end';
     if (G) G.paused = true;
-    if (mode === 'start') { ui.menuTitle.textContent = 'Pocket Siege'; ui.menuSub.textContent = 'Choose your side, commander.'; ui.startBtn.textContent = 'Start mission'; }
+    if (mode === 'start') { ui.menuTitle.textContent = 'Red Horizon'; ui.menuSub.textContent = 'Choose your side, commander.'; ui.startBtn.textContent = 'Start mission'; }
     if (mode === 'pause') { ui.menuTitle.textContent = 'Paused'; ui.menuSub.textContent = 'Mission time ' + fmt(G.t); ui.startBtn.textContent = 'New mission'; }
     if (mode === 'end') {
       ui.menuTitle.textContent = won ? 'Mission Accomplished' : 'Mission Failed';
