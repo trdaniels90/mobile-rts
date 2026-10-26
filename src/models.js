@@ -240,13 +240,17 @@ function cargoModel(pal, bomber) {
 // ---------------------------------------------------------------------------
 // Infantry: 16 facings x 3 frames (standing, two walking poses)
 // ---------------------------------------------------------------------------
-// Frames: 0 standing, 1-2 walking, 3 throwing, 4 crouching, 5 prone.
+// Frames: 0 standing, 1-2 walking, 3 throwing, 4 crouching, 5 prone, then the idle poses:
+// 6 at rest (weapon shouldered or grounded), 7 aiming down the sights, 8-9 push-ups (up, down),
+// 10 stretching.
 function infModel(pal, faction, type, frame) {
   if (frame === 5) return proneModel(pal, faction, type);
   if (frame === 4) return crouched(infModel(pal, faction, type, 0));
-  const m = new VModel(-8, -5, 11, 5, 22);
+  if (frame === 8 || frame === 9) return pushupModel(pal, faction, type, frame === 8);
+  const m = new VModel(-8, -6, 11, 6, 22);
   const sov = faction === 'soviets';
   const step = frame === 1 ? 1.5 : frame === 2 ? -1.5 : 0, throwing = frame === 3;
+  const pose = frame === 6 ? 'rest' : frame === 7 ? 'aim' : frame === 10 ? 'stretch' : null;
   const K = infKit(pal, faction), tunic = pal.main, sleeve = shadeInt(pal.main, 0.86);
   // Boots and trousers, legs swinging when walking; a darker seam between the legs.
   for (const [y0, s] of [[-2, step], [0, -step]]) {
@@ -263,7 +267,16 @@ function infModel(pal, faction, type, frame) {
   m.paint(-2, -2, 9, 2, 2, 13, (x, y, z) => (x === 1 && y === z - 11) ? K.web : undefined);   // strap across the chest
   m.box(-1, -1, 13, 1, 1, 14, shadeInt(tunic, 0.75));                    // collar
   // Arms: sleeves down the sides, forearms forward to the weapon, hands in skin tone.
-  if (type === 'grenadier') {
+  if (pose === 'stretch') {
+    for (const y of [-3, 2]) { m.box(-1, y, 12, 1, y + 1, 19, sleeve); m.set(0, y, 19, K.skin); m.set(0, y, 20, K.skin); }
+  } else if (pose === 'rest') {
+    m.box(-1, -3, 9, 1, -2, 13, sleeve); m.set(0, -3, 8, K.skin);                       // left arm hanging
+    if (type === 'grenadier') { m.box(-1, 2, 9, 1, 3, 13, sleeve); m.set(0, 2, 8, K.skin); }
+    else { m.box(-1, 2, 10, 1, 3, 13, sleeve); m.box(1, 2, 10, 2, 3, 11, sleeve); m.set(2, 3, 10, K.skin); }   // right hand on the weapon
+  } else if (pose === 'aim') {
+    m.box(-1, -3, 12, 4, -2, 13, sleeve); m.box(-1, 2, 12, 2, 3, 13, sleeve);
+    m.set(4, -3, 12, K.skin); m.set(2, 2, 12, K.skin);
+  } else if (type === 'grenadier') {
     m.box(-2, 2, 10, 1, 3, 13, sleeve); m.box(1, 2, 10, 2, 3, 11, sleeve); m.set(2, 2, 10, K.skin);
     if (throwing) { m.box(-2, -3, 13, 0, -2, 19, sleeve); m.set(-2, -3, 19, K.skin); m.box(-3, -4, 19, -1, -2, 21, '#3f4a2a'); }
     else { m.box(-2, -3, 9, 1, -2, 12, sleeve); m.set(0, -3, 9, K.skin); m.box(0, -4, 8, 2, -3, 9.5, '#3f4a2a'); }
@@ -308,7 +321,15 @@ function infModel(pal, faction, type, frame) {
     m.box(-1, -1, 17, 2, 2, 18.5, K.helm);
   }
   // Weapon.
-  if (type === 'rocket') {
+  if (pose === 'stretch') {                                                // slung on the back
+    if (type === 'rocket') m.box(-5, -5, 12, -3, 5, 14, '#56603a');
+    else if (type !== 'grenadier' && type !== 'pilot') { m.box(-4, 1, 6, -3, 2, 15, C.gun, M_METAL); m.box(-4, 1, 5, -3, 2, 8, '#6a4426'); }
+  } else if (pose === 'rest') {
+    if (type === 'rocket') { m.box(2, 3, 0, 4, 5, 12, '#56603a'); m.box(2, 3, 11, 4, 5, 13, '#2a2a24'); }   // launcher stood on the ground
+    else if (type !== 'grenadier' && type !== 'pilot') { m.box(1, 3, 10, 2, 4, 20, C.gun, M_METAL); m.box(1, 3, 8, 2, 4, 12, '#6a4426'); }   // rifle on the shoulder
+  } else if (pose === 'aim' && type !== 'rocket' && type !== 'grenadier' && type !== 'pilot') {
+    m.box(2, -1, 12, 10, 0, 13, C.gun, M_METAL); m.box(-1, -1, 12, 3, 0, 13.5, '#6a4426'); m.box(5, -1, 11, 6, 0, 12, C.gun, M_METAL);
+  } else if (type === 'rocket') {
     m.cylX(-6, 6, 2.5, 15, 1.3, '#56603a');
     m.box(6, 1, 14, 8, 4, 16, '#2a2a24');                                  // muzzle
     m.box(-7, 1, 14, -6, 4, 16, '#2a2a24');                                // exhaust
@@ -662,6 +683,26 @@ function proneModel(pal, faction, type) {
   if (type === 'rocket') { m.cylX(-4, 8, -2.5, 3.5, 1.3, '#56603a'); m.box(8, -4, 2, 10, -1, 5, '#2a2a24'); }
   else if (type === 'grenadier') m.box(5, 1, 0, 7, 3, 1.5, '#3f4a2a');
   else { m.box(4, -1, 0.5, 12, 0, 1.5, C.gun, M_METAL); m.box(1, -1, 0.5, 4, 0, 2, '#6a4426'); }
+  return m;
+}
+// Push-ups: lying on the stomach with the weapon set down beside, the body pushed up on
+// straight arms or lowered to the ground.
+function pushupModel(pal, faction, type, up) {
+  const m = new VModel(-15, -6, 13, 6, 8);
+  const K = infKit(pal, faction), lift = up ? 2 : 0;
+  for (const y0 of [-2, 0]) { m.box(-14, y0, 0, -13, y0 + 2, 2, C.black); m.box(-13, y0, 0, -6, y0 + 2, 2, K.pants); }
+  m.box(-6, -2, lift / 2, -2, 2, 2 + lift / 2 + 1, pal.main);                       // hips, rising toward the chest
+  m.box(-2, -2, lift, 2, 2, 3 + lift, pal.main); m.box(-2, -3, 2 + lift, 2, 3, 3 + lift, shadeInt(pal.main, 0.9));
+  m.box(-6, -2, lift / 2, -5, 2, 3 + lift / 2, K.web);
+  if (type !== 'pilot' && type !== 'grenadier') m.box(-5, -2, 3 + lift / 2, -1, 2, 4 + lift / 2, C.oliveD);
+  m.box(2, -1, lift, 5, 2, 3 + lift, K.skin);
+  m.box(1, -2, 2 + lift, 5, 3, 4 + lift, type === 'pilot' ? '#cfcab8' : type === 'grenadier' ? '#5d6236' : K.helm);
+  for (const y of [-3, 2]) {
+    if (up) { m.box(0, y, 1, 1, y + 1, 5, shadeInt(pal.main, 0.86)); m.set(0, y, 0, K.skin); }          // straight arms
+    else { m.box(-1, y + (y < 0 ? -1 : 1), 0, 1, y + (y < 0 ? 0 : 2), 2, shadeInt(pal.main, 0.86)); m.set(1, y, 0, K.skin); }   // elbows out
+  }
+  if (type === 'rocket') m.cylX(-8, 4, -5, 0.7, 0.9, '#56603a');
+  else if (type !== 'grenadier' && type !== 'pilot') { m.box(-6, 4, 0, 3, 5, 1, C.gun, M_METAL); m.box(-9, 4, 0, -6, 5, 1.5, '#6a4426'); }
   return m;
 }
 function infSprite(u, pal, frame) {

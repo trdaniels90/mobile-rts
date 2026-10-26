@@ -1017,44 +1017,134 @@ function kill(e, attacker, wh, from) {
   }
 }
 
-// How a soldier dies: shot ones are knocked back and topple over; blasts throw them into the
-// air, spinning or flipping, before they thump down. Either way the body then stays.
+// How a soldier dies: a small physics ragdoll (eleven joints held together by sticks) is
+// thrown by whatever hit him, so no two fall the same way. Bullets knock the upper body back
+// while the legs buckle or stay stiff for a moment; blasts throw the whole body into the air,
+// tumbling; flame sometimes sends him staggering a few steps first, and a Tesla bolt makes him
+// convulse before he drops. His weapon flies loose. Once still, the body is painted into the
+// ground and stays.
+const RAG_PTS = [   // [forward, side, height]
+  [0.5, 0, 15.5], [0, 0, 13], [0, 0, 8], [0, -2.5, 12.5], [0, 2.5, 12.5], [3, -2.5, 10], [3, 2.5, 10],
+  [0.3, -1, 4.5], [0.3, 1, 4.5], [0, -1, 0.5], [0, 1, 0.5],
+];   // head, neck, pelvis, shoulders L/R, hands L/R, knees L/R, feet L/R
+const RAG_STICKS = [[0, 1], [1, 2], [3, 4], [1, 3], [1, 4], [3, 2], [4, 2], [0, 3], [0, 4], [3, 5], [4, 6], [2, 7], [2, 8], [7, 9], [8, 10], [7, 8]];
+const RAG_STIFF = [[2, 9], [2, 10], [1, 9], [1, 10]];          // legs locked straight for a moment
+const RAG_MIN = [[2, 9, 0.5], [2, 10, 0.5], [1, 5, 0.45], [1, 6, 0.45], [0, 2, 0.95]];   // no folding flat
 function ragdoll(e, wh, from) {
   const r = Math.random;
   const a = from && (from.x !== e.x || from.y !== e.y) ? Math.atan2(e.y - from.y, e.x - from.x) : r() * Math.PI * 2;
   const blast = wh === 'HE' || wh === 'AP';
-  const fx = { type: 'ragdoll', x: e.x, y: e.y, z: 0, unitType: e.type, faction: e.faction, face: e.face, rot: 0, t: 0, life: 8 };
+  const fx = { type: 'ragdoll', x: e.x, y: e.y, unitType: e.type, faction: e.faction, face: e.face, t: 0, life: 9, age: 0, still: 0, acc: 0 };
+  // Joints in world space, standing as the soldier stood.
+  const n = RAG_PTS.length, ca = Math.cos(e.face), sa = Math.sin(e.face);
+  const P = new Float32Array(n * 3), V = new Float32Array(n * 3);
+  RAG_PTS.forEach(([f, sd, z], i) => { P[i * 3] = e.x + f * ca - sd * sa; P[i * 3 + 1] = e.y + f * sa + sd * ca; P[i * 3 + 2] = z; });
+  const dx = Math.cos(a), dy = Math.sin(a), px = -dy, py = dx;
+  const kick = (i, vx, vy, vz) => { V[i * 3] += vx; V[i * 3 + 1] += vy; V[i * 3 + 2] += vz; };
   if (blast) {
-    const p = 25 + r() * 40;
-    Object.assign(fx, { vx: Math.cos(a) * p, vy: Math.sin(a) * p * 0.7, vz: 80 + r() * 80, spin: (r() < 0.5 ? -1 : 1) * (5 + r() * 9), pivot: 8, air: true });
+    // Thrown up and away, spinning about a random axis.
+    const p = 30 + r() * 50, up = 80 + r() * 90;
+    const w = [(r() - 0.5) * 2, (r() - 0.5) * 2, (r() - 0.5) * 2], wl = Math.hypot(...w) || 1, ws = 5 + r() * 9;
+    for (let i = 0; i < n; i++) {
+      const rx = P[i * 3] - e.x, ry = P[i * 3 + 1] - e.y, rz = P[i * 3 + 2] - 8;
+      const ox = w[0] / wl * ws, oy = w[1] / wl * ws, oz = w[2] / wl * ws;
+      kick(i, dx * p + oy * rz - oz * ry, dy * p * 0.8 + oz * rx - ox * rz, up + ox * ry - oy * rx);
+    }
+    fx.stiff = 0;
   } else {
-    Object.assign(fx, { vx: Math.cos(a) * 16, vy: Math.sin(a) * 10, vz: 0, spin: 0, fall: Math.cos(a) >= 0 ? 1 : -1, pivot: 0 });
-    if (r() < 0.3) fx.fall = -fx.fall;
-    if (wh === 'FIRE') for (let i = 0; i < 3; i++) G.effects.push({ type: 'fire', x: e.x + (r() - 0.5) * 6, y: e.y - 4 + (r() - 0.5) * 4, t: -i * 0.15, life: 1.2 + r() });
-    if (wh === 'TESLA') G.effects.push({ type: 'spark', x: e.x, y: e.y - 8, t: 0, life: 0.3 });
+    // Knocked back at the chest; sometimes forward instead (hit from behind, or slumping).
+    const dir = r() < 0.22 ? -0.6 : 1, p = (40 + r() * 50) * dir, twist = (r() - 0.5) * 50;
+    for (const i of [0, 1, 3, 4, 5, 6]) kick(i, dx * p + (r() - 0.5) * 12, dy * p + (r() - 0.5) * 12, (r() - 0.3) * 20);
+    kick(3, px * twist, py * twist, 0); kick(4, -px * twist, -py * twist, 0);
+    kick(2, dx * p * 0.3, dy * p * 0.3, 0);
+    if (r() < 0.4) { kick(7, -dx * 25, -dy * 25, 0); kick(8, -dx * 22, -dy * 22, 0); kick(2, 0, 0, -30); }   // knees buckle
+    fx.stiff = r() < 0.45 ? 0.15 + r() * 0.3 : 0;                                                         // or he goes down straight
+    if (wh === 'FIRE') {
+      for (let i = 0; i < 3; i++) G.effects.push({ type: 'fire', x: e.x + (r() - 0.5) * 6, y: e.y - 4 + (r() - 0.5) * 4, t: -i * 0.15, life: 1.2 + r() });
+      fx.burnt = true;
+      if (r() < 0.45) fx.stagger = { t: 0.8 + r() * 0.8, a: r() * Math.PI * 2 };
+    }
+    if (wh === 'TESLA') { G.effects.push({ type: 'spark', x: e.x, y: e.y - 8, t: 0, life: 0.3 }); fx.burnt = true; fx.shock = 0.5 + r() * 0.3; }
   }
+  // The weapon, flung loose from the hands.
+  const wl = e.type === 'rocket' ? 12 : e.type === 'grenadier' || e.type === 'pilot' ? 0 : 8;
+  if (wl) {
+    const hx = P[18], hy = P[19], hz = e.type === 'rocket' ? 15 : 10;
+    fx.gun = { P: new Float32Array([hx - ca * wl / 2, hy - sa * wl / 2, hz, hx + ca * wl / 2, hy + sa * wl / 2, hz + 0.5]), len: wl };
+    fx.gun.V = new Float32Array([V[18] * 0.7 + (r() - 0.5) * 40, V[19] * 0.7 + (r() - 0.5) * 40, V[20] * 0.6 + 20 + r() * 30, 0, 0, 0]);
+    fx.gun.V.copyWithin(3, 0, 3); fx.gun.V[3] += (r() - 0.5) * 50; fx.gun.V[4] += (r() - 0.5) * 50;
+  }
+  // Verlet state: previous positions from the starting velocities (fixed 1/60 s steps).
+  const h = 1 / 60, toPrev = (P, V) => { const Q = new Float32Array(P.length); for (let i = 0; i < P.length; i++) Q[i] = P[i] - V[i] * h; return Q; };
+  fx.P = P; fx.Q = toPrev(P, V);
+  fx.rest = RAG_STICKS.concat(RAG_STIFF).map(([i, j]) => Math.hypot(P[i * 3] - P[j * 3], P[i * 3 + 1] - P[j * 3 + 1], P[i * 3 + 2] - P[j * 3 + 2]));
+  fx.minL = RAG_MIN.map(([i, j, f]) => Math.hypot(P[i * 3] - P[j * 3], P[i * 3 + 1] - P[j * 3 + 1], P[i * 3 + 2] - P[j * 3 + 2]) * f);
+  if (fx.gun) fx.gun.Q = toPrev(fx.gun.P, fx.gun.V);
   hooks.sfx(blast ? 'dieBlast' : wh === 'FIRE' ? 'dieFire' : 'die', e.x, e.y);
   G.effects.push(fx);
 }
-function updateRagdoll(fx, dt) {
-  if (fx.air) {
-    fx.vz -= 330 * dt; fx.z = Math.max(0, fx.z + fx.vz * dt);
-    fx.x += fx.vx * dt; fx.y += fx.vy * dt; fx.rot += fx.spin * dt;
-    if (fx.z > 0 || fx.vz > 0) return;
-    if (!fx.bounced && fx.vz < -70) { fx.bounced = true; fx.vz = -fx.vz * 0.25; fx.vx *= 0.35; fx.vy *= 0.35; fx.spin *= 0.3; return; }
-    fx.air = false;
-  } else if (Math.abs(fx.rot) < Math.PI / 2) {
-    // Toppling: slow at first, faster as it goes, sliding back a little from the hit.
-    fx.rot += fx.fall * dt * (2.5 + Math.abs(fx.rot) * 6);
-    fx.x += fx.vx * dt; fx.y += fx.vy * dt; fx.vx *= Math.exp(-5 * dt); fx.vy *= Math.exp(-5 * dt);
-    if (Math.abs(fx.rot) < Math.PI / 2) return;
+// One fixed physics step for a set of points: gravity, damping, ground contact with friction
+// and a weak bounce.
+function ragIntegrate(P, Q, h) {
+  for (let i = 0; i < P.length; i += 3) {
+    let vx = (P[i] - Q[i]) * 0.995, vy = (P[i + 1] - Q[i + 1]) * 0.995, vz = (P[i + 2] - Q[i + 2]) * 0.995;
+    Q[i] = P[i]; Q[i + 1] = P[i + 1]; Q[i + 2] = P[i + 2];
+    vz -= 420 * h * h;
+    P[i] += vx; P[i + 1] += vy; P[i + 2] += vz;
+    if (P[i + 2] < 0) {
+      P[i + 2] = 0; Q[i + 2] = vz < -1.2 ? vz * 0.25 : 0;                     // bounce off the ground
+      Q[i] = P[i] - vx * 0.55; Q[i + 1] = P[i + 1] - vy * 0.55;               // and drag along it
+    }
   }
-  // Down: lie on whichever side is nearer and stay there.
-  const s = Math.sin(fx.rot), lie = (s >= 0 ? 1 : -1) * Math.PI / 2 + (Math.random() - 0.5) * 0.4;
+}
+function ragStick(P, i, j, L, mode) {
+  const ax = P[i * 3], ay = P[i * 3 + 1], az = P[i * 3 + 2], bx = P[j * 3], by = P[j * 3 + 1], bz = P[j * 3 + 2];
+  const dx = bx - ax, dy = by - ay, dz = bz - az, d = Math.hypot(dx, dy, dz) || 1e-3;
+  if (mode === 'min' && d >= L) return;
+  const k = (d - L) / d * 0.5;
+  P[i * 3] += dx * k; P[i * 3 + 1] += dy * k; P[i * 3 + 2] += dz * k;
+  P[j * 3] -= dx * k; P[j * 3 + 1] -= dy * k; P[j * 3 + 2] -= dz * k;
+}
+function updateRagdoll(fx, dt) {
+  const r = Math.random;
+  if (fx.stagger && fx.stagger.t > 0) {
+    // On fire: stagger a few steps before collapsing.
+    const st = fx.stagger, sp = 34 * dt;
+    st.t -= dt; st.a += (r() - 0.5) * 6 * dt; fx.face = st.a;
+    const mx = Math.cos(st.a) * sp, my = Math.sin(st.a) * sp;
+    if (!passableAt(fx.x + mx, fx.y + my)) st.a += Math.PI / 2;
+    else { fx.x += mx; fx.y += my; for (const A of [fx.P, fx.Q]) for (let i = 0; i < A.length; i += 3) { A[i] += mx; A[i + 1] += my; } if (fx.gun) for (const A of [fx.gun.P, fx.gun.Q]) for (let i = 0; i < 6; i += 3) { A[i] += mx; A[i + 1] += my; } }
+    if (r() < dt * 5) G.effects.push({ type: 'fire', x: fx.x + (r() - 0.5) * 4, y: fx.y - 6, t: 0, life: 0.7 });
+    return;
+  }
+  if (fx.shock > 0) { fx.shock -= dt; if (r() < dt * 8) G.effects.push({ type: 'spark', x: fx.x + (r() - 0.5) * 6, y: fx.y - 6 - r() * 6, t: 0, life: 0.15 }); return; }
+  const h = 1 / 60, P = fx.P, Q = fx.Q, nS = RAG_STICKS.length;
+  fx.acc += dt;
+  while (fx.acc >= h) {
+    fx.acc -= h; fx.age += h;
+    ragIntegrate(P, Q, h);
+    const stiff = fx.age < fx.stiff;
+    for (let it = 0; it < 6; it++) {
+      for (let k = 0; k < nS; k++) ragStick(P, RAG_STICKS[k][0], RAG_STICKS[k][1], fx.rest[k]);
+      if (stiff) for (let k = 0; k < RAG_STIFF.length; k++) ragStick(P, RAG_STIFF[k][0], RAG_STIFF[k][1], fx.rest[nS + k]);
+      for (let k = 0; k < RAG_MIN.length; k++) ragStick(P, RAG_MIN[k][0], RAG_MIN[k][1], fx.minL[k], 'min');
+    }
+    if (fx.gun) {
+      const g = fx.gun;
+      ragIntegrate(g.P, g.Q, h);
+      for (let it = 0; it < 2; it++) ragStick(g.P, 0, 1, g.len);
+    }
+    // Settled once nothing moves for a while.
+    let mv = 0;
+    for (let i = 0; i < P.length; i++) mv = Math.max(mv, Math.abs(P[i] - Q[i]));
+    fx.still = mv < 0.04 && fx.age > 0.4 ? fx.still + h : 0;
+    if (fx.still > 0.3 || fx.age > 5) break;
+  }
+  fx.x = P[6]; fx.y = P[7];
+  if (fx.still <= 0.3 && fx.age <= 5) return;
   fx.t = fx.life;
-  fx.x = Math.max(4, Math.min(WORLD - 4, fx.x)); fx.y = Math.max(4, Math.min(WORLD - 4, fx.y));
-  if (G.terr[cellOfPos(fx.x, fx.y)] >= 4) { G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 3, t: 0, life: 0.6, alpha: 0.5, color: '#c9c7c0' }); return; }
-  bakeCorpse(G.dctx, { x: fx.x, y: fx.y, type: fx.unitType, faction: fx.faction, face: fx.face }, (Math.random() * 1e6) | 0, lie);
+  if (G.terr[cellOfPos(Math.max(0, Math.min(WORLD - 1, fx.x)), Math.max(0, Math.min(WORLD - 1, fx.y)))] >= 4) { G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 3, t: 0, life: 0.6, alpha: 0.5, color: '#c9c7c0' }); return; }
+  bakeRagdoll(G.dctx, fx);
 }
 
 // Mobile Outpost: unpack into an Outpost on the spot, or the nearest clear 2x2 ground beside it.

@@ -212,6 +212,59 @@ function bakeCorpse(tg, u, seed, angle) {
   tg.drawImage(img, Math.round(s.ox), Math.round(s.oy));
   tg.restore();
 }
+// A ragdoll's body, drawn limb by limb from its joints in the uniform's colours (and its
+// loose weapon), nearest the camera last.
+const cssOf = (c) => typeof c === 'number' ? '#' + c.toString(16).padStart(6, '0') : c;
+function drawRagBody(g, fx) {
+  const pal = palFor(fx.faction), K = infKit(pal, fx.faction), P = fx.P, burnt = fx.burnt;
+  const tunic = burnt ? BURNT.main : pal.main, sleeve = burnt ? BURNT.dark : cssOf(shadeInt(pal.main, 0.86));
+  const pants = burnt ? BURNT.deep : cssOf(K.pants), skin = burnt ? '#3a2e26' : K.skin;
+  const head = fx.unitType === 'pilot' ? '#cfcab8' : fx.unitType === 'grenadier' ? '#5d6236' : cssOf(K.helm);
+  const X = (i) => P[i * 3], Y = (i) => P[i * 3 + 1] - P[i * 3 + 2], Zk = (i) => P[i * 3 + 2] * 4 + P[i * 3 + 1];
+  const parts = [];
+  const seg = (i, j, w, col) => parts.push({ k: (Zk(i) + Zk(j)) / 2, f: (dark) => pxLine(g, X(i), Y(i), X(j), Y(j), dark ? w + 1 : w, dark ? '#16120e' : col) });
+  seg(2, 7, 2, pants); seg(7, 9, 2, pants); seg(2, 8, 2, pants); seg(8, 10, 2, pants);
+  seg(1, 2, 3, tunic); seg(3, 4, 2, tunic); seg(3, 5, 1, sleeve); seg(4, 6, 1, sleeve);
+  if (fx.gun) {
+    const q = fx.gun.P, rk = fx.unitType === 'rocket';
+    parts.push({ k: (q[2] + q[5]) * 2 + (q[1] + q[4]) / 2, f: (dark) => pxLine(g, q[0], q[1] - q[2], q[3], q[4] - q[5], (rk ? 2 : 1) + (dark ? 1 : 0), dark ? '#16120e' : rk ? '#56603a' : C.gun) });
+  }
+  parts.sort((a, b) => a.k - b.k);
+  for (const p of parts) p.f(true);
+  for (const p of parts) p.f(false);
+  // Boots, hands, then the head with its helmet on the side away from the neck.
+  g.fillStyle = '#121210';
+  for (const i of [9, 10]) g.fillRect(Math.round(X(i) - 1), Math.round(Y(i) - 1), 2, 2);
+  g.fillStyle = skin;
+  for (const i of [5, 6]) g.fillRect(Math.round(X(i)), Math.round(Y(i)), 1, 1);
+  const hx = X(0), hy = Y(0), ux = hx - X(1), uy = hy - Y(1), ul = Math.hypot(ux, uy) || 1;
+  g.fillStyle = '#16120e'; g.fillRect(Math.round(hx - 2), Math.round(hy - 2), 4, 4);
+  g.fillStyle = skin; g.fillRect(Math.round(hx - 1.5), Math.round(hy - 1.5), 3, 3);
+  g.fillStyle = burnt ? BURNT.light : head;
+  g.fillRect(Math.round(hx + ux / ul * 1.2 - 1.5), Math.round(hy + uy / ul * 1.2 - 1.5), 3, 2);
+}
+// Pixel-crisp line with a square brush.
+function pxLine(g, x0, y0, x1, y1, w, col) {
+  g.fillStyle = col;
+  const n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
+  for (let k = 0; k <= n; k++) {
+    const x = x0 + (x1 - x0) * k / n, y = y0 + (y1 - y0) * k / n;
+    g.fillRect(Math.round(x - w / 2), Math.round(y - w / 2), w, w);
+  }
+}
+// A settled ragdoll painted into the ground for good: a dark stain, then the body a shade dimmer.
+function bakeRagdoll(tg, fx) {
+  const P = fx.P, cx = Math.round(P[6]), cy = Math.round(P[7]), R = 26;
+  const mx = (P[3] + P[6]) / 2, my = (P[4] + P[7]) / 2;
+  tg.fillStyle = fx.burnt ? 'rgba(20,16,12,0.45)' : 'rgba(70,14,10,0.5)';
+  tg.beginPath(); tg.ellipse(mx, my + 1, 5 + Math.random() * 2, 3, Math.atan2(P[4] - P[7], P[3] - P[6]), 0, 7); tg.fill();
+  const c = mkCanvas(R * 2, R * 2), g = c.getContext('2d');
+  g.translate(R - cx, R - cy); drawRagBody(g, fx);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = 'rgba(20,16,12,0.28)'; g.fillRect(0, 0, R * 2, R * 2);
+  tg.drawImage(c, cx - R, cy - R);
+}
 function dimmed(img) {
   const c = mkCanvas(img.width, img.height), g = c.getContext('2d');
   g.drawImage(img, 0, 0);
@@ -278,12 +331,44 @@ function flash(g, x, y, s) {
   g.fillStyle = 'rgba(255,220,120,0.9)'; g.fillRect(Math.round(x - s - 1), Math.round(y), s * 2 + 2, 1); g.fillRect(Math.round(x), Math.round(y - s - 1), 1, s * 2 + 2);
 }
 
+// Soldiers standing about fidget: they look around, rest or shoulder their weapons, check
+// their sights, stretch, juggle a grenade and, after a long quiet spell, drop for push-ups.
+// Purely for show, timed from game time and each soldier's id.
+const IDLES = {
+  rifle: ['look', 'rest', 'aim', 'stretch', 'look', 'pushups', 'none'],
+  rocket: ['look', 'rest', 'stretch', 'look', 'pushups', 'none'],
+  grenadier: ['look', 'juggle', 'rest', 'stretch', 'pushups', 'none'],
+  pilot: ['look', 'rest', 'stretch', 'none'],
+};
+function idlePose(u, t) {
+  if (u.moving || u.stance || u.target || u.fireT > 0 || u.chute > 0 || u.alt > 0) { u.idleFrom = t; return null; }
+  if (u.idleFrom === undefined) u.idleFrom = t;
+  const still = t - u.idleFrom;
+  if (still < 3) return null;
+  const CY = 8, off = hash3(u.id, 3, 7) * CY, tt = still + off, cyc = Math.floor(tt / CY), ct = tt % CY;
+  const list = IDLES[u.type] || IDLES.rifle;
+  let kind = list[Math.floor(hash3(u.id, cyc, 11) * list.length)];
+  if (kind === 'pushups' && still < 15) kind = 'look';
+  const dur = kind === 'pushups' ? 5.5 : kind === 'stretch' ? 2 : 2.5 + hash3(u.id, cyc, 5) * 2.5;
+  if (ct > dur || kind === 'none') return null;
+  switch (kind) {
+    case 'look': return { frame: 0, turn: Math.sin(ct * 1.7) * 0.8 };
+    case 'rest': return { frame: 6 };
+    case 'aim': return { frame: ct < 0.4 || ct > dur - 0.4 ? 6 : 7 };
+    case 'stretch': return { frame: 10 };
+    case 'juggle': return { frame: Math.floor(ct / 0.4) % 2 ? 3 : 0 };
+    case 'pushups': return { frame: ct < 0.5 || ct > dur - 0.4 ? 5 : Math.floor((ct - 0.5) / 0.45) % 2 ? 9 : 8 };
+  }
+  return null;
+}
 function drawUnit(g, u, t) {
   const pal = palFor(u.faction);
   if (u.cls === 'inf') {
     const stance = !u.moving && u.stance;
-    const frame = stance === 'prone' ? 5 : stance === 'crouch' ? 4 : u.type === 'grenadier' && u.fireT > 0.12 ? 3 : u.moving ? 1 + (Math.floor(u.anim / 4) % 2) : 0;
+    let frame = stance === 'prone' ? 5 : stance === 'crouch' ? 4 : u.type === 'grenadier' && u.fireT > 0.12 ? 3 : u.moving ? 1 + (Math.floor(u.anim / 4) % 2) : 0;
     if (u.chute > 0) { drawChute(g, u, pal, t); return; }
+    const idle = idlePose(u, t);
+    if (idle) { frame = idle.frame; if (idle.turn) u = { type: u.type, faction: u.faction, face: u.face + idle.turn, x: u.x, y: u.y }; }
     blit(g, infSprite(u, pal, frame), u.x, u.y);
     const mh = stance === 'prone' ? 2 : stance === 'crouch' ? 6 : 11, mr = stance === 'prone' ? 12 : 10;
     if (u.fireT > 0) flash(g, u.x + Math.cos(u.face) * mr, u.y + Math.sin(u.face) * mr - mh, 1);
@@ -576,13 +661,17 @@ function drawEffect(g, fx) {
     }
     case 'husk': drawHusk(g, fx); break;
     case 'ragdoll': {
-      const s = infSprite({ type: fx.unitType, faction: fx.faction, face: fx.face }, palFor(fx.faction), 0);
-      g.fillStyle = `rgba(0,0,0,${0.3 / (1 + fx.z / 20)})`;
-      g.beginPath(); g.ellipse(fx.x, fx.y + 1, 5, 2, 0, 0, 7); g.fill();
-      g.save();
-      g.translate(Math.round(fx.x), Math.round(fx.y - fx.z - fx.pivot)); g.rotate(fx.rot);
-      g.drawImage(s.img, Math.round(s.ox), Math.round(s.oy + fx.pivot));
-      g.restore();
+      if ((fx.stagger && fx.stagger.t > 0) || fx.shock > 0) {
+        // Still on his feet: staggering in flames, or jerking under a Tesla bolt.
+        const fr = fx.shock > 0 ? (Math.random() < 0.5 ? 3 : 0) : 1 + (Math.floor(fx.t * 8) % 2);
+        const jx = fx.shock > 0 ? (Math.random() - 0.5) * 2 : 0;
+        blit(g, infSprite({ type: fx.unitType, faction: fx.faction, face: fx.face }, palFor(fx.faction), fr), fx.x + jx, fx.y);
+        break;
+      }
+      const z = fx.P[8];
+      g.fillStyle = `rgba(0,0,0,${0.3 / (1 + z / 20)})`;
+      g.beginPath(); g.ellipse(fx.P[6], fx.P[7] + 1, 6, 2.5, 0, 0, 7); g.fill();
+      drawRagBody(g, fx);
       break;
     }
     case 'flare': {
