@@ -501,7 +501,7 @@ function launchGroups() {
   for (const team of G.teams) {
     defendBase(team);
     const rally = rallyPoint(team);
-    const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.def.harvester && u.order.type === 'guard');
+    const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.def.harvester && (u.def.weapon || u.cls === 'air') && u.order.type === 'guard');
     // Aircraft do not wait for a group: each one heads out on its own.
     if (team.auto) for (const u of waiting) if (u.cls === 'air') launchAircraft(u);
     const ready = waiting.filter((u) => u.cls !== 'air' && Math.hypot(u.x - rally.x, u.y - rally.y) < CELL * 6);
@@ -970,6 +970,35 @@ function updateRagdoll(fx, dt) {
   fx.x = Math.max(4, Math.min(WORLD - 4, fx.x)); fx.y = Math.max(4, Math.min(WORLD - 4, fx.y));
   if (G.terr[cellOfPos(fx.x, fx.y)] >= 4) { G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 3, t: 0, life: 0.6, alpha: 0.5, color: '#c9c7c0' }); return; }
   bakeCorpse(G.dctx, { x: fx.x, y: fx.y, type: fx.unitType, faction: fx.faction, face: fx.face }, (Math.random() * 1e6) | 0, lie);
+}
+
+// Mobile Outpost: unpack into an Outpost on the spot, or the nearest clear 2x2 ground beside it.
+function deploySpot(u) {
+  const d = BUILD_DEFS[u.def.deploys], c0x = Math.floor(u.x / CELL) - 1, c0y = Math.floor(u.y / CELL) - 1;
+  for (let r = 0; r <= 3; r++) for (let oy = -r; oy <= r; oy++) for (let ox = -r; ox <= r; ox++) {
+    if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+    const cx = c0x + ox, cy = c0y + oy;
+    if (cx < 1 || cy < 1 || cx + d.w > MAP - 1 || cy + d.h > MAP - 1) continue;
+    let ok = true;
+    for (let y = cy; y < cy + d.h && ok; y++) for (let x = cx; x < cx + d.w && ok; x++) {
+      const c = idx(x, y);
+      if (G.block[c] || G.bld[c] || G.ore[c] > 0 || G.resv[c]) ok = false;
+    }
+    for (const e of G.entities) if (ok && e !== u && e.alive && e.kind === 'unit' && !isAirborne(e) && e.x > cx * CELL - 2 && e.x < (cx + d.w) * CELL + 2 && e.y > cy * CELL - 2 && e.y < (cy + d.h) * CELL + 2) ok = false;
+    if (ok) return { cx, cy };
+  }
+  return null;
+}
+function deployFob(u) {
+  if (!u.alive || !u.def.deploys) return null;
+  const spot = deploySpot(u);
+  if (!spot) { if (u.team === PLAYER) hooks.eva('Cannot deploy here'); return null; }
+  const team = G.teams[u.team];
+  u.alive = false;
+  const b = addBuilding(u.def.deploys, team, spot.cx, spot.cy);
+  hooks.sfx('place', b.x, b.y); hooks.sfx('build', b.x, b.y);
+  updatePower();
+  return b;
 }
 
 // Soldiers stumble out of a destroyed structure and join the defence: more from bigger buildings.
@@ -1554,6 +1583,8 @@ function updateBuilding(b, dt) {
   if (b.cd <= 0 && (b.type === 'tesla' || Math.abs(angDiff(ang, b.tface)) < 0.15)) { shoot(b, w, t); b.cd = w.rof; }
 }
 
+// How far (in cells) from one of its own structures a side may place a new one; Outposts reach further.
+const BUILD_RANGE = 6;
 function canPlace(team, type, cx, cy, gap) {
   const d = BUILD_DEFS[type];
   if (cx < 1 || cy < 1 || cx + d.w > MAP - 1 || cy + d.h + (d.exit ? 1 : 0) > MAP - 1) return false;
@@ -1570,7 +1601,8 @@ function canPlace(team, type, cx, cy, gap) {
   for (const b of G.entities) {
     if (!b.alive || b.kind !== 'bld') continue;
     if (gap && cx < b.cx + b.w + gap && cx + d.w + gap > b.cx && cy < b.cy + b.h + gap && cy + d.h + gap > b.cy) return false;
-    if (b.team === team.id && cx <= b.cx + b.w + 3 && cx + d.w >= b.cx - 3 && cy <= b.cy + b.h + 3 && cy + d.h >= b.cy - 3) near = true;
+    const reach = b.def.buildRadius || BUILD_RANGE;
+    if (b.team === team.id && cx <= b.cx + b.w + reach && cx + d.w >= b.cx - reach && cy <= b.cy + b.h + reach && cy + d.h >= b.cy - reach) near = true;
   }
   return near;
 }

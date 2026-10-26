@@ -114,6 +114,24 @@ function mgModel() {
   m.box(-2, -2, 1, 1, 2, 3, C.gun, M_METAL);
   return m;
 }
+// Mobile Outpost: a six-wheeled truck carrying a command shelter, mast and folded radar dish.
+function fobModel(pal) {
+  const hl = 11, hw = 7;
+  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 16);
+  for (const x of [-8, -3, 6]) for (const [y0, y1] of [[-hw, -hw + 3], [hw - 3, hw]]) m.cylY(y0, y1, x, 2.2, 2.2, C.track, M_ROUGH);
+  m.box(-hl, -hw + 1, 2, hl, hw - 1, 4, C.metal, M_METAL);
+  m.box(5, -hw, 4, hl, hw, 10, pal.main, M_METAL);                    // cab
+  m.box(hl - 1, -hw + 1, 6, hl, hw - 1, 9, C.glass, M_GLASS);
+  m.box(5, -hw, 9, hl, hw, 10, pal.dark, M_METAL);
+  m.box(hl - 1, -hw + 1, 4, hl, -hw + 2, 5, C.glow, M_GLASS); m.box(hl - 1, hw - 2, 4, hl, hw - 1, 5, C.glow, M_GLASS);
+  m.box(-hl, -hw, 4, 4, hw, 11, C.olive, M_MATTE);                     // shelter
+  m.paint(-hl, -hw, 4, 4, hw, 11, (x, y, z) => (x % 5 === 0 || z === 10) ? C.oliveD : undefined);
+  m.box(-hl + 2, -hw, 6, -hl + 6, -hw + 1, 9, pal.main);               // side markings
+  m.line(-hl + 2, hw - 2, 11, -hl + 2, hw - 2, 16, C.steel, M_METAL);  // mast
+  m.cylZ(-3, 0, 11, 12, 3.5, C.steel, M_METAL);                        // folded dish
+  m.box(-hl + 1, -2, 11, -hl + 4, 2, 12, '#5d5e58', M_METAL);
+  return m;
+}
 function harvModel(pal, loaded) {
   const hl = 12, hw = 7;
   const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 13);
@@ -377,6 +395,22 @@ const STRUCTURES = {
     m.cylX(42, 46, 20, 10, 1.5, C.steel, M_METAL);
     return m;
   },
+  // Outpost: the unpacked shelter with a raised radar dish, sandbags and a flag.
+  outpost(pal) {
+    const m = new VModel(-2, -2, 50, 50, 30);
+    slabV(m, 0, 0, 48, 48);
+    sandbagsV(m, 2, 2, 46, 46, 3);
+    m.box(10, 14, 1, 34, 34, 12, C.olive, M_MATTE);
+    m.paint(10, 14, 1, 34, 34, 12, (x, y, z) => (x % 6 === 0 || z === 11) ? C.oliveD : undefined);
+    m.box(10, 14, 12, 34, 34, 13, pal.main, M_METAL);
+    m.box(18, 33, 2, 24, 34, 9, '#3a3a33');                             // door
+    m.line(14, 18, 13, 14, 18, 26, C.steel, M_METAL);                    // radar mast and dish
+    m.ellipsoid(14, 18, 26, 4.5, 4.5, 1.6, C.steel, M_METAL);
+    m.line(38, 10, 1, 38, 10, 22, C.steel, M_METAL);                     // flag
+    m.box(38, 10, 17, 45, 11, 22, pal.main);
+    for (const [x, y] of [[40, 34], [6, 38]]) m.box(x, y, 1, x + 4, y + 3, 4, '#4b4d3a', M_METAL);   // crates
+    return m;
+  },
   barracks(pal, faction) {
     const m = new VModel(-2, -2, 54, 50, 34);
     if (faction === 'allies') {
@@ -559,6 +593,7 @@ function hullSprite(u, pal) {
   const key = d.type + pal.key;
   if (d.draw === 'tank') return facingSprite('T' + key, () => tankHull(pal, d.size), u.face);
   if (d.draw === 'jeep') return facingSprite('J' + key, () => jeepModel(pal), u.face);
+  if (d.draw === 'fob') return facingSprite('F' + key, () => fobModel(pal), u.face);
   if (d.draw === 'harv') { const full = (u.load || 0) > d.capacity * 0.3; return facingSprite('V' + key + full, () => harvModel(pal, full), u.face); }
   if (d.fly === 'heli') return facingSprite('A' + key, () => d.type === 'hind' ? hindModel(pal) : heliModel(pal), u.face);
   if (d.draw === 'cargo') return facingSprite('C' + key, () => cargoModel(pal, d.type === 'bomber'), u.face);

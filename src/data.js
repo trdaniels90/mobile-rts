@@ -81,6 +81,11 @@ const UNIT_DEFS = {
     cost: 1400, hp: 600, armor: 'heavy', speed: 50, turn: 3, sight: 4, r: 10, size: { len: 24, wid: 15 },
     harvester: true, capacity: 1000,
   },
+  // Drives out to a distant ore field and deploys into an Outpost, which lets its side build there.
+  fob: {
+    name: 'Mobile Outpost', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies', 'soviets'], draw: 'fob',
+    cost: 1000, hp: 500, armor: 'heavy', speed: 40, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 14 }, deploys: 'outpost',
+  },
   heli: {
     name: 'Attack Helicopter', cls: 'air', fly: 'heli', cat: 'aircraft', producer: 'helipad', factions: ['allies'],
     cost: 1200, hp: 220, armor: 'air', speed: 115, sight: 6, r: 9,
@@ -118,6 +123,8 @@ const BUILD_DEFS = {
   cy:       { name: 'Construction Yard', w: 3, h: 3, hp: 1500, power: 0,   cost: 2500, req: [], factions: [], sight: 6 },
   power:    { name: 'Power Plant',  w: 2, h: 2, hp: 400,  power: 100, cost: 300,  req: ['cy'],       factions: ['allies', 'soviets'] },
   apower:   { name: 'Advanced Power Plant', w: 3, h: 3, hp: 700, power: 200, cost: 500, req: ['factory'], factions: ['allies', 'soviets'] },
+  // Deployed from a Mobile Outpost; cannot be built from the sidebar. Lets its side build further around it.
+  outpost:  { name: 'Outpost', w: 2, h: 2, hp: 600, power: 0, cost: 1000, req: [], factions: [], sight: 6, buildRadius: 8 },
   refinery: { name: 'Ore Refinery', w: 3, h: 2, hp: 900,  power: -40, cost: 2000, req: ['power'],    factions: ['allies', 'soviets'], exit: true },
   barracks: { name: 'Barracks',     w: 2, h: 2, hp: 500,  power: -20, cost: 300,  req: ['power'],    factions: ['allies', 'soviets'], exit: true },
   factory:  { name: 'War Factory',  w: 3, h: 2, hp: 1000, power: -30, cost: 2000, req: ['refinery'], factions: ['allies', 'soviets'], exit: true },

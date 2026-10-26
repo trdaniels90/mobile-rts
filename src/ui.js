@@ -739,9 +739,10 @@
     ui.selHp.style.setProperty('--p', Math.max(0, hp));
     ui.selHp.dataset.state = hp > 0.5 ? 'ok' : hp > 0.25 ? 'warn' : 'low';
     const own = sel.filter((e) => e.team === PLAYER);
-    const fighters = own.filter((e) => e.kind === 'unit' && !e.def.harvester);
+    const fighters = own.filter((e) => e.kind === 'unit' && !e.def.harvester && (e.def.weapon || e.cls === 'air'));
     const bld = one && one.kind === 'bld' && one.team === PLAYER ? one : null;
     const btns = [];
+    if (own.some((e) => e.kind === 'unit' && e.def.deploys)) btns.push(['deploy', 'DEPLOY']);
     if (fighters.length) btns.push(['hunt', 'ATTACK']);
     if (own.some((e) => e.kind === 'unit')) btns.push(['stop', 'STOP']);
     if (bld) {
@@ -762,7 +763,10 @@
     const sel = G.selection.filter((x) => x.alive);
     const own = sel.filter((x) => x.team === PLAYER);
     const bld = sel.length === 1 && sel[0].kind === 'bld' && sel[0].team === PLAYER ? sel[0] : null;
-    if (act === 'hunt') { commandHunt(own.filter((u) => u.kind === 'unit')); eva('Attacking enemy base'); Sound.ack('attack'); }
+    if (act === 'deploy') {
+      const made = own.filter((u) => u.kind === 'unit' && u.def.deploys).map(deployFob).filter(Boolean);
+      if (made.length) select(made.length === 1 ? [made[0]] : []);
+    } else if (act === 'hunt') { commandHunt(own.filter((u) => u.kind === 'unit' && (u.def.weapon || u.cls === 'air'))); eva('Attacking enemy base'); Sound.ack('attack'); }
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
     else if (act === 'repair' && bld) bld.repairing = !bld.repairing;
     else if (act === 'sell' && bld) {

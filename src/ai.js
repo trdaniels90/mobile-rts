@@ -16,6 +16,10 @@ function aiNextStructure(team, c) {
   const n = (t) => c[t] || 0;
   const powerNeed = (t) => -Math.min(0, BUILD_DEFS[t].power);
   const pwr = available(team, 'apower') ? 'apower' : 'power';
+  // An Outpost with no refinery beside it yet comes first: that is what it was sent out for.
+  if (aiLonelyOutpost(team) && available(team, 'refinery') && n('refinery') < 6) {
+    return p.prod - p.use < powerNeed('refinery') + 10 && available(team, pwr) ? pwr : 'refinery';
+  }
   const wants = [
     ['refinery', 1], ['barracks', 1], [antiInf, 1], ['factory', 1], [defense, 1], ['refinery', 2], ['helipad', 1], [antiInf, 2],
     [defense, 2], [aa, 1], ['airfield', 1], ['factory', 2], [defense, 3], [aa, 2], ['refinery', 3], [defense, 4],
@@ -30,9 +34,45 @@ function aiNextStructure(team, c) {
   return null;
 }
 
+// Forward mining: an ore field on its own half of the map that its refineries are far from.
+function aiRemoteField(team) {
+  const mine = buildingsOf(team.id).filter((b) => b.type === 'refinery' || b.type === 'outpost' || b.type === 'cy');
+  const home = team.start, foe = enemyOf(team).start;
+  let best = null, bd = Infinity;
+  for (const f of G.oreFields) {
+    let ore = 0;
+    for (let y = Math.floor(f.cy - f.r); y <= f.cy + f.r; y++) for (let x = Math.floor(f.cx - f.r); x <= f.cx + f.r; x++) if (inMap(x, y)) ore += G.ore[idx(x, y)];
+    if (ore < 800) continue;
+    const dHome = Math.hypot(f.cx - home.cx, f.cy - home.cy);
+    if (dHome > Math.hypot(f.cx - foe.cx, f.cy - foe.cy)) continue;
+    if (mine.some((b) => Math.hypot(b.cx - f.cx, b.cy - f.cy) < 15)) continue;
+    if (dHome < bd) { bd = dHome; best = f; }
+  }
+  return best;
+}
+function aiLonelyOutpost(team) {
+  const mine = buildingsOf(team.id);
+  return mine.find((b) => b.type === 'outpost' && !mine.some((r) => r.type === 'refinery' && dist(r, b) < CELL * 9)) || null;
+}
+// Drive a Mobile Outpost to just short of the field (on the home side) and deploy it there.
+function aiDriveFob(team, u) {
+  if (!u.aiGoal) {
+    const f = aiRemoteField(team);
+    if (!f) return;
+    const a = Math.atan2(team.start.cy - f.cy, team.start.cx - f.cx), back = f.r + 3;
+    u.aiGoal = { x: (f.cx + 0.5 + Math.cos(a) * back) * CELL, y: (f.cy + 0.5 + Math.sin(a) * back) * CELL };
+    commandMove([u], u.aiGoal.x, u.aiGoal.y);
+    return;
+  }
+  const d = Math.hypot(u.x - u.aiGoal.x, u.y - u.aiGoal.y);
+  if (d < CELL * 2.5 || (u.order.type === 'guard' && d < CELL * 6)) { if (!deployFob(u)) u.aiGoal = null; }
+  else if (u.order.type === 'guard') commandMove([u], u.aiGoal.x, u.aiGoal.y);
+}
+
 function aiFindSpot(team, type) {
   const cy = G.entities.find((e) => e.alive && e.team === team.id && e.type === 'cy');
-  const anchor = cy || buildingsOf(team.id)[0];
+  const lonely = type === 'refinery' && aiLonelyOutpost(team);
+  const anchor = lonely || cy || buildingsOf(team.id)[0];
   if (!anchor) return null;
   const d = BUILD_DEFS[type], foe = enemyOf(team).start;
   const toFoe = Math.atan2(foe.cy - anchor.cy, foe.cx - anchor.cx);
@@ -81,6 +121,12 @@ function aiThink(team) {
     const next = aiNextStructure(team, c);
     if (next && team.credits >= Math.min(BUILD_DEFS[next].cost * 0.25, 500)) startProduction(team, next);
   }
+
+  // Forward outposts: send a Mobile Outpost to a rich field far from its refineries.
+  const fobs = unitsOf(team.id).filter((u) => u.type === 'fob');
+  for (const u of fobs) aiDriveFob(team, u);
+  if (c.factory && !fobs.length && !team.queues.vehicle.some((i) => i.type === 'fob') && (c.outpost || 0) < 2 &&
+      (c.refinery || 0) >= 1 && team.credits > 1200 && aiRemoteField(team)) startProduction(team, 'fob');
 
   // Keep the economy running.
   const refineries = c.refinery || 0, trucks = c.harv || 0;
