@@ -261,7 +261,7 @@ function aiThink(team) {
 // crossing to go by and a target. Between waves, small raids of its fastest units go after
 // Ore Trucks and outlying sites. Runs once a second with the units waiting at the rally point.
 function aiPlanWave(team) {
-  const A = G.diff.ai, r = Math.random, big = !!A.big && r() < A.bigChance;
+  const A = G.diff.ai, r = Math.random, big = !!A.big && G.t >= A.bigFrom && r() < A.bigChance;
   const [lo, hi] = big ? A.big : A.wave;
   team.holdFor = big && A.strike.length ? { keys: A.strike, since: G.t } : null;
   return { size: lo + Math.floor(r() * (hi - lo + 1)), big };
@@ -279,7 +279,10 @@ function aiLaunch(team, ready) {
       ready = ready.filter((u) => !fast.includes(u));
     }
   }
-  if (ready.length < team.plan.size) return;
+  // The first wave waits a while (on Easy and Normal), waves keep a gap between them, and each
+  // takes only its planned number of units: the rest wait for the next one.
+  if (ready.length < team.plan.size || G.t < A.firstWave || G.t - (team.lastWave || -1e9) < A.waveGap) return;
+  ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, team.plan.size);   // first come, first sent
   const target = aiWaveTarget(team, ready[0]);
   if (!target) return;
   const focus = target.type !== 'cy', pick = (l) => l[Math.floor(r() * l.length)];
@@ -293,6 +296,7 @@ function aiLaunch(team, ready) {
     aiSend(team, halves[1], target, { form: pick(A.forms), via: via2, focus });
   } else aiSend(team, ready, target, { form: pick(A.forms), focus, strike });
   team.waves = (team.waves || 0) + 1;
+  team.lastWave = G.t;
   team.plan = aiPlanWave(team);
 }
 function centreOf(units) {
