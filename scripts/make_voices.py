@@ -33,6 +33,8 @@ EVA = {
   'bombing run ready': 'Bombing run ready.',
   'select target': 'Select target.',
   'aircraft returning for repairs': 'Aircraft returning for repairs.',
+  'radar online': 'Radar online.',
+  'radar offline': 'Radar offline.',
 }
 ACKS = {
   'inf': ['Acknowledged.', 'Yes sir.', 'Moving out.', 'Affirmative.', 'Right away.'],

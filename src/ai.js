@@ -26,7 +26,7 @@ function aiNextStructure(team, c) {
   if (enemyAir) team.sawAir = true;
   const aaWant = team.sawAir ? Math.min(A.aaMax, A.aa + Math.ceil(enemyAir / 2)) : A.aa;
   const wants = [
-    ['refinery', 1], ['barracks', 1], [antiInf, Math.min(1, capInf)], ['factory', 1], [defense, Math.min(1, capMain)], ['refinery', 2],
+    ['refinery', 1], ['barracks', 1], [antiInf, Math.min(1, capInf)], ['factory', 1], [defense, Math.min(1, capMain)], ['refinery', 2], ['dome', 1],
     ['helipad', 1], [antiInf, Math.min(2, capInf)], [defense, Math.min(2, capMain)], [aa, Math.min(1, aaWant)], ['airfield', 1],
     ['factory', 2], [defense, Math.min(3, capMain)], [aa, aaWant], ['refinery', 3], [defense, Math.min(4, capMain)],
   ];
@@ -86,7 +86,7 @@ function aiScramble(team) {
   const mine = buildingsOf(team.id);
   const intruders = unitsOf(enemyOf(team).id).filter((u) => u.cls === 'air' && !u.def.scripted && isAirborne(u) && mine.some((b) => distTo(u, b) < CELL * 20));
   for (const u of unitsOf(team.id)) {
-    if (!u.interceptor || u.repairHold || airEmpty(u)) continue;
+    if (!u.interceptor || u.repairHold || !(u.aam > 0)) continue;
     if (intruders.length) {
       if (u.order.type === 'attack' && u.order.target.alive) continue;
       const t = intruders.reduce((a, b) => (dist(u, a) < dist(u, b) ? a : b));
@@ -225,6 +225,8 @@ function aiThink(team) {
   if (c.factory && vq.length < A.queue && money > 500) {
     const opts = team.faction === 'allies' ? (anti ? ['mtank', 'mtank', 'ranger', 'ranger', 'ltank'] : ['ltank', 'mtank', 'mtank', 'ranger'])
       : (anti ? ['htank', 'mammoth', 'mammoth', 'htank'] : ['htank', 'htank', 'htank', 'mammoth']);
+    const sup = team.faction === 'allies' ? 'arty' : 'v2rl';                        // long-range support, once it has a Radar Dome
+    if (available(team, sup) && (c[sup] || 0) < 4) opts.push(sup);
     startProduction(team, opts[Math.floor(Math.random() * opts.length)]);
   }
   const aq = team.queues.aircraft;

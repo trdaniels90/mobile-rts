@@ -113,6 +113,7 @@
   // ---------------------------------------------------------------------------
   function startGame(seed) {
     newWorld(faction, diffKey, seed);
+    radarWas = null;
     for (let i = 0; i < NCELLS; i++) {
       mtctx.fillStyle = TERRAIN_MINI[G.terr[i]];
       mtctx.fillRect(cellX(i), cellY(i), 1, 1);
@@ -194,6 +195,16 @@
       if (p.kind === 'bomb') {
         v.fillStyle = 'rgba(0,0,0,0.35)'; v.fillRect(Math.round(p.tx - 1), Math.round(p.ty), 3, 2);
         v.fillStyle = '#1d1f18'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 2), 3, 5);
+        continue;
+      }
+      if (p.kind === 'lob') {
+        v.fillStyle = 'rgba(0,0,0,0.3)'; v.fillRect(Math.round(p.gx - 1), Math.round(p.gy), 3, 2);   // shadow on the ground
+        if (p.style === 'v2') {
+          // The rocket, pointing along its flight, with a flame at the tail.
+          const L = 6, bx = Math.cos(p.a), by = Math.sin(p.a);
+          v.fillStyle = 'rgba(255,170,60,0.8)'; v.fillRect(Math.round(p.x - bx * (L + 2) - 1), Math.round(p.y - by * (L + 2) - 1), 3, 3);
+          for (let i = -L; i <= L; i++) { v.fillStyle = i > L - 2 ? '#b8302a' : '#c9c7bd'; v.fillRect(Math.round(p.x + bx * i), Math.round(p.y + by * i), 2, 2); }
+        } else { v.fillStyle = '#2a2a24'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 2); }
         continue;
       }
       if (p.kind === 'grenade') {
@@ -296,11 +307,25 @@
   }
 
   let radarT = 0;
+  // The radar needs a working Radar Dome: none built shows a blank screen, low power takes it
+  // offline. Without it the minimap shows static and cannot be used to move the camera.
+  const radarDome = () => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === PLAYER && e.type === 'dome' && e.buildT >= 1 && e.sellT <= 0);
+  const radarOn = () => !!G && radarDome() && !G.teams[PLAYER].low;
+  let radarWas = null;
   function drawRadar(dt) {
     radarT -= dt;
     if (radarT > 0 || !G) return;
     radarT = 0.2;
-    const Wr = radar.width, Hr = radar.height, k = Wr / MAP;
+    const Wr = radar.width, Hr = radar.height, k = Wr / MAP, on = radarOn();
+    if (radarWas !== null && on !== radarWas && !G.over) eva(on ? 'Radar online' : 'Radar offline');
+    radarWas = on;
+    if (!on) {
+      rctx.fillStyle = '#0a0e0a'; rctx.fillRect(0, 0, Wr, Hr);
+      for (let i = 0; i < Wr * Hr / 60; i++) { rctx.fillStyle = `rgba(150,190,150,${Math.random() * 0.18})`; rctx.fillRect(Math.random() * Wr, Math.random() * Hr, DPR, DPR); }
+      rctx.fillStyle = 'rgba(120,220,120,0.7)'; rctx.font = `${Math.round(11 * DPR)}px monospace`; rctx.textAlign = 'center'; rctx.textBaseline = 'middle';
+      rctx.fillText(radarDome() ? 'RADAR OFFLINE' : 'NO RADAR', Wr / 2, Hr / 2);
+      return;
+    }
     rctx.imageSmoothingEnabled = false;
     rctx.drawImage(miniTerrain, 0, 0, Wr, Hr);
     for (let i = 0; i < NCELLS; i++) if (G.ore[i] && G.seen[i]) { rctx.fillStyle = G.gem[i] ? '#a58cff' : '#c9a227'; rctx.fillRect(cellX(i) * k, cellY(i) * k, Math.ceil(k), Math.ceil(k)); }
@@ -549,6 +574,7 @@
 
   let radarDrag = false;
   function radarJump(e) {
+    if (!radarOn()) return;
     const r = radar.getBoundingClientRect();
     centerOn((e.clientX - r.left) / r.width * WORLD, (e.clientY - r.top) / r.height * WORLD);
   }

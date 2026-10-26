@@ -61,7 +61,7 @@ function sandbagsV(m, x0, y0, x1, y1, h) {
 // ---------------------------------------------------------------------------
 function tankHull(pal, s) {
   const L = s.len, W = s.wid, hl = Math.floor(L / 2), hw = Math.floor(W / 2), tw = Math.max(3, Math.round(W * 0.26));
-  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 10);
+  const m = new VModel(-hl - 2, -hw - 2, hl + 3 + (s.reach || 0), hw + 3, s.height || 10);   // reach/height: room for a big gun
   for (const side of [-1, 1]) {
     const y0 = side < 0 ? -hw : hw - tw, y1 = y0 + tw;
     m.box(-hl, y0, 0, hl, y1, 4, C.track, M_ROUGH);
@@ -229,6 +229,41 @@ function jetModel(pal, mig) {
     }
     for (const y of [-2, 1]) { m.box(-15, y, 2, -14, y + 2, 4, '#2a2a28', M_METAL); m.set(-16, y, 3, C.black); m.set(-16, y + 1, 3, C.black); }   // nozzles
     for (const y of [-7, 7]) m.cylX(-6, -1, y, 1.5, 0.8, '#5d605a', M_METAL);                     // bombs under the wings
+  }
+  return m;
+}
+
+// Self-propelled artillery: a tracked chassis carrying an open gun mount, a shield and a long
+// howitzer raised for a high shot.
+function artyModel(pal) {
+  const m = tankHull(pal, { len: 20, wid: 13, reach: 8, height: 20 });
+  m.box(-6, -4, 7, 3, 4, 9, pal.dark, M_METAL);                                   // gun deck
+  m.box(1, -4, 9, 3, 4, 13, pal.main, M_METAL);                                   // shield
+  m.box(1, -1, 13, 3, 1, 13.5, pal.dark, M_METAL);
+  for (let x = 0; x < 17; x++) m.box(x, -1, 10 + x * 0.32, x + 1, 1, 11.5 + x * 0.32, C.gun, M_METAL);   // the barrel, elevated
+  m.box(15, -1.5, 14.5, 17, 1.5, 16.5, C.gun, M_METAL);                           // muzzle brake
+  m.box(-6, -3, 9, -3, 3, 10, '#5d5e58', M_METAL);                                // breech and spades
+  m.box(-10, -5, 2, -9, -3, 6, C.gun, M_METAL); m.box(-10, 3, 2, -9, 5, 6, C.gun, M_METAL);
+  return m;
+}
+// V2 rocket launcher: a six-wheeled truck with a cab up front and a launch rail on the back,
+// carrying the rocket raised for launch (not while it reloads).
+function v2Model(pal, loaded) {
+  const m = new VModel(-14, -8, 14, 8, 20);
+  for (const x of [-8, -3, 7]) for (const y of [-5, 4]) m.cylY(y, y + 1.6, x, 2.4, 2.4, C.track);          // wheels
+  m.box(-11, -4, 2, 11, 4, 4, pal.dark, M_METAL);                                 // chassis
+  m.box(5, -4, 4, 11, 4, 9, pal.main, M_METAL);                                   // cab
+  m.box(9, -3, 7, 11, 3, 9, C.glass, M_GLASS);
+  m.box(-11, -4, 4, 4, 4, 6, pal.main, M_METAL);                                  // bed
+  for (let x = -10; x < 6; x++) m.box(x, -1, 6 + (x + 10) * 0.42, x + 1, 1, 7 + (x + 10) * 0.42, '#3d3f38', M_METAL);   // launch rail
+  m.box(-1, -2, 6, 1, 2, 10, '#3d3f38', M_METAL);                                 // its strut
+  if (loaded) {
+    for (let x = -10; x < 6; x++) {
+      const z = 8 + (x + 10) * 0.42;
+      m.cylX(x, x + 1, 0, z, 1.6, x > 3 ? C.red : x > 1 ? '#c9c7bd' : '#7d8650', M_METAL);   // body, band, warhead
+    }
+    m.box(6, -0.5, 14.5, 7, 0.5, 15.5, C.red, M_METAL);                           // nose
+    for (const [y, z] of [[-3, 8], [3, 8], [0, 11]]) m.box(-10, y - 0.5, z - 0.5, -7, y + 0.5, z + 0.5, '#5a6238', M_METAL);   // fins
   }
   return m;
 }
@@ -415,6 +450,21 @@ const STRUCTURES = {
     m.box(34, 36, 1, 46, 46, 8, '#5d5e58', M_METAL);
     m.paint(34, 45, 3, 46, 46, 8, (x, y, z) => (x % 3 === 0) ? '#46473f' : undefined);
     m.box(39, 45, 5, 41, 46, 7, C.yellow);
+    return m;
+  },
+  // Radar Dome: a white radome on a low concrete block, with a mast and a dish beside it.
+  dome(pal) {
+    const m = new VModel(-2, -2, 50, 50, 46);
+    slabV(m, 0, 0, 48, 48);
+    m.box(4, 10, 1, 44, 44, 12, C.wall, M_MATTE);
+    m.box(4, 10, 12, 44, 44, 13, pal.main, M_METAL);
+    m.paint(4, 43, 1, 44, 44, 12, (x, y, z) => (z >= 5 && z <= 7 && x % 6 < 2) ? C.glass : undefined);
+    m.box(30, 43, 1, 38, 44, 9, '#5d5e58', M_METAL);
+    m.ellipsoid(22, 26, 12, 15, 15, 13, '#e6e4dc', M_MATTE);                       // the radome
+    m.paint(7, 11, 13, 38, 42, 26, (x, y, z) => (z === 16 || z === 21) ? '#cfccc2' : undefined);   // panel seams
+    m.cylZ(40, 14, 13, 30, 1, C.steel, M_METAL);                                   // mast and dish
+    m.ellipsoid(40, 14, 31, 4, 1.5, 3, C.steel, M_METAL);
+    m.set(40, 14, 35, '#ff4030', M_GLOW);
     return m;
   },
   // Advanced Power Plant: a turbine hall and two hyperboloid cooling towers.
@@ -662,6 +712,8 @@ function hullSprite(u, pal) {
   if (d.draw === 'tank') return facingSprite('T' + key, () => tankHull(pal, d.size), u.face);
   if (d.draw === 'jeep') return facingSprite('J' + key, () => jeepModel(pal), u.face);
   if (d.draw === 'fob') return facingSprite('F' + key, () => fobModel(pal), u.face);
+  if (d.draw === 'arty') return facingSprite('R' + key, () => artyModel(pal), u.face);
+  if (d.draw === 'v2') { const loaded = !(u.cd > 1.2); return facingSprite('W' + key + loaded, () => v2Model(pal, loaded), u.face); }
   if (d.draw === 'harv') { const full = (u.load || 0) > d.capacity * 0.3; return facingSprite('V' + key + full, () => harvModel(pal, full), u.face); }
   if (d.fly === 'heli') return facingSprite('A' + key, () => d.type === 'hind' ? hindModel(pal) : heliModel(pal), u.face);
   if (d.draw === 'cargo') return facingSprite('C' + key, () => cargoModel(pal, d.type === 'bomber'), u.face);
@@ -723,7 +775,7 @@ function pushupModel(pal, faction, type, up) {
 function infSprite(u, pal, frame) {
   return facingSprite(`I${u.type}${pal.key}${frame}`, () => infModel(pal, u.faction, u.type, frame), u.face, 16, { crisp: true });
 }
-const TURRET_Z = { tank: 7, jeep: 5 };
+const TURRET_Z = { tank: 7, jeep: 5, arty: 9, v2: 12 };
 
 // Scenery: trees, boulders, ore, all rendered once.
 function treeModel(seed, pine) {

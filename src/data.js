@@ -26,6 +26,7 @@ const WARHEADS = {
   FLAK:  { inf: 0,   light: 0,    heavy: 0,    bld: 0,   air: 1.0 },
   TESLA: { inf: 1.6, light: 1.0,  heavy: 0.9,  bld: 0.6, air: 0 },
   FIRE:  { inf: 1.3, light: 0.6,  heavy: 0.3,  bld: 0.7, air: 0 },   // flame tower
+  ART:   { inf: 0.9, light: 0.8,  heavy: 0.45, bld: 0.75, air: 0 },  // artillery shells
 };
 
 // cls: inf | veh | air.  cat: which sidebar tab builds it.  speed in px/s, sight in cells.
@@ -75,6 +76,18 @@ const UNIT_DEFS = {
     cost: 1700, hp: 950, armor: 'heavy', speed: 30, turn: 2, sight: 6, r: 12, size: { len: 26, wid: 20, tur: 7.5, barrel: 14, twin: true, pods: true },
     weapon: { dmg: 45, rof: 1.9, range: 118, wh: 'AP', proj: 'shell', twin: true },
     weapon2: { dmg: 35, rof: 2.6, range: 140, wh: 'HE', proj: 'rocket', air: true },
+  },
+  // Long-range support, built once a Radar Dome stands. Neither has a turret: the whole vehicle
+  // turns to aim, and both lob their rounds in a high arc, so they can miss a moving target.
+  arty: {
+    name: 'Artillery', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['dome'], factions: ['allies'], draw: 'arty', fixed: true,
+    cost: 600, hp: 120, armor: 'light', speed: 36, turn: 2, sight: 5, r: 9, size: { len: 20, wid: 13, tur: 0, barrel: 15 },
+    weapon: { dmg: 110, rof: 4, range: 216, wh: 'ART', proj: 'artyshell', splash: 22, spread: 16 },
+  },
+  v2rl: {
+    name: 'V2 Rocket Launcher', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['dome'], factions: ['soviets'], draw: 'v2', fixed: true,
+    cost: 800, hp: 150, armor: 'light', speed: 40, turn: 2, sight: 5, r: 10, size: { len: 22, wid: 12, tur: 0, barrel: 12 },
+    weapon: { dmg: 240, rof: 7, range: 240, wh: 'HE', proj: 'v2', splash: 30, spread: 12 },
   },
   harv: {
     name: 'Ore Truck', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies', 'soviets'], draw: 'harv',
@@ -129,6 +142,7 @@ const BUILD_DEFS = {
   barracks: { name: 'Barracks',     w: 2, h: 2, hp: 500,  power: -20, cost: 300,  req: ['power'],    factions: ['allies', 'soviets'], exit: true },
   factory:  { name: 'War Factory',  w: 3, h: 2, hp: 1000, power: -30, cost: 2000, req: ['refinery'], factions: ['allies', 'soviets'], exit: true },
   helipad:  { name: 'Helipad',      w: 2, h: 2, hp: 400,  power: -10, cost: 1500, req: ['factory'],  factions: ['allies', 'soviets'] },
+  dome:     { name: 'Radar Dome',   w: 2, h: 2, hp: 1000, power: -40, cost: 1000, req: ['refinery'], factions: ['allies', 'soviets'], sight: 10 },
   airfield: { name: 'Airfield',     w: 3, h: 2, hp: 500,  power: -30, cost: 1000, req: ['factory'],  factions: ['allies', 'soviets'] },
   turret:   { name: 'Gun Turret',   w: 1, h: 1, hp: 450,  power: -40, cost: 600,  req: ['barracks'], factions: ['allies'], defense: true,
               weapon: { dmg: 40, rof: 1.4, range: 130, wh: 'AP', proj: 'shell' } },

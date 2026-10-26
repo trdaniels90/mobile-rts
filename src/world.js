@@ -802,6 +802,8 @@ function weaponSound(src, w) {
   if (w.proj === 'grenade') return 'throw';
   if (w.proj === 'fireball') return 'flame';
   if (w.proj === 'shell') return src.kind === 'bld' ? 'turretGun' : w.twin ? 'cannonHeavy' : 'cannon';
+  if (w.proj === 'artyshell') return 'cannonHeavy';
+  if (w.proj === 'v2') return 'missile';
   return w.proj;
 }
 
@@ -830,6 +832,15 @@ function fireWeapon(src, w, t) {
     const tx = t.x + (Math.random() - 0.5) * 10, tgy = t.y + (Math.random() - 0.5) * 8;
     const d = Math.hypot(tx - src.x, tgy - src.y);
     G.projectiles.push({ kind: 'grenade', x: m.x, y: m.y, sx: m.x, sy: src.y, tx, ty: tgy, t: 0, dur: Math.max(0.35, d / 170), h: 14 + d * 0.18, z: src.y - m.y, w, from: src, team: src.team });
+  } else if (w.proj === 'artyshell' || w.proj === 'v2') {
+    // Artillery shells and V2 rockets climb high and come down where the target stood, a little
+    // off: they hit what is standing still and can miss what is moving.
+    const sp = w.spread, tx = t.x + (Math.random() - 0.5) * sp, tgy = t.y + (Math.random() - 0.5) * sp * 0.7;
+    const d = Math.hypot(tx - src.x, tgy - src.y), v2 = w.proj === 'v2';
+    G.projectiles.push({ kind: 'lob', style: w.proj, x: m.x, y: m.y, sx: m.x, sy: src.y, tx, ty: tgy, t: 0, dur: Math.max(0.6, d / (v2 ? 150 : 230)),
+      h: 30 + d * (v2 ? 0.5 : 0.32), z: src.y - m.y, w, from: src, team: src.team, smokeT: 0 });
+    if (!v2) G.effects.push({ type: 'smoke', x: m.x, y: m.y, r: 4, t: 0, life: 0.8, alpha: 0.5, color: '#c9c7c0', vy: -8 });   // muzzle smoke
+    else for (let i = 0; i < 3; i++) G.effects.push({ type: 'smoke', x: src.x + (Math.random() - 0.5) * 10, y: src.y + 2, r: 5, t: -i * 0.08, life: 1.4, alpha: 0.55, color: '#bdb9ae', vy: -5 });   // launch blast
   } else if (w.proj === 'bullet') {
     const jx = (Math.random() - 0.5) * 6, jy = (Math.random() - 0.5) * 6;
     damage(t, w.dmg, w.wh, src);
@@ -857,6 +868,19 @@ function updateProjectiles(dt) {
       const k = Math.min(1, p.t / p.dur);
       p.x = p.tx; p.y = p.ty - p.z * (1 - k * k);
       if (k >= 1) { p.dead = true; bombBlast(p); }
+      continue;
+    }
+    if (p.kind === 'lob') {
+      p.t += dt;
+      const k = Math.min(1, p.t / p.dur), px = p.x, py = p.y;
+      p.gx = p.sx + (p.tx - p.sx) * k; p.gy = p.sy + (p.ty - p.sy) * k;
+      p.x = p.gx; p.y = p.gy - (p.z * (1 - k) + p.h * 4 * k * (1 - k));
+      p.a = Math.atan2(p.y - py, p.x - px);
+      if ((p.smokeT -= dt) <= 0) {
+        p.smokeT = p.style === 'v2' ? 0.03 : 0.07;
+        G.effects.push({ type: 'smoke', x: p.x, y: p.y, r: p.style === 'v2' ? 2.6 : 1.4, t: 0, life: p.style === 'v2' ? 1.6 : 0.6, alpha: p.style === 'v2' ? 0.5 : 0.3, color: '#cfcbc0' });
+      }
+      if (k >= 1) { p.dead = true; lobBlast(p); }
       continue;
     }
     if (p.kind === 'grenade') {
@@ -930,6 +954,21 @@ function grenadeBlast(p) {
   }
 }
 
+// An artillery shell or V2 rocket coming down: a big blast that hurts everything around it.
+function lobBlast(p) {
+  const { tx: x, ty: y, w } = p, v2 = p.style === 'v2';
+  hooks.sfx(v2 ? 'explodeVeh' : 'hitMed', x, y);
+  G.effects.push({ type: 'expl', x, y: y - 4, size: v2 ? 18 : 11, t: 0, life: v2 ? 0.9 : 0.6, seed: (Math.random() * 1e6) | 0, debris: true });
+  if (v2) hooks.shake(x, y, 2.5);
+  scorch(G.tctx, x, y, v2 ? 13 : 8, (Math.random() * 1e6) | 0);
+  craterAt(x, y, v2 ? 9 : 5);
+  const from = p.from.alive ? p.from : null;
+  for (const e of G.entities) {
+    if (!e.alive || e.team === p.team || isAirborne(e)) continue;
+    const d = distTo({ x, y }, e);
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.65), w.wh, from, { x, y });
+  }
+}
 function bombBlast(p) {
   const { tx: x, ty: y, w } = p;
   hooks.sfx('explodeVeh', x, y);
@@ -1116,7 +1155,7 @@ const RAG_MIN = [[2, 9, 0.5], [2, 10, 0.5], [1, 5, 0.45], [1, 6, 0.45], [0, 2, 0
 function ragdoll(e, wh, from) {
   const r = Math.random;
   const a = from && (from.x !== e.x || from.y !== e.y) ? Math.atan2(e.y - from.y, e.x - from.x) : r() * Math.PI * 2;
-  const blast = wh === 'HE' || wh === 'AP';
+  const blast = wh === 'HE' || wh === 'AP' || wh === 'ART';
   const fx = { type: 'ragdoll', x: e.x, y: e.y, unitType: e.type, faction: e.faction, face: e.face, t: 0, life: 14, age: 0, still: 0, acc: 0 };
   // Joints in world space, standing as the soldier stood.
   const n = RAG_PTS.length, ca = Math.cos(e.face), sa = Math.sin(e.face);
@@ -1372,7 +1411,8 @@ function engage(u, t, dt) {
   if (d <= w.range) {
     u.dest = null; u.path = null;
     let aligned = true;
-    if (u.cls === 'veh') { u.tface = turnToward(u.tface, ang, 5 * dt); aligned = Math.abs(angDiff(ang, u.tface)) < 0.12; }
+    if (u.def.fixed) { u.face = u.tface = turnToward(u.face, ang, u.def.turn * dt); aligned = Math.abs(angDiff(ang, u.face)) < 0.08; }   // no turret: turn the vehicle
+    else if (u.cls === 'veh') { u.tface = turnToward(u.tface, ang, 5 * dt); aligned = Math.abs(angDiff(ang, u.tface)) < 0.12; }
     else u.face = ang;
     if (aligned && u.cd <= 0 && w === u.def.weapon) { shoot(u, w, t); u.cd = w.rof; }
   } else {
@@ -1606,6 +1646,7 @@ function updateAir(u, dt) {
   const w = u.def.weapon, jet = u.def.fly === 'jet';
   if (u.flareSeq) dropFlare(u);
   if (u.target && !u.target.alive) u.target = null;
+  if (u.order.type === 'attack' && !u.order.target.alive) setGuard(u);   // its target is gone: hold here
 
   if (u.as === 'landed') {
     u.alt = 0; u.speedCur = 0;
@@ -1910,7 +1951,7 @@ function hasBuilt(team, type) { return G.entities.some((e) => e.alive && e.kind 
 function available(team, type) {
   const d = defOf(type);
   if (!d.factions.includes(team.faction)) return false;
-  if (UNIT_DEFS[type]) return hasBuilt(team, d.producer);
+  if (UNIT_DEFS[type]) return hasBuilt(team, d.producer) && (d.req || []).every((r) => hasBuilt(team, r));
   return hasBuilt(team, 'cy') && d.req.every((r) => hasBuilt(team, r));
 }
 
