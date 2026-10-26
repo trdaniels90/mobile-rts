@@ -1,10 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#16130f"/>
-  <circle cx="256" cy="300" r="190" fill="#3f6b34"/>
-  <path d="M136 400V210h40v-40h40v40h80v-40h40v40h40v190z" fill="#8d8a83" stroke="#3b3a36" stroke-width="10" stroke-linejoin="round"/>
-  <rect x="186" y="250" width="140" height="110" fill="#4f8ef7"/>
-  <path d="M226 400v-60a30 30 0 0 1 60 0v60z" fill="#4a3b2a"/>
-  <path d="M256 170V80" stroke="#3b3a36" stroke-width="10" stroke-linecap="round"/>
-  <path d="M260 82l78 20-78 22z" fill="#f2c94c"/>
-  <path d="M372 410l26-46 26 46-26 22z" fill="#f2c94c" stroke="#7a5a10" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Red Horizon: a tank on a ridge against a red sunset. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c0b10"/>
+      <stop offset="0.35" stop-color="#5c1219"/>
+      <stop offset="0.6" stop-color="#b8291c"/>
+      <stop offset="0.72" stop-color="#ef7a24"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe08a"/>
+      <stop offset="1" stop-color="#f4621b"/>
+    </linearGradient>
+    <clipPath id="frame"><rect width="512" height="512" rx="96"/></clipPath>
+    <clipPath id="disc"><circle cx="256" cy="352" r="150"/></clipPath>
+  </defs>
+  <g clip-path="url(#frame)">
+    <rect width="512" height="512" fill="url(#sky)"/>
+    <!-- The sun sinking behind the horizon, cut by bands of haze. -->
+    <circle cx="256" cy="352" r="150" fill="url(#sun)"/>
+    <g fill="#c4301d" clip-path="url(#disc)">
+      <rect x="90" y="300" width="332" height="7"/>
+      <rect x="90" y="322" width="332" height="10"/>
+      <rect x="90" y="346" width="332" height="13"/>
+    </g>
+    <!-- Far hills, then the near ridge. -->
+    <path d="M0 360 Q70 338 140 352 T300 346 T512 340 V512 H0 Z" fill="#3a1012"/>
+    <path d="M0 404 Q90 372 190 380 Q270 386 330 366 Q420 340 512 372 V512 H0 Z" fill="#120708"/>
+    <!-- The tank on the crest, gun raised toward the sun. -->
+    <g fill="#0a0405" transform="translate(271 352) scale(1.3) translate(-271 -352)">
+      <rect x="196" y="338" width="150" height="30" rx="15"/>
+      <path d="M202 340 L216 314 H330 L344 340 Z"/>
+      <path d="M236 316 Q238 290 268 286 H298 Q314 288 316 316 Z"/>
+      <path d="M306 296 L420 266 L423 276 L310 307 Z"/>
+      <rect x="414" y="261" width="14" height="19" rx="3" transform="rotate(-15 421 270)"/>
+      <path d="M252 288 L246 246" stroke="#0a0405" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <g fill="#2a1414" transform="translate(271 352) scale(1.3) translate(-271 -352)">
+      <circle cx="214" cy="353" r="6"/><circle cx="238" cy="356" r="6"/><circle cx="262" cy="356" r="6"/>
+      <circle cx="286" cy="356" r="6"/><circle cx="310" cy="356" r="6"/><circle cx="330" cy="353" r="6"/>
+    </g>
+  </g>
 </svg>
