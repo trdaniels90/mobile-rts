@@ -196,6 +196,24 @@ function bakeWreck(tg, x, y, def, face, tface) {
   const ts = turretSprite(fake, BURNT);
   if (ts) tg.drawImage(charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - TURRET_Z[def.draw] * VK + ts.oy));
 }
+// A fallen soldier painted into the ground: lying at an angle, helmet off to one side, a dark stain.
+function bakeCorpse(tg, x, y, faction, face, seed) {
+  const r = rng(seed), pal = FACTIONS[faction].pal, a = (face || 0) + (r() - 0.5) * 2.4;
+  tg.save();
+  tg.translate(Math.round(x), Math.round(y)); tg.rotate(a);
+  tg.fillStyle = 'rgba(70,14,10,0.55)'; tg.beginPath(); tg.ellipse(1, 1, 5 + r() * 2, 3, 0, 0, 7); tg.fill();
+  tg.fillStyle = 'rgba(0,0,0,0.3)'; tg.fillRect(-5, 0, 11, 3);
+  tg.fillStyle = faction === 'soviets' ? '#6a604a' : '#5f6a44'; tg.fillRect(-6, -1, 4, 1); tg.fillRect(-6, 1, 4, 1);   // legs
+  tg.fillStyle = '#1c1c1a'; tg.fillRect(-7, -1, 1, 1); tg.fillRect(-7, 1, 1, 1);                                          // boots
+  tg.fillStyle = pal.dark; tg.fillRect(-2, -2, 5, 4);                                                                     // tunic
+  tg.fillStyle = pal.main; tg.fillRect(-2, -2, 5, 1);
+  tg.fillStyle = '#c38d66'; tg.fillRect(3, -1, 2, 2);                                                                     // head
+  tg.fillStyle = '#34362f'; tg.fillRect(-1, 3, 6, 1);                                                                     // rifle
+  tg.restore();
+  tg.fillStyle = faction === 'soviets' ? '#7d7a52' : '#7a8a52';
+  tg.fillRect(Math.round(x + (r() - 0.5) * 12), Math.round(y + (r() - 0.5) * 8), 2, 2);                                  // helmet
+}
+
 // Blackened, soot-streaked copy of a sprite, with a few rust patches.
 function charred(img, seed) {
   const r = rng(seed), c = mkCanvas(img.width, img.height), g = c.getContext('2d');
@@ -285,10 +303,13 @@ function drawUnit(g, u, t) {
     }
     if (u.fireT > 0) flash(g, u.x + Math.cos(u.face) * 10, u.y - alt + Math.sin(u.face) * 10, 2);
     // Parked: ammunition pips fill up as the ground crew rearms it.
+    // Yellow: main weapon, blue: air-to-air missiles, grey: bombs.
     if (u.as === 'landed' && u.def.weapon) {
-      const n = u.def.weapon.ammo, x0 = Math.round(u.x - n * 1.5), y0 = Math.round(u.y + 9);
+      const loads = [[u.def.weapon.ammo, u.ammo, '#e8c64a'], [u.def.weapon2 ? u.def.weapon2.ammo : 0, u.aam || 0, '#9cc8ff'], [u.def.bombs || 0, u.bombs || 0, '#b8b6aa']];
+      const n = loads.reduce((s, l) => s + l[0], 0), x0 = Math.round(u.x - n * 1.5), y0 = Math.round(u.y + 9);
       g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x0 - 1, y0 - 1, n * 3 + 1, 4);
-      for (let i = 0; i < n; i++) { g.fillStyle = i < u.ammo ? '#e8c64a' : '#4a4436'; g.fillRect(x0 + i * 3, y0, 2, 2); }
+      let i = 0;
+      for (const [max, have, col] of loads) for (let j = 0; j < max; j++, i++) { g.fillStyle = j < have ? col : '#4a4436'; g.fillRect(x0 + i * 3, y0, 2, 2); }
     }
     return;
   }
@@ -540,6 +561,14 @@ function drawEffect(g, fx) {
       break;
     }
     case 'husk': drawHusk(g, fx); break;
+    case 'flare': {
+      const a = Math.max(0, 1 - k);
+      g.fillStyle = `rgba(255,170,60,${0.35 * a})`; g.beginPath(); g.arc(fx.x, fx.y, 3.5, 0, 7); g.fill();
+      g.fillStyle = `rgba(255,248,220,${a})`; g.fillRect(Math.round(fx.x - 1), Math.round(fx.y - 1), 2, 2);
+      g.strokeStyle = `rgba(210,206,196,${0.4 * a})`; g.lineWidth = 1;                         // smoke trail
+      g.beginPath(); g.moveTo(fx.x, fx.y); g.lineTo(fx.x - fx.vx * 0.25, fx.y - fx.vy * 0.25); g.stroke();
+      break;
+    }
     case 'crash': {
       // A downed aircraft tumbling toward its shadow.
       const fake = { def: fx.def, face: fx.face, faction: fx.faction }, s = hullSprite(fake, palFor(fx.faction)), hgt = fx.alt / VK;

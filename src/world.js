@@ -415,7 +415,7 @@ function addUnit(type, team, x, y) {
   };
   u.tface = u.face;
   if (d.harvester) { u.load = 0; u.hs = 'seek'; u.hcell = -1; u.htimer = 0; }
-  if (d.cls === 'air') { u.ammo = d.weapon ? d.weapon.ammo : 0; u.alt = 0; u.as = 'takeoff'; u.rt = 0; u.passT = 0; u.speedCur = 0; }
+  if (d.cls === 'air') { u.ammo = d.weapon ? d.weapon.ammo : 0; u.aam = d.weapon2 ? d.weapon2.ammo : 0; u.bombs = d.bombs || 0; u.flares = d.flares || 0; u.alt = 0; u.as = 'takeoff'; u.rt = 0; u.passT = 0; u.speedCur = 0; }
   G.entities.push(u); G.byId.set(u.id, u);
   return u;
 }
@@ -520,7 +520,7 @@ function launchGroups() {
 function launchAircraft(u) {
   setHunt(u);
   u.staged = false;
-  if (u.as === 'landed' && u.ammo > 0) u.as = 'takeoff';
+  if (u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff';
 }
 
 // Enemies near or inside a base (paratroopers, flanking squads), or shooting at an Ore Truck,
@@ -544,7 +544,7 @@ function defendBase(team) {
     (nearBase(u, zone) || nearHarv(u, 9) || nearShooter(u)));
   const idle = (u) => u.order.type === 'guard' && (nearBase(u, 16) || nearHarv(u, 24) || nearShooter(u));
   const army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute &&
-    (u.cls !== 'air' || (u.ammo > 0 && u.order.type === 'guard')) &&
+    (u.cls !== 'air' || (!airEmpty(u) && u.order.type === 'guard')) &&
     (u.defending || idle(u) || (team.isAI && u.cls !== 'air')));
   if (!threats.length) {
     if (!team.defending || ++team.calm < DEFEND_CALM) return;
@@ -737,6 +737,15 @@ function updateProjectiles(dt) {
       continue;
     }
     const t = p.target;
+    if ((p.kind === 'missile' || p.kind === 'rocket') && !p.flareChecked && t.alive && t.def && t.def.flares && isAirborne(t) &&
+        Math.hypot(t.x - p.x, aimY(t) - p.y) < 90) {
+      p.flareChecked = true;
+      if (popFlares(t) && Math.random() < 0.6) {
+        p.decoy = true;
+        p.target = { x: t.x - Math.cos(t.face) * 30, y: t.y - Math.sin(t.face) * 30 + 16, alt: t.alt, kind: 'decoy', alive: true };
+        continue;
+      }
+    }
     const tx = t.x, ty = aimY(t);
     const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy), step = p.speed * dt;
     p.a = Math.atan2(dy, dx);
@@ -749,6 +758,7 @@ function updateProjectiles(dt) {
     }
     if (d <= step + 3 || !t.alive) {
       p.dead = true;
+      if (p.decoy) { impact('flak', tx, ty, true); continue; }   // burst harmlessly on a flare
       if (p.kind === 'fireball') { fireBlast(p, t.alive ? t.x : p.x, t.alive ? t.y : p.y); continue; }
       if (t.alive) damage(t, p.w.dmg, p.w.wh, p.from.alive ? p.from : null);
       impact(p.kind, t.alive ? tx : p.x, t.alive ? ty : p.y, isAirborne(t));
@@ -867,7 +877,7 @@ function kill(e, attacker) {
   if (e.kind === 'unit') {
     team.stats.lost++;
     if (e.cls === 'inf') {
-      G.effects.push({ type: 'corpse', x: e.x, y: e.y, faction: e.faction, t: 0, life: 8 });
+      bakeCorpse(G.tctx, e.x, e.y, e.faction, e.face, seed);
     } else if (e.cls === 'veh') {
       hooks.sfx('explodeVeh', e.x, e.y);
       G.effects.push({ type: 'expl', x: e.x, y: e.y - 4, size: 16, t: 0, life: 0.8, seed, debris: true });
@@ -1138,6 +1148,37 @@ function updateHarvester(u, dt) {
 }
 
 // --- Aircraft ---------------------------------------------------------------
+// Loads: ammo (main weapon), aam (jets' air-to-air missiles), bombs (jets), flares (jets).
+const airLoad = (d) => ({ ammo: d.weapon ? d.weapon.ammo : 0, aam: d.weapon2 ? d.weapon2.ammo : 0, bombs: d.bombs || 0 });
+const airEmpty = (u) => u.ammo <= 0 && !(u.aam > 0) && !(u.bombs > 0);
+function airFull(u) { const L = airLoad(u.def); return u.ammo >= L.ammo && (u.aam || 0) >= L.aam && (u.bombs || 0) >= L.bombs; }
+function rearmStep(u) {
+  const L = airLoad(u.def);
+  if (u.ammo < L.ammo) u.ammo++;
+  else if ((u.aam || 0) < L.aam) u.aam = (u.aam || 0) + 1;
+  else if ((u.bombs || 0) < L.bombs) u.bombs = Math.min(L.bombs, (u.bombs || 0) + 2);
+  u.flares = u.def.flares || 0;
+}
+function airWeapons(u) {
+  const ws = [];
+  if (u.ammo > 0 || u.bombs > 0) ws.push(u.def.weapon);
+  if (u.aam > 0 && u.def.weapon2) ws.push(u.def.weapon2);
+  return ws;
+}
+// A jet with a missile or rocket closing in pops flares; while they burn, each incoming
+// missile has a good chance to chase a flare instead.
+function popFlares(t) {
+  if (t.flares > 0 && G.t >= (t.flareCd || 0)) {
+    t.flares--; t.flareCd = G.t + 2; t.flareT = G.t + 1.6;
+    hooks.sfx('throw', t.x, t.y);
+    for (let i = 0; i < 6; i++) {
+      const a = t.face + Math.PI + (i - 2.5) * 0.35;
+      G.effects.push({ type: 'flare', x: t.x - Math.cos(t.face) * 10, y: t.y - (t.alt || 0) - Math.sin(t.face) * 10, vx: Math.cos(a) * 40, vy: Math.sin(a) * 20 + 22, t: -i * 0.05, life: 1.3 });
+    }
+  }
+  return G.t < (t.flareT || 0);
+}
+
 const HELI_ALT = 20, JET_ALT = 30;
 
 function padFor(u) {
@@ -1163,21 +1204,22 @@ function airTarget(u) {
   const o = u.order, sight = u.def.sight * CELL * (u.def.fly === 'jet' ? 1.6 : 1);
   if (o.type === 'attack') { if (o.target.alive) return o.target; setGuard(u); }
   if (o.type === 'move' && u.def.fly === 'heli') return null;
-  if (u.target && u.target.alive && canHit(u.def.weapon, u.target) && distTo(u, u.target) < sight * 1.4) return u.target;
+  const ws = airWeapons(u);
+  if (u.target && u.target.alive && ws.some((w) => canHit(w, u.target)) && distTo(u, u.target) < sight * 1.4) return u.target;
   const src = o.type === 'guard' ? { x: o.x, y: o.y, team: u.team } : u;
-  return acquire(src, sight, [u.def.weapon]);
+  return ws.length ? acquire(src, sight, ws) : null;
 }
 
 function updateAir(u, dt) {
-  const w = u.def.weapon, maxAmmo = w.ammo, jet = u.def.fly === 'jet';
+  const w = u.def.weapon, jet = u.def.fly === 'jet';
   if (u.target && !u.target.alive) u.target = null;
 
   if (u.as === 'landed') {
     u.alt = 0; u.speedCur = 0;
     u.rt += dt;
-    if (u.ammo < maxAmmo && u.rt >= (jet ? 1.5 : 0.5)) { u.ammo++; u.rt = 0; }
+    if (!airFull(u) && u.rt >= (jet ? 1.5 : 0.5)) { rearmStep(u); u.rt = 0; }
     // Aircraft told to wait on their pad stay parked until auto attack, an order or a raid sends them up.
-    if (u.ammo >= maxAmmo && u.order.type !== 'rearm-hold' && !(u.order.type === 'guard' && u.order.pad)) u.as = 'takeoff';
+    if (airFull(u) && u.order.type !== 'rearm-hold' && !(u.order.type === 'guard' && u.order.pad)) u.as = 'takeoff';
     return;
   }
   if (u.as === 'takeoff') {
@@ -1189,7 +1231,7 @@ function updateAir(u, dt) {
   }
 
   // Out of ammo, or told to wait on the pad: head home and land.
-  if (u.ammo <= 0 || (u.order.type === 'guard' && u.order.pad)) {
+  if (airEmpty(u) || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {
       const spot = padSpot(pad, u);
@@ -1205,7 +1247,7 @@ function updateAir(u, dt) {
     }
     // No pad: limp back to base and rearm slowly in the air.
     u.rt += dt;
-    if (u.rt > 6) { u.ammo = maxAmmo; u.rt = 0; }
+    if (u.rt > 6) { while (!airFull(u)) rearmStep(u); u.rt = 0; }
     const home = buildingsOf(u.team)[0] || u;
     if (jet) orbit(u, home.x, home.y, dt); else flyHeli(u, home.x, home.y, dt);
     return;
@@ -1218,10 +1260,19 @@ function updateAir(u, dt) {
   if (jet) {
     if (u.passT > 0) { u.passT -= dt; flyJet(u, u.x + Math.cos(u.face) * 100, u.y + Math.sin(u.face) * 100, dt); return; }
     if (t) {
-      const d = distTo(u, t), ang = Math.atan2(t.y - u.y, t.x - u.x);
-      if (d <= w.range && Math.abs(angDiff(ang, u.face)) < 0.35 && u.cd <= 0) {
-        shoot(u, w, t); u.cd = w.rof; u.ammo--;
-        if (u.ammo <= 0 || Math.random() < 0.5) u.passT = 0.9;
+      const d = distTo(u, t), ang = Math.atan2(t.y - u.y, t.x - u.x), air = isAirborne(t);
+      // Air targets get air-to-air missiles; ground targets get missiles from range, then bombs overhead.
+      const mw = air ? (u.aam > 0 ? u.def.weapon2 : null) : (u.ammo > 0 ? w : null);
+      if (mw && d <= mw.range && Math.abs(angDiff(ang, u.face)) < 0.35 && u.cd <= 0) {
+        shoot(u, mw, t); u.cd = mw.rof;
+        if (air) u.aam--; else u.ammo--;
+        if (Math.random() < 0.5) u.passT = 0.9;
+      } else if (!air && u.bombs > 0 && d < 12 && u.cd2 <= 0) {
+        for (let i = 0; i < 2; i++) {
+          const ox = Math.cos(u.face) * i * 14, oy = Math.sin(u.face) * i * 14;
+          G.projectiles.push({ kind: 'bomb', team: u.team, from: u, w: u.def.bomb, tx: u.x + ox, ty: u.y + oy, x: u.x + ox, y: u.y + oy - u.alt, z: u.alt, t: 0, dur: 0.5, delay: i * 0.08 });
+        }
+        u.bombs -= 2; u.cd2 = 1.2; u.passT = 0.9;
       }
       flyJet(u, t.x, t.y, dt);
     } else if (o.type === 'hunt') {
@@ -1594,7 +1645,7 @@ function commandMove(units, x, y) {
       if (G.ore[c] > 0) { u.hcell = c; u.hs = 'seek'; goTo(u, x, y); }
       else { u.hs = 'manual'; goTo(u, s.x, s.y); }
     } else if (u.cls === 'air') {
-      if (u.ammo <= 0) return;
+      if (airEmpty(u)) return;
       u.order = u.def.fly === 'jet' ? { type: 'guard', x, y } : { type: 'move', x: s.x, y: s.y };
       if (u.as === 'landed') u.as = 'takeoff';
     } else {
@@ -1608,11 +1659,11 @@ function commandAttack(units, target) {
     if (u.def.harvester || !canTarget(u, target)) continue;
     u.order = { type: 'attack', target }; u.staged = false; u.defending = false;
     u.target = target;
-    if (u.cls === 'air' && u.as === 'landed' && u.ammo > 0) u.as = 'takeoff';
+    if (u.cls === 'air' && u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff';
   }
 }
 function commandHunt(units) {
-  for (const u of units) if (!u.def.harvester) { setHunt(u); u.staged = false; u.defending = false; if (u.cls === 'air' && u.as === 'landed' && u.ammo > 0) u.as = 'takeoff'; }
+  for (const u of units) if (!u.def.harvester) { setHunt(u); u.staged = false; u.defending = false; if (u.cls === 'air' && u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff'; }
 }
 function commandStop(units) {
   for (const u of units) {
