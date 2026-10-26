@@ -51,7 +51,7 @@ function newWorld(playerFaction, diffKey, seed) {
 }
 
 function makeTeam(id, faction, isAI) {
-  const start = id === PLAYER ? { cx: 13, cy: 74 } : { cx: MAP - 1 - 13, cy: MAP - 1 - 74 };
+  const start = id === PLAYER ? { cx: BASE_IN, cy: MAP - 1 - BASE_IN } : { cx: MAP - 1 - BASE_IN, cy: BASE_IN };
   return {
     id, faction, isAI, pal: FACTIONS[faction].pal, credits: 5000, shown: 5000, start,
     power: { prod: 0, use: 0 }, low: false, auto: true,
@@ -74,8 +74,9 @@ function makeTeam(id, faction, isAI) {
 // x = y), d runs from base to base (the player at d = +43, the enemy at d = -43).
 const LT = (x, y) => (x + y) / 2, LD = (x, y) => (y - x) / Math.SQRT2;
 const LX = (t, d) => t - d / Math.SQRT2, LY = (t, d) => t + d / Math.SQRT2;
-const MID = (MAP - 1) / 2;
-const LAKE_IN = 3.4, LAKE_OUT = 34.5, LAKE_W = 8, BRIDGE_T = 18;
+// The layout was designed on an 88-cell map; K scales it to the current map size.
+const MID = (MAP - 1) / 2, K = MAP / 88, BASE_IN = 12;
+const LAKE_IN = 3.4 * K, LAKE_OUT = 34.5 * K, LAKE_W = 8 * K, BRIDGE_T = 18 * K;
 
 function genMap(seed) {
   const r = rng(seed ^ 0x5bd1e995);
@@ -90,25 +91,27 @@ function genMap(seed) {
   const coastW = wobble(40, 1.4), lakeW = wobble(30, 2.4), lakeEnd = wobble(4, 2);
 
   // Ore: [t offset from the middle, d] for the player's half; mirrored for the enemy.
+  const DB = LD(P.cx, P.cy);   // the player's base, in layout terms (t = 0, d = DB)
   const fieldsHalf = [
-    { t: 9.5, d: 38, r: 3.4, rich: 1 },      // beside the base, one each side
-    { t: -9.5, d: 38, r: 3.2, rich: 0.9 },
-    { t: -10, d: 12.5, r: 3, rich: 1.15 },   // forward fields on the lake shores, between the crossings
+    { t: 9.5, d: DB - 5, r: 3.4, rich: 1 },      // beside the base, one each side
+    { t: -9.5, d: DB - 5, r: 3.2, rich: 0.9 },
+    { t: -10, d: 12.5, r: 3, rich: 1.15 },       // forward fields on the lake shores, between the crossings
     { t: 10, d: 12.5, r: 3, rich: 1.15 },
-    { t: -26, d: 13, r: 2.8, rich: 0.9 },    // beside the flank route
+    { t: -26, d: 13, r: 2.8, rich: 0.9 },        // beside the flank route
   ];
   const fields = [];
   for (const f of fieldsHalf) {
-    const cx = LX(MID + f.t, f.d), cy = LY(MID + f.t, f.d);
+    const ft = f.t * (Math.abs(f.t) > 12 ? K : 1), fd = f.d === DB - 5 ? f.d : f.d * K;
+    const cx = LX(MID + ft, fd), cy = LY(MID + ft, fd);
     fields.push({ cx, cy, r: f.r, rich: f.rich }, { cx: MAP - 1 - cx, cy: MAP - 1 - cy, r: f.r, rich: f.rich });
   }
   G.oreFields = fields;
 
   // Routes to keep open, as [t offset, d] waypoints from the player's base to the middle line.
   const routes = [
-    [[0, 43], [0, 20], [0, 0]],                                         // centre road
-    [[0, 43], [-BRIDGE_T, 22], [-BRIDGE_T, 0]], [[0, 43], [BRIDGE_T, 22], [BRIDGE_T, 0]],   // bridges
-    [[0, 43], [-33, 26], [-39, 0]],                                     // around the lake end
+    [[0, DB], [0, 20 * K], [0, 0]],                                                               // centre road
+    [[0, DB], [-BRIDGE_T, 22 * K], [-BRIDGE_T, 0]], [[0, DB], [BRIDGE_T, 22 * K], [BRIDGE_T, 0]],   // bridges
+    [[0, DB], [-33 * K, 26 * K], [-39 * K, 0]],                                                   // around the lake end
   ];
   const routeCells = new Uint8Array(NCELLS);
   const markRoute = (pts, w) => {
@@ -175,7 +178,7 @@ function genMap(seed) {
 
   // The main road: dirt from base to base over the centre gap.
   G.road = [];
-  const road = [[0, 43], [1.5, 30], [-1, 16], [0.5, 5], [0, 0]];
+  const road = [[0, DB], [1.5, DB * 0.7], [-1, DB * 0.37], [0.5, DB * 0.12], [0, 0]];
   const pts = road.map(([t, d]) => [LX(MID + t, d), LY(MID + t, d)]);
   const full = pts.concat(pts.slice(0, -1).reverse().map(([x, y]) => [MAP - 1 - x, MAP - 1 - y]));
   for (let i = 0; i < full.length - 1; i++) {
