@@ -284,7 +284,7 @@ function infModel(pal, faction, type, frame) {
   m.set(1, 0, 14, shadeInt(K.skin, 0.8));
   // Headgear.
   if (type === 'grenadier') {
-    m.box(-1, -1, 17, 2, 2, 18, '#5e4a34'); m.box(-1, -2, 17, 2, 3, 17.5, '#5e4a34'); m.box(2, -1, 17, 3, 2, 17.5, '#4a3a28');   // field cap
+    m.box(-1, -1, 17, 2, 2, 18, '#5d6236'); m.box(-1, -2, 17, 2, 3, 17.5, '#5d6236'); m.box(2, -1, 17, 3, 2, 17.5, '#474a28');   // field cap
   } else if (type === 'pilot') {
     m.box(-2, -2, 15, 2, 3, 18, '#cfcab8'); m.box(-1, -1, 18, 2, 2, 19, '#cfcab8');                  // flight helmet, dark visor
     m.box(2, -1, 15, 3, 2, 17, '#22262a', M_GLASS);
@@ -319,7 +319,7 @@ function infKit(pal, faction) {
   const sov = faction === 'soviets';
   return {
     pants: mixHex(pal.dark, sov ? '#5e5644' : '#4f5a3c', 0.55), web: '#3b3324', pouch: '#4a4630', skin: '#d6a07a',
-    helm: mixHex(pal.dark, sov ? '#6a7050' : '#6f7e4a', sov ? 0.78 : 0.5),
+    helm: sov ? 0x4f6438 : mixHex(pal.dark, '#6f7e4a', 0.5),
   };
 }
 
@@ -647,7 +647,7 @@ function proneModel(pal, faction, type) {
   m.box(-6, -2, 0, -5, 2, 3, K.web);
   if (type !== 'pilot') m.box(-5, -2, 3, -1, 2, 4, C.oliveD);
   m.box(2, -1, 0, 5, 2, 3, K.skin);
-  m.box(1, -2, 2, 5, 3, 4, type === 'pilot' ? '#cfcab8' : type === 'grenadier' ? '#5e4a34' : K.helm);
+  m.box(1, -2, 2, 5, 3, 4, type === 'pilot' ? '#cfcab8' : type === 'grenadier' ? '#5d6236' : K.helm);
   for (const y of [-3, 2]) { m.box(1, y, 0, 5, y + 1, 1.5, shadeInt(pal.main, 0.86)); m.set(5, y, 0, K.skin); }
   if (type === 'rocket') { m.cylX(-4, 8, -2.5, 3.5, 1.3, '#56603a'); m.box(8, -4, 2, 10, -1, 5, '#2a2a24'); }
   else if (type === 'grenadier') m.box(5, 1, 0, 7, 3, 1.5, '#3f4a2a');
