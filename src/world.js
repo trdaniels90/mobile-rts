@@ -1228,9 +1228,11 @@ function updateAir(u, dt) {
         if ((u.repT = (u.repT || 0) + dt) >= 0.25) { u.repT = 0; team.credits -= cost; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.02); }
       } else notify(team, 'funds', 'Insufficient funds', 8);
     }
+    if (u.repairHold && u.hp >= u.maxHp) u.repairHold = false;
     // Aircraft told to wait on their pad stay parked until auto attack, an order or a raid sends them up.
-    // They also wait for repairs to finish, unless there is no money to pay for them.
-    if (airFull(u) && !u.repairing && u.order.type !== 'rearm-hold' && !(u.order.type === 'guard' && u.order.pad)) u.as = 'takeoff';
+    // They also wait while repairs are under way, and one that came home damaged waits until it is
+    // fully repaired, even if that means waiting for money.
+    if (airFull(u) && !u.repairing && !u.repairHold && u.order.type !== 'rearm-hold' && !(u.order.type === 'guard' && u.order.pad)) u.as = 'takeoff';
     return;
   }
   if (u.as === 'takeoff') {
@@ -1241,12 +1243,10 @@ function updateAir(u, dt) {
     return;
   }
 
-  // Badly damaged: break off and fly home for repairs, but only with a pad to land on and money
-  // for a real repair (10% of the price, a fifth of its health). When short of money it fights
-  // on rather than flying home for nothing, so it never bounces between the pad and the battle.
-  // Aircraft on a direct player order keep to it.
-  if (!u.retreat && u.hp < u.maxHp * 0.35 && (u.order.type === 'hunt' || u.order.type === 'guard') && padFor(u) &&
-      G.teams[u.team].credits >= u.def.cost * 0.1) {
+  // Badly damaged: break off and fly home, then stay on the pad until fully repaired. Short of
+  // money, repairs pause until the Ore Trucks bring more in. A direct player order sends it out
+  // early; aircraft already on one keep to it.
+  if (!u.retreat && u.hp < u.maxHp * 0.35 && (u.order.type === 'hunt' || u.order.type === 'guard') && padFor(u)) {
     u.retreat = true;
     if (u.team === PLAYER) notify(G.teams[u.team], 'retreat', 'Aircraft returning for repairs', 10);
   }
@@ -1258,10 +1258,10 @@ function updateAir(u, dt) {
       const spot = padSpot(pad, u);
       const d = Math.hypot(spot.x - u.x, spot.y - u.y);
       if (jet) {
-        if (d < 26) { u.as = 'landed'; u.x = spot.x; u.y = spot.y; u.face = 0; u.rt = 0; u.retreat = false; return; }
+        if (d < 26) { u.as = 'landed'; u.x = spot.x; u.y = spot.y; u.face = 0; u.rt = 0; if (u.retreat) u.repairHold = true; u.retreat = false; return; }
         flyJet(u, spot.x, spot.y, dt);
       } else {
-        if (d < 3) { u.alt = Math.max(0, u.alt - 20 * dt); if (u.alt <= 0) { u.as = 'landed'; u.rt = 0; u.retreat = false; } return; }
+        if (d < 3) { u.alt = Math.max(0, u.alt - 20 * dt); if (u.alt <= 0) { u.as = 'landed'; u.rt = 0; if (u.retreat) u.repairHold = true; u.retreat = false; } return; }
         flyHeli(u, spot.x, spot.y, dt);
       }
       return;
@@ -1667,6 +1667,7 @@ function commandMove(units, x, y) {
       else { u.hs = 'manual'; goTo(u, s.x, s.y); }
     } else if (u.cls === 'air') {
       if (airEmpty(u)) return;
+      u.repairHold = false; u.retreat = false;
       u.order = u.def.fly === 'jet' ? { type: 'guard', x, y } : { type: 'move', x: s.x, y: s.y };
       if (u.as === 'landed') u.as = 'takeoff';
     } else {
@@ -1678,7 +1679,7 @@ function commandMove(units, x, y) {
 function commandAttack(units, target) {
   for (const u of units) {
     if (u.def.harvester || !canTarget(u, target)) continue;
-    u.order = { type: 'attack', target }; u.staged = false; u.defending = false;
+    u.order = { type: 'attack', target }; u.staged = false; u.defending = false; u.repairHold = false; u.retreat = false;
     u.target = target;
     if (u.cls === 'air' && u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff';
   }
