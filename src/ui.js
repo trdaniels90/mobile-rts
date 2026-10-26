@@ -828,6 +828,7 @@
     ui.menu.classList.toggle('lost', mode === 'end' && !won);
     syncMenuChoices();
   }
+  $('manualBtn').addEventListener('click', () => Manual.open(faction));
   for (const b of ui.menu.querySelectorAll('[data-audio]')) b.addEventListener('click', () => {
     Sound.init();
     const key = b.dataset.audio;
