@@ -328,6 +328,32 @@ const STRUCTURES = {
     m.box(39, 45, 5, 41, 46, 7, C.yellow);
     return m;
   },
+  // Advanced Power Plant: a turbine hall and two hyperboloid cooling towers.
+  apower(pal) {
+    const m = new VModel(-2, -2, 74, 74, 46);
+    slabV(m, 0, 0, 72, 72);
+    // Turbine hall along the front
+    m.box(3, 38, 1, 68, 68, 15, C.wall, M_MATTE);
+    m.box(3, 38, 15, 68, 68, 16, pal.main, M_METAL);
+    m.paint(3, 38, 15, 68, 68, 16, (x) => x % 6 === 0 ? pal.dark : undefined);
+    m.paint(3, 67, 1, 68, 68, 15, (x, y, z) => (z >= 6 && z <= 8 && x % 5 < 2) ? C.glass : undefined);
+    for (const x of [8, 20, 32, 44, 56]) m.box(x, 44, 16, x + 7, 54, 20, '#5d5e58', M_METAL);
+    // Two cooling towers side by side at the back, piped to the hall
+    for (const [cx, cy, h] of [[15, 17, 40], [41, 17, 40]]) {
+      for (let z = 1; z < h; z++) {
+        const r = 11 * (1 - 0.28 * Math.sin(Math.PI * Math.min(1, z / (h * 0.85))));
+        m.cylZ(cx, cy, z, z + 1, r, z > h - 4 ? pal.main : C.wall, M_MATTE);
+      }
+      m.cylZ(cx, cy, h - 6, h, 6.5, null);
+      m.cylY(27, 38, cx, 7, 1.8, C.steel, M_METAL);
+    }
+    // Transformer yard
+    m.box(56, 4, 1, 70, 32, 6, '#5d5e58', M_METAL);
+    m.paint(56, 4, 3, 70, 32, 6, (x, y) => (x % 4 === 0 || y % 6 === 0) ? '#46473f' : undefined);
+    for (const y of [10, 18, 26]) m.line(63, y, 6, 63, y, 13, C.steel, M_METAL);
+    m.box(55, 4, 4, 56, 32, 6, C.yellow);
+    return m;
+  },
   refinery(pal) {
     const m = new VModel(-2, -2, 74, 50, 40);
     slabV(m, 0, 0, 72, 48);

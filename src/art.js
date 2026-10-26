@@ -196,22 +196,27 @@ function bakeWreck(tg, x, y, def, face, tface) {
   const ts = turretSprite(fake, BURNT);
   if (ts) tg.drawImage(charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - TURRET_Z[def.draw] * VK + ts.oy));
 }
-// A fallen soldier painted into the ground: lying at an angle, helmet off to one side, a dark stain.
-function bakeCorpse(tg, x, y, faction, face, seed) {
-  const r = rng(seed), pal = FACTIONS[faction].pal, a = (face || 0) + (r() - 0.5) * 2.4;
+// A fallen soldier: the unit's own sprite tipped onto its side, a shade darker, over a dark stain.
+function bakeCorpse(tg, u, seed) {
+  const r = rng(seed), s = infSprite({ type: u.type, faction: u.faction, face: u.face }, palFor(u.faction), 0);
+  const side = r() < 0.5 ? -1 : 1, a = side * (Math.PI / 2) + (r() - 0.5) * 0.5;
+  const x = Math.round(u.x), y = Math.round(u.y);
+  tg.fillStyle = 'rgba(70,14,10,0.5)';
+  tg.beginPath(); tg.ellipse(x + side * 6, y + 1, 6 + r() * 2, 3, 0, 0, 7); tg.fill();
+  tg.fillStyle = 'rgba(0,0,0,0.28)';
+  tg.beginPath(); tg.ellipse(x + side * 7, y + 2, 9, 3, 0, 0, 7); tg.fill();
   tg.save();
-  tg.translate(Math.round(x), Math.round(y)); tg.rotate(a);
-  tg.fillStyle = 'rgba(70,14,10,0.55)'; tg.beginPath(); tg.ellipse(1, 1, 5 + r() * 2, 3, 0, 0, 7); tg.fill();
-  tg.fillStyle = 'rgba(0,0,0,0.3)'; tg.fillRect(-5, 0, 11, 3);
-  tg.fillStyle = faction === 'soviets' ? '#6a604a' : '#5f6a44'; tg.fillRect(-6, -1, 4, 1); tg.fillRect(-6, 1, 4, 1);   // legs
-  tg.fillStyle = '#1c1c1a'; tg.fillRect(-7, -1, 1, 1); tg.fillRect(-7, 1, 1, 1);                                          // boots
-  tg.fillStyle = pal.dark; tg.fillRect(-2, -2, 5, 4);                                                                     // tunic
-  tg.fillStyle = pal.main; tg.fillRect(-2, -2, 5, 1);
-  tg.fillStyle = '#c38d66'; tg.fillRect(3, -1, 2, 2);                                                                     // head
-  tg.fillStyle = '#34362f'; tg.fillRect(-1, 3, 6, 1);                                                                     // rifle
+  tg.translate(x, y + 1); tg.rotate(a);
+  const img = dimmed(s.img);
+  tg.drawImage(img, Math.round(s.ox), Math.round(s.oy));
   tg.restore();
-  tg.fillStyle = faction === 'soviets' ? '#7d7a52' : '#7a8a52';
-  tg.fillRect(Math.round(x + (r() - 0.5) * 12), Math.round(y + (r() - 0.5) * 8), 2, 2);                                  // helmet
+}
+function dimmed(img) {
+  const c = mkCanvas(img.width, img.height), g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = 'rgba(20,16,12,0.28)'; g.fillRect(0, 0, c.width, c.height);
+  return c;
 }
 
 // Blackened, soot-streaked copy of a sprite, with a few rust patches.

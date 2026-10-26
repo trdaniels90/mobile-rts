@@ -15,6 +15,7 @@ function aiNextStructure(team, c) {
   if (pending) return null;
   const n = (t) => c[t] || 0;
   const powerNeed = (t) => -Math.min(0, BUILD_DEFS[t].power);
+  const pwr = available(team, 'apower') ? 'apower' : 'power';
   const wants = [
     ['refinery', 1], ['barracks', 1], [antiInf, 1], ['factory', 1], [defense, 1], ['refinery', 2], ['helipad', 1], [antiInf, 2],
     [defense, 2], [aa, 1], ['airfield', 1], ['factory', 2], [defense, 3], [aa, 2], ['refinery', 3], [defense, 4],
@@ -22,10 +23,10 @@ function aiNextStructure(team, c) {
   for (const [type, count] of wants) {
     if (n(type) >= count || !available(team, type)) continue;
     // Build power first if this structure would push us into low power.
-    if (p.prod - p.use < powerNeed(type) + 10 && available(team, 'power')) return 'power';
+    if (p.prod - p.use < powerNeed(type) + 10 && available(team, pwr)) return pwr;
     return type;
   }
-  if (p.prod - p.use < 40) return 'power';
+  if (p.prod - p.use < 40) return pwr;
   return null;
 }
 
@@ -57,7 +58,7 @@ function aiPowerTarget(team, cluster) {
   const theirs = buildingsOf(enemyOf(team).id);
   if (!theirs.length) return null;
   if (!cluster) {
-    const econ = theirs.filter((b) => b.type === 'refinery' || b.type === 'power');
+    const econ = theirs.filter((b) => b.type === 'refinery' || b.type === 'power' || b.type === 'apower');
     const pick = (econ.length ? econ : theirs)[Math.floor(Math.random() * (econ.length || theirs.length))];
     return { x: pick.x, y: pick.y + CELL * 2 };
   }

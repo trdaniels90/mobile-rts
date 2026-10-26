@@ -35,6 +35,10 @@ function newWorld(playerFaction, diffKey, seed) {
   genMap(seed);
   G.terrainCanvas = paintTerrain(G.terr, seed, G.road, G.bridges);
   G.tctx = G.terrainCanvas.getContext('2d');
+  // Bodies and wrecks get their own layer above the ground, so later craters and scorch
+  // marks never paint over them.
+  G.decals = mkCanvas(WORLD, WORLD);
+  G.dctx = G.decals.getContext('2d');
 
   for (const team of G.teams) {
     const b = addBuilding('cy', team, team.start.cx - 1, team.start.cy - 1);
@@ -877,13 +881,13 @@ function kill(e, attacker) {
   if (e.kind === 'unit') {
     team.stats.lost++;
     if (e.cls === 'inf') {
-      bakeCorpse(G.tctx, e.x, e.y, e.faction, e.face, seed);
+      bakeCorpse(G.dctx, e, seed);
     } else if (e.cls === 'veh') {
       hooks.sfx('explodeVeh', e.x, e.y);
       G.effects.push({ type: 'expl', x: e.x, y: e.y - 4, size: 16, t: 0, life: 0.8, seed, debris: true });
       scorch(G.tctx, e.x, e.y, 12, seed);
       craterAt(e.x + Math.cos(e.face) * 6, e.y + Math.sin(e.face) * 6, 5);
-      bakeWreck(G.tctx, e.x, e.y, e.def, e.face, e.tface);
+      bakeWreck(G.dctx, e.x, e.y, e.def, e.face, e.tface);
       for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: e.x + (Math.random() - 0.5) * 8, y: e.y + (Math.random() - 0.5) * 6, t: -i * 0.3, life: 2.5 + Math.random() * 2 });
       smoulder(e.x, e.y - 4, 25);
     } else if ((e.alt || 0) > 4) {
@@ -937,7 +941,7 @@ function crashLanding(x, y, face, def, faction, seed) {
   scorch(G.tctx, x, y, 13, seed);
   if (G.terr[cellOfPos(x, y)] < 4) {
     craterAt(x, y, 9);
-    bakeWreck(G.tctx, x, y, def, face, face);
+    bakeWreck(G.dctx, x, y, def, face, face);
     smoulder(x, y - 3, 30);
   }
   for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: x + (Math.random() - 0.5) * 12, y: y + (Math.random() - 0.5) * 8, t: -i * 0.3, life: 3 + Math.random() * 3 });
@@ -1459,6 +1463,7 @@ function updateBuilding(b, dt) {
     const px = (b.cx + 0.2 + Math.random() * (b.w - 0.4)) * CELL, py = (b.cy + 0.2 + Math.random() * (b.h - 0.6)) * CELL - 10;
     if (f < 0.5) G.effects.push({ type: 'smoke', x: px, y: py, vy: -14, vx: 5, r: 3 + Math.random() * 3, t: 0, life: 1.6, alpha: 0.55, color: '#3a3733' });
     if (f < 0.25) G.effects.push({ type: 'fire', x: px, y: py + 4, t: 0, life: 0.6 });
+    if (b.type === 'apower' && b.buildT >= 1) for (const [tx, ty, h] of [[15, 17, 40], [41, 17, 40]]) if (Math.random() < 0.5) G.effects.push({ type: 'smoke', x: b.cx * CELL + tx, y: b.cy * CELL + ty - h * VK, vy: -16, vx: 6, r: 3, t: 0, life: 2, alpha: 0.4, color: '#c9c7c0' });
     if (b.type === 'power' && b.buildT >= 1 && Math.random() < 0.6) G.effects.push({ type: 'smoke', x: b.cx * CELL + 38, y: b.cy * CELL + 14 - 42 * VK, vy: -16, vx: 6, r: 2.5, t: 0, life: 1.8, alpha: 0.4, color: '#c9c7c0' });
   }
   const w = b.def.weapon;

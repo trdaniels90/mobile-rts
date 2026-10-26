@@ -117,6 +117,7 @@ const UNIT_DEFS = {
 const BUILD_DEFS = {
   cy:       { name: 'Construction Yard', w: 3, h: 3, hp: 1500, power: 0,   cost: 2500, req: [], factions: [], sight: 6 },
   power:    { name: 'Power Plant',  w: 2, h: 2, hp: 400,  power: 100, cost: 300,  req: ['cy'],       factions: ['allies', 'soviets'] },
+  apower:   { name: 'Advanced Power Plant', w: 3, h: 3, hp: 700, power: 200, cost: 500, req: ['factory'], factions: ['allies', 'soviets'] },
   refinery: { name: 'Ore Refinery', w: 3, h: 2, hp: 900,  power: -40, cost: 2000, req: ['power'],    factions: ['allies', 'soviets'], exit: true },
   barracks: { name: 'Barracks',     w: 2, h: 2, hp: 500,  power: -20, cost: 300,  req: ['power'],    factions: ['allies', 'soviets'], exit: true },
   factory:  { name: 'War Factory',  w: 3, h: 2, hp: 1000, power: -30, cost: 2000, req: ['refinery'], factions: ['allies', 'soviets'], exit: true },
