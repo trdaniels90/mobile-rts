@@ -25,10 +25,12 @@ function aiNextStructure(team, c) {
   const enemyAir = unitsOf(enemyOf(team).id).filter((u) => u.cls === 'air' && !u.def.scripted).length;
   if (enemyAir) team.sawAir = true;
   const aaWant = team.sawAir ? Math.min(A.aaMax, A.aa + Math.ceil(enemyAir / 2)) : A.aa;
+  const fast = A.econ.fast;   // Normal and Hard: the second refinery straight after the Barracks
   const wants = [
-    ['refinery', 1], ['barracks', 1], [antiInf, Math.min(1, capInf)], ['factory', 1], [defense, Math.min(1, capMain)], ['refinery', 2], ['dome', 1],
+    ['refinery', 1], ['barracks', 1], ['refinery', fast ? 2 : 1], [antiInf, Math.min(1, capInf)], ['factory', 1], [defense, Math.min(1, capMain)], ['refinery', 2], ['dome', 1],
     ['helipad', 1], [antiInf, Math.min(2, capInf)], [defense, Math.min(2, capMain)], [aa, Math.min(1, aaWant)], ['airfield', 1],
     ['factory', 2], [defense, Math.min(3, capMain)], [aa, aaWant], ['refinery', 3], [defense, Math.min(4, capMain)],
+    ['refinery', A.econ.refineries],
   ];
   const build = (type) => (p.prod - p.use < powerNeed(type) + 10 && available(team, pwr) ? pwr : type);   // power first if needed
   for (const [type, count] of wants) {
@@ -206,7 +208,9 @@ function aiThink(team) {
   const refineries = c.refinery || 0, trucks = c.harv || 0;
   const wantTrucks = refineries * 2 - (G.diffKey === 'easy' ? refineries : 0);
   const vq = team.queues.vehicle;
-  if (c.factory && trucks < wantTrucks && !vq.some((i) => i.type === 'harv') && trucks < 5) startProduction(team, 'harv');
+  if (c.factory && trucks < wantTrucks && !vq.some((i) => i.type === 'harv') && trucks < G.diff.ai.econ.trucks) startProduction(team, 'harv');
+  // Normal and Hard pay for a missing Ore Truck before buying more army.
+  const truckDue = G.diff.ai.econ.truckFirst && vq.some((i) => i.type === 'harv');
 
   // Spend the rest on an army; hold some back while a structure is being paid for.
   const sq = team.queues.structure;
@@ -218,11 +222,11 @@ function aiThink(team) {
   // rocket soldiers, Mammoths or Rangers, and fighters rather than helicopters.
   const A = G.diff.ai, anti = A.adapt && team.sawAir;
   const iq = team.queues.infantry;
-  if (c.barracks && iq.length < A.queue && money > 150) {
+  if (c.barracks && iq.length < A.queue && money > (truckDue ? 900 : 150)) {
     const r = Math.random();
     startProduction(team, anti && r < 0.5 ? 'rocket' : r < 0.45 ? 'rifle' : team.faction === 'soviets' && r < 0.72 ? 'grenadier' : 'rocket');
   }
-  if (c.factory && vq.length < A.queue && money > 500) {
+  if (c.factory && vq.length < A.queue && money > 500 && !truckDue) {
     const opts = team.faction === 'allies' ? (anti ? ['mtank', 'mtank', 'ranger', 'ranger', 'ltank'] : ['ltank', 'mtank', 'mtank', 'ranger'])
       : (anti ? ['htank', 'mammoth', 'mammoth', 'htank'] : ['htank', 'htank', 'htank', 'mammoth']);
     const sup = team.faction === 'allies' ? 'arty' : 'v2rl';                        // long-range support, once it has a Radar Dome
@@ -231,7 +235,7 @@ function aiThink(team) {
   }
   const aq = team.queues.aircraft;
   const air = G.entities.filter((e) => e.alive && e.team === team.id && e.cls === 'air').length;
-  if (aq.length < 1 && money > (anti ? 600 : 900) && air < 6) {
+  if (aq.length < 1 && money > (anti ? 600 : 900) && air < 6 && !truckDue) {
     const heli = team.faction === 'allies' ? 'heli' : 'hind', jet = team.faction === 'allies' ? 'jet' : 'mig';
     if (c.airfield && anti && Math.random() < 0.8) startProduction(team, jet);
     else if (c.helipad && (Math.random() < 0.5 || !c.airfield)) startProduction(team, heli);

@@ -1464,17 +1464,57 @@ function checkStuck(u, dt) {
   else if (u.stuckN >= 6) { u.dest = null; u.path = null; u.stuckN = 0; }
 }
 
-// Ore trucks run entirely on their own.
+// Ore trucks run entirely on their own. Each trip they pick a field rather than just the
+// nearest cell: one with plenty of ore left, close by and not already crowded with trucks (of
+// either side), with gems counting double, so a scraped-out field is left to regrow and the
+// trucks move on to the next one. Within the field they go for the richest cells.
+const THIN = 40;   // a cell holding less than this is not worth a special trip
+function fieldValue(f) {
+  let ore = 0;
+  for (let y = Math.floor(f.cy - f.r); y <= f.cy + f.r; y++) for (let x = Math.floor(f.cx - f.r); x <= f.cx + f.r; x++) {
+    if (!inMap(x, y)) continue;
+    const v = G.ore[idx(x, y)];
+    if (v >= THIN) ore += v;
+  }
+  return ore;
+}
+function pickField(u) {
+  const others = G.entities.filter((e) => e.alive && e !== u && e.def.harvester && (e.hs === 'mine' || e.hs === 'seek'));
+  let best = null, bs = 0;
+  for (const f of G.oreFields) {
+    const ore = fieldValue(f);
+    if (ore < u.def.capacity * 0.4) continue;
+    const value = Math.min(ore, u.def.capacity * 2.5) * (f.gem ? 2 : 1);   // gems are worth twice as much
+    const fx = (f.cx + 0.5) * CELL, fy = (f.cy + 0.5) * CELL;
+    const crowd = others.filter((e) => (e.field === f) || Math.hypot(e.x - fx, e.y - fy) < (f.r + 2) * CELL).length;
+    const d = Math.hypot(u.x - fx, u.y - fy) / CELL;
+    const sc = value / (d + 10) * (crowd >= 2 ? 0.25 : crowd === 1 ? 0.65 : 1);
+    if (sc > bs) { bs = sc; best = f; }
+  }
+  return best;
+}
 function findOre(u) {
   const start = cellOfPos(u.x, u.y);
   const seen = new Uint8Array(NCELLS), q = [start];
   seen[start] = 1;
-  let fallback = -1;
+  const f = pickField(u);
+  u.field = f;
+  const inField = (c) => !f || Math.hypot(cellX(c) - f.cx, cellY(c) - f.cy) <= f.r + 0.8;
+  let fallback = -1, best = -1, bs = -Infinity, bestD = Infinity;
   const claimed = new Set();
   for (const e of G.entities) if (e.alive && e !== u && e.def.harvester && e.team === u.team && e.hcell >= 0) claimed.add(e.hcell);
-  for (let qi = 0; qi < q.length && qi < 6000; qi++) {
+  for (let qi = 0; qi < q.length && qi < 9000; qi++) {
     const c = q[qi];
-    if (G.ore[c] > 0) { if (!claimed.has(c)) return c; if (fallback < 0) fallback = c; }
+    if (G.ore[c] > 0) {
+      if (fallback < 0 && !claimed.has(c)) fallback = c;
+      if (inField(c) && !claimed.has(c) && G.ore[c] >= THIN) {
+        // Richest cells first, among those reached soon after the first one in the field.
+        if (bestD === Infinity) bestD = qi;
+        const sc = G.ore[c] * (G.gem[c] ? 2 : 1) - (qi - bestD) * 0.4;
+        if (sc > bs) { bs = sc; best = c; }
+        if (qi - bestD > 250) break;
+      }
+    }
     const cx = cellX(c), cy = cellY(c);
     for (let i = 0; i < 8; i++) {
       const nx = cx + DIRS8[i][0], ny = cy + DIRS8[i][1];
@@ -1483,7 +1523,7 @@ function findOre(u) {
       if (!seen[n] && freeCell(n)) { seen[n] = 1; q.push(n); }
     }
   }
-  return fallback;
+  return best >= 0 ? best : fallback;
 }
 function dockPoint(ref) { return cellCenter(ref.exitCell); }
 function nearestOwn(u, type) {
@@ -1501,15 +1541,16 @@ function nearestOwn(u, type) {
 function nextOreCell(u) {
   const c0 = cellOfPos(u.x, u.y), cx = cellX(c0), cy = cellY(c0);
   let best = -1, bd = Infinity;
-  for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) {
+  for (let oy = -3; oy <= 3; oy++) for (let ox = -3; ox <= 3; ox++) {
     const x = cx + ox, y = cy + oy;
     if (!inMap(x, y)) continue;
     const c = idx(x, y);
-    if (!G.ore[c] || !freeCell(c)) continue;
-    const d = dist(u, cellCenter(c));
-    if (d < bd) { bd = d; best = c; }
+    if (G.ore[c] < THIN * 0.6 || !freeCell(c)) continue;
+    const d = dist(u, cellCenter(c)), sc = d - G.ore[c] * (G.gem[c] ? 2 : 1) * 0.15;   // close and rich
+    if (sc < bd) { bd = sc; best = c; }
   }
   if (best < 0) { u.hs = 'seek'; u.hcell = -1; return; }
+  bd = dist(u, cellCenter(best));
   u.hcell = best;
   if (bd < 36) { u.hs = 'mine'; u.htimer = 0; return; }
   const p = cellCenter(best);
