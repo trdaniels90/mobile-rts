@@ -424,6 +424,7 @@ function rallyPoint(team) {
 }
 function launchGroups() {
   for (const team of G.teams) {
+    if (team.isAI || team.auto) defendBase(team);
     const rally = rallyPoint(team);
     const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.def.harvester && u.order.type === 'guard');
     // Aircraft do not wait for a group: each one heads out on its own.
@@ -447,6 +448,30 @@ function launchAircraft(u) {
   setHunt(u);
   u.staged = false;
   if (u.as === 'landed' && u.ammo > 0) u.as = 'takeoff';
+}
+
+// Raids on the base (paratroopers, flanking squads) pull back ground units close enough to help.
+// The computer uses its whole army, attack groups on their way out included; the player's side
+// only uses units waiting for auto attack, never ones given orders. Once clear they regroup.
+function defendBase(team) {
+  const mine = buildingsOf(team.id);
+  const threats = unitsOf(enemyOf(team).id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted &&
+    mine.some((b) => Math.hypot(b.x - u.x, b.y - u.y) < CELL * 10));
+  const army = unitsOf(team.id).filter((u) => u.def.weapon && u.cls !== 'air' && !u.def.harvester && !u.chute &&
+    (team.isAI || u.staged || u.defending));
+  if (!threats.length) {
+    for (const u of army) if (u.defending) { u.defending = false; const r = rallyPoint(team); setGuard(u, r.x, r.y); goTo(u, r.x, r.y); u.staged = true; }
+    return;
+  }
+  let x = 0, y = 0;
+  for (const t of threats) { x += t.x; y += t.y; }
+  x /= threats.length; y /= threats.length;
+  for (const u of army) {
+    if (Math.hypot(u.x - x, u.y - y) > CELL * 32) continue;
+    if (u.defending && Math.hypot(u.order.x - x, u.order.y - y) < CELL * 3) continue;
+    u.defending = true; u.staged = false;
+    setGuard(u, x, y); goTo(u, x, y);
+  }
 }
 
 function setGuard(u, x, y) {
@@ -1331,7 +1356,7 @@ function commandMove(units, x, y) {
   const sorted = units.slice().sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
   sorted.forEach((u, i) => {
     const s = spots[i];
-    u.target = null; u.staged = false;
+    u.target = null; u.staged = false; u.defending = false;
     if (u.def.harvester) {
       const c = cellOfPos(x, y);
       if (G.ore[c] > 0) { u.hcell = c; u.hs = 'seek'; goTo(u, x, y); }
@@ -1349,18 +1374,18 @@ function commandMove(units, x, y) {
 function commandAttack(units, target) {
   for (const u of units) {
     if (u.def.harvester || !canTarget(u, target)) continue;
-    u.order = { type: 'attack', target }; u.staged = false;
+    u.order = { type: 'attack', target }; u.staged = false; u.defending = false;
     u.target = target;
     if (u.cls === 'air' && u.as === 'landed' && u.ammo > 0) u.as = 'takeoff';
   }
 }
 function commandHunt(units) {
-  for (const u of units) if (!u.def.harvester) { setHunt(u); u.staged = false; if (u.cls === 'air' && u.as === 'landed' && u.ammo > 0) u.as = 'takeoff'; }
+  for (const u of units) if (!u.def.harvester) { setHunt(u); u.staged = false; u.defending = false; if (u.cls === 'air' && u.as === 'landed' && u.ammo > 0) u.as = 'takeoff'; }
 }
 function commandStop(units) {
   for (const u of units) {
     if (u.def.harvester) { u.hs = 'manual'; u.dest = null; u.path = null; continue; }
-    setGuard(u); u.dest = null; u.path = null; u.staged = false;
+    setGuard(u); u.dest = null; u.path = null; u.staged = false; u.defending = false;
   }
 }
 

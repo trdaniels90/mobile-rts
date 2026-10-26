@@ -52,16 +52,17 @@ const Sound = (() => {
     if (!AC) return;
     // Let iOS play game audio even with the ring/silent switch on silent.
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (_) {}
-    ctx = new AC();
+    // Larger audio buffers: a little more latency, but no crackle when the phone is busy.
+    try { ctx = new AC({ latencyHint: 'playback' }); } catch (_) { ctx = new AC(); }
     const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -14; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.2;
+    comp.threshold.value = -18; comp.knee.value = 6; comp.ratio.value = 6; comp.attack.value = 0.002; comp.release.value = 0.2;
     comp.connect(ctx.destination);
-    master = gain(0.9, comp);
+    master = gain(0.75, comp);
     sfxBus = gain(settings.sfx ? 0.85 : 0, master);
     musicBus = gain(settings.music ? 0.42 : 0, master);
     // Room reverb from a generated impulse response.
     verb = ctx.createConvolver();
-    const len = Math.floor(ctx.sampleRate * 2.2), ir = ctx.createBuffer(2, len, ctx.sampleRate);
+    const len = Math.floor(ctx.sampleRate * 1.5), ir = ctx.createBuffer(2, len, ctx.sampleRate);
     for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
     verb.buffer = ir;
     verbIn = gain(1, verb);
@@ -287,14 +288,19 @@ const Sound = (() => {
     const now = ctx.currentTime;
     const last = lastPlayed.get(name) || 0;
     if (now - last < (THROTTLE[name] || 0.02)) return;
-    if (voices > 28) return;
+    // Big battles: keep the voice count low enough for a phone, dropping quiet distant sounds first.
+    if (voices >= 16 || (voices >= 8 && vol < 0.35)) return;
     lastPlayed.set(name, now);
     const v = vol * (LEVEL[name] || 1) * (0.9 + Math.random() * 0.2);
     const out = gain(v, null);
     let node = out;
     if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan || 0)); out.connect(p); node = p; }
     node.connect(sfxBus);
-    // Battle sounds go through the lo-fi stage before their volume is applied.
+    const s = { send(amount) { const g = gain(amount * v, verbIn); out.connect(g); } };
+    voices++;
+    setTimeout(() => { voices--; }, 1600);
+    if (playRecorded(name, out, s)) return;   // recordings already carry their lo-fi treatment
+    // Synthesised battle sounds go through the lo-fi stage before their volume is applied.
     let into = out;
     if (!UI_SOUNDS.has(name)) {
       if (!crushCurve) crushCurve = lofiCurve();
@@ -303,10 +309,7 @@ const Sound = (() => {
       pre.connect(lo); lo.connect(lp); lp.connect(out);
       into = pre;
     }
-    const s = { send(amount) { const g = gain(amount * v, verbIn); out.connect(g); } };
-    voices++;
-    setTimeout(() => { voices--; }, 1600);
-    if (!playRecorded(name, out, s)) FX[name](now + 0.005, into, s);
+    FX[name](now + 0.005, into, s);
   }
 
   // Recorded effects (src/sfx.js). Each play picks a random take and nudges its pitch
@@ -689,7 +692,7 @@ const Sound = (() => {
       if (this.started || !ctx) return;
       this.started = true;
       this.next = ctx.currentTime + 0.15;
-      this.timer = setInterval(() => this.tick(), 25);
+      this.timer = setInterval(() => this.tick(), 40);
     },
     skip() {
       this.song = (this.song + 1) % SONGS.length; this.part = 0; this.bar = 0; this.step = 0;
@@ -697,7 +700,9 @@ const Sound = (() => {
     },
     tick() {
       if (!ctx || ctx.state !== 'running') return;
-      while (this.next < ctx.currentTime + 0.12) {
+      // Schedule well ahead so a busy frame never makes the music skip.
+      if (this.next < ctx.currentTime) this.next = ctx.currentTime + 0.02;
+      while (this.next < ctx.currentTime + 0.3) {
         if (settings.music) this.playStep(this.next);
         this.advance();
       }
