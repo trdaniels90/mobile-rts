@@ -26,7 +26,7 @@ function newWorld(playerFaction, diffKey, seed) {
     t: 0, seed, diff: DIFFICULTY[diffKey], diffKey, nextId: 1,
     entities: [], byId: new Map(), effects: [], projectiles: [], pathQueue: [], groups: [],
     terr: new Uint8Array(NCELLS), block: new Uint8Array(NCELLS), bld: new Int32Array(NCELLS), resv: new Uint8Array(NCELLS),
-    ore: new Uint16Array(NCELLS), seen: new Uint8Array(NCELLS), shroudDirty: true, oreFields: [],
+    ore: new Uint16Array(NCELLS), gem: new Uint8Array(NCELLS), seen: new Uint8Array(NCELLS), shroudDirty: true, oreFields: [],
     selection: [], place: null, over: null, paused: false,
     timers: { power: 0, shroud: 0, ore: 0, ai: 0, win: 0 },
     teams: [makeTeam(PLAYER, playerFaction, false), makeTeam(ENEMY, enemyFaction, true)],
@@ -100,14 +100,14 @@ function genMap(seed) {
     { t: 9.5, d: DB - 5, r: 3.4, rich: 1 },      // beside the base, one each side
     { t: -9.5, d: DB - 5, r: 3.2, rich: 0.9 },
     { t: -10, d: 12.5, r: 3, rich: 1.15 },       // forward fields on the lake shores, between the crossings
-    { t: 10, d: 12.5, r: 3, rich: 1.15 },
+    { t: 10, d: 12.5, r: 2.4, rich: 1, gem: true },  // the rare gem field, out in the contested middle
     { t: -26, d: 13, r: 2.8, rich: 0.9 },        // beside the flank route
   ];
   const fields = [];
   for (const f of fieldsHalf) {
     const ft = f.t * (Math.abs(f.t) > 12 ? K : 1), fd = f.d === DB - 5 ? f.d : f.d * K;
     const cx = LX(MID + ft, fd), cy = LY(MID + ft, fd);
-    fields.push({ cx, cy, r: f.r, rich: f.rich }, { cx: MAP - 1 - cx, cy: MAP - 1 - cy, r: f.r, rich: f.rich });
+    fields.push({ cx, cy, r: f.r, rich: f.rich, gem: !!f.gem }, { cx: MAP - 1 - cx, cy: MAP - 1 - cy, r: f.r, rich: f.rich, gem: !!f.gem });
   }
   G.oreFields = fields;
 
@@ -219,6 +219,7 @@ function genMap(seed) {
         if (T[c] >= 4) continue;
         if (G.block[c]) { G.block[c] = 0; T[c] = 0; }
         G.ore[c] = Math.round(Math.min(ORE_MAX, (60 + (1 - d / f.r) * 190) * f.rich));
+        if (f.gem) G.gem[c] = 1;
       }
     }
   }
@@ -1251,6 +1252,7 @@ function updateHarvester(u, dt) {
         u.htimer = 0;
         const c = u.hcell, take = Math.min(60, G.ore[c], cap - u.load);
         G.ore[c] -= take; u.load += take;
+        if (G.gem[c]) u.bonus = (u.bonus || 0) + take;   // gems are worth twice as much as ore
         if (u.load >= cap) { u.hs = 'return'; u.hcell = -1; }
         else if (G.ore[c] <= 0) nextOreCell(u);
       }
@@ -1271,9 +1273,9 @@ function updateHarvester(u, dt) {
       u.htimer += dt;
       if (u.htimer >= 0.1) {
         u.htimer = 0;
-        const amt = Math.min(80, u.load);
-        u.load -= amt;
-        const gain = amt * (team.isAI ? G.diff.income : 1);
+        const amt = Math.min(80, u.load), extra = Math.min(u.bonus || 0, amt);
+        u.load -= amt; u.bonus = (u.bonus || 0) - extra;
+        const gain = (amt + extra) * (team.isAI ? G.diff.income : 1);
         team.credits += gain; team.stats.harvested += gain;
         if (u.load <= 0) { u.load = 0; u.hs = 'seek'; }
       }
@@ -1800,6 +1802,7 @@ function revealCircle(cx, cy, rad) {
 function growOre() {
   const r = Math.random;
   for (const f of G.oreFields) {
+    if (f.gem) continue;   // gems never grow back
     for (let i = 0; i < 3; i++) {
       const a = r() * Math.PI * 2, d = Math.sqrt(r()) * (f.r + 0.8);
       const x = Math.floor(f.cx + Math.cos(a) * d), y = Math.floor(f.cy + Math.sin(a) * d);

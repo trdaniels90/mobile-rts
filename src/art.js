@@ -410,9 +410,9 @@ function drawGhost(g, type, faction, cx, cy) {
   g.globalAlpha = 1;
 }
 
-function drawOre(g, cx, cy, amount) {
+function drawOre(g, cx, cy, amount, gem) {
   const lv = amount >= 190 ? 3 : amount >= 120 ? 2 : amount >= 60 ? 1 : 0;
-  blit(g, scenery.ore[lv][(cx * 7 + cy * 13) & 3], cx * CELL, cy * CELL);
+  blit(g, (gem ? scenery.gem : scenery.ore)[lv][(cx * 7 + cy * 13) & 3], cx * CELL, cy * CELL);
 }
 
 // ---------------------------------------------------------------------------

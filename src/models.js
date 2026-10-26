@@ -696,11 +696,27 @@ function oreModel(level, variant) {
   }
   return m;
 }
-const scenery = { trees: [], pines: [], rocks: [], ore: [] };
+// Gems: fewer, taller crystals in violet, blue and ruby.
+function gemModel(level, variant) {
+  const r = rng(level * 211 + variant * 29 + 3);
+  const m = new VModel(0, 0, CELL, CELL, 7);
+  for (let i = 0; i < 8 + level * 5; i++) { const x = Math.floor(r() * CELL), y = Math.floor(r() * CELL); m.box(x, y, 0, x + 2, y + 1, 1, '#4a4038', M_ROUGH); }
+  const cols = ['#7a62e8', '#9a86ff', '#4f7cf0', '#c0405a', '#b6a6ff'];
+  for (let i = 0; i < 3 + level * 2; i++) {
+    const cx = 3 + r() * 18, cy = 3 + r() * 18, h = 2 + level * 0.8 + r() * 1.5, rad = 1.5 + r() * 0.9 + level * 0.15, col = cols[Math.floor(r() * cols.length)];
+    for (let z = 0; z < h; z++) {
+      const rr = rad * (1 - z / (h + 0.5));
+      for (let y = Math.floor(cy - rr); y < cy + rr; y++) for (let x = Math.floor(cx - rr); x < cx + rr; x++) if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) <= rr + 0.2) m.set(x, y, z, z === Math.floor(h) - 1 ? '#e8e0ff' : col, M_GLASS);
+    }
+  }
+  return m;
+}
+const scenery = { trees: [], pines: [], rocks: [], ore: [], gem: [] };
 function buildScenery() {
   if (scenery.trees.length) return;
   for (let i = 0; i < 6; i++) scenery.trees.push(renderVox(treeModel(i * 97 + 3, false), 0));
   for (let i = 0; i < 5; i++) scenery.pines.push(renderVox(treeModel(i * 71 + 11, true), 0));
   for (let i = 0; i < 5; i++) scenery.rocks.push(renderVox(rockModel(i * 53 + 7), 0));
   for (let lv = 0; lv < 4; lv++) { scenery.ore[lv] = []; for (let v = 0; v < 4; v++) scenery.ore[lv].push(renderVox(oreModel(lv, v), 0)); }
+  for (let lv = 0; lv < 4; lv++) { scenery.gem[lv] = []; for (let v = 0; v < 4; v++) scenery.gem[lv].push(renderVox(gemModel(lv, v), 0)); }
 }

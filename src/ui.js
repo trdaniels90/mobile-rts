@@ -167,8 +167,8 @@
     const c0 = Math.max(0, Math.floor(ox / CELL)), c1 = Math.min(MAP - 1, Math.floor((ox + bw) / CELL));
     const r0 = Math.max(0, Math.floor(oy / CELL)), r1 = Math.min(MAP - 1, Math.floor((oy + bh) / CELL));
     for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
-      const o = G.ore[idx(cx, cy)];
-      if (o) drawOre(v, cx, cy, o);
+      const c = idx(cx, cy), o = G.ore[c];
+      if (o) drawOre(v, cx, cy, o, G.gem[c]);
     }
 
     if (sw > 0 && sh > 0) v.drawImage(G.decals, sx, sy, sw, sh, sx, sy, sw, sh);
@@ -303,8 +303,7 @@
     const Wr = radar.width, Hr = radar.height, k = Wr / MAP;
     rctx.imageSmoothingEnabled = false;
     rctx.drawImage(miniTerrain, 0, 0, Wr, Hr);
-    rctx.fillStyle = '#c9a227';
-    for (let i = 0; i < NCELLS; i++) if (G.ore[i] && G.seen[i]) rctx.fillRect(cellX(i) * k, cellY(i) * k, Math.ceil(k), Math.ceil(k));
+    for (let i = 0; i < NCELLS; i++) if (G.ore[i] && G.seen[i]) { rctx.fillStyle = G.gem[i] ? '#a58cff' : '#c9a227'; rctx.fillRect(cellX(i) * k, cellY(i) * k, Math.ceil(k), Math.ceil(k)); }
     for (const e of G.entities) {
       if (!visibleToPlayer(e)) continue;
       rctx.fillStyle = G.teams[e.team].pal[e.kind === 'bld' ? 'main' : 'light'];
