@@ -636,6 +636,19 @@ function drawEffect(g, fx) {
       }
       break;
     }
+    case 'flakburst': {
+      // A flash, then several overlapping black puffs spreading out and thinning.
+      const r = rng(fx.seed);
+      if (fx.t < 0.12) { g.fillStyle = 'rgba(255,190,90,0.85)'; g.beginPath(); g.arc(fx.x, fx.y, 3 + fx.t * 20, 0, 7); g.fill(); }
+      g.globalAlpha = Math.max(0, 0.9 * (1 - k * k));
+      for (let i = 0; i < 4; i++) {
+        const ox = (r() - 0.5) * 8 * (0.5 + k), oy = (r() - 0.5) * 6 * (0.5 + k), rad = Math.max(2, Math.min(14, Math.round((2.5 + r() * 2) * (0.7 + k * 1.6))));
+        const pc = puff(rad, false);
+        g.drawImage(pc, Math.round(fx.x + ox - pc.width / 2), Math.round(fx.y + oy - pc.height / 2));
+      }
+      g.globalAlpha = 1;
+      break;
+    }
     case 'smoke': {
       const rad = Math.max(1, Math.min(14, Math.round(fx.r * (0.6 + k * 1.3))));
       const light = fx.color === '#c9c7c0' || fx.color === '#9a968c' || fx.color === '#8a7650';

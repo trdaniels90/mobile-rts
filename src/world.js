@@ -840,7 +840,16 @@ function fireWeapon(src, w, t) {
     G.projectiles.push({ kind: 'lob', style: w.proj, x: m.x, y: m.y, sx: m.x, sy: src.y, tx, ty: tgy, t: 0, dur: Math.max(0.6, d / (v2 ? 150 : 230)),
       h: 30 + d * (v2 ? 0.5 : 0.32), z: src.y - m.y, w, from: src, team: src.team, smokeT: 0 });
     if (!v2) G.effects.push({ type: 'smoke', x: m.x, y: m.y, r: 4, t: 0, life: 0.8, alpha: 0.5, color: '#c9c7c0', vy: -8 });   // muzzle smoke
-    else for (let i = 0; i < 3; i++) G.effects.push({ type: 'smoke', x: src.x + (Math.random() - 0.5) * 10, y: src.y + 2, r: 5, t: -i * 0.08, life: 1.4, alpha: 0.55, color: '#bdb9ae', vy: -5 });   // launch blast
+    else {
+      // Launch: flame and a great cloud of exhaust billowing out behind and around the truck.
+      const bx = Math.cos(src.face), by = Math.sin(src.face);
+      G.effects.push({ type: 'expl', x: src.x - bx * 10, y: src.y - by * 10 - 6, size: 7, t: 0, life: 0.35, seed: (Math.random() * 1e6) | 0 });
+      for (let i = 0; i < 14; i++) {
+        const a = Math.atan2(-by, -bx) + (Math.random() - 0.5) * 2.2, sp = 14 + Math.random() * 30;
+        G.effects.push({ type: 'smoke', x: src.x - bx * 10 + (Math.random() - 0.5) * 6, y: src.y - by * 10 + (Math.random() - 0.5) * 4, r: 4 + Math.random() * 3, t: -i * 0.04,
+          life: 2 + Math.random() * 1.2, alpha: 0.6, color: '#c9c7c0', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6 - 3, drag: 1.4 });
+      }
+    }
   } else if (w.proj === 'bullet') {
     const jx = (Math.random() - 0.5) * 6, jy = (Math.random() - 0.5) * 6;
     damage(t, w.dmg, w.wh, src);
@@ -851,11 +860,25 @@ function fireWeapon(src, w, t) {
     damage(t, w.dmg, w.wh, src);
     G.effects.push({ type: 'tesla', x: m.x, y: m.y, x2: t.x, y2: ty, t: 0, life: 0.35, seed: (Math.random() * 1e6) | 0 });
   } else {
+    if (w.proj === 'flak') {
+      // Most of a flak barrage bursts around the target rather than on it.
+      const d = Math.hypot(t.x - m.x, ty - m.y), eta = d / PROJ_SPEED.flak;
+      for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, r = 12 + Math.random() * 18; flakBurst(t.x + Math.cos(a) * r, ty + Math.sin(a) * r * 0.7, eta + 0.05 + Math.random() * 0.25); }
+    }
+    if (src.kind === 'bld' && src.type === 'sam') {
+      // Backblast: smoke billows out behind the launcher as the missile leaves.
+      const bx = Math.cos(src.tface), by = Math.sin(src.tface);
+      G.effects.push({ type: 'expl', x: m.x - bx * 6, y: m.y - by * 6, size: 5, t: 0, life: 0.25, seed: (Math.random() * 1e6) | 0 });
+      for (let i = 0; i < 10; i++) {
+        const sp = 22 + Math.random() * 30, a = Math.atan2(-by, -bx) + (Math.random() - 0.5) * 1.3;
+        G.effects.push({ type: 'smoke', x: m.x - bx * 8, y: m.y - by * 8, r: 4 + Math.random() * 3, t: -i * 0.03, life: 1.8 + Math.random() * 1, alpha: 0.7, color: '#9a968c', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.7 - 4, drag: 1.5 });
+      }
+    }
     const shots = w.twin ? 2 : 1;
     for (let i = 0; i < shots; i++) {
       const off = shots > 1 ? (i ? 2 : -2) : 0;
       G.projectiles.push({ x: m.x + off * Math.sin(src.tface || 0), y: m.y - off * Math.cos(src.tface || 0), target: t, w, from: src, team: src.team,
-        speed: PROJ_SPEED[w.proj] || 400, kind: w.proj, trail: 0, delay: i * 0.1 });
+        speed: PROJ_SPEED[w.proj] || 400, kind: w.proj, trail: 0, delay: i * 0.1, thick: src.kind === 'bld' && src.type === 'sam' });
     }
   }
 }
@@ -877,8 +900,8 @@ function updateProjectiles(dt) {
       p.x = p.gx; p.y = p.gy - (p.z * (1 - k) + p.h * 4 * k * (1 - k));
       p.a = Math.atan2(p.y - py, p.x - px);
       if ((p.smokeT -= dt) <= 0) {
-        p.smokeT = p.style === 'v2' ? 0.03 : 0.07;
-        G.effects.push({ type: 'smoke', x: p.x, y: p.y, r: p.style === 'v2' ? 2.6 : 1.4, t: 0, life: p.style === 'v2' ? 1.6 : 0.6, alpha: p.style === 'v2' ? 0.5 : 0.3, color: '#cfcbc0' });
+        p.smokeT = p.style === 'v2' ? 0.025 : 0.07;
+        G.effects.push({ type: 'smoke', x: p.x, y: p.y, r: p.style === 'v2' ? 3.2 : 1.4, t: 0, life: p.style === 'v2' ? 2.6 : 0.6, alpha: p.style === 'v2' ? 0.55 : 0.3, color: '#c9c7c0', vx: p.style === 'v2' ? 2 : 0, vy: p.style === 'v2' ? -2 : 0 });
       }
       if (k >= 1) { p.dead = true; lobBlast(p); }
       continue;
@@ -907,7 +930,10 @@ function updateProjectiles(dt) {
     p.a = Math.atan2(dy, dx);
     if (p.kind === 'rocket' || p.kind === 'missile') {
       p.trail -= dt;
-      if (p.trail <= 0) { p.trail = 0.03; G.effects.push({ type: 'smoke', x: p.x, y: p.y, r: 1.6, t: 0, life: 0.5, alpha: 0.5, color: '#9a968c' }); }
+      if (p.trail <= 0) {   // SAM missiles leave a thicker trail that hangs longer
+        p.trail = 0.03;
+        G.effects.push(p.thick ? { type: 'smoke', x: p.x, y: p.y, r: 2.4, t: 0, life: 1.3, alpha: 0.5, color: '#c9c7c0', vx: 2, vy: -2 } : { type: 'smoke', x: p.x, y: p.y, r: 1.6, t: 0, life: 0.5, alpha: 0.5, color: '#9a968c' });
+      }
     } else if (p.kind === 'fireball') {
       p.trail -= dt;
       if (p.trail <= 0) { p.trail = 0.035; G.effects.push({ type: 'smoke', x: p.x, y: p.y, r: 2, t: 0, life: 0.45, alpha: 0.45, color: '#3a3733' }); }
@@ -1037,9 +1063,13 @@ function splash(x, y, rad, dmg, team, skip) {
   }
 }
 
+// A flak burst: a flash, then a ragged cloud of black smoke that hangs in the air and drifts.
+function flakBurst(x, y, delay) {
+  G.effects.push({ type: 'flakburst', x, y, t: -(delay || 0), life: 1.8 + Math.random() * 0.6, seed: (Math.random() * 1e6) | 0, vx: 3 + Math.random() * 3, vy: -2 });
+}
 function impact(kind, x, y, inAir) {
   if (kind === 'flak') {
-    G.effects.push({ type: 'smoke', x, y, r: 4, t: 0, life: 0.6, alpha: 0.8, color: '#2a2826' });
+    flakBurst(x, y);
     G.effects.push({ type: 'spark', x, y, t: 0, life: 0.1 });
   } else {
     hooks.sfx(kind === 'shell' ? 'hitSmall' : 'hitMed', x, y);
@@ -2217,6 +2247,7 @@ function update(dt) {
       G.effects.push({ type: 'smoke', x: fx.x + (Math.random() - 0.5) * 4, y: fx.y, r: 2.5, t: 0, life: 2.2, alpha: 0.45 * (1 - fx.t / fx.life), color: '#35322e', vy: -9, vx: 3 });
     }
     fx.t += dt;
+    if (fx.drag && fx.t > 0) { const k = Math.exp(-fx.drag * dt); fx.vx *= k; fx.vy = fx.vy * k - 3 * (1 - k); }   // billowing smoke slows, then rises
     if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
   }
   G.effects = G.effects.filter((fx) => fx.t < fx.life);
