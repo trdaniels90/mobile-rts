@@ -1253,23 +1253,41 @@ function popFlares(t) {
 
 const HELI_ALT = 20, JET_ALT = 30;
 
-function padFor(u) {
-  const type = u.def.producer;
-  let best = null, bd = Infinity;
-  for (const e of G.entities) {
-    if (!e.alive || e.kind !== 'bld' || e.team !== u.team || e.type !== type || e.sellT > 0) continue;
-    const d = dist(u, e);
-    if (d < bd) { bd = d; best = e; }
+// Every aircraft has a home pad. New ones are based at whichever pad has the fewest aircraft,
+// and if a home pad is lost they move to the least crowded one left, so aircraft spread out
+// over all the player's Helipads or Airfields instead of piling onto the nearest.
+const padUsable = (b, team, type) => b && b.alive && b.kind === 'bld' && b.team === team && b.type === type && b.sellT <= 0;
+function padLoads(team, type) {
+  const loads = new Map();
+  for (const e of G.entities) if (padUsable(e, team, type)) loads.set(e.id, 0);
+  for (const e of G.entities) if (e.alive && e.kind === 'unit' && e.team === team && e.home && loads.has(e.home)) loads.set(e.home, loads.get(e.home) + 1);
+  return loads;
+}
+function leastBusyPad(team, type, near) {
+  let best = null, bl = Infinity, bd = Infinity;
+  for (const [id, n] of padLoads(team, type)) {
+    const p = G.byId.get(id), d = near ? dist(near, p) : 0;
+    if (n < bl || (n === bl && d < bd)) { best = p; bl = n; bd = d; }
   }
   return best;
 }
+function padFor(u) {
+  const type = u.def.producer;
+  if (!type) return null;
+  const home = u.home && G.byId.get(u.home);
+  if (padUsable(home, u.team, type)) return home;
+  const p = leastBusyPad(u.team, type, u);
+  u.home = p ? p.id : null;
+  return p;
+}
 function padSpot(pad, u) {
-  // Each aircraft gets its own parking slot: three along the runway, or the pad itself and then
-  // the ground beside it for helicopters.
-  const mates = G.entities.filter((e) => e.alive && e.kind === 'unit' && e.team === u.team && e.def.producer === pad.type);
-  const k = Math.max(0, mates.indexOf(u)) % 3;
-  if (pad.type === 'airfield') return { x: pad.cx * CELL + 14 + k * 22, y: pad.cy * CELL + 27 };
-  return [{ x: pad.x, y: pad.y }, { x: pad.x + 36, y: pad.y - 4 }, { x: pad.x + 34, y: pad.y + 28 }][k];
+  // Each aircraft based at a pad gets its own parking slot: on the runway and the apron below it,
+  // or on the pad and the ground around it for helicopters.
+  const mates = G.entities.filter((e) => e.alive && e.kind === 'unit' && e.team === u.team && e.home === pad.id).sort((a, b) => a.id - b.id);
+  const k = Math.max(0, mates.indexOf(u)) % 6;
+  if (pad.type === 'airfield') return { x: pad.cx * CELL + 14 + (k % 3) * 22, y: pad.cy * CELL + (k < 3 ? 27 : 56) };
+  return [{ x: pad.x, y: pad.y }, { x: pad.x + 36, y: pad.y - 4 }, { x: pad.x + 34, y: pad.y + 28 },
+    { x: pad.x - 36, y: pad.y - 4 }, { x: pad.x - 34, y: pad.y + 28 }, { x: pad.x, y: pad.y + 40 }][k];
 }
 
 function airTarget(u) {
@@ -1640,11 +1658,12 @@ function updateProduction(team, dt) {
 function spawnUnit(team, type) {
   const d = UNIT_DEFS[type];
   const producers = G.entities.filter((e) => e.alive && e.kind === 'bld' && e.team === team.id && e.type === d.producer && e.sellT <= 0);
-  const p = producers[producers.length - 1];
+  const p = d.cls === 'air' ? leastBusyPad(team.id, d.producer) : producers[producers.length - 1];
   if (!p) return null;
   let u;
   if (d.cls === 'air') {
     u = addUnit(type, team, 0, 0);
+    u.home = p.id;
     const spot = padSpot(p, u);
     u.x = spot.x; u.y = spot.y; u.face = p.type === 'airfield' ? 0 : (team.id === PLAYER ? -0.8 : 2.35);
     u.as = 'landed'; u.alt = 0;
