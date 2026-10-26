@@ -21,9 +21,9 @@ function blit(g, s, x, y, shadow) {
 // ---------------------------------------------------------------------------
 // Terrain
 // ---------------------------------------------------------------------------
-const TERRAIN_MINI = ['#2f3d23', '#5a4c37', '#1c2a14', '#5e5a52', '#4a6a8a'];
+const TERRAIN_MINI = ['#2f3d23', '#5a4c37', '#1c2a14', '#5e5a52', '#4a6a8a', '#6b5a3e'];
 
-function paintTerrain(terr, seed, road) {
+function paintTerrain(terr, seed, road, bridges) {
   buildScenery();
   const c = mkCanvas(WORLD, WORLD), g = c.getContext('2d');
   const img = g.createImageData(WORLD, WORLD), d = img.data;
@@ -31,7 +31,7 @@ function paintTerrain(terr, seed, road) {
 
   // Cell-centre fields, sampled bilinearly so dirt and shorelines blend across cells.
   const dirt = new Float32Array(NCELLS), water = new Float32Array(NCELLS);
-  for (let i = 0; i < NCELLS; i++) { dirt[i] = terr[i] === 1 ? 1 : 0; water[i] = terr[i] === 4 ? 1 : 0; }
+  for (let i = 0; i < NCELLS; i++) { dirt[i] = terr[i] === 1 ? 1 : 0; water[i] = terr[i] >= 4 ? 1 : 0; }
   const nearFlag = new Uint8Array(NCELLS);
   for (let cy = 0; cy < MAP; cy++) for (let cx = 0; cx < MAP; cx++) {
     let f = 0;
@@ -104,6 +104,24 @@ function paintTerrain(terr, seed, road) {
       });
       g.stroke();
     }
+  }
+
+  // Timber bridges over the lakes: stone abutments, plank deck, rails on posts.
+  for (const b of bridges || []) {
+    const dx = b.b.x - b.a.x, dy = b.b.y - b.a.y, L = Math.hypot(dx, dy), w = b.w;
+    g.save();
+    g.translate(b.a.x, b.a.y); g.rotate(Math.atan2(dy, dx));
+    g.fillStyle = 'rgba(10,20,30,0.45)'; g.fillRect(4, -w / 2 + 6, L - 8, w);              // shadow on the water
+    for (const x0 of [-6, L - 10]) { g.fillStyle = '#6f6a5e'; g.fillRect(x0, -w / 2 - 3, 16, w + 6); g.fillStyle = '#56524a'; g.fillRect(x0, w / 2 + 1, 16, 2); }
+    for (let x = 6; x < L - 6; x += 22) { g.fillStyle = '#2e2418'; g.fillRect(x, -w / 2 + 1, 3, w + 6); }   // piles
+    g.fillStyle = '#6b5638'; g.fillRect(0, -w / 2, L, w);
+    for (let x = 0, i = 0; x < L; x += 3, i++) {
+      g.fillStyle = ['#7a6342', '#634f33', '#705a3b', '#5a4730'][(i * 7 + (i >> 2)) % 4];
+      g.fillRect(x, -w / 2 + 2, 2, w - 4);
+    }
+    g.fillStyle = '#3a2d1d'; g.fillRect(0, -w / 2, L, 2); g.fillRect(0, w / 2 - 2, L, 2);
+    for (let x = 2; x < L; x += 10) { g.fillStyle = '#2a2015'; g.fillRect(x, -w / 2 - 1, 2, 3); g.fillRect(x, w / 2 - 2, 2, 3); }
+    g.restore();
   }
 
   // Scenery stamps, back to front, shadows first.

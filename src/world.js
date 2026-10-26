@@ -33,7 +33,7 @@ function newWorld(playerFaction, diffKey, seed) {
   };
   G.teams[ENEMY].credits = G.diff.credits;
   genMap(seed);
-  G.terrainCanvas = paintTerrain(G.terr, seed, G.road);
+  G.terrainCanvas = paintTerrain(G.terr, seed, G.road, G.bridges);
   G.tctx = G.terrainCanvas.getContext('2d');
 
   for (const team of G.teams) {
@@ -62,8 +62,21 @@ function makeTeam(id, faction, isAI) {
 }
 
 // ---------------------------------------------------------------------------
-// Map generation (point-symmetric so both bases are equal)
+// Map: a fixed layout after the classic "A Path Beyond", with random dressing
 // ---------------------------------------------------------------------------
+// The bases sit in opposite corners. Two long lakes cross the middle between them; armies can
+// go over the land gap in the centre (the main road), over a bridge across either lake, or
+// around the far ends of the lakes along the edges of the map. Ore fields lie beside each base
+// and along the lake shores, all clear of the routes. Shorelines, woods and rocks vary per game.
+// The map is point-symmetric, so both sides are equal.
+//
+// Layout coordinates: t runs along the line between the two lakes' far ends (map diagonal
+// x = y), d runs from base to base (the player at d = +43, the enemy at d = -43).
+const LT = (x, y) => (x + y) / 2, LD = (x, y) => (y - x) / Math.SQRT2;
+const LX = (t, d) => t - d / Math.SQRT2, LY = (t, d) => t + d / Math.SQRT2;
+const MID = (MAP - 1) / 2;
+const LAKE_IN = 3.4, LAKE_OUT = 34.5, LAKE_W = 8, BRIDGE_T = 18;
+
 function genMap(seed) {
   const r = rng(seed ^ 0x5bd1e995);
   const T = G.terr;
@@ -72,68 +85,121 @@ function genMap(seed) {
     if (!inMap(cx, cy)) return;
     T[idx(cx, cy)] = v; T[idx(MAP - 1 - cx, MAP - 1 - cy)] = v;
   };
+  // Smooth 1-D noise for organic edges.
+  const wobble = (n, amp) => { const v = Array.from({ length: n + 2 }, () => (r() - 0.5) * 2 * amp); return (u) => { u = Math.max(0, Math.min(n, u)); const i = Math.floor(u), f = u - i, s = f * f * (3 - 2 * f); return v[i] + (v[i + 1] - v[i]) * s; }; };
+  const coastW = wobble(40, 1.4), lakeW = wobble(30, 2.4), lakeEnd = wobble(4, 2);
+
+  // Ore: [t offset from the middle, d] for the player's half; mirrored for the enemy.
   const fieldsHalf = [
-    { cx: 23, cy: 77, r: 3.2, rich: 0.8 }, { cx: 10, cy: 62, r: 3, rich: 0.8 },
-    { cx: 30, cy: 56, r: 3.6, rich: 1 }, { cx: 20, cy: 42, r: 3, rich: 0.9 },
-    { cx: 46, cy: 70, r: 3, rich: 0.9 },
+    { t: 9.5, d: 38, r: 3.4, rich: 1 },      // beside the base, one each side
+    { t: -9.5, d: 38, r: 3.2, rich: 0.9 },
+    { t: -10, d: 12.5, r: 3, rich: 1.15 },   // forward fields on the lake shores, between the crossings
+    { t: 10, d: 12.5, r: 3, rich: 1.15 },
+    { t: -26, d: 13, r: 2.8, rich: 0.9 },    // beside the flank route
   ];
-  const center = { cx: 43.5, cy: 43.5, r: 4.5, rich: 1.2 };
-  const fields = [center];
-  for (const f of fieldsHalf) { fields.push(f, { cx: MAP - 1 - f.cx, cy: MAP - 1 - f.cy, r: f.r, rich: f.rich }); }
+  const fields = [];
+  for (const f of fieldsHalf) {
+    const cx = LX(MID + f.t, f.d), cy = LY(MID + f.t, f.d);
+    fields.push({ cx, cy, r: f.r, rich: f.rich }, { cx: MAP - 1 - cx, cy: MAP - 1 - cy, r: f.r, rich: f.rich });
+  }
   G.oreFields = fields;
-  let protectedCell = (cx, cy) => {
-    for (const s of [P, E]) if (Math.hypot(cx - s.cx, cy - s.cy) < 11) return true;
-    for (const f of fields) if (Math.hypot(cx - f.cx, cy - f.cy) < f.r + 1.5) return true;
-    return false;
-  };
-  const blob = (cx, cy, rad, v, density) => {
-    for (let y = Math.floor(cy - rad - 1); y <= cy + rad + 1; y++) {
-      for (let x = Math.floor(cx - rad - 1); x <= cx + rad + 1; x++) {
-        const d = Math.hypot(x - cx, (y - cy) * 1.15) + (r() - 0.5) * 1.6;
-        if (d < rad && r() < density && !protectedCell(x, y)) set(x, y, v);
+
+  // Routes to keep open, as [t offset, d] waypoints from the player's base to the middle line.
+  const routes = [
+    [[0, 43], [0, 20], [0, 0]],                                         // centre road
+    [[0, 43], [-BRIDGE_T, 22], [-BRIDGE_T, 0]], [[0, 43], [BRIDGE_T, 22], [BRIDGE_T, 0]],   // bridges
+    [[0, 43], [-33, 26], [-39, 0]],                                     // around the lake end
+  ];
+  const routeCells = new Uint8Array(NCELLS);
+  const markRoute = (pts, w) => {
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [at, ad] = pts[i], [bt, bd] = pts[i + 1], n = Math.ceil(Math.hypot(bt - at, bd - ad) * 3);
+      for (let k = 0; k <= n; k++) {
+        const tt = MID + at + (bt - at) * k / n, dd = ad + (bd - ad) * k / n;
+        for (const sgn of [1, -1]) {
+          const x = sgn > 0 ? LX(tt, dd) : MAP - 1 - LX(tt, dd), y = sgn > 0 ? LY(tt, dd) : MAP - 1 - LY(tt, dd);
+          for (let oy = -w; oy <= w; oy++) for (let ox = -w; ox <= w; ox++) {
+            const cx = Math.round(x + ox), cy = Math.round(y + oy);
+            if (inMap(cx, cy) && Math.hypot(ox, oy) <= w) routeCells[idx(cx, cy)] = 1;
+          }
+        }
       }
     }
   };
-  // A dirt road winds from base to base through the middle of the map.
-  const half = [[P.cx + 3, P.cy - 5], [P.cx + 9 + r() * 3, P.cy - 12 - r() * 3], [27 + r() * 3, 52 + r() * 3], [36 + r() * 2, 47 + r() * 2], [MAP / 2 - 0.5, MAP / 2 - 0.5]];
-  const pts = half.concat(half.slice(0, -1).reverse().map(([x, y]) => [MAP - 1 - x, MAP - 1 - y]));
-  const roadCells = new Set();
+  for (const rt of routes) markRoute(rt, 2.2);
+  const nearField = (cx, cy, pad) => fields.some((f) => Math.hypot(cx - f.cx, cy - f.cy) < f.r + pad);
+  const nearBase = (cx, cy, rad) => [P, E].some((s) => Math.hypot(cx - s.cx, cy - s.cy) < rad);
+  const keepClear = (cx, cy) => routeCells[idx(cx, cy)] || nearField(cx, cy, 1.5) || nearBase(cx, cy, 10);
+
+  // Shoreline, lakes and bridges, computed on the player's half (d >= 0) and mirrored.
+  G.bridges = [];
+  for (let cy = 0; cy < MAP; cy++) for (let cx = 0; cx < MAP; cx++) {
+    if (cy < cx) continue;
+    const t = LT(cx, cy), d = LD(cx, cy), at = Math.abs(t - MID);
+    const edge = Math.min(cx, cy, MAP - 1 - cx, MAP - 1 - cy);
+    const along = (cx + cy) / 2 + (cy - cx) * 0.7;   // position round the coast
+    let v = 0;
+    if (edge < 2.6 + coastW(along / 4.5)) v = 4;
+    const halfW = LAKE_W + lakeW(t / 2.9) + lakeW((t + d * 1.7) / 2.2) * 0.45 - Math.max(0, (at - (LAKE_OUT - 4)) * 1.4) - Math.max(0, (LAKE_IN + 3 - at) * 1.2);
+    if (at > LAKE_IN && at < LAKE_OUT + lakeEnd(t / 22) && d < halfW && edge > 6) v = 4;
+    if (v === 4 && Math.abs(at - BRIDGE_T) < 1.3 && d < LAKE_W + 3 && edge > 5) v = 5;
+    if (v) set(cx, cy, v);
+  }
+  for (const sgn of [-1, 1]) {
+    const tb = MID + sgn * BRIDGE_T, w = LAKE_W + 2.8;
+    const a = { x: (LX(tb, w) + 0.5) * CELL, y: (LY(tb, w) + 0.5) * CELL }, b = { x: (LX(tb, -w) + 0.5) * CELL, y: (LY(tb, -w) + 0.5) * CELL };
+    G.bridges.push({ a, b, w: 3.4 * CELL });
+  }
+
+  // Dressing: woods along the coast and lake shores, patches of open earth, rock outcrops.
+  const halfPt = () => { let x, y; do { x = 2 + r() * (MAP - 4); y = 2 + r() * (MAP - 4); } while (y < x); return [x, y]; };
+  const blob = (x0, y0, rad, v, density) => {
+    for (let y = Math.floor(y0 - rad - 1); y <= y0 + rad + 1; y++) for (let x = Math.floor(x0 - rad - 1); x <= x0 + rad + 1; x++) {
+      if (!inMap(x, y) || T[idx(x, y)] >= 4) continue;
+      const dd = Math.hypot(x - x0, (y - y0) * 1.15) + (r() - 0.5) * 1.6;
+      if (dd < rad && r() < density && !keepClear(x, y) && !keepClear(MAP - 1 - x, MAP - 1 - y)) set(x, y, v);
+    }
+  };
+  const shore = (cx, cy) => [[1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [0, 2], [-2, 0], [0, -2]].some(([ox, oy]) => inMap(cx + ox, cy + oy) && T[idx(cx + ox, cy + oy)] === 4);
+  for (let i = 0; i < 12; i++) blob(...halfPt(), 1.5 + r() * 3, 1, 0.9);
+  for (let i = 0; i < 26; i++) {
+    let [x, y] = halfPt();
+    if (!shore(Math.round(x), Math.round(y)) && r() < 0.6) continue;
+    blob(x, y, 1.6 + r() * 2.6, 2, 0.8);
+  }
+  for (let i = 0; i < 7; i++) {
+    let [x, y] = halfPt(); x = Math.floor(x); y = Math.floor(y);
+    const len = 3 + Math.floor(r() * 5), dx = r() < 0.5 ? 1 : 0, dy = 1 - dx;
+    for (let k = 0; k < len; k++) { if (inMap(x, y) && T[idx(x, y)] < 2 && !keepClear(x, y) && !keepClear(MAP - 1 - x, MAP - 1 - y)) set(x, y, 3); x += dx + (r() < 0.25 ? 1 : 0); y += dy + (r() < 0.25 ? 1 : 0); }
+  }
+
+  // The main road: dirt from base to base over the centre gap.
   G.road = [];
-  for (let i = 0; i < pts.length - 1; i++) {
-    const [ax, ay] = pts[i], [bx, by] = pts[i + 1], n = Math.ceil(Math.hypot(bx - ax, by - ay) * 4);
+  const road = [[0, 43], [1.5, 30], [-1, 16], [0.5, 5], [0, 0]];
+  const pts = road.map(([t, d]) => [LX(MID + t, d), LY(MID + t, d)]);
+  const full = pts.concat(pts.slice(0, -1).reverse().map(([x, y]) => [MAP - 1 - x, MAP - 1 - y]));
+  for (let i = 0; i < full.length - 1; i++) {
+    const [ax, ay] = full[i], [bx, by] = full[i + 1], n = Math.ceil(Math.hypot(bx - ax, by - ay) * 4);
     for (let k = 0; k < n; k++) {
-      const t = k / n, x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+      const x = ax + (bx - ax) * k / n, y = ay + (by - ay) * k / n;
       G.road.push({ x: (x + 0.5) * CELL, y: (y + 0.5) * CELL });
-      for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) if (Math.hypot(ox, oy) <= 1.2) roadCells.add(idx(Math.round(x + ox), Math.round(y + oy)));
+      for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+        const cx = Math.round(x + ox), cy = Math.round(y + oy);
+        if (inMap(cx, cy) && Math.hypot(ox, oy) <= 1.2 && T[idx(cx, cy)] < 4) T[idx(cx, cy)] = 1;
+      }
     }
   }
-  for (const c of roadCells) if (c >= 0 && c < NCELLS) T[c] = 1;
-  const baseProtected = protectedCell;
-  const onRoad = (cx, cy) => { for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) if (roadCells.has(idx(cx + ox, cy + oy))) return true; return false; };
-  protectedCell = (cx, cy) => baseProtected(cx, cy) || onRoad(cx, cy) || onRoad(MAP - 1 - cx, MAP - 1 - cy);
+  // Earth around each base, as if the ground had been cleared for it.
+  for (const s of [P]) blob(s.cx + 0.5, s.cy - 0.5, 4.5, 1, 0.7);
+  for (const s of [P]) for (let y = s.cy - 5; y <= s.cy + 5; y++) for (let x = s.cx - 5; x <= s.cx + 5; x++) if (inMap(x, y) && T[idx(x, y)] === 0 && Math.hypot(x - s.cx, y - s.cy) < 4 + r() * 1.5) set(x, y, 1);
 
-  // Generate across the half below the anti-diagonal; set() mirrors it.
-  const halfPt = () => { let x, y; do { x = 2 + r() * (MAP - 4); y = 2 + r() * (MAP - 4); } while (x + y < MAP - 6); return [x, y]; };
-  for (let i = 0; i < 9; i++) { const [x, y] = halfPt(); blob(x, y, 2 + r() * 4, 1, 0.95); }
-  for (let i = 0; i < 2; i++) { const [x, y] = halfPt(); blob(x, y, 2.5 + r() * 2.5, 4, 1); }
-  for (let i = 0; i < 9; i++) { const [x, y] = halfPt(); blob(x, y, 1.5 + r() * 2.8, 2, 0.75); }
-  for (let i = 0; i < 6; i++) {
-    let [x, y] = halfPt(); x = Math.floor(x); y = Math.floor(y);
-    const len = 3 + Math.floor(r() * 6), dx = r() < 0.5 ? 1 : 0, dy = 1 - dx;
-    for (let k = 0; k < len; k++) { if (!protectedCell(x, y)) set(x, y, 3); x += dx + (r() < 0.25 ? 1 : 0); y += dy + (r() < 0.25 ? 1 : 0); }
-  }
-  // Thin forest along the map edge.
-  for (let i = 0; i < MAP; i++) {
-    for (const [x, y] of [[i, 0], [0, i], [i, MAP - 1], [MAP - 1, i]]) if (r() < 0.75 && !protectedCell(x, y)) set(x, y, 2);
-    for (const [x, y] of [[i, 1], [1, i]]) if (r() < 0.3 && !protectedCell(x, y)) set(x, y, 2);
-  }
-  for (let i = 0; i < NCELLS; i++) G.block[i] = T[i] >= 2 ? 1 : 0;
+  for (let i = 0; i < NCELLS; i++) G.block[i] = T[i] >= 2 && T[i] <= 4 ? 1 : 0;
 
-  // Make sure the bases connect; carve a road if a lake or forest walls them off.
+  // Safety net: if the dressing ever walls the bases apart, cut a road straight through.
   if (!connected(idx(P.cx, P.cy), idx(E.cx, E.cy))) {
     for (let k = 0; k <= 100; k++) {
       const x = Math.round(P.cx + (E.cx - P.cx) * k / 100), y = Math.round(P.cy + (E.cy - P.cy) * k / 100);
-      for (const [ox, oy] of [[0, 0], [1, 0], [0, 1]]) if (inMap(x + ox, y + oy)) { T[idx(x + ox, y + oy)] = 1; G.block[idx(x + ox, y + oy)] = 0; }
+      for (const [ox, oy] of [[0, 0], [1, 0], [0, 1]]) if (inMap(x + ox, y + oy)) { const c = idx(x + ox, y + oy); if (T[c] !== 5) T[c] = T[c] === 4 ? 5 : 1; G.block[c] = 0; }
     }
   }
   for (const f of fields) {
@@ -143,6 +209,7 @@ function genMap(seed) {
         const d = Math.hypot(x - f.cx, y - f.cy);
         if (d > f.r) continue;
         const c = idx(x, y);
+        if (T[c] >= 4) continue;
         if (G.block[c]) { G.block[c] = 0; T[c] = 0; }
         G.ore[c] = Math.round(Math.min(ORE_MAX, (60 + (1 - d / f.r) * 190) * f.rich));
       }
@@ -734,7 +801,7 @@ function bombBlast(p) {
 // Craters only on open ground: not in water or under a structure.
 function craterAt(x, y, rad) {
   const c = cellOfPos(x, y);
-  if (G.terr[c] === 4 || G.bld[c]) return;
+  if (G.terr[c] >= 4 || G.bld[c]) return;
   crater(G.tctx, x, y, rad, (Math.random() * 1e6) | 0);
 }
 // A wreck smoulders for a while after the flames die down.
@@ -839,7 +906,7 @@ function crashLanding(x, y, face, def, faction, seed) {
   hooks.sfx('explodeVeh', x, y);
   G.effects.push({ type: 'expl', x, y: y - 4, size: 15, t: 0, life: 0.8, seed, debris: true });
   scorch(G.tctx, x, y, 13, seed);
-  if (G.terr[cellOfPos(x, y)] !== 4) {
+  if (G.terr[cellOfPos(x, y)] < 4) {
     craterAt(x, y, 9);
     bakeWreck(G.tctx, x, y, def, face, face);
     smoulder(x, y - 3, 30);
