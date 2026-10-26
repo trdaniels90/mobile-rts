@@ -318,20 +318,23 @@
   // ---------------------------------------------------------------------------
   // Selection & commands
   // ---------------------------------------------------------------------------
+  // What is under a tap or click. Structures count from their footprint up through the walls and
+  // roof drawn above it. A unit in front of a structure wins the tap: structures rank a little
+  // lower, but that never stops a tap squarely on one from picking it, at any zoom.
   function pick(wx, wy, slop) {
     let best = null, bd = Infinity;
     for (const e of G.entities) {
       if (!e.alive || !visibleToPlayer(e) || (e.def && e.def.scripted)) continue;
-      let d;
+      let d, rank;
       if (e.kind === 'bld') {
-        const bx = e.cx * CELL, by = e.cy * CELL;
-        const dx = Math.max(bx - wx, 0, wx - (bx + e.w * CELL)), dy = Math.max(by - wy, 0, wy - (by + e.h * CELL));
-        d = Math.hypot(dx, dy) + 4;
+        const bx = e.cx * CELL, by = e.cy * CELL - CELL * 0.8;
+        const dx = Math.max(bx - wx, 0, wx - (bx + e.w * CELL)), dy = Math.max(by - wy, 0, wy - (e.cy * CELL + e.h * CELL));
+        d = Math.hypot(dx, dy); rank = d + 4;
       } else {
         const ey = e.y - (e.alt || 0) - (e.cls === 'inf' ? 3 : 0);
-        d = Math.max(0, Math.hypot(wx - e.x, wy - ey) - e.def.r);
+        d = rank = Math.max(0, Math.hypot(wx - e.x, wy - ey) - e.def.r);
       }
-      if (d <= slop && d < bd) { bd = d; best = e; }
+      if (d <= slop && rank < bd) { bd = rank; best = e; }
     }
     return best;
   }
