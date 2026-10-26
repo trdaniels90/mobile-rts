@@ -666,6 +666,8 @@ function muzzle(src) {
 // Where shots should land on a target (its body, not its feet).
 function aimY(t) {
   if (t.kind === 'bld') return t.y - 6;
+  if (t.cls === 'inf' && !t.moving && t.stance === 'prone') return t.y - 2;
+  if (t.cls === 'inf' && !t.moving && t.stance === 'crouch') return t.y - 5;
   return t.y - (t.alt || 0) - (t.cls === 'inf' ? 8 : 4);
 }
 
@@ -852,7 +854,15 @@ function damage(t, amount, wh, attacker, from) {
   const armor = t.kind === 'bld' ? 'bld' : isAirborne(t) ? 'air' : t.def.armor === 'air' ? 'light' : t.def.armor;
   const mult = WARHEADS[wh][armor];
   if (!mult) return;
-  t.hp -= amount * mult * (0.9 + Math.random() * 0.2);
+  // Infantry under fire drop into cover: a mix of staying up, crouching and going prone, held
+  // until they move or have not been hit for a while. Lower is harder to hit.
+  let cover = 1;
+  if (t.kind === 'unit' && t.cls === 'inf' && !t.chute) {
+    if (!t.stance || G.t > t.stanceUntil) { const r = Math.random(); t.stance = r < 0.34 ? 'stand' : r < 0.67 ? 'crouch' : 'prone'; }
+    t.stanceUntil = G.t + 6;
+    if (!t.moving) cover = t.stance === 'prone' ? 0.65 : t.stance === 'crouch' ? 0.85 : 1;
+  }
+  t.hp -= amount * mult * cover * (0.9 + Math.random() * 0.2);
   t.hitT = G.t;
   const team = teamOf(t);
   if (t.team === PLAYER && attacker) {
@@ -1010,6 +1020,7 @@ function ejectPilot(e) {
 // ---------------------------------------------------------------------------
 function updateUnit(u, dt) {
   u.cd = Math.max(0, u.cd - dt); u.cd2 = Math.max(0, u.cd2 - dt); u.fireT = Math.max(0, u.fireT - dt);
+  if (u.stance && G.t > u.stanceUntil) u.stance = null;   // quiet for a while: back on their feet
   u.moving = false;
   tickBurst(u, dt);
   if (u.def.scripted) { updateFlight(u, dt); return; }

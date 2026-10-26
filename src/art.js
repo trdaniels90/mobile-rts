@@ -280,10 +280,12 @@ function flash(g, x, y, s) {
 function drawUnit(g, u, t) {
   const pal = palFor(u.faction);
   if (u.cls === 'inf') {
-    const frame = u.type === 'grenadier' && u.fireT > 0.12 ? 3 : u.moving ? 1 + (Math.floor(u.anim / 4) % 2) : 0;
+    const stance = !u.moving && u.stance;
+    const frame = stance === 'prone' ? 5 : stance === 'crouch' ? 4 : u.type === 'grenadier' && u.fireT > 0.12 ? 3 : u.moving ? 1 + (Math.floor(u.anim / 4) % 2) : 0;
     if (u.chute > 0) { drawChute(g, u, pal, t); return; }
     blit(g, infSprite(u, pal, frame), u.x, u.y);
-    if (u.fireT > 0) flash(g, u.x + Math.cos(u.face) * 10, u.y + Math.sin(u.face) * 10 - 11, 1);
+    const mh = stance === 'prone' ? 2 : stance === 'crouch' ? 6 : 11, mr = stance === 'prone' ? 12 : 10;
+    if (u.fireT > 0) flash(g, u.x + Math.cos(u.face) * mr, u.y + Math.sin(u.face) * mr - mh, 1);
     return;
   }
   if (u.cls === 'air') {

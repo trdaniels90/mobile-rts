@@ -222,7 +222,10 @@ function cargoModel(pal, bomber) {
 // ---------------------------------------------------------------------------
 // Infantry: 16 facings x 3 frames (standing, two walking poses)
 // ---------------------------------------------------------------------------
+// Frames: 0 standing, 1-2 walking, 3 throwing, 4 crouching, 5 prone.
 function infModel(pal, faction, type, frame) {
+  if (frame === 5) return proneModel(pal, faction, type);
+  if (frame === 4) return crouched(infModel(pal, faction, type, 0));
   const m = new VModel(-8, -5, 11, 5, 21);
   const sov = faction === 'soviets';
   const step = frame === 1 ? 1.5 : frame === 2 ? -1.5 : 0, throwing = frame === 3;
@@ -567,6 +570,33 @@ function turretSprite(u, pal) {
   if (d.draw === 'tank') return facingSprite('t' + d.type + pal.key, () => tankTurret(pal, d.size), u.tface, FACINGS, { shadow: false });
   if (d.draw === 'jeep') return facingSprite('m' + pal.key, () => mgModel(), u.tface, FACINGS, { shadow: false });
   return null;
+}
+// Crouching: the standing figure with the thighs folded away, so the body sits lower.
+function crouched(m) {
+  const { w, h, d } = m, cut = 5, from = 3;
+  for (let z = from; z < d; z++) for (let i = 0; i < w * h; i++) {
+    const dst = z * w * h + i, src = (z + cut) * w * h + i;
+    m.col[dst] = z + cut < d ? m.col[src] : -1; m.mat[dst] = z + cut < d ? m.mat[src] : 0;
+  }
+  m.surf = null;
+  return m;
+}
+// Prone: lying on the stomach, legs back, weapon forward.
+function proneModel(pal, faction, type) {
+  const m = new VModel(-15, -5, 13, 5, 7);
+  const sov = faction === 'soviets';
+  const pants = sov ? '#6a604a' : '#5f6a44', webbing = '#3b3324', helm = sov ? '#7d7a52' : '#7a8a52', skin = '#d29a72';
+  for (const y0 of [-2, 0]) { m.box(-14, y0, 0, -13, y0 + 2, 2, C.black); m.box(-13, y0, 0, -6, y0 + 2, 2, pants); }
+  m.box(-6, -2, 0, 2, 2, 3, pal.main); m.box(-6, -2, 2, 2, 2, 3, shadeInt(pal.main, 0.85));
+  m.box(-6, -2, 0, -5, 2, 3, webbing);
+  if (type !== 'pilot') m.box(-5, -1.5, 3, -1, 1.5, 4, C.oliveD);
+  m.box(2, -1, 0, 4, 1, 3, skin);
+  m.box(1.5, -1.5, 2, 4.5, 1.5, 4, type === 'pilot' ? '#cfcab8' : type === 'grenadier' ? '#5e4a34' : helm);
+  for (const y of [-3, 2]) { m.box(1, y, 0, 5, y + 1, 1.5, pal.main); m.set(5, y, 0, skin); }
+  if (type === 'rocket') { m.cylX(-4, 8, -2.5, 3.5, 1.3, '#56603a'); m.box(8, -3.5, 2.5, 9, -1.5, 4.5, '#2a2a24'); }
+  else if (type === 'grenadier') m.box(5, 1, 0, 7, 3, 1.5, '#3f4a2a');
+  else { m.box(4, -1, 0.5, 12, 0, 1.5, C.gun, M_METAL); m.box(1, -1, 0.5, 4, 0, 2, '#6a4426'); }
+  return m;
 }
 function infSprite(u, pal, frame) {
   return facingSprite(`I${u.type}${pal.key}${frame}`, () => infModel(pal, u.faction, u.type, frame), u.face, 16, { crisp: true });
