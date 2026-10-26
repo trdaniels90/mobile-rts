@@ -479,6 +479,19 @@ function acquire(src, range, weapons) {
 
 // Where attacking units head: the enemy Construction Yard, or failing that the nearest structure.
 function nearestEnemyBuilding(u) {
+  // Raiding an outlying site: stay on it, finish off what else stands there, then move on.
+  if (u.focus) {
+    if (u.focus.alive) return u.focus;
+    const f = u.focus;
+    let nb = null, nd = CELL * 9;
+    for (const e of G.entities) {
+      if (!e.alive || e.kind !== 'bld' || e.team === u.team) continue;
+      const d = Math.hypot(e.x - f.x, e.y - f.y);
+      if (d < nd) { nd = d; nb = e; }
+    }
+    u.focus = nb;
+    if (nb) return nb;
+  }
   let best = null, bd = Infinity, cy = null, cd = Infinity;
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.team === u.team) continue;
@@ -514,16 +527,33 @@ function launchGroups() {
       u.staged = false;
       u.groupSpeed = pace;
     }
-    const target = nearestEnemyBuilding(ready[0]);
-    if (target) makeGroup(team, ready, target, pace);
+    // Most waves go for the main base; one in three raids an outlying Outpost or refinery.
+    team.waves = (team.waves || 0) + 1;
+    const exp = expansionsOf(enemyOf(team), rally);
+    const raid = exp.length && team.waves % 3 === 0 ? exp[0] : null;
+    const target = raid || nearestEnemyBuilding(ready[0]);
+    if (target) {
+      const g = makeGroup(team, ready, target, pace);
+      if (raid) { g.raid = true; for (const u of ready) u.focus = raid; }
+    }
     team.waiting = 0;
     if (team.id === PLAYER) hooks.eva('Attack group moving out');
   }
 }
 
+// A side's outlying sites: Outposts and refineries well away from its Construction Yard, nearest
+// to `from` first, Outposts before refineries.
+function expansionsOf(team, from) {
+  const cy = G.entities.find((e) => e.alive && e.team === team.id && e.type === 'cy');
+  if (!cy) return [];
+  return buildingsOf(team.id).filter((b) => (b.type === 'outpost' || b.type === 'refinery') && dist(b, cy) > CELL * 14)
+    .sort((a, b) => (a.type !== 'outpost') - (b.type !== 'outpost') || dist(a, from) - dist(b, from));
+}
 function launchAircraft(u) {
   setHunt(u);
   u.staged = false;
+  const exp = expansionsOf(enemyOf(G.teams[u.team]), u);
+  if (exp.length && Math.random() < 1 / 3) u.focus = exp[0];
   if (u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff';
 }
 
@@ -598,6 +628,7 @@ function makeGroup(team, units, target, pace) {
     u.group = g; u.slotGoal = null;
   });
   G.groups.push(g);
+  return g;
 }
 // Where a unit's slot is right now, nudged ahead so units keep rolling instead of stopping
 // every few steps. Slots that fall on rocks or water collapse onto the route itself.
@@ -616,9 +647,19 @@ function updateGroups(dt) {
     });
     // Arrived (or nothing left to lead): units fight on their own from here.
     if (!g.units.length || !g.target.alive || g.i >= g.path.length || Math.hypot(g.target.x - g.x, g.target.y - g.y) < CELL * 6) {
-      for (const u of g.units) u.group = null;
+      for (const u of g.units) { u.group = null; if (g.raid) u.focus = g.target; }
       g.done = true;
       continue;
+    }
+    // Passing close to an enemy Outpost or outlying refinery: divert and destroy it first.
+    if (!g.raid && (g.scanT = (g.scanT || 0) - dt) <= 0) {
+      g.scanT = 1;
+      const near = expansionsOf(enemyOf(G.teams[g.team]), g).find((b) => Math.hypot(b.x - g.x, b.y - g.y) < CELL * 10);
+      if (near) {
+        g.target = near; g.raid = true;
+        g.path = findPath(g.x, g.y, near.x, near.y, 10) || [{ x: near.x, y: near.y }]; g.i = 0;
+        for (const u of g.units) { u.focus = near; u.slotGoal = null; }
+      }
     }
     // Hold the marker back while the group is strung out or busy fighting.
     let err = 0, fighting = 0;
@@ -642,7 +683,7 @@ function setGuard(u, x, y) {
   u.order = { type: 'guard', x: x === undefined ? u.x : x, y: y === undefined ? u.y : y };
   u.target = null; u.groupSpeed = 0; u.group = null;
 }
-function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget = null; u.group = null; }
+function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget = null; u.group = null; u.focus = null; }
 
 // ---------------------------------------------------------------------------
 // Combat
@@ -1545,7 +1586,8 @@ function updateBuilding(b, dt) {
     return;
   }
   if (b.repairing) {
-    b.repT = (b.repT || 0) + dt;
+    // Repairs crawl at half speed while the structure is under fire.
+    b.repT = (b.repT || 0) + dt * (G.t - b.hitT < 2 ? 0.5 : 1);
     if (b.repT >= 0.25) {
       b.repT = 0;
       const heal = b.maxHp * 0.02, cost = Math.max(1, b.def.cost * 0.01);
