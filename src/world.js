@@ -1218,8 +1218,19 @@ function updateAir(u, dt) {
     u.alt = 0; u.speedCur = 0;
     u.rt += dt;
     if (!airFull(u) && u.rt >= (jet ? 1.5 : 0.5)) { rearmStep(u); u.rt = 0; }
+    // Ground crews patch up damage at the same rate and price as structure repairs: 2% of its
+    // health every quarter second for 1% of its price, so a full repair costs half the price.
+    u.repairing = false;
+    if (u.hp < u.maxHp && padFor(u) && Math.hypot(padFor(u).x - u.x, padFor(u).y - u.y) < CELL * 3) {
+      const team = G.teams[u.team], cost = Math.max(1, u.def.cost * 0.01);
+      if (team.credits >= cost) {
+        u.repairing = true;
+        if ((u.repT = (u.repT || 0) + dt) >= 0.25) { u.repT = 0; team.credits -= cost; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.02); }
+      } else notify(team, 'funds', 'Insufficient funds', 8);
+    }
     // Aircraft told to wait on their pad stay parked until auto attack, an order or a raid sends them up.
-    if (airFull(u) && u.order.type !== 'rearm-hold' && !(u.order.type === 'guard' && u.order.pad)) u.as = 'takeoff';
+    // They also wait for repairs to finish, unless there is no money to pay for them.
+    if (airFull(u) && !u.repairing && u.order.type !== 'rearm-hold' && !(u.order.type === 'guard' && u.order.pad)) u.as = 'takeoff';
     return;
   }
   if (u.as === 'takeoff') {

@@ -303,6 +303,12 @@ function drawUnit(g, u, t) {
     }
     if (u.fireT > 0) flash(g, u.x + Math.cos(u.face) * 10, u.y - alt + Math.sin(u.face) * 10, 2);
     // Parked: ammunition pips fill up as the ground crew rearms it.
+    // Repairs under way: the same blinking green cross as structures.
+    if (u.repairing && Math.floor(t * 3) % 2) {
+      const cx = Math.round(u.x), cy = Math.round(u.y - 14);
+      g.fillStyle = '#000'; g.fillRect(cx - 4, cy - 4, 9, 9);
+      g.fillStyle = '#3ed04a'; g.fillRect(cx - 3, cy - 1, 7, 3); g.fillRect(cx - 1, cy - 3, 3, 7);
+    }
     // Yellow: main weapon, blue: air-to-air missiles, grey: bombs.
     if (u.as === 'landed' && u.def.weapon) {
       const loads = [[u.def.weapon.ammo, u.ammo, '#e8c64a'], [u.def.weapon2 ? u.def.weapon2.ammo : 0, u.aam || 0, '#9cc8ff'], [u.def.bombs || 0, u.bombs || 0, '#b8b6aa']];
