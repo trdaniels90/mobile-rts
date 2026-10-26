@@ -1,6 +1,7 @@
 'use strict';
 // Sound effects, spoken announcements and an original industrial-metal soundtrack.
-// Effects and music are synthesised live with the Web Audio API; voice lines come from src/voices.js.
+// Battle effects are recordings from src/sfx.js (with synthesised fallbacks), music is
+// synthesised live with the Web Audio API, and voice lines come from src/voices.js.
 
 const Sound = (() => {
   const settings = { music: true, sfx: true, voice: true };
@@ -304,7 +305,33 @@ const Sound = (() => {
     const s = { send(amount) { const g = gain(amount * v, verbIn); out.connect(g); } };
     voices++;
     setTimeout(() => { voices--; }, 1600);
-    FX[name](now + 0.005, into, s);
+    if (!playRecorded(name, out, s)) FX[name](now + 0.005, into, s);
+  }
+
+  // Recorded effects (src/sfx.js). Each play picks a random take and nudges its pitch
+  // so repeated shots never sound identical. Returns false when there is no recording.
+  const RECORDED = typeof SFX_CLIPS !== 'undefined' ? SFX_CLIPS : {};
+  const REVERB = { cannon: 0.2, cannonHeavy: 0.25, turretGun: 0.3, hitMed: 0.3, explodeVeh: 0.4, explodeBig: 0.55, tesla: 0.3, fireHit: 0.2 };
+  function playRecorded(name, out, s) {
+    const take = (key, delay, rate, level) => {
+      const list = RECORDED[key];
+      if (!list) return false;
+      const b64 = list[Math.floor(Math.random() * list.length)];
+      clipBuffer(b64, (buf) => {
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        src.playbackRate.value = (rate || 1) * (0.94 + Math.random() * 0.12);
+        const g = gain(level || 1, out); src.connect(g);
+        src.start(ctx.currentTime + (delay || 0));
+      });
+      return true;
+    };
+    let ok;
+    if (name === 'cannonHeavy') ok = take('cannon', 0, 0.9) && take('cannon', 0.028, 0.86, 0.8);   // both barrels at once
+    else if (name === 'explodeBig') ok = take('explodeBig', 0) && take('explodeVeh', 0.28, 0.9, 0.7) && take('hitMed', 0.55, 0.85, 0.6);
+    else if (name === 'fireHit') ok = take('fireHit', 0.02) && take('hitSmall', 0, 0.9, 0.7);
+    else ok = take(name, 0);
+    if (ok && REVERB[name]) s.send(REVERB[name]);
+    return ok;
   }
 
   // ---------------------------------------------------------------------------
@@ -339,7 +366,10 @@ const Sound = (() => {
   }
   const clips = typeof VOICE_CLIPS !== 'undefined' ? VOICE_CLIPS : {};
   // Warm up the most frequent lines so the first announcement is not delayed by decoding.
-  function preload() { for (const k of ['eva:building', 'eva:construction complete', 'eva:unit ready', 'eva:our base is under attack']) if (clips[k]) clipBuffer(clips[k], () => {}); }
+  function preload() {
+    for (const k of ['eva:building', 'eva:construction complete', 'eva:unit ready', 'eva:our base is under attack']) if (clips[k]) clipBuffer(clips[k], () => {});
+    for (const list of Object.values(RECORDED)) for (const b64 of list) clipBuffer(b64, () => {});
+  }
   function say(msg) {
     const b64 = clips['eva:' + msg.toLowerCase().replace(/[.!]$/, '')];
     if (b64) playClip(b64, 1.0, true);

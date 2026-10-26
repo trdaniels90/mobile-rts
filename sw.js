@@ -1,7 +1,7 @@
 // Offline support. Network first, so a new version is picked up on the next load;
 // the cache is only used when there is no connection.
-const CACHE = 'pocket-siege-v5';
-const FILES = ['./', 'index.html', 'style.css', 'src/data.js', 'src/voxel.js', 'src/models.js', 'src/art.js', 'src/world.js', 'src/ai.js', 'src/voices.js', 'src/audio.js', 'src/ui.js',
+const CACHE = 'pocket-siege-v6';
+const FILES = ['./', 'index.html', 'style.css', 'src/data.js', 'src/voxel.js', 'src/models.js', 'src/art.js', 'src/world.js', 'src/ai.js', 'src/voices.js', 'src/sfx.js', 'src/audio.js', 'src/ui.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
