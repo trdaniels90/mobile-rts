@@ -17,7 +17,7 @@ Sounds are trimmed, pitched, mixed, filtered and level-matched for the game by
 | Rifles | [Gunshots](https://opengameart.org/content/gunshots) | Kurt | CC0 |
 | Rifles | [Gunshot sound effect](https://opengameart.org/content/gunshot-sound-effect) | hingydunyas | CC0 |
 | Rifles, tank guns, shell hits, AA guns | [25 CC0 bang / firework SFX](https://opengameart.org/content/25-cc0-bang-firework-sfx) | rubberduck | CC0 |
-| Shell hits | [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | rubberduck | CC0 |
+| Shell hits, construction clanks, collapsing buildings | [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | rubberduck | CC0 |
 | Tank guns, turret, hits, building explosions | [Cannon fire](https://opengameart.org/content/cannon-fire), [Cannon hit](https://opengameart.org/content/cannon-hit), [Battle at sea](https://opengameart.org/content/battle-at-sea) | thimras | CC0 |
 | Flame Tower | [Catching fire](https://opengameart.org/content/catching-fire) | themightyglider | CC0 |
 | Flame Tower | [Fire Crackling](https://opengameart.org/content/fire-crackling) | Antum Deluge | CC0 |

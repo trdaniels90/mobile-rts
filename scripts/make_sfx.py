@@ -34,6 +34,11 @@ CLIPS = {
     'tesla': [('varkalandar_tesla.wav', 0.8, 1.0, '')],
     'flame': [('mightyglider_flame.wav', 0.45, 1.0, '')],
     'fireHit': [('antumdeluge_fire.wav', 0.9, 1.0, '')],
+    # Construction clanks while a structure goes up, and the crash of one coming down.
+    'build': [('rubberduck_100_metal_02.wav', 0.3, 0.8, ''), ('rubberduck_100_metal_03.wav', 0.35, 0.8, ''),
+              ('rubberduck_100_metal_11.wav', 0.4, 0.75, ''), ('rubberduck_100_tools_01.wav', 0.5, 0.85, ''),
+              ('rubberduck_100_tools_03.wav', 0.5, 0.85, ''), ('rubberduck_100_slam_04.wav', 0.3, 0.7, '')],
+    'collapse': [('rubberduck_100_metal_12.wav', 1.4, 0.55, ''), ('rubberduck_100_slam_02.wav', 1.0, 0.5, '')],
 }
 # Light 90s treatment: telephone-free but band-limited, a touch of bit grit, tight dynamics.
 LOFI = 'highpass=f=45,lowpass=f=10000,acrusher=bits=11:mix=0.2:mode=log,acompressor=threshold=-16dB:ratio=3:attack=2:release=80'

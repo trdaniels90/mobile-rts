@@ -47,6 +47,16 @@
   hooks.eva = eva;
   hooks.gameOver = (won) => setTimeout(() => { showMenu('end', won); Sound.say(won ? 'Mission accomplished' : 'Mission failed'); }, 2200);
   // Battle sounds are louder on screen, fade with distance and pan left or right.
+  // Screen shake from big explosions: full strength on screen, fading off it.
+  let shakeAmp = 0;
+  const calmMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  hooks.shake = (x, y, amp) => {
+    if (calmMotion) amp *= 0.25;
+    const hw = W / cam.z / 2, hh = H / cam.z / 2;
+    const d = Math.max(Math.abs((x - (cam.x + hw)) / hw), Math.abs((y - (cam.y + hh)) / hh));
+    const k = d <= 1 ? 1 : Math.max(0, 1 - (d - 1) * 0.8);
+    shakeAmp = Math.min(12, Math.max(shakeAmp, amp * k));
+  };
   hooks.sfx = (name, x, y) => {
     if (!G) return;
     const hw = W / cam.z / 2, hh = H / cam.z / 2;
@@ -244,7 +254,8 @@
     ctx.imageSmoothingEnabled = z < 1;
     const k = z * DPR;
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(view, 0, 0, bw, bh, Math.round(-(cam.x - ox) * k), Math.round(-(cam.y - oy) * k), Math.round(bw * k), Math.round(bh * k));
+    const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
+    ctx.drawImage(view, 0, 0, bw, bh, Math.round(-(cam.x - ox) * k + sx2), Math.round(-(cam.y - oy) * k + sy2), Math.round(bw * k), Math.round(bh * k));
     if (gesture && gesture.type === 'box' && gesture.moved) {
       const bx = Math.min(gesture.sx, gesture.ex) * DPR, by = Math.min(gesture.sy, gesture.ey) * DPR;
       ctx.strokeStyle = '#f2f2ea'; ctx.lineWidth = DPR;
@@ -837,6 +848,7 @@
   function frame(now) {
     let dt = Math.min(0.05, (now - last) / 1000);
     last = now;
+    shakeAmp *= Math.exp(-dt * 6);
     if (G && !G.paused) {
       const k = 700 * dt / cam.z;
       if (keys.has('ArrowLeft') || keys.has('a')) cam.x -= k;

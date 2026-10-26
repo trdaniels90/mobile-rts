@@ -14,7 +14,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
 function turnToward(cur, target, step) { const d = angDiff(target, cur); return Math.abs(d) <= step ? target : cur + Math.sign(d) * step; }
 
-let hooks = { eva() {}, gameOver() {}, sfx() {} };
+let hooks = { eva() {}, gameOver() {}, sfx() {}, shake() {} };
 
 // ---------------------------------------------------------------------------
 // New game
@@ -903,6 +903,9 @@ function kill(e, attacker) {
     if (e.exitCell !== undefined) G.resv[e.exitCell] = 0;
     if (e.sellT <= 0) {
       hooks.sfx('explodeBig', e.x, e.y);
+      hooks.sfx('collapse', e.x, e.y);
+      hooks.shake(e.x, e.y, 3 + e.w * e.h * 0.8);
+      escapeSurvivors(e);
       const n = e.w * e.h + 2;
       for (let i = 0; i < n; i++) {
         G.effects.push({ type: 'expl', x: (e.cx + Math.random() * e.w) * CELL, y: (e.cy + Math.random() * e.h) * CELL, size: 10 + Math.random() * 8,
@@ -911,6 +914,19 @@ function kill(e, attacker) {
       rubble(G.tctx, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL, seed);
       if (e.team === PLAYER) notify(team, 'slost', 'Structure lost', 4);
     }
+  }
+}
+
+// Soldiers stumble out of a destroyed structure and join the defence: more from bigger buildings.
+function escapeSurvivors(b) {
+  const team = G.teams[b.team], n = b.type === 'cy' ? 4 : Math.min(3, Math.max(1, Math.round(b.w * b.h / 2)));
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const c = nearestFreeCell(cellOfPos(b.x + Math.cos(a) * b.w * CELL * 0.6, b.y + Math.sin(a) * b.h * CELL * 0.6), 4);
+    if (c < 0) continue;
+    const p = cellCenter(c), u = addUnit('rifle', team, p.x + (Math.random() - 0.5) * 8, p.y + (Math.random() - 0.5) * 8);
+    u.face = u.tface = a;
+    setGuard(u);
   }
 }
 
@@ -1415,7 +1431,11 @@ function updateBuilding(b, dt) {
   const team = teamOf(b);
   b.fireT = Math.max(0, b.fireT - dt);
   b.charge = Math.max(0, b.charge - dt * 1.5);
-  if (b.buildT < 1) b.buildT = Math.min(1, b.buildT + dt / 1.4);
+  if (b.buildT < 1) {
+    b.buildT = Math.min(1, b.buildT + dt / 1.4);
+    // Clanks and hammering while it goes up.
+    if ((b.clankT = (b.clankT || 0) - dt) <= 0) { b.clankT = 0.28 + Math.random() * 0.12; hooks.sfx('build', b.x + (Math.random() - 0.5) * b.w * CELL, b.y); }
+  }
   if (b.sellT > 0) {
     b.sellT -= dt;
     if (b.sellT <= 0) { b.sellT = 0.0001; team.credits += Math.floor(b.def.cost * 0.5 * b.hp / b.maxHp); kill(b, null); }
@@ -1486,6 +1506,7 @@ function placeStructure(team, type, cx, cy) {
   team.queues.structure = null;
   const b = addBuilding(type, team, cx, cy);
   hooks.sfx('place', b.x, b.y);
+  hooks.sfx('build', b.x, b.y);
   if (type === 'refinery') {
     const p = cellCenter(b.exitCell);
     const h = addUnit('harv', team, p.x, p.y);
