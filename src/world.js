@@ -740,7 +740,7 @@ function updateProjectiles(dt) {
     if ((p.kind === 'missile' || p.kind === 'rocket') && !p.flareChecked && t.alive && t.def && t.def.flares && isAirborne(t) &&
         Math.hypot(t.x - p.x, aimY(t) - p.y) < 90) {
       p.flareChecked = true;
-      if (popFlares(t) && Math.random() < 0.6) {
+      if (popFlares(t) && Math.random() < 0.45) {
         p.decoy = true;
         p.target = { x: t.x - Math.cos(t.face) * 30, y: t.y - Math.sin(t.face) * 30 + 16, alt: t.alt, kind: 'decoy', alive: true };
         continue;
@@ -1166,10 +1166,10 @@ function airWeapons(u) {
   return ws;
 }
 // A jet with a missile or rocket closing in pops flares; while they burn, each incoming
-// missile has a good chance to chase a flare instead.
+// missile has a fair chance (45%) to chase a flare instead.
 function popFlares(t) {
   if (t.flares > 0 && G.t >= (t.flareCd || 0)) {
-    t.flares--; t.flareCd = G.t + 2; t.flareT = G.t + 1.6;
+    t.flares--; t.flareCd = G.t + 3; t.flareT = G.t + 1.2;
     hooks.sfx('throw', t.x, t.y);
     for (let i = 0; i < 6; i++) {
       const a = t.face + Math.PI + (i - 2.5) * 0.35;
@@ -1252,12 +1252,20 @@ function updateAir(u, dt) {
   }
   if (u.retreat && !padFor(u)) u.retreat = false;   // pad lost on the way: fight on
   // Out of ammo, retreating, or told to wait on the pad: head home and land.
-  if (airEmpty(u) || u.retreat || (u.order.type === 'guard' && u.order.pad)) {
+  // Jets go home once their missiles and bombs for ground targets are spent, keeping any
+  // air-to-air missiles for enemy aircraft met on the way (or for an air target the player picked).
+  const o0 = u.order, huntingAir = o0.type === 'attack' && o0.target.alive && isAirborne(o0.target) && u.aam > 0;
+  const strikeSpent = jet && u.ammo <= 0 && !(u.bombs > 0) && !huntingAir;
+  if (airEmpty(u) || strikeSpent || u.retreat || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {
       const spot = padSpot(pad, u);
       const d = Math.hypot(spot.x - u.x, spot.y - u.y);
       if (jet) {
+        if (u.aam > 0 && u.cd <= 0) {
+          const a = acquire(u, u.def.weapon2.range, [u.def.weapon2]);
+          if (a && Math.abs(angDiff(Math.atan2(a.y - u.y, a.x - u.x), u.face)) < 0.5) { shoot(u, u.def.weapon2, a); u.cd = u.def.weapon2.rof; u.aam--; }
+        }
         if (d < 26) { u.as = 'landed'; u.x = spot.x; u.y = spot.y; u.face = 0; u.rt = 0; if (u.retreat) u.repairHold = true; u.retreat = false; return; }
         flyJet(u, spot.x, spot.y, dt);
       } else {
