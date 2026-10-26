@@ -1241,17 +1241,27 @@ function updateAir(u, dt) {
     return;
   }
 
-  // Out of ammo, or told to wait on the pad: head home and land.
-  if (airEmpty(u) || (u.order.type === 'guard' && u.order.pad)) {
+  // Badly damaged: break off and fly home for repairs, but only with a pad to land on and money
+  // for a real repair (10% of the price, a fifth of its health). When short of money it fights
+  // on rather than flying home for nothing, so it never bounces between the pad and the battle.
+  // Aircraft on a direct player order keep to it.
+  if (!u.retreat && u.hp < u.maxHp * 0.35 && (u.order.type === 'hunt' || u.order.type === 'guard') && padFor(u) &&
+      G.teams[u.team].credits >= u.def.cost * 0.1) {
+    u.retreat = true;
+    if (u.team === PLAYER) notify(G.teams[u.team], 'retreat', 'Aircraft returning for repairs', 10);
+  }
+  if (u.retreat && !padFor(u)) u.retreat = false;   // pad lost on the way: fight on
+  // Out of ammo, retreating, or told to wait on the pad: head home and land.
+  if (airEmpty(u) || u.retreat || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {
       const spot = padSpot(pad, u);
       const d = Math.hypot(spot.x - u.x, spot.y - u.y);
       if (jet) {
-        if (d < 26) { u.as = 'landed'; u.x = spot.x; u.y = spot.y; u.face = 0; u.rt = 0; return; }
+        if (d < 26) { u.as = 'landed'; u.x = spot.x; u.y = spot.y; u.face = 0; u.rt = 0; u.retreat = false; return; }
         flyJet(u, spot.x, spot.y, dt);
       } else {
-        if (d < 3) { u.alt = Math.max(0, u.alt - 20 * dt); if (u.alt <= 0) { u.as = 'landed'; u.rt = 0; } return; }
+        if (d < 3) { u.alt = Math.max(0, u.alt - 20 * dt); if (u.alt <= 0) { u.as = 'landed'; u.rt = 0; u.retreat = false; } return; }
         flyHeli(u, spot.x, spot.y, dt);
       }
       return;
