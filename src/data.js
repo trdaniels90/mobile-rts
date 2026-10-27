@@ -168,9 +168,6 @@ const POWERS = {
 };
 
 // `ai`: how the computer attacks and defends.
-//   forms: attack formations it picks from; pincer: chance a wave splits to come from two sides
-//   route: 'short' (mostly the shortest crossing), 'weighted' (shorter ones more likely),
-//          'weak' (the crossing the enemy has defended least)
 //   wave / big: size ranges of a normal wave and of a big push, bigChance: share of big pushes
 //   raidFrom / raidGap: seconds before the first raid on Ore Trucks or outlying sites, and between raids
 //   firstWave / bigFrom / waveGap: seconds before the first attack wave and the first big push, and the
@@ -185,17 +182,17 @@ const POWERS = {
 //   Ore Trucks it aims for, and whether a missing truck is paid for before more army
 const DIFFICULTY = {
   easy:   { label: 'Easy',   income: 0.7,  speed: 0.8,  credits: 5000,
-    ai: { forms: ['line', 'column', 'wedge'], pincer: 0, route: 'short', wave: [4, 7], big: null, bigChance: 0,
+    ai: { wave: [4, 7], big: null, bigChance: 0,
       raidFrom: 360, raidGap: [200, 320], firstWave: 270, bigFrom: 0, waveGap: 60, targets: 'cy', strike: [], defMax: 4, aa: 1, aaMax: 1, guard: [],
       adapt: false, homeGuard: 0, interceptors: 0, queue: 2,
       econ: { fast: false, refineries: 3, trucks: 5, truckFirst: false } } },
   normal: { label: 'Normal', income: 1.0,  speed: 1.0,  credits: 5000,
-    ai: { forms: ['line', 'column', 'wedge', 'echelon', 'skirmish'], pincer: 1 / 6, route: 'weighted', wave: [5, 10], big: [10, 13], bigChance: 0.25,
+    ai: { wave: [5, 10], big: [10, 13], bigChance: 0.25,
       raidFrom: 360, raidGap: [120, 200], firstWave: 210, bigFrom: 480, waveGap: 45, targets: 'mixed', strike: ['para'], defMax: 8, aa: 1, aaMax: 3, guard: ['outpost'],
       adapt: true, homeGuard: 3, interceptors: 1, queue: 3,
       econ: { fast: false, refineries: 3, trucks: 6, truckFirst: true } } },
   hard:   { label: 'Hard',   income: 1.35, speed: 1.25, credits: 7000,
-    ai: { forms: ['line', 'column', 'wedge', 'echelon', 'skirmish'], pincer: 1 / 3, route: 'weak', wave: [6, 12], big: [12, 16], bigChance: 0.35,
+    ai: { wave: [6, 12], big: [12, 16], bigChance: 0.35,
       raidFrom: 180, raidGap: [75, 130], firstWave: 0, bigFrom: 0, waveGap: 0, targets: 'weak', strike: ['para', 'bomb'], defMax: 12, aa: 2, aaMax: 5, guard: ['outpost', 'refinery'],
       adapt: true, homeGuard: 5, interceptors: 2, queue: 3,
       econ: { fast: true, refineries: 5, trucks: 10, truckFirst: true } } },

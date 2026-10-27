@@ -158,8 +158,7 @@ const Manual = (() => {
       <p>The computer plays by your rules: the same buildings, costs and units. How it fights depends on the difficulty.</p>
       <table class="fm-table">
         <tr><th></th><th>Easy</th><th>Normal</th><th>Hard</th></tr>
-        <tr><td>Attack waves</td><td>4 to 7 units, simple formations</td><td>5 to 10, big pushes of 10 to 13, sometimes a pincer</td><td>6 to 12, big pushes of 12 to 16, frequent pincers</td></tr>
-        <tr><td>Routes</td><td>Mostly the shortest</td><td>Any crossing</td><td>Your least defended crossing</td></tr>
+        <tr><td>Attack waves</td><td>4 to 7 units</td><td>5 to 10, big pushes of 10 to 13</td><td>6 to 12, big pushes of 12 to 16</td></tr>
         <tr><td>Targets</td><td>Your Construction Yard</td><td>A mix: yard, refineries, power, Outposts</td><td>Your weakest valuable buildings</td></tr>
         <tr><td>Raids</td><td>Rare</td><td>From about 4 minutes</td><td>From about 3 minutes</td></tr>
         <tr><td>Defences</td><td>Up to 4</td><td>Up to 8, plus AA</td><td>Up to 12, plus AA</td></tr>

@@ -253,6 +253,7 @@ function aiThink(team) {
 
   // Airfield support powers: bomb the thickest part of the enemy base, drop troops on its economy,
   // unless they are being held back for a big push (not for more than three minutes).
+  aiStrike(team);
   const held = (k) => team.holdFor && team.holdFor.keys.includes(k) && G.t - team.holdFor.since < 180;
   if (powerReady(team, 'bomb') && !held('bomb')) { const t = aiPowerTarget(team, true); if (t) launchPower(team, 'bomb', t.x, t.y); }
   if (powerReady(team, 'para') && !held('para')) { const t = aiPowerTarget(team, false); if (t) launchPower(team, 'para', t.x, t.y); }
@@ -286,7 +287,7 @@ function aiLaunch(team, ready) {
     const target = aiRaidTarget(team);
     if (target) {
       const fast = ready.slice().sort((a, b) => b.def.speed - a.def.speed).slice(0, Math.min(ready.length, 3 + Math.floor(r() * 3)));
-      aiSend(team, fast, target, { form: ['line', 'wedge', 'skirmish'][Math.floor(r() * 3)], focus: true });
+      aiSend(team, fast, target, {});
       ready = ready.filter((u) => !fast.includes(u));
     }
   }
@@ -296,32 +297,26 @@ function aiLaunch(team, ready) {
   ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, team.plan.size);   // first come, first sent
   const target = aiWaveTarget(team, ready[0]);
   if (!target) return;
-  const focus = target.type !== 'cy', pick = (l) => l[Math.floor(r() * l.length)];
   const strike = team.plan.big && A.strike.length ? A.strike : null;
-  if (ready.length >= 6 && r() < A.pincer) {
-    // Pincer: two halves, each by a different crossing, meeting at the target.
-    const c = centreOf(ready), via1 = aiPickCrossing(team, c, target), via2 = aiPickCrossing(team, c, target, via1);
-    ready.sort((a, b) => b.def.hp - a.def.hp);
-    const halves = [ready.filter((u, i) => i % 2 === 0), ready.filter((u, i) => i % 2 === 1)];
-    aiSend(team, halves[0], target, { form: pick(A.forms), via: via1, focus, strike });
-    aiSend(team, halves[1], target, { form: pick(A.forms), via: via2, focus });
-  } else aiSend(team, ready, target, { form: pick(A.forms), focus, strike });
+  aiSend(team, ready, target, { strike });
   team.waves = (team.waves || 0) + 1;
   team.lastWave = G.t;
   team.plan = aiPlanWave(team);
 }
-function centreOf(units) {
-  let x = 0, y = 0;
-  for (const u of units) { x += u.x; y += u.y; }
-  return { x: x / units.length, y: y / units.length };
-}
+// Send units at a target: each heads straight for it from where it waits, at its own top speed,
+// fighting what it meets. A big push calls in its held Airfield powers once the first of it closes in.
 function aiSend(team, units, target, o) {
-  const pace = Math.min(...units.map((u) => u.def.speed));
-  for (const u of units) { setHunt(u); u.staged = false; u.groupSpeed = pace; }
-  const via = o.via || aiPickCrossing(team, centreOf(units), target);
-  const g = makeGroup(team, units, target, pace, { form: o.form, via, spread: 0.9 + Math.random() * 0.35, strike: o.strike, from: rallyPoint(team) });
-  if (o.focus) { g.raid = true; for (const u of units) u.focus = target; }
-  return g;
+  for (const u of units) { setHunt(u); u.staged = false; u.focus = target; }
+  if (o.strike) team.strike = { keys: o.strike, target, units };
+  return units;
+}
+function aiStrike(team) {
+  const s = team.strike;
+  if (!s) return;
+  if (!s.target.alive || !s.units.some((u) => u.alive)) { team.strike = null; team.holdFor = null; return; }
+  if (!s.units.some((u) => u.alive && dist(u, s.target) < CELL * 22)) return;
+  for (const key of s.keys) launchPower(team, key, s.target.x, s.target.y + (key === 'para' ? CELL * 3 : 0));
+  team.strike = null; team.holdFor = null;
 }
 // What a wave goes for. Easy: the Construction Yard, and one wave in three an outlying site.
 // Normal: a mix of the Construction Yard, refineries, power and outlying sites. Hard: whatever
@@ -360,33 +355,4 @@ function aiRaidTarget(team) {
   if (exp.length && (Math.random() < 0.4 || !trucks.length)) return exp[0];
   if (!trucks.length) return null;
   return cy ? trucks.reduce((a, b) => (dist(b, cy) > dist(a, cy) ? b : a)) : trucks[0];
-}
-// The ways across the lakes: the centre gap, the two bridges and round both lake ends.
-function aiCrossings() {
-  if (G.crossings) return G.crossings;
-  const pts = [{ x: (MID + 0.5) * CELL, y: (MID + 0.5) * CELL }];
-  for (const b of G.bridges) pts.push({ x: (b.a.x + b.b.x) / 2, y: (b.a.y + b.b.y) / 2 });
-  for (const sg of [-1, 1]) pts.push({ x: (LX(MID + sg * 39 * K, 0) + 0.5) * CELL, y: (LY(MID + sg * 39 * K, 0) + 0.5) * CELL });
-  G.crossings = pts.map((q) => { const c = nearestFreeCell(cellOfPos(q.x, q.y), 8); return c >= 0 ? cellCenter(c) : q; });
-  return G.crossings;
-}
-// Which crossing a wave takes. Easy mostly takes the shortest; Normal favours shorter ones;
-// Hard prefers the one with the fewest enemy guns along it.
-function aiPickCrossing(team, from, target, not) {
-  const A = G.diff.ai, cs = aiCrossings().filter((c) => c !== not), r = Math.random;
-  const L = cs.map((c) => Math.hypot(c.x - from.x, c.y - from.y) + Math.hypot(target.x - c.x, target.y - c.y)), min = Math.min(...L);
-  let w;
-  if (A.route === 'short') {
-    if (r() < 0.75) return cs[L.indexOf(min)];
-    w = cs.map((c, i) => ((aiCrossings().indexOf(c) === 1 || aiCrossings().indexOf(c) === 2) && L[i] > min ? 1 : 0));   // the other bridge
-  } else if (A.route === 'weighted') w = L.map((l) => Math.exp(-(l - min) / (CELL * 14)));
-  else {
-    const guns = buildingsOf(enemyOf(team).id).filter((b) => b.def.defense && !b.def.antiAir);
-    const near = (a, b, p) => { const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy || 1, k = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)); return Math.hypot(a.x + dx * k - p.x, a.y + dy * k - p.y) < CELL * 7; };
-    w = cs.map((c, i) => Math.exp(-(L[i] - min) / (CELL * 20)) * Math.pow(0.35, guns.filter((d) => near(from, c, d) || near(c, target, d)).length));
-  }
-  let sum = w.reduce((a, b) => a + b, 0), x = r() * sum;
-  if (!(sum > 0)) return cs[L.indexOf(min)];
-  for (let i = 0; i < cs.length; i++) if ((x -= w[i]) <= 0) return cs[i];
-  return cs[cs.length - 1];
 }
