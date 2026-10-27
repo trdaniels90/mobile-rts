@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.27.2', date: '27 October 2026', title: 'What\'s New', groups: [
+    ['', [
+      'A What\'s New page on the menu, beside the Field Manual, with the notes for every release so far.',
+      'The menu shows which version you are playing.',
+    ]],
+  ] },
   { v: '2026.10.27', date: '27 October 2026', title: 'Rocket Soldiers, ore and an installable app', groups: [
     ['Units', [
       'Rocket Soldiers are Allied only, as in the original Red Alert, with two weapons: Dragon rockets for tanks (full damage to armour, little to infantry) and RedEye missiles with longer reach for aircraft.',
