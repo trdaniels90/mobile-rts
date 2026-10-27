@@ -2058,10 +2058,15 @@ function padSpot(pad, u) {
   // Each aircraft based at a pad gets its own parking slot: on the runway and the apron below it,
   // or on the pad and the ground around it for helicopters.
   const mates = G.entities.filter((e) => e.alive && e.kind === 'unit' && e.team === u.team && e.home === pad.id).sort((a, b) => a.id - b.id);
-  const k = Math.max(0, mates.indexOf(u)) % 6;
-  if (pad.type === 'airfield') return { x: pad.cx * CELL + 14 + (k % 3) * 22, y: pad.cy * CELL + (k < 3 ? 27 : 56) };
-  return [{ x: pad.x, y: pad.y }, { x: pad.x + 36, y: pad.y - 4 }, { x: pad.x + 34, y: pad.y + 28 },
+  // Past six, more rows below the runway, or a wider ring round the pad.
+  const k = Math.max(0, mates.indexOf(u));
+  let s;
+  if (pad.type === 'airfield') s = { x: pad.cx * CELL + 14 + (k % 3) * 22, y: pad.cy * CELL + 27 + Math.floor(k / 3) * 29 };
+  else if (k < 6) s = [{ x: pad.x, y: pad.y }, { x: pad.x + 36, y: pad.y - 4 }, { x: pad.x + 34, y: pad.y + 28 },
     { x: pad.x - 36, y: pad.y - 4 }, { x: pad.x - 34, y: pad.y + 28 }, { x: pad.x, y: pad.y + 40 }][k];
+  else { const a = (k - 6) * 0.9 - 1.6, r = 72 + Math.floor((k - 6) / 7) * 34; s = { x: pad.x + Math.cos(a) * r, y: pad.y + Math.sin(a) * r }; }
+  s.x = Math.max(8, Math.min(WORLD - 8, s.x)); s.y = Math.max(8, Math.min(WORLD - 8, s.y));
+  return s;
 }
 
 function airTarget(u) {
@@ -2434,10 +2439,16 @@ function producerBoost(team, def) {
   const n = G.entities.filter((e) => e.alive && e.kind === 'bld' && e.team === team.id && e.type === def.producer && e.sellT <= 0).length;
   return PRODUCER_BOOST[Math.min(n, PRODUCER_BOOST.length - 1)];
 }
+// The item a queue is working on: the first one whose producer still stands, so a jet queued
+// after the Airfield was lost does not hold up the helicopters behind it.
+function activeItem(team, cat) {
+  const list = team.queues[cat];
+  return list.find((i) => available(team, i.type)) || list[0];
+}
 function updateProduction(team, dt) {
   const speed = (team.low ? 0.5 : 1) * (team.isAI ? G.diff.speed : 1);
   for (const cat of CATEGORIES) {
-    const item = cat === 'structure' ? team.queues.structure : team.queues[cat][0];
+    const item = cat === 'structure' ? team.queues.structure : activeItem(team, cat);
     if (!item || item.ready) continue;
     if (!available(team, item.type)) continue;
     const def = defOf(item.type);
@@ -2448,7 +2459,7 @@ function updateProduction(team, dt) {
     team.credits -= cost; item.spent += cost; item.progress += dp;
     if (item.progress >= 0.9999) {
       if (cat === 'structure') { item.ready = true; item.progress = 1; notify(team, 'cc', 'Construction complete', 0.5); }
-      else { team.queues[cat].shift(); spawnUnit(team, item.type); notify(team, 'ur', 'Unit ready', 0.5); }
+      else { team.queues[cat].splice(team.queues[cat].indexOf(item), 1); spawnUnit(team, item.type); notify(team, 'ur', 'Unit ready', 0.5); }
     }
   }
 }

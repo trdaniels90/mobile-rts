@@ -751,7 +751,8 @@
       } else {
         const list = team.queues[cat];
         count = list.filter((i) => i.type === type).length;
-        if (list[0] && list[0].type === type) { p = list[0].progress; st = list[0].stalled ? 'ON HOLD' : ''; }
+        const cur = activeItem(team, cat);
+        if (cur && cur.type === type) { p = cur.progress; st = cur.stalled ? 'ON HOLD' : ''; }
         else if (count) st = 'QUEUED';
         else if (list.length) dim = true;
       }
