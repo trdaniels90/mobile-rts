@@ -233,7 +233,8 @@ function aiThink(team) {
   if (c.barracks && iq.length < A.queue && money > (truckDue ? 900 : 150)) {
     const r = Math.random();
     const sov = team.faction === 'soviets';   // no Rocket Soldiers: rifles and grenadiers
-    startProduction(team, sov ? (r < 0.55 ? 'rifle' : 'grenadier') : anti && r < 0.5 ? 'rocket' : r < 0.45 ? 'rifle' : 'rocket');
+    // Allies: mostly rifles, and more Rocket Soldiers once the enemy flies, but never only them.
+    startProduction(team, sov ? (r < 0.55 ? 'rifle' : 'grenadier') : r < (anti ? 0.6 : 0.4) ? 'rocket' : 'rifle');
   }
   if (c.factory && vq.length < A.queue && money > 500 && !truckDue) {
     const opts = team.faction === 'allies' ? (anti ? ['mtank', 'mtank', 'ranger', 'ranger', 'ltank'] : ['ltank', 'mtank', 'mtank', 'ranger'])
