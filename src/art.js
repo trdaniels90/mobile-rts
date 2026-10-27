@@ -744,12 +744,52 @@ function drawEffect(g, fx) {
       break;
     }
     case 'crash': {
-      // A downed aircraft tumbling toward its shadow.
+      // A downed aircraft tumbling toward its shadow. Its roll squashes the sprite across the
+      // line of flight (wings edge-on), upside down it shows its darker belly.
       const fake = { def: fx.def, face: fx.face, faction: fx.faction }, s = hullSprite(fake, palFor(fx.faction)), hgt = fx.alt / VK;
-      if (s.sh) { g.globalAlpha = 0.3; g.drawImage(s.sh, Math.round(fx.x + hgt * SHADOW_DX + s.sox), Math.round(fx.y + hgt * SHADOW_DY + s.soy)); g.globalAlpha = 1; }
-      blit(g, s, fx.x, fx.y - fx.alt, false);
+      const sq = Math.max(0.2, Math.abs(Math.cos(fx.roll || 0))), inv = Math.cos(fx.roll || 0) < 0;
+      const squash = (x, y) => { g.translate(x, y); g.rotate(fx.face); g.scale(1, sq); g.rotate(-fx.face); };
+      if (s.sh) {
+        g.save(); squash(fx.x + hgt * SHADOW_DX, fx.y + hgt * SHADOW_DY);
+        g.globalAlpha = 0.3; g.drawImage(s.sh, Math.round(s.sox), Math.round(s.soy)); g.restore();
+      }
+      g.save(); squash(fx.x, fx.y - fx.alt);
+      if (inv) g.filter = 'brightness(0.55)';
+      g.drawImage(s.img, Math.round(s.ox), Math.round(s.oy)); g.restore();
+      if (!fx.jet && !fx.ground) {   // the rotor still turning, losing speed
+        const rz = 9 * VK, ra = fx.t * 25;
+        g.strokeStyle = 'rgba(28,28,24,0.75)'; g.lineWidth = 1.2; g.beginPath();
+        for (let i = 0; i < 2; i++) { const a = ra + i * Math.PI / 2; g.moveTo(fx.x - Math.cos(a) * 13, fx.y - fx.alt - rz - Math.sin(a) * 12); g.lineTo(fx.x + Math.cos(a) * 13, fx.y - fx.alt - rz + Math.sin(a) * 12); }
+        g.stroke();
+      }
       g.fillStyle = Math.random() < 0.5 ? 'rgba(255,170,60,0.85)' : 'rgba(255,110,30,0.85)';
       g.beginPath(); g.arc(fx.x + (Math.random() - 0.5) * 6, fx.y - fx.alt + (Math.random() - 0.5) * 4, 2.5 + Math.random() * 2, 0, 7); g.fill();
+      if (fx.ground) {   // sparks off the belly as it scrapes along
+        g.fillStyle = 'rgba(255,220,140,0.9)';
+        for (let i = 0; i < 3; i++) g.fillRect(Math.round(fx.x - fx.vx * 0.04 * (1 + i) + (Math.random() - 0.5) * 8), Math.round(fx.y - fx.vy * 0.04 * (1 + i) + (Math.random() - 0.5) * 4), 1, 1);
+      }
+      break;
+    }
+    case 'eject': {
+      // The seat and pilot riding the rocket up, flame beneath.
+      const hgt = fx.alt / VK, y = fx.y - fx.alt;
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(fx.x + hgt * SHADOW_DX, fx.y + hgt * SHADOW_DY, 3, 2, 0, 0, 7); g.fill();
+      if (fx.t < 0.3) {
+        g.fillStyle = 'rgba(255,200,90,0.9)'; g.beginPath(); g.ellipse(fx.x, y + 6, 1.6, 3.5 + Math.random() * 2, 0, 0, 7); g.fill();
+      }
+      g.fillStyle = '#2b2b27'; g.fillRect(Math.round(fx.x - 2.5), Math.round(y - 1), 5, 5);
+      blit(g, infSprite({ type: 'pilot', faction: fx.faction, face: fx.face }, palFor(fx.faction), 4), fx.x, y + 3, false);
+      break;
+    }
+    case 'frag': {
+      // A loose piece of wreckage: shadow below, the piece turning as it flies.
+      const hgt = fx.alt / VK, fade = Math.min(1, (fx.life - fx.t) / 1.5);
+      g.globalAlpha = fade;
+      if (fx.alt > 0.5) { g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(Math.round(fx.x + hgt * SHADOW_DX - fx.w / 2), Math.round(fx.y + hgt * SHADOW_DY), Math.ceil(fx.w), 1); }
+      g.save(); g.translate(fx.x, fx.y - fx.alt); g.rotate(fx.rot); g.scale(1, 0.6 + 0.4 * Math.abs(Math.cos(fx.rot * 1.7)));
+      g.fillStyle = fx.color; g.fillRect(-fx.w / 2, -fx.h / 2, fx.w, fx.h);
+      if (fx.burning && fx.t < 3) { g.fillStyle = Math.random() < 0.5 ? 'rgba(255,170,60,0.9)' : 'rgba(255,110,30,0.9)'; g.fillRect(-1, -1, 2, 2); }
+      g.restore(); g.globalAlpha = 1;
       break;
     }
     case 'ring': {

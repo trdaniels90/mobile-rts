@@ -1250,13 +1250,17 @@ function kill(e, attacker, wh, from) {
       for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: e.x + (Math.random() - 0.5) * 8, y: e.y + (Math.random() - 0.5) * 6, t: -i * 0.3, life: 2.5 + Math.random() * 2 });
       smoulder(e.x, e.y - 4, 25);
     } else if ((e.alt || 0) > 4) {
-      // Shot down: a burst in the air, the pilot bails out, the airframe falls and crashes.
+      // Shot down: a burst in the air, the pilot ejects or bails out, the airframe falls and crashes.
       hooks.sfx('hitMed', e.x, e.y);
       G.effects.push({ type: 'expl', x: e.x, y: e.y - e.alt, size: 10, t: 0, life: 0.6, seed, debris: true });
-      ejectPilot(e);
-      const jet = e.def.fly === 'jet', sp = jet ? (e.speedCur || e.def.speed) * 0.6 : 15;
-      G.effects.push({ type: 'crash', x: e.x, y: e.y, alt: e.alt, vz: 0, face: e.face, spin: jet ? 0.8 : 5 + Math.random() * 3,
-        vx: Math.cos(e.face) * sp, vy: Math.sin(e.face) * sp, def: e.def, faction: e.faction, t: 0, life: 20, smokeT: 0 });
+      const jet = e.def.fly === 'jet', sp = jet ? (e.speedCur || e.def.speed) * 0.85 : 18, side = Math.random() < 0.5 ? -1 : 1;
+      const vx = Math.cos(e.face) * sp, vy = Math.sin(e.face) * sp;
+      if (jet) ejectSeat(e, vx, vy); else ejectPilot(e);
+      G.effects.push({ type: 'crash', x: e.x, y: e.y, alt: e.alt, vz: jet ? -6 : 0, face: e.face, vx, vy, jet, seed,
+        spin: jet ? side * 0.2 : side * (3 + Math.random() * 2), spinUp: jet ? side * (0.5 + Math.random() * 0.6) : side * 2.5,
+        roll: 0, rollV: jet ? side * (1.5 + Math.random() * 2) : 0, bounced: false, ground: false, hit: [],
+        def: e.def, faction: e.faction, t: 0, life: 40, smokeT: 0, shedT: 0.3, furrowT: 0 });
+      for (let i = 0; i < 2; i++) shed(e.x, e.y, e.alt, vx, vy, e.faction, true);
     } else {
       crashLanding(e.x, e.y, e.face, e.def, e.faction, seed);
     }
@@ -1470,12 +1474,106 @@ function crashLanding(x, y, face, def, faction, seed) {
   for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: x + (Math.random() - 0.5) * 12, y: y + (Math.random() - 0.5) * 8, t: -i * 0.3, life: 3 + Math.random() * 3 });
   for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - x, e.y - y) < 14) damage(e, 30, 'HE', null);
 }
+// A downed aircraft falls as a small rigid body: gravity (a jet's wings still hold it up a
+// little at first), air drag, and a spin that winds up as control is lost; a jet's yaw bends
+// its path into a spiral and it rolls (drawn by squashing the wingspan). It sheds burning
+// pieces on the way down. A fast jet hitting the ground bounces once, then skids, gouging a
+// furrow and throwing up dirt, until it stops or hits something, and blows up. A helicopter
+// spirals down and its rotor blades fly off on impact. Into the water, it is a splash.
+const wetAt = (x, y) => { const c = G.terr[cellOfPos(Math.max(0, Math.min(WORLD - 1, x)), Math.max(0, Math.min(WORLD - 1, y)))]; return c >= 4 && c !== 5; };
+function shed(x, y, alt, vx, vy, faction, burning, blade) {
+  const a = Math.random() * Math.PI * 2, kick = 15 + Math.random() * 30;
+  G.effects.push({ type: 'frag', x, y, alt: Math.max(0.5, alt), vx: vx * 0.7 + Math.cos(a) * kick, vy: vy * 0.7 + Math.sin(a) * kick, vz: -15 - Math.random() * 35,
+    rot: Math.random() * 6, spin: (Math.random() - 0.5) * 22, w: blade ? 13 : 2 + Math.random() * 4, h: blade ? 1.5 : 1.5 + Math.random() * 2,
+    color: blade ? '#2c2c28' : Math.random() < 0.5 ? '#3b3a36' : FACTIONS[faction].pal.main || '#555', burning, t: 0, life: 9, smokeT: 0 });
+}
+function splash(x, y, big) {
+  hooks.sfx('splash', x, y);
+  for (let i = 0; i < (big ? 9 : 3); i++) G.effects.push({ type: 'smoke', x: x + (Math.random() - 0.5) * (big ? 16 : 5), y: y + (Math.random() - 0.5) * 6, r: big ? 4 : 2, t: -i * 0.03, life: 1.1, alpha: 0.75, color: '#dfe8ec', vy: -(big ? 30 : 14) * Math.random(), vx: 0 });
+  if (big) G.effects.push({ type: 'ring', x, y, t: 0, life: 1.4, color: 'rgba(225,238,245,0.85)' });
+}
 function updateCrash(fx, dt) {
-  fx.vz += 60 * dt;
-  fx.alt -= fx.vz * dt;
-  fx.x += fx.vx * dt; fx.y += fx.vy * dt; fx.face += fx.spin * dt;
-  if ((fx.smokeT -= dt) <= 0) { fx.smokeT = 0.05; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y - fx.alt, r: 2.5, t: 0, life: 0.9, alpha: 0.6, color: '#3a3733' }); }
-  if (fx.alt <= 0) { fx.t = fx.life; crashLanding(fx.x, fx.y, fx.face, fx.def, fx.faction, (Math.random() * 1e6) | 0); }
+  const sp = Math.hypot(fx.vx, fx.vy);
+  if (!fx.ground) {
+    fx.vz += (fx.jet ? 60 * Math.min(1, 0.4 + fx.t * 0.5) : 60) * dt;   // the wings stop lifting
+    fx.alt -= fx.vz * dt;
+    const drag = Math.exp(-(fx.jet ? 0.3 : 0.9) * dt);
+    fx.vx *= drag; fx.vy *= drag;
+    fx.spin += fx.spinUp * dt; fx.spin = Math.max(-9, Math.min(9, fx.spin));
+    fx.face += fx.spin * dt; fx.roll += fx.rollV * dt;
+    if (fx.jet) { const a = fx.spin * dt * 0.6, c = Math.cos(a), s = Math.sin(a); [fx.vx, fx.vy] = [fx.vx * c - fx.vy * s, fx.vx * s + fx.vy * c]; }
+    fx.x += fx.vx * dt; fx.y += fx.vy * dt;
+    if ((fx.smokeT -= dt) <= 0) { fx.smokeT = 0.04; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y - fx.alt, r: 2.5 + fx.t * 0.6, t: 0, life: 1.2, alpha: 0.6, color: '#3a3733' }); }
+    if ((fx.shedT -= dt) <= 0) { fx.shedT = 0.35 + Math.random() * 0.5; shed(fx.x, fx.y, fx.alt, fx.vx, fx.vy, fx.faction, Math.random() < 0.5); }
+    if (fx.alt > 0) return;
+    fx.alt = 0;
+    if (wetAt(fx.x, fx.y)) { splash(fx.x, fx.y, true); fx.t = fx.life; return; }
+    const seed = (Math.random() * 1e6) | 0;
+    if (!fx.jet) {   // rotor blades break away and the fuselage burns where it falls
+      for (let i = 0; i < 3; i++) shed(fx.x, fx.y, 6, fx.vx, fx.vy, fx.faction, false, true);
+      fx.t = fx.life; crashLanding(fx.x, fx.y, fx.face, fx.def, fx.faction, seed); return;
+    }
+    hooks.sfx('explodeVeh', fx.x, fx.y); hooks.shake(fx.x, fx.y, 4);
+    G.effects.push({ type: 'expl', x: fx.x, y: fx.y - 3, size: 11, t: 0, life: 0.7, seed, debris: true });
+    for (let i = 0; i < 3; i++) shed(fx.x, fx.y, 2, fx.vx, fx.vy, fx.faction, i === 0);
+    for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - fx.x, e.y - fx.y) < 12) damage(e, 20, 'HE', null);
+    if (!fx.bounced && sp > 45 && fx.vz > 25) { fx.bounced = true; fx.vz = -fx.vz * 0.3; fx.alt = 0.5; fx.vx *= 0.6; fx.vy *= 0.6; fx.rollV *= 0.5; return; }
+    fx.ground = true; fx.vz = 0; fx.rollV = 0;
+    fx.roll = Math.round(fx.roll / Math.PI) * Math.PI;   // settles on its belly or its back
+    return;
+  }
+  // Skidding along the ground.
+  const f = Math.max(0, sp - 70 * dt) / (sp || 1);
+  fx.vx *= f; fx.vy *= f; fx.spin *= Math.exp(-2.5 * dt); fx.face += fx.spin * dt;
+  const nx = fx.x + fx.vx * dt, ny = fx.y + fx.vy * dt;
+  if (wetAt(nx, ny)) { splash(nx, ny, true); fx.t = fx.life; return; }
+  const c = cellOfPos(Math.max(0, Math.min(WORLD - 1, nx)), Math.max(0, Math.min(WORLD - 1, ny))), b = G.bld[c] && G.byId.get(G.bld[c]);
+  const blocked = !passableAt(nx, ny);
+  if (b && b.alive) damage(b, 60, 'HE', null);
+  if (!blocked) { fx.x = nx; fx.y = ny; }
+  if ((fx.furrowT -= dt) <= 0) {
+    fx.furrowT = 0.06;
+    scorch(G.tctx, fx.x, fx.y, 2.2, (Math.random() * 1e6) | 0);
+    G.effects.push({ type: 'smoke', x: fx.x - fx.vx * 0.05, y: fx.y, r: 3, t: 0, life: 0.9, alpha: 0.5, color: '#7a6a52', vy: -8, vx: 0 });
+    if (Math.random() < 0.25) shed(fx.x, fx.y, 1, fx.vx * 0.5, fx.vy * 0.5, fx.faction, false);
+  }
+  for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && !fx.hit.includes(e.id) && Math.hypot(e.x - fx.x, e.y - fx.y) < 10) { fx.hit.push(e.id); damage(e, 35, 'HE', null); }
+  if (blocked || Math.hypot(fx.vx, fx.vy) < 6) { fx.t = fx.life; crashLanding(fx.x, fx.y, fx.face, fx.def, fx.faction, (Math.random() * 1e6) | 0); }
+}
+// Loose pieces: thrown, tumbling, bouncing and sliding to rest; burning ones trail smoke.
+function updateFrag(fx, dt) {
+  if (fx.alt > 0 || fx.vz < 0) {
+    fx.vz += 70 * dt; fx.alt -= fx.vz * dt;
+    if (fx.alt <= 0) {
+      fx.alt = 0;
+      if (wetAt(fx.x, fx.y)) { splash(fx.x, fx.y, false); fx.t = fx.life; return; }
+      if (fx.vz > 18) { fx.vz = -fx.vz * 0.35; fx.vx *= 0.6; fx.vy *= 0.6; fx.spin *= 0.6; fx.alt = 0.01; } else fx.vz = 0;
+    }
+  } else { const k = Math.exp(-7 * dt); fx.vx *= k; fx.vy *= k; fx.spin *= k; }
+  fx.x += fx.vx * dt; fx.y += fx.vy * dt; fx.rot += fx.spin * dt;
+  if (fx.burning && fx.t < 3 && (fx.smokeT -= dt) <= 0) { fx.smokeT = 0.08; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y - fx.alt, r: 1.5, t: 0, life: 0.8, alpha: 0.5, color: '#3a3733' }); }
+}
+// A jet's ejection seat: the canopy blows off, a rocket kicks the seat up and clear of the
+// tumbling airframe, the pilot drops free of it and the parachute opens.
+function ejectSeat(e, vx, vy) {
+  hooks.sfx('rocket', e.x, e.y);
+  G.effects.push({ type: 'frag', x: e.x, y: e.y, alt: e.alt + 2, vx: vx * 0.8 + (Math.random() - 0.5) * 20, vy: vy * 0.8 + (Math.random() - 0.5) * 20, vz: -55,
+    rot: e.face, spin: 9, w: 5, h: 3, color: 'rgba(150,185,205,0.85)', burning: false, t: 0, life: 7, smokeT: 0 });
+  G.effects.push({ type: 'eject', x: e.x, y: e.y, alt: e.alt + 2, vx: vx * 0.45, vy: vy * 0.45, vz: -95, face: e.face,
+    team: e.team, faction: e.faction, t: 0, life: 0.85, smokeT: 0 });
+}
+function updateEject(fx, dt) {
+  const burn = fx.t < 0.3;
+  fx.vz += (burn ? -40 : 110) * dt;
+  fx.alt = Math.max(1, fx.alt - fx.vz * dt);
+  const k = Math.exp(-1.5 * dt); fx.vx *= k; fx.vy *= k;
+  fx.x += fx.vx * dt; fx.y += fx.vy * dt;
+  if (burn && (fx.smokeT -= dt) <= 0) { fx.smokeT = 0.03; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y - fx.alt + 4, r: 2, t: 0, life: 0.8, alpha: 0.55, color: '#b9b4aa' }); }
+  if (fx.t + dt < fx.life) return;
+  // Seat away, chute open.
+  G.effects.push({ type: 'frag', x: fx.x, y: fx.y, alt: fx.alt, vx: fx.vx + (Math.random() - 0.5) * 16, vy: fx.vy + (Math.random() - 0.5) * 10, vz: -10,
+    rot: fx.face, spin: 5, w: 4, h: 4, color: '#2b2b27', burning: false, t: 0, life: 8, smokeT: 0 });
+  ejectPilot({ x: fx.x, y: fx.y, alt: fx.alt, team: fx.team });
 }
 // The crew of a downed aircraft parachutes down and runs for home without stopping to fight.
 // Reaching any of its side's structures, the pilot is recovered: off the field, with a small bonus.
@@ -1486,8 +1584,16 @@ function ejectPilot(e) {
   const team = G.teams[e.team], p = cellCenter(c);
   const u = addUnit('pilot', team, p.x, p.y);
   u.chute = (e.alt || 30) / 26 + 0.3;
+  u.x = e.x; u.y = e.y;   // drifts down where it bailed out, stepping clear on landing
   u.homeward = true;
   if (!pilotHome(u)) { u.homeward = false; if (team.auto) setHunt(u); else setGuard(u); }
+}
+// Down in trees, water or on a roof: walk out to the nearest open ground, and set off from there.
+function landChute(u) {
+  const c = cellOfPos(Math.max(0, Math.min(WORLD - 1, u.x)), Math.max(0, Math.min(WORLD - 1, u.y)));
+  if (!freeCell(c)) { const n = nearestFreeCell(c, 6); if (n >= 0) { const p = cellCenter(n); u.x = p.x; u.y = p.y; } }
+  if (u.homeward) pilotHome(u);
+  else if (u.order.type === 'guard') { u.order.x = u.x; u.order.y = u.y; }
 }
 // Send a pilot to the nearest friendly structure; false when there is none left.
 function pilotHome(u) {
@@ -1518,7 +1624,7 @@ function updateUnit(u, dt) {
   u.moving = false;
   tickBurst(u, dt);
   if (u.def.scripted) { updateFlight(u, dt); return; }
-  if (u.chute > 0) { u.chute -= dt; return; }
+  if (u.chute > 0) { u.chute -= dt; if (u.chute <= 0) landChute(u); return; }
   if (u.cls === 'air') { updateAir(u, dt); return; }
   if (u.def.harvester) { updateHarvester(u, dt); followPath(u, dt); checkStuck(u, dt); return; }
 
@@ -2446,6 +2552,8 @@ function update(dt) {
   if ((T.win -= dt) <= 0) { T.win = 1; checkWin(); if (!G.over) launchGroups(); }
   for (const fx of G.effects) {
     if (fx.type === 'crash') updateCrash(fx, dt);
+    else if (fx.type === 'frag') updateFrag(fx, dt);
+    else if (fx.type === 'eject') updateEject(fx, dt);
     else if (fx.type === 'ragdoll') updateRagdoll(fx, dt);
     else if (fx.type === 'turret') updateTurret(fx, dt);
     else if (fx.type === 'flare' && fx.t >= 0) {

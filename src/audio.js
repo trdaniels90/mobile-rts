@@ -203,6 +203,13 @@ const Sound = (() => {
       noiseHit(t, 0.6, 'bandpass', 4200, 1500, 1.1, 1.0, o, 0.012);
       noiseHit(t, 0.45, 'lowpass', 1300, 350, 0.7, 0.55, o, 0.02);
     },
+    // Wreckage into the water: a deep plunge, then a wash of spray falling back.
+    splash(t, o, s) {
+      tone(t, 'sine', 120, 45, 0.3, 0.7, o);
+      noiseHit(t, 0.12, 'lowpass', 900, 300, 0.8, 0.8, o);
+      noiseHit(t + 0.05, 0.9, 'bandpass', 2400, 900, 0.8, 0.6, o, 0.06);
+      s.send(0.2);
+    },
     missile(t, o) {
       noiseHit(t, 0.05, 'lowpass', 1000, 400, 0.8, 0.7, o);
       noiseHit(t, 0.75, 'bandpass', 5200, 1800, 1.2, 1.0, o, 0.01);
