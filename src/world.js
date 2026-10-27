@@ -672,7 +672,9 @@ function launchGroups() {
     const rally = rallyPoint(team);
     const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.def.harvester && (u.def.weapon || u.cls === 'air') && u.order.type === 'guard');
     // Aircraft do not wait for a group: each one heads out on its own.
-    if (team.auto) for (const u of waiting) if (u.cls === 'air' && !u.interceptor) launchAircraft(u);
+    // (A jet that came home early waits on its pad until it is fully rearmed.)
+    if (team.auto) for (const u of waiting) if (u.cls === 'air' && !u.interceptor && (u.as !== 'landed' || airFull(u))) launchAircraft(u);
+    scramble(team);
     const ready = waiting.filter((u) => u.cls !== 'air' && !u.dest && inBase(team, u));
     team.waiting = ready.length;
     // The computer plans its own waves (sizes, formations, routes, targets): see aiLaunch.
@@ -699,6 +701,29 @@ function expansionsOf(team, from) {
   return buildingsOf(team.id).filter((b) => (b.type === 'outpost' || b.type === 'refinery') && dist(b, cy) > CELL * 14)
     .sort((a, b) => (a.type !== 'outpost') - (b.type !== 'outpost') || dist(a, from) - dist(b, from));
 }
+// Enemy jets or helicopters over the base scramble the fighters waiting on their Airfield, on
+// either side (not the computer on Easy). Once the sky over the base is clear they fly home.
+function scramble(team) {
+  if (team.isAI && !G.diff.ai.adapt) return;
+  const mine = buildingsOf(team.id);
+  const intruders = unitsOf(enemyOf(team).id).filter((u) => u.cls === 'air' && !u.def.scripted && isAirborne(u) && mine.some((b) => distTo(u, b) < CELL * 20));
+  for (const u of unitsOf(team.id)) {
+    if (u.def.fly !== 'jet' || !(u.aam > 0) || u.repairHold || u.retreat) continue;
+    const waiting = u.as === 'landed' && u.order.type === 'guard';
+    if (!u.scrambled && !waiting && !u.interceptor) continue;
+    if (intruders.length) {
+      if (u.order.type === 'attack' && u.order.target.alive && isAirborne(u.order.target)) continue;
+      const t = intruders.reduce((a, b) => (dist(u, a) < dist(u, b) ? a : b));
+      if (!canTarget(u, t)) continue;
+      if (!u.scrambled) { u.scrambled = true; u.wasStaged = u.staged; notify(team, 'scramble', 'Scrambling fighters', 20); }
+      commandAttack([u], t);
+      if (u.as === 'landed') u.as = 'takeoff';
+    } else if (u.scrambled || (u.interceptor && (u.order.type !== 'guard' || !u.order.pad))) {
+      setGuard(u); u.order.pad = true; u.staged = !!u.wasStaged; u.scrambled = false;   // all clear: back to the Airfield
+    }
+  }
+}
+
 function launchAircraft(u) {
   setHunt(u);
   u.staged = false;
@@ -2054,6 +2079,10 @@ function updateAir(u, dt) {
   if (u.flareSeq) dropFlare(u);
   if (u.target && !u.target.alive) u.target = null;
   if (u.order.type === 'attack' && !u.order.target.alive) setGuard(u);   // its target is gone: hold here
+  // A jet out of air-to-air missiles cannot fight an aircraft: it gives up the chase and flies home.
+  if (jet && u.order.type === 'attack' && isAirborne(u.order.target) && !(u.aam > 0) && padFor(u)) {
+    setGuard(u); u.order.pad = true; u.staged = u.scrambled ? !!u.wasStaged : G.teams[u.team].auto; u.scrambled = false;
+  }
 
   if (u.as === 'landed') {
     u.alt = 0; u.speedCur = 0;
@@ -2149,8 +2178,11 @@ function updateAir(u, dt) {
       const b = nearestEnemyBuilding(u);
       if (b) flyJet(u, b.x, b.y, dt); else orbit(u, u.x, u.y, dt);
     } else {
+      // A jet cannot hover: with nothing to hit near where it was told to wait, it soon flies home.
+      if ((u.idleT = (u.idleT || 0) + dt) > 3 && padFor(u)) { setGuard(u); u.order.pad = true; u.staged = G.teams[u.team].auto; u.idleT = 0; }
       orbit(u, o.x, o.y, dt);
     }
+    if (t) u.idleT = 0;
     return;
   }
   // Helicopter

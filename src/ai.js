@@ -87,20 +87,6 @@ function aiKeepInterceptor(team, u) {
   u.interceptor = true;
   return true;
 }
-function aiScramble(team) {
-  const A = G.diff.ai;
-  if (!A.adapt || !team.sawAir) return;
-  const mine = buildingsOf(team.id);
-  const intruders = unitsOf(enemyOf(team).id).filter((u) => u.cls === 'air' && !u.def.scripted && isAirborne(u) && mine.some((b) => distTo(u, b) < CELL * 20));
-  for (const u of unitsOf(team.id)) {
-    if (!u.interceptor || u.repairHold || !(u.aam > 0)) continue;
-    if (intruders.length) {
-      if (u.order.type === 'attack' && u.order.target.alive) continue;
-      const t = intruders.reduce((a, b) => (dist(u, a) < dist(u, b) ? a : b));
-      if (canTarget(u, t)) commandAttack([u], t);
-    } else if (u.order.type !== 'guard' || !u.order.pad) { setGuard(u); u.order.pad = true; }   // all clear: back to the Airfield
-  }
-}
 // An Outpost (or on Hard an outlying refinery) with no gun beside it yet.
 function aiGuardSite(team) {
   const A = G.diff.ai;
@@ -251,7 +237,6 @@ function aiThink(team) {
     else if (c.helipad && (Math.random() < 0.5 || !c.airfield)) startProduction(team, heli);
     else if (c.airfield) startProduction(team, jet);
   }
-  aiScramble(team);
 
   // Airfield support powers: bomb the thickest part of the enemy base, drop troops on its economy,
   // unless they are being held back for a big push (not for more than three minutes).
