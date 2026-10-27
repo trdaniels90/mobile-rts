@@ -667,22 +667,13 @@ function launchGroups() {
     // The computer plans its own waves (sizes, formations, routes, targets): see aiLaunch.
     if (team.isAI && team.auto) { aiLaunch(team, ready); continue; }
     if (!team.auto || ready.length < GROUP_SIZE) continue;
-    // March at the pace of the slowest unit, in formation, so the group arrives together.
-    const pace = Math.min(...ready.map((u) => u.def.speed));
-    for (const u of ready) {
-      setHunt(u);
-      u.staged = false;
-      u.groupSpeed = pace;
-    }
+    // Each heads straight out from where it waits, at its own top speed, fighting what it meets.
+    for (const u of ready) { setHunt(u); u.staged = false; }
     // Most waves go for the main base; one in three raids an outlying Outpost or refinery.
     team.waves = (team.waves || 0) + 1;
     const exp = expansionsOf(enemyOf(team), rally);
     const raid = exp.length && team.waves % 3 === 0 ? exp[0] : null;
-    const target = raid || nearestEnemyBuilding(ready[0]);
-    if (target) {
-      const g = makeGroup(team, ready, target, pace, { from: rally });
-      if (raid) { g.raid = true; for (const u of ready) u.focus = raid; }
-    }
+    if (raid) for (const u of ready) u.focus = raid;
     team.waiting = 0;
     if (team.id === PLAYER) hooks.eva('Attack group moving out');
   }

@@ -137,7 +137,7 @@ const Manual = (() => {
       <p>Select one of your structures to <b>repair</b> it (costs credits and takes about a minute; a quarter of the speed while under fire) or <b>sell</b> it. Select a Mobile Outpost and tap <b>DEPLOY</b> to unpack it.</p>` },
     { ch: 'Basics', title: 'Your Army in Battle', html: () => `
       <h4>Auto Attack</h4>
-      <p>New units spread out to open ground around your base and guard it: where they stand is up to chance, so move them to cover the approaches you care about. <b>Auto Attack</b> starts off. Switch it on and, once 8 are waiting, they muster at the edge of the base facing the enemy and march out together in formation, at the pace of the slowest. The AUTO button shows how many are waiting.</p>
+      <p>New units spread out to open ground around your base and guard it: where they stand is up to chance, so move them to cover the approaches you care about. <b>Auto Attack</b> starts off. Switch it on and, once 8 are waiting, they all head out at once, each at its own top speed, fighting whatever they meet on the way. The AUTO button shows how many are waiting.</p>
       <h4>Defending</h4>
       <p>Units waiting near your base turn on any raiders inside it, or on anything shooting your Ore Trucks, then go back to their posts when it is quiet again.</p>
       <h4>Aircraft</h4>
