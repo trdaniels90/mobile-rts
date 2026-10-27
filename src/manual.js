@@ -27,7 +27,7 @@ const Manual = (() => {
     rifle: ['The backbone of every army: cheap, quick to train and useful in numbers. Under fire they drop into cover, crouching or going prone.', 'Infantry', 'Tanks, flame, Tesla'],
     grenadier: ['Lobs grenades in an arc over cover, with a blast that hurts groups. Carries spare grenades in bags on his hips.', 'Infantry groups, light vehicles', 'Tanks at range'],
     rocket: ['Shoulder-fired rockets that hit tanks, structures and aircraft alike: the answer to enemy air power.', 'Tanks, aircraft', 'Infantry'],
-    pilot: ['Bails out of a downed aircraft and parachutes down to fight on with a pistol. Cannot be trained.', '', ''],
+    pilot: ['Bails out of a downed aircraft, parachutes down and runs for the nearest friendly structure. Reaching it, the pilot is recovered and you get $100. Cannot be trained.', '', ''],
     // Vehicles
     ranger: ['A fast armed jeep for scouting and raids. Its machine gun can also fire at aircraft.', 'Infantry, Ore Trucks', 'Tanks'],
     ltank: ['Quick, cheap armour with a light cannon.', 'Light vehicles', 'Heavy tanks'],
@@ -141,7 +141,7 @@ const Manual = (() => {
       <h4>Defending</h4>
       <p>Units waiting near your base turn on any raiders inside it, or on anything shooting your Ore Trucks, then go back to their posts when it is quiet again.</p>
       <h4>Aircraft</h4>
-      <p>Helicopters and jets take off as soon as they are built, attack on their own and fly home to rearm. Badly damaged aircraft come home and wait on their pad until repaired. Jets drop flares when a missile closes in, which can pull it off course. A pilot shot down bails out and fights on.</p>
+      <p>Helicopters and jets take off as soon as they are built, attack on their own and fly home to rearm. Badly damaged aircraft come home and wait on their pad until repaired. Jets drop flares when a missile closes in, which can pull it off course. A pilot shot down bails out and runs home; get them back to any of your structures for a $100 bonus.</p>
       <h4>Infantry under fire</h4>
       <p>Soldiers take cover when shot at: some stay up, some crouch (harder to hit) and some go prone (harder still).</p>
       <h4>Expansions</h4>

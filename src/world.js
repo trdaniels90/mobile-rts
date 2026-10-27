@@ -724,7 +724,7 @@ function defendBase(team) {
   const threats = unitsOf(enemyOf(team).id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute &&
     (nearBase(u, zone) || nearHarv(u, 9) || nearShooter(u)));
   const idle = (u) => u.order.type === 'guard' && (nearBase(u, 16) || nearHarv(u, 24) || nearShooter(u));
-  const army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute &&
+  const army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward &&
     (u.cls !== 'air' || (!airEmpty(u) && u.order.type === 'guard')) &&
     (u.defending || idle(u) || (team.isAI && u.cls !== 'air')));
   if (!threats.length) {
@@ -1477,14 +1477,36 @@ function updateCrash(fx, dt) {
   if ((fx.smokeT -= dt) <= 0) { fx.smokeT = 0.05; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y - fx.alt, r: 2.5, t: 0, life: 0.9, alpha: 0.6, color: '#3a3733' }); }
   if (fx.alt <= 0) { fx.t = fx.life; crashLanding(fx.x, fx.y, fx.face, fx.def, fx.faction, (Math.random() * 1e6) | 0); }
 }
-// The crew of a downed aircraft parachutes down and joins the fight on the ground.
+// The crew of a downed aircraft parachutes down and runs for home without stopping to fight.
+// Reaching any of its side's structures, the pilot is recovered: off the field, with a small bonus.
+const PILOT_BOUNTY = 100;
 function ejectPilot(e) {
   const c = nearestFreeCell(cellOfPos(e.x, e.y), 4);
   if (c < 0) return;
   const team = G.teams[e.team], p = cellCenter(c);
   const u = addUnit('pilot', team, p.x, p.y);
   u.chute = (e.alt || 30) / 26 + 0.3;
-  if (team.auto) setHunt(u); else setGuard(u);
+  u.homeward = true;
+  if (!pilotHome(u)) { u.homeward = false; if (team.auto) setHunt(u); else setGuard(u); }
+}
+// Send a pilot to the nearest friendly structure; false when there is none left.
+function pilotHome(u) {
+  let best = null, bd = Infinity;
+  for (const b of buildingsOf(u.team)) { const d = dist(u, b); if (d < bd) { bd = d; best = b; } }
+  if (!best) return false;
+  u.order = { type: 'move', x: best.x, y: best.y }; u.target = null; u.home = best;
+  goTo(u, best.x, best.y);
+  return true;
+}
+function recoverPilot(u) {
+  if (!u.home || !u.home.alive || distTo(u, u.home) > CELL * 3) {   // home lost or not reached: try again
+    if (!pilotHome(u)) u.homeward = false;
+    return false;
+  }
+  const team = G.teams[u.team];
+  u.alive = false; team.credits += PILOT_BOUNTY;
+  if (team.id === PLAYER) hooks.eva('Pilot recovered');
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1545,7 +1567,7 @@ function updateUnit(u, dt) {
     }
   }
   if (o.type === 'move') {
-    if (followPath(u, dt) && !u.needPath) setGuard(u);
+    if (followPath(u, dt) && !u.needPath && !(u.homeward && recoverPilot(u)) && !u.homeward) setGuard(u);
   } else if (u.target) {
     engage(u, u.target, dt);
   } else {
@@ -2334,7 +2356,7 @@ function commandMove(units, x, y) {
   const sorted = units.slice().sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
   sorted.forEach((u, i) => {
     const s = spots[i];
-    u.target = null; u.staged = false; u.defending = false;
+    u.target = null; u.staged = false; u.defending = false; u.homeward = false;
     if (u.def.harvester) {
       const c = cellOfPos(x, y);
       if (G.ore[c] > 0) { u.hcell = c; u.hs = 'seek'; goTo(u, x, y); }
@@ -2353,7 +2375,7 @@ function commandMove(units, x, y) {
 function commandAttack(units, target) {
   for (const u of units) {
     if (u.def.harvester || !canTarget(u, target)) continue;
-    u.order = { type: 'attack', target }; u.staged = false; u.defending = false; u.repairHold = false; u.retreat = false;
+    u.order = { type: 'attack', target }; u.staged = false; u.homeward = false; u.defending = false; u.repairHold = false; u.retreat = false;
     u.target = target;
     if (u.cls === 'air' && u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff';
   }

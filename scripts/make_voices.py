@@ -35,6 +35,7 @@ EVA = {
   'aircraft returning for repairs': 'Aircraft returning for repairs.',
   'radar online': 'Radar online.',
   'radar offline': 'Radar offline.',
+  'pilot recovered': 'Pilot recovered.',
 }
 ACKS = {
   'inf': ['Acknowledged.', 'Yes sir.', 'Moving out.', 'Affirmative.', 'Right away.'],
