@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.28.1', date: '28 October 2026', title: 'Air balance', groups: [
+    ['', [
+      'The Allied Attack Helicopter\'s Hellfires are made for armour: they do half as much to infantry as before, and the helicopter goes after vehicles first.',
+      'The Allied computer no longer trains nothing but Rocket Soldiers once it sees enemy aircraft: about 4 in 10 of its infantry, 6 in 10 when you fly, with rifles for the rest.',
+      'Fixed MiGs flying without their sight since the last update, so they can pick out targets on their own again.',
+    ]],
+  ] },
   { v: '2026.10.28', date: '28 October 2026', title: 'Helicopters as in Red Alert', groups: [
     ['', [
       'The Allied Attack Helicopter carries six armour-piercing Hellfire missiles a sortie with a 4-cell reach: deadly to tanks, poor against infantry.',
