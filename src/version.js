@@ -15,6 +15,10 @@ const RELEASES = [
       'The name you give after a win is the only thing anyone else can see, on the leaderboard.',
       'Playing offline works exactly as before.',
     ]],
+    ['Fixes', [
+      'A jet queued while you had no Airfield no longer holds up the helicopters queued behind it (the computer had the same problem).',
+      'With more than six aircraft on one pad, they no longer park on top of each other: they spread out below the runway or around the Helipad.',
+    ]],
   ] },
   { v: '2026.10.28.2', date: '28 October 2026', title: 'Fighters scramble', groups: [
     ['', [
