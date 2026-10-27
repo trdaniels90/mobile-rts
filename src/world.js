@@ -1767,15 +1767,18 @@ function walkDistances(start) {
   return dist;
 }
 // The nearest field by road from the truck's refinery (round the lakes, not as the crow flies)
-// that still has ore worth mining. All the trucks of a refinery work it until it is empty, then
-// move on to the next nearest.
+// that still has ore worth mining and room for another truck. The trucks work it until it is
+// empty, then move on to the next nearest; once a field has three trucks on it, the rest go on to
+// the next nearest too.
 const FIELD_EMPTY = 150;   // less ore than this left in a whole field: worked out
+const FIELD_TRUCKS = 3;    // most trucks (of either side) working one field
 function pickField(u) {
+  const others = G.entities.filter((e) => e.alive && e !== u && e.def.harvester && e.field && e.hs !== 'manual');
   const ref = nearestOwn(u, 'refinery');
   const walk = walkDistances(cellOfPos(ref ? dockPoint(ref).x : u.x, ref ? dockPoint(ref).y : u.y));
   let best = null, bd = Infinity;
   for (const f of G.oreFields) {
-    if (fieldValue(f) < FIELD_EMPTY) continue;
+    if (fieldValue(f) < FIELD_EMPTY || others.filter((e) => e.field === f).length >= FIELD_TRUCKS) continue;
     for (let y = Math.floor(f.cy - f.r); y <= f.cy + f.r; y++) for (let x = Math.floor(f.cx - f.r); x <= f.cx + f.r; x++) {
       if (!inMap(x, y) || Math.hypot(x - f.cx, y - f.cy) > f.r + 0.8) continue;
       const w = walk[idx(x, y)];
