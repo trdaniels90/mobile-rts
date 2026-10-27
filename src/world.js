@@ -453,7 +453,7 @@ function smoothPath(sx, sy, pts, rad) {
 
 function goTo(u, x, y) {
   u.dest = { x, y };
-  u.path = null; u.pathIdx = 0; u.stuckN = 0;
+  u.path = null; u.pathIdx = 0; u.stuckN = 0; u.nearBest = null;
   if (!u.needPath) { u.needPath = true; G.pathQueue.push(u); }
 }
 function processPaths() {
@@ -476,6 +476,25 @@ function tryMove(u, dx, dy) {
   return false;
 }
 
+// How close counts as arrived. Alone, a unit walks right up to the point; when friendly units
+// already stand there it stops at the edge of the crowd instead of shoving into it, and a unit
+// that is close but has stopped getting any closer for a couple of seconds settles where it is.
+function arriveRadius(u, p, d) {
+  if (d > CELL * 4 || u.def.harvester) { u.nearBest = null; return 3; }   // Ore Trucks must reach the exact spot to mine or dock
+  if ((u.crowdT = (u.crowdT || 0) - 1) <= 0) {
+    u.crowdT = 8;   // recount every few steps
+    let n = 0;
+    for (const e of G.entities) {
+      if (e === u || !e.alive || e.kind !== 'unit' || e.team !== u.team || e.cls === 'air' || e.dest) continue;
+      if (Math.hypot(e.x - p.x, e.y - p.y) < CELL * 2.5) n++;
+    }
+    u.crowdR = n ? 6 + Math.sqrt(n) * 11 : 3;
+  }
+  if (!u.nearBest || d < u.nearBest.d - 2) u.nearBest = { d, t: G.t };
+  else if (G.t - u.nearBest.t > 2) return Infinity;   // no closer for two seconds
+  return u.crowdR;
+}
+
 // Follows the current path. Returns true once there is nowhere left to go.
 function followPath(u, dt) {
   if (!u.dest) return true;
@@ -483,9 +502,13 @@ function followPath(u, dt) {
   if (u.pathIdx >= u.path.length) { u.dest = null; return true; }
   const p = u.path[u.pathIdx], last = u.pathIdx === u.path.length - 1;
   const dx = p.x - u.x, dy = p.y - u.y, d = Math.hypot(dx, dy);
-  if (d < (last ? 3 : 7)) {
+  if (d < (last ? arriveRadius(u, p, d) : 7)) {
     u.pathIdx++;
-    if (u.pathIdx >= u.path.length) { u.dest = null; return true; }
+    if (u.pathIdx >= u.path.length) {
+      // Settled short of the exact point (beside a crowd): guard from here, not from the point.
+      if (d > 3 && u.order.type === 'guard' && Math.hypot(u.order.x - p.x, u.order.y - p.y) < CELL) { u.order.x = u.x; u.order.y = u.y; }
+      u.dest = null; return true;
+    }
     return false;
   }
   const want = Math.atan2(dy, dx);
