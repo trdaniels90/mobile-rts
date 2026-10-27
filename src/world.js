@@ -1064,9 +1064,9 @@ function updateProjectiles(dt) {
       p.dead = true;
       if (p.decoy) { impact('flak', tx, ty, true); continue; }   // burst harmlessly on a flare
       if (p.kind === 'fireball') { fireBlast(p, t.alive ? t.x : p.x, t.alive ? t.y : p.y); continue; }
-      if (t.alive) damage(t, p.w.dmg, p.w.wh, p.from.alive ? p.from : null, { x: p.x, y: p.y });
+      if (t.alive) damage(t, p.w.dmg, p.w.wh, p.from || null, { x: p.x, y: p.y });
       impact(p.kind, t.alive ? tx : p.x, t.alive ? ty : p.y, isAirborne(t));
-      if (p.w.wh === 'HE' && t.kind === 'unit' && !isAirborne(t)) splash(tx, ty, 14, p.w.dmg * 0.4, p.team, t);
+      if (p.w.wh === 'HE' && t.kind === 'unit' && !isAirborne(t)) splash(tx, ty, 14, p.w.dmg * 0.4, p.team, t, p.from);
       continue;
     }
     p.x += (dx / d) * step; p.y += (dy / d) * step;
@@ -1076,7 +1076,7 @@ function updateProjectiles(dt) {
 
 // Flame tower fireball: a burst of fire that splashes and leaves flames burning for a moment.
 function fireBlast(p, x, y) {
-  const w = p.w, from = p.from.alive ? p.from : null;
+  const w = p.w, from = p.from || null;
   hooks.sfx('fireHit', x, y);
   G.effects.push({ type: 'expl', x, y: y - 3, size: 9, t: 0, life: 0.45, seed: (Math.random() * 1e6) | 0 });
   for (let i = 0; i < 5; i++) G.effects.push({ type: 'fire', x: x + (Math.random() - 0.5) * 18, y: y + (Math.random() - 0.5) * 12, t: -i * 0.05, life: 1.2 + Math.random() * 1.2 });
@@ -1094,7 +1094,7 @@ function grenadeBlast(p) {
   G.effects.push({ type: 'expl', x, y: y - 3, size: 9, t: 0, life: 0.5, seed: (Math.random() * 1e6) | 0, debris: true });
   scorch(G.tctx, x, y, 7, (Math.random() * 1e6) | 0);
   craterAt(x, y, 4);
-  const from = p.from.alive ? p.from : null;
+  const from = p.from || null;
   for (const e of G.entities) {
     if (!e.alive || e.team === p.team || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
@@ -1110,7 +1110,7 @@ function lobBlast(p) {
   if (v2) hooks.shake(x, y, 2.5);
   scorch(G.tctx, x, y, v2 ? 13 : 8, (Math.random() * 1e6) | 0);
   craterAt(x, y, v2 ? 9 : 5);
-  const from = p.from.alive ? p.from : null;
+  const from = p.from || null;
   for (const e of G.entities) {
     if (!e.alive || e.team === p.team || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
@@ -1126,7 +1126,7 @@ function bombBlast(p) {
   for (const e of G.entities) {
     if (!e.alive || e.team === p.team || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, null, { x, y });
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, p.from || null, { x, y });
   }
 }
 
@@ -1178,10 +1178,10 @@ function updateTurret(fx, dt) {
 // A wreck smoulders for a while after the flames die down.
 function smoulder(x, y, life) { G.effects.push({ type: 'smoulder', x, y, t: 0, life, puffT: 0 }); }
 
-function splash(x, y, rad, dmg, team, skip) {
+function splash(x, y, rad, dmg, team, skip, attacker) {
   for (const e of G.entities) {
     if (!e.alive || e === skip || e.team === team || e.kind !== 'unit' || isAirborne(e)) continue;
-    if (Math.hypot(e.x - x, e.y - y) < rad) damage(e, dmg, 'HE', null, { x, y });
+    if (Math.hypot(e.x - x, e.y - y) < rad) damage(e, dmg, 'HE', attacker || null, { x, y });
   }
 }
 

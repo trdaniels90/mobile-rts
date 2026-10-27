@@ -39,15 +39,15 @@ const Manual = (() => {
     harv: ['Finds ore, fills up and drives home to unload, all on its own. It works the field nearest its refinery until every last bit is gone, then the next nearest; at most three trucks share a field. Gems are worth twice as much as ore but never grow back. Under fire it runs home and waits by the refinery until the danger has passed.', '', 'Unarmed: protect it'],
     fob: ['Drive it to a distant ore field and tap DEPLOY: it unpacks into an Outpost you can build around.', '', 'Unarmed while driving'],
     // Aircraft
-    heli: ['A fast gunship that fires rockets at ground targets, then flies home to rearm.', 'Tanks, structures', 'AA Guns, SAM sites, rockets'],
-    hind: ['An armoured Soviet gunship with a chain gun.', 'Infantry, light vehicles', 'AA defences, rockets'],
+    heli: ['A fast gunship with six Hellfire missiles a sortie: armour-piercing, deadly to tanks but poor against infantry. Flies home to rearm.', 'Tanks, vehicles', 'Infantry, AA Guns, SAM sites, rocket soldiers'],
+    hind: ['An armoured Soviet gunship whose chain gun tears through infantry, with twelve bursts a sortie.', 'Infantry, light vehicles', 'AA defences, rockets'],
     jet: ['Styled after the F-15E Strike Eagle: two ground-attack missiles, two air-to-air missiles, four bombs and two bursts of flares per sortie.', 'Structures, aircraft', 'SAM sites, flak, rockets'],
     mig: ['A fast Soviet delta-wing fighter-bomber with missiles for ground and air targets, bombs and flares.', 'Structures, aircraft', 'AA Guns, rockets'],
   };
   const WEAPON = {
     rifle: 'Rifle', grenadier: 'Grenades (arcing, splash)', rocket: 'Dragon rockets; RedEye missiles (air)', pilot: 'Pistol',
     ranger: 'Machine gun (hits aircraft too)', ltank: 'Light cannon', mtank: 'Cannon', htank: 'Twin cannons', mammoth: 'Twin cannons + anti-air missile pods',
-    arty: 'Howitzer (arcing, splash)', v2rl: 'V2 rocket (arcing, huge splash)', heli: 'Rockets', hind: 'Chain gun',
+    arty: 'Howitzer (arcing, splash)', v2rl: 'V2 rocket (arcing, huge splash)', heli: 'Hellfire missiles (anti-armour)', hind: 'Chain gun',
     jet: 'Missiles (ground and air), bombs', mig: 'Missiles (ground and air), bombs',
     pillbox: 'Machine gun', turret: 'Cannon', aagun: 'Flak (aircraft only)', ftur: 'Flamethrower', tesla: 'Tesla bolt', sam: 'SAM missiles (aircraft only)',
   };

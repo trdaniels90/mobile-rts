@@ -104,15 +104,17 @@ const UNIT_DEFS = {
     name: 'Mobile Outpost', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies', 'soviets'], draw: 'fob',
     cost: 1000, hp: 500, armor: 'heavy', speed: 40, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 14 }, deploys: 'outpost',
   },
+  // Closer to the original Red Alert: the Allied helicopter's Hellfires are anti-armour (6 a sortie,
+  // 4 cells), the Hind's chain gun shreds infantry (12 bursts a sortie, 5 cells).
   heli: {
     name: 'Attack Helicopter', cls: 'air', fly: 'heli', cat: 'aircraft', producer: 'helipad', factions: ['allies'],
     cost: 1200, hp: 220, armor: 'air', speed: 115, sight: 6, r: 9,
-    weapon: { dmg: 55, rof: 0.9, range: 120, wh: 'HE', proj: 'rocket', ammo: 8 },
+    weapon: { dmg: 55, rof: 0.9, range: 96, wh: 'AP', proj: 'rocket', ammo: 6 },
   },
   hind: {
     name: 'Hind Gunship', cls: 'air', fly: 'heli', cat: 'aircraft', producer: 'helipad', factions: ['soviets'],
     cost: 1200, hp: 240, armor: 'air', speed: 105, sight: 6, r: 10,
-    weapon: { dmg: 13, rof: 1.0, range: 100, wh: 'SA', proj: 'bullet', ammo: 6, burst: 5, gap: 0.07 },
+    weapon: { dmg: 13, rof: 1.0, range: 120, wh: 'SA', proj: 'bullet', ammo: 12, burst: 5, gap: 0.07 },
   },
   // Jets carry ground-attack missiles (weapon), air-to-air missiles (weapon2) and bombs, and
   // drop flares that can pull incoming missiles and rockets off course.

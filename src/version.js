@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.28', date: '28 October 2026', title: 'Helicopters as in Red Alert', groups: [
+    ['', [
+      'The Allied Attack Helicopter carries six armour-piercing Hellfire missiles a sortie with a 4-cell reach: deadly to tanks, poor against infantry.',
+      'The Soviet Hind carries twelve chain-gun bursts a sortie and reaches 5 cells: it tears through infantry.',
+      'Kills from bombs, splash damage and shots that land after their shooter is gone now count, in the debrief too.',
+    ]],
+  ] },
   { v: '2026.10.27.4', date: '27 October 2026', title: 'Mission debrief', groups: [
     ['', [
       'A new end-of-mission debrief. The Battle tab graphs both sides\' military strength, income and buildings through the whole game, with the key moments marked: drag across it for details.',
