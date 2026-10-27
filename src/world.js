@@ -621,13 +621,12 @@ function nearestEnemyBuilding(u) {
     if (e.type === 'cy' && d < cd) { cd = d; cy = e; }
   }
   if (u.raider) return u.huntTarget && u.huntTarget.alive ? u.huntTarget : best;
-  return cy || best;   // paratroopers take whatever stands nearest
+  return cy || best;
 }
 
 // New units spread out to random open spots around their base. Auto attack sends them out
-// together once this many are waiting; the wave musters at the rally point, at the edge of the
-// base facing the enemy, and marches from there in formation.
-const GROUP_SIZE = 8;
+// together once this many are waiting, each heading for the enemy at its own top speed.
+const GROUP_SIZE = 10;
 // A random open spot inside the build area: beside one of the side's buildings, off ore, roads
 // out of factories and refinery docks, picked from a few tries as the one with the fewest units.
 function scatterSpot(team) {
