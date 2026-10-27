@@ -37,6 +37,11 @@ function aiNextStructure(team, c) {
     if (n(type) >= count || !available(team, type)) continue;
     return build(type);
   }
+  // Money piling up: more Barracks and War Factories, so it can build faster.
+  if (team.credits > 5000) {
+    if (n('factory') < 3 && available(team, 'factory')) return build('factory');
+    if (n('barracks') < 2 && available(team, 'barracks')) return build('barracks');
+  }
   // Then a gun at each Outpost (and on Hard each outlying refinery), and more defences while rich.
   if (available(team, defense) && aiGuardSite(team) && n(defense) < capMain) return build(defense);
   if (team.credits > 1500) {

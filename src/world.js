@@ -723,10 +723,15 @@ function defendBase(team) {
   const zone = team.defending ? 18 : 14;
   const threats = unitsOf(enemyOf(team).id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute &&
     (nearBase(u, zone) || nearHarv(u, 9) || nearShooter(u)));
-  const idle = (u) => u.order.type === 'guard' && (nearBase(u, 16) || nearHarv(u, 24) || nearShooter(u));
-  const army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward &&
+  // Only an Ore Truck under fire, away from the base: a few units close to it go to help.
+  const truckOnly = threats.length && !threats.some((u) => nearBase(u, zone) || nearShooter(u));
+  const idle = (u) => u.order.type === 'guard' && (nearBase(u, 16) || nearHarv(u, truckOnly ? 16 : 24) || nearShooter(u));
+  // The computer also recalls attack waves still on its own half of the map; past halfway they press on.
+  const ecy = buildingsOf(enemyOf(team).id).find((b) => b.type === 'cy'), own = mine.find((b) => b.type === 'cy');
+  const homeHalf = (u) => !ecy || !own || dist(u, own) < dist(u, ecy);
+  let army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward &&
     (u.cls !== 'air' || (!airEmpty(u) && u.order.type === 'guard')) &&
-    (u.defending || idle(u) || (team.isAI && u.cls !== 'air')));
+    (u.defending || idle(u) || (team.isAI && u.cls !== 'air' && !truckOnly && homeHalf(u))));
   if (!threats.length) {
     if (!team.defending || ++team.calm < DEFEND_CALM) return;
     team.defending = false;
@@ -747,6 +752,21 @@ function defendBase(team) {
     const t = threats.reduce((a, b) => (dist(a, cy) < dist(b, cy) ? a : b));
     (team.attackFrom = team.attackFrom || []).push(Math.atan2(t.y - cy.y, t.x - cy.x));
     if (team.attackFrom.length > 8) team.attackFrom.shift();
+  }
+  // The computer sends only what it takes: those already defending, then the nearest others,
+  // until they are worth half again as much as the raiders (a few at most for a truck).
+  if (team.isAI || truckOnly) {
+    const worth = (u) => u.def.cost || 300;
+    const need = threats.reduce((a, t) => a + worth(t), 0) * 1.5;
+    const near = (u) => Math.min(...threats.map((t) => Math.hypot(u.x - t.x, u.y - t.y)));
+    army = army.filter((u) => threats.some((t) => canTarget(u, t)));
+    army.sort((a, b) => (b.defending - a.defending) || near(a) - near(b));
+    let got = 0, picked = [];
+    for (const u of army) {
+      if (got >= need || (truckOnly && picked.length >= 4)) { if (!u.defending) continue; }
+      picked.push(u); got += worth(u);
+    }
+    army = picked;
   }
   for (const u of army) {
     let best = null, bd = CELL * 32;
@@ -2338,6 +2358,14 @@ function cancelProduction(team, type) {
   return false;
 }
 
+// Each extra Barracks or War Factory speeds up its queue: 1.5x with two, 2x with three, at most
+// 2.5x. Production still runs one unit at a time per queue.
+const PRODUCER_BOOST = [1, 1, 1.5, 2, 2.5];
+function producerBoost(team, def) {
+  if (def.producer !== 'barracks' && def.producer !== 'factory') return 1;
+  const n = G.entities.filter((e) => e.alive && e.kind === 'bld' && e.team === team.id && e.type === def.producer && e.sellT <= 0).length;
+  return PRODUCER_BOOST[Math.min(n, PRODUCER_BOOST.length - 1)];
+}
 function updateProduction(team, dt) {
   const speed = (team.low ? 0.5 : 1) * (team.isAI ? G.diff.speed : 1);
   for (const cat of CATEGORIES) {
@@ -2345,7 +2373,7 @@ function updateProduction(team, dt) {
     if (!item || item.ready) continue;
     if (!available(team, item.type)) continue;
     const def = defOf(item.type);
-    const dp = Math.min(dt * speed / buildTime(def), 1 - item.progress);
+    const dp = Math.min(dt * speed * producerBoost(team, def) / buildTime(def), 1 - item.progress);
     const cost = def.cost * dp;
     if (team.credits < cost) { item.stalled = true; notify(team, 'funds', 'Insufficient funds', 8); continue; }
     item.stalled = false;
