@@ -620,7 +620,8 @@ function nearestEnemyBuilding(u) {
     if (d < bd) { bd = d; best = e; }
     if (e.type === 'cy' && d < cd) { cd = d; cy = e; }
   }
-  return cy || best;
+  if (u.raider) return u.huntTarget && u.huntTarget.alive ? u.huntTarget : best;
+  return cy || best;   // paratroopers take whatever stands nearest
 }
 
 // New units spread out to random open spots around their base. Auto attack sends them out
@@ -867,7 +868,7 @@ function updateGroups(dt) {
 
 function setGuard(u, x, y) {
   u.order = { type: 'guard', x: x === undefined ? u.x : x, y: y === undefined ? u.y : y };
-  u.target = null; u.groupSpeed = 0; u.group = null;
+  u.target = null; u.groupSpeed = 0; u.group = null; u.raider = false;
 }
 function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget = null; u.group = null; u.focus = null; }
 
@@ -2056,7 +2057,7 @@ function dropTroops(plane, x, y) {
     if (c < 0) return;
     const p = cellCenter(c), u = addUnit(type, team, p.x + (Math.random() - 0.5) * 8, p.y + (Math.random() - 0.5) * 8);
     u.chute = 1.3 + i * 0.18;
-    if (team.auto) setHunt(u); else setGuard(u);
+    setHunt(u); u.raider = true;   // once down, they wreck the nearest structures, one after another
   });
 }
 
