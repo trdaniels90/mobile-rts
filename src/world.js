@@ -1257,7 +1257,7 @@ function kill(e, attacker, wh, from) {
       const vx = Math.cos(e.face) * sp, vy = Math.sin(e.face) * sp;
       if (jet) ejectSeat(e, vx, vy); else ejectPilot(e);
       G.effects.push({ type: 'crash', x: e.x, y: e.y, alt: e.alt, vz: jet ? -6 : 0, face: e.face, vx, vy, jet, seed,
-        spin: jet ? side * 0.2 : side * (3 + Math.random() * 2), spinUp: jet ? side * (0.5 + Math.random() * 0.6) : side * 2.5,
+        spin: jet ? side * 0.2 : side * (3 + Math.random() * 2), spinUp: jet ? side * (0.4 + Math.random() * 0.4) : side * 2.5,
         roll: 0, rollV: jet ? side * (1.5 + Math.random() * 2) : 0, bounced: false, ground: false, hit: [],
         def: e.def, faction: e.faction, t: 0, life: 40, smokeT: 0, shedT: 0.3, furrowT: 0 });
       for (let i = 0; i < 2; i++) shed(e.x, e.y, e.alt, vx, vy, e.faction, true);
@@ -1501,7 +1501,7 @@ function updateCrash(fx, dt) {
     fx.vx *= drag; fx.vy *= drag;
     fx.spin += fx.spinUp * dt; fx.spin = Math.max(-9, Math.min(9, fx.spin));
     fx.face += fx.spin * dt; fx.roll += fx.rollV * dt;
-    if (fx.jet) { const a = fx.spin * dt * 0.6, c = Math.cos(a), s = Math.sin(a); [fx.vx, fx.vy] = [fx.vx * c - fx.vy * s, fx.vx * s + fx.vy * c]; }
+    if (fx.jet) { const a = fx.spin * dt * 0.15, c = Math.cos(a), s = Math.sin(a); [fx.vx, fx.vy] = [fx.vx * c - fx.vy * s, fx.vx * s + fx.vy * c]; }
     fx.x += fx.vx * dt; fx.y += fx.vy * dt;
     if ((fx.smokeT -= dt) <= 0) { fx.smokeT = 0.04; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y - fx.alt, r: 2.5 + fx.t * 0.6, t: 0, life: 1.2, alpha: 0.6, color: '#3a3733' }); }
     if ((fx.shedT -= dt) <= 0) { fx.shedT = 0.35 + Math.random() * 0.5; shed(fx.x, fx.y, fx.alt, fx.vx, fx.vy, fx.faction, Math.random() < 0.5); }
@@ -1591,7 +1591,11 @@ function ejectPilot(e) {
 // Down in trees, water or on a roof: walk out to the nearest open ground, and set off from there.
 function landChute(u) {
   const c = cellOfPos(Math.max(0, Math.min(WORLD - 1, u.x)), Math.max(0, Math.min(WORLD - 1, u.y)));
-  if (!freeCell(c)) { const n = nearestFreeCell(c, 6); if (n >= 0) { const p = cellCenter(n); u.x = p.x; u.y = p.y; } }
+  if (!freeCell(c)) {
+    const n = nearestFreeCell(c, 8);
+    if (n < 0 && wetAt(u.x, u.y)) { u.alive = false; splash(u.x, u.y, false); return; }   // too far out to swim
+    if (n >= 0) { const p = cellCenter(n); u.x = p.x; u.y = p.y; }
+  }
   if (u.homeward) pilotHome(u);
   else if (u.order.type === 'guard') { u.order.x = u.x; u.order.y = u.y; }
 }
