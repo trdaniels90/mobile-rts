@@ -26,7 +26,7 @@ const WARHEADS = {
   FLAK:  { inf: 0,   light: 0,    heavy: 0,    bld: 0,   air: 1.0 },
   TESLA: { inf: 1.6, light: 1.0,  heavy: 0.9,  bld: 0.6, air: 0 },
   FIRE:  { inf: 1.3, light: 0.6,  heavy: 0.3,  bld: 0.7, air: 0 },   // flame tower
-  ART:   { inf: 0.9, light: 0.8,  heavy: 0.45, bld: 0.75, air: 0 },  // artillery shells
+  ART:   { inf: 0.9, light: 0.9,  heavy: 0.85, bld: 0.75, air: 0 },  // artillery shells
 };
 
 // cls: inf | veh | air.  cat: which sidebar tab builds it.  speed in px/s, sight in cells.
@@ -82,12 +82,12 @@ const UNIT_DEFS = {
   arty: {
     name: 'Artillery', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['dome'], factions: ['allies'], draw: 'arty', fixed: true,
     cost: 600, hp: 120, armor: 'light', speed: 36, turn: 2, sight: 5, r: 9, size: { len: 20, wid: 13, tur: 0, barrel: 15 },
-    weapon: { dmg: 110, rof: 4, range: 216, wh: 'ART', proj: 'artyshell', splash: 22, spread: 16 },
+    weapon: { dmg: 110, rof: 4, range: 288, wh: 'ART', proj: 'artyshell', splash: 22, spread: 16 },
   },
   v2rl: {
     name: 'V2 Rocket Launcher', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['dome'], factions: ['soviets'], draw: 'v2', fixed: true,
     cost: 800, hp: 150, armor: 'light', speed: 40, turn: 2, sight: 5, r: 10, size: { len: 22, wid: 12, tur: 0, barrel: 12 },
-    weapon: { dmg: 240, rof: 7, range: 240, wh: 'HE', proj: 'v2', splash: 30, spread: 12 },
+    weapon: { dmg: 240, rof: 7, range: 312, wh: 'HE', proj: 'v2', splash: 30, spread: 12 },
   },
   harv: {
     name: 'Ore Truck', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies', 'soviets'], draw: 'harv',
