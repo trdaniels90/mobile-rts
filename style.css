@@ -346,9 +346,21 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
   #selbar, #placebar { top: calc(var(--ts) + 36px); }
 }
 
-/* Portrait: the sidebar becomes a console along the bottom with two horizontal build strips. */
+/* Portrait: the sidebar becomes a console along the bottom with two horizontal build strips.
+   Options and the credits sit on top of the console as tabs, and the selection and placement
+   bars just above them, all clear of the status bar and notch (which some browsers draw over
+   the page without reporting how tall it is). */
 @media (orientation: portrait) {
-  :root { --cam-h: auto; }
+  :root { --cam-h: auto; --con-h: calc(176px + var(--safe-b)); }
+  #topstrip {
+    top: auto; bottom: var(--con-h); height: 28px; padding: 0 var(--safe-r) 0 var(--safe-l);
+    background: transparent; pointer-events: none;
+  }
+  #topstrip > * { pointer-events: auto; }
+  .tab { border-radius: 10px 10px 0 0; border-top: 2px solid var(--metal-hi); border-bottom: 0; font-size: 15px; }
+  #game { top: var(--safe-t); }
+  #eva { top: calc(max(var(--safe-t), 44px) + 10px); }   /* clear of a status bar even if it is not reported */
+  #selbar, #placebar { top: auto; bottom: calc(var(--con-h) + 36px); }
   .credits { width: auto; min-width: 120px; }
   #sidebar {
     top: auto; left: 0; right: 0; bottom: 0; width: auto;
@@ -368,8 +380,6 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
   }
   .cameo { touch-action: pan-x; }
   .sb-arrows { display: none; }
-  #selbar, #placebar { top: calc(var(--ts) + 8px); }
-  #eva { top: calc(var(--ts) + 56px); }
 }
 /* Portrait Field Manual: a slimmer header and footer, the page counter on one line. */
 @media (orientation: portrait) {
