@@ -77,13 +77,10 @@
   // ---------------------------------------------------------------------------
   function layout() {
     DPR = Math.min(window.devicePixelRatio || 1, 3);
+    const r = ui.sidebar.getBoundingClientRect(), top = Math.round(ui.topstrip.getBoundingClientRect().bottom);
     const portrait = window.innerHeight > window.innerWidth;
-    // Landscape: the battlefield sits below the top strip, left of the sidebar. Portrait: from the
-    // top of the screen (below any notch) down to the tabs on top of the bottom console.
-    const r = ui.sidebar.getBoundingClientRect(), strip = ui.topstrip.getBoundingClientRect();
-    const top = portrait ? Math.round(canvas.getBoundingClientRect().top) : Math.round(strip.bottom);
     W = portrait ? window.innerWidth : Math.max(100, Math.round(r.left));
-    H = Math.max(100, (portrait ? Math.round(strip.top) : window.innerHeight) - top);
+    H = Math.max(100, (portrait ? Math.round(r.top) : window.innerHeight) - top);
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
     document.documentElement.style.setProperty('--gw', W + 'px');
