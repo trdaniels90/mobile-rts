@@ -217,7 +217,7 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 .sides button[data-faction="soviets"] .crest { background: linear-gradient(180deg, #dd6c5c, #781d18); }
 .buttons { display: flex; gap: 6px; }
 .primary {
-  flex: 1; height: 48px; font-family: var(--font-stencil); font-size: 22px; letter-spacing: 0.04em; text-transform: uppercase;
+  flex: 1; height: 48px; font-family: var(--font-stencil); font-size: clamp(16px, 4.6vw, 22px); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
   color: #1b1405; background: linear-gradient(180deg, #f0c64c, #b8871c);
   border: 2px solid; border-color: #ffe08a #5e4208 #5e4208 #ffe08a;
 }
@@ -244,7 +244,8 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
   border: 2px solid; border-color: #7d8a4c #171b0c #171b0c #7d8a4c;
 }
 #manual {
-  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center;
+  /* minmax(0, 1fr): the column must not grow to fit the tab strip, or the book runs off a narrow screen. */
+  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; grid-template-columns: minmax(0, 1fr);
   padding: calc(var(--safe-t) + 10px) max(10px, var(--safe-r)) calc(var(--safe-b) + 10px) max(10px, var(--safe-l));
   background: rgba(0,0,0,0.78);
 }
@@ -341,7 +342,7 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
     height: calc(176px + var(--safe-b));
     border: 0; border-top: 2px solid var(--metal-hi);
     padding: 5px calc(var(--safe-r) + 5px) calc(var(--safe-b) + 5px) calc(var(--safe-l) + 5px);
-    grid-template-columns: 116px minmax(0, 1fr);
+    grid-template-columns: 124px minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas: "radar strips" "buttons strips";
   }
@@ -356,6 +357,16 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
   .sb-arrows { display: none; }
   #selbar, #placebar { top: calc(var(--ts) + 8px); }
   #eva { top: calc(var(--ts) + 56px); }
+}
+/* Portrait Field Manual: a slimmer header and footer, the page counter on one line. */
+@media (orientation: portrait) {
+  .fm-top, .fm-foot { padding: 4px 6px; }
+  .fm-foot button { min-width: 76px; }
+  .fm-num { font-size: 17px; white-space: nowrap; }
+  .fm-page { padding: 12px 12px 18px; font-size: 15px; }
+  .fm-tabs { -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  .fm-stats { font-size: 13px; }
+  .icon small { font-size: 9px; letter-spacing: 0.02em; }
 }
 @media (orientation: portrait) and (max-width: 360px) {
   #sidebar { grid-template-columns: 104px minmax(0, 1fr); }

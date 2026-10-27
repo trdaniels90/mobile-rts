@@ -223,6 +223,9 @@ const Manual = (() => {
     root.querySelector('.fm-prev').disabled = page === 0;
     root.querySelector('.fm-next').disabled = page === PAGES.length - 1;
     for (const b of root.querySelectorAll('.fm-tabs button')) b.setAttribute('aria-current', +b.dataset.goto <= page && CHAPTERS.find((c) => c.page === +b.dataset.goto).name === p.ch ? 'true' : 'false');
+    // On a narrow screen the tabs scroll sideways: keep the current chapter's tab in view.
+    const cur = root.querySelector('.fm-tabs button[aria-current="true"]'), nav = root.querySelector('.fm-tabs');
+    if (cur) nav.scrollLeft = Math.max(0, cur.offsetLeft - nav.offsetLeft - (nav.clientWidth - cur.offsetWidth) / 2);
   }
   function open(faction) {
     if (!root) build();
