@@ -542,7 +542,7 @@ function drawGhost(g, type, faction, cx, cy) {
 }
 
 function drawOre(g, cx, cy, amount, gem) {
-  const lv = amount >= 190 ? 3 : amount >= 120 ? 2 : amount >= 60 ? 1 : 0;
+  const lv = amount >= 190 ? 3 : amount >= 120 ? 2 : amount >= 60 ? 1 : 0;   // untouched fields (up to 375) look the same as full ones
   blit(g, (gem ? scenery.gem : scenery.ore)[lv][(cx * 7 + cy * 13) & 3], cx * CELL, cy * CELL);
 }
 

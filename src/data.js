@@ -5,7 +5,8 @@ const CELL = 24;            // world pixels per map cell
 const MAP = 112;            // map is MAP x MAP cells (sized for 2v2, after A Path Beyond)
 const WORLD = MAP * CELL;
 const NCELLS = MAP * MAP;
-const ORE_MAX = 250;        // credits a single ore cell can hold
+const ORE_MAX = 250;        // credits a single ore cell grows back to, at most
+const ORE_START = 1.5;      // fields start this much richer than they ever grow back
 
 const FACTIONS = {
   allies: {
