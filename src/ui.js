@@ -45,15 +45,19 @@
     evaTimer = setTimeout(() => { ui.eva.hidden = true; }, 2400);
   }
   hooks.eva = eva;
-  hooks.gameOver = (won) => setTimeout(() => {
-    G.paused = true;
-    Debrief.open(won, {
-      difficulty: DIFFICULTY[diffKey].label,
-      onRematch: () => { endPlace(); startGame(); hideMenu(); eva('Select a structure to build'); },   // same side and difficulty
-      onNew: () => showMenu('start'),
-    });
-    Sound.say(won ? 'Mission accomplished' : 'Mission failed');
-  }, 2200);
+  hooks.gameOver = (won) => {
+    Report.end(won);
+    setTimeout(() => {
+      G.paused = true;
+      Debrief.open(won, {
+        difficulty: DIFFICULTY[diffKey].label,
+        extra: won ? Leaderboard.nameBox() : null,
+        onRematch: () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },   // same side and difficulty
+        onNew: () => showMenu('start'),
+      });
+      Sound.say(won ? 'Mission accomplished' : 'Mission failed');
+    }, 2200);
+  };
   // Battle sounds are louder on screen, fade with distance and pan left or right.
   // Screen shake from big explosions: full strength on screen, fading off it.
   let shakeAmp = 0;
@@ -135,6 +139,13 @@
     const cy = G.entities.find((e) => e.team === PLAYER && e.type === 'cy');
     cam.z = Math.max(1, Math.min(2.5, Math.round((W / (CELL * 18)) * 4) / 4));
     centerOn(cy.x + 40, cy.y - 30);
+  }
+
+  // A mission the player starts (not the battle behind the menu): reported anonymously, see report.js.
+  function startMission() {
+    Report.quit();   // a mission left undecided counts as quit
+    startGame();
+    Report.start(faction, diffKey);
   }
 
   // ---------------------------------------------------------------------------
@@ -572,7 +583,7 @@
   document.addEventListener('dblclick', (e) => e.preventDefault());
 
   window.addEventListener('keydown', (e) => {
-    if (!G) return;
+    if (!G || (e.target.closest && e.target.closest('input, textarea'))) return;   // typing a name, not commanding
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     keys.add(k);
     if (k === 'Escape') { if (G.place) endPlace(); else select([]); }
@@ -867,7 +878,7 @@
     ui.startBtn.disabled = true;
     setTimeout(() => {
       endPlace();
-      startGame();
+      startMission();
       ui.startBtn.disabled = false;
       hideMenu();
       eva('Select a structure to build');
@@ -911,6 +922,7 @@
   // Version on the menu, and the What's New page with every release.
   $('versionTag').textContent = `Version ${VERSION}`;
   $('newsBtn').addEventListener('click', () => News.open());
+  $('boardBtn').addEventListener('click', () => Leaderboard.open());
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http') && window.top === window) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

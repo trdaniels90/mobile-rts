@@ -4,6 +4,18 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.28.3', date: '28 October 2026', title: 'Leaderboard', groups: [
+    ['', [
+      'A Leaderboard on the menu: wins against the computer, hardest difficulty first, then fastest time.',
+      'After a win, the debrief asks for a name for the leaderboard. Your phone remembers it for next time.',
+    ]],
+    ['Anonymous match data', [
+      'The game now reports anonymous match data: each mission\'s side, difficulty, result, length and debrief numbers, with a random id for your device. No account, location or personal details, and nothing else on your phone.',
+      'While you play, the game checks in once a minute so we can see how many people are playing.',
+      'The name you give after a win is the only thing anyone else can see, on the leaderboard.',
+      'Playing offline works exactly as before.',
+    ]],
+  ] },
   { v: '2026.10.28.2', date: '28 October 2026', title: 'Fighters scramble', groups: [
     ['', [
       'Fighters waiting on the Airfield scramble when enemy jets or helicopters come over your base, and fly back once the sky is clear. The computer does the same on Normal and Hard.',
