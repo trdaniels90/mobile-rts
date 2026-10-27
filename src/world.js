@@ -591,7 +591,7 @@ function acquire(src, range, weapons) {
     const d = distTo(src, e);
     if (d > range) continue;
     let score = d;
-    if (e.kind === 'bld') score += 60;
+    if (e.kind === 'bld') score += e.def.weapon ? 15 : 60;   // defences before harmless structures
     else if (!e.def.weapon && !e.def.harvester) score += 20;
     if (score < bs) { bs = score; best = e; }
   }
@@ -852,13 +852,13 @@ function updateGroups(dt) {
     for (const u of g.units) {
       const fx = Math.cos(g.a), fy = Math.sin(g.a);
       err += Math.hypot(u.x - (g.x - fx * u.slot.back - fy * u.slot.side), u.y - (g.y - fy * u.slot.back + fx * u.slot.side));
-      if (u.target) fighting++;
+      if (u.target && distTo(u, u.target) < u.def.sight * CELL * 1.5) fighting++;
     }
     err /= g.units.length;
     const p = g.path[g.i], dx = p.x - g.x, dy = p.y - g.y, d = Math.hypot(dx, dy);
     if (d < 8) { g.i++; continue; }
     g.a = turnToward(g.a, Math.atan2(dy, dx), 1.2 * dt);
-    const k = fighting > g.units.length / 3 ? 0 : err > 70 ? 0.15 : err > 40 ? 0.5 : 1;
+    const k = fighting > 0 ? 0 : err > 70 ? 0.15 : err > 40 ? 0.5 : 1;
     const step = Math.min(d, g.pace * k * dt);
     g.x += (dx / d) * step; g.y += (dy / d) * step;
   }
@@ -1210,7 +1210,14 @@ function damage(t, amount, wh, attacker, from) {
   // A structure shot at from outside the base zone: answer the fire wherever it comes from.
   else if (t.kind === 'bld' && attacker && attacker.kind === 'unit' && !isAirborne(attacker)) team.baseHit = { x: attacker.x, y: attacker.y, until: G.t + 8 };
   if (attacker && attacker.cls === 'air' && !attacker.def.scripted && G.teams[t.team]) { const tm = G.teams[t.team]; tm.airHit = { x: t.x, y: t.y, t: G.t }; tm.sawAir = true; }   // where enemy aircraft strike
-  if (attacker && attacker.alive && t.kind === 'unit' && t.order.type === 'guard' && !t.target && canTarget(t, attacker)) t.target = attacker;
+  // Shot at while guarding or on the attack: turn on the shooter, wherever it is, unless
+  // already trading fire with an enemy unit in range.
+  if (attacker && attacker.alive && attacker.team !== t.team && t.kind === 'unit' && t.alive && t.cls !== 'air' && !t.def.harvester &&
+      (t.order.type === 'guard' || t.order.type === 'hunt') && t.target !== attacker && canTarget(t, attacker)) {
+    const c = t.target;
+    const busy = c && c.alive && c.kind === 'unit' && distTo(t, c) <= (canHit(t.def.weapon, c) ? t.def.weapon : t.def.weapon2).range;
+    if (!busy) { t.target = attacker; t.avenge = attacker; }
+  }
   if (t.hp <= 0) kill(t, attacker, wh, from || attacker);
 }
 
@@ -1499,11 +1506,25 @@ function updateUnit(u, dt) {
     if (o.type === 'attack') {
       if (!o.target.alive) setGuard(u); else u.target = o.target;
     } else if (o.type !== 'move') {
-      if (u.target && distTo(u, u.target) > sight * 1.5) u.target = null;
-      if (o.type === 'guard' && u.target && Math.hypot(u.target.x - o.x, u.target.y - o.y) > sight * 1.6) u.target = null;
+      // Whoever fired on this unit is chased a little past its own reach; anything else is
+      // dropped once out of sight.
+      const avenging = u.target && u.target === u.avenge;
+      const reach = avenging ? Math.max(sight * 1.5, ((u.target.def.weapon && u.target.def.weapon.range) || 0) + CELL * 3) : sight * 1.5;
+      if (u.target && distTo(u, u.target) > reach) u.target = null;
+      if (o.type === 'guard' && u.target && !avenging && Math.hypot(u.target.x - o.x, u.target.y - o.y) > sight * 1.6) u.target = null;
       if (!u.target || u.target.kind === 'bld') {
         const t = acquire(u, sight, [w, u.def.weapon2]);
         if (t && (!u.target || t.kind === 'unit')) u.target = t;
+      }
+      // Part of a wave: join in on whatever the nearest squadmate is fighting.
+      if (!u.target && o.type === 'hunt' && u.group) {
+        let bd = sight * 1.4;
+        for (const m of u.group.units) {
+          const t = m.target;
+          if (m === u || !t || !t.alive || !canTarget(u, t)) continue;
+          const d = distTo(u, t);
+          if (d < bd) { bd = d; u.target = t; }
+        }
       }
       if (!u.target) {
         if (o.type === 'hunt' && u.group) {
