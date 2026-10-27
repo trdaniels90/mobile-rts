@@ -1738,10 +1738,9 @@ function checkStuck(u, dt) {
   else if (u.stuckN >= 6) { u.dest = null; u.path = null; u.stuckN = 0; }
 }
 
-// Ore trucks run entirely on their own. A truck picks a field rather than just the nearest cell:
-// one close by road, with ore left and not already crowded with trucks (of either side), gems
-// counting double. It favours the field it is already working, so it sticks with it while it
-// lasts, leaving worked-out fields to regrow. Within the field it goes for the richest cells.
+// Ore trucks run entirely on their own. They work the field nearest their refinery until it is
+// empty, then the next nearest, leaving worked-out fields to regrow. Within the field they go for
+// the richest cells.
 const THIN = 40;   // a cell holding less than this is not worth a special trip
 function fieldValue(f) {
   let ore = 0;
@@ -1767,33 +1766,21 @@ function walkDistances(start) {
   }
   return dist;
 }
-// A field is judged by the drive there (by land, round the lakes, not as the crow flies) and by
-// whether it can fill the truck once the other trucks working it have had their share: one that
-// can is as good as a bigger one further off. Gems count double. The field it is already working
-// is favoured, so it sticks with it while it lasts but still comes home when ore by the base has
-// grown back. Fields on the enemy's half of the map, or by enemy structures, are a last resort.
+// The nearest field by road from the truck's refinery (round the lakes, not as the crow flies)
+// that still has ore worth mining. All the trucks of a refinery work it until it is empty, then
+// move on to the next nearest.
+const FIELD_EMPTY = 150;   // less ore than this left in a whole field: worked out
 function pickField(u) {
-  const others = G.entities.filter((e) => e.alive && e !== u && e.def.harvester && (e.hs === 'mine' || e.hs === 'seek'));
-  const walk = walkDistances(cellOfPos(u.x, u.y));
-  const own = buildingsOf(u.team).find((b) => b.type === 'cy'), foeBlds = buildingsOf(1 - u.team), foe = foeBlds.find((b) => b.type === 'cy');
-  let best = null, bs = 0;
+  const ref = nearestOwn(u, 'refinery');
+  const walk = walkDistances(cellOfPos(ref ? dockPoint(ref).x : u.x, ref ? dockPoint(ref).y : u.y));
+  let best = null, bd = Infinity;
   for (const f of G.oreFields) {
-    const fx = (f.cx + 0.5) * CELL, fy = (f.cy + 0.5) * CELL;
-    const crowd = others.filter((e) => (e.field === f) || Math.hypot(e.x - fx, e.y - fy) < (f.r + 2) * CELL).length;
-    const ore = fieldValue(f) - crowd * u.def.capacity * 0.6;
-    if (ore < u.def.capacity * 0.4) continue;
-    let d = Infinity;
+    if (fieldValue(f) < FIELD_EMPTY) continue;
     for (let y = Math.floor(f.cy - f.r); y <= f.cy + f.r; y++) for (let x = Math.floor(f.cx - f.r); x <= f.cx + f.r; x++) {
       if (!inMap(x, y) || Math.hypot(x - f.cx, y - f.cy) > f.r + 0.8) continue;
       const w = walk[idx(x, y)];
-      if (w >= 0 && w < d) d = w;
+      if (w >= 0 && w < bd) { bd = w; best = f; }
     }
-    if (d === Infinity) continue;
-    const value = Math.min(ore, u.def.capacity * 1.2) * (f.gem ? 2 : 1);
-    const enemySide = own && foe && Math.hypot(fx - foe.x, fy - foe.y) < Math.hypot(fx - own.x, fy - own.y);
-    const enemyNear = foeBlds.some((b) => Math.hypot(b.x - fx, b.y - fy) < (f.r + 10) * CELL);
-    const sc = value / (d + 4) * (f === u.field ? 1.5 : 1) * (enemyNear ? 0.1 : enemySide ? 0.3 : 1);
-    if (sc > bs) { bs = sc; best = f; }
   }
   return best;
 }
@@ -2489,7 +2476,7 @@ function growOre() {
       const x = Math.floor(f.cx + Math.cos(a) * d), y = Math.floor(f.cy + Math.sin(a) * d);
       const c = inMap(x, y) ? idx(x, y) : -1;
       const cap = Math.round(Math.min(ORE_MAX, (60 + (1 - Math.min(1, d / f.r)) * 190) * f.rich));
-      if (c >= 0 && !G.block[c] && !G.bld[c] && G.ore[c] < cap) G.ore[c] = Math.min(cap, G.ore[c] + 20);
+      if (c >= 0 && !G.block[c] && !G.bld[c] && G.ore[c] < cap) G.ore[c] = Math.min(cap, G.ore[c] + 15);
     }
   }
 }
