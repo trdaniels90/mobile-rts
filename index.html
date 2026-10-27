@@ -87,6 +87,11 @@
       <button type="button" id="trackBtn" class="track">Next track <span id="trackName"></span></button>
       <p id="audioStatus" class="audio-status">Sound: waiting for a tap</p>
     </div>
+    <button type="button" id="updateBtn" class="update-btn" hidden>New version ready: tap to restart</button>
+    <details class="how" id="whatsNew">
+      <summary>What's new <span id="versionTag" class="version-tag"></span></summary>
+      <ul id="whatsNewList"></ul>
+    </details>
     <details class="how credits">
       <summary>Credits</summary>
       <p>Code, art, music compositions and interface sounds are original.</p>
@@ -117,6 +122,7 @@
   </div>
 </div>
 <!-- END BODY -->
+<script src="src/version.js"></script>
 <script src="src/data.js"></script>
 <script src="src/voxel.js"></script>
 <script src="src/models.js"></script>

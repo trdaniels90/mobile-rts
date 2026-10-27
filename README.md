@@ -51,6 +51,7 @@ Battle sound effects are freely licensed recordings (CC0 and CC-BY, credited in 
 
 - **Locally:** serve the folder (`python3 -m http.server`) and open `http://localhost:8000`.
 - **On iPhone:** host the folder anywhere with HTTPS (GitHub Pages works: *Settings → Pages → Deploy from branch*), open it in Safari, then *Share → Add to Home Screen*. It launches full screen and works offline after the first visit. Landscape gives the biggest battlefield; portrait moves the sidebar to the bottom.
+- **Updates for installed copies:** bump `VERSION` (and `WHATS_NEW`) in `src/version.js` with each release. An installed copy checks for a newer version whenever it comes back to the front and every ten minutes, and shows *New version ready: tap to restart* on the menu (never mid-battle); a fresh launch always loads the newest version. The menu shows the version and what's new.
 
 ## Files
 
