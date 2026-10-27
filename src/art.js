@@ -413,16 +413,27 @@ function drawUnit(g, u, t) {
     if (s.sh) { g.globalAlpha = 0.38; g.drawImage(s.sh, Math.round(u.x + hgt * SHADOW_DX + s.sox), Math.round(u.y + hgt * SHADOW_DY + s.soy)); g.globalAlpha = 1; }
     blit(g, s, u.x, u.y - alt, false);
     if (u.def.fly === 'heli') {
-      const rz = (u.type === 'hind' ? 10 : 9) * VK, rx = u.x, ry = u.y - alt - rz, ra = t * (alt > 1 ? 38 : 5) + u.id, R = u.type === 'hind' ? 15 : 13;
-      g.fillStyle = alt > 1 ? 'rgba(40,40,36,0.22)' : 'rgba(0,0,0,0)';
+      // The rotor turns faster than any screen can show, so each frame it advances as far as it
+      // can without seeming to run backwards (under half the gap between blades, whatever the
+      // frame rate) and the blur of the arc it swept fills in the rest.
+      const n = u.type === 'hind' ? 5 : 4, gap = Math.PI * 2 / n, flying = alt > 1;
+      const rz = (u.type === 'hind' ? 10 : 9) * VK, rx = u.x, ry = u.y - alt - rz, R = u.type === 'hind' ? 15 : 13;
+      const dtf = u.rotT === undefined ? 0 : Math.min(0.1, Math.max(0, t - u.rotT));
+      const step = Math.min((flying ? 80 : 6) * dtf, gap * 0.42);
+      u.rotT = t; u.rotA = (u.rotA === undefined ? u.id : u.rotA) + step;
+      g.fillStyle = flying ? 'rgba(40,40,36,0.26)' : 'rgba(0,0,0,0)';
       g.beginPath(); g.ellipse(rx, ry, R, R * 0.92, 0, 0, 7); g.fill();
-      g.strokeStyle = 'rgba(28,28,24,0.8)'; g.lineWidth = 1.2;
-      g.beginPath();
-      for (let k = 0; k < (u.type === 'hind' ? 5 : 4); k++) {
-        const a = ra + k * Math.PI * 2 / (u.type === 'hind' ? 5 : 4);
-        g.moveTo(rx, ry); g.lineTo(rx + Math.cos(a) * R, ry + Math.sin(a) * R * 0.92);
+      g.lineWidth = 1.2;
+      const trails = flying ? 4 : 1;
+      for (let c = trails - 1; c >= 0; c--) {
+        g.strokeStyle = `rgba(28,28,24,${c ? 0.32 * (1 - c / trails) : 0.85})`;
+        g.beginPath();
+        for (let k = 0; k < n; k++) {
+          const a = u.rotA - c * step / trails * 1.6 + k * gap;
+          g.moveTo(rx, ry); g.lineTo(rx + Math.cos(a) * R, ry + Math.sin(a) * R * 0.92);
+        }
+        g.stroke();
       }
-      g.stroke();
     } else if (u.moving) {
       const bx = u.x - Math.cos(u.face) * 15, by = u.y - alt - 2 + -Math.sin(u.face) * 15;
       g.fillStyle = Math.random() < 0.5 ? 'rgba(255,210,110,0.9)' : 'rgba(255,140,50,0.9)';
