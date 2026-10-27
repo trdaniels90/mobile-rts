@@ -703,10 +703,10 @@ function launchAircraft(u) {
 }
 
 // Enemies near or inside a base (paratroopers, flanking squads), or shooting at an Ore Truck,
-// are met by every idle unit close enough to help, on either side and with auto attack on or
-// off. The computer also recalls attack groups still on their way out. Units the player has
-// sent somewhere are left alone. Each defender goes for the nearest raider it can hit; once
-// the area has been quiet for a few seconds, defenders return to where they were waiting.
+// are met by idle units close enough to help, on either side and with auto attack on or off,
+// only as many as it takes. The computer also recalls attack waves still on its own half. Units
+// the player has sent somewhere are left alone. Each defender goes for the nearest raider it can
+// hit; once the area has been quiet for a few seconds, defenders return to where they were waiting.
 // Runs once a second.
 const DEFEND_CALM = 4;
 function defendBase(team) {
@@ -751,21 +751,19 @@ function defendBase(team) {
     (team.attackFrom = team.attackFrom || []).push(Math.atan2(t.y - cy.y, t.x - cy.x));
     if (team.attackFrom.length > 8) team.attackFrom.shift();
   }
-  // The computer sends only what it takes: those already defending, then the nearest others,
+  // Either side sends only what it takes: those already defending, then the nearest others,
   // until they are worth half again as much as the raiders (a few at most for a truck).
-  if (team.isAI || truckOnly) {
-    const worth = (u) => u.def.cost || 300;
-    const need = threats.reduce((a, t) => a + worth(t), 0) * 1.5;
-    const near = (u) => Math.min(...threats.map((t) => Math.hypot(u.x - t.x, u.y - t.y)));
-    army = army.filter((u) => threats.some((t) => canTarget(u, t)));
-    army.sort((a, b) => (b.defending - a.defending) || near(a) - near(b));
-    let got = 0, picked = [];
-    for (const u of army) {
-      if (got >= need || (truckOnly && picked.length >= 4)) { if (!u.defending) continue; }
-      picked.push(u); got += worth(u);
-    }
-    army = picked;
+  const worth = (u) => u.def.cost || 300;
+  const need = threats.reduce((a, t) => a + worth(t), 0) * 1.5;
+  const near = (u) => Math.min(...threats.map((t) => Math.hypot(u.x - t.x, u.y - t.y)));
+  army = army.filter((u) => threats.some((t) => canTarget(u, t)));
+  army.sort((a, b) => (b.defending - a.defending) || near(a) - near(b));
+  let got = 0, picked = [];
+  for (const u of army) {
+    if (got >= need || (truckOnly && picked.length >= 4)) { if (!u.defending) continue; }
+    picked.push(u); got += worth(u);
   }
+  army = picked;
   for (const u of army) {
     let best = null, bd = CELL * 32;
     for (const t of threats) { const d = Math.hypot(u.x - t.x, u.y - t.y); if (d < bd && canTarget(u, t)) { bd = d; best = t; } }
