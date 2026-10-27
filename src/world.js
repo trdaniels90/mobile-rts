@@ -205,7 +205,7 @@ function genMap(seed) {
   const shore = (cx, cy) => [[1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [0, 2], [-2, 0], [0, -2]].some(([ox, oy]) => inMap(cx + ox, cy + oy) && T[idx(cx + ox, cy + oy)] === 4);
   for (let i = 0; i < 14 * S96 * S96; i++) blob(...halfPt(), 1.5 + r() * 3, 1, 0.9);
   // Forest clumps: a few overlapping blobs each, so they grow into irregular stands of trees.
-  for (let i = 0; i < 40 * S96 * S96; i++) {
+  for (let i = 0; i < 24 * S96 * S96; i++) {
     let [x, y] = halfPt();
     const n = 2 + Math.floor(r() * 4);
     for (let k = 0; k < n; k++) {
@@ -213,7 +213,7 @@ function genMap(seed) {
       const a = r() * Math.PI * 2; x += Math.cos(a) * (2 + r() * 2.5); y += Math.sin(a) * (2 + r() * 2.5);
     }
   }
-  for (let i = 0; i < 60 * S96 * S96; i++) {
+  for (let i = 0; i < 36 * S96 * S96; i++) {
     let [x, y] = halfPt();
     if (!shore(Math.round(x), Math.round(y)) && r() < 0.8) continue;
     blob(x, y, 1.6 + r() * 2.6, 2, 0.8);
@@ -1740,10 +1740,10 @@ function checkStuck(u, dt) {
   else if (u.stuckN >= 6) { u.dest = null; u.path = null; u.stuckN = 0; }
 }
 
-// Ore trucks run entirely on their own. Each trip they pick a field rather than just the
-// nearest cell: one with plenty of ore left, close by and not already crowded with trucks (of
-// either side), with gems counting double, so a scraped-out field is left to regrow and the
-// trucks move on to the next one. Within the field they go for the richest cells.
+// Ore trucks run entirely on their own. A truck picks a field rather than just the nearest cell:
+// one close by road, with ore left and not already crowded with trucks (of either side), gems
+// counting double. It keeps coming back to that field until it is worked out, then picks the
+// next one, leaving the old one to regrow. Within the field it goes for the richest cells.
 const THIN = 40;   // a cell holding less than this is not worth a special trip
 function fieldValue(f) {
   let ore = 0;
@@ -1798,7 +1798,8 @@ function findOre(u) {
   const start = cellOfPos(u.x, u.y);
   const seen = new Uint8Array(NCELLS), q = [start];
   seen[start] = 1;
-  const f = pickField(u);
+  // Stay on the field it started on until it is worked out, then pick the next one.
+  const f = u.field && fieldValue(u.field) >= THIN * 3 ? u.field : pickField(u);
   u.field = f;
   const inField = (c) => !f || Math.hypot(cellX(c) - f.cx, cellY(c) - f.cy) <= f.r + 0.8;
   let fallback = -1, best = -1, bs = -Infinity, bestD = Infinity;
