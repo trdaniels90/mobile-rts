@@ -237,7 +237,14 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
   background: linear-gradient(180deg, #7fe07a, #2f9a35); border: 2px solid; border-color: #b9f5b2 #0f4413 #0f4413 #b9f5b2;
   animation: blink 1.2s step-end infinite;
 }
-.version-tag { margin-left: 6px; font-weight: 400; font-size: 13px; color: #8d9286; }
+.version-tag { margin: 0; font-size: 12px; color: #8d9286; text-align: center; }
+.book-btns { display: flex; gap: 6px; }
+.book-btns .manual-btn { flex: 1; min-width: 0; font-size: clamp(14px, 4.2vw, 18px); white-space: nowrap; }
+.fm-release { margin: 0 0 18px; }
+.fm-release h3 { margin: 0; font-family: var(--font-stencil); font-weight: 400; font-size: 20px; text-transform: uppercase; color: #22201a; }
+.fm-release .fm-when { margin: 2px 0 6px; font-family: 'Courier New', monospace; font-size: 13px; color: #6b5a3a; }
+.fm-release .fm-when b { color: #a3261c; }
+.fm-release ul { margin: 4px 0 8px; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
 .audio-status { grid-column: 1 / -1; margin: 0; font-size: 13px; color: #8d9286; text-align: center; }
 .credits p { margin: 8px 0 0; font-size: 13px; line-height: 1.4; color: #aeb3a5; -webkit-user-select: text; user-select: text; }
 .how summary { cursor: pointer; color: var(--amber); font-size: 16px; font-weight: 700; }
@@ -249,7 +256,7 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
   color: #e6e1cf; background: linear-gradient(180deg, #4c5530, #2f3520);
   border: 2px solid; border-color: #7d8a4c #171b0c #171b0c #7d8a4c;
 }
-#manual {
+#manual, #news {
   /* minmax(0, 1fr): the column must not grow to fit the tab strip, or the book runs off a narrow screen. */
   position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; grid-template-columns: minmax(0, 1fr);
   padding: calc(var(--safe-t) + 10px) max(10px, var(--safe-r)) calc(var(--safe-b) + 10px) max(10px, var(--safe-l));

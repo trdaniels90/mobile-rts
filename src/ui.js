@@ -910,9 +910,9 @@
   // Hook for automated tests.
   window.__ps = { get G() { return G; }, update, cam, startGame, startProduction, placeStructure, aiFindSpot, canPlace, commandMove, commandHunt, tap, layout };
 
-  // Version on the menu, with what changed.
-  $('versionTag').textContent = `v${VERSION}`;
-  $('whatsNewList').innerHTML = WHATS_NEW.map((t) => `<li>${t}</li>`).join('');
+  // Version on the menu, and the What's New page with every release.
+  $('versionTag').textContent = `Version ${VERSION}`;
+  $('newsBtn').addEventListener('click', () => News.open());
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http') && window.top === window) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -920,7 +920,7 @@
     // back to the front (and every ten minutes), look for a newer version and offer a restart
     // from the menu, never in the middle of a battle.
     const checkUpdate = () => fetch('src/version.js', { cache: 'no-store' }).then((r) => r.text()).then((t) => {
-      const m = t.match(/const VERSION = '([^']+)'/);
+      const m = t.match(/\{ v: '([^']+)'/);   // the newest release is listed first
       if (m && m[1] !== VERSION) $('updateBtn').hidden = false;
     }).catch(() => {});
     $('updateBtn').addEventListener('click', () => location.reload());

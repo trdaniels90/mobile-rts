@@ -237,3 +237,30 @@ const Manual = (() => {
   function close() { if (root) root.hidden = true; }
   return { open, close, get pages() { return PAGES.length; } };
 })();
+
+// What's New: every release, newest first, on the same paper as the Field Manual.
+const News = (() => {
+  let root = null;
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  function build() {
+    root = document.createElement('div');
+    root.id = 'news';
+    root.hidden = true;
+    const body = RELEASES.map((r, i) => `<section class="fm-release">
+        <h3>${esc(r.title)}</h3>
+        <p class="fm-when">${r.date} · version ${r.v}${i === 0 ? ' · <b>this version</b>' : ''}</p>
+        ${r.groups.map(([head, items]) => `${head ? `<h4>${esc(head)}</h4>` : ''}<ul>${items.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>`).join('')}
+      </section>`).join('');
+    root.innerHTML = `<div class="fm-book" role="dialog" aria-modal="true" aria-labelledby="newsTitle">
+      <header class="fm-top"><span class="fm-brand">Dispatches</span><span style="flex:1"></span>
+        <button type="button" class="fm-close" aria-label="Close What's New">✕</button></header>
+      <div class="fm-page"><h2 id="newsTitle">What's New</h2>${body}</div>
+    </div>`;
+    document.body.appendChild(root);
+    root.addEventListener('click', (e) => { if (e.target.closest('.fm-close') || e.target === root) close(); });
+    document.addEventListener('keydown', (e) => { if (!root.hidden && e.key === 'Escape') { close(); e.stopPropagation(); } }, true);
+  }
+  function open() { if (!root) build(); root.hidden = false; root.querySelector('.fm-page').scrollTop = 0; root.querySelector('.fm-close').focus(); }
+  function close() { if (root) root.hidden = true; }
+  return { open, close };
+})();
