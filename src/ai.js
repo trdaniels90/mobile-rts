@@ -249,8 +249,11 @@ function aiThink(team) {
   if (powerReady(team, 'bomb') && !held('bomb')) { const t = aiPowerTarget(team, true); if (t) launchPower(team, 'bomb', t.x, t.y); }
   if (powerReady(team, 'para') && !held('para')) { const t = aiPowerTarget(team, false); if (t) launchPower(team, 'para', t.x, t.y); }
 
-  // Patch up damaged buildings when there is cash to spare.
-  if (team.credits > 800) for (const b of buildingsOf(team.id)) if (b.hp < b.maxHp * 0.6) b.repairing = true;
+  // Patch up damaged buildings when there is cash to spare, but not while they are being shot at.
+  for (const b of buildingsOf(team.id)) {
+    if (G.t - b.hitT < 3) b.repairing = false;
+    else if (team.credits > 800 && b.hp < b.maxHp * 0.6) b.repairing = true;
+  }
   // Pour surplus cash into extra tanks.
   if (team.credits > 4000 && c.factory && vq.length < 3) startProduction(team, team.faction === 'allies' ? 'mtank' : 'htank');
 }

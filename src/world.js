@@ -2196,6 +2196,7 @@ function dropTroops(plane, x, y) {
 // ---------------------------------------------------------------------------
 // Structures
 // ---------------------------------------------------------------------------
+const REPAIR_STEP = 0.00375;   // share of full health restored every quarter second (1.5% a second)
 function updateBuilding(b, dt) {
   const team = teamOf(b);
   b.fireT = Math.max(0, b.fireT - dt);
@@ -2211,11 +2212,13 @@ function updateBuilding(b, dt) {
     return;
   }
   if (b.repairing) {
-    // Repairs crawl at half speed while the structure is under fire.
-    b.repT = (b.repT || 0) + dt * (G.t - b.hitT < 2 ? 0.5 : 1);
+    // Repairs take about a minute from nearly wrecked to whole, and crawl at a quarter of that
+    // while the structure is under fire, so a determined attack can still bring it down. A full
+    // repair costs half the structure's price.
+    b.repT = (b.repT || 0) + dt * (G.t - b.hitT < 2 ? 0.25 : 1);
     if (b.repT >= 0.25) {
       b.repT = 0;
-      const heal = b.maxHp * 0.02, cost = Math.max(1, b.def.cost * 0.01);
+      const heal = b.maxHp * REPAIR_STEP, cost = Math.max(1, b.def.cost * 0.5 * REPAIR_STEP);
       if (b.hp >= b.maxHp) b.repairing = false;
       else if (team.credits >= cost) { team.credits -= cost; b.hp = Math.min(b.maxHp, b.hp + heal); }
       else { b.repairing = false; notify(team, 'funds', 'Insufficient funds', 4); }

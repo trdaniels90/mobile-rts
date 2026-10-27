@@ -134,7 +134,7 @@ const Manual = (() => {
         <tr><td>Cancel production</td><td>Hold the icon</td><td>Right click the icon</td></tr>
         <tr><td>Scroll and zoom</td><td>Drag, pinch, or tap the radar</td><td>Arrow keys or WASD, mouse wheel, click the radar</td></tr>
       </table>
-      <p>Select one of your structures to <b>repair</b> it (costs credits; half speed while under fire) or <b>sell</b> it. Select a Mobile Outpost and tap <b>DEPLOY</b> to unpack it.</p>` },
+      <p>Select one of your structures to <b>repair</b> it (costs credits and takes about a minute; a quarter of the speed while under fire) or <b>sell</b> it. Select a Mobile Outpost and tap <b>DEPLOY</b> to unpack it.</p>` },
     { ch: 'Basics', title: 'Your Army in Battle', html: () => `
       <h4>Auto Attack</h4>
       <p>New units spread out to open ground around your base and guard it: where they stand is up to chance, so move them to cover the approaches you care about. <b>Auto Attack</b> starts off. Switch it on and, once 8 are waiting, they muster at the edge of the base facing the enemy and march out together in formation, at the pace of the slowest. The AUTO button shows how many are waiting.</p>
@@ -174,7 +174,7 @@ const Manual = (() => {
         <li>Fast units like Rangers make good raiders: Ore Trucks are slow, expensive and unarmed.</li>
         <li>Never let your power run short just before a fight: Tesla Coils go dark and production crawls.</li>
         <li>A Radar Dome early lets you see raids coming on the minimap.</li>
-        <li>Damaged structures can be repaired while you fight, but at half speed under fire: pull back and fix them between waves.</li>
+        <li>Damaged structures can be repaired while you fight, but only at a quarter of the speed under fire: pull back and fix them between waves.</li>
       </ul>
       <p class="fm-end">End of manual. Good luck, Commander.</p>` },
   ];
