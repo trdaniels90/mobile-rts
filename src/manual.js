@@ -26,7 +26,7 @@ const Manual = (() => {
     // Infantry
     rifle: ['The backbone of every army: cheap, quick to train and useful in numbers. Under fire they drop into cover, crouching or going prone.', 'Infantry', 'Tanks, flame, Tesla'],
     grenadier: ['Lobs grenades in an arc over cover, with a blast that hurts groups. Carries spare grenades in bags on his hips.', 'Infantry groups, light vehicles', 'Tanks at range'],
-    rocket: ['Shoulder-fired rockets that hit tanks, structures and aircraft alike: the answer to enemy air power.', 'Tanks, aircraft', 'Infantry'],
+    rocket: ['Allied anti-armour and anti-aircraft infantry, as in the original: Dragon rockets punch through tank armour, and RedEye missiles reach further to bring down aircraft. One launcher, so it fires one or the other.', 'Tanks, aircraft', 'Infantry, light vehicles'],
     pilot: ['Bails out of a downed aircraft, parachutes down and runs for the nearest friendly structure. Reaching it, the pilot is recovered and you get $100. Cannot be trained.', '', ''],
     // Vehicles
     ranger: ['A fast armed jeep for scouting and raids. Its machine gun can also fire at aircraft.', 'Infantry, Ore Trucks', 'Tanks'],
@@ -45,7 +45,7 @@ const Manual = (() => {
     mig: ['A fast Soviet delta-wing fighter-bomber with missiles for ground and air targets, bombs and flares.', 'Structures, aircraft', 'AA Guns, rockets'],
   };
   const WEAPON = {
-    rifle: 'Rifle', grenadier: 'Grenades (arcing, splash)', rocket: 'Rockets (hit aircraft too)', pilot: 'Pistol',
+    rifle: 'Rifle', grenadier: 'Grenades (arcing, splash)', rocket: 'Dragon rockets; RedEye missiles (air)', pilot: 'Pistol',
     ranger: 'Machine gun (hits aircraft too)', ltank: 'Light cannon', mtank: 'Cannon', htank: 'Twin cannons', mammoth: 'Twin cannons + anti-air missile pods',
     arty: 'Howitzer (arcing, splash)', v2rl: 'V2 rocket (arcing, huge splash)', heli: 'Rockets', hind: 'Chain gun',
     jet: 'Missiles (ground and air), bombs', mig: 'Missiles (ground and air), bombs',
@@ -162,7 +162,7 @@ const Manual = (() => {
         <tr><td>Targets</td><td>Your Construction Yard</td><td>A mix: yard, refineries, power, Outposts</td><td>Your weakest valuable buildings</td></tr>
         <tr><td>Raids</td><td>Rare</td><td>From about 4 minutes</td><td>From about 3 minutes</td></tr>
         <tr><td>Defences</td><td>Up to 4</td><td>Up to 8, plus AA</td><td>Up to 12, plus AA</td></tr>
-        <tr><td>Against aircraft</td><td>No special answer</td><td>More rockets and fighters, AA where you strike</td><td>The same, in greater numbers</td></tr>
+        <tr><td>Against aircraft</td><td>No special answer</td><td>More anti-air troops and fighters, AA where you strike</td><td>The same, in greater numbers</td></tr>
       </table>` },
     { ch: 'Intel', title: 'Field Tips', html: () => `
       <ul class="fm-tips">

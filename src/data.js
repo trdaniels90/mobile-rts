@@ -28,6 +28,7 @@ const WARHEADS = {
   TESLA: { inf: 1.6, light: 1.0,  heavy: 0.9,  bld: 0.6, air: 0 },
   FIRE:  { inf: 1.3, light: 0.6,  heavy: 0.3,  bld: 0.7, air: 0 },   // flame tower
   ART:   { inf: 0.9, light: 0.9,  heavy: 0.85, bld: 0.75, air: 0 },  // artillery shells
+  AT:    { inf: 0.3, light: 0.75, heavy: 1.0,  bld: 0.6, air: 1.0 },   // Rocket Soldier: Red Alert's AP
 };
 
 // cls: inf | veh | air.  cat: which sidebar tab builds it.  speed in px/s, sight in cells.
@@ -47,10 +48,13 @@ const UNIT_DEFS = {
     name: 'Pilot', cls: 'inf', cat: 'infantry', factions: [], cost: 0, hp: 35, armor: 'inf', speed: 27, sight: 4, r: 5,
     weapon: { dmg: 5, rof: 1.1, range: 60, wh: 'SA', proj: 'bullet' },
   },
+  // As in the original Red Alert: Allied only, a Dragon rocket for armour and a RedEye
+  // missile, with more reach, for aircraft. Both fire as often as a Medium Tank's gun.
   rocket: {
-    name: 'Rocket Soldier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
+    name: 'Rocket Soldier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies'],
     cost: 300, hp: 45, armor: 'inf', speed: 24, sight: 5, r: 5,
-    weapon: { dmg: 45, rof: 2.2, range: 120, wh: 'HE', proj: 'rocket', air: true },
+    weapon: { dmg: 35, rof: 1.5, range: 120, wh: 'AT', proj: 'rocket' },
+    weapon2: { dmg: 50, rof: 1.5, range: 180, wh: 'AT', proj: 'rocket', air: true, ground: false },
   },
   ranger: {
     name: 'Ranger', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'jeep',

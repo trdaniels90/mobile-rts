@@ -232,7 +232,8 @@ function aiThink(team) {
   const iq = team.queues.infantry;
   if (c.barracks && iq.length < A.queue && money > (truckDue ? 900 : 150)) {
     const r = Math.random();
-    startProduction(team, anti && r < 0.5 ? 'rocket' : r < 0.45 ? 'rifle' : team.faction === 'soviets' && r < 0.72 ? 'grenadier' : 'rocket');
+    const sov = team.faction === 'soviets';   // no Rocket Soldiers: rifles and grenadiers
+    startProduction(team, sov ? (r < 0.55 ? 'rifle' : 'grenadier') : anti && r < 0.5 ? 'rocket' : r < 0.45 ? 'rifle' : 'rocket');
   }
   if (c.factory && vq.length < A.queue && money > 500 && !truckDue) {
     const opts = team.faction === 'allies' ? (anti ? ['mtank', 'mtank', 'ranger', 'ranger', 'ltank'] : ['ltank', 'mtank', 'mtank', 'ranger'])

@@ -1316,7 +1316,7 @@ const RAG_MIN = [[2, 9, 0.5], [2, 10, 0.5], [1, 5, 0.45], [1, 6, 0.45], [0, 2, 0
 function ragdoll(e, wh, from) {
   const r = Math.random;
   const a = from && (from.x !== e.x || from.y !== e.y) ? Math.atan2(e.y - from.y, e.x - from.x) : r() * Math.PI * 2;
-  const blast = wh === 'HE' || wh === 'AP' || wh === 'ART';
+  const blast = wh === 'HE' || wh === 'AP' || wh === 'ART' || wh === 'AT';
   const fx = { type: 'ragdoll', x: e.x, y: e.y, unitType: e.type, faction: e.faction, face: e.face, t: 0, life: 14, age: 0, still: 0, acc: 0 };
   // Joints in world space, standing as the soldier stood.
   const n = RAG_PTS.length, ca = Math.cos(e.face), sa = Math.sin(e.face);
@@ -1700,10 +1700,14 @@ function updateUnit(u, dt) {
     followPath(u, dt);
   }
   if (u.cls === 'veh' && !u.target) u.tface = turnToward(u.tface, u.face, 3 * dt);
-  // Mammoth missiles pick their own targets, including aircraft.
-  if (u.def.weapon2 && u.cd2 <= 0) {
+  // Second weapons pick their own targets: Mammoth missiles, a Rocket Soldier's anti-aircraft
+  // missile. A soldier has one launcher, so his two weapons share one reload.
+  if (u.def.weapon2 && u.cd2 <= 0 && (u.cls !== 'inf' || u.cd <= 0)) {
     const t2 = u.target && canHit(u.def.weapon2, u.target) && distTo(u, u.target) <= u.def.weapon2.range ? u.target : acquire(u, u.def.weapon2.range, [u.def.weapon2]);
-    if (t2) { fireWeapon(u, u.def.weapon2, t2); u.cd2 = u.def.weapon2.rof; }
+    if (t2) {
+      if (u.cls === 'inf') { u.face = Math.atan2(t2.y - (t2.alt || 0) - u.y, t2.x - u.x); u.cd = Math.max(u.cd, u.def.weapon2.rof); }
+      fireWeapon(u, u.def.weapon2, t2); u.cd2 = u.def.weapon2.rof;
+    }
   }
   checkStuck(u, dt);
 }
@@ -1718,7 +1722,7 @@ function engage(u, t, dt) {
     if (u.def.fixed) { u.face = u.tface = turnToward(u.face, ang, u.def.turn * dt); aligned = Math.abs(angDiff(ang, u.face)) < 0.08; }   // no turret: turn the vehicle
     else if (u.cls === 'veh') { u.tface = turnToward(u.tface, ang, 5 * dt); aligned = Math.abs(angDiff(ang, u.tface)) < 0.12; }
     else u.face = ang;
-    if (aligned && u.cd <= 0 && w === u.def.weapon) { shoot(u, w, t); u.cd = w.rof; }
+    if (aligned && u.cd <= 0 && w === u.def.weapon) { shoot(u, w, t); u.cd = w.rof; if (u.cls === 'inf' && u.def.weapon2) u.cd2 = Math.max(u.cd2, w.rof); }
   } else {
     if (!u.needPath && (!u.dest || Math.hypot(u.dest.x - t.x, u.dest.y - t.y) > 40)) goTo(u, t.x, t.y);
     followPath(u, dt);
