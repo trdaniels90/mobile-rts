@@ -1738,16 +1738,14 @@ function checkStuck(u, dt) {
   else if (u.stuckN >= 6) { u.dest = null; u.path = null; u.stuckN = 0; }
 }
 
-// Ore trucks run entirely on their own. They work the field nearest their refinery until it is
-// empty, then the next nearest, leaving worked-out fields to regrow. Within the field they go for
-// the richest cells.
-const THIN = 40;   // a cell holding less than this is not worth a special trip
+// Ore trucks run entirely on their own. They work the field nearest their refinery until every
+// last bit of it is gone, then the next nearest, leaving worked-out fields to regrow. Within the
+// field they go for the richest cells first.
+const inFieldCell = (f, x, y) => Math.hypot(x - f.cx, y - f.cy) <= f.r + 0.8;   // ore grows this far out
 function fieldValue(f) {
   let ore = 0;
-  for (let y = Math.floor(f.cy - f.r); y <= f.cy + f.r; y++) for (let x = Math.floor(f.cx - f.r); x <= f.cx + f.r; x++) {
-    if (!inMap(x, y)) continue;
-    const v = G.ore[idx(x, y)];
-    if (v >= THIN) ore += v;
+  for (let y = Math.floor(f.cy - f.r - 1); y <= f.cy + f.r + 1; y++) for (let x = Math.floor(f.cx - f.r - 1); x <= f.cx + f.r + 1; x++) {
+    if (inMap(x, y) && inFieldCell(f, x, y)) ore += G.ore[idx(x, y)];
   }
   return ore;
 }
@@ -1766,14 +1764,14 @@ function walkDistances(start) {
   }
   return dist;
 }
-// The nearest field by road from the truck's refinery (round the lakes, not as the crow flies)
-// that still has ore worth mining and room for another truck. The trucks work it until it is
-// empty, then move on to the next nearest; once a field has three trucks on it, the rest go on to
-// the next nearest too.
-const FIELD_EMPTY = 150;   // less ore than this left in a whole field: worked out
+// A truck keeps to its field while any ore is left on it. Then it takes the nearest field by road
+// from its refinery (round the lakes, not as the crow flies) that has ore worth the drive and room
+// for another truck: once a field has three trucks on it, the rest go on to the next nearest.
+const FIELD_EMPTY = 150;   // less ore than this on a field: not worth driving to
 const FIELD_TRUCKS = 3;    // most trucks (of either side) working one field
 function pickField(u) {
   const others = G.entities.filter((e) => e.alive && e !== u && e.def.harvester && e.field && e.hs !== 'manual');
+  if (u.field && fieldValue(u.field) > 0 && others.filter((e) => e.field === u.field).length < FIELD_TRUCKS) return u.field;
   const ref = nearestOwn(u, 'refinery');
   const walk = walkDistances(cellOfPos(ref ? dockPoint(ref).x : u.x, ref ? dockPoint(ref).y : u.y));
   let best = null, bd = Infinity;
@@ -1793,7 +1791,7 @@ function findOre(u) {
   seen[start] = 1;
   const f = pickField(u);
   u.field = f;
-  const inField = (c) => !f || Math.hypot(cellX(c) - f.cx, cellY(c) - f.cy) <= f.r + 0.8;
+  const inField = (c) => !f || inFieldCell(f, cellX(c), cellY(c));
   let fallback = -1, best = -1, bs = -Infinity, bestD = Infinity;
   const claimed = new Set();
   for (const e of G.entities) if (e.alive && e !== u && e.def.harvester && e.team === u.team && e.hcell >= 0) claimed.add(e.hcell);
@@ -1801,7 +1799,7 @@ function findOre(u) {
     const c = q[qi];
     if (G.ore[c] > 0) {
       if (fallback < 0 && !claimed.has(c)) fallback = c;
-      if (inField(c) && !claimed.has(c) && G.ore[c] >= THIN) {
+      if (inField(c) && !claimed.has(c)) {
         // Richest cells first, among those reached soon after the first one in the field.
         if (bestD === Infinity) bestD = qi;
         const sc = G.ore[c] * (G.gem[c] ? 2 : 1) - (qi - bestD) * 0.4;
@@ -1839,7 +1837,7 @@ function nextOreCell(u) {
     const x = cx + ox, y = cy + oy;
     if (!inMap(x, y)) continue;
     const c = idx(x, y);
-    if (G.ore[c] < THIN * 0.6 || !freeCell(c)) continue;
+    if (!G.ore[c] || !freeCell(c)) continue;
     const d = dist(u, cellCenter(c)), sc = d - G.ore[c] * (G.gem[c] ? 2 : 1) * 0.15;   // close and rich
     if (sc < bd) { bd = sc; best = c; }
   }
