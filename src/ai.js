@@ -190,6 +190,7 @@ function aiPowerTarget(team, cluster) {
   return { x: best.x, y: best.y };
 }
 
+const ARMY_WORTH = 21000;
 function aiThink(team) {
   const c = aiCount(team);
   if (unitsOf(enemyOf(team).id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
@@ -221,8 +222,10 @@ function aiThink(team) {
   const sq = team.queues.structure;
   const reserve = sq && !sq.ready ? Math.min(1500, BUILD_DEFS[sq.type].cost * (1 - sq.progress)) : 0;
   const money = team.credits - reserve;
-  const army = G.entities.filter((e) => e.alive && e.team === team.id && e.kind === 'unit' && !e.def.harvester).length;
-  if (army > 45) return;
+  // A cap on the army, by headcount (for the frame rate) and by worth, so a side whose units cost
+  // more (Soviet Heavy Tanks and Mammoths) does not field a stronger army of the same size.
+  const armyUnits = G.entities.filter((e) => e.alive && e.team === team.id && e.kind === 'unit' && !e.def.harvester);
+  if (armyUnits.length > 45 || armyUnits.reduce((a, e) => a + e.def.cost, 0) > ARMY_WORTH) return;
   // Once the enemy flies aircraft (Normal and Hard), lean on units that can shoot them down:
   // rocket soldiers, Mammoths or Rangers, and fighters rather than helicopters.
   const A = G.diff.ai, anti = A.adapt && team.sawAir;
@@ -367,8 +370,15 @@ function aiCrossings() {
   G.crossings = pts.map((q) => { const c = nearestFreeCell(cellOfPos(q.x, q.y), 8); return c >= 0 ? cellCenter(c) : q; });
   return G.crossings;
 }
+// How many enemy attackers are marching through a crossing (or will be, on their planned route).
+function aiRouteBusy(team, c) {
+  let n = 0;
+  for (const g of G.groups) if (g.team !== team.id && g.path.slice(g.i).some((p) => Math.hypot(p.x - c.x, p.y - c.y) < CELL * 7)) n += g.units.length;
+  return n;
+}
 // Which crossing a wave takes. Easy mostly takes the shortest; Normal favours shorter ones;
-// Hard prefers the one with the fewest enemy guns along it.
+// Hard prefers the one with the fewest enemy guns along it. Normal and Hard also steer clear of
+// crossings the enemy's own attack waves are using, to reach the base instead of meeting them.
 function aiPickCrossing(team, from, target, not) {
   const A = G.diff.ai, cs = aiCrossings().filter((c) => c !== not), r = Math.random;
   const L = cs.map((c) => Math.hypot(c.x - from.x, c.y - from.y) + Math.hypot(target.x - c.x, target.y - c.y)), min = Math.min(...L);
@@ -382,6 +392,7 @@ function aiPickCrossing(team, from, target, not) {
     const near = (a, b, p) => { const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy || 1, k = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)); return Math.hypot(a.x + dx * k - p.x, a.y + dy * k - p.y) < CELL * 7; };
     w = cs.map((c, i) => Math.exp(-(L[i] - min) / (CELL * 20)) * Math.pow(0.35, guns.filter((d) => near(from, c, d) || near(c, target, d)).length));
   }
+  w = w.map((v, i) => v * Math.pow(0.5, aiRouteBusy(team, cs[i]) / 4));
   let sum = w.reduce((a, b) => a + b, 0), x = r() * sum;
   if (!(sum > 0)) return cs[L.indexOf(min)];
   for (let i = 0; i < cs.length; i++) if ((x -= w[i]) <= 0) return cs[i];
