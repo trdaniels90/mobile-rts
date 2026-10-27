@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.28.4', date: '28 October 2026', title: 'Separate aircraft queues', groups: [
+    ['', [
+      'Helicopters and jets have their own build queues: the Helipad and the Airfield each build on their own, so you can build one of each at the same time. The computer does too.',
+    ]],
+  ] },
   { v: '2026.10.28.3', date: '28 October 2026', title: 'Leaderboard', groups: [
     ['', [
       'A Leaderboard on the menu: wins against the computer, hardest difficulty first, then fastest time.',
