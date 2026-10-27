@@ -36,7 +36,7 @@ const Manual = (() => {
     mammoth: ['Slow and enormous. Twin cannons for ground targets and missile pods that also fire at aircraft.', 'Everything', 'Its own speed'],
     arty: ['A tracked howitzer that outranges every defence. With no turret the whole vehicle turns to aim, and its shells drop in a high arc, so it can miss a moving target. Needs a Radar Dome.', 'Defences, infantry, anything standing still', 'Anything that reaches it'],
     v2rl: ['A truck carrying one huge rocket on a launch rail. Slow to reload but the blast wrecks buildings, with a crater and a shake you can feel. Needs a Radar Dome.', 'Structures, defences', 'Fast units, aircraft'],
-    harv: ['Finds ore, fills up and drives home to unload, all on its own. It picks the richest uncrowded field nearby and goes for gems first: they are worth twice as much as ore but never grow back. Under fire it runs home and waits by the refinery until the danger has passed.', '', 'Unarmed: protect it'],
+    harv: ['Finds ore, fills up and drives home to unload, all on its own. It picks the nearest uncrowded field by road that can fill it, and goes for gems first if they are not too far: they are worth twice as much as ore but never grow back. Under fire it runs home and waits by the refinery until the danger has passed.', '', 'Unarmed: protect it'],
     fob: ['Drive it to a distant ore field and tap DEPLOY: it unpacks into an Outpost you can build around.', '', 'Unarmed while driving'],
     // Aircraft
     heli: ['A fast gunship that fires rockets at ground targets, then flies home to rearm.', 'Tanks, structures', 'AA Guns, SAM sites, rockets'],
@@ -118,7 +118,7 @@ const Manual = (() => {
       <h4>Building a base</h4>
       <p>The left column of the sidebar builds structures, the right column builds units. When a structure is READY, tap the map to place it (it must touch your base: within 6 cells of your buildings, or 8 of an Outpost). A good start: <b>Power Plant</b>, then <b>Ore Refinery</b>, then <b>Barracks</b> and <b>War Factory</b>.</p>
       <h4>Money</h4>
-      <p>Credits come from ore. Every refinery brings an Ore Truck that works on its own; ore fields slowly grow back. Purple <b>gems</b> are worth twice as much but never regrow. Far-off fields are best worked from an <b>Outpost</b>: drive a Mobile Outpost there and deploy it.</p>
+      <p>Credits come from ore. Every refinery brings an Ore Truck that works on its own; ore fields grow back slowly, so in a long game you will need to expand. Purple <b>gems</b> are worth twice as much but never regrow. Far-off fields are best worked from an <b>Outpost</b>: drive a Mobile Outpost there and deploy it.</p>
       <h4>Power</h4>
       <p>Each structure draws power. If demand passes supply your base runs on low power: production slows, the radar goes offline and Tesla Coils go dark. Build more Power Plants before that happens.</p>
       <h4>Radar</h4>

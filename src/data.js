@@ -133,7 +133,7 @@ const UNIT_DEFS = {
 
 // w/h in cells. power: + produces, - consumes. exit: units leave from (or trucks dock at) the cell below the middle.
 const BUILD_DEFS = {
-  cy:       { name: 'Construction Yard', w: 3, h: 3, hp: 1500, power: 0,   cost: 2500, req: [], factions: [], sight: 6 },
+  cy:       { name: 'Construction Yard', w: 3, h: 3, hp: 2500, power: 0,   cost: 2500, req: [], factions: [], sight: 6 },
   power:    { name: 'Power Plant',  w: 2, h: 2, hp: 400,  power: 100, cost: 300,  req: ['cy'],       factions: ['allies', 'soviets'] },
   apower:   { name: 'Advanced Power Plant', w: 3, h: 3, hp: 700, power: 200, cost: 500, req: ['factory'], factions: ['allies', 'soviets'] },
   // Deployed from a Mobile Outpost; cannot be built from the sidebar. Lets its side build further around it.
@@ -188,7 +188,7 @@ const DIFFICULTY = {
       econ: { fast: false, refineries: 3, trucks: 5, truckFirst: false } } },
   normal: { label: 'Normal', income: 1.0,  speed: 1.0,  credits: 5000,
     ai: { wave: [5, 10], big: [10, 13], bigChance: 0.25,
-      raidFrom: 360, raidGap: [120, 200], firstWave: 210, bigFrom: 480, waveGap: 45, targets: 'mixed', strike: ['para'], defMax: 8, aa: 1, aaMax: 3, guard: ['outpost'],
+      raidFrom: 360, raidGap: [120, 200], firstWave: 270, bigFrom: 480, waveGap: 45, targets: 'mixed', strike: ['para'], defMax: 8, aa: 1, aaMax: 3, guard: ['outpost'],
       adapt: true, homeGuard: 3, interceptors: 1, queue: 3,
       econ: { fast: false, refineries: 3, trucks: 6, truckFirst: true } } },
   hard:   { label: 'Hard',   income: 1.35, speed: 1.25, credits: 7000,

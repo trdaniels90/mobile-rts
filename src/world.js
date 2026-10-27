@@ -1747,17 +1747,42 @@ function fieldValue(f) {
   }
   return ore;
 }
+// How far every cell is from `start` by land, in steps (-1: cannot be reached).
+function walkDistances(start) {
+  const dist = new Int16Array(NCELLS).fill(-1), q = [start];
+  dist[start] = 0;
+  for (let qi = 0; qi < q.length; qi++) {
+    const c = q[qi], cx = cellX(c), cy = cellY(c);
+    for (let i = 0; i < 8; i++) {
+      const nx = cx + DIRS8[i][0], ny = cy + DIRS8[i][1];
+      if (!inMap(nx, ny)) continue;
+      const n = idx(nx, ny);
+      if (dist[n] < 0 && freeCell(n)) { dist[n] = dist[c] + 1; q.push(n); }
+    }
+  }
+  return dist;
+}
+// A field is judged by the drive there (by land, round the lakes, not as the crow flies) and by
+// whether it can fill the truck: one that can is as good as a bigger one further off. Gems count
+// double, and fields other trucks are already working count for less.
 function pickField(u) {
   const others = G.entities.filter((e) => e.alive && e !== u && e.def.harvester && (e.hs === 'mine' || e.hs === 'seek'));
+  const walk = walkDistances(cellOfPos(u.x, u.y));
   let best = null, bs = 0;
   for (const f of G.oreFields) {
     const ore = fieldValue(f);
     if (ore < u.def.capacity * 0.4) continue;
-    const value = Math.min(ore, u.def.capacity * 2.5) * (f.gem ? 2 : 1);   // gems are worth twice as much
+    let d = Infinity;
+    for (let y = Math.floor(f.cy - f.r); y <= f.cy + f.r; y++) for (let x = Math.floor(f.cx - f.r); x <= f.cx + f.r; x++) {
+      if (!inMap(x, y) || Math.hypot(x - f.cx, y - f.cy) > f.r + 0.8) continue;
+      const w = walk[idx(x, y)];
+      if (w >= 0 && w < d) d = w;
+    }
+    if (d === Infinity) continue;
+    const value = Math.min(ore, u.def.capacity * 1.2) * (f.gem ? 2 : 1);
     const fx = (f.cx + 0.5) * CELL, fy = (f.cy + 0.5) * CELL;
     const crowd = others.filter((e) => (e.field === f) || Math.hypot(e.x - fx, e.y - fy) < (f.r + 2) * CELL).length;
-    const d = Math.hypot(u.x - fx, u.y - fy) / CELL;
-    const sc = value / (d + 10) * (crowd >= 2 ? 0.25 : crowd === 1 ? 0.65 : 1);
+    const sc = value / (d + 4) * (crowd >= 2 ? 0.25 : crowd === 1 ? 0.65 : 1);
     if (sc > bs) { bs = sc; best = f; }
   }
   return best;
@@ -2449,14 +2474,12 @@ function growOre() {
   const r = Math.random;
   for (const f of G.oreFields) {
     if (f.gem) continue;   // gems never grow back
-    for (let i = 0; i < 3; i++) {
+    {   // one cell a field every couple of seconds: a scraped-out field takes several minutes to recover
       const a = r() * Math.PI * 2, d = Math.sqrt(r()) * (f.r + 0.8);
       const x = Math.floor(f.cx + Math.cos(a) * d), y = Math.floor(f.cy + Math.sin(a) * d);
-      if (!inMap(x, y)) continue;
-      const c = idx(x, y);
-      if (G.block[c] || G.bld[c]) continue;
+      const c = inMap(x, y) ? idx(x, y) : -1;
       const cap = Math.round(Math.min(ORE_MAX, (60 + (1 - Math.min(1, d / f.r)) * 190) * f.rich));
-      if (G.ore[c] < cap) G.ore[c] = Math.min(cap, G.ore[c] + 25);
+      if (c >= 0 && !G.block[c] && !G.bld[c] && G.ore[c] < cap) G.ore[c] = Math.min(cap, G.ore[c] + 20);
     }
   }
 }
