@@ -36,7 +36,7 @@ const Manual = (() => {
     mammoth: ['Slow and enormous. Twin cannons for ground targets and missile pods that also fire at aircraft.', 'Everything', 'Its own speed'],
     arty: ['A tracked howitzer that outranges every defence. With no turret the whole vehicle turns to aim, and its shells drop in a high arc, so it can miss a moving target. Needs a Radar Dome.', 'Defences, infantry, anything standing still', 'Anything that reaches it'],
     v2rl: ['A truck carrying one huge rocket on a launch rail. Slow to reload but the blast wrecks buildings, with a crater and a shake you can feel. Needs a Radar Dome.', 'Structures, defences', 'Fast units, aircraft'],
-    harv: ['Finds ore, fills up and drives home to unload, all on its own. It picks the nearest uncrowded field by road that can fill it and works it until it is empty, going for gems first if they are not too far: they are worth twice as much as ore but never grow back. Under fire it runs home and waits by the refinery until the danger has passed.', '', 'Unarmed: protect it'],
+    harv: ['Finds ore, fills up and drives home to unload, all on its own. It picks the nearest field by road that can fill it, sticks with it while it lasts and avoids the enemy's half of the map, going for gems first if they are not too far: they are worth twice as much as ore but never grow back. Under fire it runs home and waits by the refinery until the danger has passed.', '', 'Unarmed: protect it'],
     fob: ['Drive it to a distant ore field and tap DEPLOY: it unpacks into an Outpost you can build around.', '', 'Unarmed while driving'],
     // Aircraft
     heli: ['A fast gunship that fires rockets at ground targets, then flies home to rearm.', 'Tanks, structures', 'AA Guns, SAM sites, rockets'],

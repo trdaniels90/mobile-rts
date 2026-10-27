@@ -1742,8 +1742,8 @@ function checkStuck(u, dt) {
 
 // Ore trucks run entirely on their own. A truck picks a field rather than just the nearest cell:
 // one close by road, with ore left and not already crowded with trucks (of either side), gems
-// counting double. It keeps coming back to that field until it is worked out, then picks the
-// next one, leaving the old one to regrow. Within the field it goes for the richest cells.
+// counting double. It favours the field it is already working, so it sticks with it while it
+// lasts, leaving worked-out fields to regrow. Within the field it goes for the richest cells.
 const THIN = 40;   // a cell holding less than this is not worth a special trip
 function fieldValue(f) {
   let ore = 0;
@@ -1770,14 +1770,19 @@ function walkDistances(start) {
   return dist;
 }
 // A field is judged by the drive there (by land, round the lakes, not as the crow flies) and by
-// whether it can fill the truck: one that can is as good as a bigger one further off. Gems count
-// double, and fields other trucks are already working count for less.
+// whether it can fill the truck once the other trucks working it have had their share: one that
+// can is as good as a bigger one further off. Gems count double. The field it is already working
+// is favoured, so it sticks with it while it lasts but still comes home when ore by the base has
+// grown back. Fields on the enemy's half of the map, or by enemy structures, are a last resort.
 function pickField(u) {
   const others = G.entities.filter((e) => e.alive && e !== u && e.def.harvester && (e.hs === 'mine' || e.hs === 'seek'));
   const walk = walkDistances(cellOfPos(u.x, u.y));
+  const own = buildingsOf(u.team).find((b) => b.type === 'cy'), foeBlds = buildingsOf(1 - u.team), foe = foeBlds.find((b) => b.type === 'cy');
   let best = null, bs = 0;
   for (const f of G.oreFields) {
-    const ore = fieldValue(f);
+    const fx = (f.cx + 0.5) * CELL, fy = (f.cy + 0.5) * CELL;
+    const crowd = others.filter((e) => (e.field === f) || Math.hypot(e.x - fx, e.y - fy) < (f.r + 2) * CELL).length;
+    const ore = fieldValue(f) - crowd * u.def.capacity * 0.6;
     if (ore < u.def.capacity * 0.4) continue;
     let d = Infinity;
     for (let y = Math.floor(f.cy - f.r); y <= f.cy + f.r; y++) for (let x = Math.floor(f.cx - f.r); x <= f.cx + f.r; x++) {
@@ -1787,9 +1792,9 @@ function pickField(u) {
     }
     if (d === Infinity) continue;
     const value = Math.min(ore, u.def.capacity * 1.2) * (f.gem ? 2 : 1);
-    const fx = (f.cx + 0.5) * CELL, fy = (f.cy + 0.5) * CELL;
-    const crowd = others.filter((e) => (e.field === f) || Math.hypot(e.x - fx, e.y - fy) < (f.r + 2) * CELL).length;
-    const sc = value / (d + 4) * (crowd >= 2 ? 0.25 : crowd === 1 ? 0.65 : 1);
+    const enemySide = own && foe && Math.hypot(fx - foe.x, fy - foe.y) < Math.hypot(fx - own.x, fy - own.y);
+    const enemyNear = foeBlds.some((b) => Math.hypot(b.x - fx, b.y - fy) < (f.r + 10) * CELL);
+    const sc = value / (d + 4) * (f === u.field ? 1.5 : 1) * (enemyNear ? 0.1 : enemySide ? 0.3 : 1);
     if (sc > bs) { bs = sc; best = f; }
   }
   return best;
@@ -1798,8 +1803,7 @@ function findOre(u) {
   const start = cellOfPos(u.x, u.y);
   const seen = new Uint8Array(NCELLS), q = [start];
   seen[start] = 1;
-  // Stay on the field it started on until it is worked out, then pick the next one.
-  const f = u.field && fieldValue(u.field) >= THIN * 3 ? u.field : pickField(u);
+  const f = pickField(u);
   u.field = f;
   const inField = (c) => !f || Math.hypot(cellX(c) - f.cx, cellY(c) - f.cy) <= f.r + 0.8;
   let fallback = -1, best = -1, bs = -Infinity, bestD = Infinity;
