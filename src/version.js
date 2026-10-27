@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.28.2', date: '28 October 2026', title: 'Fighters scramble', groups: [
+    ['', [
+      'Fighters waiting on the Airfield scramble when enemy jets or helicopters come over your base, and fly back once the sky is clear. The computer does the same on Normal and Hard.',
+      'Jets no longer circle over the battlefield with nothing to hit: they fly home after a few seconds, and a fighter out of air-to-air missiles breaks off its chase to rearm. MiGs come home from far more of their sorties.',
+    ]],
+  ] },
   { v: '2026.10.28.1', date: '28 October 2026', title: 'Air balance', groups: [
     ['', [
       'The Allied Attack Helicopter\'s Hellfires are made for armour: they do half as much to infantry as before, and the helicopter goes after vehicles first.',
