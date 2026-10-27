@@ -54,7 +54,7 @@ const UNIT_DEFS = {
     name: 'Rocket Soldier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies'],
     cost: 300, hp: 45, armor: 'inf', speed: 24, sight: 5, r: 5,
     weapon: { dmg: 35, rof: 1.5, range: 120, wh: 'AT', proj: 'rocket' },
-    weapon2: { dmg: 50, rof: 1.5, range: 180, wh: 'AT', proj: 'rocket', air: true, ground: false },
+    weapon2: { dmg: 50, rof: 1.5, range: 144, wh: 'AT', proj: 'rocket', air: true, ground: false },
   },
   ranger: {
     name: 'Ranger', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'jeep',
