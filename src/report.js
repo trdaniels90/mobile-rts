@@ -19,6 +19,10 @@ const Report = (() => {
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
   }
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (_) {} return null; };
+  // Copies run from a computer for development or testing (localhost, a local file) report nothing,
+  // so test runs never show up in the stats.
+  let local = true;
+  try { local = location.protocol === 'file:' || /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/.test(location.hostname); } catch (_) {}
   let device = store('ps-device');
   if (!device || !UUID.test(device)) { device = uuid(); store('ps-device', device); }
 
@@ -43,6 +47,7 @@ const Report = (() => {
   function start(side, difficulty) {
     try {
       quit();
+      if (local) return;
       const row = { id: uuid(), device_id: device, mode: 'skirmish', side, difficulty, version: typeof VERSION === 'string' ? VERSION : null };
       match = { id: row.id, row, ended: false };
       match.saved = insert(match);
