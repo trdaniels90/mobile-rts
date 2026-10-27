@@ -696,8 +696,9 @@
     ui.autoBtn.setAttribute('aria-pressed', String(team.auto));
     try { localStorage.setItem('ps-auto', team.auto ? '1' : '0'); } catch (_) {}
     if (team.auto) {
-      // Units already guarding join the next attack group.
-      for (const u of unitsOf(PLAYER)) if (!u.def.harvester && !u.def.scripted && !u.defending && u.order.type === 'guard') u.staged = true;
+      // Every idle ground unit attacks now; aircraft waiting on their pads take off.
+      launchAll(team);
+      for (const u of unitsOf(PLAYER)) if (u.cls === 'air' && !u.def.scripted && u.order.type === 'guard') u.staged = true;
       eva('Auto attack on');
     } else eva('Auto attack off. New units guard the base');
   });

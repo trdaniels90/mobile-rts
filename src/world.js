@@ -655,6 +655,14 @@ function rallyPoint(team) {
   const a = Math.atan2(e.cy - s.cy, e.cx - s.cx);
   return { x: (s.cx + 0.5 + Math.cos(a) * 7) * CELL, y: (s.cy + 0.5 + Math.sin(a) * 7) * CELL };
 }
+// Switching Auto Attack on sends every idle armed ground unit at once, wherever it stands (units
+// busy defending, or on a move or attack order, carry on); after that new units go out in batches.
+function launchAll(team) {
+  const idle = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.defending && !u.homeward &&
+    u.cls !== 'air' && u.order.type === 'guard');
+  for (const u of idle) { setHunt(u); u.staged = false; }
+  return idle.length;
+}
 function launchGroups() {
   for (const team of G.teams) {
     defendBase(team);
