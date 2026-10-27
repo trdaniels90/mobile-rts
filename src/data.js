@@ -186,17 +186,17 @@ const POWERS = {
 //   econ: fast opening (a second refinery straight after the Barracks), how many refineries and
 //   Ore Trucks it aims for, and whether a missing truck is paid for before more army
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   income: 0.7,  speed: 0.8,  credits: 5000,
+  easy:   { label: 'Easy',   income: 0.7,  speed: 0.8,  credits: 10000,
     ai: { wave: [4, 7], big: null, bigChance: 0,
       raidFrom: 360, raidGap: [200, 320], firstWave: 270, bigFrom: 0, waveGap: 60, targets: 'cy', strike: [], defMax: 4, aa: 1, aaMax: 1, guard: [],
       adapt: false, homeGuard: 0, interceptors: 0, queue: 2,
       econ: { fast: false, refineries: 3, trucks: 5, truckFirst: false } } },
-  normal: { label: 'Normal', income: 1.0,  speed: 1.0,  credits: 5000,
+  normal: { label: 'Normal', income: 1.0,  speed: 1.0,  credits: 10000,
     ai: { wave: [5, 10], big: [10, 13], bigChance: 0.25,
       raidFrom: 360, raidGap: [120, 200], firstWave: 270, bigFrom: 480, waveGap: 45, targets: 'mixed', strike: ['para'], defMax: 8, aa: 1, aaMax: 3, guard: ['outpost'],
       adapt: true, homeGuard: 3, interceptors: 1, queue: 3,
       econ: { fast: true, refineries: 3, trucks: 6, truckFirst: true } } },
-  hard:   { label: 'Hard',   income: 1.35, speed: 1.25, credits: 7000,
+  hard:   { label: 'Hard',   income: 1.35, speed: 1.25, credits: 12000,
     ai: { wave: [6, 12], big: [12, 16], bigChance: 0.35,
       raidFrom: 180, raidGap: [75, 130], firstWave: 0, bigFrom: 0, waveGap: 0, targets: 'weak', strike: ['para', 'bomb'], defMax: 12, aa: 2, aaMax: 5, guard: ['outpost', 'refinery'],
       adapt: true, homeGuard: 5, interceptors: 2, queue: 3,

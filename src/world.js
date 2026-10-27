@@ -64,7 +64,7 @@ function newWorld(playerFaction, diffKey, seed) {
 
 function makeTeam(id, faction, isAI) {
   return {
-    id, faction, isAI, pal: FACTIONS[faction].pal, credits: 5000, shown: 5000, start: null,
+    id, faction, isAI, pal: FACTIONS[faction].pal, credits: 10000, shown: 10000, start: null,
     power: { prod: 0, use: 0 }, low: false, auto: !!isAI,
     queues: { structure: null, infantry: [], vehicle: [], aircraft: [] },
     stats: { built: 0, lost: 0, killed: 0, harvested: 0 },
@@ -1745,10 +1745,13 @@ function checkStuck(u, dt) {
 // Ore trucks run entirely on their own. They work the field nearest their refinery until every
 // last bit of it is gone, then the next nearest, leaving worked-out fields to regrow. Within the
 // field they go for the richest cells first.
-const inFieldCell = (f, x, y) => Math.hypot(x - f.cx, y - f.cy) <= f.r + 0.8;   // ore grows this far out
+// How far a field reaches: its original ore, plus whatever it has spread into since.
+const fieldReach = (f) => f.r + 0.8 + (f.ext || 0);
+const inFieldCell = (f, x, y) => Math.hypot(x - f.cx, y - f.cy) <= fieldReach(f);
 function fieldValue(f) {
   let ore = 0;
-  for (let y = Math.floor(f.cy - f.r - 1); y <= f.cy + f.r + 1; y++) for (let x = Math.floor(f.cx - f.r - 1); x <= f.cx + f.r + 1; x++) {
+  const R = fieldReach(f);
+  for (let y = Math.floor(f.cy - R); y <= f.cy + R; y++) for (let x = Math.floor(f.cx - R); x <= f.cx + R; x++) {
     if (inMap(x, y) && inFieldCell(f, x, y)) ore += G.ore[idx(x, y)];
   }
   return ore;
@@ -1781,8 +1784,9 @@ function pickField(u) {
   let best = null, bd = Infinity;
   for (const f of G.oreFields) {
     if (fieldValue(f) < FIELD_EMPTY || others.filter((e) => e.field === f).length >= FIELD_TRUCKS) continue;
-    for (let y = Math.floor(f.cy - f.r); y <= f.cy + f.r; y++) for (let x = Math.floor(f.cx - f.r); x <= f.cx + f.r; x++) {
-      if (!inMap(x, y) || Math.hypot(x - f.cx, y - f.cy) > f.r + 0.8) continue;
+    const R = fieldReach(f);
+    for (let y = Math.floor(f.cy - R); y <= f.cy + R; y++) for (let x = Math.floor(f.cx - R); x <= f.cx + R; x++) {
+      if (!inMap(x, y) || !inFieldCell(f, x, y)) continue;
       const w = walk[idx(x, y)];
       if (w >= 0 && w < bd) { bd = w; best = f; }
     }
@@ -2472,14 +2476,30 @@ function revealCircle(cx, cy, rad) {
   }
 }
 
+// As in Red Alert, ore grows back even while it is being mined, and spreads: now and then a field
+// creeps one cell out onto open ground next to its ore (never next to a building, and at most
+// ORE_SPREAD cells beyond where it started), so fields left alone slowly get bigger.
+const ORE_SPREAD = 3;
+function spreadOre(f) {
+  const R = fieldReach(f), cells = [];
+  for (let y = Math.floor(f.cy - R); y <= f.cy + R; y++) for (let x = Math.floor(f.cx - R); x <= f.cx + R; x++) if (inMap(x, y) && inFieldCell(f, x, y) && G.ore[idx(x, y)] >= 60) cells.push([x, y]);
+  if (!cells.length) return;
+  const [x0, y0] = cells[Math.floor(Math.random() * cells.length)], [dx, dy] = DIRS8[Math.floor(Math.random() * 8)];
+  const x = x0 + dx, y = y0 + dy;
+  if (!inMap(x, y)) return;
+  const c = idx(x, y), d = Math.hypot(x - f.cx, y - f.cy);
+  if (G.ore[c] || G.terr[c] >= 2 || G.block[c] || G.bld[c] || G.resv[c] || d > f.r + 0.8 + ORE_SPREAD) return;
+  for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) if (inMap(x + ox, y + oy) && G.bld[idx(x + ox, y + oy)]) return;
+  G.ore[c] = 15;
+  f.ext = Math.max(f.ext || 0, d - f.r - 0.8);
+}
 function growOre() {
   const r = Math.random;
-  const worked = new Set(G.entities.filter((e) => e.alive && e.def.harvester && e.field && e.hs !== 'manual').map((e) => e.field));
   for (const f of G.oreFields) {
     if (f.gem) continue;   // gems never grow back
-    if (worked.has(f)) continue;   // only while no truck is working it: no new scraps to chase
+    if (r() < 0.05) spreadOre(f);   // about once every 40 seconds
     {   // one cell a field every couple of seconds: a scraped-out field takes several minutes to recover
-      const a = r() * Math.PI * 2, d = Math.sqrt(r()) * (f.r + 0.8);
+      const a = r() * Math.PI * 2, d = Math.sqrt(r()) * fieldReach(f);
       const x = Math.floor(f.cx + Math.cos(a) * d), y = Math.floor(f.cy + Math.sin(a) * d);
       const c = inMap(x, y) ? idx(x, y) : -1;
       const cap = Math.round(Math.min(ORE_MAX, (60 + (1 - Math.min(1, d / f.r)) * 190) * f.rich));

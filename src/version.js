@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.27.3', date: '27 October 2026', title: 'More money, as in Red Alert', groups: [
+    ['', [
+      'You start with $10,000 instead of $5,000, as in Red Alert\'s multiplayer ($12,000 for the computer on Hard).',
+      'Ore grows back even while your trucks are mining it.',
+      'Ore spreads: every so often a field creeps out onto open ground beside it, so fields left alone slowly get bigger and the map no longer runs dry.',
+    ]],
+  ] },
   { v: '2026.10.27.2', date: '27 October 2026', title: 'What\'s New', groups: [
     ['', [
       'A What\'s New page on the menu, beside the Field Manual, with the notes for every release so far.',
