@@ -67,7 +67,7 @@ function makeTeam(id, faction, isAI) {
   return {
     id, faction, isAI, pal: FACTIONS[faction].pal, credits: 10000, shown: 10000, start: null,
     power: { prod: 0, use: 0 }, low: false, auto: !!isAI,
-    queues: { structure: null, infantry: [], vehicle: [], aircraft: [] },
+    queues: { structure: null, infantry: [], vehicle: [], heli: [], jet: [] },
     stats: { built: 0, units: 0, lost: 0, killed: 0, bldKilled: 0, bldLost: 0, harvested: 0 },
     cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, defending: false, calm: 0, harvHit: null,
   };

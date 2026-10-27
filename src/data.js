@@ -108,19 +108,19 @@ const UNIT_DEFS = {
   // Closer to the original Red Alert: the Allied helicopter's Hellfires are anti-armour (6 a sortie,
   // 4 cells), the Hind's chain gun shreds infantry (12 bursts a sortie, 5 cells).
   heli: {
-    name: 'Attack Helicopter', cls: 'air', fly: 'heli', cat: 'aircraft', producer: 'helipad', factions: ['allies'],
+    name: 'Attack Helicopter', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', factions: ['allies'],
     cost: 1200, hp: 220, armor: 'air', speed: 115, sight: 6, r: 9,
     weapon: { dmg: 55, rof: 0.9, range: 96, wh: 'HF', proj: 'rocket', ammo: 6, prefersArmor: true },
   },
   hind: {
-    name: 'Hind Gunship', cls: 'air', fly: 'heli', cat: 'aircraft', producer: 'helipad', factions: ['soviets'],
+    name: 'Hind Gunship', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', factions: ['soviets'],
     cost: 1200, hp: 240, armor: 'air', speed: 105, sight: 6, r: 10,
     weapon: { dmg: 13, rof: 1.0, range: 120, wh: 'SA', proj: 'bullet', ammo: 12, burst: 5, gap: 0.07 },
   },
   // Jets carry ground-attack missiles (weapon), air-to-air missiles (weapon2) and bombs, and
   // drop flares that can pull incoming missiles and rockets off course.
   jet: {
-    name: 'Strike Jet', cls: 'air', fly: 'jet', cat: 'aircraft', producer: 'airfield', factions: ['allies'],
+    name: 'Strike Jet', cls: 'air', fly: 'jet', cat: 'jet', producer: 'airfield', factions: ['allies'],
     cost: 1100, hp: 140, armor: 'air', speed: 210, turn: 2.4, sight: 6, r: 9,
     weapon: { dmg: 80, rof: 0.45, range: 130, wh: 'HE', proj: 'missile', ammo: 2 },
     weapon2: { dmg: 60, rof: 0.5, range: 200, wh: 'HE', proj: 'missile', air: true, ground: false, ammo: 2 },
@@ -131,7 +131,7 @@ const UNIT_DEFS = {
   transport: { name: 'Transport', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 420, armor: 'air', speed: 190, sight: 5, r: 14 },
   bomber: { name: 'Bomber', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 200, sight: 5, r: 14 },
   mig: {
-    name: 'MiG Fighter', cls: 'air', fly: 'jet', cat: 'aircraft', producer: 'airfield', factions: ['soviets'],
+    name: 'MiG Fighter', cls: 'air', fly: 'jet', cat: 'jet', producer: 'airfield', factions: ['soviets'],
     cost: 1200, hp: 170, armor: 'air', speed: 245, turn: 2.3, sight: 6, r: 9,   // just under a RedEye's 250: hard to catch from behind
     weapon: { dmg: 75, rof: 0.45, range: 130, wh: 'HE', proj: 'missile', ammo: 2 },
     weapon2: { dmg: 60, rof: 0.5, range: 160, wh: 'HE', proj: 'missile', air: true, ground: false, ammo: 2 },
@@ -206,7 +206,8 @@ const DIFFICULTY = {
       econ: { fast: true, refineries: 5, trucks: 10, truckFirst: true } } },
 };
 
-const CATEGORIES = ['structure', 'infantry', 'vehicle', 'aircraft'];
+// Build queues: one each for structures, infantry, vehicles, helicopters (Helipad) and jets (Airfield).
+const CATEGORIES = ['structure', 'infantry', 'vehicle', 'heli', 'jet'];
 
 function defOf(type) { return UNIT_DEFS[type] || BUILD_DEFS[type]; }
 function buildTime(def) { return Math.max(3, def.cost / 1000 * 12); }

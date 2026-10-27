@@ -616,7 +616,7 @@
   // Left column builds structures, right column builds units, as on the classic sidebar.
   let cameoSig = { L: '', R: '' };
   const cameoEls = new Map();
-  const UNIT_ORDER = ['infantry', 'vehicle', 'aircraft'];
+  const UNIT_ORDER = ['infantry', 'vehicle', 'heli', 'jet'];
   function stripTypes(team, side) {
     if (side === 'L') {
       const powers = hasBuilt(team, 'airfield') ? Object.keys(POWERS).map((k) => 'pw:' + k) : [];

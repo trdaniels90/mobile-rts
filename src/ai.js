@@ -229,13 +229,12 @@ function aiThink(team) {
     if (available(team, sup) && (c[sup] || 0) < 4) opts.push(sup);
     startProduction(team, opts[Math.floor(Math.random() * opts.length)]);
   }
-  const aq = team.queues.aircraft;
-  const air = G.entities.filter((e) => e.alive && e.team === team.id && e.cls === 'air').length;
-  if (aq.length < 1 && money > (anti ? 600 : 900) && air < 6 && !truckDue) {
+  // Helicopters and jets have their own queues; against aircraft it leans on fighters.
+  const air = G.entities.filter((e) => e.alive && e.team === team.id && e.cls === 'air').length + team.queues.heli.length + team.queues.jet.length;
+  if (money > (anti ? 600 : 900) && air < 6 && !truckDue) {
     const heli = team.faction === 'allies' ? 'heli' : 'hind', jet = team.faction === 'allies' ? 'jet' : 'mig';
-    if (c.airfield && anti && Math.random() < 0.8) startProduction(team, jet);
-    else if (c.helipad && (Math.random() < 0.5 || !c.airfield)) startProduction(team, heli);
-    else if (c.airfield) startProduction(team, jet);
+    if (c.airfield && !team.queues.jet.length && (anti || Math.random() < 0.5)) startProduction(team, jet);
+    else if (c.helipad && !team.queues.heli.length && (!anti || !c.airfield || Math.random() < 0.25)) startProduction(team, heli);
   }
 
   // Airfield support powers: bomb the thickest part of the enemy base, drop troops on its economy,
