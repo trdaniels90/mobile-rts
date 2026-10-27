@@ -113,7 +113,7 @@ const UNIT_DEFS = {
   // drop flares that can pull incoming missiles and rockets off course.
   jet: {
     name: 'Strike Jet', cls: 'air', fly: 'jet', cat: 'aircraft', producer: 'airfield', factions: ['allies'],
-    cost: 1100, hp: 120, armor: 'air', speed: 210, turn: 2.4, sight: 6, r: 9,
+    cost: 1100, hp: 140, armor: 'air', speed: 210, turn: 2.4, sight: 6, r: 9,
     weapon: { dmg: 80, rof: 0.45, range: 130, wh: 'HE', proj: 'missile', ammo: 2 },
     weapon2: { dmg: 60, rof: 0.5, range: 200, wh: 'HE', proj: 'missile', air: true, ground: false, ammo: 2 },
     bombs: 4, bomb: { dmg: 55, wh: 'HE', splash: 20 }, flares: 2,
