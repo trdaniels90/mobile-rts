@@ -43,7 +43,7 @@
 <aside id="sidebar" data-faction="allies">
   <div class="sb-radar"><canvas id="radar" aria-label="Radar"></canvas></div>
   <div class="sb-buttons">
-    <button id="autoBtn" class="icon auto" type="button" aria-pressed="true" title="Auto attack: new ground units gather and attack in groups of 8; aircraft go straight away"><span>⚔</span><small>AUTO</small></button>
+    <button id="autoBtn" class="icon auto" type="button" aria-pressed="false" title="Auto attack: when on, new ground units set out in groups of 8 and aircraft go straight away; when off, everything guards the base"><span>⚔</span><small>AUTO</small></button>
     <button id="homeBtn" class="icon" type="button" title="Back to base"><span>⌂</span><small>BASE</small></button>
     <button id="boxBtn" class="icon touch-only" type="button" aria-pressed="false" title="Drag to select units"><span>⬚</span><small>SELECT</small></button>
   </div>
@@ -108,7 +108,7 @@
         <li>A Barracks, War Factory, Helipad and Airfield unlock infantry, tanks, helicopters and jets.</li>
         <li>The War Factory also builds a <b>Mobile Outpost</b>. Drive it next to a distant ore field and tap DEPLOY: you can then build around it, so put a refinery right by the ore.</li>
         <li>An Airfield also charges three support powers at the top of the left column: a Spy Plane that reveals an area, Paratroopers that drop a squad of five, and a Bombing Run. Tap one when it says READY, then tap the target.</li>
-        <li>New units gather at a rally point in front of your base. With <b>Auto Attack</b> on, they move out together once 8 have gathered; the button shows how many are waiting. Turn it off to keep them home on guard.</li>
+        <li>New units spread out around your base and guard it. Turn on <b>Auto Attack</b> to send them out on their own: once 8 are waiting they muster at the edge of the base and march on the enemy together; the button shows how many are waiting.</li>
         <li class="touch-only">Tap a unit, then tap the ground to move or an enemy to attack. Drag to scroll, pinch to zoom, hold then drag to select a group. Hold a build icon to cancel it.</li>
         <li class="mouse-only">Click a unit, then click the ground to move or an enemy to attack. Drag a box to select a group, right click to deselect. Arrow keys or WASD scroll, the wheel zooms, right click a build icon to cancel it.</li>
         <li>Keep power above demand or production slows and Tesla coils go dark. Destroy the enemy <b>Construction Yard</b> to win, and protect your own: lose it and the mission is over.</li>

@@ -120,7 +120,9 @@
     }
     ui.sidebar.dataset.faction = faction;
     cameoSig = { L: '', R: '' }; selSig = ''; lastCredits = null;
-    ui.autoBtn.setAttribute('aria-pressed', 'true');
+    // Auto attack starts off (new units spread out and guard the base) unless the player turned it on last time.
+    try { G.teams[PLAYER].auto = localStorage.getItem('ps-auto') === '1'; } catch (_) {}
+    ui.autoBtn.setAttribute('aria-pressed', String(G.teams[PLAYER].auto));
     layout();
     const cy = G.entities.find((e) => e.team === PLAYER && e.type === 'cy');
     cam.z = Math.max(1, Math.min(2.5, Math.round((W / (CELL * 18)) * 4) / 4));
@@ -692,6 +694,7 @@
     const team = G.teams[PLAYER];
     team.auto = !team.auto;
     ui.autoBtn.setAttribute('aria-pressed', String(team.auto));
+    try { localStorage.setItem('ps-auto', team.auto ? '1' : '0'); } catch (_) {}
     if (team.auto) {
       // Units already guarding join the next attack group.
       for (const u of unitsOf(PLAYER)) if (!u.def.harvester && !u.def.scripted && !u.defending && u.order.type === 'guard') u.staged = true;
@@ -711,7 +714,7 @@
     // Tick while the counter rolls, like the classic sidebar.
     if (lastCredits !== null && shown !== lastCredits && !G.paused) Sound.play(shown > lastCredits ? 'cashUp' : 'cashDown');
     lastCredits = shown;
-    const autoLabel = team.auto ? `AUTO ${Math.min(team.waiting || 0, GROUP_SIZE)}/${GROUP_SIZE}` : 'AUTO';
+    const autoLabel = team.auto ? `AUTO ${Math.min(team.waiting || 0, GROUP_SIZE)}/${GROUP_SIZE}` : 'AUTO OFF';
     if (ui.autoLabel.textContent !== autoLabel) ui.autoLabel.textContent = autoLabel;
     // Vertical power bar: green fill is output, the red tick is demand.
     const { prod, use } = team.power;

@@ -36,7 +36,7 @@ const Manual = (() => {
     mammoth: ['Slow and enormous. Twin cannons for ground targets and missile pods that also fire at aircraft.', 'Everything', 'Its own speed'],
     arty: ['A tracked howitzer that outranges every defence. With no turret the whole vehicle turns to aim, and its shells drop in a high arc, so it can miss a moving target. Needs a Radar Dome.', 'Defences, infantry, anything standing still', 'Anything that reaches it'],
     v2rl: ['A truck carrying one huge rocket on a launch rail. Slow to reload but the blast wrecks buildings, with a crater and a shake you can feel. Needs a Radar Dome.', 'Structures, defences', 'Fast units, aircraft'],
-    harv: ['Finds ore, fills up and drives home to unload, all on its own. It picks the richest uncrowded field nearby and goes for gems first: they are worth twice as much as ore but never grow back.', '', 'Unarmed: protect it'],
+    harv: ['Finds ore, fills up and drives home to unload, all on its own. It picks the richest uncrowded field nearby and goes for gems first: they are worth twice as much as ore but never grow back. Under fire it runs home and waits by the refinery until the danger has passed.', '', 'Unarmed: protect it'],
     fob: ['Drive it to a distant ore field and tap DEPLOY: it unpacks into an Outpost you can build around.', '', 'Unarmed while driving'],
     // Aircraft
     heli: ['A fast gunship that fires rockets at ground targets, then flies home to rearm.', 'Tanks, structures', 'AA Guns, SAM sites, rockets'],
@@ -137,7 +137,7 @@ const Manual = (() => {
       <p>Select one of your structures to <b>repair</b> it (costs credits; half speed while under fire) or <b>sell</b> it. Select a Mobile Outpost and tap <b>DEPLOY</b> to unpack it.</p>` },
     { ch: 'Basics', title: 'Your Army in Battle', html: () => `
       <h4>Auto Attack</h4>
-      <p>New units gather at a rally point in front of your base. With <b>Auto Attack</b> on they march out together once 8 have gathered, in formation at the pace of the slowest, and fight their way to the enemy base. The AUTO button shows how many are waiting; switch it off to keep them home on guard.</p>
+      <p>New units spread out to open ground around your base and guard it: where they stand is up to chance, so move them to cover the approaches you care about. <b>Auto Attack</b> starts off. Switch it on and, once 8 are waiting, they muster at the edge of the base facing the enemy and march out together in formation, at the pace of the slowest. The AUTO button shows how many are waiting.</p>
       <h4>Defending</h4>
       <p>Units waiting near your base turn on any raiders inside it, or on anything shooting your Ore Trucks, then go back to their posts when it is quiet again.</p>
       <h4>Aircraft</h4>

@@ -65,7 +65,7 @@ function newWorld(playerFaction, diffKey, seed) {
 function makeTeam(id, faction, isAI) {
   return {
     id, faction, isAI, pal: FACTIONS[faction].pal, credits: 5000, shown: 5000, start: null,
-    power: { prod: 0, use: 0 }, low: false, auto: true,
+    power: { prod: 0, use: 0 }, low: false, auto: !!isAI,
     queues: { structure: null, infantry: [], vehicle: [], aircraft: [] },
     stats: { built: 0, lost: 0, killed: 0, harvested: 0 },
     cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, defending: false, calm: 0, harvHit: null,
@@ -623,9 +623,32 @@ function nearestEnemyBuilding(u) {
   return cy || best;
 }
 
-// Auto attack holds new units at a rally point in front of the base and sends them
-// out together once a group of this size has gathered.
+// New units spread out to random open spots around their base. Auto attack sends them out
+// together once this many are waiting; the wave musters at the rally point, at the edge of the
+// base facing the enemy, and marches from there in formation.
 const GROUP_SIZE = 8;
+// A random open spot inside the build area: beside one of the side's buildings, off ore, roads
+// out of factories and refinery docks, picked from a few tries as the one with the fewest units.
+function scatterSpot(team) {
+  const mine = buildingsOf(team.id).filter((b) => !b.def.defense);
+  if (!mine.length) return rallyPoint(team);
+  let best = null, bn = Infinity;
+  for (let k = 0; k < 14; k++) {
+    const b = mine[Math.floor(Math.random() * mine.length)], a = Math.random() * Math.PI * 2;
+    const reach = (Math.max(b.w, b.h) / 2 + 1 + Math.random() * 4) * CELL;
+    const x = b.x + Math.cos(a) * reach, y = b.y + Math.sin(a) * reach, c = cellOfPos(x, y);
+    if (!inMap(cellX(c), cellY(c)) || !freeCell(c) || G.ore[c] || G.resv[c]) continue;
+    let crowded = false;
+    for (const e of mine) if (e.def.exit && e.exitCell !== undefined && Math.hypot(cellX(c) - cellX(e.exitCell), cellY(c) - cellY(e.exitCell)) < 2.5) crowded = true;
+    if (crowded) continue;
+    let n = 0;
+    for (const u of G.entities) if (u.alive && u.kind === 'unit' && u.team === team.id && u.cls !== 'air' && Math.hypot(u.x - x, u.y - y) < CELL * 2.5) n++;
+    if (n < bn) { bn = n; best = cellCenter(c); }
+    if (n === 0 && k >= 4) break;
+  }
+  return best || rallyPoint(team);
+}
+const inBase = (team, u) => buildingsOf(team.id).some((b) => distTo(u, b) < CELL * 12);
 function rallyPoint(team) {
   const e = enemyOf(team).start, s = team.start;
   const a = Math.atan2(e.cy - s.cy, e.cx - s.cx);
@@ -638,7 +661,7 @@ function launchGroups() {
     const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.def.harvester && (u.def.weapon || u.cls === 'air') && u.order.type === 'guard');
     // Aircraft do not wait for a group: each one heads out on its own.
     if (team.auto) for (const u of waiting) if (u.cls === 'air' && !u.interceptor) launchAircraft(u);
-    const ready = waiting.filter((u) => u.cls !== 'air' && Math.hypot(u.x - rally.x, u.y - rally.y) < CELL * 6);
+    const ready = waiting.filter((u) => u.cls !== 'air' && !u.dest && inBase(team, u));
     team.waiting = ready.length;
     // The computer plans its own waves (sizes, formations, routes, targets): see aiLaunch.
     if (team.isAI && team.auto) { aiLaunch(team, ready); continue; }
@@ -656,7 +679,7 @@ function launchGroups() {
     const raid = exp.length && team.waves % 3 === 0 ? exp[0] : null;
     const target = raid || nearestEnemyBuilding(ready[0]);
     if (target) {
-      const g = makeGroup(team, ready, target, pace);
+      const g = makeGroup(team, ready, target, pace, { from: rally });
       if (raid) { g.raid = true; for (const u of ready) u.focus = raid; }
     }
     team.waiting = 0;
@@ -772,6 +795,7 @@ function makeGroup(team, units, target, pace, opts) {
   let x = 0, y = 0;
   for (const u of units) { x += u.x; y += u.y; }
   x /= units.length; y /= units.length;
+  if (opts.from) { x = opts.from.x; y = opts.from.y; }   // muster at the rally point, then march
   let path = null;
   if (opts.via) {
     const a = findPath(x, y, opts.via.x, opts.via.y, 10), b = a && findPath(opts.via.x, opts.via.y, target.x, target.y, 10);
@@ -1182,6 +1206,7 @@ function damage(t, amount, wh, attacker, from) {
   }
   // Either side: an Ore Truck under fire calls nearby units to its aid.
   if (t.def && t.def.harvester && attacker && attacker.kind === 'unit') team.harvHit = { x: t.x, y: t.y, until: G.t + 8 };
+  if (t.def && t.def.harvester && attacker && attacker.team !== t.team) truckRetreat(t, attacker);
   // A structure shot at from outside the base zone: answer the fire wherever it comes from.
   else if (t.kind === 'bld' && attacker && attacker.kind === 'unit' && !isAirborne(attacker)) team.baseHit = { x: attacker.x, y: attacker.y, until: G.t + 8 };
   if (attacker && attacker.cls === 'air' && !attacker.def.scripted && G.teams[t.team]) { const tm = G.teams[t.team]; tm.airHit = { x: t.x, y: t.y, t: G.t }; tm.sawAir = true; }   // where enemy aircraft strike
@@ -1635,6 +1660,17 @@ function nextOreCell(u) {
   u.dest = p; u.path = [p]; u.pathIdx = 0; u.needPath = false; u.stuckN = 0;
 }
 
+// An Ore Truck that comes under fire heads home to its refinery (unloading what it carries) and
+// waits beside it until it has gone unshot for a while and no enemy is left near where it was hit.
+function truckRetreat(u, from) {
+  u.holdUntil = G.t + 10;
+  u.threat = { x: from.x, y: from.y };
+  if (u.hs === 'seek' || u.hs === 'mine') { u.hs = 'return'; u.hcell = -1; u.dest = null; u.path = null; }
+}
+function threatNear(u) {
+  if (!u.threat) return false;
+  return G.entities.some((e) => e.alive && e.kind === 'unit' && e.team !== u.team && !e.def.scripted && Math.hypot(e.x - u.threat.x, e.y - u.threat.y) < CELL * 9);
+}
 function updateHarvester(u, dt) {
   const cap = u.def.capacity, team = teamOf(u);
   switch (u.hs) {
@@ -1686,13 +1722,24 @@ function updateHarvester(u, dt) {
         u.load -= amt; u.bonus = (u.bonus || 0) - extra;
         const gain = (amt + extra) * (team.isAI ? G.diff.income : 1);
         team.credits += gain; team.stats.harvested += gain;
-        if (u.load <= 0) { u.load = 0; u.hs = 'seek'; }
+        if (u.load <= 0) {
+          u.load = 0; u.hs = 'seek';
+          if (G.t < (u.holdUntil || 0)) {   // retreating: wait to one side of the refinery, clear of the dock
+            u.hs = 'wait'; u.htimer = u.holdUntil - G.t;
+            const a = Math.random() * Math.PI * 2, x = u.ref.x + Math.cos(a) * CELL * 3, y = u.ref.y + CELL * 1.5 + Math.abs(Math.sin(a)) * CELL * 2;
+            const c = nearestFreeCell(cellOfPos(x, y), 4);
+            if (c >= 0) { const q = cellCenter(c); goTo(u, q.x, q.y); }
+          }
+        }
       }
       break;
     }
     case 'wait':
       u.htimer -= dt;
-      if (u.htimer <= 0) u.hs = 'seek';
+      if (u.htimer <= 0) {
+        if (G.t < (u.holdUntil || 0) || threatNear(u)) u.htimer = 2;   // still dangerous out there
+        else { u.hs = 'seek'; u.threat = null; }
+      }
       break;
     case 'manual':
       if (!u.dest && !u.needPath) u.hs = u.load >= cap ? 'return' : 'seek';
@@ -2176,9 +2223,8 @@ function spawnUnit(team, type) {
   }
   if (d.harvester) return u;
   if (team.isAI && aiHomeGuard(team, u)) return u;
-  // New units gather at the rally point; auto attack launches them in groups.
-  const r = rallyPoint(team);
-  const gx = r.x + (Math.random() - 0.5) * 70, gy = r.y + (Math.random() - 0.5) * 70;
+  // New units spread out around the base; auto attack launches them in groups.
+  const { x: gx, y: gy } = scatterSpot(team);
   setGuard(u, gx, gy);
   u.staged = true;
   goTo(u, gx, gy);

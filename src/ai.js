@@ -308,7 +308,7 @@ function aiSend(team, units, target, o) {
   const pace = Math.min(...units.map((u) => u.def.speed));
   for (const u of units) { setHunt(u); u.staged = false; u.groupSpeed = pace; }
   const via = o.via || aiPickCrossing(team, centreOf(units), target);
-  const g = makeGroup(team, units, target, pace, { form: o.form, via, spread: 0.9 + Math.random() * 0.35, strike: o.strike });
+  const g = makeGroup(team, units, target, pace, { form: o.form, via, spread: 0.9 + Math.random() * 0.35, strike: o.strike, from: rallyPoint(team) });
   if (o.focus) { g.raid = true; for (const u of units) u.focus = target; }
   return g;
 }
