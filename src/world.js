@@ -852,7 +852,7 @@ function updateGroups(dt) {
     for (const u of g.units) {
       const fx = Math.cos(g.a), fy = Math.sin(g.a);
       err += Math.hypot(u.x - (g.x - fx * u.slot.back - fy * u.slot.side), u.y - (g.y - fy * u.slot.back + fx * u.slot.side));
-      if (u.target && distTo(u, u.target) < u.def.sight * CELL * 1.5) fighting++;
+      if (u.target) fighting++;
     }
     err /= g.units.length;
     const p = g.path[g.i], dx = p.x - g.x, dy = p.y - g.y, d = Math.hypot(dx, dy);
@@ -1217,6 +1217,7 @@ function damage(t, amount, wh, attacker, from) {
     const c = t.target;
     const busy = c && c.alive && c.kind === 'unit' && distTo(t, c) <= (canHit(t.def.weapon, c) ? t.def.weapon : t.def.weapon2).range;
     if (!busy) { t.target = attacker; t.avenge = attacker; }
+    if (t.group) t.group.hitBy = attacker;   // the rest of the wave learns where the fire comes from
   }
   if (t.hp <= 0) kill(t, attacker, wh, from || attacker);
 }
@@ -1518,12 +1519,13 @@ function updateUnit(u, dt) {
       }
       // Part of a wave: join in on whatever the nearest squadmate is fighting.
       if (!u.target && o.type === 'hunt' && u.group) {
-        let bd = sight * 1.4;
-        for (const m of u.group.units) {
+        let bd = Infinity;
+        const shooter = u.group.hitBy && u.group.hitBy.alive ? [{ target: u.group.hitBy, avenge: u.group.hitBy }] : [];
+        for (const m of u.group.units.concat(shooter)) {
           const t = m.target;
           if (m === u || !t || !t.alive || !canTarget(u, t)) continue;
-          const d = distTo(u, t);
-          if (d < bd) { bd = d; u.target = t; }
+          const d = distTo(u, t), far = t === m.avenge ? ((t.def.weapon && t.def.weapon.range) || 0) + CELL * 3 : 0;
+          if (d < Math.max(sight * 1.4, far) && d < bd) { bd = d; u.target = t; u.avenge = far ? t : u.avenge; }
         }
       }
       if (!u.target) {
