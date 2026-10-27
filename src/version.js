@@ -8,6 +8,7 @@ const RELEASES = [
     ['', [
       'The Allied Attack Helicopter carries six armour-piercing Hellfire missiles a sortie with a 4-cell reach: deadly to tanks, poor against infantry.',
       'The Soviet Hind carries twelve chain-gun bursts a sortie and reaches 5 cells: it tears through infantry.',
+      'MiGs are about 9% faster, so anti-aircraft missiles struggle to catch them from behind.',
       'Kills from bombs, splash damage and shots that land after their shooter is gone now count, in the debrief too.',
     ]],
   ] },
