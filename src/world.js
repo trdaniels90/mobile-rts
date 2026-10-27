@@ -2470,8 +2470,10 @@ function revealCircle(cx, cy, rad) {
 
 function growOre() {
   const r = Math.random;
+  const worked = new Set(G.entities.filter((e) => e.alive && e.def.harvester && e.field && e.hs !== 'manual').map((e) => e.field));
   for (const f of G.oreFields) {
     if (f.gem) continue;   // gems never grow back
+    if (worked.has(f)) continue;   // only while no truck is working it: no new scraps to chase
     {   // one cell a field every couple of seconds: a scraped-out field takes several minutes to recover
       const a = r() * Math.PI * 2, d = Math.sqrt(r()) * (f.r + 0.8);
       const x = Math.floor(f.cx + Math.cos(a) * d), y = Math.floor(f.cy + Math.sin(a) * d);

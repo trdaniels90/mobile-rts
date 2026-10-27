@@ -118,7 +118,7 @@ const Manual = (() => {
       <h4>Building a base</h4>
       <p>The left column of the sidebar builds structures, the right column builds units. When a structure is READY, tap the map to place it (it must touch your base: within 6 cells of your buildings, or 8 of an Outpost). A good start: <b>Power Plant</b>, then <b>Ore Refinery</b>, then <b>Barracks</b> and <b>War Factory</b>.</p>
       <h4>Money</h4>
-      <p>Credits come from ore. Every refinery brings an Ore Truck that works on its own; ore fields grow back slowly, so in a long game you will need to expand. Purple <b>gems</b> are worth twice as much but never regrow. Far-off fields are best worked from an <b>Outpost</b>: drive a Mobile Outpost there and deploy it.</p>
+      <p>Credits come from ore. Every refinery brings an Ore Truck that works on its own; ore fields grow back slowly, and only while no truck is working them, so in a long game you will need to expand. Purple <b>gems</b> are worth twice as much but never regrow. Far-off fields are best worked from an <b>Outpost</b>: drive a Mobile Outpost there and deploy it.</p>
       <h4>Power</h4>
       <p>Each structure draws power. If demand passes supply your base runs on low power: production slows, the radar goes offline and Tesla Coils go dark. Build more Power Plants before that happens.</p>
       <h4>Radar</h4>
