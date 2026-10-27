@@ -89,6 +89,7 @@ const LT = (x, y) => (x + y) / 2, LD = (x, y) => (y - x) / Math.SQRT2;
 const LX = (t, d) => t - d / Math.SQRT2, LY = (t, d) => t + d / Math.SQRT2;
 // The layout was designed on an 88-cell map; K scales it to the current map size.
 const MID = (MAP - 1) / 2, K = MAP / 88, S96 = MAP / 96;
+const BASE_CLEAR = 14;   // radius of open ground kept clear of woods and rocks around each start position
 const LAKE_IN = 3.4 * K, LAKE_OUT = 34.5 * K, LAKE_W = 8 * K, BRIDGE_T = 18 * K;
 // Start positions on the lower-left side, in cells on a 96-cell map, each with its two ore
 // fields; the upper-right side mirrors them.
@@ -117,8 +118,13 @@ function genMap(seed) {
   const at = (t, d) => [LX(MID + t, d), LY(MID + t, d)];   // layout to cells
 
   // Ore, for the lower-left side; mirrored for the other.
+  // Each start position's own fields sit just outside its cleared building ground.
   const fieldsHalf = [];
-  SPAWNS_HALF.forEach((s, i) => s.ore.forEach(([x, y], j) => fieldsHalf.push({ cx: x * S96, cy: y * S96, r: j ? 3.1 : 3.4, rich: j ? 0.95 : 1.05 })));
+  SPAWNS_HALF.forEach((s, i) => s.ore.forEach(([x, y], j) => {
+    const sp = half[i], r0 = j ? 3.1 : 3.4, dx = x * S96 - sp.cx, dy = y * S96 - sp.cy, d = Math.hypot(dx, dy) || 1;
+    const far = Math.max(d, BASE_CLEAR + r0 * 0.5), lo = r0 + 4.5, hi = MAP - 1 - lo;
+    fieldsHalf.push({ cx: Math.max(lo, Math.min(hi, sp.cx + dx / d * far)), cy: Math.max(lo, Math.min(hi, sp.cy + dy / d * far)), r: r0, rich: j ? 0.95 : 1.05 });
+  }));
   for (const [t, d, rad, rich, gem] of [
     [-10, 12.5, 3, 1.15],          // forward fields on the lake shores, between the crossings
     [10, 12.5, 2.4, 1, true],      // the rare gem field, out in the contested middle
@@ -155,9 +161,16 @@ function genMap(seed) {
     }
   };
   for (const rt of routes) markRoute(rt, 1.8);
+  // A lane from every ore field (lower-left side; mirrored) to the nearest road or start position,
+  // so woods never wall a field in.
+  const anchors = [hub, mid, ...half.map(P), ...[-1, 1].flatMap((sg) => bridgeIn(sg))];
+  for (const f of fieldsHalf) {
+    const a = anchors.reduce((p, q) => (Math.hypot(q[0] - f.cx, q[1] - f.cy) < Math.hypot(p[0] - f.cx, p[1] - f.cy) ? q : p));
+    markRoute([[f.cx, f.cy], a], 1.5);
+  }
   const nearField = (cx, cy, pad) => fields.some((f) => Math.hypot(cx - f.cx, cy - f.cy) < f.r + pad);
   const nearBase = (cx, cy, rad) => spawns.some((s) => Math.hypot(cx - s.cx, cy - s.cy) < rad);
-  const keepClear = (cx, cy) => routeCells[idx(cx, cy)] || nearField(cx, cy, 1.5) || nearBase(cx, cy, 9);
+  const keepClear = (cx, cy) => routeCells[idx(cx, cy)] || nearField(cx, cy, 1.5) || nearBase(cx, cy, BASE_CLEAR);
 
   // Shoreline, lakes and bridges, computed on the lower-left side (d >= 0) and mirrored.
   G.bridges = [];
@@ -238,8 +251,8 @@ function genMap(seed) {
     lay(pts); lay(pts.map(flip));
   }
   // Earth around each start position, as if the ground had been cleared for it.
-  for (const s of half) blob(s.cx + 0.5, s.cy - 0.5, 4.5, 1, 0.7);
-  for (const s of half) for (let y = s.cy - 5; y <= s.cy + 5; y++) for (let x = s.cx - 5; x <= s.cx + 5; x++) if (inMap(x, y) && T[idx(x, y)] === 0 && Math.hypot(x - s.cx, y - s.cy) < 4 + r() * 1.5) set(x, y, 1);
+  for (const s of half) blob(s.cx + 0.5, s.cy - 0.5, 6.5, 1, 0.7);
+  for (const s of half) for (let y = s.cy - 7; y <= s.cy + 7; y++) for (let x = s.cx - 7; x <= s.cx + 7; x++) if (inMap(x, y) && T[idx(x, y)] === 0 && Math.hypot(x - s.cx, y - s.cy) < 5.5 + r() * 1.5) set(x, y, 1);
 
   for (let i = 0; i < NCELLS; i++) G.block[i] = T[i] >= 2 && T[i] <= 4 ? 1 : 0;
 
@@ -265,6 +278,47 @@ function genMap(seed) {
         if (f.gem) G.gem[c] = 1;
       }
     }
+  }
+  // Last safety net: any ore field still cut off from the bases gets a track cleared through the
+  // trees and rocks to the nearest open ground that connects (on both sides of the map).
+  const reach = () => {
+    const seen = new Uint8Array(NCELLS), q = [idx(spawns[0].cx, spawns[0].cy)];
+    seen[q[0]] = 1;
+    for (let i = 0; i < q.length; i++) {
+      const c = q[i];
+      for (let k = 0; k < 4; k++) { const x = cellX(c) + DIRS8[k][0], y = cellY(c) + DIRS8[k][1]; if (!inMap(x, y)) continue; const n = idx(x, y); if (!seen[n] && !G.block[n]) { seen[n] = 1; q.push(n); } }
+    }
+    return seen;
+  };
+  const open = (x, y) => {
+    for (const [px, py] of [[x, y], [MAP - 1 - x, MAP - 1 - y]]) {
+      if (!inMap(px, py)) continue;
+      const c = idx(px, py);
+      if (T[c] === 2 || T[c] === 3) { T[c] = 1; G.block[c] = 0; }
+    }
+  };
+  let R = reach();
+  for (const f of fields) {
+    const cells = [];
+    for (let y = Math.floor(f.cy - f.r); y <= f.cy + f.r; y++) for (let x = Math.floor(f.cx - f.r); x <= f.cx + f.r; x++) if (inMap(x, y) && G.ore[idx(x, y)]) cells.push(idx(x, y));
+    if (!cells.length || cells.some((c) => R[c])) continue;
+    const from = new Int32Array(NCELLS).fill(-1), q = cells.slice();
+    for (const c of cells) from[c] = c;
+    let hit = -1;
+    for (let i = 0; i < q.length && hit < 0; i++) {
+      const c = q[i];
+      for (let k = 0; k < 4; k++) {
+        const x = cellX(c) + DIRS8[k][0], y = cellY(c) + DIRS8[k][1];
+        if (!inMap(x, y)) continue;
+        const n = idx(x, y);
+        if (from[n] >= 0 || T[n] === 4) continue;
+        from[n] = c;
+        if (R[n]) { hit = n; break; }
+        q.push(n);
+      }
+    }
+    for (let c = hit; c >= 0 && from[c] !== c; c = from[c]) { const x = cellX(c), y = cellY(c); open(x, y); open(x + 1, y); open(x, y + 1); }
+    R = reach();
   }
 }
 
@@ -353,7 +407,7 @@ function findPath(sx, sy, tx, ty, rad) {
     if (PF.closed[c] === stamp) continue;
     PF.closed[c] = stamp;
     if (c === t) { found = true; break; }
-    if (++expanded > 9000) break;
+    if (++expanded > 14000) break;
     const hc = h(c);
     if (hc < bestH) { bestH = hc; best = c; }
     const cx = cellX(c), cy = cellY(c);
@@ -1503,7 +1557,7 @@ function findOre(u) {
   let fallback = -1, best = -1, bs = -Infinity, bestD = Infinity;
   const claimed = new Set();
   for (const e of G.entities) if (e.alive && e !== u && e.def.harvester && e.team === u.team && e.hcell >= 0) claimed.add(e.hcell);
-  for (let qi = 0; qi < q.length && qi < 9000; qi++) {
+  for (let qi = 0; qi < q.length && qi < 14000; qi++) {
     const c = q[qi];
     if (G.ore[c] > 0) {
       if (fallback < 0 && !claimed.has(c)) fallback = c;

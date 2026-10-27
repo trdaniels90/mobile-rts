@@ -2,7 +2,7 @@
 // Game data: map size, factions, units, structures and damage tables.
 
 const CELL = 24;            // world pixels per map cell
-const MAP = 96;             // map is MAP x MAP cells (sized for 2v2, after A Path Beyond)
+const MAP = 112;            // map is MAP x MAP cells (sized for 2v2, after A Path Beyond)
 const WORLD = MAP * CELL;
 const NCELLS = MAP * MAP;
 const ORE_MAX = 250;        // credits a single ore cell can hold
