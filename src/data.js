@@ -131,7 +131,7 @@ const UNIT_DEFS = {
   bomber: { name: 'Bomber', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 200, sight: 5, r: 14 },
   mig: {
     name: 'MiG Fighter', cls: 'air', fly: 'jet', cat: 'aircraft', producer: 'airfield', factions: ['soviets'],
-    cost: 1200, hp: 170, armor: 'air', speed: 245, turn: 2.3,   // just under a RedEye's 250: hard to catch from behind sight: 6, r: 9,
+    cost: 1200, hp: 170, armor: 'air', speed: 245, turn: 2.3, sight: 6, r: 9,   // just under a RedEye's 250: hard to catch from behind
     weapon: { dmg: 75, rof: 0.45, range: 130, wh: 'HE', proj: 'missile', ammo: 2 },
     weapon2: { dmg: 60, rof: 0.5, range: 160, wh: 'HE', proj: 'missile', air: true, ground: false, ammo: 2 },
     bombs: 4, bomb: { dmg: 60, wh: 'HE', splash: 20 }, flares: 2,
