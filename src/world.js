@@ -595,6 +595,7 @@ function acquire(src, range, weapons) {
     let score = d;
     if (e.kind === 'bld') score += e.def.weapon ? 15 : 60;   // defences before harmless structures
     else if (!e.def.weapon && !e.def.harvester) score += 20;
+    if (e.cls === 'inf' && weapons.every((w) => w.prefersArmor)) score += CELL * 4;   // tank killers look for vehicles first
     if (score < bs) { bs = score; best = e; }
   }
   return best;
@@ -1329,7 +1330,7 @@ const RAG_MIN = [[2, 9, 0.5], [2, 10, 0.5], [1, 5, 0.45], [1, 6, 0.45], [0, 2, 0
 function ragdoll(e, wh, from) {
   const r = Math.random;
   const a = from && (from.x !== e.x || from.y !== e.y) ? Math.atan2(e.y - from.y, e.x - from.x) : r() * Math.PI * 2;
-  const blast = wh === 'HE' || wh === 'AP' || wh === 'ART' || wh === 'AT';
+  const blast = wh === 'HE' || wh === 'AP' || wh === 'ART' || wh === 'AT' || wh === 'HF';
   const fx = { type: 'ragdoll', x: e.x, y: e.y, unitType: e.type, faction: e.faction, face: e.face, t: 0, life: 14, age: 0, still: 0, acc: 0 };
   // Joints in world space, standing as the soldier stood.
   const n = RAG_PTS.length, ca = Math.cos(e.face), sa = Math.sin(e.face);

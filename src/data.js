@@ -29,6 +29,7 @@ const WARHEADS = {
   FIRE:  { inf: 1.3, light: 0.6,  heavy: 0.3,  bld: 0.7, air: 0 },   // flame tower
   ART:   { inf: 0.9, light: 0.9,  heavy: 0.85, bld: 0.75, air: 0 },  // artillery shells
   AT:    { inf: 0.3, light: 0.75, heavy: 1.0,  bld: 0.6, air: 1.0 },   // Rocket Soldier: Red Alert's AP
+  HF:    { inf: 0.15, light: 0.9, heavy: 1.0,  bld: 0.7, air: 1.0 },   // Hellfire: a tank killer, wasted on infantry
 };
 
 // cls: inf | veh | air.  cat: which sidebar tab builds it.  speed in px/s, sight in cells.
@@ -54,7 +55,7 @@ const UNIT_DEFS = {
     name: 'Rocket Soldier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies'],
     cost: 300, hp: 45, armor: 'inf', speed: 24, sight: 5, r: 5,
     weapon: { dmg: 35, rof: 1.5, range: 120, wh: 'AT', proj: 'rocket' },
-    weapon2: { dmg: 50, rof: 1.5, range: 144, wh: 'AT', proj: 'rocket', air: true, ground: false },
+    weapon2: { dmg: 40, rof: 1.5, range: 180, wh: 'AT', proj: 'rocket', air: true, ground: false },
   },
   ranger: {
     name: 'Ranger', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'jeep',
@@ -109,7 +110,7 @@ const UNIT_DEFS = {
   heli: {
     name: 'Attack Helicopter', cls: 'air', fly: 'heli', cat: 'aircraft', producer: 'helipad', factions: ['allies'],
     cost: 1200, hp: 220, armor: 'air', speed: 115, sight: 6, r: 9,
-    weapon: { dmg: 55, rof: 0.9, range: 96, wh: 'AP', proj: 'rocket', ammo: 6 },
+    weapon: { dmg: 55, rof: 0.9, range: 96, wh: 'HF', proj: 'rocket', ammo: 6, prefersArmor: true },
   },
   hind: {
     name: 'Hind Gunship', cls: 'air', fly: 'heli', cat: 'aircraft', producer: 'helipad', factions: ['soviets'],
