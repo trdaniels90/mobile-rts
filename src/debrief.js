@@ -29,6 +29,7 @@ const Debrief = (() => {
         <section class="db-panel"><table class="db-table"></table></section>
         <section class="db-panel"><p class="db-ptitle">Your kills by unit</p><div class="db-bytype"></div></section>
       </div>
+      <div class="db-extra"></div>
       <div class="db-buttons"><button type="button" class="db-rematch">Rematch</button><button type="button" class="db-new">New Mission</button></div>
     </div>`;
     document.body.appendChild(root);
@@ -76,6 +77,10 @@ const Debrief = (() => {
     const bt = Object.entries(byType).sort((a, b) => b[1] - a[1]), most = bt.length ? bt[0][1] : 1;
     root.querySelector('.db-bytype').innerHTML = bt.length ? bt.map(([t, k]) => `<div class="db-bt"><span>${esc(UNIT_DEFS[t].name)}</span><div class="db-bar" style="width:${(k / most * 100).toFixed(1)}%;background:${cMe}"></div><b>${k}</b></div>`).join('')
       : '<p class="db-call">No kills recorded.</p>';
+
+    const extra = root.querySelector('.db-extra');   // e.g. the leaderboard name box after a win
+    extra.replaceChildren(...(opts.extra ? [opts.extra] : []));
+    extra.hidden = !opts.extra;
 
     chart(cMe, cFoe);
     page('battle');
