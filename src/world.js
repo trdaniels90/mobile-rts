@@ -28,7 +28,8 @@ function newWorld(playerFaction, diffKey, seed) {
     terr: new Uint8Array(NCELLS), block: new Uint8Array(NCELLS), bld: new Int32Array(NCELLS), resv: new Uint8Array(NCELLS),
     ore: new Uint16Array(NCELLS), gem: new Uint8Array(NCELLS), seen: new Uint8Array(NCELLS), shroudDirty: true, oreFields: [],
     selection: [], place: null, over: null, paused: false,
-    timers: { power: 0, shroud: 0, ore: 0, ai: 0, win: 0 },
+    timers: { power: 0, shroud: 0, ore: 0, ai: 0, win: 0, log: 0 },
+    log: { samples: [], events: [], fallen: [], waves: [0, 0], lastH: [0, 0] },   // for the debrief
     teams: [makeTeam(PLAYER, playerFaction, false), makeTeam(ENEMY, enemyFaction, true)],
   };
   G.teams[ENEMY].credits = G.diff.credits;
@@ -67,7 +68,7 @@ function makeTeam(id, faction, isAI) {
     id, faction, isAI, pal: FACTIONS[faction].pal, credits: 10000, shown: 10000, start: null,
     power: { prod: 0, use: 0 }, low: false, auto: !!isAI,
     queues: { structure: null, infantry: [], vehicle: [], aircraft: [] },
-    stats: { built: 0, lost: 0, killed: 0, harvested: 0 },
+    stats: { built: 0, units: 0, lost: 0, killed: 0, bldKilled: 0, bldLost: 0, harvested: 0 },
     cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, defending: false, calm: 0, harvHit: null,
   };
 }
@@ -538,7 +539,8 @@ function addUnit(type, team, x, y) {
     cd: Math.random() * 0.5, cd2: 0, fireT: 0, anim: 0, think: Math.random() * 0.4, hitT: -99, moving: false,
     stuckN: 0, lastX: x, lastY: y, stuckT: 0,
   };
-  u.tface = u.face;
+  u.tface = u.face; u.born = G.t;
+  if (!d.harvester && !d.scripted && type !== 'pilot') team.stats.units++;
   if (d.harvester) { u.load = 0; u.hs = 'seek'; u.hcell = -1; u.htimer = 0; }
   if (d.cls === 'air') { u.ammo = d.weapon ? d.weapon.ammo : 0; u.aam = d.weapon2 ? d.weapon2.ammo : 0; u.bombs = d.bombs || 0; u.flares = d.flares || 0; u.alt = 0; u.as = 'takeoff'; u.rt = 0; u.passT = 0; u.speedCur = 0; }
   G.entities.push(u); G.byId.set(u.id, u);
@@ -660,6 +662,7 @@ function launchAll(team) {
   const idle = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.defending && !u.homeward &&
     u.cls !== 'air' && u.order.type === 'guard');
   for (const u of idle) { setHunt(u); u.staged = false; }
+  if (idle.length) logWave(team.id, idle.length >= 15);
   return idle.length;
 }
 function launchGroups() {
@@ -676,6 +679,7 @@ function launchGroups() {
     if (!team.auto || ready.length < GROUP_SIZE) continue;
     // Each heads straight out from where it waits, at its own top speed, fighting what it meets.
     for (const u of ready) { setHunt(u); u.staged = false; }
+    logWave(team.id, false);
     // Most waves go for the main base; one in three raids an outlying Outpost or refinery.
     team.waves = (team.waves || 0) + 1;
     const exp = expansionsOf(enemyOf(team), rally);
@@ -1249,7 +1253,16 @@ function notify(team, key, msg, cooldown) {
 function kill(e, attacker, wh, from) {
   e.alive = false;
   const team = teamOf(e);
-  if (attacker && attacker.team !== e.team) G.teams[attacker.team].stats.killed++;
+  if (attacker && attacker.team !== e.team) {
+    const st = G.teams[attacker.team].stats;
+    if (e.kind === 'unit') st.killed++; else st.bldKilled++;
+    if (attacker.kind === 'unit') { attacker.kills = (attacker.kills || 0) + 1; attacker.killWorth = (attacker.killWorth || 0) + (e.def.cost || 0); }
+  }
+  if (e.kind === 'bld' && e.sellT <= 0) {
+    team.stats.bldLost++;
+    if (e.type === 'cy' || e.type === 'outpost') logEvent(e.team, e.type + ' lost');
+  }
+  if (e.kind === 'unit' && e.team === PLAYER && e.kills) G.log.fallen.push({ type: e.type, faction: e.faction, kills: e.kills, worth: e.killWorth, born: e.born, died: G.t });
   const seed = (Math.random() * 1e6) | 0;
   if (e.kind === 'unit') {
     team.stats.lost++;
@@ -2508,12 +2521,29 @@ function growOre() {
   }
 }
 
+// The debrief: every 15 seconds each side's army value, income and buildings, and the key moments
+// (first waves, big pushes, Outposts and Construction Yards lost).
+function logSample() {
+  const L = G.log;
+  L.samples.push({ t: Math.round(G.t),
+    army: G.teams.map((t) => unitsOf(t.id).filter((u) => !u.def.harvester && !u.def.scripted).reduce((a, u) => a + u.def.cost, 0)),
+    income: G.teams.map((t) => { const h = t.stats.harvested, d = h - L.lastH[t.id]; L.lastH[t.id] = h; return Math.round(d * 60 / Math.max(1, G.t - (L.lastT || 0))); }),
+    blds: G.teams.map((t) => buildingsOf(t.id).length) });
+  L.lastT = G.t;
+}
+function logEvent(team, kind) { G.log.events.push({ t: Math.round(G.t), team, kind }); }
+function logWave(team, big) {
+  if (!G.log.waves[team]++) logEvent(team, 'first wave');
+  else if (big) logEvent(team, 'big push');
+}
+
 // A side is defeated the moment its Construction Yard is destroyed.
 function checkWin() {
   if (G.over) return;
   const hasCY = (tid) => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === tid && e.type === 'cy');
   const p = hasCY(PLAYER), e = hasCY(ENEMY);
   if (!p || !e) {
+    logSample();
     G.over = { won: !e, t: G.t };
     hooks.gameOver(!e);
   }
@@ -2623,6 +2653,7 @@ function update(dt) {
   if ((T.ore -= dt) <= 0) { T.ore = 2; growOre(); }
   if ((T.ai -= dt) <= 0) { T.ai = 1; if (!G.over) for (const team of G.teams) if (team.isAI) aiThink(team); }
   if ((T.win -= dt) <= 0) { T.win = 1; checkWin(); if (!G.over) launchGroups(); }
+  if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); }
   for (const fx of G.effects) {
     if (fx.type === 'crash') updateCrash(fx, dt);
     else if (fx.type === 'frag') updateFrag(fx, dt);

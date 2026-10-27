@@ -14,7 +14,7 @@
     autoBtn: $('autoBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'),
     eva: $('eva'), selbar: $('selbar'), selName: $('selName'), selHp: $('selHp'), selBtns: $('selBtns'),
     placebar: $('placebar'), placeText: $('placeText'), placeOk: $('placeOk'), placeCancel: $('placeCancel'),
-    menu: $('menu'), menuTitle: $('menuTitle'), menuSub: $('menuSub'), stats: $('stats'),
+    menu: $('menu'), menuTitle: $('menuTitle'), menuSub: $('menuSub'),
     startBtn: $('startBtn'), resumeBtn: $('resumeBtn'), boxBtn: $('boxBtn'),
   };
   const isTouch = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -45,7 +45,15 @@
     evaTimer = setTimeout(() => { ui.eva.hidden = true; }, 2400);
   }
   hooks.eva = eva;
-  hooks.gameOver = (won) => setTimeout(() => { showMenu('end', won); Sound.say(won ? 'Mission accomplished' : 'Mission failed'); }, 2200);
+  hooks.gameOver = (won) => setTimeout(() => {
+    G.paused = true;
+    Debrief.open(won, {
+      difficulty: DIFFICULTY[diffKey].label,
+      onRematch: () => { endPlace(); startGame(); hideMenu(); eva('Select a structure to build'); },   // same side and difficulty
+      onNew: () => showMenu('start'),
+    });
+    Sound.say(won ? 'Mission accomplished' : 'Mission failed');
+  }, 2200);
   // Battle sounds are louder on screen, fade with distance and pan left or right.
   // Screen shake from big explosions: full strength on screen, fading off it.
   let shakeAmp = 0;
@@ -812,24 +820,13 @@
   // ---------------------------------------------------------------------------
   // Menus
   // ---------------------------------------------------------------------------
-  function showMenu(mode, won) {
+  function showMenu(mode) {
     ui.menu.hidden = false;
     ui.menu.dataset.mode = mode;
     ui.resumeBtn.hidden = mode !== 'pause';
-    ui.stats.hidden = mode !== 'end';
     if (G) G.paused = true;
     if (mode === 'start') { ui.menuTitle.textContent = 'Red Horizon'; ui.menuSub.textContent = 'Choose your side, commander.'; ui.startBtn.textContent = 'Start mission'; }
     if (mode === 'pause') { ui.menuTitle.textContent = 'Paused'; ui.menuSub.textContent = 'Mission time ' + fmt(G.t); ui.startBtn.textContent = 'New mission'; }
-    if (mode === 'end') {
-      ui.menuTitle.textContent = won ? 'Mission Accomplished' : 'Mission Failed';
-      ui.menuSub.textContent = won ? 'The enemy base has been destroyed.' : 'Your base has been destroyed.';
-      ui.startBtn.textContent = 'Play again';
-      const s = G.teams[PLAYER].stats;
-      ui.stats.innerHTML = `<div><b>${fmt(G.t)}</b><span>Mission time</span></div><div><b>${s.killed}</b><span>Enemies destroyed</span></div>` +
-        `<div><b>${s.lost}</b><span>Units lost</span></div><div><b>$${Math.round(s.harvested)}</b><span>Ore harvested</span></div>`;
-    }
-    ui.menu.classList.toggle('won', mode === 'end' && !!won);
-    ui.menu.classList.toggle('lost', mode === 'end' && !won);
     syncMenuChoices();
   }
   $('manualBtn').addEventListener('click', () => Manual.open(faction));

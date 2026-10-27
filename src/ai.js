@@ -309,6 +309,7 @@ function aiLaunch(team, ready) {
 function aiSend(team, units, target, o) {
   for (const u of units) { setHunt(u); u.staged = false; u.focus = target; }
   if (o.strike) team.strike = { keys: o.strike, target, units };
+  if (units.length >= 3) logWave(team.id, !!o.strike);
   return units;
 }
 function aiStrike(team) {

@@ -4,6 +4,14 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.27.4', date: '27 October 2026', title: 'Mission debrief', groups: [
+    ['', [
+      'A new end-of-mission debrief. The Battle tab graphs both sides\' military strength, income and buildings through the whole game, with the key moments marked: drag across it for details.',
+      'Your most valuable unit gets a medal: the one with the most kills, with what it destroyed and how long it fought.',
+      'The Scorecard tab puts your numbers beside the enemy\'s, and shows which of your units did the killing.',
+      'Rematch starts again with the same side and difficulty.',
+    ]],
+  ] },
   { v: '2026.10.27.3', date: '27 October 2026', title: 'More money, as in Red Alert', groups: [
     ['', [
       'You start with $10,000 instead of $5,000, as in Red Alert\'s multiplayer ($12,000 for the computer on Hard).',
