@@ -10,6 +10,9 @@ const RELEASES = [
       '"Insufficient funds" at most every 30 seconds, and "Unit ready" no longer for every unit of a batch.',
       'A new tip: "More ore trucks needed" when you have fewer than two Ore Trucks per refinery, a War Factory and the money for one, at most every 90 seconds. The computer keeps two per refinery, and that is most of why its economy pulls ahead.',
     ]],
+    ['The computer', [
+      'More time to build up: on Easy and Normal the first attack wave comes at 6:00 instead of 4:30. On Normal, raids on your Ore Trucks start around 6:30 and big pushes from 9:00; on Easy, raids start around 7:00.',
+    ]],
     ['Match data', [
       'The match data now records each side\'s refineries and Ore Trucks through the game.',
     ]],
