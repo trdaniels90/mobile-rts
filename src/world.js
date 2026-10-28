@@ -603,6 +603,16 @@ function acquire(src, range, weapons, visible) {
 }
 
 // Where attacking units head: the enemy Construction Yard, or failing that the nearest structure.
+// The player's side only knows the enemy buildings on ground it has uncovered (the computer knows
+// the whole map). Units sent to attack go after those alone, so attacking never finds the enemy
+// base for the player.
+function knownToPlayer(b) {
+  for (let y = b.cy; y < b.cy + b.h; y++) for (let x = b.cx; x < b.cx + b.w; x++) if (inMap(x, y) && G.seen[idx(x, y)]) return true;
+  return false;
+}
+const targetable = (team, b) => team !== PLAYER || knownToPlayer(b);
+function enemyBaseKnown() { return buildingsOf(ENEMY).some(knownToPlayer); }
+
 function nearestEnemyBuilding(u) {
   // Raiding an outlying site: stay on it, finish off what else stands there, then move on.
   if (u.focus) {
@@ -610,7 +620,7 @@ function nearestEnemyBuilding(u) {
     const f = u.focus;
     let nb = null, nd = CELL * 9;
     for (const e of G.entities) {
-      if (!e.alive || e.kind !== 'bld' || e.team === u.team) continue;
+      if (!e.alive || e.kind !== 'bld' || e.team === u.team || !targetable(u.team, e)) continue;
       const d = Math.hypot(e.x - f.x, e.y - f.y);
       if (d < nd) { nd = d; nb = e; }
     }
@@ -619,7 +629,7 @@ function nearestEnemyBuilding(u) {
   }
   let best = null, bd = Infinity, cy = null, cd = Infinity;
   for (const e of G.entities) {
-    if (!e.alive || e.kind !== 'bld' || e.team === u.team) continue;
+    if (!e.alive || e.kind !== 'bld' || e.team === u.team || !targetable(u.team, e)) continue;
     const d = dist(u, e);
     if (d < bd) { bd = d; best = e; }
     if (e.type === 'cy' && d < cd) { cd = d; cy = e; }
@@ -674,13 +684,13 @@ function launchGroups() {
     const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.def.harvester && (u.def.weapon || u.cls === 'air') && u.order.type === 'guard');
     // Aircraft do not wait for a group: each one heads out on its own.
     // (A jet that came home early waits on its pad until it is fully rearmed.)
-    if (team.auto) for (const u of waiting) if (u.cls === 'air' && !u.interceptor && (u.as !== 'landed' || airFull(u))) launchAircraft(u);
+    if (team.auto && (team.isAI || enemyBaseKnown())) for (const u of waiting) if (u.cls === 'air' && !u.interceptor && (u.as !== 'landed' || airFull(u))) launchAircraft(u);
     scramble(team);
     const ready = waiting.filter((u) => u.cls !== 'air' && !u.dest && inBase(team, u));
     team.waiting = ready.length;
     // The computer plans its own waves (sizes, formations, routes, targets): see aiLaunch.
     if (team.isAI && team.auto) { aiLaunch(team, ready); continue; }
-    if (!team.auto || ready.length < GROUP_SIZE) continue;
+    if (!team.auto || ready.length < GROUP_SIZE || !enemyBaseKnown()) continue;   // nowhere known to go: wait
     // Each heads straight out from where it waits, at its own top speed, fighting what it meets.
     for (const u of ready) { setHunt(u); u.staged = false; }
     logWave(team.id, false);
@@ -699,7 +709,7 @@ function launchGroups() {
 function expansionsOf(team, from) {
   const cy = G.entities.find((e) => e.alive && e.team === team.id && e.type === 'cy');
   if (!cy) return [];
-  return buildingsOf(team.id).filter((b) => (b.type === 'outpost' || b.type === 'refinery') && dist(b, cy) > CELL * 14)
+  return buildingsOf(team.id).filter((b) => (b.type === 'outpost' || b.type === 'refinery') && dist(b, cy) > CELL * 14 && targetable(1 - team.id, b))
     .sort((a, b) => (a.type !== 'outpost') - (b.type !== 'outpost') || dist(a, from) - dist(b, from));
 }
 // Enemy jets or helicopters over the base scramble the fighters waiting on their Airfield, on

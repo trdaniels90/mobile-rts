@@ -140,9 +140,10 @@
     }
     ui.sidebar.dataset.faction = faction;
     cameoSig = { L: '', R: '' }; selSig = ''; lastCredits = null;
-    // Auto attack starts off (new units spread out and guard the base) unless the player turned it on last time.
-    try { G.teams[PLAYER].auto = localStorage.getItem('ps-auto') === '1'; } catch (_) {}
-    ui.autoBtn.setAttribute('aria-pressed', String(G.teams[PLAYER].auto));
+    // Auto attack starts off (new units spread out and guard the base): it can only be switched on
+    // once an enemy building has been uncovered.
+    G.teams[PLAYER].auto = false;
+    ui.autoBtn.setAttribute('aria-pressed', 'false');
     layout();
     const cy = G.entities.find((e) => e.team === PLAYER && e.type === 'cy');
     cam.z = Math.max(1, Math.min(2.5, Math.round((W / (CELL * 18)) * 4) / 4));
@@ -737,9 +738,9 @@
   ui.autoBtn.addEventListener('click', () => {
     if (!G) return;
     const team = G.teams[PLAYER];
+    if (!team.auto && !enemyBaseKnown()) { evaCalm('Enemy base not located', 4); return; }   // scout it first
     team.auto = !team.auto;
     ui.autoBtn.setAttribute('aria-pressed', String(team.auto));
-    try { localStorage.setItem('ps-auto', team.auto ? '1' : '0'); } catch (_) {}
     if (team.auto) {
       // Every idle ground unit attacks now; aircraft waiting on their pads take off.
       launchAll(team);
@@ -844,7 +845,10 @@
     if (act === 'deploy') {
       const made = own.filter((u) => u.kind === 'unit' && u.def.deploys).map(deployFob).filter(Boolean);
       if (made.length) select(made.length === 1 ? [made[0]] : []);
-    } else if (act === 'hunt') { commandHunt(own.filter((u) => u.kind === 'unit' && (u.def.weapon || u.cls === 'air'))); eva('Attacking enemy base'); Sound.ack('attack'); }
+    } else if (act === 'hunt') {
+      if (!enemyBaseKnown()) evaCalm('Enemy base not located', 4);   // pick a target, or scout first
+      else { commandHunt(own.filter((u) => u.kind === 'unit' && (u.def.weapon || u.cls === 'air'))); eva('Attacking enemy base'); Sound.ack('attack'); }
+    }
     else if (act === 'guard') beginGuard(own.filter((u) => u.kind === 'unit' && !u.def.harvester));
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
     else if (act === 'repair' && bld) bld.repairing = !bld.repairing;

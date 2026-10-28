@@ -14,6 +14,7 @@ const RELEASES = [
       'A new GUARD button: tap it, then tap the area to hold. The units guard it until you give them another order: auto attack and base defence leave them where they are, and aircraft go home only to rearm or for repairs, then fly straight back.',
       'The ring shown while you pick the area is how far the units will go after enemies: about 6 to 10 cells, depending on the unit. Artillery and the V2 on guard fire at anything in view within their full range (12 and 13 cells), not just what they can see themselves.',
       'ATTACK sends aircraft on one strike: they hit what they find, fly home once their weapons are spent (or if badly damaged) and stay there. Ground units hunt as before.',
+      'Attacking only goes after enemy buildings you have uncovered: AUTO and ATTACK no longer lead your units to an enemy base you have not found. Until you have seen an enemy building they stay off ("Enemy base not located"), so scout first, with any unit or the Spy Plane. Auto attack starts each mission off.',
       'STOP drops every order: units go back to what they do when first built. Ground units wait around the base and aircraft on their pad, both ready for auto attack, and Ore Trucks go back to harvesting.',
     ]],
     ['Defence', [

@@ -37,6 +37,8 @@ EVA = {
   'radar offline': 'Radar offline.',
   'pilot recovered': 'Pilot recovered.',
   'more ore trucks needed': 'More ore trucks needed.',
+  'enemy base not located': 'Enemy base not located.',
+  'attacking enemy base': 'Attacking enemy base.',
 }
 ACKS = {
   'inf': ['Acknowledged.', 'Yes sir.', 'Moving out.', 'Affirmative.', 'Right away.'],
