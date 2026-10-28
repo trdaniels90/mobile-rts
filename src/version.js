@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.28.8', date: '28 October 2026', title: 'No more jet rushes', groups: [
+    ['', [
+      'The Airfield now needs a Radar Dome.',
+      'Jets take about 20 seconds to rearm on the Airfield, up from 9.',
+      'On Normal and Hard the computer builds an anti-air site beside its Construction Yard early in the game, and a second as soon as it sees your aircraft.',
+    ]],
+  ] },
   { v: '2026.10.28.7', date: '28 October 2026', title: 'A top five for every difficulty', groups: [
     ['Leaderboard', [
       'The leaderboard now shows the five fastest wins at each difficulty, each under its own heading. Every win counts, so the same commander can hold several places.',
