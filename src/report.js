@@ -117,7 +117,7 @@ const Report = (() => {
   }
   // Leaderboard rows for a mode ('skirmish' now; 'pve' and 'pvp' later), or null when offline.
   function board(mode) {
-    return post('rpc/get_leaderboard', { p_mode: mode || 'skirmish', p_limit: 100 }, true).then((v) => (Array.isArray(v) ? v : null));
+    return post('rpc/get_leaderboard', { p_mode: mode || 'skirmish', p_limit: 5 }, true).then((v) => (Array.isArray(v) ? v : null));
   }
   return { start, end, quit, submitName, board, get name() { return store('ps-name') || ''; }, get matchId() { return match && match.id; } };
 })();
@@ -125,7 +125,7 @@ const Report = (() => {
 // The leaderboard page, on the same paper as What's New, and the name box in the debrief.
 const Leaderboard = (() => {
   // One tab per kind of match; PvE and PvP boards slot in here when they exist.
-  const MODES = [{ key: 'skirmish', label: 'Vs computer', intro: 'Wins against the computer: Hard first, then Normal, then Easy, fastest first. Each name\'s best time at each difficulty.' }];
+  const MODES = [{ key: 'skirmish', label: 'Vs computer', intro: 'The five fastest wins against the computer at each difficulty, hardest first. Every win counts, so one commander can hold several places.' }];
   const DIFF = { hard: 'Hard', normal: 'Normal', easy: 'Easy' }, SIDE = { allies: 'Allies', soviets: 'Soviets' };
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
@@ -159,9 +159,11 @@ const Leaderboard = (() => {
       if (n !== req) return;
       if (!rows) { body.innerHTML = '<p class="lb-note">The leaderboard needs a connection. <button type="button" class="lb-retry">Try again</button></p>'; return; }
       if (!rows.length) { body.innerHTML = '<p class="lb-note">No names yet. Win a mission and enter your name in the debrief to be the first.</p>'; return; }
-      body.innerHTML = `<div class="lb-scroll"><table class="fm-table lb-table"><thead><tr><th>#</th><th>Commander</th><th>Difficulty</th><th>Side</th><th>Time</th><th>Date</th></tr></thead><tbody>${
-        rows.map((r) => `<tr${my && String(r.player_name).toLowerCase() === my ? ' class="lb-me"' : ''}><td>${Number(r.rank)}</td><td>${esc(r.player_name)}</td><td>${DIFF[r.difficulty] || esc(r.difficulty || '')}</td><td>${SIDE[r.side] || esc(r.side)}</td><td class="lb-time">${fmt(Number(r.duration_s))}</td><td>${esc(new Date(r.ended_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))}</td></tr>`).join('')
-      }</tbody></table></div>`;
+      // Ranks restart at each difficulty, so each gets its own short table.
+      const row = (r) => `<tr${my && String(r.player_name).toLowerCase() === my ? ' class="lb-me"' : ''}><td>${Number(r.rank)}</td><td>${esc(r.player_name)}</td><td>${SIDE[r.side] || esc(r.side)}</td><td class="lb-time">${fmt(Number(r.duration_s))}</td><td>${esc(new Date(r.ended_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))}</td></tr>`;
+      const groups = [];
+      for (const r of rows) { const g = groups[groups.length - 1]; if (g && g.d === r.difficulty) g.rows.push(r); else groups.push({ d: r.difficulty, rows: [r] }); }
+      body.innerHTML = groups.map((g) => `<h4>${DIFF[g.d] || esc(g.d || '')}</h4><div class="lb-scroll"><table class="fm-table lb-table"><thead><tr><th>#</th><th>Commander</th><th>Side</th><th>Time</th><th>Date</th></tr></thead><tbody>${g.rows.map(row).join('')}</tbody></table></div>`).join('');
     });
   }
   function open() { if (!root) build(); root.hidden = false; root.querySelector('.fm-page').scrollTop = 0; root.querySelector('.fm-close').focus(); load(); }

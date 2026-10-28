@@ -339,7 +339,7 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 .lb-table .lb-time { font-family: 'Courier New', Courier, monospace; font-weight: 700; font-variant-numeric: tabular-nums; }
 .lb-table tr.lb-me td { background: rgba(233,185,58,0.28); }
 @media (max-width: 520px) {
-  .lb-table th:nth-child(6), .lb-table td:nth-child(6) { display: none; }
+  .lb-table th:nth-child(5), .lb-table td:nth-child(5) { display: none; }
   .lb-table td, .lb-table th { padding: 5px 5px; font-size: 13.5px; }
   .lb-table th { font-size: 12px; }
 }

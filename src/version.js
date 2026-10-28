@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.28.7', date: '28 October 2026', title: 'A top five for every difficulty', groups: [
+    ['Leaderboard', [
+      'The leaderboard now shows the five fastest wins at each difficulty, each under its own heading. Every win counts, so the same commander can hold several places.',
+    ]],
+  ] },
   { v: '2026.10.28.6', date: '28 October 2026', title: 'Guard orders, a later first wave and a calmer announcer', groups: [
     ['Announcer', [
       'She says "Training" or "Building" when a queue starts, not for every unit you add to it, and repeated taps no longer make her repeat herself.',

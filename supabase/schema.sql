@@ -73,23 +73,22 @@ returns void language sql security definer set search_path = '' as $$
   where id = p_id and device_id = p_device and ended_at > now() - interval '1 day';
 $$;
 
--- The leaderboard: wins only, each name's best time at each difficulty, hardest first, then fastest.
--- p_mode leaves room for PvE and PvP boards later.
-create or replace function public.get_leaderboard(p_mode text default 'skirmish', p_limit integer default 100)
+-- The leaderboard: the five fastest wins at each difficulty, hardest first. Every win counts, so one
+-- name can hold several places. p_limit (at most 5) is the places per difficulty; p_mode leaves room
+-- for PvE and PvP boards later.
+create or replace function public.get_leaderboard(p_mode text default 'skirmish', p_limit integer default 5)
 returns table (rank bigint, player_name text, side text, difficulty text, duration_s integer, ended_at timestamptz)
 language sql stable security definer set search_path = '' as $$
-  with best as (
-    select distinct on (lower(m.player_name), m.difficulty)
-      m.player_name, m.side, m.difficulty, m.duration_s, m.ended_at
+  with ranked as (
+    select m.player_name, m.side, m.difficulty, m.duration_s, m.ended_at,
+      row_number() over (partition by m.difficulty order by m.duration_s, m.ended_at) as rk
     from public.matches m
     where m.mode = p_mode and m.result = 'win' and m.player_name is not null and m.duration_s is not null
-    order by lower(m.player_name), m.difficulty, m.duration_s, m.ended_at
   )
-  select row_number() over w, b.player_name, b.side, b.difficulty, b.duration_s, b.ended_at
-  from best b
-  window w as (order by case b.difficulty when 'hard' then 0 when 'normal' then 1 when 'easy' then 2 else 3 end, b.duration_s, b.ended_at)
-  order by 1
-  limit least(greatest(p_limit, 1), 500);
+  select r.rk, r.player_name, r.side, r.difficulty, r.duration_s, r.ended_at
+  from ranked r
+  where r.rk <= least(greatest(p_limit, 1), 5)
+  order by case r.difficulty when 'hard' then 0 when 'normal' then 1 when 'easy' then 2 else 3 end, r.rk;
 $$;
 
 revoke all on function public.match_heartbeat(uuid, uuid) from public;
