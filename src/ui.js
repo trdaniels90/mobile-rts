@@ -538,9 +538,18 @@
   const keys = new Set();
   const local = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
 
+  // A finger whose lift the page never hears about (an alert or notification, a swipe from the
+  // screen edge, the app sent to the background) would stay "down" for good: every later drag
+  // became a pinch with it, and taps never landed, until the app was restarted.
+  const resetPointers = () => { pointers.clear(); gesture = null; clearTimeout(longPress); };
+  window.addEventListener('blur', resetPointers);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) resetPointers(); });
+
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
+    // The first finger of a new touch: nothing else can be down, so anything still held is stale.
+    if (e.isPrimary) resetPointers();
     try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
     const p = local(e);
     pointers.set(e.pointerId, p);
