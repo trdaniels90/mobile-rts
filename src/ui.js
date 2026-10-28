@@ -974,8 +974,24 @@
   window.__ps = { get G() { return G; }, update, cam, startGame, startProduction, placeStructure, aiFindSpot, canPlace, commandMove, commandHunt, commandGuard, commandStop, tap, layout };
 
   // Version on the menu, and the What's New page with every release.
-  $('versionTag').textContent = `Version ${VERSION}`;
-  $('newsBtn').addEventListener('click', () => News.open());
+  // The menu names the latest update, and What's New stands out until this version's notes have
+  // been opened on this phone (remembered only on the phone).
+  let newsSeen = null;
+  try { newsSeen = localStorage.getItem('ps-news-seen'); } catch (_) {}
+  const showNews = () => $('newsBtn').classList.toggle('has-news', newsSeen !== VERSION);
+  const openNews = () => {
+    News.open();
+    newsSeen = VERSION;
+    try { localStorage.setItem('ps-news-seen', VERSION); } catch (_) {}
+    showNews();
+  };
+  const tag = $('versionTag'), latest = document.createElement('button');
+  tag.textContent = `Version ${VERSION}`;
+  latest.type = 'button'; latest.className = 'version-new'; latest.textContent = `New: ${RELEASES[0].title}`;
+  latest.addEventListener('click', openNews);
+  tag.append(document.createElement('br'), latest);
+  $('newsBtn').addEventListener('click', openNews);
+  showNews();
   $('boardBtn').addEventListener('click', () => Leaderboard.open());
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http') && window.top === window) {
