@@ -1679,6 +1679,7 @@ function ejectPilot(e) {
 }
 // Down in trees, water or on a roof: walk out to the nearest open ground, and set off from there.
 function landChute(u) {
+  u.chute = 0;   // exactly 0: checks for "on the ground" test !u.chute, and the countdown overshoots below 0
   const c = cellOfPos(Math.max(0, Math.min(WORLD - 1, u.x)), Math.max(0, Math.min(WORLD - 1, u.y)));
   if (!freeCell(c)) {
     const n = nearestFreeCell(c, 8);

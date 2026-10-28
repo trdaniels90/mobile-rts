@@ -20,6 +20,10 @@ const RELEASES = [
       'Jets and helicopters are the first to answer when your base or an Ore Truck is attacked, and come from further away to help a truck. Only as many go as the fight needs, counting each aircraft as a quarter of its price (one helicopter is no match for a squad of infantry); ground units make up the rest if there are not enough aircraft around.',
       'Aircraft shoot back: one that is shot at turns on the shooter, and one parked on its pad takes off to fight instead of sitting there, even half-rearmed or waiting on repairs. Once the fight is over they fly home.',
     ]],
+    ['Paratroopers', [
+      'A drop is now seven soldiers instead of five: five riflemen and two Rocket Soldiers for the Allies, four riflemen and three Grenadiers for the Soviets.',
+      'Fixed base defence ignoring paratroopers once they had landed: nobody was sent after them, so they could walk up to parked helicopters unopposed. Your own landed paratroopers (and rescued pilots) now join in base defence and can be picked with select-all too.',
+    ]],
     ['Fixes', [
       'Fixed the game freezing when a unit shot at another while its own target, an aircraft, had just taken off out of its reach.',
     ]],

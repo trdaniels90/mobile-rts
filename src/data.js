@@ -171,7 +171,7 @@ const BUILD_DEFS = {
 const POWERS = {
   spy:  { name: 'Spy Plane',    charge: 60,  ready: 'Spy plane ready',   reveal: 10 },
   para: { name: 'Paratroopers', charge: 150, ready: 'Paratroopers ready',
-          squad: { allies: ['rifle', 'rifle', 'rifle', 'rifle', 'rocket'], soviets: ['rifle', 'rifle', 'rifle', 'grenadier', 'grenadier'] } },
+          squad: { allies: ['rifle', 'rifle', 'rifle', 'rifle', 'rifle', 'rocket', 'rocket'], soviets: ['rifle', 'rifle', 'rifle', 'rifle', 'grenadier', 'grenadier', 'grenadier'] } },
   bomb: { name: 'Bombing Run',  charge: 200, ready: 'Bombing run ready', bomb: { dmg: 90, wh: 'HE', splash: 26 }, bombs: 10 },
 };
 

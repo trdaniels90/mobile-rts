@@ -53,7 +53,7 @@ const Manual = (() => {
   };
   const POWER_TEXT = {
     spy: 'A fast reconnaissance plane flies over the target and reveals a wide area.',
-    para: 'A transport drops a squad of five infantry by parachute wherever you choose.',
+    para: 'A transport drops a squad of seven infantry by parachute wherever you choose.',
     bomb: 'A bomber carpet-bombs a strip of ground along its flight path.',
   };
 
