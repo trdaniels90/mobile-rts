@@ -2144,7 +2144,7 @@ function updateAir(u, dt) {
   if (u.as === 'landed') {
     u.alt = 0; u.speedCur = 0;
     u.rt += dt;
-    if (!airFull(u) && u.rt >= (jet ? 1.5 : 0.5)) { rearmStep(u); u.rt = 0; }
+    if (!airFull(u) && u.rt >= (jet ? 3.4 : 0.5)) { rearmStep(u); u.rt = 0; }   // a jet takes about 20 s to rearm fully
     // Ground crews patch up damage at the same rate and price as structure repairs: 2% of its
     // health every quarter second for 1% of its price, so a full repair costs half the price.
     u.repairing = false;

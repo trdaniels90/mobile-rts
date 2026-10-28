@@ -151,7 +151,7 @@ const BUILD_DEFS = {
   factory:  { name: 'War Factory',  w: 3, h: 2, hp: 1000, power: -30, cost: 2000, req: ['refinery'], factions: ['allies', 'soviets'], exit: true },
   helipad:  { name: 'Helipad',      w: 2, h: 2, hp: 400,  power: -10, cost: 1500, req: ['factory'],  factions: ['allies', 'soviets'] },
   dome:     { name: 'Radar Dome',   w: 2, h: 2, hp: 1000, power: -40, cost: 1000, req: ['refinery'], factions: ['allies', 'soviets'], sight: 10 },
-  airfield: { name: 'Airfield',     w: 3, h: 2, hp: 500,  power: -30, cost: 1000, req: ['factory'],  factions: ['allies', 'soviets'] },
+  airfield: { name: 'Airfield',     w: 3, h: 2, hp: 500,  power: -30, cost: 1000, req: ['dome'],     factions: ['allies', 'soviets'] },
   turret:   { name: 'Gun Turret',   w: 1, h: 1, hp: 450,  power: -40, cost: 600,  req: ['barracks'], factions: ['allies'], defense: true,
               weapon: { dmg: 40, rof: 1.4, range: 130, wh: 'AP', proj: 'shell' } },
   aagun:    { name: 'AA Gun',       w: 1, h: 1, hp: 400,  power: -50, cost: 800,  req: ['barracks'], factions: ['allies'], defense: true, antiAir: true,

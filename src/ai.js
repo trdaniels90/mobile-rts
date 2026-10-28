@@ -16,23 +16,29 @@ function aiNextStructure(team, c) {
   const n = (t) => c[t] || 0;
   const powerNeed = (t) => -Math.min(0, BUILD_DEFS[t].power);
   const pwr = available(team, 'apower') ? 'apower' : 'power';
+  const build = (type) => (p.prod - p.use < powerNeed(type) + 10 && available(team, pwr) ? pwr : type);   // power first if needed
+  // Normal and Hard: one AA site from 2:00 (up by about 2:30) whether or not it has seen aircraft (beside the
+  // Construction Yard), and a second as soon as enemy aircraft turn up. These come before anything else.
+  const A = G.diff.ai;
+  if (unitsOf(enemyOf(team).id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
+  if (A.adapt && available(team, aa) && n(aa) < (team.sawAir ? 2 : G.t >= 120 ? 1 : 0)) return build(aa);
   // An Outpost with no refinery beside it yet comes first: that is what it was sent out for.
   if (aiLonelyOutpost(team) && available(team, 'refinery') && n('refinery') < 6) {
     return p.prod - p.use < powerNeed('refinery') + 10 && available(team, pwr) ? pwr : 'refinery';
   }
   // How many defences it may have depends on the difficulty; more AA once the enemy flies.
-  const A = G.diff.ai, capMain = Math.round(A.defMax * 0.6), capInf = A.defMax - capMain;
+  const capMain = Math.round(A.defMax * 0.6), capInf = A.defMax - capMain;
   const enemyAir = unitsOf(enemyOf(team).id).filter((u) => u.cls === 'air' && !u.def.scripted).length;
   if (enemyAir) team.sawAir = true;
   const aaWant = team.sawAir ? Math.min(A.aaMax, A.aa + Math.ceil(enemyAir / 2)) : A.aa;
   const fast = A.econ.fast;   // Normal and Hard: the second refinery straight after the Barracks
   const wants = [
-    ['refinery', 1], ['barracks', 1], ['refinery', fast ? 2 : 1], [antiInf, Math.min(1, capInf)], ['factory', 1], [defense, Math.min(1, capMain)], ['refinery', 2], ['dome', 1],
+    ['refinery', 1], ['barracks', 1], ['refinery', fast ? 2 : 1],
+    [antiInf, Math.min(1, capInf)], ['factory', 1], [defense, Math.min(1, capMain)], ['refinery', 2], ['dome', 1],
     ['helipad', 1], [antiInf, Math.min(2, capInf)], [defense, Math.min(2, capMain)], [aa, Math.min(1, aaWant)], ['airfield', 1],
     ['factory', 2], [defense, Math.min(3, capMain)], [aa, aaWant], ['refinery', 3], [defense, Math.min(4, capMain)],
     ['refinery', A.econ.refineries],
   ];
-  const build = (type) => (p.prod - p.use < powerNeed(type) + 10 && available(team, pwr) ? pwr : type);   // power first if needed
   for (const [type, count] of wants) {
     if (n(type) >= count || !available(team, type)) continue;
     return build(type);
@@ -60,7 +66,8 @@ function aiAaSite(team) {
   const hit = team.airHit && G.t - team.airHit.t < 90 ? team.airHit : null;
   let best = null, bs = Infinity;
   for (const b of keys) {
-    const sc = aas.filter((a) => dist(a, b) < CELL * 6).length * 10 + (hit ? Math.hypot(b.x - hit.x, b.y - hit.y) / CELL * 0.3 : Math.random() * 3);
+    const sc = aas.filter((a) => dist(a, b) < CELL * 6).length * 10 + (hit ? Math.hypot(b.x - hit.x, b.y - hit.y) / CELL * 0.3 : Math.random() * 3) -
+      (b.type === 'cy' ? 5 : 0);   // the Construction Yard is covered first: losing it loses the game
     if (sc < bs) { bs = sc; best = b; }
   }
   return best;
