@@ -26,7 +26,7 @@ function newWorld(playerFaction, diffKey, seed) {
     t: 0, seed, diff: DIFFICULTY[diffKey], diffKey, nextId: 1,
     entities: [], byId: new Map(), effects: [], projectiles: [], pathQueue: [], groups: [],
     terr: new Uint8Array(NCELLS), block: new Uint8Array(NCELLS), bld: new Int32Array(NCELLS), resv: new Uint8Array(NCELLS),
-    ore: new Uint16Array(NCELLS), gem: new Uint8Array(NCELLS), seen: new Uint8Array(NCELLS), shroudDirty: true, oreFields: [],
+    ore: new Uint16Array(NCELLS), gem: new Uint8Array(NCELLS), seen: new Uint8Array(NCELLS), aiSeen: new Uint8Array(NCELLS), shroudDirty: true, oreFields: [],
     selection: [], place: null, over: null, paused: false,
     timers: { power: 0, shroud: 0, ore: 0, ai: 0, win: 0, log: 0 },
     log: { samples: [], events: [], fallen: [], waves: [0, 0], lastH: [0, 0] },   // for the debrief
@@ -603,15 +603,17 @@ function acquire(src, range, weapons, visible) {
 }
 
 // Where attacking units head: the enemy Construction Yard, or failing that the nearest structure.
-// The player's side only knows the enemy buildings on ground it has uncovered (the computer knows
-// the whole map). Units sent to attack go after those alone, so attacking never finds the enemy
-// base for the player.
-function knownToPlayer(b) {
-  for (let y = b.cy; y < b.cy + b.h; y++) for (let x = b.cx; x < b.cx + b.w; x++) if (inMap(x, y) && G.seen[idx(x, y)]) return true;
+// Each side only knows the enemy buildings on ground it has uncovered: the player's in G.seen,
+// the computer's in G.aiSeen. Units sent to attack go after those alone, so attacking never finds
+// the enemy base: it has to be scouted first (the computer's scouting: see aiScout).
+function knownTo(tid, b) {
+  const grid = tid === PLAYER ? G.seen : G.aiSeen;
+  for (let y = b.cy; y < b.cy + b.h; y++) for (let x = b.cx; x < b.cx + b.w; x++) if (inMap(x, y) && grid[idx(x, y)]) return true;
   return false;
 }
-const targetable = (team, b) => team !== PLAYER || knownToPlayer(b);
-function enemyBaseKnown() { return buildingsOf(ENEMY).some(knownToPlayer); }
+const knownToPlayer = (b) => knownTo(PLAYER, b);
+const targetable = (team, b) => knownTo(team, b);
+function enemyBaseKnown(tid = PLAYER) { return buildingsOf(1 - tid).some((b) => knownTo(tid, b)); }
 
 function nearestEnemyBuilding(u) {
   // Raiding an outlying site: stay on it, finish off what else stands there, then move on.
@@ -684,7 +686,7 @@ function launchGroups() {
     const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.def.harvester && (u.def.weapon || u.cls === 'air') && u.order.type === 'guard');
     // Aircraft do not wait for a group: each one heads out on its own.
     // (A jet that came home early waits on its pad until it is fully rearmed.)
-    if (team.auto && (team.isAI || enemyBaseKnown())) for (const u of waiting) if (u.cls === 'air' && !u.interceptor && (u.as !== 'landed' || airFull(u))) launchAircraft(u);
+    if (team.auto && enemyBaseKnown(team.id)) for (const u of waiting) if (u.cls === 'air' && !u.interceptor && (u.as !== 'landed' || airFull(u))) launchAircraft(u);
     scramble(team);
     const ready = waiting.filter((u) => u.cls !== 'air' && !u.dest && inBase(team, u));
     team.waiting = ready.length;
@@ -1259,9 +1261,9 @@ function impact(kind, x, y, inAir) {
 // `from`: where the hit came from (a blast centre or the shooter), for how a soldier falls.
 function damage(t, amount, wh, attacker, from) {
   if (!t.alive) return;
-  // As in Red Alert: whoever fires at one of the player's support planes (Spy Plane, Paratroopers
-  // transport, bomber) gives away where it stands.
-  if (t.def && t.def.scripted && t.team === PLAYER && attacker && attacker.team !== PLAYER) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5);
+  // As in Red Alert: whoever fires at a support plane (Spy Plane, Paratroopers transport, bomber)
+  // gives away where it stands, to either side.
+  if (t.def && t.def.scripted && attacker && attacker.team !== t.team) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5, t.team === PLAYER ? G.seen : G.aiSeen);
   const armor = t.kind === 'bld' ? 'bld' : isAirborne(t) ? 'air' : t.def.armor === 'air' ? 'light' : t.def.armor;
   const mult = WARHEADS[wh][armor];
   if (!mult) return;
@@ -2265,8 +2267,8 @@ function updateAir(u, dt) {
 // to wait around the base.
 function nothingKnown(u) {
   const team = G.teams[u.team];
-  if (!u.alive || team.isAI) return;
-  notify(team, 'unknown', 'Enemy base not located', 20);
+  if (!u.alive) return;
+  notify(team, 'unknown', 'Enemy base not located', 20);   // (says nothing for the computer)
   if (u.cls === 'air') { setGuard(u); u.order.pad = true; u.staged = !u.oneStrike; u.oneStrike = false; return; }
   const s = scatterSpot(team);
   setGuard(u, s.x, s.y); u.staged = true; goTo(u, s.x, s.y);
@@ -2330,7 +2332,7 @@ function updateFlight(u, dt) {
   const past = (u.x - f.tx) * ca + (u.y - f.ty) * sa;   // distance flown beyond the target
   if (f.key === 'spy' && !f.done && past >= 0) {
     f.done = true;
-    if (u.team === PLAYER) revealCircle(f.tx / CELL, f.ty / CELL, POWERS.spy.reveal);
+    revealCircle(f.tx / CELL, f.ty / CELL, POWERS.spy.reveal, u.team === PLAYER ? G.seen : G.aiSeen);
   } else if (f.key === 'para' && !f.done && past >= -8) {
     f.done = true;
     dropTroops(u, f.tx, f.ty);
@@ -2584,20 +2586,20 @@ function updatePower() {
 // ---------------------------------------------------------------------------
 // Shroud, ore growth, win check
 // ---------------------------------------------------------------------------
+// Both sides uncover the map the same way; the computer's map (G.aiSeen) is never drawn.
 function revealAround() {
   for (const e of G.entities) {
-    if (!e.alive || e.team !== PLAYER || (e.def && e.def.scripted)) continue;   // support planes reveal nothing on the way (see damage)
+    if (!e.alive || (e.def && e.def.scripted)) continue;   // support planes reveal nothing on the way (see damage)
     const rad = e.kind === 'bld' ? (e.def.sight || 3) + Math.max(e.w, e.h) / 2 : e.def.sight;
-    revealCircle(e.x / CELL, e.y / CELL, rad);
+    revealCircle(e.x / CELL, e.y / CELL, rad, e.team === PLAYER ? G.seen : G.aiSeen);
   }
 }
-function revealCircle(cx, cy, rad) {
-  const seen = G.seen;
+function revealCircle(cx, cy, rad, seen = G.seen) {
   for (let y = Math.floor(cy - rad); y <= cy + rad; y++) {
     for (let x = Math.floor(cx - rad); x <= cx + rad; x++) {
       if (!inMap(x, y)) continue;
       const c = idx(x, y);
-      if (!seen[c] && Math.hypot(x + 0.5 - cx, y + 0.5 - cy) <= rad) { seen[c] = 1; G.shroudDirty = true; }
+      if (!seen[c] && Math.hypot(x + 0.5 - cx, y + 0.5 - cy) <= rad) { seen[c] = 1; if (seen === G.seen) G.shroudDirty = true; }
     }
   }
 }

@@ -168,7 +168,7 @@ function aiFindSpot(team, type) {
 }
 
 function aiPowerTarget(team, cluster) {
-  const theirs = buildingsOf(enemyOf(team).id);
+  const theirs = buildingsOf(enemyOf(team).id).filter((b) => targetable(team.id, b));
   if (!theirs.length) return null;
   if (!cluster) {
     const econ = theirs.filter((b) => b.type === 'refinery' || b.type === 'power' || b.type === 'apower');
@@ -274,6 +274,9 @@ function aiPlanWave(team) {
 function aiLaunch(team, ready) {
   const A = G.diff.ai, r = Math.random;
   if (!team.plan) team.plan = aiPlanWave(team);
+  // No attacks until it has found the enemy base: once the first-wave timer is up, it scouts.
+  if (!enemyBaseKnown(team.id)) { if (G.t >= Math.max(A.firstWave, 60)) aiScout(team, ready); return; }
+  aiScoutDone(team);
   if (team.raidAt === undefined) team.raidAt = A.raidFrom + r() * 30;
   if (G.t >= team.raidAt && ready.length >= 3) {
     team.raidAt = G.t + A.raidGap[0] + r() * (A.raidGap[1] - A.raidGap[0]);
@@ -296,6 +299,47 @@ function aiLaunch(team, ready) {
   team.lastWave = G.t;
   team.plan = aiPlanWave(team);
 }
+// Scouting: like the player, the computer only knows the enemy buildings it has uncovered. Once its
+// first-wave timer is up (a minute in on Hard) it sends a scout to the map's other starting spots
+// in turn, nearest first, then to whatever ground it has not seen: the Spy Plane if it is charged,
+// else a helicopter, else its fastest ground unit. Its waves wait until the base is found.
+function aiScout(team, ready) {
+  const s = team.scout || (team.scout = { u: null, until: 0 });
+  if (G.t < s.until) return;                                         // a Spy Plane is on its way
+  if (s.u && s.u.alive && s.u.order.type === 'move') return;          // the scout is on its way
+  const seen = (x, y) => G.aiSeen[idx(Math.round(x), Math.round(y))];
+  const home = team.start;
+  let spots = G.spawns.filter((p) => !(p.cx === home.cx && p.cy === home.cy) && !seen(p.cx, p.cy));
+  if (!spots.length) for (let y = 4; y < MAP - 4; y += 8) for (let x = 4; x < MAP - 4; x += 8) if (!seen(x, y)) spots.push({ cx: x, cy: y });
+  if (!spots.length) return;
+  // The scout carries on to the nearest spot from where it is; a new one sets out from home.
+  const kept = s.u && s.u.alive && !s.u.retreat && !(s.u.cls === 'air' && airEmpty(s.u)) ? s.u : null;
+  const from = kept ? { cx: kept.x / CELL, cy: kept.y / CELL } : home;
+  const to = spots.reduce((a, b) => (Math.hypot(a.cx - from.cx, a.cy - from.cy) <= Math.hypot(b.cx - from.cx, b.cy - from.cy) ? a : b));
+  const x = (to.cx + 0.5) * CELL, y = (to.cy + 0.5) * CELL;
+  if (powerReady(team, 'spy')) { launchPower(team, 'spy', x, y); s.until = G.t + 20; return; }
+  const heli = unitsOf(team.id).find((u) => u.def.fly === 'heli' && !u.interceptor && !u.repairHold && (u.as === 'landed' || u.order.type === 'guard'));
+  const runner = ready.filter((u) => !u.def.harvester).sort((a, b) => b.def.speed - a.def.speed)[0];
+  // Something faster than the scout (a helicopter, or a vehicle over half as fast again) takes over.
+  const faster = (heli && kept && kept.cls !== 'air') || (runner && kept && kept.cls !== 'air' && runner.def.speed > kept.def.speed * 1.5);
+  const u = kept && !faster ? kept : heli || runner;
+  if (!u) return;
+  if (kept && u !== kept) aiScoutDone(team);
+  if (u.cls === 'air' && u.as === 'landed') u.as = 'takeoff';
+  commandMove([u], x, y);
+  s.u = u;
+}
+// Base found: the scout comes home (a helicopter to its pad, anyone else to wait for the next wave).
+function aiScoutDone(team) {
+  const s = team.scout;
+  if (!s || !s.u) return;
+  const u = s.u; s.u = null;
+  if (!u.alive) return;
+  if (u.cls === 'air') { setGuard(u); u.order.pad = true; u.staged = true; return; }
+  const r = rallyPoint(team);
+  setGuard(u, r.x, r.y); u.staged = true; goTo(u, r.x, r.y);
+}
+
 // Send units at a target: each heads straight for it from where it waits, at its own top speed,
 // fighting what it meets. A big push calls in its held Airfield powers once the first of it closes in.
 function aiSend(team, units, target, o) {
@@ -316,7 +360,7 @@ function aiStrike(team) {
 // Normal: a mix of the Construction Yard, refineries, power and outlying sites. Hard: whatever
 // valuable building is least defended.
 function aiWaveTarget(team, from) {
-  const A = G.diff.ai, r = Math.random, foe = enemyOf(team), theirs = buildingsOf(foe.id);
+  const A = G.diff.ai, r = Math.random, foe = enemyOf(team), theirs = buildingsOf(foe.id).filter((b) => targetable(team.id, b));
   if (!theirs.length) return null;
   const cy = theirs.find((b) => b.type === 'cy');
   if (A.targets === 'cy') {
@@ -344,7 +388,7 @@ function aiWaveTarget(team, from) {
 // A raid goes for an outlying site or the most exposed Ore Truck.
 function aiRaidTarget(team) {
   const foe = enemyOf(team), cy = buildingsOf(foe.id).find((b) => b.type === 'cy');
-  const trucks = unitsOf(foe.id).filter((u) => u.def.harvester);
+  const trucks = unitsOf(foe.id).filter((u) => u.def.harvester && G.aiSeen[cellOfPos(u.x, u.y)]);   // only where it has looked
   const exp = expansionsOf(foe, rallyPoint(team));
   if (exp.length && (Math.random() < 0.4 || !trucks.length)) return exp[0];
   if (!trucks.length) return null;
