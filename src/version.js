@@ -17,7 +17,7 @@ const RELEASES = [
       'STOP drops every order: units go back to what they do when first built. Ground units wait around the base and aircraft on their pad, both ready for auto attack, and Ore Trucks go back to harvesting.',
     ]],
     ['Defence', [
-      'Jets and helicopters are the first to answer when your base or an Ore Truck is attacked, and come from further away to help a truck. Only as many go as the fight needs; ground units make up the rest if there are not enough aircraft around.',
+      'Jets and helicopters are the first to answer when your base or an Ore Truck is attacked, and come from further away to help a truck. Only as many go as the fight needs, counting each aircraft as a quarter of its price (one helicopter is no match for a squad of infantry); ground units make up the rest if there are not enough aircraft around.',
       'Aircraft shoot back: one that is shot at turns on the shooter, and one parked on its pad takes off to fight instead of sitting there, even half-rearmed or waiting on repairs. Once the fight is over they fly home.',
     ]],
     ['The computer', [

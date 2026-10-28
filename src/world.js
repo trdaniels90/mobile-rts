@@ -787,7 +787,8 @@ function defendBase(team) {
   // Either side sends only what it takes: those already defending, then aircraft (they get there
   // first), then the nearest others, until they are worth half again as much as the raiders
   // (a few at most for a truck). Ground units make up whatever the aircraft at hand cannot.
-  const worth = (u) => u.def.cost || 300;
+  // Aircraft count at a quarter of their price: one helicopter is no match for a squad of infantry.
+  const worth = (u) => (u.def.cost || 300) * (u.cls === 'air' && u.team === team.id ? 0.25 : 1);
   const need = threats.reduce((a, t) => a + worth(t), 0) * 1.5;
   const near = (u) => Math.min(...threats.map((t) => Math.hypot(u.x - t.x, u.y - t.y)));
   army = army.filter((u) => threats.some((t) => canTarget(u, t)));
