@@ -1773,7 +1773,8 @@ function updateUnit(u, dt) {
           }
         } else if (o.type === 'hunt') {
           const b = nearestEnemyBuilding(u);
-          if (b && (u.huntTarget !== b || (!u.dest && !u.needPath))) { u.huntTarget = b; goTo(u, b.x, b.y); }
+          if (!b) nothingKnown(u);
+          else if (u.huntTarget !== b || (!u.dest && !u.needPath)) { u.huntTarget = b; goTo(u, b.x, b.y); }
         } else if (!u.dest && !u.needPath && Math.hypot(u.x - o.x, u.y - o.y) > 24) goTo(u, o.x, o.y);
       }
     }
@@ -2229,7 +2230,7 @@ function updateAir(u, dt) {
       flyJet(u, t.x, t.y, dt);
     } else if (o.type === 'hunt') {
       const b = nearestEnemyBuilding(u);
-      if (b) flyJet(u, b.x, b.y, dt); else orbit(u, u.x, u.y, dt);
+      if (b) flyJet(u, b.x, b.y, dt); else { nothingKnown(u); orbit(u, u.x, u.y, dt); }
     } else {
       // A jet cannot hover: with nothing to hit near where it was told to wait, it soon flies home.
       if (!o.hold && (u.idleT = (u.idleT || 0) + dt) > 3 && padFor(u)) { setGuard(u); u.order.pad = true; u.staged = G.teams[u.team].auto; u.idleT = 0; }
@@ -2252,10 +2253,21 @@ function updateAir(u, dt) {
     }
   } else if (o.type === 'hunt') {
     const b = nearestEnemyBuilding(u);
-    if (b) flyHeli(u, b.x, b.y, dt);
+    if (b) flyHeli(u, b.x, b.y, dt); else nothingKnown(u);
   } else if (Math.hypot(o.x - u.x, o.y - u.y) > 8) flyHeli(u, o.x, o.y, dt);
 }
 
+// A unit of the player's on the attack with no enemy building left that the player knows of
+// (the rest are still hidden): aircraft fly home (a one-strike sortie ends), ground units go back
+// to wait around the base.
+function nothingKnown(u) {
+  const team = G.teams[u.team];
+  if (!u.alive || team.isAI) return;
+  notify(team, 'unknown', 'Enemy base not located', 20);
+  if (u.cls === 'air') { setGuard(u); u.order.pad = true; u.staged = !u.oneStrike; u.oneStrike = false; return; }
+  const s = scatterSpot(team);
+  setGuard(u, s.x, s.y); u.staged = true; goTo(u, s.x, s.y);
+}
 // An aircraft sent on one strike has landed: it stays on its pad until given another order.
 function strikeOver(u) {
   if (!u.oneStrike) return;
