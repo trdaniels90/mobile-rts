@@ -309,9 +309,9 @@
 
   function drawPlacement(v) {
     const p = G.place;
-    if (p && p.power && p.x !== undefined) {
-      const r = p.power === 'spy' ? POWERS.spy.reveal * CELL : p.power === 'para' ? 40 : 60;
-      v.strokeStyle = '#ff5a4a'; v.lineWidth = 1;
+    if (p && (p.power || p.guard) && p.x !== undefined) {
+      const r = p.guard ? 60 : p.power === 'spy' ? POWERS.spy.reveal * CELL : p.power === 'para' ? 40 : 60;
+      v.strokeStyle = p.guard ? '#5ee060' : '#ff5a4a'; v.lineWidth = 1;
       v.setLineDash([4, 3]); v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.stroke(); v.setLineDash([]);
       v.beginPath(); v.moveTo(p.x - 8, p.y); v.lineTo(p.x + 8, p.y); v.moveTo(p.x, p.y - 8); v.lineTo(p.x, p.y + 8); v.stroke();
       return;
@@ -471,9 +471,18 @@
     refreshPlaceBtn();
     eva('Select target');
   }
+  // Guard: the next tap on the map is the area the selected units hold.
+  function beginGuard(units) {
+    if (!units.length) return;
+    G.place = { guard: units };
+    select([]);
+    ui.placeText.textContent = `${isTouch ? 'Tap' : 'Click'} the area to guard`;
+    ui.placeOk.hidden = true;
+    ui.placebar.hidden = false;
+  }
   function endPlace() { if (G) G.place = null; ui.placebar.hidden = true; ui.placeOk.textContent = 'PLACE'; }
   function ghostAt(w) {
-    if (G.place.power) { G.place.x = w.x; G.place.y = w.y; G.place.ok = true; refreshPlaceBtn(); return; }
+    if (G.place.power || G.place.guard) { G.place.x = w.x; G.place.y = w.y; G.place.ok = true; refreshPlaceBtn(); return; }
     const d = BUILD_DEFS[G.place.type];
     G.place.cx = Math.round(w.x / CELL - d.w / 2);
     G.place.cy = Math.round(w.y / CELL - d.h / 2);
@@ -483,6 +492,12 @@
   function refreshPlaceBtn() { ui.placeOk.disabled = !(G.place && G.place.ok); }
   function confirmPlace() {
     const p = G.place;
+    if (p && p.guard) {
+      const units = p.guard.filter((u) => u.alive);
+      if (p.x === undefined || !units.length) { endPlace(); return; }
+      commandGuard(units, p.x, p.y); marker(p.x, p.y, '#5ee060'); Sound.ack(units[0].cls); endPlace();
+      return;
+    }
     if (p && p.power) {
       if (p.x === undefined) return;
       if (launchPower(G.teams[PLAYER], p.power, p.x, p.y)) { marker(p.x, p.y, '#ff4a3a'); Sound.ack('air'); endPlace(); }
@@ -495,6 +510,7 @@
   }
   function placeTap(w) {
     const p = G.place;
+    if (p.guard) { ghostAt(w); confirmPlace(); return; }
     if (p.power) {
       if (!isTouch || (p.x !== undefined && Math.hypot(w.x - p.x, w.y - p.y) < 30 / cam.z)) { ghostAt(w); confirmPlace(); }
       else ghostAt(w);
@@ -805,7 +821,7 @@
     const bld = one && one.kind === 'bld' && one.team === PLAYER ? one : null;
     const btns = [];
     if (own.some((e) => e.kind === 'unit' && e.def.deploys)) btns.push(['deploy', 'DEPLOY']);
-    if (fighters.length) btns.push(['hunt', 'ATTACK']);
+    if (fighters.length) btns.push(['hunt', 'ATTACK'], ['guard', 'GUARD']);
     if (own.some((e) => e.kind === 'unit')) btns.push(['stop', 'STOP']);
     if (bld) {
       btns.push(['repair', bld.repairing ? 'REPAIRING' : 'REPAIR']);
@@ -829,6 +845,7 @@
       const made = own.filter((u) => u.kind === 'unit' && u.def.deploys).map(deployFob).filter(Boolean);
       if (made.length) select(made.length === 1 ? [made[0]] : []);
     } else if (act === 'hunt') { commandHunt(own.filter((u) => u.kind === 'unit' && (u.def.weapon || u.cls === 'air'))); eva('Attacking enemy base'); Sound.ack('attack'); }
+    else if (act === 'guard') beginGuard(own.filter((u) => u.kind === 'unit' && !u.def.harvester));
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
     else if (act === 'repair' && bld) bld.repairing = !bld.repairing;
     else if (act === 'sell' && bld) {
@@ -941,7 +958,7 @@
   requestAnimationFrame(frame);
 
   // Hook for automated tests.
-  window.__ps = { get G() { return G; }, update, cam, startGame, startProduction, placeStructure, aiFindSpot, canPlace, commandMove, commandHunt, tap, layout };
+  window.__ps = { get G() { return G; }, update, cam, startGame, startProduction, placeStructure, aiFindSpot, canPlace, commandMove, commandHunt, commandGuard, commandStop, tap, layout };
 
   // Version on the menu, and the What's New page with every release.
   $('versionTag').textContent = `Version ${VERSION}`;

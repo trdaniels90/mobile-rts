@@ -661,7 +661,7 @@ function rallyPoint(team) {
 // busy defending, or on a move or attack order, carry on); after that new units go out in batches.
 function launchAll(team) {
   const idle = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.defending && !u.homeward &&
-    u.cls !== 'air' && u.order.type === 'guard');
+    u.cls !== 'air' && u.order.type === 'guard' && !u.order.hold);
   for (const u of idle) { setHunt(u); u.staged = false; }
   if (idle.length) logWave(team.id, idle.length >= 15);
   return idle.length;
@@ -709,7 +709,7 @@ function scramble(team) {
   const intruders = unitsOf(enemyOf(team).id).filter((u) => u.cls === 'air' && !u.def.scripted && isAirborne(u) && mine.some((b) => distTo(u, b) < CELL * 20));
   for (const u of unitsOf(team.id)) {
     if (u.def.fly !== 'jet' || !(u.aam > 0) || u.repairHold || u.retreat) continue;
-    const waiting = u.as === 'landed' && u.order.type === 'guard';
+    const waiting = u.as === 'landed' && u.order.type === 'guard' && !u.order.hold;
     if (!u.scrambled && !waiting && !u.interceptor) continue;
     if (intruders.length) {
       if (u.order.type === 'attack' && u.order.target.alive && isAirborne(u.order.target)) continue;
@@ -753,12 +753,12 @@ function defendBase(team) {
     (nearBase(u, zone) || nearHarv(u, 9) || nearShooter(u)));
   // Only an Ore Truck under fire, away from the base: a few units close to it go to help.
   const truckOnly = threats.length && !threats.some((u) => nearBase(u, zone) || nearShooter(u));
-  const idle = (u) => u.order.type === 'guard' && (nearBase(u, 16) || nearHarv(u, truckOnly ? 16 : 24) || nearShooter(u));
+  const idle = (u) => u.order.type === 'guard' && !u.order.hold && (nearBase(u, 16) || nearHarv(u, truckOnly ? 16 : 24) || nearShooter(u));
   // The computer also recalls attack waves still on its own half of the map; past halfway they press on.
   const ecy = buildingsOf(enemyOf(team).id).find((b) => b.type === 'cy'), own = mine.find((b) => b.type === 'cy');
   const homeHalf = (u) => !ecy || !own || dist(u, own) < dist(u, ecy);
   let army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward &&
-    (u.cls !== 'air' || (!airEmpty(u) && u.order.type === 'guard')) &&
+    (u.cls !== 'air' || (!airEmpty(u) && u.order.type === 'guard' && !u.order.hold)) &&
     (u.defending || idle(u) || (team.isAI && u.cls !== 'air' && !truckOnly && homeHalf(u))));
   if (!threats.length) {
     if (!team.defending || ++team.calm < DEFEND_CALM) return;
@@ -2141,10 +2141,10 @@ function updateAir(u, dt) {
           const a = acquire(u, u.def.weapon2.range, [u.def.weapon2]);
           if (a && Math.abs(angDiff(Math.atan2(a.y - u.y, a.x - u.x), u.face)) < 0.5) { shoot(u, u.def.weapon2, a); u.cd = u.def.weapon2.rof; u.aam--; }
         }
-        if (d < 26) { u.as = 'landed'; u.x = spot.x; u.y = spot.y; u.face = 0; u.rt = 0; if (u.retreat) u.repairHold = true; u.retreat = false; return; }
+        if (d < 26) { u.as = 'landed'; u.x = spot.x; u.y = spot.y; u.face = 0; u.rt = 0; if (u.retreat) u.repairHold = true; u.retreat = false; strikeOver(u); return; }
         flyJet(u, spot.x, spot.y, dt);
       } else {
-        if (d < 3) { u.alt = Math.max(0, u.alt - 20 * dt); if (u.alt <= 0) { u.as = 'landed'; u.rt = 0; if (u.retreat) u.repairHold = true; u.retreat = false; } return; }
+        if (d < 3) { u.alt = Math.max(0, u.alt - 20 * dt); if (u.alt <= 0) { u.as = 'landed'; u.rt = 0; if (u.retreat) u.repairHold = true; u.retreat = false; strikeOver(u); } return; }
         flyHeli(u, spot.x, spot.y, dt);
       }
       return;
@@ -2184,7 +2184,7 @@ function updateAir(u, dt) {
       if (b) flyJet(u, b.x, b.y, dt); else orbit(u, u.x, u.y, dt);
     } else {
       // A jet cannot hover: with nothing to hit near where it was told to wait, it soon flies home.
-      if ((u.idleT = (u.idleT || 0) + dt) > 3 && padFor(u)) { setGuard(u); u.order.pad = true; u.staged = G.teams[u.team].auto; u.idleT = 0; }
+      if (!o.hold && (u.idleT = (u.idleT || 0) + dt) > 3 && padFor(u)) { setGuard(u); u.order.pad = true; u.staged = G.teams[u.team].auto; u.idleT = 0; }
       orbit(u, o.x, o.y, dt);
     }
     if (t) u.idleT = 0;
@@ -2208,6 +2208,12 @@ function updateAir(u, dt) {
   } else if (Math.hypot(o.x - u.x, o.y - u.y) > 8) flyHeli(u, o.x, o.y, dt);
 }
 
+// An aircraft sent on one strike has landed: it stays on its pad until given another order.
+function strikeOver(u) {
+  if (!u.oneStrike) return;
+  u.oneStrike = false;
+  setGuard(u); u.order.pad = true; u.staged = false;
+}
 function flyHeli(u, x, y, dt) {
   const ang = Math.atan2(y - u.y, x - u.x), d = Math.hypot(x - u.x, y - u.y);
   u.face = turnToward(u.face, ang, 4 * dt);
@@ -2644,13 +2650,37 @@ function commandAttack(units, target) {
     if (u.cls === 'air' && u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff';
   }
 }
+// Attack: ground units hunt until told otherwise; the player's aircraft fly one strike (until their
+// weapons are spent or they are badly hurt), then land and stay home.
 function commandHunt(units) {
-  for (const u of units) if (!u.def.harvester) { setHunt(u); u.staged = false; u.defending = false; if (u.cls === 'air' && u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff'; }
+  for (const u of units) {
+    if (u.def.harvester) continue;
+    setHunt(u); u.staged = false; u.defending = false;
+    if (u.cls === 'air') { u.oneStrike = true; if (u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff'; }
+  }
 }
+// Guard: hold an area until further notice. Nothing pulls them away (auto attack, base defence,
+// scrambles); aircraft go home only to rearm or for repairs, then fly back to it.
+function commandGuard(units, x, y) {
+  const spots = formationSpots(units.length, x, y);
+  units.forEach((u, i) => {
+    if (u.def.harvester) return;
+    const s = u.cls === 'air' ? { x, y } : spots[i];
+    setGuard(u, s.x, s.y); u.order.hold = true;
+    u.staged = false; u.defending = false; u.homeward = false; u.focus = null; u.oneStrike = false; u.scrambled = false;
+    if (u.cls === 'air') { if (u.as === 'landed' && !airEmpty(u) && !u.repairHold) u.as = 'takeoff'; }
+    else goTo(u, s.x, s.y);
+  });
+}
+// Stop: every order dropped, back to what a new unit does: ground units wait around the base,
+// aircraft on their pad, both ready for auto attack; Ore Trucks go back to harvesting.
 function commandStop(units) {
   for (const u of units) {
-    if (u.def.harvester) { u.hs = 'manual'; u.dest = null; u.path = null; continue; }
-    setGuard(u); u.dest = null; u.path = null; u.staged = false; u.defending = false;
+    u.target = null; u.focus = null; u.huntTarget = null; u.defending = false; u.homeward = false; u.oneStrike = false;
+    if (u.def.harvester) { u.hs = 'seek'; u.hcell = -1; u.dest = null; u.path = null; continue; }
+    if (u.cls === 'air') { setGuard(u); u.order.pad = true; u.staged = true; u.scrambled = false; continue; }
+    const s = scatterSpot(G.teams[u.team]);
+    setGuard(u, s.x, s.y); u.staged = true; goTo(u, s.x, s.y);
   }
 }
 

@@ -10,6 +10,11 @@ const RELEASES = [
       '"Insufficient funds" at most every 30 seconds, and "Unit ready" no longer for every unit of a batch.',
       'A new tip: "More ore trucks needed" when you have fewer than two Ore Trucks per refinery, a War Factory and the money for one, at most every 90 seconds. The computer keeps two per refinery, and that is most of why its economy pulls ahead.',
     ]],
+    ['Orders', [
+      'A new GUARD button: tap it, then tap the area to hold. The units guard it until you give them another order: auto attack and base defence leave them where they are, and aircraft go home only to rearm or for repairs, then fly straight back.',
+      'ATTACK sends aircraft on one strike: they hit what they find, fly home once their weapons are spent (or if badly damaged) and stay there. Ground units hunt as before.',
+      'STOP drops every order: units go back to what they do when first built. Ground units wait around the base and aircraft on their pad, both ready for auto attack, and Ore Trucks go back to harvesting.',
+    ]],
     ['The computer', [
       'More time to build up: on Easy and Normal the first attack wave comes at 6:00 instead of 4:30. On Normal, raids on your Ore Trucks start around 6:30 and big pushes from 9:00; on Easy, raids start around 7:00.',
     ]],
