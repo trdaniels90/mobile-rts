@@ -754,7 +754,8 @@ function defendBase(team) {
     (nearBase(u, zone) || nearHarv(u, 9) || nearShooter(u)));
   // Only an Ore Truck under fire, away from the base: a few units close to it go to help.
   const truckOnly = threats.length && !threats.some((u) => nearBase(u, zone) || nearShooter(u));
-  const idle = (u) => u.order.type === 'guard' && !u.order.hold && (nearBase(u, 16) || nearHarv(u, truckOnly ? 16 : 24) || nearShooter(u));
+  // Aircraft answer an Ore Truck's call from much further away: they get there in seconds.
+  const idle = (u) => u.order.type === 'guard' && !u.order.hold && (nearBase(u, 16) || nearHarv(u, u.cls === 'air' ? 48 : truckOnly ? 16 : 24) || nearShooter(u));
   // The computer also recalls attack waves still on its own half of the map; past halfway they press on.
   const ecy = buildingsOf(enemyOf(team).id).find((b) => b.type === 'cy'), own = mine.find((b) => b.type === 'cy');
   const homeHalf = (u) => !ecy || !own || dist(u, own) < dist(u, ecy);
@@ -762,10 +763,11 @@ function defendBase(team) {
     (u.cls !== 'air' || (!airEmpty(u) && u.order.type === 'guard' && !u.order.hold)) &&
     (u.defending || idle(u) || (team.isAI && u.cls !== 'air' && !truckOnly && homeHalf(u))));
   if (!threats.length) {
-    if (!team.defending || ++team.calm < DEFEND_CALM) return;
+    if (++team.calm < DEFEND_CALM) return;
     team.defending = false;
-    for (const u of army) {
-      if (!u.defending) continue;
+    // Everyone pulled into a defence (aircraft that turned on a shooter too) goes back once its fight is over.
+    for (const u of unitsOf(team.id)) {
+      if (!u.defending || !u.post || (u.target && u.target.alive)) continue;
       u.defending = false;
       const h = u.post;
       setGuard(u, h.x, h.y); u.staged = h.staged; u.order.pad = h.pad;
@@ -782,13 +784,14 @@ function defendBase(team) {
     (team.attackFrom = team.attackFrom || []).push(Math.atan2(t.y - cy.y, t.x - cy.x));
     if (team.attackFrom.length > 8) team.attackFrom.shift();
   }
-  // Either side sends only what it takes: those already defending, then the nearest others,
-  // until they are worth half again as much as the raiders (a few at most for a truck).
+  // Either side sends only what it takes: those already defending, then aircraft (they get there
+  // first), then the nearest others, until they are worth half again as much as the raiders
+  // (a few at most for a truck). Ground units make up whatever the aircraft at hand cannot.
   const worth = (u) => u.def.cost || 300;
   const need = threats.reduce((a, t) => a + worth(t), 0) * 1.5;
   const near = (u) => Math.min(...threats.map((t) => Math.hypot(u.x - t.x, u.y - t.y)));
   army = army.filter((u) => threats.some((t) => canTarget(u, t)));
-  army.sort((a, b) => (b.defending - a.defending) || near(a) - near(b));
+  army.sort((a, b) => (b.defending - a.defending) || ((b.cls === 'air') - (a.cls === 'air')) || near(a) - near(b));
   let got = 0, picked = [];
   for (const u of army) {
     if (got >= need || (truckOnly && picked.length >= 4)) { if (!u.defending) continue; }
@@ -799,6 +802,7 @@ function defendBase(team) {
     let best = null, bd = CELL * 32;
     for (const t of threats) { const d = Math.hypot(u.x - t.x, u.y - t.y); if (d < bd && canTarget(u, t)) { bd = d; best = t; } }
     if (!best) continue;
+    if (u.cls === 'air' && u.as === 'landed') { u.as = 'takeoff'; u.repairHold = false; }   // part-rearmed or part-repaired: good enough for a fight at home
     if (!u.defending) {
       // Remember where to return: the guard spot, or for attack groups already out, the rally point.
       const r = rallyPoint(team), g = u.order.type === 'guard';
@@ -1276,6 +1280,22 @@ function damage(t, amount, wh, attacker, from) {
     const busy = c && c.alive && c.kind === 'unit' && distTo(t, c) <= (canHit(t.def.weapon, c) ? t.def.weapon : t.def.weapon2).range;
     if (!busy) { t.target = attacker; t.avenge = attacker; }
     if (t.group) t.group.hitBy = attacker;   // the rest of the wave learns where the fire comes from
+  }
+  // Aircraft shot at, parked or flying, turn on the shooter too. A parked one takes off if it has
+  // any ammunition, even while waiting on repairs: sitting on a pad under fire only gets it killed.
+  // Base defence brings it home once that fight is over; aircraft guarding an area keep to it.
+  if (attacker && attacker.alive && attacker.team !== t.team && t.kind === 'unit' && t.alive && t.cls === 'air' && !t.def.scripted &&
+      (t.order.type === 'guard' || t.order.type === 'hunt') && !airEmpty(t) && !t.retreat && canTarget(t, attacker)) {
+    const parked = t.as === 'landed';
+    if (parked || !(t.target && t.target.alive && t.target.kind === 'unit')) {
+      if (t.order.type === 'guard' && !t.order.hold) {
+        if (!t.defending) t.post = { x: t.order.x, y: t.order.y, staged: t.staged, pad: !!t.order.pad };
+        t.defending = true; t.staged = false;
+        setGuard(t, attacker.x, attacker.y);
+      }
+      if (!(t.target && t.target.alive && t.target.kind === 'unit')) t.target = attacker;
+      if (parked) { t.as = 'takeoff'; t.repairHold = false; }
+    }
   }
   if (t.hp <= 0) kill(t, attacker, wh, from || attacker);
 }
@@ -2134,7 +2154,7 @@ function updateAir(u, dt) {
   // Badly damaged: break off and fly home, then stay on the pad until fully repaired. Short of
   // money, repairs pause until the Ore Trucks bring more in. A direct player order sends it out
   // early; aircraft already on one keep to it.
-  if (!u.retreat && u.hp < u.maxHp * 0.35 && (u.order.type === 'hunt' || u.order.type === 'guard') && padFor(u)) {
+  if (!u.retreat && !u.defending && u.hp < u.maxHp * 0.35 && (u.order.type === 'hunt' || u.order.type === 'guard') && padFor(u)) {
     u.retreat = true;
     if (u.team === PLAYER) notify(G.teams[u.team], 'retreat', 'Aircraft returning for repairs', 10);
   }
