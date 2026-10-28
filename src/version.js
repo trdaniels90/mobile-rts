@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.28.9', date: '28 October 2026', title: 'Touch controls fix', groups: [
+    ['', [
+      'Fixed the map getting stuck zooming in and out whenever you dragged it, with taps doing nothing and buildings impossible to place, even in a new game, until the app was restarted. It could happen after a notification, an alert or a swipe from the edge of the screen in the middle of a touch.',
+    ]],
+  ] },
   { v: '2026.10.28.8', date: '28 October 2026', title: 'No more jet rushes', groups: [
     ['', [
       'The Airfield now needs a Radar Dome.',
