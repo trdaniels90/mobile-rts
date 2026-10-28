@@ -15,7 +15,7 @@
     eva: $('eva'), selbar: $('selbar'), selName: $('selName'), selHp: $('selHp'), selBtns: $('selBtns'),
     placebar: $('placebar'), placeText: $('placeText'), placeOk: $('placeOk'), placeCancel: $('placeCancel'),
     menu: $('menu'), menuTitle: $('menuTitle'), menuSub: $('menuSub'),
-    startBtn: $('startBtn'), resumeBtn: $('resumeBtn'), boxBtn: $('boxBtn'),
+    startBtn: $('startBtn'), resumeBtn: $('resumeBtn'), quitBtn: $('quitBtn'), boxBtn: $('boxBtn'),
   };
   const isTouch = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   document.body.classList.toggle('touch', isTouch);
@@ -836,6 +836,8 @@
     ui.menu.hidden = false;
     ui.menu.dataset.mode = mode;
     ui.resumeBtn.hidden = mode !== 'pause';
+    ui.quitBtn.hidden = mode !== 'pause';
+    disarmQuit();
     if (G) G.paused = true;
     if (mode === 'start') { ui.menuTitle.textContent = 'Red Horizon'; ui.menuSub.textContent = 'Choose your side, commander.'; ui.startBtn.textContent = 'Start mission'; }
     if (mode === 'pause') { ui.menuTitle.textContent = 'Paused'; ui.menuSub.textContent = 'Mission time ' + fmt(G.t); ui.startBtn.textContent = 'New mission'; }
@@ -885,6 +887,18 @@
     }, 30);
   });
   ui.resumeBtn.addEventListener('click', hideMenu);
+  // Quit mission: tap twice (no dialogs, which some hosts block). The match is reported as quit,
+  // with its debrief numbers so far, and the menu comes back over a fresh battlefield.
+  let quitArmed = null;
+  function disarmQuit() { clearTimeout(quitArmed); quitArmed = null; ui.quitBtn.textContent = 'Quit mission'; }
+  ui.quitBtn.addEventListener('click', () => {
+    if (!quitArmed) { ui.quitBtn.textContent = 'Tap again to quit'; quitArmed = setTimeout(disarmQuit, 3000); return; }
+    disarmQuit();
+    Report.quit();
+    endPlace();
+    startGame();
+    showMenu('start');
+  });
   setInterval(() => { if (!ui.menu.hidden) $('audioStatus').textContent = 'Sound: ' + Sound.status(); }, 500);
   document.addEventListener('visibilitychange', () => { if (document.hidden && G && !G.paused && !G.over) showMenu('pause'); });
 

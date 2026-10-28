@@ -226,6 +226,10 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 .audio button[aria-pressed="true"]::before { content: '● '; color: var(--green); }
 .audio .track { grid-column: 1 / -1; color: var(--ink); }
 .audio .track span { color: var(--amber); }
+.quit-btn {
+  height: 40px; font-family: var(--font-stencil); font-size: 16px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: #f1d9d4; background: linear-gradient(180deg, #7a2a22, #4a1612); border: 2px solid; border-color: #b0493c #200806 #200806 #b0493c;
+}
 .update-btn {
   height: 44px; font-weight: 700; font-size: 16px; color: #06210a;
   background: linear-gradient(180deg, #7fe07a, #2f9a35); border: 2px solid; border-color: #b9f5b2 #0f4413 #0f4413 #b9f5b2;

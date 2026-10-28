@@ -77,9 +77,15 @@ const Report = (() => {
   function end(won) {
     try { return finish(won ? 'win' : 'loss', G.over ? G.over.t : G.t, stats()); } catch (_) { return Promise.resolve(null); }
   }
-  // Leaving a match before it is decided (a new mission from the pause menu).
+  // Leaving a match before it is decided (Quit mission, or a new mission from the pause menu),
+  // with the debrief numbers so far.
   function quit() {
-    try { if (match && !match.ended) finish('quit', G ? G.t : 0, null); } catch (_) {}
+    try {
+      if (!match || match.ended) return;
+      let s = null;
+      try { s = stats(); } catch (_) {}
+      finish('quit', G ? G.t : 0, s);
+    } catch (_) {}
   }
   // The heartbeat lets the stats page count who is playing right now.
   setInterval(() => {

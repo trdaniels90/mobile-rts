@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.28.5', date: '28 October 2026', title: 'Quit mission', groups: [
+    ['', [
+      'A Quit mission button on the pause menu: tap it twice to leave a mission and go back to the main menu.',
+      'A mission you quit, or leave for a new one, now reports how far it got (the debrief numbers so far), so it counts in the match data instead of showing as abandoned.',
+    ]],
+  ] },
   { v: '2026.10.28.4', date: '28 October 2026', title: 'Separate aircraft queues', groups: [
     ['', [
       'Helicopters and jets have their own build queues: the Helipad and the Airfield each build on their own, so you can build one of each at the same time. The computer does too.',
