@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.28.11', date: '28 October 2026', title: 'Never miss an update', groups: [
+    ['', [
+      'After an update, What\'s New on the menu wears a NEW badge and glows until you have read the notes.',
+      'The menu names the latest update under the version number: tap it to read what changed.',
+    ]],
+  ] },
   { v: '2026.10.28.10', date: '28 October 2026', title: 'The computer has to find you', groups: [
     ['', [
       'The computer now knows only what it has seen, just like you. When its first-attack time comes it scouts for your base, with its Spy Plane, a helicopter or its fastest unit, and only attacks once it has found you.',
