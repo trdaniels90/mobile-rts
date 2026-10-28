@@ -201,7 +201,7 @@ const DIFFICULTY = {
       econ: { fast: true, refineries: 3, trucks: 6, truckFirst: true } } },
   hard:   { label: 'Hard',   income: 1.35, speed: 1.25, credits: 12000,
     ai: { wave: [6, 12], big: [12, 16], bigChance: 0.35,
-      raidFrom: 180, raidGap: [75, 130], firstWave: 0, bigFrom: 0, waveGap: 0, targets: 'weak', strike: ['para', 'bomb'], defMax: 12, aa: 2, aaMax: 5, guard: ['outpost', 'refinery'],
+      raidFrom: 180, raidGap: [75, 130], firstWave: 240, bigFrom: 0, waveGap: 0, targets: 'weak', strike: ['para', 'bomb'], defMax: 12, aa: 2, aaMax: 5, guard: ['outpost', 'refinery'],
       adapt: true, homeGuard: 5, interceptors: 2, queue: 3,
       econ: { fast: true, refineries: 5, trucks: 10, truckFirst: true } } },
 };

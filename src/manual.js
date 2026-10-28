@@ -164,10 +164,11 @@ const Manual = (() => {
       <p>The computer plays by your rules: the same buildings, costs and units. How it fights depends on the difficulty.</p>
       <table class="fm-table">
         <tr><th></th><th>Easy</th><th>Normal</th><th>Hard</th></tr>
-        <tr><td>First attack</td><td>At 6 minutes</td><td>At 6 minutes; big pushes from 9</td><td>As soon as it is ready</td></tr>
+        <tr><td>Finding you</td><td colspan="3">It knows only what it has seen, like you: when its first-attack time comes it scouts for your base with a Spy Plane, a helicopter or its fastest unit, and attacks once it has found you</td></tr>
+        <tr><td>First attack</td><td>After 6 minutes</td><td>After 6 minutes; big pushes from 9</td><td>After 4 minutes</td></tr>
         <tr><td>Attack waves</td><td>4 to 7 units</td><td>5 to 10, big pushes of 10 to 13</td><td>6 to 12, big pushes of 12 to 16</td></tr>
         <tr><td>Targets</td><td>Your Construction Yard</td><td>A mix: yard, refineries, power, Outposts</td><td>Your weakest valuable buildings</td></tr>
-        <tr><td>Raids</td><td>Rare, from about 7 minutes</td><td>From about 6½ minutes</td><td>From about 3 minutes</td></tr>
+        <tr><td>Raids</td><td>Rare, from about 7 minutes</td><td>From about 6½ minutes</td><td>Once it has found you</td></tr>
         <tr><td>Defences</td><td>Up to 4</td><td>Up to 8, plus AA</td><td>Up to 12, plus AA</td></tr>
         <tr><td>Against aircraft</td><td>No special answer</td><td>More anti-air troops and fighters, AA where you strike</td><td>The same, in greater numbers</td></tr>
       </table>` },
