@@ -2101,7 +2101,7 @@ function updateAir(u, dt) {
       if (team.credits >= cost) {
         u.repairing = true;
         if ((u.repT = (u.repT || 0) + dt) >= 0.25) { u.repT = 0; team.credits -= cost; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.02); }
-      } else notify(team, 'funds', 'Insufficient funds', 8);
+      } else notify(team, 'funds', 'Insufficient funds', 30);
     }
     if (u.repairHold && u.hp >= u.maxHp) u.repairHold = false;
     // Aircraft told to wait on their pad stay parked until auto attack, an order or a raid sends them up.
@@ -2314,7 +2314,7 @@ function updateBuilding(b, dt) {
       const heal = b.maxHp * REPAIR_STEP, cost = Math.max(1, b.def.cost * 0.5 * REPAIR_STEP);
       if (b.hp >= b.maxHp) b.repairing = false;
       else if (team.credits >= cost) { team.credits -= cost; b.hp = Math.min(b.maxHp, b.hp + heal); }
-      else { b.repairing = false; notify(team, 'funds', 'Insufficient funds', 4); }
+      else { b.repairing = false; notify(team, 'funds', 'Insufficient funds', 30); }
     }
   }
   // Smoke and fire on damaged structures; steam from power plants.
@@ -2454,12 +2454,12 @@ function updateProduction(team, dt) {
     const def = defOf(item.type);
     const dp = Math.min(dt * speed * producerBoost(team, def) / buildTime(def), 1 - item.progress);
     const cost = def.cost * dp;
-    if (team.credits < cost) { item.stalled = true; notify(team, 'funds', 'Insufficient funds', 8); continue; }
+    if (team.credits < cost) { item.stalled = true; notify(team, 'funds', 'Insufficient funds', 30); continue; }
     item.stalled = false;
     team.credits -= cost; item.spent += cost; item.progress += dp;
     if (item.progress >= 0.9999) {
       if (cat === 'structure') { item.ready = true; item.progress = 1; notify(team, 'cc', 'Construction complete', 0.5); }
-      else { team.queues[cat].splice(team.queues[cat].indexOf(item), 1); spawnUnit(team, item.type); notify(team, 'ur', 'Unit ready', 0.5); }
+      else { team.queues[cat].splice(team.queues[cat].indexOf(item), 1); spawnUnit(team, item.type); notify(team, 'ur', 'Unit ready', 4); }
     }
   }
 }
@@ -2572,8 +2572,19 @@ function logSample() {
   L.samples.push({ t: Math.round(G.t),
     army: G.teams.map((t) => unitsOf(t.id).filter((u) => !u.def.harvester && !u.def.scripted).reduce((a, u) => a + u.def.cost, 0)),
     income: G.teams.map((t) => { const h = t.stats.harvested, d = h - L.lastH[t.id]; L.lastH[t.id] = h; return Math.round(d * 60 / Math.max(1, G.t - (L.lastT || 0))); }),
-    blds: G.teams.map((t) => buildingsOf(t.id).length) });
+    blds: G.teams.map((t) => buildingsOf(t.id).length),
+    refs: G.teams.map((t) => buildingsOf(t.id).filter((b) => b.type === 'refinery').length),
+    trucks: G.teams.map((t) => unitsOf(t.id).filter((u) => u.def.harvester).length) });
   L.lastT = G.t;
+}
+// The announcer's nudge to grow the economy: fewer than two Ore Trucks per refinery, a War Factory
+// to build one, none on the way and the money for it. The computer keeps two per refinery.
+function adviseTrucks(team) {
+  if (G.t < 120 || G.over || !available(team, 'harv')) return;
+  const refs = buildingsOf(team.id).filter((b) => b.type === 'refinery').length;
+  const trucks = unitsOf(team.id).filter((u) => u.def.harvester).length;
+  if (!refs || trucks >= refs * 2 || team.queues.vehicle.some((i) => i.type === 'harv') || team.credits < UNIT_DEFS.harv.cost) return;
+  notify(team, 'trucks', 'More ore trucks needed', 90);
 }
 function logEvent(team, kind) { G.log.events.push({ t: Math.round(G.t), team, kind }); }
 function logWave(team, big) {
@@ -2697,7 +2708,7 @@ function update(dt) {
   if ((T.ore -= dt) <= 0) { T.ore = 2; growOre(); }
   if ((T.ai -= dt) <= 0) { T.ai = 1; if (!G.over) for (const team of G.teams) if (team.isAI) aiThink(team); }
   if ((T.win -= dt) <= 0) { T.win = 1; checkWin(); if (!G.over) launchGroups(); }
-  if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); }
+  if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); adviseTrucks(G.teams[PLAYER]); }
   for (const fx of G.effects) {
     if (fx.type === 'crash') updateCrash(fx, dt);
     else if (fx.type === 'frag') updateFrag(fx, dt);

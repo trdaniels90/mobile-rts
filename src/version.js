@@ -4,6 +4,16 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.28.6', date: '28 October 2026', title: 'A calmer announcer', groups: [
+    ['Announcer', [
+      'She says "Training" or "Building" when a queue starts, not for every unit you add to it, and repeated taps no longer make her repeat herself.',
+      '"Insufficient funds" at most every 30 seconds, and "Unit ready" no longer for every unit of a batch.',
+      'A new tip: "More ore trucks needed" when you have fewer than two Ore Trucks per refinery, a War Factory and the money for one, at most every 90 seconds. The computer keeps two per refinery, and that is most of why its economy pulls ahead.',
+    ]],
+    ['Match data', [
+      'The match data now records each side\'s refineries and Ore Trucks through the game.',
+    ]],
+  ] },
   { v: '2026.10.28.5', date: '28 October 2026', title: 'Quit mission', groups: [
     ['', [
       'A Quit mission button on the pause menu: tap it twice to leave a mission and go back to the main menu.',

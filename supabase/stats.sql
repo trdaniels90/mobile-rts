@@ -92,7 +92,7 @@ select measure,
   case when y = e then 'even' when (y < e) = low then 'you' else 'enemy' end as ahead
 from m order by ord;
 
--- Picked match strength: Army value, income per minute (averaged over the last minute) and buildings of both sides every 15 seconds through the match. Reads public.matches.stats.
+-- Picked match strength: Army value, income per minute (averaged over the last minute), buildings, Ore Trucks and refineries of both sides every 15 seconds through the match (trucks and refineries from version 2026.10.28.6). Reads public.matches.stats.
 with pick as (
   select m.*, coalesce((m.stats->>'player')::int, 0) as pl
   from public.matches m
@@ -101,12 +101,14 @@ with pick as (
   select (x.v->>'t')::int as t, x.n,
     (x.v->'army'->>p.pl)::int as army_you, (x.v->'army'->>(1 - p.pl))::int as army_enemy,
     (x.v->'income'->>p.pl)::int as inc_you, (x.v->'income'->>(1 - p.pl))::int as inc_enemy,
-    (x.v->'blds'->>p.pl)::int as blds_you, (x.v->'blds'->>(1 - p.pl))::int as blds_enemy
+    (x.v->'blds'->>p.pl)::int as blds_you, (x.v->'blds'->>(1 - p.pl))::int as blds_enemy,
+    (x.v->'trucks'->>p.pl)::int as trucks_you, (x.v->'trucks'->>(1 - p.pl))::int as trucks_enemy,
+    (x.v->'refs'->>p.pl)::int as refs_you, (x.v->'refs'->>(1 - p.pl))::int as refs_enemy
   from pick p cross join lateral jsonb_array_elements(coalesce(p.stats->'log'->'samples', '[]'::jsonb)) with ordinality as x(v, n)
 )
 select t, (t / 60) || ':' || lpad(mod(t, 60)::text, 2, '0') as clock, army_you, army_enemy,
   round(avg(inc_you) over w)::int as income_you, round(avg(inc_enemy) over w)::int as income_enemy,
-  blds_you, blds_enemy
+  blds_you, blds_enemy, trucks_you, trucks_enemy, refs_you, refs_enemy
 from s window w as (order by n rows between 3 preceding and current row)
 order by n;
 

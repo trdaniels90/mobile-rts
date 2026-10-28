@@ -44,6 +44,14 @@
     clearTimeout(evaTimer);
     evaTimer = setTimeout(() => { ui.eva.hidden = true; }, 2400);
   }
+  // Lines the player can trigger over and over by tapping: at most once every few seconds.
+  const calmUntil = {};
+  function evaCalm(msg, secs) {
+    const now = performance.now();
+    if (now < (calmUntil[msg] || 0)) return;
+    calmUntil[msg] = now + secs * 1000;
+    eva(msg);
+  }
   hooks.eva = eva;
   hooks.gameOver = (won) => {
     Report.end(won);
@@ -668,13 +676,15 @@
       if (powerReady(team, key)) beginTarget(key); else eva('Not available');
       return;
     }
+    // Training / Building is said when a queue starts, not for every unit added to it.
+    const cat = catOf(type), wasBusy = cat === 'structure' ? !!team.queues.structure : team.queues[cat].length > 0;
     const res = startProduction(team, type);
     if (res === 'place') beginPlace(type);
-    else if (res === 'busy') eva('Unable to comply. Building in progress');
-    else if (res === 'busy-same') eva('Building');
-    else if (res === 'full') eva('Queue is full');
+    else if (res === 'busy') evaCalm('Unable to comply. Building in progress', 4);
+    else if (res === 'busy-same') evaCalm('Building', 6);
+    else if (res === 'full') evaCalm('Queue is full', 4);
     else if (res) eva(res);
-    else eva(catOf(type) === 'infantry' ? 'Training' : 'Building');
+    else if (!wasBusy) evaCalm(cat === 'infantry' ? 'Training' : 'Building', 6);
   }
   function cameoCancel(type) {
     if (!G) return;

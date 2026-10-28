@@ -36,6 +36,7 @@ EVA = {
   'radar online': 'Radar online.',
   'radar offline': 'Radar offline.',
   'pilot recovered': 'Pilot recovered.',
+  'more ore trucks needed': 'More ore trucks needed.',
 }
 ACKS = {
   'inf': ['Acknowledged.', 'Yes sir.', 'Moving out.', 'Affirmative.', 'Right away.'],
