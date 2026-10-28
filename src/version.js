@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.28.10', date: '28 October 2026', title: 'The computer has to find you', groups: [
+    ['', [
+      'The computer now knows only what it has seen, just like you. When its first-attack time comes it scouts for your base, with its Spy Plane, a helicopter or its fastest unit, and only attacks once it has found you.',
+      'Hard waits 4 minutes before its first attack, and its raids wait until it has found you, so there is time to set up. After that it plays as hard as before.',
+      'Firing at the computer\'s Spy Plane, Paratroopers transport or bomber gives away where your shooters stand, as it already did the other way round.',
+    ]],
+  ] },
   { v: '2026.10.28.9', date: '28 October 2026', title: 'Touch controls fix', groups: [
     ['', [
       'Fixed the map getting stuck zooming in and out whenever you dragged it, with taps doing nothing and buildings impossible to place, even in a new game, until the app was restarted. It could happen after a notification, an alert or a swipe from the edge of the screen in the middle of a touch.',
