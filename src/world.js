@@ -1278,7 +1278,9 @@ function damage(t, amount, wh, attacker, from) {
   if (attacker && attacker.alive && attacker.team !== t.team && t.kind === 'unit' && t.alive && t.cls !== 'air' && !t.def.harvester &&
       (t.order.type === 'guard' || t.order.type === 'hunt') && t.target !== attacker && canTarget(t, attacker)) {
     const c = t.target;
-    const busy = c && c.alive && c.kind === 'unit' && distTo(t, c) <= (canHit(t.def.weapon, c) ? t.def.weapon : t.def.weapon2).range;
+    // (its target may have taken off since it was picked, out of reach of every weapon it has)
+    const cw = c && (canHit(t.def.weapon, c) ? t.def.weapon : t.def.weapon2 && canHit(t.def.weapon2, c) ? t.def.weapon2 : null);
+    const busy = c && c.alive && c.kind === 'unit' && cw && distTo(t, c) <= cw.range;
     if (!busy) { t.target = attacker; t.avenge = attacker; }
     if (t.group) t.group.hitBy = attacker;   // the rest of the wave learns where the fire comes from
   }
@@ -1786,7 +1788,8 @@ function updateUnit(u, dt) {
 }
 
 function engage(u, t, dt) {
-  const w = canHit(u.def.weapon, t) ? u.def.weapon : u.def.weapon2;
+  const w = canHit(u.def.weapon, t) ? u.def.weapon : u.def.weapon2 && canHit(u.def.weapon2, t) ? u.def.weapon2 : null;
+  if (!w) { u.target = null; return; }   // e.g. a helicopter that took off out of a rifleman's reach
   const d = distTo(u, t);
   const ang = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
   if (d <= w.range) {

@@ -20,6 +20,9 @@ const RELEASES = [
       'Jets and helicopters are the first to answer when your base or an Ore Truck is attacked, and come from further away to help a truck. Only as many go as the fight needs, counting each aircraft as a quarter of its price (one helicopter is no match for a squad of infantry); ground units make up the rest if there are not enough aircraft around.',
       'Aircraft shoot back: one that is shot at turns on the shooter, and one parked on its pad takes off to fight instead of sitting there, even half-rearmed or waiting on repairs. Once the fight is over they fly home.',
     ]],
+    ['Fixes', [
+      'Fixed the game freezing when a unit shot at another while its own target, an aircraft, had just taken off out of its reach.',
+    ]],
     ['The computer', [
       'More time to build up: on Easy and Normal the first attack wave comes at 6:00 instead of 4:30. On Normal, raids on your Ore Trucks start around 6:30 and big pushes from 9:00; on Easy, raids start around 7:00.',
     ]],
