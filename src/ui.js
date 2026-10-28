@@ -310,7 +310,7 @@
   function drawPlacement(v) {
     const p = G.place;
     if (p && (p.power || p.guard) && p.x !== undefined) {
-      const r = p.guard ? 60 : p.power === 'spy' ? POWERS.spy.reveal * CELL : p.power === 'para' ? 40 : 60;
+      const r = p.guard ? Math.max(...p.guard.filter((u) => u.alive).map(guardReach), CELL) : p.power === 'spy' ? POWERS.spy.reveal * CELL : p.power === 'para' ? 40 : 60;
       v.strokeStyle = p.guard ? '#5ee060' : '#ff5a4a'; v.lineWidth = 1;
       v.setLineDash([4, 3]); v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.stroke(); v.setLineDash([]);
       v.beginPath(); v.moveTo(p.x - 8, p.y); v.lineTo(p.x + 8, p.y); v.moveTo(p.x, p.y - 8); v.lineTo(p.x, p.y + 8); v.stroke();

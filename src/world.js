@@ -585,11 +585,12 @@ function canHit(w, t) {
 }
 function canTarget(u, t) { return canHit(u.def.weapon, t) || canHit(u.def.weapon2, t); }
 
-function acquire(src, range, weapons) {
+function acquire(src, range, weapons, visible) {
   let best = null, bs = Infinity;
   for (const e of G.entities) {
     if (!e.alive || e.team === src.team || e.sellT > 0) continue;
     if (!weapons.some((w) => canHit(w, e))) continue;
+    if (visible && !visible(e)) continue;
     const d = distTo(src, e);
     if (d > range) continue;
     let score = d;
@@ -916,6 +917,16 @@ function setGuard(u, x, y) {
   u.order = { type: 'guard', x: x === undefined ? u.x : x, y: y === undefined ? u.y : y };
   u.target = null; u.groupSpeed = 0; u.group = null; u.raider = false;
 }
+// How far from its spot a unit on a Guard order goes after enemies: aircraft by their sight (jets
+// see further), ground units a little past theirs, and long-range guns (Artillery, V2) as far as
+// they can shoot. The placement ring shows the same distance.
+function guardReach(u) {
+  const sight = u.def.sight * CELL, w = u.def.weapon;
+  if (u.cls === 'air') return sight * (u.def.fly === 'jet' ? 1.6 : 1);
+  return w && w.range > sight ? w.range : sight * 1.6;
+}
+// What the player's side has in view: there is no fog, only shroud, so anything on explored ground.
+const inPlayerView = (e) => !!G.seen[cellOfPos(e.x, e.y)];
 function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget = null; u.group = null; u.focus = null; }
 
 // ---------------------------------------------------------------------------
@@ -1697,12 +1708,14 @@ function updateUnit(u, dt) {
     } else if (o.type !== 'move') {
       // Whoever fired on this unit is chased a little past its own reach; anything else is
       // dropped once out of sight.
+      // Long-range guns guarding an area fire at whatever their side has in view within reach.
+      const far = o.type === 'guard' && o.hold && w && w.range > sight;
       const avenging = u.target && u.target === u.avenge;
-      const reach = avenging ? Math.max(sight * 1.5, ((u.target.def.weapon && u.target.def.weapon.range) || 0) + CELL * 3) : sight * 1.5;
+      const reach = avenging ? Math.max(sight * 1.5, ((u.target.def.weapon && u.target.def.weapon.range) || 0) + CELL * 3) : far ? w.range : sight * 1.5;
       if (u.target && distTo(u, u.target) > reach) u.target = null;
-      if (o.type === 'guard' && u.target && !avenging && Math.hypot(u.target.x - o.x, u.target.y - o.y) > sight * 1.6) u.target = null;
+      if (o.type === 'guard' && u.target && !avenging && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : sight * 1.6)) u.target = null;
       if (!u.target || u.target.kind === 'bld') {
-        const t = acquire(u, sight, [w, u.def.weapon2]);
+        const t = far ? acquire(u, w.range, [w, u.def.weapon2], u.team === PLAYER ? inPlayerView : null) : acquire(u, sight, [w, u.def.weapon2]);
         if (t && (!u.target || t.kind === 'unit')) u.target = t;
       }
       // Part of a wave: join in on whatever the nearest squadmate is fighting.
