@@ -1259,8 +1259,9 @@ function impact(kind, x, y, inAir) {
 // `from`: where the hit came from (a blast centre or the shooter), for how a soldier falls.
 function damage(t, amount, wh, attacker, from) {
   if (!t.alive) return;
-  // As in Red Alert: whoever fires at the player's Spy Plane gives away where it stands.
-  if (t.type === 'spyplane' && t.team === PLAYER && attacker && attacker.team !== PLAYER) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5);
+  // As in Red Alert: whoever fires at one of the player's support planes (Spy Plane, Paratroopers
+  // transport, bomber) gives away where it stands.
+  if (t.def && t.def.scripted && t.team === PLAYER && attacker && attacker.team !== PLAYER) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5);
   const armor = t.kind === 'bld' ? 'bld' : isAirborne(t) ? 'air' : t.def.armor === 'air' ? 'light' : t.def.armor;
   const mult = WARHEADS[wh][armor];
   if (!mult) return;
@@ -2585,7 +2586,7 @@ function updatePower() {
 // ---------------------------------------------------------------------------
 function revealAround() {
   for (const e of G.entities) {
-    if (!e.alive || e.team !== PLAYER || e.type === 'spyplane') continue;   // the Spy Plane only reveals its target (and who fires at it)
+    if (!e.alive || e.team !== PLAYER || (e.def && e.def.scripted)) continue;   // support planes reveal nothing on the way (see damage)
     const rad = e.kind === 'bld' ? (e.def.sight || 3) + Math.max(e.w, e.h) / 2 : e.def.sight;
     revealCircle(e.x / CELL, e.y / CELL, rad);
   }

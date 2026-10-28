@@ -21,8 +21,8 @@ const RELEASES = [
       'Jets and helicopters are the first to answer when your base or an Ore Truck is attacked, and come from further away to help a truck. Only as many go as the fight needs, counting each aircraft as a quarter of its price (one helicopter is no match for a squad of infantry); ground units make up the rest if there are not enough aircraft around.',
       'Aircraft shoot back: one that is shot at turns on the shooter, and one parked on its pad takes off to fight instead of sitting there, even half-rearmed or waiting on repairs. Once the fight is over they fly home.',
     ]],
-    ['Spy Plane', [
-      'As in Red Alert, the Spy Plane no longer uncovers the map along its flight path: it uncovers its target area, plus a small patch around anything that fires at it on the way, which gives away where the enemy keeps its anti-aircraft.',
+    ['Support planes', [
+      'As in Red Alert, the Spy Plane, the Paratroopers transport and the Bombing Run bomber no longer uncover the map along their flight path. The Spy Plane uncovers its target area, paratroopers see around them once they land, and anything that fires at any of the three on the way shows up in a small patch, which gives away where the enemy keeps its anti-aircraft.',
     ]],
     ['Paratroopers', [
       'A drop is now seven soldiers instead of five: five riflemen and two Rocket Soldiers for the Allies, four riflemen and three Grenadiers for the Soviets.',
