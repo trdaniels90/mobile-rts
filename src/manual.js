@@ -52,7 +52,7 @@ const Manual = (() => {
     pillbox: 'Machine gun', turret: 'Cannon', aagun: 'Flak (aircraft only)', ftur: 'Flamethrower', tesla: 'Tesla bolt', sam: 'SAM missiles (aircraft only)',
   };
   const POWER_TEXT = {
-    spy: 'A fast reconnaissance plane flies over the target and reveals a wide area.',
+    spy: 'A fast reconnaissance plane reveals a wide area around the target. It reveals nothing on the way there, but anything that fires at it gives away where it stands.',
     para: 'A transport drops a squad of seven infantry by parachute wherever you choose.',
     bomb: 'A bomber carpet-bombs a strip of ground along its flight path.',
   };
@@ -101,7 +101,7 @@ const Manual = (() => {
     return `<div class="fm-grid">${Object.entries(POWERS).map(([k, p]) => `<article class="fm-entry">
       <div class="fm-head">${pic('pw:' + k, f)}<div><h3>${p.name}</h3><span class="fm-side both">Airfield power</span></div></div>
       <dl class="fm-stats">${stat('Recharge', `${p.charge} s`)}</dl><p>${POWER_TEXT[k]}</p></article>`).join('')}</div>
-      <p>Powers charge only while you own an Airfield, at half speed on low power. Tap one when it shows READY, then tap the target (on touch screens tap again or press LAUNCH to confirm). AA Guns and SAM sites can shoot the planes down.</p>`;
+      <p>Powers charge only while you own an Airfield, at half speed on low power. Tap one when it shows READY, then tap the target (on touch screens tap again or press LAUNCH to confirm). The planes reveal nothing along their way in. AA Guns and SAM sites can shoot them down, but every gun or missile site that fires at one shows up on your map.</p>`;
   }
 
   // --- The pages ---------------------------------------------------------------------
@@ -129,23 +129,29 @@ const Manual = (() => {
         <tr><td>Select</td><td>Tap a unit; double-tap for all of that type on screen</td><td>Click; double click</td></tr>
         <tr><td>Select a group</td><td>Hold, then drag (or toggle the box button and drag)</td><td>Drag a box</td></tr>
         <tr><td>Move / attack</td><td>Tap the ground / an enemy</td><td>Click the ground / an enemy</td></tr>
+        <tr><td>Orders</td><td colspan="2">ATTACK, GUARD and STOP on the bar that shows your selection (see Your Army in Battle)</td></tr>
         <tr><td>Deselect</td><td>The ✕ button</td><td>Right click or Esc</td></tr>
         <tr><td>Build</td><td>Tap an icon; when READY tap the map, then tap the ghost again</td><td>Click the icon, then the map</td></tr>
         <tr><td>Cancel production</td><td>Hold the icon</td><td>Right click the icon</td></tr>
         <tr><td>Scroll and zoom</td><td>Drag, pinch, or tap the radar</td><td>Arrow keys or WASD, mouse wheel, click the radar</td></tr>
+        <tr><td>Pause</td><td>The Options tab</td><td>P or Space</td></tr>
+        <tr><td>Quit a mission</td><td colspan="2">Pause, then tap Quit mission twice</td></tr>
       </table>
       <p>Select one of your structures to <b>repair</b> it (costs credits and takes about a minute; a quarter of the speed while under fire) or <b>sell</b> it. Select a Mobile Outpost and tap <b>DEPLOY</b> to unpack it.</p>` },
     { ch: 'Basics', title: 'Your Army in Battle', html: () => `
       <h4>Auto Attack</h4>
       <p>New units spread out to open ground around your base and guard it: where they stand is up to chance, so move them to cover the approaches you care about. <b>Auto Attack</b> starts off, and can only be switched on once you have uncovered an enemy building: units sent to attack only go after buildings you have found, so scout first. Switch it on and every idle unit heads out at once, each at its own top speed, fighting whatever it meets on the way; after that, new units go out 10 at a time. The AUTO button shows how many are waiting.</p>
+      <h4>Orders</h4>
+      <p><b>ATTACK</b> sends ground units after the nearest enemy building you have found, fighting whatever they meet; aircraft fly one strike and come home. <b>GUARD</b>: tap it, then the area to hold. The ring shows how far your units will go after enemies (Artillery and V2 launchers fire as far as they can shoot at anything in view), and they hold the area until you give another order, ignoring Auto Attack and calls for help. <b>STOP</b> drops every order: units go back to waiting around the base, aircraft to their pad.</p>
+      <p>Tapping an enemy is a direct order: your units go for that target and nothing else, even if they come under fire on the way. Units guarding or attacking on their own turn on whoever shoots at them.</p>
       <h4>Defending</h4>
-      <p>Units waiting near your base turn on any raiders inside it, or on anything shooting your Ore Trucks, then go back to their posts when it is quiet again.</p>
+      <p>Units waiting near your base turn on any raiders inside it, paratroopers included, or on anything shooting your Ore Trucks, then go back to their posts when it is quiet again. Only as many go as the fight needs, and jets and helicopters go first; ground units make up the rest.</p>
       <h4>Aircraft</h4>
-      <p>Helicopters and jets take off as soon as they are built, attack on their own and fly home to rearm. Badly damaged aircraft come home and wait on their pad until repaired. Jets drop flares when a missile closes in, which can pull it off course. Fighters waiting on the Airfield scramble on their own when enemy aircraft come over your base, and jets with nothing left to hit fly home. A pilot shot down bails out and runs home; get them back to any of your structures for a $100 bonus.</p>
+      <p>New helicopters and jets wait on their pad; with Auto Attack on they take off as soon as they are built, attack on their own and fly home to rearm. An aircraft that is shot at turns on the shooter, and one parked on its pad takes off to fight. Badly damaged aircraft come home and wait on their pad until repaired. Jets drop flares when a missile closes in, which can pull it off course. Fighters waiting on the Airfield scramble on their own when enemy aircraft come over your base, and jets with nothing left to hit fly home. A pilot shot down bails out and runs home; get them back to any of your structures for a $100 bonus.</p>
       <h4>Infantry under fire</h4>
       <p>Soldiers take cover when shot at: some stay up, some crouch (harder to hit) and some go prone (harder still).</p>
       <h4>Expansions</h4>
-      <p>Outposts and outlying refineries are fair game: one auto-attack wave in three raids them, and the computer raids yours.</p>` },
+      <p>Outposts and outlying refineries are fair game: one auto-attack wave in three raids the ones you have found, and the computer raids yours.</p>` },
     { ch: 'Structures', title: 'Base and Economy', html: () => entries(['cy', 'power', 'apower', 'refinery', 'outpost', 'dome']) },
     { ch: 'Structures', title: 'Production', html: () => entries(['barracks', 'factory', 'helipad', 'airfield']) },
     { ch: 'Structures', title: 'Defences', html: () => entries(['pillbox', 'turret', 'aagun', 'ftur', 'tesla', 'sam']) },
@@ -158,18 +164,20 @@ const Manual = (() => {
       <p>The computer plays by your rules: the same buildings, costs and units. How it fights depends on the difficulty.</p>
       <table class="fm-table">
         <tr><th></th><th>Easy</th><th>Normal</th><th>Hard</th></tr>
+        <tr><td>First attack</td><td>At 6 minutes</td><td>At 6 minutes; big pushes from 9</td><td>As soon as it is ready</td></tr>
         <tr><td>Attack waves</td><td>4 to 7 units</td><td>5 to 10, big pushes of 10 to 13</td><td>6 to 12, big pushes of 12 to 16</td></tr>
         <tr><td>Targets</td><td>Your Construction Yard</td><td>A mix: yard, refineries, power, Outposts</td><td>Your weakest valuable buildings</td></tr>
-        <tr><td>Raids</td><td>Rare</td><td>From about 4 minutes</td><td>From about 3 minutes</td></tr>
+        <tr><td>Raids</td><td>Rare, from about 7 minutes</td><td>From about 6½ minutes</td><td>From about 3 minutes</td></tr>
         <tr><td>Defences</td><td>Up to 4</td><td>Up to 8, plus AA</td><td>Up to 12, plus AA</td></tr>
         <tr><td>Against aircraft</td><td>No special answer</td><td>More anti-air troops and fighters, AA where you strike</td><td>The same, in greater numbers</td></tr>
       </table>` },
     { ch: 'Intel', title: 'Field Tips', html: () => `
       <ul class="fm-tips">
-        <li>Build a second refinery early: two Ore Trucks double your income.</li>
+        <li>Build a second refinery early, and keep two Ore Trucks per refinery: extra trucks come from the War Factory. The computer does this, and it is most of why its economy pulls ahead.</li>
+        <li>Scout before you attack: Auto Attack and ATTACK only go after enemy buildings you have found. A Spy Plane, a Ranger or a single soldier will do.</li>
         <li>Put an Outpost and refinery by a distant ore field instead of making trucks drive across the map, then guard it.</li>
         <li>Rocket Soldiers are cheap insurance against aircraft. So are AA Guns and SAM sites placed by your refineries.</li>
-        <li>Artillery and V2 launchers outrange every defence. Park them behind your tanks and let them break a fortified line.</li>
+        <li>Artillery and V2 launchers outrange every defence. Park them behind your tanks and let them break a fortified line, or GUARD a chokepoint with them: on guard they fire as far as they can shoot.</li>
         <li>Fast units like Rangers make good raiders: Ore Trucks are slow, expensive and unarmed.</li>
         <li>Never let your power run short just before a fight: Tesla Coils go dark and production crawls.</li>
         <li>A Radar Dome early lets you see raids coming on the minimap.</li>

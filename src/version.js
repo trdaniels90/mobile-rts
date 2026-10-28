@@ -37,6 +37,9 @@ const RELEASES = [
     ['Match data', [
       'The match data now records each side\'s refineries and Ore Trucks through the game.',
     ]],
+    ['Field Manual', [
+      'Updated for this release: the new orders and controls, how defence and aircraft behave, support planes, the computer\'s new timings, and new field tips.',
+    ]],
   ] },
   { v: '2026.10.28.5', date: '28 October 2026', title: 'Quit mission', groups: [
     ['', [
