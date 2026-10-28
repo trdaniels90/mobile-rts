@@ -65,7 +65,8 @@ select id::text as id, left(id::text, 8) as match, to_char(started_at at time zo
   initcap(side) as side, initcap(coalesce(stats->'teams'->(1 - pl)->>'faction', case side when 'allies' then 'soviets' else 'allies' end)) as enemy_side,
   initcap(coalesce(difficulty, '')) as difficulty,
   case when result = 'win' then 'Mission accomplished' when result = 'loss' then 'Mission failed'
-       when result = 'quit' then 'Left for a new mission' else 'Not finished' end as outcome,
+       when result = 'quit' then 'Quit' when last_seen > now() - interval '2 minutes' then 'In progress'
+       else 'Abandoned (the app was closed)' end as outcome,
   case when duration_s is null then null else (duration_s / 60) || ':' || lpad(mod(duration_s, 60)::text, 2, '0') end as length,
   coalesce(player_name, '') as name, coalesce(version, '') as version, (stats is not null) as has_debrief
 from pick;

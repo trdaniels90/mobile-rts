@@ -8,6 +8,7 @@ const RELEASES = [
     ['', [
       'A Quit mission button on the pause menu: tap it twice to leave a mission and go back to the main menu.',
       'A mission you quit, or leave for a new one, now reports how far it got (the debrief numbers so far), so it counts in the match data instead of showing as abandoned.',
+      'If the app is closed in the middle of a mission, the match data keeps its numbers up to the last minute: the game now sends them once a minute and as you leave the app.',
     ]],
   ] },
   { v: '2026.10.28.4', date: '28 October 2026', title: 'Separate aircraft queues', groups: [

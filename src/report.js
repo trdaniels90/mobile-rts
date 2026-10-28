@@ -27,15 +27,17 @@ const Report = (() => {
   if (!device || !UUID.test(device)) { device = uuid(); store('ps-device', device); }
 
   // One request: resolves to the parsed answer (or true), or null on any failure.
-  function post(path, body, parse) {
+  // keepalive: the request may finish after the page is closed (browsers allow it under 64 KB).
+  function post(path, body, parse, keepalive) {
     try {
       if (typeof fetch !== 'function') return Promise.resolve(null);
       const ctl = typeof AbortController === 'function' ? new AbortController() : null;
       const timer = setTimeout(() => { try { ctl && ctl.abort(); } catch (_) {} }, TIMEOUT);
+      const json = JSON.stringify(body);
       return fetch(API + path, {
-        method: 'POST', signal: ctl ? ctl.signal : undefined,
+        method: 'POST', signal: ctl ? ctl.signal : undefined, keepalive: !!keepalive && json.length < 60000,
         headers: { apikey: KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-        body: JSON.stringify(body),
+        body: json,
       }).then((r) => (!r.ok ? null : parse ? r.json() : true))
         .catch(() => null)
         .then((v) => { clearTimeout(timer); return v; });
@@ -87,14 +89,20 @@ const Report = (() => {
       finish('quit', G ? G.t : 0, s);
     } catch (_) {}
   }
-  // The heartbeat lets the stats page count who is playing right now.
-  setInterval(() => {
+  // The heartbeat lets the stats page count who is playing right now. It carries the debrief numbers
+  // so far, so a match the app is closed on keeps them up to its last minute; leaving the app sends
+  // one straight away.
+  function progress(keepalive) {
     try {
-      if (!match || match.ended || document.hidden) return;
-      const m = match;
-      m.saved.then((ok) => { if (ok && !m.ended) post('rpc/match_heartbeat', { p_id: m.id, p_device: device }); });
+      if (!match || match.ended || !G || G.over) return;
+      const m = match, t = Math.round(G.t);
+      let s = null;
+      try { s = stats(); } catch (_) {}
+      m.saved.then((ok) => { if (ok && !m.ended) post('rpc/match_progress', { p_id: m.id, p_device: device, p_duration: t, p_stats: s }, false, keepalive); });
     } catch (_) {}
-  }, BEAT);
+  }
+  setInterval(() => { try { if (!document.hidden) progress(false); } catch (_) {} }, BEAT);
+  try { document.addEventListener('visibilitychange', () => { try { if (document.hidden) progress(true); } catch (_) {} }); } catch (_) {}
 
   // The name for the leaderboard, kept on this device. Resolves true when it reached the server.
   function submitName(name) {

@@ -45,6 +45,18 @@ returns void language sql security definer set search_path = '' as $$
   where id = p_id and device_id = p_device and ended_at is null;
 $$;
 
+-- Progress while a match runs: the heartbeat plus the debrief numbers so far, so a match the
+-- app was closed on keeps its numbers up to its last minute. Only the starting device, and only
+-- until the match has ended.
+create or replace function public.match_progress(p_id uuid, p_device uuid, p_duration integer, p_stats jsonb)
+returns void language sql security definer set search_path = '' as $$
+  update public.matches
+  set last_seen = now(),
+      duration_s = case when p_duration between 0 and 86400 then p_duration else duration_s end,
+      stats = case when octet_length(p_stats::text) <= 100000 then p_stats else stats end
+  where id = p_id and device_id = p_device and ended_at is null;
+$$;
+
 create or replace function public.match_end(p_id uuid, p_device uuid, p_result text, p_duration integer, p_stats jsonb)
 returns void language sql security definer set search_path = '' as $$
   update public.matches
@@ -81,10 +93,12 @@ language sql stable security definer set search_path = '' as $$
 $$;
 
 revoke all on function public.match_heartbeat(uuid, uuid) from public;
+revoke all on function public.match_progress(uuid, uuid, integer, jsonb) from public;
 revoke all on function public.match_end(uuid, uuid, text, integer, jsonb) from public;
 revoke all on function public.match_name(uuid, uuid, text) from public;
 revoke all on function public.get_leaderboard(text, integer) from public;
 grant execute on function public.match_heartbeat(uuid, uuid) to anon, authenticated;
+grant execute on function public.match_progress(uuid, uuid, integer, jsonb) to anon, authenticated;
 grant execute on function public.match_end(uuid, uuid, text, integer, jsonb) to anon, authenticated;
 grant execute on function public.match_name(uuid, uuid, text) to anon, authenticated;
 grant execute on function public.get_leaderboard(text, integer) to anon, authenticated;
