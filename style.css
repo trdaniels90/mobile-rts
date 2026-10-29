@@ -361,6 +361,13 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 .on-side { font-family: var(--font-stencil); text-transform: uppercase; }
 .on-side[data-faction="allies"] { color: #2a4d8a; }
 .on-side[data-faction="soviets"] { color: #8a2b1c; }
+#netHud { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 6px); left: 50%; transform: translateX(-50%); z-index: 20; padding: 2px 10px; font-size: 13px; color: #e8e2cc; background: rgba(0,0,0,0.55); border-radius: 3px; pointer-events: none; white-space: nowrap; }
+#netHud.slow { color: #ffb44a; }
+#netWait { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,0.55); }
+#netWait[hidden] { display: none; }
+.nw-card { max-width: 420px; padding: 16px 18px; color: #22201a; background: #ece3c8; border: 2px solid #5a4a2a; text-align: center; }
+.nw-title { margin: 0 0 6px; font-family: var(--font-stencil); font-size: 20px; text-transform: uppercase; color: #5a3b18; }
+.nw-sub { margin: 0 0 12px; }
 .pf-links { font-size: 14px; }
 .pf-link { padding: 0; font: inherit; color: #5a3b18; text-decoration: underline; background: none; border: 0; cursor: pointer; }
 .pf-who { display: flex; flex-direction: column; margin: 0 0 12px; }

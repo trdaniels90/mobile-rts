@@ -2685,12 +2685,15 @@ function checkWin() {
   if (G.over) return;
   const hasCY = (tid) => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === tid && e.type === 'cy');
   const a = hasCY(PLAYER), b = hasCY(ENEMY);
-  if (!a || !b) {
-    logSample();
-    const winner = b ? ENEMY : PLAYER;   // (both gone at once: side 0 wins, as before)
-    G.over = { winner, won: winner === G.me, t: G.t };
-    hooks.gameOver(G.over.won);
-  }
+  if (!a || !b) endBattle(b ? ENEMY : PLAYER);   // (both gone at once: side 0 wins, as before)
+}
+// how: undefined for a destroyed Construction Yard, 'quit' when the loser surrendered, 'left' when
+// an online opponent did not come back.
+function endBattle(winner, how) {
+  if (G.over) return;
+  logSample();
+  G.over = { winner, won: winner === G.me, t: G.t, how };
+  hooks.gameOver(G.over.won);
 }
 
 // ---------------------------------------------------------------------------
@@ -2814,7 +2817,7 @@ function separate() {
 }
 
 function update(dt) {
-  if (!G || G.paused) return;
+  if (!G || G.paused || G.hold) return;   // hold: an online battle waiting for a player
   G.t += dt;
   for (const e of G.entities) {
     if (!e.alive) continue;

@@ -14,11 +14,20 @@ const Net = (() => {
   const CHUNK = 16000;         // the largest piece sent at once (every browser takes 16 KB)
   const CONNECT_TIMEOUT = 25000;
 
+  const PING = 1000, SILENT = 6000;   // a heartbeat every second; this long without a word is a drop
+  let WAIT_LIMIT = 120;               // seconds to wait for a dropped player before they lose
+
   let role = null;             // 'host' or 'guest' once a battle has started; null otherwise
-  let link = null;             // the connection: { pc, dc, sig }
-  let lobby = null;            // { code, host: { name, faction }, guest: { name }, me: 'host' | 'guest' }
+  let link = null;             // the connection: { id, to, sig, pc, dc, timer }
+  // lobby: { code, me: 'host' | 'guest', gid (the guest's id, kept across reconnects), host: { name, faction },
+  //   guest: { name }, connected, status, match (this battle's key), failed (a message) }
+  let lobby = null;
   let listener = () => {};     // the online page's redraw
+  let heard = 0, rtt = 0, resyncs = 0;      // when the other phone was last heard from; ping time in ms
+  let wait = null;             // { since, peerAway } while a battle waits for the other player
   const peerSide = () => (role === 'host' ? 1 : 0);   // the host plays side 0, the guest side 1
+  const mySide = () => (role === 'host' ? 0 : 1);
+  const inBattle = () => !!(role && G && !G.over);
 
   // ---------------------------------------------------------------------------
   // Signalling: a Supabase Realtime broadcast channel per room code (Phoenix protocol, by hand).
@@ -63,6 +72,7 @@ const Net = (() => {
   }
   function receive(data) {
     if (typeof data !== 'string') return;
+    heard = performance.now();
     const c = data.charCodeAt(0);
     if (c === 1) { partBuf += data.slice(1); return; }
     if (c === 2) { data = partBuf + data.slice(1); partBuf = ''; }
@@ -74,22 +84,24 @@ const Net = (() => {
     link.dc = dc;
     const opened = () => {
       clearTimeout(link.timer);
-      if (link.sig) { link.sig.close(); link.sig = null; }   // Realtime is only for the introduction
-      lobby.connected = true;
-      send({ k: 'hi', name: myName(), v: VERSION });
+      if (link.sig) { link.sig.close(); link.sig = null; }   // Realtime is only for introductions
+      lobby.connected = true; lobby.status = 'connected';
+      heard = performance.now(); partBuf = '';
+      send({ k: 'hi', name: myName(), v: VERSION, match: role ? lobby.match : null });
       if (lobby.me === 'host') send({ k: 'lobby', faction: lobby.host.faction });
+      if (inBattle()) resumed();
       listener();
     };
     dc.onmessage = (e) => receive(e.data);
-    dc.onclose = () => lost();
+    dc.onclose = () => { if (link && link.dc === dc) lost(); };
     if (dc.readyState === 'open') opened(); else dc.onopen = opened;   // (the guest's may arrive open)
   }
   function peer() {
     const pc = new RTCPeerConnection({ iceServers: ICE });
     link.pc = pc;
     link.pending = [];
-    pc.onicecandidate = (e) => { if (e.candidate && link.sig) link.sig.send('ice', { to: link.to, from: link.id, c: e.candidate.toJSON() }); };
-    pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed') lost(); };
+    pc.onicecandidate = (e) => { if (e.candidate && link && link.sig) link.sig.send('ice', { to: link.to, from: link.id, c: e.candidate.toJSON() }); };
+    pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' && link && link.pc === pc) lost(); };
     return pc;
   }
   async function remote(sdp) {
@@ -103,78 +115,143 @@ const Net = (() => {
   const myName = () => (typeof Account !== 'undefined' && Account.name) || 'Commander';
   const newId = () => Math.random().toString(36).slice(2, 10);
 
-  function host(faction) {
-    leave();
-    let code = '';
-    for (let i = 0; i < 4; i++) code += LETTERS[(Math.random() * LETTERS.length) | 0];
-    lobby = { code, me: 'host', host: { name: myName(), faction }, guest: null, connected: false, status: 'waiting' };
+  // The host listens on its room code, for the guest's first hello and for it coming back.
+  function listen() {
     link = { id: newId(), to: null };
-    link.sig = signal(code, async (ev, p) => {
-      if (ev === 'signal-lost') { if (!lobby.connected) fail('No connection. Check it and try again.'); return; }
+    const L = link;
+    L.sig = signal(lobby.code, async (ev, p) => {
+      if (link !== L) return;
+      if (ev === 'signal-lost') { if (!lobby.connected && !inBattle()) fail('No connection. Check it and try again.'); else if (inBattle()) setTimeout(() => { if (link === L && !lobby.connected) { close(); listen(); } }, 3000); return; }
       if (ev === 'hello') {
-        if (link.to && link.to !== p.from) { link.sig.send('full', { to: p.from }); return; }
-        if (p.v !== VERSION) { link.sig.send('version', { to: p.from, v: VERSION }); return; }
-        if (link.to) return;
-        link.to = p.from;
+        if (lobby.gid && p.gid !== lobby.gid) { L.sig.send('full', { to: p.from }); return; }
+        if (p.v !== VERSION) { L.sig.send('version', { to: p.from, v: VERSION }); return; }
+        if (L.to) return;
+        L.to = p.from; lobby.gid = p.gid;
         lobby.status = 'connecting'; listener();
         const pc = peer();
         wire(pc.createDataChannel('game', { ordered: true }));
         await pc.setLocalDescription(await pc.createOffer());
-        link.sig.send('offer', { to: link.to, from: link.id, sdp: pc.localDescription.toJSON() });
-        link.timer = setTimeout(() => { if (!lobby.connected) fail('Could not connect to your friend. Try again, or try another network.'); }, CONNECT_TIMEOUT);
-      } else if (p.to === link.id && p.from === link.to) {
-        if (ev === 'answer') await remote(p.sdp).catch(() => fail('Could not connect.'));
+        L.sig.send('offer', { to: L.to, from: L.id, sdp: pc.localDescription.toJSON() });
+        // No connection after all: listen again for another try.
+        L.timer = setTimeout(() => { if (link === L && !lobby.connected) { if (inBattle()) { close(); listen(); } else fail('Could not connect to your friend. Try again, or try another network.'); } }, CONNECT_TIMEOUT);
+      } else if (p.to === L.id && p.from === L.to) {
+        if (ev === 'answer') await remote(p.sdp).catch(() => {});
         else if (ev === 'ice') candidate(p.c);
       }
     });
+  }
+  // The guest says hello on the room code until the host answers (every few seconds, as the host
+  // may itself be reconnecting).
+  function knock() {
+    link = { id: newId(), to: null };
+    const L = link;
+    L.sig = signal(lobby.code, async (ev, p) => {
+      if (link !== L) return;
+      if (ev === 'signal-lost') { if (!lobby.connected && !inBattle()) fail('No connection. Check it and try again.'); else if (inBattle()) setTimeout(() => { if (link === L && !lobby.connected) { close(); knock(); } }, 3000); return; }
+      if (p.to !== L.id) return;
+      if (ev === 'full') fail('That game already has two players.');
+      else if (ev === 'version') fail('Your friend has a different version of the game. Both of you restart the game to update, then try again.');
+      else if (ev === 'offer' && !L.to) {
+        L.to = p.from; clearInterval(L.hello);
+        lobby.status = 'connecting'; listener();
+        const pc = peer();
+        pc.ondatachannel = (e) => wire(e.channel);
+        await remote(p.sdp).catch(() => {});
+        await pc.setLocalDescription(await pc.createAnswer());
+        L.sig.send('answer', { to: L.to, from: L.id, sdp: pc.localDescription.toJSON() });
+        L.timer = setTimeout(() => { if (link === L && !lobby.connected) { if (inBattle()) { close(); knock(); } else fail('Could not connect to your friend. Try again, or try another network.'); } }, CONNECT_TIMEOUT);
+      } else if (ev === 'ice' && p.from === L.to) candidate(p.c);
+    });
+    const hello = () => L.sig.send('hello', { from: L.id, gid: lobby.gid, name: myName(), v: VERSION });
+    hello();
+    L.hello = setInterval(() => { if (link === L && !L.to) hello(); }, 3000);
+    // Nobody answering a first join: a wrong code, or the host has gone.
+    if (!inBattle()) L.timer = setTimeout(() => { if (link === L && !L.to) fail(`No game found with the code ${lobby.code}. Check it with your friend.`); }, 10000);
+  }
+
+  function host(faction) {
+    leave();
+    let code = '';
+    for (let i = 0; i < 4; i++) code += LETTERS[(Math.random() * LETTERS.length) | 0];
+    lobby = { code, me: 'host', gid: null, host: { name: myName(), faction }, guest: null, connected: false, status: 'waiting' };
+    listen();
     listener();
   }
   function join(code) {
     leave();
     code = String(code).toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
-    lobby = { code, me: 'guest', host: null, guest: { name: myName() }, connected: false, status: 'joining' };
-    link = { id: newId(), to: null };
-    link.sig = signal(code, async (ev, p) => {
-      if (ev === 'signal-lost') { if (!lobby.connected) fail('No connection. Check it and try again.'); return; }
-      if (p.to !== link.id) return;
-      if (ev === 'full') fail('That game already has two players.');
-      else if (ev === 'version') fail('Your friend has a different version of the game. Both of you restart the game to update, then try again.');
-      else if (ev === 'offer' && !link.to) {
-        link.to = p.from;
-        lobby.status = 'connecting'; listener();
-        const pc = peer();
-        pc.ondatachannel = (e) => wire(e.channel);
-        await remote(p.sdp).catch(() => fail('Could not connect.'));
-        await pc.setLocalDescription(await pc.createAnswer());
-        link.sig.send('answer', { to: link.to, from: link.id, sdp: pc.localDescription.toJSON() });
-      } else if (ev === 'ice' && p.from === link.to) candidate(p.c);
-    });
-    link.sig.send('hello', { from: link.id, name: myName(), v: VERSION });
-    // Nobody answering: a wrong code, or the host has gone.
-    link.timer = setTimeout(() => { if (!lobby.connected) fail(link.to ? 'Could not connect to your friend. Try again, or try another network.' : `No game found with the code ${code}. Check it with your friend.`); }, link.to ? CONNECT_TIMEOUT : 10000);
+    lobby = { code, me: 'guest', gid: newId(), host: null, guest: { name: myName() }, connected: false, status: 'joining' };
+    knock();
     listener();
   }
   function fail(msg) { const code = lobby && lobby.code; close(); lobby = { failed: msg, code }; listener(); }
   function close() {
     if (!link) return;
-    clearTimeout(link.timer);
+    clearTimeout(link.timer); clearInterval(link.hello);
     if (link.sig) link.sig.close();
     try { link.dc && link.dc.close(); } catch (_) {}
     try { link.pc && link.pc.close(); } catch (_) {}
     link = null;
   }
-  function leave() { if (link && link.dc && link.dc.readyState === 'open') send({ k: 'bye' }); const was = role; close(); lobby = null; role = null; if (was && G) G.remote = false; }
-  function lost() {
-    if (!link) return;
+  function leave() {
+    if (link && link.dc && link.dc.readyState === 'open') send({ k: 'bye' });
+    const was = role;
+    close(); lobby = null; role = null; endWait();
+    if (was && G) { G.remote = false; G.hold = false; }
+    hud();
+  }
+  // The connection dropped. In a battle: hold it and get the connection back through the room
+  // code. Anywhere else: say so.
+  function lost(why) {
+    if (!link && !inBattle()) return;
     close();
-    if (role && G && !G.over) { role = null; G.remote = false; UIBridge.lost(); }
+    if (lobby) lobby.connected = false;
+    if (inBattle()) {
+      startWait(false);
+      if (lobby.me === 'host') listen(); else knock();
+      return;
+    }
     role = null;
-    lobby = { failed: 'The connection to your friend was lost.' };
+    if (G) G.remote = false;
+    lobby = { failed: why || 'The connection to your friend was lost.' };
+    hud();
     listener();
   }
 
   // ---------------------------------------------------------------------------
-  // Lobby and start.
+  // Waiting for the other player: the battle holds on both phones.
+  function startWait(peerAway) {
+    if (!inBattle()) return;
+    if (!wait) wait = { since: performance.now() };
+    wait.peerAway = peerAway;
+    G.hold = true;
+    hud();
+  }
+  function endWait() { wait = null; if (G) G.hold = false; hud(); }
+  function resumed() {
+    if (role === 'host') { resetHost(true); send({ k: 'resume' }); }
+    endWait();
+    if (role === 'guest') send({ k: 'resume' });
+  }
+  // A phone going to sleep says so first, where it can; coming back after too long, it has lost.
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (!role) return;
+    if (document.hidden) { hiddenAt = performance.now(); send({ k: 'away' }); return; }
+    if (!inBattle()) return;
+    if ((performance.now() - hiddenAt) / 1000 > WAIT_LIMIT) { close(); endBattle(peerSide(), 'left'); return; }
+    if (performance.now() - heard > SILENT) lost();
+    else { send({ k: 'back' }); if (wait && !wait.peerAway) endWait(); }
+  });
+  setInterval(() => {
+    if (link && link.dc && link.dc.readyState === 'open') send({ k: 'ping', t: performance.now() });
+    if (inBattle() && lobby && lobby.connected && performance.now() - heard > SILENT && !document.hidden) lost();
+    if (wait && inBattle() && (performance.now() - wait.since) / 1000 > WAIT_LIMIT) { const w = mySide(); endWait(); close(); endBattle(w, 'left'); }
+    hud();
+  }, PING);
+
+  // ---------------------------------------------------------------------------
+  // Lobby, start, surrender and rematch.
   function swapSides() {
     if (!lobby || lobby.me !== 'host') return;
     lobby.host.faction = lobby.host.faction === 'allies' ? 'soviets' : 'allies';
@@ -183,35 +260,86 @@ const Net = (() => {
   }
   function startBattle() {
     if (!lobby || lobby.me !== 'host' || !lobby.connected || !lobby.guest) return;
-    const seed = (Math.random() * 1e9) | 0;
-    send({ k: 'start', seed, faction: lobby.host.faction });
-    begin('host', seed, lobby.host.faction);
+    const seed = (Math.random() * 1e9) | 0, match = newId();
+    send({ k: 'start', seed, faction: lobby.host.faction, match });
+    begin('host', seed, lobby.host.faction, match);
   }
-  function begin(r, seed, hostFaction) {
+  function begin(r, seed, hostFaction, match) {
     role = r;
+    lobby.match = match;
     resetHost();
+    endWait();
     const guestFaction = hostFaction === 'allies' ? 'soviets' : 'allies';
     const opp = r === 'host' ? lobby.guest.name : lobby.host.name;
     UIBridge.start({ seed, faction: r === 'host' ? hostFaction : guestFaction, me: r === 'host' ? 0 : 1, opponent: opp });
     if (r === 'guest') {
       // The battle is the host's: start from an empty field and fill it from the snapshots.
       G.remote = true;
-      G.entities = []; G.byId.clear(); G.bld.fill(0); G.resv.fill(0); G.effects = []; G.projectiles = [];
+      clearCopy();
     }
+    hud();
+    listener();
+  }
+  function clearCopy() { G.entities = []; G.byId.clear(); G.bld.fill(0); G.resv.fill(0); G.projectiles = []; G.selection = []; }
+  // Quitting an online battle is surrendering. The host's battle decides; the guest asks it.
+  function surrender() {
+    if (!inBattle()) return;
+    if (role === 'host' || !lobby.connected) { endWait(); endBattle(peerSide(), 'quit'); return; }
+    send({ k: 'quit' });
+    setTimeout(() => { if (inBattle()) endBattle(peerSide(), 'quit'); }, 3000);   // no answer: lose anyway
+  }
+  // After the debrief: back to the lobby, still connected, for another battle.
+  function rematch() {
+    const was = role;
+    role = null; endWait();
+    if (was && G) G.remote = false;
+    if (!lobby || !lobby.connected) lobby = { failed: 'Your friend has left. Host or join a new game.' };
+    hud();
     listener();
   }
 
   function onMessage(m) {
+    if (m.k === 'ping') { send({ k: 'pong', t: m.t }); return; }
+    if (m.k === 'pong') { rtt = Math.round(performance.now() - m.t); return; }
     if (m.k === 'hi') {
       if (lobby.me === 'host') lobby.guest = { name: String(m.name || 'Commander').slice(0, 20) };
       else lobby.host = Object.assign(lobby.host || { faction: 'allies' }, { name: String(m.name || 'Commander').slice(0, 20) });
       listener();
     } else if (m.k === 'lobby' && lobby.me === 'guest') { lobby.host = Object.assign(lobby.host || { name: 'Commander' }, { faction: m.faction }); listener(); }
-    else if (m.k === 'start' && lobby.me === 'guest') begin('guest', m.seed, m.faction);
+    else if (m.k === 'start' && lobby.me === 'guest') begin('guest', m.seed, m.faction, m.match);
     else if (m.k === 's' && role === 'guest') applySnapshot(m);
     else if (m.k === 'end' && role === 'guest') applyEnd(m);
-    else if (m.k === 'c' && role === 'host') applyCommand(m);
-    else if (m.k === 'bye') lost();
+    else if (m.k === 'c' && role === 'host' && !G.hold) applyCommand(m);
+    else if (m.k === 'away') startWait(true);
+    else if (m.k === 'back' || m.k === 'resume') { if (inBattle()) endWait(); }
+    else if (m.k === 'quit' && role === 'host' && inBattle()) { endWait(); endBattle(mySide(), 'quit'); }
+    else if (m.k === 'bye') { if (inBattle()) { endWait(); close(); endBattle(mySide(), 'quit'); } else lost('Your friend has left. Host or join a new game.'); }
+  }
+
+  // ---------------------------------------------------------------------------
+  // In battle: the opponent's name and ping, and the waiting notice.
+  let hudEl = null, waitEl = null;
+  function hud() {
+    if (!hudEl) {
+      hudEl = document.createElement('div'); hudEl.id = 'netHud'; hudEl.hidden = true;
+      waitEl = document.createElement('div'); waitEl.id = 'netWait'; waitEl.hidden = true;
+      waitEl.innerHTML = '<div class="nw-card" role="alert"><p class="nw-title"></p><p class="nw-sub"></p><button type="button" class="pf-btn">Leave battle (you lose)</button></div>';
+      waitEl.querySelector('button').addEventListener('click', () => surrender());
+      document.body.append(hudEl, waitEl);
+    }
+    const on = inBattle();
+    hudEl.hidden = !on;
+    if (on) {
+      const opp = lobby && (lobby.me === 'host' ? lobby.guest : lobby.host);
+      hudEl.textContent = `vs ${opp ? opp.name : '…'}${lobby.connected && rtt ? ` · ${rtt} ms` : ''}`;
+      hudEl.classList.toggle('slow', rtt > 250);
+    }
+    waitEl.hidden = !(on && wait);
+    if (on && wait) {
+      const left = Math.max(0, Math.ceil(WAIT_LIMIT - (performance.now() - wait.since) / 1000));
+      waitEl.querySelector('.nw-title').textContent = wait.peerAway && lobby.connected ? 'Your opponent left the game for a moment' : 'Waiting for your opponent…';
+      waitEl.querySelector('.nw-sub').textContent = `The battle is paused. If they are not back in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}, you win.`;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -252,10 +380,12 @@ const Net = (() => {
     'smokeT', 'anim', 'htimer', 'hcell', 'crowdT', 'nearBest', 'clankT']);
   const COARSE = new Set(['x', 'y', 'alt']);   // to a tenth of a pixel
   const OBJ = '\u0000';   // marks an object field, kept as JSON for comparing
-  let sent, fogSent, oreSent, gemSent, teamSent, events, snapT, snapN;
-  function resetHost() {
+  let sent, fogSent, oreSent, gemSent, teamSent, events, snapT, snapN, full;
+  // full: after a reconnect, the next snapshot carries everything and the guest starts its copy afresh.
+  function resetHost(resync) {
     sent = new Map(); fogSent = new Uint8Array(NCELLS); oreSent = new Uint16Array(NCELLS); gemSent = new Uint8Array(NCELLS);
-    teamSent = ['', '']; events = []; snapT = 0; snapN = 0;
+    if (resync) oreSent.fill(0xffff);
+    teamSent = ['', '']; events = []; snapT = 0; snapN = 0; full = !!resync;
   }
   resetHost();
   function field(v) {
@@ -267,11 +397,21 @@ const Net = (() => {
   // What the guest's sidebar and debrief use of each side.
   const TEAM = ['id', 'faction', 'isAI', 'credits', 'power', 'low', 'auto', 'waiting', 'queues', 'stats', 'powers'];
   const teamJSON = (t) => JSON.stringify(Object.fromEntries(TEAM.map((k) => [k, k === 'credits' ? Math.round(t[k]) : t[k]])), rep);
+  // The guest only needs what it can see: no news of the host's side, or of smoke, shots and sounds,
+  // out in ground it has not uncovered. (A unit leaving its sight still gets the snapshot that
+  // takes it out of sight.) Nothing is lost: what was held back goes out once uncovered.
+  const seen = (x, y) => !!G.fog[peerSide()][cellOfPos(x, y)];
+  function shown(x, last) {
+    if (x.team === peerSide()) return true;
+    if (x.kind === 'bld') return seen(x.cx * CELL + 1, x.cy * CELL + 1) || seen((x.cx + x.w) * CELL - 1, (x.cy + x.h) * CELL - 1);
+    return seen(x.x, x.y) || (last && typeof last.x === 'number' && seen(last.x, last.y));
+  }
   function snapshot() {
     const e = {}, r = [];
     for (const x of G.entities) {
       if (!x.alive) continue;
       let last = sent.get(x.id), out = null;
+      if (!shown(x, last)) continue;
       if (!last) sent.set(x.id, (last = {}));
       for (const k in x) {
         if (SKIP.has(k)) continue;
@@ -284,14 +424,18 @@ const Net = (() => {
       if (out) e[x.id] = out;
     }
     for (const id of sent.keys()) { const x = G.byId.get(id); if (!x || !x.alive) { r.push(id); sent.delete(id); } }
-    const s = { k: 's', t: round(G.t), e, r, p: G.projectiles.filter((p) => !p.dead).map(pack) };
+    const s = { k: 's', t: round(G.t), e, r, p: G.projectiles.filter((p) => !p.dead && seen(p.x, p.y)).map(pack) };
+    if (full) { s.full = true; full = false; }
     const fx = G.effects.filter((f) => !f.sent);
     for (const f of fx) f.sent = true;
-    if (fx.length) s.fx = fx.map(pack);
-    if (events.length) { s.ev = events; events = []; }
+    const near = fx.filter((f) => typeof f.x !== 'number' || seen(f.x, f.y));
+    if (near.length) s.fx = near.map(pack);
+    const ev = events.filter((v) => (v[0] === 's' ? seen(v[2], v[3]) : v[0] === 'k' ? seen(v[1], v[2]) : true));   // sounds and shakes: where seen
+    if (ev.length) s.ev = ev;
+    events = [];
     // The guest's own side whenever it changes; the host's side now and then.
     for (let i = 0; i < 2; i++) {
-      if (i !== peerSide() && snapN % 20 && !G.over) continue;
+      if (i !== peerSide() && snapN % 20 && !G.over && s.full !== true) continue;
       const tm = teamJSON(G.teams[i]);
       if (tm === teamSent[i]) continue;
       (s.tm || (s.tm = []))[i] = JSON.parse(tm); teamSent[i] = tm;
@@ -301,7 +445,7 @@ const Net = (() => {
     if (f.length) s.fog = f;
     if (snapN++ % ORE_EVERY === 0) {
       const o = [];
-      for (let i = 0; i < NCELLS; i++) if (G.ore[i] !== oreSent[i] || G.gem[i] !== gemSent[i]) { oreSent[i] = G.ore[i]; gemSent[i] = G.gem[i]; o.push(i, G.ore[i], G.gem[i]); }
+      for (let i = 0; i < NCELLS; i++) if ((G.ore[i] !== oreSent[i] || G.gem[i] !== gemSent[i]) && fog[i]) { oreSent[i] = G.ore[i]; gemSent[i] = G.gem[i]; o.push(i, G.ore[i], G.gem[i]); }
       if (o.length) s.ore = o;
     }
     if (G.over) s.over = { winner: G.over.winner, t: round(G.over.t) };
@@ -336,7 +480,7 @@ const Net = (() => {
     hooks.shake = (x, y, a) => { queueEv(['k', Math.round(x), Math.round(y), round(a)]); shake(x, y, a); };
     hooks.evaFor = (side, msg) => { if (role === 'host' && side === peerSide()) events.push(['e', msg]); };
     hooks.gameOver = (won) => {
-      if (role === 'host') { send(snapshot()); send({ k: 'end', over: { winner: G.over.winner, t: G.over.t }, log: pack(G.log) }); }
+      if (role === 'host') { send(snapshot()); send({ k: 'end', over: { winner: G.over.winner, t: G.over.t, how: G.over.how }, log: pack(G.log) }); }
       over(won);
     };
   }
@@ -383,6 +527,7 @@ const Net = (() => {
   const LERP = ['x', 'y', 'alt', 'face', 'tface'];
   function applySnapshot(s) {
     G.t = s.t;
+    if (s.full) { clearCopy(); resyncs++; }
     // First every new entity, so references between them (a unit's target) can be resolved.
     const fresh = new Set();
     for (const id in s.e) {
@@ -430,13 +575,14 @@ const Net = (() => {
   }
   function applyEnd(m) {
     if (G.over) return;
+    endWait();
     G.log = unpack(m.log);
-    G.over = { winner: m.over.winner, won: m.over.winner === G.me, t: m.over.t };
+    G.over = { winner: m.over.winner, won: m.over.winner === G.me, t: m.over.t, how: m.over.how };
     hooks.gameOver(G.over.won);
   }
   // Each frame on the guest: glide toward the latest positions and run the eye candy.
   function guestStep(dt) {
-    if (!G || G.over) return;
+    if (!G || G.over || G.hold) return;
     G.t += dt;
     const k = 1 - Math.exp(-dt * 14);
     for (const x of G.entities) {
@@ -458,8 +604,10 @@ const Net = (() => {
   }
 
   return {
-    host, join, leave, swapSides, startBattle, hostTick, guestStep, hookHost,
-    get role() { return role; }, get lobby() { return lobby; },
+    host, join, leave, swapSides, startBattle, surrender, rematch, hostTick, guestStep, hookHost,
+    get role() { return role; }, get lobby() { return lobby; }, get waiting() { return !!wait; },
+    // For tests: drop the connection without a word, and a shorter wait.
+    test: { drop() { const L = link; if (L) { try { L.pc.close(); } catch (_) {} } lost(); }, waitLimit(s) { WAIT_LIMIT = s; }, get resyncs() { return resyncs; } },
     onChange(f) { listener = f; },
   };
 })();
@@ -540,5 +688,5 @@ const Online = (() => {
   return { open, close };
 })();
 
-// Filled in by ui.js: starting an online battle and a lost connection mid-battle.
-const UIBridge = { start() {}, lost() {} };
+// Filled in by ui.js: starting an online battle.
+const UIBridge = { start() {} };

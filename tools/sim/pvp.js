@@ -46,11 +46,11 @@ const { chromium, devices } = require('playwright');
   const host = await A.evaluate(() => {
     const rifles = unitsOf(1).filter((u) => u.type === 'rifle');
     return { t: Math.round(G.t), q: G.teams[1].queues.structure && G.teams[1].queues.structure.type, ready: !!(G.teams[1].queues.structure && G.teams[1].queues.structure.ready),
-      rifleOrders: rifles.map((u) => u.order.type), ents: G.entities.length, pos: Object.fromEntries(G.entities.map((e) => [e.id, [Math.round(e.x), Math.round(e.y)]])),
+      rifleOrders: rifles.map((u) => u.order.type), ents: G.entities.length, pos: Object.fromEntries(G.entities.filter((e) => e.team === 1).map((e) => [e.id, [Math.round(e.x), Math.round(e.y)]])),
       kbPerSec: Math.round(window.__bytes / 1024 / G.t * 10) / 10, msgs: window.__msgs };
   });
   const guest = await B.evaluate(() => ({ t: Math.round(G.t), ents: G.entities.length, credits: G.teams[G.me].credits, q: G.teams[G.me].queues.structure && G.teams[G.me].queues.structure.type,
-    fogCells: G.fog[G.me].reduce((a, b) => a + b, 0), pos: Object.fromEntries(G.entities.map((e) => [e.id, [Math.round(e.x), Math.round(e.y)]])), sentKb: Math.round(window.__bytes / 1024) }));
+    fogCells: G.fog[G.me].reduce((a, b) => a + b, 0), pos: Object.fromEntries(G.entities.filter((e) => e.team === 1).map((e) => [e.id, [Math.round(e.x), Math.round(e.y)]])), sentKb: Math.round(window.__bytes / 1024) }));
   let off = 0, missing = 0;
   for (const id in host.pos) { const g = guest.pos[id]; if (!g) { missing++; continue; } off = Math.max(off, Math.hypot(g[0] - host.pos[id][0], g[1] - host.pos[id][1])); }
   // Place the guest's power plant once ready.
@@ -91,8 +91,8 @@ const { chromium, devices } = require('playwright');
     await A.waitForTimeout(5000);
     stress.perSnapBytes = await A.evaluate(() => Object.fromEntries(Object.entries(window.__tally).sort((a, b) => b[1] - a[1]).slice(0, 25).map(([k, v]) => [k, Math.round(v / window.__snaps)])));
     await A.waitForTimeout(1500);
-    const hp = await A.evaluate(() => Object.fromEntries(G.entities.map((e) => [e.id, [Math.round(e.x), Math.round(e.y)]])));
-    const gp = await B.evaluate(() => Object.fromEntries(G.entities.map((e) => [e.id, [Math.round(e.x), Math.round(e.y)]])));
+    const hp = await A.evaluate(() => Object.fromEntries(G.entities.filter((e) => e.team === 1).map((e) => [e.id, [Math.round(e.x), Math.round(e.y)]])));
+    const gp = await B.evaluate(() => Object.fromEntries(G.entities.filter((e) => e.team === 1).map((e) => [e.id, [Math.round(e.x), Math.round(e.y)]])));
     stress.missing = Object.keys(hp).filter((id) => !gp[id]).length; stress.extra = Object.keys(gp).filter((id) => !hp[id]).length;
     await A.evaluate(() => { for (const t of G.teams) t.isAI = false; });
   }

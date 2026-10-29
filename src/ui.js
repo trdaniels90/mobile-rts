@@ -59,15 +59,16 @@
   hooks.eva = eva;
   hooks.gameOver = (won) => {
     Report.end(won);
-    const vs = online;
+    const vs = online, how = G.over.how;
+    const ending = how === 'quit' ? (won ? ' · they surrendered' : ' · you surrendered') : how === 'left' ? (won ? ' · they left' : ' · you left') : '';
     setTimeout(() => {
       G.paused = true;
       Debrief.open(won, {
-        difficulty: vs ? 'Online vs ' + vs.opponent : DIFFICULTY[diffKey].label,
+        difficulty: vs ? 'Online vs ' + vs.opponent + ending : DIFFICULTY[diffKey].label,
         extra: won && !vs ? Leaderboard.nameBox() : null,
         // same side and difficulty; online, back to the lobby page
-        onRematch: vs ? () => { Net.leave(); startGame(); showMenu('start'); Online.open(faction); } : () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },
-        onNew: () => showMenu('start'),
+        onRematch: vs ? () => { Net.rematch(); startGame(); showMenu('start'); Online.open(faction); } : () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },
+        onNew: () => { if (vs) { Net.leave(); startGame(); } showMenu('start'); },
       });
       Sound.say(won ? 'Mission accomplished' : 'Mission failed');
     }, 2200);
@@ -164,6 +165,7 @@
   // An online battle (net.js): o = { seed, faction, me, opponent }.
   UIBridge.start = (o) => {
     Report.quit();
+    Debrief.close();
     endPlace();
     Net.hookHost();
     newWorld(o.faction, 'normal', o.seed, o.me, true);
@@ -173,7 +175,6 @@
     hideMenu();
     eva('Select a structure to build');
   };
-  UIBridge.lost = () => { eva('Connection lost'); Report.quit(); online = null; startGame(); showMenu('start'); Online.open(faction); };
   $('onlineBtn').addEventListener('click', () => Online.open(faction));
 
   // A mission the player starts (not the battle behind the menu): reported anonymously, see report.js.
@@ -905,6 +906,7 @@
     if (G && !Net.role) G.paused = true;   // (an online battle runs on: the other player is still in it)
     if (mode === 'start') { ui.menuTitle.textContent = 'Red Horizon'; ui.menuSub.textContent = 'Choose your side, commander.'; ui.startBtn.textContent = 'Start mission'; }
     if (mode === 'pause') { ui.menuTitle.textContent = 'Paused'; ui.menuSub.textContent = 'Mission time ' + fmt(G.t); ui.startBtn.textContent = 'New mission'; }
+    if (mode === 'pause' && Net.role) { ui.menuTitle.textContent = 'Menu'; ui.menuSub.textContent = 'Online: the battle goes on while this menu is open.'; }
     syncMenuChoices();
   }
   $('manualBtn').addEventListener('click', () => Manual.open(faction));
@@ -958,7 +960,7 @@
   ui.quitBtn.addEventListener('click', () => {
     if (!quitArmed) { ui.quitBtn.textContent = 'Tap again to quit'; quitArmed = setTimeout(disarmQuit, 3000); return; }
     disarmQuit();
-    Net.leave();
+    if (Net.role) { Net.surrender(); hideMenu(); return; }   // online: quitting is surrendering
     Report.quit();
     endPlace();
     startGame();

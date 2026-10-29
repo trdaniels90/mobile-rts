@@ -90,6 +90,7 @@ Supabase.
 | `profile-ui.js` | The sign-in flow, with Supabase faked |
 | `either-side.js` | Plays as side 1 against the computer, swaps the view, checks the win and debrief |
 | `pvp.js` | Two pages meet with a room code (real Supabase Realtime) and play over WebRTC. `node tools/sim/pvp.js <repo> 30 50` adds a 50-second full-battle stress test with snapshot sizes |
+| `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
 
@@ -104,7 +105,8 @@ Agreed with the owner, built in stages. Stage 1 profiles are done (release 2026.
    - About 10 snapshots a second carry only the entity fields that changed (host timers are left
      out), new effects, fog and ore changes, team state, and events (sounds, shakes, ground marks,
      the guest's announcer lines). Things set off inside `updateEffects` (`G.inFx`) are left out,
-     because the guest runs the effects itself. A big battle costs about 25 KB/s.
+     because the guest runs the effects itself. Nothing is sent about the host's side, or about
+     effects, shots and sounds, in ground the guest has not uncovered. A big battle costs about 15 KB/s.
    - The guest's orders: `net.js` wraps the order functions (`commandMove`, `startProduction`,
      `placeStructure`, `setAuto` and the rest) and sends them to the host. The host only accepts
      them for the guest's own units.
@@ -117,7 +119,18 @@ Agreed with the owner, built in stages. Stage 1 profiles are done (release 2026.
      cannot carry whole matches.
    - Players meet with a 4-letter room code, then pick sides in a lobby.
    - Each match records to `matches` with `mode = 'pvp'`.
-3. **Hardening.**
+3. **Hardening.** Built (not yet released):
+   - A heartbeat every second (the ping shows at the top, next to the opponent's name). After 6
+     seconds of silence, or when the channel closes, both phones hold the battle (`G.hold`) and
+     show "Waiting for your opponent". The guest knocks on the room code again, the host listens,
+     and on reconnecting the host sends a full snapshot (`full`).
+   - A phone going to sleep sends `away`, so the other side holds at once.
+   - After 2 minutes of waiting, whoever stayed wins (`G.over.how = 'left'`). A phone that was
+     asleep that long loses when it wakes.
+   - Quitting an online battle is surrendering (`how = 'quit'`). Rematch returns both players to
+     the lobby on the same connection.
+   - Still to do: real phones over cellular, and a relay (TURN) only if direct connections fail.
+   Original plan:
    - Pause with "waiting for opponent" when a phone locks or a connection drops, and resume on
      reconnect.
    - Rematch and quitting.
