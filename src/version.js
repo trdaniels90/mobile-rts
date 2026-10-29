@@ -4,6 +4,19 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.29.1', date: '29 October 2026', title: 'Online battles', groups: [
+    ['Play a friend', [
+      'Play online on the menu: battle a friend, phone to phone. One of you taps Host a game and gets a 4-letter code; the other taps Join and types it in.',
+      'In the lobby the host picks who plays Allies and who plays Soviets, then starts the battle. The host\'s phone runs the battle, so the stronger phone should host.',
+      'Your commander name (from your Profile) shows to your opponent. Their name and your connection speed show at the top of the screen.',
+      'If a phone locks or the connection drops, the battle pauses for both of you and picks up again when you reconnect. Anyone not back within 2 minutes loses.',
+      'Quit mission in an online battle surrenders. Rematch takes you both back to the lobby, no new code needed.',
+      'Online battles count towards your service record.',
+    ]],
+    ['Also', [
+      'Start mission is now called Skirmish.',
+    ]],
+  ] },
   { v: '2026.10.29', date: '29 October 2026', title: 'Your service record', groups: [
     ['Profiles', [
       'A Profile button on the menu. Sign in with your email address and a 6-digit code we email you: no password to remember.',
