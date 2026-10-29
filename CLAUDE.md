@@ -52,6 +52,7 @@ share globals. Read this file first; the commit history explains every change in
 | `src/debrief.js` | The end-of-mission debrief |
 | `src/report.js` | Match reporting to Supabase and the leaderboard |
 | `src/profile.js` | Accounts (email plus a 6-digit code), commander names and the service record |
+| `src/net.js` | Online play: room codes over Supabase Realtime, WebRTC, the host's snapshots, the guest's copy and orders, the online page |
 
 - **Sides:** `PLAYER = 0`, `ENEMY = 1` are just the two slots. `G.me` is the side this device
   shows and commands; either side can be "you" (`newWorld(..., me)`, `?side=1` in the address,
@@ -88,15 +89,27 @@ Supabase.
 | `lost-touch.js` | Regression check for the stuck-pinch touch bug |
 | `profile-ui.js` | The sign-in flow, with Supabase faked |
 | `either-side.js` | Plays as side 1 against the computer, swaps the view, checks the win and debrief |
+| `pvp.js` | Two pages meet with a room code (real Supabase Realtime) and play over WebRTC. `node tools/sim/pvp.js <repo> 30 50` adds a 50-second full-battle stress test with snapshot sizes |
 
 ## Next: PvP
 
 Agreed with the owner, built in stages. Stage 1 profiles are done (release 2026.10.29).
 
-1. **Either side can be "you".** Done on the branch (not yet released). Replaced the "human is side 0" assumptions with a local viewer
+1. **Either side can be "you".** Done (not yet released). Replaced the "human is side 0" assumptions with a local viewer
    side. That covers the camera, fog (`G.seen` vs `G.aiSeen`), selection, the sidebar, notices,
    sounds and the debrief. Test it on one device before any networking.
-2. **Online play.**
+2. **Online play.** Built (not yet released), in `src/net.js`. How it works:
+   - The host plays side 0 and the guest side 1. Both build the map from the same seed. The guest's
+     copy has `G.remote` set: it never simulates, and `damage()` does nothing there.
+   - About 10 snapshots a second carry only the entity fields that changed (host timers are left
+     out), new effects, fog and ore changes, team state, and events (sounds, shakes, ground marks,
+     the guest's announcer lines). Things set off inside `updateEffects` (`G.inFx`) are left out,
+     because the guest runs the effects itself. A big battle costs about 25 KB/s.
+   - The guest's orders: `net.js` wraps the order functions (`commandMove`, `startProduction`,
+     `placeStructure`, `setAuto` and the rest) and sends them to the host. The host only accepts
+     them for the guest's own units.
+   - `matches.opponent` holds the other player's name; the game may now insert that column.
+   Original plan:
    - The host's device runs the battle and the guest's device sends orders.
    - The host sends state snapshots several times a second.
    - The connection is phone to phone over WebRTC, with Supabase Realtime only for introductions

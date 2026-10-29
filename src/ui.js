@@ -59,12 +59,14 @@
   hooks.eva = eva;
   hooks.gameOver = (won) => {
     Report.end(won);
+    const vs = online;
     setTimeout(() => {
       G.paused = true;
       Debrief.open(won, {
-        difficulty: DIFFICULTY[diffKey].label,
-        extra: won ? Leaderboard.nameBox() : null,
-        onRematch: () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },   // same side and difficulty
+        difficulty: vs ? 'Online vs ' + vs.opponent : DIFFICULTY[diffKey].label,
+        extra: won && !vs ? Leaderboard.nameBox() : null,
+        // same side and difficulty; online, back to the lobby page
+        onRematch: vs ? () => { Net.leave(); startGame(); showMenu('start'); Online.open(faction); } : () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },
         onNew: () => showMenu('start'),
       });
       Sound.say(won ? 'Mission accomplished' : 'Mission failed');
@@ -135,8 +137,13 @@
   // ---------------------------------------------------------------------------
   // Game start
   // ---------------------------------------------------------------------------
+  let online = null;   // { opponent } during an online battle
   function startGame(seed) {
     newWorld(faction, diffKey, seed, mySide);
+    online = null;
+    afterNewWorld(faction);
+  }
+  function afterNewWorld(faction) {
     radarWas = null;
     for (let i = 0; i < NCELLS; i++) {
       mtctx.fillStyle = TERRAIN_MINI[G.terr[i]];
@@ -154,8 +161,24 @@
     centerOn(cy.x + 40, cy.y - 30);
   }
 
+  // An online battle (net.js): o = { seed, faction, me, opponent }.
+  UIBridge.start = (o) => {
+    Report.quit();
+    endPlace();
+    Net.hookHost();
+    newWorld(o.faction, 'normal', o.seed, o.me, true);
+    online = { opponent: o.opponent };
+    afterNewWorld(o.faction);
+    Report.start(o.faction, null, 'pvp', o.opponent);
+    hideMenu();
+    eva('Select a structure to build');
+  };
+  UIBridge.lost = () => { eva('Connection lost'); Report.quit(); online = null; startGame(); showMenu('start'); Online.open(faction); };
+  $('onlineBtn').addEventListener('click', () => Online.open(faction));
+
   // A mission the player starts (not the battle behind the menu): reported anonymously, see report.js.
   function startMission() {
+    Net.leave();
     Report.quit();   // a mission left undecided counts as quit
     startGame();
     Report.start(faction, diffKey);
@@ -752,12 +775,9 @@
     if (!G) return;
     const team = G.teams[G.me];
     if (!team.auto && !enemyBaseKnown()) { evaCalm('Enemy base not located', 4); return; }   // scout it first
-    team.auto = !team.auto;
+    setAuto(team, !team.auto);
     ui.autoBtn.setAttribute('aria-pressed', String(team.auto));
     if (team.auto) {
-      // Every idle ground unit attacks now; aircraft waiting on their pads take off.
-      launchAll(team);
-      for (const u of unitsOf(G.me)) if (u.cls === 'air' && !u.def.scripted && u.order.type === 'guard') u.staged = true;
       eva('Auto attack on');
     } else eva('Auto attack off. New units guard the base');
   });
@@ -864,9 +884,9 @@
     }
     else if (act === 'guard') beginGuard(own.filter((u) => u.kind === 'unit' && !u.def.harvester));
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
-    else if (act === 'repair' && bld) bld.repairing = !bld.repairing;
+    else if (act === 'repair' && bld) setRepair(bld, !bld.repairing);
     else if (act === 'sell' && bld) {
-      if (sellArmed === bld) { bld.sellT = 1.2; bld.buildT = 1; select([]); sellArmed = null; eva('Structure sold'); Sound.play('sell'); }
+      if (sellArmed === bld) { sellStructure(bld); select([]); sellArmed = null; eva('Structure sold'); Sound.play('sell'); }
       else { sellArmed = bld; setTimeout(() => { sellArmed = null; selSig = ''; }, 2500); }
     } else if (act === 'close') select([]);
     selSig = '';
@@ -882,7 +902,7 @@
     ui.resumeBtn.hidden = mode !== 'pause';
     ui.quitBtn.hidden = mode !== 'pause';
     disarmQuit();
-    if (G) G.paused = true;
+    if (G && !Net.role) G.paused = true;   // (an online battle runs on: the other player is still in it)
     if (mode === 'start') { ui.menuTitle.textContent = 'Red Horizon'; ui.menuSub.textContent = 'Choose your side, commander.'; ui.startBtn.textContent = 'Start mission'; }
     if (mode === 'pause') { ui.menuTitle.textContent = 'Paused'; ui.menuSub.textContent = 'Mission time ' + fmt(G.t); ui.startBtn.textContent = 'New mission'; }
     syncMenuChoices();
@@ -938,6 +958,7 @@
   ui.quitBtn.addEventListener('click', () => {
     if (!quitArmed) { ui.quitBtn.textContent = 'Tap again to quit'; quitArmed = setTimeout(disarmQuit, 3000); return; }
     disarmQuit();
+    Net.leave();
     Report.quit();
     endPlace();
     startGame();
@@ -961,7 +982,10 @@
       if (keys.has('ArrowUp') || keys.has('w')) cam.y -= k;
       if (keys.has('ArrowDown') || keys.has('s')) cam.y += k;
       clampCam();
-      while (dt > 0) { const step = Math.min(dt, 1 / 30); update(step); dt -= step; }
+      const total = dt;
+      if (Net.role === 'guest') Net.guestStep(dt);
+      else while (dt > 0) { const step = Math.min(dt, 1 / 30); update(step); dt -= step; }
+      Net.hostTick(total);
     }
     draw();
     updateSidebar(1 / 60);

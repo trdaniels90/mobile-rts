@@ -264,7 +264,7 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
   color: #e6e1cf; background: linear-gradient(180deg, #4c5530, #2f3520);
   border: 2px solid; border-color: #7d8a4c #171b0c #171b0c #7d8a4c;
 }
-#manual, #news, #board, #profile {
+#manual, #news, #board, #profile, #online {
   /* minmax(0, 1fr): the column must not grow to fit the tab strip, or the book runs off a narrow screen. */
   position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; grid-template-columns: minmax(0, 1fr);
   padding: calc(var(--safe-t) + 10px) max(10px, var(--safe-r)) calc(var(--safe-b) + 10px) max(10px, var(--safe-l));
@@ -351,6 +351,16 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 .pf-row button:disabled { opacity: 0.5; }
 .pf-msg { min-height: 1.2em; margin: 4px 0 0; font-size: 14px; color: #8a2b1c; }
 .pf-small { font-size: 13px; color: #6b5a3a; }
+.on-btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.on-btns .on-go { background: #8a2b1c; border-color: #c4523e #3d0f08 #3d0f08 #c4523e; }
+.on-code { margin: 10px 0; font-family: var(--font-stencil); font-size: 44px; letter-spacing: 0.3em; color: #8a2b1c; text-align: center; }
+.on-error { padding: 8px 10px; color: #8a2b1c; border: 2px solid #8a2b1c; }
+.on-lobby { width: 100%; border-collapse: collapse; margin: 10px 0; }
+.on-lobby th, .on-lobby td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #b9a77c; }
+.on-lobby th { font-family: var(--font-stencil); text-transform: uppercase; color: #5a3b18; width: 5em; }
+.on-side { font-family: var(--font-stencil); text-transform: uppercase; }
+.on-side[data-faction="allies"] { color: #2a4d8a; }
+.on-side[data-faction="soviets"] { color: #8a2b1c; }
 .pf-links { font-size: 14px; }
 .pf-link { padding: 0; font: inherit; color: #5a3b18; text-decoration: underline; background: none; border: 0; cursor: pointer; }
 .pf-who { display: flex; flex-direction: column; margin: 0 0 12px; }

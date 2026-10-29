@@ -54,11 +54,13 @@ const Report = (() => {
 
   let match = null;   // { id, row, saved: promise of true/null, ended }
   const insert = (m) => post('matches', m.row);
-  function start(side, difficulty) {
+  // mode: 'skirmish' against the computer, or 'pvp' online, with the opponent's name.
+  function start(side, difficulty, mode = 'skirmish', opponent = null) {
     try {
       quit();
       if (local) return;
-      const row = { id: uuid(), device_id: device, mode: 'skirmish', side, difficulty, version: typeof VERSION === 'string' ? VERSION : null };
+      const row = { id: uuid(), device_id: device, mode, side, difficulty, version: typeof VERSION === 'string' ? VERSION : null };
+      if (opponent) row.opponent = String(opponent).slice(0, 20);
       match = { id: row.id, row, ended: false };
       match.saved = insert(match);
     } catch (_) {}

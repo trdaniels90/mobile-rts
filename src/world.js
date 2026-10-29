@@ -14,7 +14,8 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
 function turnToward(cur, target, step) { const d = angDiff(target, cur); return Math.abs(d) <= step ? target : cur + Math.sign(d) * step; }
 
-let hooks = { eva() {}, gameOver() {}, sfx() {}, shake() {} };
+// evaFor(side, msg): the announcer for a human side this device does not show (the PvP guest).
+let hooks = { eva() {}, evaFor() {}, gameOver() {}, sfx() {}, shake() {} };
 
 // ---------------------------------------------------------------------------
 // New game
@@ -22,12 +23,13 @@ let hooks = { eva() {}, gameOver() {}, sfx() {}, shake() {} };
 // The two sides are 0 and 1. `G.me` is the side this device shows and takes orders for (its
 // camera, map, sidebar, announcer and debrief); either side can be "you". `G.fog[side]` is what
 // each side has uncovered, and `G.seen` is the one this device draws, `G.fog[G.me]`.
-// `me`: the side the human plays (default 0). The other side is the computer.
-function newWorld(playerFaction, diffKey, seed, me = PLAYER) {
+// `me`: the side the human plays (default 0). The other side is the computer, or with `pvp`
+// a second human (online: see net.js).
+function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false) {
   seed = seed || (Math.random() * 1e9) | 0;
   const enemyFaction = playerFaction === 'allies' ? 'soviets' : 'allies';
   const fog = [new Uint8Array(NCELLS), new Uint8Array(NCELLS)];
-  const human = makeTeam(me, playerFaction, false), cpu = makeTeam(1 - me, enemyFaction, true);
+  const human = makeTeam(me, playerFaction, false), cpu = makeTeam(1 - me, enemyFaction, !pvp);
   G = {
     t: 0, seed, diff: DIFFICULTY[diffKey], diffKey, nextId: 1,
     entities: [], byId: new Map(), effects: [], projectiles: [], pathQueue: [], groups: [],
@@ -38,7 +40,7 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER) {
     log: { samples: [], events: [], fallen: [], waves: [0, 0], lastH: [0, 0] },   // for the debrief
     teams: me === PLAYER ? [human, cpu] : [cpu, human],
   };
-  cpu.credits = G.diff.credits;
+  if (!pvp) cpu.credits = G.diff.credits;
   // Start positions: a random one of the eight for the player, and for the enemy a random one
   // of the four across the lakes, so the two bases never start on the same side.
   const sr = rng(Math.imul(seed ^ 0x2545f491, 0x9e3779b1) ^ (seed >>> 7)); sr(); sr();
@@ -712,7 +714,7 @@ function launchGroups() {
     const raid = exp.length && team.waves % 3 === 0 ? exp[0] : null;
     if (raid) for (const u of ready) u.focus = raid;
     team.waiting = 0;
-    if (team.id === G.me) hooks.eva('Attack group moving out');
+    say(team.id, 'Attack group moving out');
   }
 }
 
@@ -1270,7 +1272,7 @@ function impact(kind, x, y, inAir) {
 
 // `from`: where the hit came from (a blast centre or the shooter), for how a soldier falls.
 function damage(t, amount, wh, attacker, from) {
-  if (!t.alive) return;
+  if (!t.alive || G.remote) return;   // (a PvP guest's copy only shows the host's battle)
   // As in Red Alert: whoever fires at a support plane (Spy Plane, Paratroopers transport, bomber)
   // gives away where it stands, to either side.
   if (t.def && t.def.scripted && attacker && attacker.team !== t.team) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5, G.fog[t.team]);
@@ -1328,12 +1330,16 @@ function damage(t, amount, wh, attacker, from) {
   if (t.hp <= 0) kill(t, attacker, wh, from || attacker);
 }
 
-// The announcer speaks for this device's side only.
+// The announcer speaks to human sides only: this device's, or the PvP guest's through net.js.
+function say(side, msg) {
+  if (side === G.me) hooks.eva(msg);
+  else if (!G.teams[side].isAI) hooks.evaFor(side, msg);
+}
 function notify(team, key, msg, cooldown) {
-  if (team.id !== G.me) return;
+  if (team.isAI) return;
   if (team.cool[key] && G.t < team.cool[key]) return;
   team.cool[key] = G.t + cooldown;
-  hooks.eva(msg);
+  say(team.id, msg);
 }
 
 function kill(e, attacker, wh, from) {
@@ -1554,7 +1560,7 @@ function deploySpot(u) {
 function deployFob(u) {
   if (!u.alive || !u.def.deploys) return null;
   const spot = deploySpot(u);
-  if (!spot) { if (u.team === G.me) hooks.eva('Cannot deploy here'); return null; }
+  if (!spot) { say(u.team, 'Cannot deploy here'); return null; }
   const team = G.teams[u.team];
   u.alive = false;
   const b = addBuilding(u.def.deploys, team, spot.cx, spot.cy);
@@ -1731,7 +1737,7 @@ function recoverPilot(u) {
   }
   const team = G.teams[u.team];
   u.alive = false; team.credits += PILOT_BOUNTY;
-  if (team.id === G.me) hooks.eva('Pilot recovered');
+  say(team.id, 'Pilot recovered');
   return true;
 }
 
@@ -2751,6 +2757,16 @@ function commandGuard(units, x, y) {
 }
 // Stop: every order dropped, back to what a new unit does: ground units wait around the base,
 // aircraft on their pad, both ready for auto attack; Ore Trucks go back to harvesting.
+// Sidebar buttons, as functions so a PvP guest's taps can be sent to the host.
+function setAuto(team, on) {
+  team.auto = !!on;
+  if (!on) return;
+  // Every idle ground unit attacks now; aircraft waiting on their pads take off.
+  launchAll(team);
+  for (const u of unitsOf(team.id)) if (u.cls === 'air' && !u.def.scripted && u.order.type === 'guard') u.staged = true;
+}
+function setRepair(b, on) { b.repairing = !!on; }
+function sellStructure(b) { if (b.sellT <= 0) { b.sellT = 1.2; b.buildT = 1; } }
 function commandStop(units) {
   for (const u of units) {
     u.target = null; u.focus = null; u.huntTarget = null; u.defending = false; u.homeward = false; u.oneStrike = false;
@@ -2815,7 +2831,16 @@ function update(dt) {
   if ((T.ore -= dt) <= 0) { T.ore = 2; growOre(); }
   if ((T.ai -= dt) <= 0) { T.ai = 1; if (!G.over) for (const team of G.teams) if (team.isAI) aiThink(team); }
   if ((T.win -= dt) <= 0) { T.win = 1; checkWin(); if (!G.over) launchGroups(); }
-  if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); adviseTrucks(G.teams[G.me]); }
+  if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); for (const t of G.teams) if (!t.isAI) adviseTrucks(t); }
+  updateEffects(dt);
+  sweepDead();
+  rollCredits(dt);
+}
+// Smoke, debris, bodies and the like. A PvP guest runs these itself; G.inFx marks what they set
+// off (more effects, sounds, marks on the ground), which the host need not send.
+function updateEffects(dt) {
+  const n0 = G.effects.length;
+  G.inFx = true;
   for (const fx of G.effects) {
     if (fx.type === 'crash') updateCrash(fx, dt);
     else if (fx.type === 'frag') updateFrag(fx, dt);
@@ -2834,11 +2859,17 @@ function update(dt) {
     if (fx.drag && fx.t > 0) { const k = Math.exp(-fx.drag * dt); fx.vx *= k; fx.vy = fx.vy * k - 3 * (1 - k); }   // billowing smoke slows, then rises
     if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
   }
+  for (let i = n0; i < G.effects.length; i++) G.effects[i].sent = true;
+  G.inFx = false;
   G.effects = G.effects.filter((fx) => fx.t < fx.life);
+}
+function sweepDead() {
   if (G.entities.some((e) => !e.alive)) {
     for (const e of G.entities) if (!e.alive) G.byId.delete(e.id);
     G.entities = G.entities.filter((e) => e.alive);
     G.selection = G.selection.filter((e) => e.alive);
   }
+}
+function rollCredits(dt) {
   for (const team of G.teams) team.shown += Math.sign(team.credits - team.shown) * Math.min(Math.abs(team.credits - team.shown), Math.max(60, Math.abs(team.credits - team.shown) * 0.2) * dt * 10);
 }

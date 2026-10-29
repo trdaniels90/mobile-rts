@@ -14,7 +14,7 @@ create table if not exists public.matches (
   mode        text not null default 'skirmish' check (mode in ('skirmish', 'pve', 'pvp')),   -- skirmish: one player against the computer
   side        text not null check (side in ('allies', 'soviets')),
   difficulty  text check (difficulty in ('easy', 'normal', 'hard')),                         -- null in PvP
-  opponent    text,                                  -- reserved for PvP: the other player's name
+  opponent    text check (char_length(opponent) <= 20),  -- PvP: the other player's name
   version     text check (char_length(version) <= 32),
   started_at  timestamptz not null default now(),
   last_seen   timestamptz not null default now(),    -- heartbeat while the match runs
@@ -32,7 +32,7 @@ alter table public.matches enable row level security;
 
 -- Table privileges: insert of the starting columns only; no select, update or delete.
 revoke all on public.matches from anon, authenticated;
-grant insert (id, device_id, mode, side, difficulty, version) on public.matches to anon, authenticated;
+grant insert (id, device_id, mode, side, difficulty, version, opponent) on public.matches to anon, authenticated;
 
 drop policy if exists "anyone can start a match" on public.matches;
 create policy "anyone can start a match" on public.matches for insert to anon, authenticated with check (true);
