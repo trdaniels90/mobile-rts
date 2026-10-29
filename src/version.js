@@ -4,6 +4,14 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.29.2', date: '29 October 2026', title: 'Leaderboard scores', groups: [
+    ['', [
+      'The leaderboard now ranks wins by score instead of time. A win scores 10 points a kill, 50 a building destroyed and 1 per 100 ore, plus a speed bonus of up to 5,000 that shrinks the longer the battle runs. Hard counts 1.5 times, Easy half.',
+      'Each commander appears once per difficulty, with their best score.',
+      'Wins already on the board have been scored too.',
+      'After a win, the debrief shows your score above the name box.',
+    ]],
+  ] },
   { v: '2026.10.29.1', date: '29 October 2026', title: 'Online battles', groups: [
     ['Play a friend', [
       'Play online on the menu: battle a friend, phone to phone. One of you taps Host a game and gets a 4-letter code; the other taps Join and types it in.',
