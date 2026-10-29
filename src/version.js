@@ -4,6 +4,15 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.29', date: '29 October 2026', title: 'Your service record', groups: [
+    ['Profiles', [
+      'A Profile button on the menu. Sign in with your email address and a 6-digit code we email you: no password to remember.',
+      'Choose a commander name of your own. It goes on the leaderboard for you, and will be your name in online battles.',
+      'Your service record shows your total play time, your lifetime kills and the most ore you have gathered in one game, plus missions won and lost.',
+      'Games you have already played on your phone count towards your record when you first sign in.',
+      'You can sign out or delete your account at any time. Playing without signing in works just as before.',
+    ]],
+  ] },
   { v: '2026.10.28.11', date: '28 October 2026', title: 'Never miss an update', groups: [
     ['', [
       'After an update, What\'s New on the menu wears a NEW badge and glows until you have read the notes.',
