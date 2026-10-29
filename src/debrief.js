@@ -46,7 +46,7 @@ const Debrief = (() => {
   function open(won, opts) {
     if (!root) build();
     onRematch = opts.onRematch; onNew = opts.onNew;
-    const me = G.teams[PLAYER], foe = G.teams[ENEMY], L = G.log;
+    const me = G.teams[G.me], foe = G.teams[foeOf(G.me)], L = G.log;
     const cMe = SIDE[me.faction], cFoe = SIDE[foe.faction];
     const sideName = (t) => (t.faction === 'allies' ? 'Allies' : 'Soviets');
     root.querySelector('.db-kick').textContent = `${sideName(me)} vs ${sideName(foe)} · ${opts.difficulty}`;
@@ -57,8 +57,8 @@ const Debrief = (() => {
     root.querySelector('.db-legend').innerHTML = `<span><i style="background:${cMe}"></i>You (${sideName(me)})</span><span><i style="background:${cFoe}"></i>Enemy (${sideName(foe)})</span>`;
 
     // Most valuable unit: the player's unit with the most kills, standing or fallen.
-    const alive = unitsOf(PLAYER).filter((u) => u.kills).map((u) => ({ type: u.type, faction: u.faction, kills: u.kills, worth: u.killWorth, born: u.born, died: null }));
-    const mvp = alive.concat(L.fallen).sort((a, b) => b.kills - a.kills || b.worth - a.worth)[0];
+    const alive = unitsOf(G.me).filter((u) => u.kills).map((u) => ({ type: u.type, faction: u.faction, kills: u.kills, worth: u.killWorth, born: u.born, died: null }));
+    const mvp = alive.concat(L.fallen.filter((u) => u.team === G.me)).sort((a, b) => b.kills - a.kills || b.worth - a.worth)[0];
     root.querySelector('.db-mvp').innerHTML = mvp ? `<div class="db-mvp-head"><img src="${cameoURL(mvp.type, mvp.faction)}" alt="">
         <div><p class="db-medal">★ Most valuable unit</p><h3>${esc(UNIT_DEFS[mvp.type].name)}</h3>
         <p class="db-call">Built at ${fmt(mvp.born)} · ${mvp.died === null ? 'survived' : 'fell at ' + fmt(mvp.died)}</p></div></div>
@@ -93,12 +93,12 @@ const Debrief = (() => {
     const svg = root.querySelector('svg'), tip = root.querySelector('.db-tip'), box = root.querySelector('.db-chart');
     const W = 600, H = 270, Lm = 50, R = 12, T = 18, B = 26, L = G.log, tMax = Math.max(60, G.t);
     const EV = L.events;
-    const evText = (e) => (e.team === PLAYER ? 'Your ' : 'Enemy ') + (e.kind === 'cy lost' ? 'Construction Yard destroyed' : e.kind === 'outpost lost' ? 'Outpost lost' : e.kind);
-    const evColor = (e) => (e.team === PLAYER ? cMe : cFoe);
+    const evText = (e) => (e.team === G.me ? 'Your ' : 'Enemy ') + (e.kind === 'cy lost' ? 'Construction Yard destroyed' : e.kind === 'outpost lost' ? 'Outpost lost' : e.kind);
+    const evColor = (e) => (e.team === G.me ? cMe : cFoe);
     const unit = { army: money, income: (v) => money(v) + '/min', blds: (v) => Math.round(v) };
-    const series = (k) => (k !== 'income' ? L.samples.map((s) => [s.t, s[k][PLAYER], s[k][ENEMY]])
+    const series = (k) => (k !== 'income' ? L.samples.map((s) => [s.t, s[k][G.me], s[k][foeOf(G.me)]])
       // income averaged over the last minute: single truckloads make the raw figures jump about
-      : L.samples.map((s, i) => { const w = L.samples.slice(Math.max(0, i - 3), i + 1); return [s.t, w.reduce((a, q) => a + q.income[PLAYER], 0) / w.length, w.reduce((a, q) => a + q.income[ENEMY], 0) / w.length]; }));
+      : L.samples.map((s, i) => { const w = L.samples.slice(Math.max(0, i - 3), i + 1); return [s.t, w.reduce((a, q) => a + q.income[G.me], 0) / w.length, w.reduce((a, q) => a + q.income[foeOf(G.me)], 0) / w.length]; }));
     const niceMax = (v) => { const p = Math.pow(10, Math.floor(Math.log10(v || 1))), n = v / p; return [1, 1.2, 1.6, 2, 2.4, 3, 4, 5, 6, 8, 10].find((q) => q >= n) * p; };
     let key = 'army';
     function draw() {

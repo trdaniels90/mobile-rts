@@ -53,9 +53,11 @@ share globals. Read this file first; the commit history explains every change in
 | `src/report.js` | Match reporting to Supabase and the leaderboard |
 | `src/profile.js` | Accounts (email plus a 6-digit code), commander names and the service record |
 
-- **Sides:** `PLAYER = 0`, `ENEMY = 1`. Much of the code still assumes the human is side 0.
-- **Map knowledge:** `G.seen` is what the player has uncovered and `G.aiSeen` is what the
-  computer has. Both sides only target enemy buildings they know about (`knownTo`,
+- **Sides:** `PLAYER = 0`, `ENEMY = 1` are just the two slots. `G.me` is the side this device
+  shows and commands; either side can be "you" (`newWorld(..., me)`, `?side=1` in the address,
+  `setViewer(side)`). The announcer (`notify`) speaks only for `G.me`.
+- **Map knowledge:** `G.fog[side]` is what each side has uncovered; `G.seen` is `G.fog[G.me]`,
+  the one drawn. Both sides only target enemy buildings they know about (`knownTo`,
   `targetable`).
 
 ## Supabase
@@ -85,12 +87,13 @@ Supabase.
 | `jet-rush.js` | Three jets against the Soviet Construction Yard |
 | `lost-touch.js` | Regression check for the stuck-pinch touch bug |
 | `profile-ui.js` | The sign-in flow, with Supabase faked |
+| `either-side.js` | Plays as side 1 against the computer, swaps the view, checks the win and debrief |
 
 ## Next: PvP
 
 Agreed with the owner, built in stages. Stage 1 profiles are done (release 2026.10.29).
 
-1. **Either side can be "you".** Replace the "human is side 0" assumptions with a local viewer
+1. **Either side can be "you".** Done on the branch (not yet released). Replaced the "human is side 0" assumptions with a local viewer
    side. That covers the camera, fog (`G.seen` vs `G.aiSeen`), selection, the sidebar, notices,
    sounds and the debrief. Test it on one device before any networking.
 2. **Online play.**

@@ -75,11 +75,12 @@ const Report = (() => {
   // Everything the debrief shows: the player's surviving units with kills sit beside the fallen ones,
   // and unit names come along so the stats page can show them.
   function stats() {
-    const alive = unitsOf(PLAYER).filter((u) => u.kills).map((u) => ({ type: u.type, faction: u.faction, kills: u.kills, worth: u.killWorth, born: u.born, died: null }));
+    const alive = unitsOf(G.me).filter((u) => u.kills).map((u) => ({ type: u.type, faction: u.faction, kills: u.kills, worth: u.killWorth, born: u.born, died: null }));
     const names = {};
-    for (const u of alive.concat(G.log.fallen)) names[u.type] = UNIT_DEFS[u.type].name;
-    const out = { player: PLAYER, teams: G.teams.map((t) => ({ faction: t.faction, ai: t.isAI, stats: t.stats })),
-      log: { samples: G.log.samples, events: G.log.events, fallen: G.log.fallen, alive, waves: G.log.waves }, names };
+    const fallen = G.log.fallen.filter((u) => u.team === G.me).map(({ team, ...u }) => u);   // this device's side, as the stats page expects
+    for (const u of alive.concat(fallen)) names[u.type] = UNIT_DEFS[u.type].name;
+    const out = { player: G.me, teams: G.teams.map((t) => ({ faction: t.faction, ai: t.isAI, stats: t.stats })),
+      log: { samples: G.log.samples, events: G.log.events, fallen, alive, waves: G.log.waves }, names };
     while (JSON.stringify(out).length > 90000 && out.log.samples.length > 40) out.log.samples = out.log.samples.filter((_, i) => i % 2 === 0);   // a very long game: a coarser graph
     if (JSON.stringify(out).length > 90000) delete out.log.samples;
     return out;

@@ -307,7 +307,7 @@ function aiScout(team, ready) {
   const s = team.scout || (team.scout = { u: null, until: 0 });
   if (G.t < s.until) return;                                         // a Spy Plane is on its way
   if (s.u && s.u.alive && s.u.order.type === 'move') return;          // the scout is on its way
-  const seen = (x, y) => G.aiSeen[idx(Math.round(x), Math.round(y))];
+  const seen = (x, y) => G.fog[team.id][idx(Math.round(x), Math.round(y))];
   const home = team.start;
   let spots = G.spawns.filter((p) => !(p.cx === home.cx && p.cy === home.cy) && !seen(p.cx, p.cy));
   if (!spots.length) for (let y = 4; y < MAP - 4; y += 8) for (let x = 4; x < MAP - 4; x += 8) if (!seen(x, y)) spots.push({ cx: x, cy: y });
@@ -388,7 +388,7 @@ function aiWaveTarget(team, from) {
 // A raid goes for an outlying site or the most exposed Ore Truck.
 function aiRaidTarget(team) {
   const foe = enemyOf(team), cy = buildingsOf(foe.id).find((b) => b.type === 'cy');
-  const trucks = unitsOf(foe.id).filter((u) => u.def.harvester && G.aiSeen[cellOfPos(u.x, u.y)]);   // only where it has looked
+  const trucks = unitsOf(foe.id).filter((u) => u.def.harvester && G.fog[team.id][cellOfPos(u.x, u.y)]);   // only where it has looked
   const exp = expansionsOf(foe, rallyPoint(team));
   if (exp.length && (Math.random() < 0.4 || !trucks.length)) return exp[0];
   if (!trucks.length) return null;

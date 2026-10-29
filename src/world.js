@@ -2,7 +2,7 @@
 // Simulation: map, pathfinding, units, structures, combat, harvesting and production.
 
 let G = null;
-const PLAYER = 0, ENEMY = 1;
+const PLAYER = 0, ENEMY = 1;   // the two sides; which one is "you" is G.me
 const DIRS8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 
 const idx = (cx, cy) => cy * MAP + cx;
@@ -19,20 +19,26 @@ let hooks = { eva() {}, gameOver() {}, sfx() {}, shake() {} };
 // ---------------------------------------------------------------------------
 // New game
 // ---------------------------------------------------------------------------
-function newWorld(playerFaction, diffKey, seed) {
+// The two sides are 0 and 1. `G.me` is the side this device shows and takes orders for (its
+// camera, map, sidebar, announcer and debrief); either side can be "you". `G.fog[side]` is what
+// each side has uncovered, and `G.seen` is the one this device draws, `G.fog[G.me]`.
+// `me`: the side the human plays (default 0). The other side is the computer.
+function newWorld(playerFaction, diffKey, seed, me = PLAYER) {
   seed = seed || (Math.random() * 1e9) | 0;
   const enemyFaction = playerFaction === 'allies' ? 'soviets' : 'allies';
+  const fog = [new Uint8Array(NCELLS), new Uint8Array(NCELLS)];
+  const human = makeTeam(me, playerFaction, false), cpu = makeTeam(1 - me, enemyFaction, true);
   G = {
     t: 0, seed, diff: DIFFICULTY[diffKey], diffKey, nextId: 1,
     entities: [], byId: new Map(), effects: [], projectiles: [], pathQueue: [], groups: [],
     terr: new Uint8Array(NCELLS), block: new Uint8Array(NCELLS), bld: new Int32Array(NCELLS), resv: new Uint8Array(NCELLS),
-    ore: new Uint16Array(NCELLS), gem: new Uint8Array(NCELLS), seen: new Uint8Array(NCELLS), aiSeen: new Uint8Array(NCELLS), shroudDirty: true, oreFields: [],
+    ore: new Uint16Array(NCELLS), gem: new Uint8Array(NCELLS), fog, me, seen: fog[me], shroudDirty: true, oreFields: [],
     selection: [], place: null, over: null, paused: false,
     timers: { power: 0, shroud: 0, ore: 0, ai: 0, win: 0, log: 0 },
     log: { samples: [], events: [], fallen: [], waves: [0, 0], lastH: [0, 0] },   // for the debrief
-    teams: [makeTeam(PLAYER, playerFaction, false), makeTeam(ENEMY, enemyFaction, true)],
+    teams: me === PLAYER ? [human, cpu] : [cpu, human],
   };
-  G.teams[ENEMY].credits = G.diff.credits;
+  cpu.credits = G.diff.credits;
   // Start positions: a random one of the eight for the player, and for the enemy a random one
   // of the four across the lakes, so the two bases never start on the same side.
   const sr = rng(Math.imul(seed ^ 0x2545f491, 0x9e3779b1) ^ (seed >>> 7)); sr(); sr();
@@ -62,6 +68,12 @@ function newWorld(playerFaction, diffKey, seed) {
   revealAround();
   return G;
 }
+// Which side this device shows. Switching it redraws the map from that side's view.
+function setViewer(side) {
+  G.me = side; G.seen = G.fog[side]; G.shroudDirty = true;
+  G.selection = []; G.place = null;
+}
+const foeOf = (side) => 1 - side;
 
 function makeTeam(id, faction, isAI) {
   return {
@@ -603,17 +615,15 @@ function acquire(src, range, weapons, visible) {
 }
 
 // Where attacking units head: the enemy Construction Yard, or failing that the nearest structure.
-// Each side only knows the enemy buildings on ground it has uncovered: the player's in G.seen,
-// the computer's in G.aiSeen. Units sent to attack go after those alone, so attacking never finds
+// Each side only knows the enemy buildings on ground it has uncovered, in its own G.fog. Units sent to attack go after those alone, so attacking never finds
 // the enemy base: it has to be scouted first (the computer's scouting: see aiScout).
 function knownTo(tid, b) {
-  const grid = tid === PLAYER ? G.seen : G.aiSeen;
+  const grid = G.fog[tid];
   for (let y = b.cy; y < b.cy + b.h; y++) for (let x = b.cx; x < b.cx + b.w; x++) if (inMap(x, y) && grid[idx(x, y)]) return true;
   return false;
 }
-const knownToPlayer = (b) => knownTo(PLAYER, b);
 const targetable = (team, b) => knownTo(team, b);
-function enemyBaseKnown(tid = PLAYER) { return buildingsOf(1 - tid).some((b) => knownTo(tid, b)); }
+function enemyBaseKnown(tid = G.me) { return buildingsOf(1 - tid).some((b) => knownTo(tid, b)); }
 
 function nearestEnemyBuilding(u) {
   // Raiding an outlying site: stay on it, finish off what else stands there, then move on.
@@ -692,7 +702,7 @@ function launchGroups() {
     team.waiting = ready.length;
     // The computer plans its own waves (sizes, formations, routes, targets): see aiLaunch.
     if (team.isAI && team.auto) { aiLaunch(team, ready); continue; }
-    if (!team.auto || ready.length < GROUP_SIZE || !enemyBaseKnown()) continue;   // nowhere known to go: wait
+    if (!team.auto || ready.length < GROUP_SIZE || !enemyBaseKnown(team.id)) continue;   // nowhere known to go: wait
     // Each heads straight out from where it waits, at its own top speed, fighting what it meets.
     for (const u of ready) { setHunt(u); u.staged = false; }
     logWave(team.id, false);
@@ -702,7 +712,7 @@ function launchGroups() {
     const raid = exp.length && team.waves % 3 === 0 ? exp[0] : null;
     if (raid) for (const u of ready) u.focus = raid;
     team.waiting = 0;
-    if (team.id === PLAYER) hooks.eva('Attack group moving out');
+    if (team.id === G.me) hooks.eva('Attack group moving out');
   }
 }
 
@@ -942,8 +952,8 @@ function guardReach(u) {
   if (u.cls === 'air') return sight * (u.def.fly === 'jet' ? 1.6 : 1);
   return w && w.range > sight ? w.range : sight * 1.6;
 }
-// What the player's side has in view: there is no fog, only shroud, so anything on explored ground.
-const inPlayerView = (e) => !!G.seen[cellOfPos(e.x, e.y)];
+// What a side has in view: there is no fog, only shroud, so anything on explored ground.
+const inViewOf = (side) => (e) => !!G.fog[side][cellOfPos(e.x, e.y)];
 function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget = null; u.group = null; u.focus = null; }
 
 // ---------------------------------------------------------------------------
@@ -1263,7 +1273,7 @@ function damage(t, amount, wh, attacker, from) {
   if (!t.alive) return;
   // As in Red Alert: whoever fires at a support plane (Spy Plane, Paratroopers transport, bomber)
   // gives away where it stands, to either side.
-  if (t.def && t.def.scripted && attacker && attacker.team !== t.team) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5, t.team === PLAYER ? G.seen : G.aiSeen);
+  if (t.def && t.def.scripted && attacker && attacker.team !== t.team) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5, G.fog[t.team]);
   const armor = t.kind === 'bld' ? 'bld' : isAirborne(t) ? 'air' : t.def.armor === 'air' ? 'light' : t.def.armor;
   const mult = WARHEADS[wh][armor];
   if (!mult) return;
@@ -1278,7 +1288,7 @@ function damage(t, amount, wh, attacker, from) {
   t.hp -= amount * mult * cover * (0.9 + Math.random() * 0.2);
   t.hitT = G.t;
   const team = teamOf(t);
-  if (t.team === PLAYER && attacker) {
+  if (attacker) {
     if (t.kind === 'bld') notify(team, 'base', 'Our base is under attack', 15);
     else if (t.def.harvester) notify(team, 'harv', 'Ore Truck under attack', 15);
   }
@@ -1318,8 +1328,9 @@ function damage(t, amount, wh, attacker, from) {
   if (t.hp <= 0) kill(t, attacker, wh, from || attacker);
 }
 
+// The announcer speaks for this device's side only.
 function notify(team, key, msg, cooldown) {
-  if (team.isAI) return;
+  if (team.id !== G.me) return;
   if (team.cool[key] && G.t < team.cool[key]) return;
   team.cool[key] = G.t + cooldown;
   hooks.eva(msg);
@@ -1337,7 +1348,7 @@ function kill(e, attacker, wh, from) {
     team.stats.bldLost++;
     if (e.type === 'cy' || e.type === 'outpost') logEvent(e.team, e.type + ' lost');
   }
-  if (e.kind === 'unit' && e.team === PLAYER && e.kills) G.log.fallen.push({ type: e.type, faction: e.faction, kills: e.kills, worth: e.killWorth, born: e.born, died: G.t });
+  if (e.kind === 'unit' && e.kills) G.log.fallen.push({ team: e.team, type: e.type, faction: e.faction, kills: e.kills, worth: e.killWorth, born: e.born, died: G.t });
   const seed = (Math.random() * 1e6) | 0;
   if (e.kind === 'unit') {
     team.stats.lost++;
@@ -1368,7 +1379,7 @@ function kill(e, attacker, wh, from) {
     } else {
       crashLanding(e.x, e.y, e.face, e.def, e.faction, seed);
     }
-    if (e.team === PLAYER) notify(team, 'lost', 'Unit lost', 4);
+    notify(team, 'lost', 'Unit lost', 4);
   } else {
     for (let y = e.cy; y < e.cy + e.h; y++) for (let x = e.cx; x < e.cx + e.w; x++) if (G.bld[idx(x, y)] === e.id) G.bld[idx(x, y)] = 0;
     if (e.exitCell !== undefined) G.resv[e.exitCell] = 0;
@@ -1383,7 +1394,7 @@ function kill(e, attacker, wh, from) {
           t: -i * 0.18, life: 0.8, seed: seed + i, debris: i % 2 === 0 });
       }
       rubble(G.tctx, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL, seed);
-      if (e.team === PLAYER) notify(team, 'slost', 'Structure lost', 4);
+      notify(team, 'slost', 'Structure lost', 4);
     }
   }
 }
@@ -1543,7 +1554,7 @@ function deploySpot(u) {
 function deployFob(u) {
   if (!u.alive || !u.def.deploys) return null;
   const spot = deploySpot(u);
-  if (!spot) { if (u.team === PLAYER) hooks.eva('Cannot deploy here'); return null; }
+  if (!spot) { if (u.team === G.me) hooks.eva('Cannot deploy here'); return null; }
   const team = G.teams[u.team];
   u.alive = false;
   const b = addBuilding(u.def.deploys, team, spot.cx, spot.cy);
@@ -1720,7 +1731,7 @@ function recoverPilot(u) {
   }
   const team = G.teams[u.team];
   u.alive = false; team.credits += PILOT_BOUNTY;
-  if (team.id === PLAYER) hooks.eva('Pilot recovered');
+  if (team.id === G.me) hooks.eva('Pilot recovered');
   return true;
 }
 
@@ -1754,7 +1765,7 @@ function updateUnit(u, dt) {
       if (u.target && distTo(u, u.target) > reach) u.target = null;
       if (o.type === 'guard' && u.target && !avenging && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : sight * 1.6)) u.target = null;
       if (!u.target || u.target.kind === 'bld') {
-        const t = far ? acquire(u, w.range, [w, u.def.weapon2], u.team === PLAYER ? inPlayerView : null) : acquire(u, sight, [w, u.def.weapon2]);
+        const t = far ? acquire(u, w.range, [w, u.def.weapon2], teamOf(u).isAI ? null : inViewOf(u.team)) : acquire(u, sight, [w, u.def.weapon2]);
         if (t && (!u.target || t.kind === 'unit')) u.target = t;
       }
       // Part of a wave: join in on whatever the nearest squadmate is fighting.
@@ -2177,7 +2188,7 @@ function updateAir(u, dt) {
   // early; aircraft already on one keep to it.
   if (!u.retreat && !u.defending && u.hp < u.maxHp * 0.35 && (u.order.type === 'hunt' || u.order.type === 'guard') && padFor(u)) {
     u.retreat = true;
-    if (u.team === PLAYER) notify(G.teams[u.team], 'retreat', 'Aircraft returning for repairs', 10);
+    notify(G.teams[u.team], 'retreat', 'Aircraft returning for repairs', 10);
   }
   if (u.retreat && !padFor(u)) u.retreat = false;   // pad lost on the way: fight on
   // Out of ammo, retreating, or told to wait on the pad: head home and land.
@@ -2332,7 +2343,7 @@ function updateFlight(u, dt) {
   const past = (u.x - f.tx) * ca + (u.y - f.ty) * sa;   // distance flown beyond the target
   if (f.key === 'spy' && !f.done && past >= 0) {
     f.done = true;
-    revealCircle(f.tx / CELL, f.ty / CELL, POWERS.spy.reveal, u.team === PLAYER ? G.seen : G.aiSeen);
+    revealCircle(f.tx / CELL, f.ty / CELL, POWERS.spy.reveal, G.fog[u.team]);
   } else if (f.key === 'para' && !f.done && past >= -8) {
     f.done = true;
     dropTroops(u, f.tx, f.ty);
@@ -2586,12 +2597,12 @@ function updatePower() {
 // ---------------------------------------------------------------------------
 // Shroud, ore growth, win check
 // ---------------------------------------------------------------------------
-// Both sides uncover the map the same way; the computer's map (G.aiSeen) is never drawn.
+// Both sides uncover the map the same way, each into its own G.fog; only G.seen is drawn.
 function revealAround() {
   for (const e of G.entities) {
     if (!e.alive || (e.def && e.def.scripted)) continue;   // support planes reveal nothing on the way (see damage)
     const rad = e.kind === 'bld' ? (e.def.sight || 3) + Math.max(e.w, e.h) / 2 : e.def.sight;
-    revealCircle(e.x / CELL, e.y / CELL, rad, e.team === PLAYER ? G.seen : G.aiSeen);
+    revealCircle(e.x / CELL, e.y / CELL, rad, G.fog[e.team]);
   }
 }
 function revealCircle(cx, cy, rad, seen = G.seen) {
@@ -2667,11 +2678,12 @@ function logWave(team, big) {
 function checkWin() {
   if (G.over) return;
   const hasCY = (tid) => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === tid && e.type === 'cy');
-  const p = hasCY(PLAYER), e = hasCY(ENEMY);
-  if (!p || !e) {
+  const a = hasCY(PLAYER), b = hasCY(ENEMY);
+  if (!a || !b) {
     logSample();
-    G.over = { won: !e, t: G.t };
-    hooks.gameOver(!e);
+    const winner = b ? ENEMY : PLAYER;   // (both gone at once: side 0 wins, as before)
+    G.over = { winner, won: winner === G.me, t: G.t };
+    hooks.gameOver(G.over.won);
   }
 }
 
@@ -2803,7 +2815,7 @@ function update(dt) {
   if ((T.ore -= dt) <= 0) { T.ore = 2; growOre(); }
   if ((T.ai -= dt) <= 0) { T.ai = 1; if (!G.over) for (const team of G.teams) if (team.isAI) aiThink(team); }
   if ((T.win -= dt) <= 0) { T.win = 1; checkWin(); if (!G.over) launchGroups(); }
-  if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); adviseTrucks(G.teams[PLAYER]); }
+  if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); adviseTrucks(G.teams[G.me]); }
   for (const fx of G.effects) {
     if (fx.type === 'crash') updateCrash(fx, dt);
     else if (fx.type === 'frag') updateFrag(fx, dt);

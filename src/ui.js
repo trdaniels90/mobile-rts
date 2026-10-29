@@ -29,6 +29,10 @@
   } catch (_) {}
   if (!FACTIONS[faction]) faction = 'allies';
   if (!DIFFICULTY[diffKey]) diffKey = 'normal';
+  // Which side the human plays: 0, or 1 with ?side=1 in the address (for testing "either side
+  // can be you" ahead of PvP; the computer takes the other).
+  let mySide = 0;
+  try { if (new URLSearchParams(location.search).get('side') === '1') mySide = 1; } catch (_) {}
 
 
   // ---------------------------------------------------------------------------
@@ -132,7 +136,7 @@
   // Game start
   // ---------------------------------------------------------------------------
   function startGame(seed) {
-    newWorld(faction, diffKey, seed);
+    newWorld(faction, diffKey, seed, mySide);
     radarWas = null;
     for (let i = 0; i < NCELLS; i++) {
       mtctx.fillStyle = TERRAIN_MINI[G.terr[i]];
@@ -142,10 +146,10 @@
     cameoSig = { L: '', R: '' }; selSig = ''; lastCredits = null;
     // Auto attack starts off (new units spread out and guard the base): it can only be switched on
     // once an enemy building has been uncovered.
-    G.teams[PLAYER].auto = false;
+    G.teams[G.me].auto = false;
     ui.autoBtn.setAttribute('aria-pressed', 'false');
     layout();
-    const cy = G.entities.find((e) => e.team === PLAYER && e.type === 'cy');
+    const cy = G.entities.find((e) => e.team === G.me && e.type === 'cy');
     cam.z = Math.max(1, Math.min(2.5, Math.round((W / (CELL * 18)) * 4) / 4));
     centerOn(cy.x + 40, cy.y - 30);
   }
@@ -177,7 +181,7 @@
     g.fillRect(x1 - L + 1, y1, L, 1); g.fillRect(x1, y1 - L + 1, 1, L);
   }
   const seenAt = (x, y) => G.seen[cellOfPos(x, y)];
-  const visibleToPlayer = (e) => e.team === PLAYER || (e.kind === 'bld' ? G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)] : seenAt(e.x, e.y));
+  const visibleToPlayer = (e) => e.team === G.me || (e.kind === 'bld' ? G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)] : seenAt(e.x, e.y));
 
   function draw() {
     const z = cam.z;
@@ -319,7 +323,7 @@
     }
     if (!p || p.cx === undefined) return;
     const d = BUILD_DEFS[p.type];
-    const team = G.teams[PLAYER];
+    const team = G.teams[G.me];
     p.ok = canPlace(team, p.type, p.cx, p.cy, 0);
     drawGhost(v, p.type, team.faction, p.cx, p.cy);
     for (let y = 0; y < d.h; y++) for (let x = 0; x < d.w; x++) {
@@ -339,8 +343,8 @@
   let radarT = 0;
   // The radar needs a working Radar Dome: none built shows a blank screen, low power takes it
   // offline. Without it the minimap shows static and cannot be used to move the camera.
-  const radarDome = () => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === PLAYER && e.type === 'dome' && e.buildT >= 1 && e.sellT <= 0);
-  const radarOn = () => !!G && radarDome() && !G.teams[PLAYER].low;
+  const radarDome = () => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === G.me && e.type === 'dome' && e.buildT >= 1 && e.sellT <= 0);
+  const radarOn = () => !!G && radarDome() && !G.teams[G.me].low;
   let radarWas = null;
   function drawRadar(dt) {
     radarT -= dt;
@@ -393,7 +397,7 @@
     }
     return best;
   }
-  const ownUnits = () => G.selection.filter((e) => e.alive && e.kind === 'unit' && e.team === PLAYER);
+  const ownUnits = () => G.selection.filter((e) => e.alive && e.kind === 'unit' && e.team === G.me);
   function select(list) { G.selection = list; }
   function marker(x, y, color) { G.effects.push({ type: 'ring', x, y, color, t: 0, life: 0.5 }); }
 
@@ -405,7 +409,7 @@
     const slop = (isTouch ? 16 : 6) / cam.z;
     const e = pick(w.x, w.y, slop);
     const mine = ownUnits();
-    if (e && e.team === PLAYER) {
+    if (e && e.team === G.me) {
       if (e.kind === 'bld' && e.type === 'refinery' && mine.length && mine.every((u) => u.def.harvester)) {
         for (const u of mine) { u.hs = 'return'; u.dest = null; }
         marker(e.x, e.y, '#3ed04a');
@@ -416,7 +420,7 @@
       lastTap = { t: now, type: e.type };
       if (dbl && e.kind === 'unit') {
         const vx = cam.x, vy = cam.y, vw = W / cam.z, vh = H / cam.z;
-        select(unitsOf(PLAYER).filter((u) => u.type === e.type && !u.chute && u.x > vx && u.x < vx + vw && u.y > vy && u.y < vy + vh));
+        select(unitsOf(G.me).filter((u) => u.type === e.type && !u.chute && u.x > vx && u.x < vx + vw && u.y > vy && u.y < vy + vh));
         return;
       }
       if (shift && e.kind === 'unit') {
@@ -428,7 +432,7 @@
       return;
     }
     if (mine.length) {
-      if (e && e.team !== PLAYER && e.team !== undefined) {
+      if (e && e.team !== G.me && e.team !== undefined) {
         const able = mine.filter((u) => canTarget(u, e));
         if (able.length) { commandAttack(able, e); marker(e.x, e.y - (e.alt || 0), '#ff4a3a'); Sound.ack(able[0].cls === 'inf' ? 'attack' : able[0].cls); return; }
       }
@@ -442,7 +446,7 @@
 
   function boxSelect(sx0, sy0, sx1, sy1, add) {
     const a = s2w(Math.min(sx0, sx1), Math.min(sy0, sy1)), b = s2w(Math.max(sx0, sx1), Math.max(sy0, sy1));
-    const inBox = unitsOf(PLAYER).filter((u) => !u.def.scripted && u.x > a.x && u.x < b.x && u.y - (u.alt || 0) > a.y && u.y - (u.alt || 0) < b.y);
+    const inBox = unitsOf(G.me).filter((u) => !u.def.scripted && u.x > a.x && u.x < b.x && u.y - (u.alt || 0) > a.y && u.y - (u.alt || 0) < b.y);
     const fighters = inBox.filter((u) => !u.def.harvester);
     const chosen = fighters.length ? fighters : inBox;
     if (add) select(Array.from(new Set(ownUnits().concat(chosen))));
@@ -487,7 +491,7 @@
     const d = BUILD_DEFS[G.place.type];
     G.place.cx = Math.round(w.x / CELL - d.w / 2);
     G.place.cy = Math.round(w.y / CELL - d.h / 2);
-    G.place.ok = canPlace(G.teams[PLAYER], G.place.type, G.place.cx, G.place.cy, 0);
+    G.place.ok = canPlace(G.teams[G.me], G.place.type, G.place.cx, G.place.cy, 0);
     refreshPlaceBtn();
   }
   function refreshPlaceBtn() { ui.placeOk.disabled = !(G.place && G.place.ok); }
@@ -501,12 +505,12 @@
     }
     if (p && p.power) {
       if (p.x === undefined) return;
-      if (launchPower(G.teams[PLAYER], p.power, p.x, p.y)) { marker(p.x, p.y, '#ff4a3a'); Sound.ack('air'); endPlace(); }
+      if (launchPower(G.teams[G.me], p.power, p.x, p.y)) { marker(p.x, p.y, '#ff4a3a'); Sound.ack('air'); endPlace(); }
       else { eva('Not available'); endPlace(); }
       return;
     }
     if (!p || p.cx === undefined) return;
-    if (placeStructure(G.teams[PLAYER], p.type, p.cx, p.cy)) endPlace();
+    if (placeStructure(G.teams[G.me], p.type, p.cx, p.cy)) endPlace();
     else eva('Cannot deploy here');
   }
   function placeTap(w) {
@@ -621,7 +625,7 @@
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     keys.add(k);
     if (k === 'Escape') { if (G.place) endPlace(); else select([]); }
-    if (k === 'h') { const cy = G.entities.find((b) => b.team === PLAYER && b.type === 'cy') || buildingsOf(PLAYER)[0]; if (cy) centerOn(cy.x, cy.y); }
+    if (k === 'h') { const cy = G.entities.find((b) => b.team === G.me && b.type === 'cy') || buildingsOf(G.me)[0]; if (cy) centerOn(cy.x, cy.y); }
     if (k === 'p' || k === ' ') { e.preventDefault(); togglePause(); }
   });
   window.addEventListener('keyup', (e) => keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key));
@@ -689,14 +693,14 @@
   }
   ui.homeBtn.addEventListener('click', () => {
     if (!G) return;
-    const b = G.entities.find((e) => e.team === PLAYER && e.type === 'cy') || buildingsOf(PLAYER)[0];
+    const b = G.entities.find((e) => e.team === G.me && e.type === 'cy') || buildingsOf(G.me)[0];
     if (b) centerOn(b.x, b.y);
   });
 
   function cameoAction(type) {
     if (!G || G.over) return;
     Sound.play('click');
-    const team = G.teams[PLAYER];
+    const team = G.teams[G.me];
     if (type.startsWith('pw:')) {
       const key = type.slice(3);
       if (powerReady(team, key)) beginTarget(key); else eva('Not available');
@@ -714,7 +718,7 @@
   }
   function cameoCancel(type) {
     if (!G) return;
-    const team = G.teams[PLAYER];
+    const team = G.teams[G.me];
     if (type.startsWith('pw:')) { if (G.place && G.place.power === type.slice(3)) endPlace(); return; }
     if (G.place && G.place.type === type) endPlace();
     if (cancelProduction(team, type)) eva('Cancelled');
@@ -746,14 +750,14 @@
 
   ui.autoBtn.addEventListener('click', () => {
     if (!G) return;
-    const team = G.teams[PLAYER];
+    const team = G.teams[G.me];
     if (!team.auto && !enemyBaseKnown()) { evaCalm('Enemy base not located', 4); return; }   // scout it first
     team.auto = !team.auto;
     ui.autoBtn.setAttribute('aria-pressed', String(team.auto));
     if (team.auto) {
       // Every idle ground unit attacks now; aircraft waiting on their pads take off.
       launchAll(team);
-      for (const u of unitsOf(PLAYER)) if (u.cls === 'air' && !u.def.scripted && u.order.type === 'guard') u.staged = true;
+      for (const u of unitsOf(G.me)) if (u.cls === 'air' && !u.def.scripted && u.order.type === 'guard') u.staged = true;
       eva('Auto attack on');
     } else eva('Auto attack off. New units guard the base');
   });
@@ -764,7 +768,7 @@
     hudT -= dt;
     if (hudT > 0 || !G) return;
     hudT = 0.1;
-    const team = G.teams[PLAYER];
+    const team = G.teams[G.me];
     const shown = Math.max(0, Math.floor(team.shown));
     ui.credits.textContent = String(shown);
     // Tick while the counter rolls, like the classic sidebar.
@@ -822,13 +826,13 @@
     if (!sel.length) { ui.selbar.hidden = true; selSig = ''; return; }
     ui.selbar.hidden = false;
     const one = sel.length === 1 ? sel[0] : null;
-    ui.selName.textContent = one ? (one.def.name + (one.team !== PLAYER ? ' · enemy' : '')) : `${sel.length} units`;
+    ui.selName.textContent = one ? (one.def.name + (one.team !== G.me ? ' · enemy' : '')) : `${sel.length} units`;
     const hp = one ? one.hp / one.maxHp : sel.reduce((s, e) => s + e.hp / e.maxHp, 0) / sel.length;
     ui.selHp.style.setProperty('--p', Math.max(0, hp));
     ui.selHp.dataset.state = hp > 0.5 ? 'ok' : hp > 0.25 ? 'warn' : 'low';
-    const own = sel.filter((e) => e.team === PLAYER);
+    const own = sel.filter((e) => e.team === G.me);
     const fighters = own.filter((e) => e.kind === 'unit' && !e.def.harvester && (e.def.weapon || e.cls === 'air'));
-    const bld = one && one.kind === 'bld' && one.team === PLAYER ? one : null;
+    const bld = one && one.kind === 'bld' && one.team === G.me ? one : null;
     const btns = [];
     if (own.some((e) => e.kind === 'unit' && e.def.deploys)) btns.push(['deploy', 'DEPLOY']);
     if (fighters.length) btns.push(['hunt', 'ATTACK'], ['guard', 'GUARD']);
@@ -849,8 +853,8 @@
     if (!b || !G) return;
     const act = b.dataset.act;
     const sel = G.selection.filter((x) => x.alive);
-    const own = sel.filter((x) => x.team === PLAYER);
-    const bld = sel.length === 1 && sel[0].kind === 'bld' && sel[0].team === PLAYER ? sel[0] : null;
+    const own = sel.filter((x) => x.team === G.me);
+    const bld = sel.length === 1 && sel[0].kind === 'bld' && sel[0].team === G.me ? sel[0] : null;
     if (act === 'deploy') {
       const made = own.filter((u) => u.kind === 'unit' && u.def.deploys).map(deployFob).filter(Boolean);
       if (made.length) select(made.length === 1 ? [made[0]] : []);
@@ -971,7 +975,15 @@
   requestAnimationFrame(frame);
 
   // Hook for automated tests.
-  window.__ps = { get G() { return G; }, update, cam, startGame, startProduction, placeStructure, aiFindSpot, canPlace, commandMove, commandHunt, commandGuard, commandStop, tap, layout };
+  // viewSide(side): show and command the other side from here on (tests; the guest's view in PvP).
+  const viewSide = (side) => {
+    setViewer(side); endPlace();
+    radarWas = null; cameoSig = { L: '', R: '' }; selSig = ''; lastCredits = null;
+    ui.sidebar.dataset.faction = G.teams[side].faction;
+    const b = G.entities.find((e) => e.team === side && e.type === 'cy') || buildingsOf(side)[0];
+    if (b) centerOn(b.x, b.y);
+  };
+  window.__ps = { get G() { return G; }, update, cam, startGame, viewSide, startProduction, placeStructure, aiFindSpot, canPlace, commandMove, commandHunt, commandGuard, commandStop, tap, layout };
 
   // Version on the menu, and the What's New page with every release.
   // The menu names the latest update, and What's New stands out until this version's notes have
