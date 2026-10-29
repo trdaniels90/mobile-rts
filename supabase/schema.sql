@@ -86,8 +86,8 @@ returns integer language sql immutable set search_path = '' as $$
   from (select p_stats->'teams'->coalesce((p_stats->>'player')::int, 0)->'stats' as s) x;
 $$;
 
--- The leaderboard: the five best scores at each difficulty, hardest first. Every win counts, so one
--- name can hold several places. p_limit (at most 5) is the places per difficulty; p_mode leaves room
+-- The leaderboard: the five best scores at each difficulty, hardest first, each commander's best only
+-- (names match ignoring case and spaces at the ends). p_limit (at most 5) is the places per difficulty; p_mode leaves room
 -- for PvE and PvP boards later.
 drop function if exists public.get_leaderboard(text, integer);
 create function public.get_leaderboard(p_mode text default 'skirmish', p_limit integer default 5)
@@ -97,8 +97,11 @@ language sql stable security definer set search_path = '' as $$
     select m.player_name, m.side, m.difficulty, m.duration_s, m.ended_at, public.match_score(m.stats, m.duration_s, m.difficulty) as score
     from public.matches m
     where m.mode = p_mode and m.result = 'win' and m.player_name is not null and m.duration_s is not null
+  ), best as (
+    select s.*, row_number() over (partition by s.difficulty, lower(btrim(s.player_name)) order by s.score desc, s.duration_s, s.ended_at) as mine
+    from scored s
   ), ranked as (
-    select s.*, row_number() over (partition by s.difficulty order by s.score desc, s.duration_s, s.ended_at) as rk from scored s
+    select b.*, row_number() over (partition by b.difficulty order by b.score desc, b.duration_s, b.ended_at) as rk from best b where b.mine = 1
   )
   select r.rk, r.player_name, r.side, r.difficulty, r.duration_s, r.ended_at, r.score
   from ranked r

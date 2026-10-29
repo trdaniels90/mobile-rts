@@ -147,7 +147,7 @@ const Report = (() => {
 // The leaderboard page, on the same paper as What's New, and the name box in the debrief.
 const Leaderboard = (() => {
   // One tab per kind of match; PvE and PvP boards slot in here when they exist.
-  const MODES = [{ key: 'skirmish', label: 'Vs computer', intro: 'The five best scores against the computer at each difficulty, hardest first. A win scores 10 points a kill, 50 a building destroyed and 1 per 100 ore, plus a speed bonus of up to 5,000 that shrinks the longer the battle runs, times 1.5 on Hard and 0.5 on Easy. Every win counts, so one commander can hold several places.' }];
+  const MODES = [{ key: 'skirmish', label: 'Vs computer', intro: 'The five best scores against the computer at each difficulty, hardest first. A win scores 10 points a kill, 50 a building destroyed and 1 per 100 ore, plus a speed bonus of up to 5,000 that shrinks the longer the battle runs, times 1.5 on Hard and 0.5 on Easy. Each commander\'s best score at each difficulty counts.' }];
   const DIFF = { hard: 'Hard', normal: 'Normal', easy: 'Easy' }, SIDE = { allies: 'Allies', soviets: 'Soviets' };
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
