@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.29.3', date: '29 October 2026', title: 'Continue your skirmish', groups: [
+    ['', [
+      'Your skirmish now saves itself: whenever you open the menu, when your phone locks or you switch apps, and every 2 minutes.',
+      'Continue on the menu picks it up exactly where you left off, with your units, buildings, money, map and even the scorch marks.',
+      'One saved game per phone: the most recent skirmish. Winning, losing or quitting clears it. Online battles are not saved.',
+    ]],
+  ] },
   { v: '2026.10.29.2', date: '29 October 2026', title: 'Leaderboard scores', groups: [
     ['', [
       'The leaderboard now ranks wins by score instead of time. A win scores 10 points a kill, 50 a building destroyed and 1 per 100 ore, plus a speed bonus of up to 5,000 that shrinks the longer the battle runs. Hard counts 1.5 times, Easy half.',
