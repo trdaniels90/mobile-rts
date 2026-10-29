@@ -4,9 +4,13 @@
 // device), kept alive by a heartbeat while it runs, and finished with the result and the
 // debrief's numbers. None of it may ever get in the way of the game: every call is wrapped,
 // times out quickly and fails silently, so offline play is exactly as before.
+// The Supabase project, shared with player profiles (profile.js).
+const SUPABASE = {
+  url: 'https://yorrgemlhoxbxvyvzcwe.supabase.co/',
+  key: 'sb_publishable_FkCzdcgsEyqNy_UwmajBiQ_kp8V2Vi6',   // the public key: only allows what the table rules allow
+};
 const Report = (() => {
-  const API = 'https://yorrgemlhoxbxvyvzcwe.supabase.co/rest/v1/';
-  const KEY = 'sb_publishable_FkCzdcgsEyqNy_UwmajBiQ_kp8V2Vi6';   // the public key: only allows what the table rules allow
+  const API = SUPABASE.url + 'rest/v1/', KEY = SUPABASE.key;
   const TIMEOUT = 5000, BEAT = 60 * 1000;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -34,9 +38,13 @@ const Report = (() => {
       const ctl = typeof AbortController === 'function' ? new AbortController() : null;
       const timer = setTimeout(() => { try { ctl && ctl.abort(); } catch (_) {} }, TIMEOUT);
       const json = JSON.stringify(body);
+      const headers = { apikey: KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
+      // Signed in: the request carries the account, so a match started now belongs to it.
+      const token = typeof Account !== 'undefined' ? Account.token() : null;
+      if (token) headers.Authorization = 'Bearer ' + token;
       return fetch(API + path, {
         method: 'POST', signal: ctl ? ctl.signal : undefined, keepalive: !!keepalive && json.length < 60000,
-        headers: { apikey: KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        headers,
         body: json,
       }).then((r) => (!r.ok ? null : parse ? r.json() : true))
         .catch(() => null)
@@ -119,7 +127,11 @@ const Report = (() => {
   function board(mode) {
     return post('rpc/get_leaderboard', { p_mode: mode || 'skirmish', p_limit: 5 }, true).then((v) => (Array.isArray(v) ? v : null));
   }
-  return { start, end, quit, submitName, board, get name() { return store('ps-name') || ''; }, get matchId() { return match && match.id; } };
+  // Signed in: link this phone's matches that belong to nobody yet to the account (see claim_device).
+  function claim() { return local ? Promise.resolve(null) : post('rpc/claim_device', { p_device: device }, true); }
+  // The name for the leaderboard: the commander name of a signed-in player, else the last one typed here.
+  const name = () => (typeof Account !== 'undefined' && Account.name) || store('ps-name') || '';
+  return { start, end, quit, submitName, board, claim, get name() { return name(); }, get matchId() { return match && match.id; } };
 })();
 
 // The leaderboard page, on the same paper as What's New, and the name box in the debrief.

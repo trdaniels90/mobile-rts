@@ -993,6 +993,11 @@
   $('newsBtn').addEventListener('click', openNews);
   showNews();
   $('boardBtn').addEventListener('click', () => Leaderboard.open());
+  // The Profile button carries the commander's name once signed in.
+  const profileLabel = () => { $('profileBtn').textContent = Account.name || 'Profile'; };
+  $('profileBtn').addEventListener('click', () => Profile.open());
+  Account.onChange(profileLabel);
+  profileLabel();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http') && window.top === window) {
     navigator.serviceWorker.register('sw.js').catch(() => {});

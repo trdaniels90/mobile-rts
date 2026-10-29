@@ -264,7 +264,7 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
   color: #e6e1cf; background: linear-gradient(180deg, #4c5530, #2f3520);
   border: 2px solid; border-color: #7d8a4c #171b0c #171b0c #7d8a4c;
 }
-#manual, #news, #board {
+#manual, #news, #board, #profile {
   /* minmax(0, 1fr): the column must not grow to fit the tab strip, or the book runs off a narrow screen. */
   position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; grid-template-columns: minmax(0, 1fr);
   padding: calc(var(--safe-t) + 10px) max(10px, var(--safe-r)) calc(var(--safe-b) + 10px) max(10px, var(--safe-l));
@@ -341,6 +341,29 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 }
 /* Leaderboard: the What's New paper with a ruled table. */
 .lb-intro { font-style: italic; color: #4a3d28; }
+/* Profile: sign-in forms and the service record */
+.pf-form { margin: 10px 0; }
+.pf-form label { display: block; margin-bottom: 4px; font-family: var(--font-stencil); font-size: 15px; text-transform: uppercase; color: #5a3b18; }
+.pf-row { display: flex; gap: 6px; }
+.pf-row input { flex: 1; min-width: 0; height: 40px; padding: 0 10px; font: inherit; font-size: 16px; color: #22201a; background: rgba(255,250,235,0.85); border: 2px solid #8b7a55; border-radius: 0; }
+.pf-row input:focus { outline: none; border-color: #a3261c; }
+.pf-row button, .pf-btn { height: 40px; padding: 0 14px; font-family: var(--font-stencil); font-size: 15px; text-transform: uppercase; color: #f1ead4; background: #4c5530; border: 2px solid; border-color: #7d8a4c #171b0c #171b0c #7d8a4c; cursor: pointer; }
+.pf-row button:disabled { opacity: 0.5; }
+.pf-msg { min-height: 1.2em; margin: 4px 0 0; font-size: 14px; color: #8a2b1c; }
+.pf-small { font-size: 13px; color: #6b5a3a; }
+.pf-links { font-size: 14px; }
+.pf-link { padding: 0; font: inherit; color: #5a3b18; text-decoration: underline; background: none; border: 0; cursor: pointer; }
+.pf-who { display: flex; flex-direction: column; margin: 0 0 12px; }
+.pf-name { font-family: var(--font-stencil); font-size: clamp(22px, 6vw, 30px); text-transform: uppercase; color: #22201a; overflow-wrap: anywhere; }
+.pf-since { font-size: 13px; color: #6b5a3a; overflow-wrap: anywhere; }
+.pf-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5em, 1fr)); gap: 8px; }
+.pf-stat { display: flex; flex-direction: column; padding: 10px 12px; background: rgba(255,250,235,0.55); border: 1px solid #8b7a55; }
+.pf-k { font-family: var(--font-stencil); font-size: 13px; text-transform: uppercase; color: #6b5a3a; }
+.pf-v { font-family: 'Courier New', Courier, monospace; font-size: clamp(22px, 6vw, 28px); font-weight: 700; color: #22201a; font-variant-numeric: tabular-nums; }
+.pf-when { font-size: 12px; color: #6b5a3a; }
+.pf-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding-top: 10px; border-top: 1px solid #b4a27a; }
+.pf-actions .pf-msg { flex-basis: 100%; }
+.pf-danger { background: #6e2219; border-color: #a4473a #2c0b07 #2c0b07 #a4473a; }
 .lb-note { padding: 14px 0; color: #4a3d28; }
 .lb-retry { margin-left: 6px; padding: 2px 10px; font-weight: 700; color: #2b261c; background: rgba(255,250,235,0.7); border: 1px solid #8b7a55; }
 .lb-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
