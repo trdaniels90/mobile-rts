@@ -209,7 +209,9 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 .crest { width: 28px; height: 18px; margin-bottom: 4px; border: 1px solid #000; }
 .sides button[data-faction="allies"] .crest { background: linear-gradient(180deg, #97b4da, #36547c); }
 .sides button[data-faction="soviets"] .crest { background: linear-gradient(180deg, #dd6c5c, #781d18); }
-.buttons { display: flex; gap: 6px; }
+.buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.buttons .continue-btn { flex: 1 1 100%; height: auto; min-height: 48px; padding-top: 6px; padding-bottom: 6px; }
+.continue-btn small { display: block; margin-top: 2px; font-size: 0.55em; letter-spacing: 0.04em; opacity: 0.85; }
 .primary {
   flex: 1; height: 48px; font-family: var(--font-stencil); font-size: clamp(16px, 4.6vw, 22px); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
   color: #1b1405; background: linear-gradient(180deg, #f0c64c, #b8871c);

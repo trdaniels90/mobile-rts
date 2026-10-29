@@ -59,6 +59,7 @@
   hooks.eva = eva;
   hooks.gameOver = (won) => {
     Report.end(won);
+    if (mission) { SaveGame.clear(); mission = false; }
     const vs = online, how = G.over.how;
     const ending = how === 'quit' ? (won ? ' · they surrendered' : ' · you surrendered') : how === 'left' ? (won ? ' · they left' : ' · you left') : '';
     setTimeout(() => {
@@ -139,12 +140,14 @@
   // Game start
   // ---------------------------------------------------------------------------
   let online = null;   // { opponent } during an online battle
+  let mission = false; // a skirmish the player started or continued (not the battle behind the menu): saved as it goes
   function startGame(seed) {
     newWorld(faction, diffKey, seed, mySide);
-    online = null;
+    online = null; mission = false;
     afterNewWorld(faction);
   }
-  function afterNewWorld(faction) {
+  // resumed: a saved game, which keeps its auto attack and camera.
+  function afterNewWorld(faction, resumed) {
     radarWas = null;
     for (let i = 0; i < NCELLS; i++) {
       mtctx.fillStyle = TERRAIN_MINI[G.terr[i]];
@@ -154,9 +157,10 @@
     cameoSig = { L: '', R: '' }; selSig = ''; lastCredits = null;
     // Auto attack starts off (new units spread out and guard the base): it can only be switched on
     // once an enemy building has been uncovered.
-    G.teams[G.me].auto = false;
-    ui.autoBtn.setAttribute('aria-pressed', 'false');
+    if (!resumed) G.teams[G.me].auto = false;
+    ui.autoBtn.setAttribute('aria-pressed', String(!!G.teams[G.me].auto));
     layout();
+    if (resumed) return;
     const cy = G.entities.find((e) => e.team === G.me && e.type === 'cy');
     cam.z = Math.max(1, Math.min(2.5, Math.round((W / (CELL * 18)) * 4) / 4));
     centerOn(cy.x + 40, cy.y - 30);
@@ -181,8 +185,38 @@
   function startMission() {
     Net.leave();
     Report.quit();   // a mission left undecided counts as quit
+    SaveGame.clear();
     startGame();
+    mission = true;
     Report.start(faction, diffKey);
+  }
+  // The skirmish under way is saved when the menu opens (which it also does when the phone locks or
+  // switches apps) and every two minutes; Continue on the menu picks it up again.
+  function autosave() {
+    if (mission && G && !G.over && !Net.role) SaveGame.save({ faction, diffKey, cam: { x: cam.x, y: cam.y, z: cam.z } }).then(showContinue);
+  }
+  setInterval(() => { if (G && !G.paused) autosave(); }, 120 * 1000);
+  function showContinue() {
+    SaveGame.info().then((m) => {
+      const b = $('continueBtn');
+      b.hidden = !m || !ui.menu.dataset.mode || ui.menu.dataset.mode !== 'start';
+      if (!m) return;
+      const side = (f) => (f === 'allies' ? 'Allies' : 'Soviets');
+      b.innerHTML = `Continue<small>${side(m.faction)} vs ${side(m.foe)} · ${DIFFICULTY[m.diffKey] ? DIFFICULTY[m.diffKey].label : ''} · ${fmt(m.t)}</small>`;
+    });
+  }
+  async function continueMission() {
+    Net.leave();
+    Report.quit();
+    endPlace();
+    const r = await SaveGame.load();
+    if (!r) { $('continueBtn').hidden = true; eva('No saved game'); return; }
+    faction = FACTIONS[r.faction] ? r.faction : faction; diffKey = DIFFICULTY[r.diffKey] ? r.diffKey : diffKey;
+    online = null; mission = true;
+    afterNewWorld(faction, true);
+    if (r.cam) { cam.x = r.cam.x; cam.y = r.cam.y; cam.z = r.cam.z; clampCam(); }
+    Report.start(faction, diffKey);
+    hideMenu();
   }
 
   // ---------------------------------------------------------------------------
@@ -904,6 +938,9 @@
     ui.quitBtn.hidden = mode !== 'pause';
     disarmQuit();
     if (G && !Net.role) G.paused = true;   // (an online battle runs on: the other player is still in it)
+    ui.menu.dataset.mode = mode;
+    if (mode === 'pause') autosave();
+    showContinue();
     if (mode === 'start') { ui.menuTitle.textContent = 'Red Horizon'; ui.menuSub.textContent = 'Choose your side, commander.'; ui.startBtn.textContent = 'Skirmish'; }
     if (mode === 'pause') { ui.menuTitle.textContent = 'Paused'; ui.menuSub.textContent = 'Mission time ' + fmt(G.t); ui.startBtn.textContent = 'New skirmish'; }
     if (mode === 'pause' && Net.role) { ui.menuTitle.textContent = 'Menu'; ui.menuSub.textContent = 'Online: the battle goes on while this menu is open.'; }
@@ -941,6 +978,11 @@
     try { localStorage.setItem('ps-diff', diffKey); } catch (_) {}
     syncMenuChoices();
   });
+  $('continueBtn').addEventListener('click', () => {
+    const b = $('continueBtn');
+    b.disabled = true; b.textContent = 'Loading…';
+    continueMission().finally(() => { b.disabled = false; showContinue(); });
+  });
   ui.startBtn.addEventListener('click', () => {
     ui.startBtn.textContent = 'Loading…';
     ui.startBtn.disabled = true;
@@ -962,6 +1004,7 @@
     disarmQuit();
     if (Net.role) { Net.surrender(); hideMenu(); return; }   // online: quitting is surrendering
     Report.quit();
+    SaveGame.clear();
     endPlace();
     startGame();
     showMenu('start');

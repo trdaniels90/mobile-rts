@@ -54,6 +54,7 @@ share globals. Read this file first; the commit history explains every change in
 | `src/debrief.js` | The end-of-mission debrief |
 | `src/report.js` | Match reporting to Supabase and the leaderboard |
 | `src/profile.js` | Accounts (email plus a 6-digit code), commander names and the service record |
+| `src/save.js` | Save and continue a skirmish: one slot in IndexedDB, the whole of `G` as a graph (references kept, data.js tables by name), the ground as pictures |
 | `src/net.js` | Online play: room codes over Supabase Realtime, WebRTC, the host's snapshots, the guest's copy and orders, the online page |
 
 - **Sides:** `PLAYER = 0`, `ENEMY = 1` are just the two slots. `G.me` is the side this device
@@ -62,6 +63,11 @@ share globals. Read this file first; the commit history explains every change in
 - **Map knowledge:** `G.fog[side]` is what each side has uncovered; `G.seen` is `G.fog[G.me]`,
   the one drawn. Both sides only target enemy buildings they know about (`knownTo`,
   `targetable`).
+
+- **Saved games:** a skirmish autosaves when the menu opens (also on phone lock), and every 2
+  minutes; Continue on the menu loads it, and a win, loss or quit clears it. Anything new kept in
+  `G` is saved automatically if it is plain data, a typed array or a reference to an entity or a
+  data.js table. Canvases, Maps and functions are not: rebuild them in `SaveGame.load`.
 
 ## Supabase
 
@@ -92,6 +98,7 @@ Supabase.
 | `profile-ui.js` | The sign-in flow, with Supabase faked |
 | `either-side.js` | Plays as side 1 against the computer, swaps the view, checks the win and debrief |
 | `pvp.js` | Two pages meet with a room code (real Supabase Realtime) and play over WebRTC. `node tools/sim/pvp.js <repo> 30 50` adds a 50-second full-battle stress test with snapshot sizes |
+| `save-load.js` | Plays a while, saves, reloads the page, continues and checks the battle is identical and carries on |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
