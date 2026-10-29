@@ -6,6 +6,8 @@ share globals. Read this file first; the commit history explains every change in
 
 ## Working with the owner
 
+- **Ask which mode before any gameplay or balance change:** single player, online PvP, or both.
+  Online battles can have their own rules (see "Online rules" under Next: PvP), so never assume.
 - **Talk before updating builds.** Make and test changes on the branch, then ask; release only
   when told.
 - **Two builds:**
@@ -137,6 +139,13 @@ Agreed with the owner, built in stages. Stage 1 profiles are done (release 2026.
    - Real phones over cellular. Add a relay server (TURN, such as Cloudflare's free tier) only if
      direct connections fail.
 4. **Later:** ranked play, matchmaking and a PvP leaderboard.
+
+**Online rules (agreed, not built yet):** balance can differ between single player and online.
+Plan: an "online rules" table in `src/data.js` listing only the stats that differ. It is applied
+to the unit, structure and power stats in place when an online battle starts and restored when
+it ends, so net.js keeps matching rules by identity. Behaviour changes check the battle's
+online flag. The Field Manual notes any stat that differs online. Build it with the first
+online-only change.
 
 Lockstep (both devices simulating) was rejected. The simulation uses `Math.random` and
 frame-time maths everywhere, so it is not deterministic.
