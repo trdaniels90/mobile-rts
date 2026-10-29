@@ -8,6 +8,8 @@ share globals. Read this file first; the commit history explains every change in
 
 - **Ask which mode before any gameplay or balance change:** single player, online PvP, or both.
   Online battles can have their own rules (see "Online rules" under Next: PvP), so never assume.
+- **Branch:** work on `claude/cross-platform-game-k2d9lb`, whatever branch name a new session is
+  given. If the session starts on another branch, bring this one in and push here.
 - **Talk before updating builds.** Make and test changes on the branch, then ask; release only
   when told.
 - **Two builds:**
@@ -103,12 +105,14 @@ Supabase.
 
 ## Next: PvP
 
-Agreed with the owner, built in stages. Stage 1 profiles are done (release 2026.10.29).
+Agreed with the owner, built in stages. Profiles shipped in 2026.10.29; stages 1 to 3 shipped in
+2026.10.29.1 (online battles). Later releases: 2026.10.29.2 leaderboard scores (best score per
+commander per difficulty, `match_score`), 2026.10.29.3 save and continue a skirmish.
 
-1. **Either side can be "you".** Done (not yet released). Replaced the "human is side 0" assumptions with a local viewer
+1. **Either side can be "you".** Done. Replaced the "human is side 0" assumptions with a local viewer
    side. That covers the camera, fog (`G.seen` vs `G.aiSeen`), selection, the sidebar, notices,
    sounds and the debrief. Test it on one device before any networking.
-2. **Online play.** Built (not yet released), in `src/net.js`. How it works:
+2. **Online play.** Done, in `src/net.js`. How it works:
    - The host plays side 0 and the guest side 1. Both build the map from the same seed. The guest's
      copy has `G.remote` set: it never simulates, and `damage()` does nothing there.
    - About 10 snapshots a second carry only the entity fields that changed (host timers are left
@@ -128,7 +132,7 @@ Agreed with the owner, built in stages. Stage 1 profiles are done (release 2026.
      cannot carry whole matches.
    - Players meet with a 4-letter room code, then pick sides in a lobby.
    - Each match records to `matches` with `mode = 'pvp'`.
-3. **Hardening.** Built (not yet released):
+3. **Hardening.** Done:
    - A heartbeat every second (the ping shows at the top, next to the opponent's name). After 6
      seconds of silence, or when the channel closes, both phones hold the battle (`G.hold`) and
      show "Waiting for your opponent". The guest knocks on the room code again, the host listens,
