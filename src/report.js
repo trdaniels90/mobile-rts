@@ -126,6 +126,13 @@ const Report = (() => {
       return m.done.then((ok) => (ok ? post('rpc/match_name', { p_id: m.id, p_device: device, p_name: name }) : null)).then(Boolean);
     } catch (_) { return Promise.resolve(false); }
   }
+  // A win's leaderboard score; the same sum as match_score in supabase/schema.sql (change both):
+  // 10 a kill, 50 a building destroyed, 1 per 100 ore, plus a speed bonus of 5000 that shrinks
+  // with time, all times the difficulty.
+  function score(stats, seconds, difficulty) {
+    const base = (stats.killed || 0) * 10 + (stats.bldKilled || 0) * 50 + (stats.harvested || 0) / 100 + 5000 * Math.exp(-Math.max(0, Math.round(seconds || 0)) / 900);
+    return Math.round(base * (difficulty === 'hard' ? 1.5 : difficulty === 'easy' ? 0.5 : 1));
+  }
   // Leaderboard rows for a mode ('skirmish' now; 'pve' and 'pvp' later), or null when offline.
   function board(mode) {
     return post('rpc/get_leaderboard', { p_mode: mode || 'skirmish', p_limit: 5 }, true).then((v) => (Array.isArray(v) ? v : null));
@@ -134,13 +141,13 @@ const Report = (() => {
   function claim() { return local ? Promise.resolve(null) : post('rpc/claim_device', { p_device: device }, true); }
   // The name for the leaderboard: the commander name of a signed-in player, else the last one typed here.
   const name = () => (typeof Account !== 'undefined' && Account.name) || store('ps-name') || '';
-  return { start, end, quit, submitName, board, claim, get name() { return name(); }, get matchId() { return match && match.id; } };
+  return { start, end, quit, submitName, board, claim, score, get name() { return name(); }, get matchId() { return match && match.id; } };
 })();
 
 // The leaderboard page, on the same paper as What's New, and the name box in the debrief.
 const Leaderboard = (() => {
   // One tab per kind of match; PvE and PvP boards slot in here when they exist.
-  const MODES = [{ key: 'skirmish', label: 'Vs computer', intro: 'The five fastest wins against the computer at each difficulty, hardest first. Every win counts, so one commander can hold several places.' }];
+  const MODES = [{ key: 'skirmish', label: 'Vs computer', intro: 'The five best scores against the computer at each difficulty, hardest first. A win scores 10 points a kill, 50 a building destroyed and 1 per 100 ore, plus a speed bonus of up to 5,000 that shrinks the longer the battle runs, times 1.5 on Hard and 0.5 on Easy. Every win counts, so one commander can hold several places.' }];
   const DIFF = { hard: 'Hard', normal: 'Normal', easy: 'Easy' }, SIDE = { allies: 'Allies', soviets: 'Soviets' };
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
@@ -175,20 +182,20 @@ const Leaderboard = (() => {
       if (!rows) { body.innerHTML = '<p class="lb-note">The leaderboard needs a connection. <button type="button" class="lb-retry">Try again</button></p>'; return; }
       if (!rows.length) { body.innerHTML = '<p class="lb-note">No names yet. Win a mission and enter your name in the debrief to be the first.</p>'; return; }
       // Ranks restart at each difficulty, so each gets its own short table.
-      const row = (r) => `<tr${my && String(r.player_name).toLowerCase() === my ? ' class="lb-me"' : ''}><td>${Number(r.rank)}</td><td>${esc(r.player_name)}</td><td>${SIDE[r.side] || esc(r.side)}</td><td class="lb-time">${fmt(Number(r.duration_s))}</td><td>${esc(new Date(r.ended_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))}</td></tr>`;
+      const row = (r) => `<tr${my && String(r.player_name).toLowerCase() === my ? ' class="lb-me"' : ''}><td>${Number(r.rank)}</td><td>${esc(r.player_name)}</td><td>${SIDE[r.side] || esc(r.side)}</td><td class="lb-score">${r.score == null ? '' : Number(r.score).toLocaleString('en-US')}</td><td class="lb-time">${fmt(Number(r.duration_s))}</td><td>${esc(new Date(r.ended_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))}</td></tr>`;
       const groups = [];
       for (const r of rows) { const g = groups[groups.length - 1]; if (g && g.d === r.difficulty) g.rows.push(r); else groups.push({ d: r.difficulty, rows: [r] }); }
-      body.innerHTML = groups.map((g) => `<h4>${DIFF[g.d] || esc(g.d || '')}</h4><div class="lb-scroll"><table class="fm-table lb-table"><thead><tr><th>#</th><th>Commander</th><th>Side</th><th>Time</th><th>Date</th></tr></thead><tbody>${g.rows.map(row).join('')}</tbody></table></div>`).join('');
+      body.innerHTML = groups.map((g) => `<h4>${DIFF[g.d] || esc(g.d || '')}</h4><div class="lb-scroll"><table class="fm-table lb-table"><thead><tr><th>#</th><th>Commander</th><th>Side</th><th>Score</th><th>Time</th><th>Date</th></tr></thead><tbody>${g.rows.map(row).join('')}</tbody></table></div>`).join('');
     });
   }
   function open() { if (!root) build(); root.hidden = false; root.querySelector('.fm-page').scrollTop = 0; root.querySelector('.fm-close').focus(); load(); }
   function close() { if (root) root.hidden = true; }
 
   // After a win: a box in the debrief for the name to go on the board.
-  function nameBox() {
+  function nameBox(points) {
     const box = document.createElement('form');
     box.className = 'db-name';
-    box.innerHTML = `<label for="lbName">Your name for the leaderboard</label>
+    box.innerHTML = `<label for="lbName">${points != null ? `Leaderboard score: ${Number(points).toLocaleString('en-US')}. ` : ''}Your name for the leaderboard</label>
       <div class="db-name-row"><input id="lbName" type="text" placeholder="Commander name" maxlength="20" autocomplete="nickname" enterkeyhint="send" spellcheck="false">
       <button type="submit">Submit</button></div><p class="db-name-msg" role="status"></p>`;
     const input = box.querySelector('input'), btn = box.querySelector('button'), msg = box.querySelector('.db-name-msg');

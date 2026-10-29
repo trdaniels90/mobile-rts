@@ -65,7 +65,7 @@
       G.paused = true;
       Debrief.open(won, {
         difficulty: vs ? 'Online vs ' + vs.opponent + ending : DIFFICULTY[diffKey].label,
-        extra: won && !vs ? Leaderboard.nameBox() : null,
+        extra: won && !vs ? Leaderboard.nameBox(Report.score(G.teams[G.me].stats, G.over.t, diffKey)) : null,
         // same side and difficulty; online, back to the lobby page
         onRematch: vs ? () => { Net.rematch(); startGame(); showMenu('start'); Online.open(faction); } : () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },
         onNew: () => { if (vs) { Net.leave(); startGame(); } showMenu('start'); },

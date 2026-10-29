@@ -73,19 +73,34 @@ returns void language sql security definer set search_path = '' as $$
   where id = p_id and device_id = p_device and ended_at > now() - interval '1 day';
 $$;
 
--- The leaderboard: the five fastest wins at each difficulty, hardest first. Every win counts, so one
+-- A win's leaderboard score, from the stats the game saved: 10 points a kill, 50 a building
+-- destroyed and 1 per 100 ore, plus a speed bonus of 5000 that shrinks with time (to a third by
+-- 16 minutes), all times the difficulty (Easy 0.5, Normal 1, Hard 1.5). Report.score in the game
+-- shows the same number in the debrief: change both together.
+create or replace function public.match_score(p_stats jsonb, p_duration integer, p_difficulty text)
+returns integer language sql immutable set search_path = '' as $$
+  select round((
+      coalesce((s->>'killed')::numeric, 0) * 10 + coalesce((s->>'bldKilled')::numeric, 0) * 50 + coalesce((s->>'harvested')::numeric, 0) / 100
+      + 5000 * exp(-greatest(coalesce(p_duration, 0), 0) / 900.0)
+    ) * case p_difficulty when 'hard' then 1.5 when 'easy' then 0.5 else 1 end)::integer
+  from (select p_stats->'teams'->coalesce((p_stats->>'player')::int, 0)->'stats' as s) x;
+$$;
+
+-- The leaderboard: the five best scores at each difficulty, hardest first. Every win counts, so one
 -- name can hold several places. p_limit (at most 5) is the places per difficulty; p_mode leaves room
 -- for PvE and PvP boards later.
-create or replace function public.get_leaderboard(p_mode text default 'skirmish', p_limit integer default 5)
-returns table (rank bigint, player_name text, side text, difficulty text, duration_s integer, ended_at timestamptz)
+drop function if exists public.get_leaderboard(text, integer);
+create function public.get_leaderboard(p_mode text default 'skirmish', p_limit integer default 5)
+returns table (rank bigint, player_name text, side text, difficulty text, duration_s integer, ended_at timestamptz, score integer)
 language sql stable security definer set search_path = '' as $$
-  with ranked as (
-    select m.player_name, m.side, m.difficulty, m.duration_s, m.ended_at,
-      row_number() over (partition by m.difficulty order by m.duration_s, m.ended_at) as rk
+  with scored as (
+    select m.player_name, m.side, m.difficulty, m.duration_s, m.ended_at, public.match_score(m.stats, m.duration_s, m.difficulty) as score
     from public.matches m
     where m.mode = p_mode and m.result = 'win' and m.player_name is not null and m.duration_s is not null
+  ), ranked as (
+    select s.*, row_number() over (partition by s.difficulty order by s.score desc, s.duration_s, s.ended_at) as rk from scored s
   )
-  select r.rk, r.player_name, r.side, r.difficulty, r.duration_s, r.ended_at
+  select r.rk, r.player_name, r.side, r.difficulty, r.duration_s, r.ended_at, r.score
   from ranked r
   where r.rk <= least(greatest(p_limit, 1), 5)
   order by case r.difficulty when 'hard' then 0 when 'normal' then 1 when 'easy' then 2 else 3 end, r.rk;
