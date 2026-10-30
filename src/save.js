@@ -100,13 +100,13 @@ const SaveGame = (() => {
   const get = (k) => tx('readonly', (s) => s.get(k));
 
   let pictures = null;   // a picture save under way
-  // view: { faction, diffKey, cam } from the sidebar and camera.
+  // view: { faction, diffKey, cam, match } from the sidebar, the camera and the match report.
   function save(view) {
     try {
       if (!G || G.over) return Promise.resolve(null);
       const t0 = performance.now();
       const state = freeze(G);
-      const meta = { at: Date.now(), t: G.t, faction: view.faction, foe: G.teams[foeOf(G.me)].faction, diffKey: view.diffKey, version: VERSION };
+      const meta = { at: Date.now(), t: G.t, faction: view.faction, foe: G.teams[foeOf(G.me)].faction, diffKey: view.diffKey, version: VERSION, match: view.match || null };
       const done = put(KEY, { meta, state, cam: view.cam, ms: Math.round(performance.now() - t0) }).then(() => put(KEY + '-meta', meta));
       // The ground pictures take longer: one at a time, and an older pair is fine meanwhile.
       if (!pictures && G.terrainCanvas.toBlob) {
@@ -143,7 +143,7 @@ const SaveGame = (() => {
       g.terrainCanvas = ground || paintTerrain(g.terr, g.seed, g.road, g.bridges);
       g.tctx = g.terrainCanvas.getContext('2d');
       G = g;
-      return { faction: rec.meta.faction, diffKey: rec.meta.diffKey, cam: rec.cam };
+      return { faction: rec.meta.faction, diffKey: rec.meta.diffKey, cam: rec.cam, match: rec.meta.match };
     } catch (_) { return null; }
   }
   const clear = () => Promise.all([tx('readwrite', (s) => s.delete(KEY)), tx('readwrite', (s) => s.delete(KEY + '-meta')), tx('readwrite', (s) => s.delete(KEY + '-pictures'))]);

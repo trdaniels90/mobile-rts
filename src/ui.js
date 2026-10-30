@@ -193,7 +193,7 @@
   // The skirmish under way is saved when the menu opens (which it also does when the phone locks or
   // switches apps) and every two minutes; Continue on the menu picks it up again.
   function autosave() {
-    if (mission && G && !G.over && !Net.role) SaveGame.save({ faction, diffKey, cam: { x: cam.x, y: cam.y, z: cam.z } }).then(showContinue);
+    if (mission && G && !G.over && !Net.role) SaveGame.save({ faction, diffKey, cam: { x: cam.x, y: cam.y, z: cam.z }, match: Report.matchId }).then(showContinue);
   }
   setInterval(() => { if (G && !G.paused) autosave(); }, 120 * 1000);
   function showContinue() {
@@ -215,7 +215,7 @@
     online = null; mission = true;
     afterNewWorld(faction, true);
     if (r.cam) { cam.x = r.cam.x; cam.y = r.cam.y; cam.z = r.cam.z; clampCam(); }
-    Report.start(faction, diffKey);
+    Report.resume(r.match, faction, diffKey);   // the same match as before it was saved
     hideMenu();
   }
 

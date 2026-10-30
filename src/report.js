@@ -65,6 +65,20 @@ const Report = (() => {
       match.saved = insert(match);
     } catch (_) {}
   }
+  // A saved skirmish continued: carry on its match rather than start another, so one game is one
+  // match however often it is saved and continued (and its play time counts once). The insert makes
+  // sure the match exists (it may have started offline); if it already does, it is refused, which
+  // is fine.
+  function resume(id, side, difficulty) {
+    try {
+      if (!id || !UUID.test(id)) return start(side, difficulty);
+      quit();
+      if (local) return;
+      const row = { id, device_id: device, mode: 'skirmish', side, difficulty, version: typeof VERSION === 'string' ? VERSION : null };
+      match = { id, row, ended: false };
+      match.saved = insert(match).then(() => true);
+    } catch (_) {}
+  }
   function finish(result, seconds, stats) {
     const m = match;
     if (!m || m.ended) return Promise.resolve(null);
@@ -141,7 +155,7 @@ const Report = (() => {
   function claim() { return local ? Promise.resolve(null) : post('rpc/claim_device', { p_device: device }, true); }
   // The name for the leaderboard: the commander name of a signed-in player, else the last one typed here.
   const name = () => (typeof Account !== 'undefined' && Account.name) || store('ps-name') || '';
-  return { start, end, quit, submitName, board, claim, score, get name() { return name(); }, get matchId() { return match && match.id; } };
+  return { start, resume, end, quit, submitName, board, claim, score, get name() { return name(); }, get matchId() { return match && match.id; } };
 })();
 
 // The leaderboard page, on the same paper as What's New, and the name box in the debrief.

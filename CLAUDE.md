@@ -71,6 +71,10 @@ share globals. Read this file first; the commit history explains every change in
   `G` is saved automatically if it is plain data, a typed array or a reference to an entity or a
   data.js table. Canvases, Maps and functions are not: rebuild them in `SaveGame.load`.
 
+- **Saved games and match reports:** a save remembers its match id and Continue calls
+  `Report.resume`, so one game is one `matches` row however often it is saved and continued (play
+  time counts once). Saves made before 2026.10.29.4 have no id and start a new match when continued.
+
 ## Supabase
 
 - **Project:** `yorrgemlhoxbxvyvzcwe`. The Supabase MCP tools work in these sessions.
@@ -101,6 +105,7 @@ Supabase.
 | `either-side.js` | Plays as side 1 against the computer, swaps the view, checks the win and debrief |
 | `pvp.js` | Two pages meet with a room code (real Supabase Realtime) and play over WebRTC. `node tools/sim/pvp.js <repo> 30 50` adds a 50-second full-battle stress test with snapshot sizes |
 | `save-load.js` | Plays a while, saves, reloads the page, continues and checks the battle is identical and carries on |
+| `save-match.js` | A skirmish saved and continued twice stays one match on the stats page (fake Supabase, game served from a fake website so it reports) |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
