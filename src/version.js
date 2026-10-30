@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.30', date: '30 October 2026', title: 'One game, one record', groups: [
+    ['', [
+      'A skirmish you save and continue now counts as one game in your service record, instead of being counted again each time you continue it.',
+      'Games saved before this update will still count their earlier play time twice when continued.',
+    ]],
+  ] },
   { v: '2026.10.29.3', date: '29 October 2026', title: 'Continue your skirmish', groups: [
     ['', [
       'Your skirmish now saves itself: whenever you open the menu, when your phone locks or you switch apps, and every 2 minutes.',

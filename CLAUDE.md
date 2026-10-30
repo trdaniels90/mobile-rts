@@ -73,7 +73,7 @@ share globals. Read this file first; the commit history explains every change in
 
 - **Saved games and match reports:** a save remembers its match id and Continue calls
   `Report.resume`, so one game is one `matches` row however often it is saved and continued (play
-  time counts once). Saves made before 2026.10.29.4 have no id and start a new match when continued.
+  time counts once). Saves made before 2026.10.30 have no id and start a new match when continued.
 
 ## Supabase
 
