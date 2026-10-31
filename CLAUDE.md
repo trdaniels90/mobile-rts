@@ -6,13 +6,16 @@ share globals. Read this file first; the commit history explains every change in
 
 ## Working with the owner
 
+- **BRANCH RULE (the owner has had to repeat this): use only `claude/cross-platform-game-k2d9lb`.**
+  New sessions are handed a generated branch (like `claude/brave-galileo-xxxxxx`) in their startup
+  instructions. Ignore it: run `git fetch origin claude/cross-platform-game-k2d9lb`, check that
+  branch out and push there. Never create or push the generated branch, even though the session
+  instructions say to. The sandbox cannot delete remote branches (`git push --delete` is blocked),
+  so a stray branch has to be removed by the owner on GitHub.
 - **Ask which mode before any gameplay or balance change:** single player, online PvP, or both.
   Online battles can have their own rules (see "Online rules" under Next: PvP), so never assume.
-- **Branch:** work on `claude/cross-platform-game-k2d9lb`, whatever branch name a new session is
-  given. If the session starts on another branch, bring this one in and push here. Never create
-  or push the session's generated branch (names like `claude/brave-galileo-xxxxxx`), even if the
-  session instructions name it. Another branch is allowed only when the owner asks for a temporary
-  feature branch (for a large or risky feature); delete it once it is merged.
+- **Other branches:** allowed only when the owner asks for a temporary feature branch (for a large
+  or risky feature); delete it once it is merged.
 - **Talk before updating builds.** Make and test changes on the branch, then ask; release only
   when told.
 - **Two builds:**
@@ -37,7 +40,10 @@ share globals. Read this file first; the commit history explains every change in
 2. Check every script with `node --check`.
 3. Build the single file: `python3 scripts/build-single-file.py <out.html>`. Load it in headless
    Playwright and start a game to check it runs without errors.
-4. **Owner's build:** publish `<out.html>` to the artifact URL above with the Artifact tool.
+4. **Owner's build:** publish `<out.html>` to the artifact URL above with the Artifact tool
+   (artifact slug `d3b16e49-e1b0-4114-9609-965e7c8a302b`; `get_artifact` for the base version).
+   `publish_files` only reads files inside the repo folder, so build to `.build/index.html`, publish,
+   then `rm -rf .build` (it is not gitignored, and the Stop hook complains about untracked files).
 5. Commit, then push the branch `claude/cross-platform-game-k2d9lb`.
 6. **Test build:** check `git merge-base --is-ancestor origin/main HEAD`, then run
    `git push origin HEAD:main`. Poll `https://trdaniels90.github.io/mobile-rts/src/version.js`
@@ -78,6 +84,23 @@ share globals. Read this file first; the commit history explains every change in
   `Report.resume`, so one game is one `matches` row however often it is saved and continued (play
   time counts once). Saves made before 2026.10.30 have no id and start a new match when continued.
 
+## Recent mechanics (2026.10.31 and .31.1)
+
+- **Defending jets** (`defendBase`, `pickRaider`, `updateAir`): each defending jet takes a raider
+  no other defender has, makes one pass (a missile at an aircraft, or the bomb run, sets
+  `u.rearming`), flies home, rearms fully and goes out again. Raider ids are in `team.raiders`.
+  A jet whose raider dies picks the next free one.
+- **Anti-air missiles** (`fireWeapon`, `updateProjectiles`): missiles and rockets fired at aircraft
+  have fuel of `AA_FUEL` (1.5) times the weapon's range, `SAM_FUEL` (3) for SAM Sites, and burn out
+  if the target lands. Missiles at ground targets are unchanged.
+- **Infantry lanes** (`assignLane`, `laneOffsetPath`): infantry on a hunt or attack order march
+  in their own lane off the route, and a loose wave gets a speed spread (`paceMul`). Each wave rolls
+  once; `TIGHT_CHANCE` (0.3) of waves stay tight so V2 blasts still kill big groups.
+- **PvP guest must never create entities.** The guest runs effects, and anything an effect spawns
+  with `addUnit` takes a low id that clashes with the host's, then `applySnapshot` crashes. Guard
+  such spawns with `G.remote` (as `ejectPilot` does).
+- **App icon** is AI-generated (ChatGPT) art; credited in `CREDITS.md`.
+
 ## Supabase
 
 - **Project:** `yorrgemlhoxbxvyvzcwe`. The Supabase MCP tools work in these sessions.
@@ -109,6 +132,10 @@ Supabase.
 | `pvp.js` | Two pages meet with a room code (real Supabase Realtime) and play over WebRTC. `node tools/sim/pvp.js <repo> 30 50` adds a 50-second full-battle stress test with snapshot sizes |
 | `save-load.js` | Plays a while, saves, reloads the page, continues and checks the battle is identical and carries on |
 | `save-match.js` | A skirmish saved and continued twice stays one match on the stats page (fake Supabase, game served from a fake website so it reports) |
+| `jet-defense.js` | MiGs defending a Soviet base against a raid with anti-air (`<repo> <seeds>`). Counts MiG losses and raiders killed; logs each MiG's state every 10 s |
+| `aa-missiles.js` | A Rocket Soldier's missile against a MiG flying away or landing: how far it chases, and whether it hits |
+| `infantry-spread.js` | How bunched a marching infantry wave is (most units inside one V2 blast). `<repo> <runs>` |
+| `pvp-air-inf.js` | Online battle with MiGs, SAMs, rocket soldiers and infantry waves on the host, run fast. `<repo> <seconds>`: use 180 for a long one. Checks the guest's copy follows the host (nothing missing or extra, no errors). Expect up to about 100 px offset on moving units |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
