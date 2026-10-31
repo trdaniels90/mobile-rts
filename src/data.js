@@ -60,7 +60,7 @@ const UNIT_DEFS = {
   ranger: {
     name: 'Ranger', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'jeep',
     cost: 600, hp: 150, armor: 'light', speed: 80, turn: 5, sight: 6, r: 7, size: { len: 15, wid: 10 },
-    weapon: { dmg: 6, rof: 0.9, range: 96, wh: 'SA', proj: 'bullet', air: true, burst: 4, gap: 0.08 },
+    weapon: { dmg: 6, rof: 1.3, range: 96, wh: 'SA', proj: 'bullet', air: true, heliOnly: true, burst: 4, gap: 0.08 },   // heliOnly: shoots helicopters but not jets
   },
   ltank: {
     name: 'Light Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'tank',

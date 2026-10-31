@@ -29,7 +29,7 @@ const Manual = (() => {
     rocket: ['Allied anti-armour and anti-aircraft infantry, as in the original: Dragon rockets punch through tank armour, and RedEye missiles reach further to bring down aircraft. One launcher, so it fires one or the other.', 'Tanks, aircraft', 'Infantry, light vehicles'],
     pilot: ['Bails out of a downed aircraft, parachutes down and runs for the nearest friendly structure. Reaching it, the pilot is recovered and you get $100. Cannot be trained.', '', ''],
     // Vehicles
-    ranger: ['A fast armed jeep for scouting and raids. Its machine gun can also fire at aircraft.', 'Infantry, Ore Trucks', 'Tanks'],
+    ranger: ['A fast armed jeep for scouting and raids. Its machine gun can also fire at helicopters, but not at jets.', 'Infantry, Ore Trucks', 'Tanks'],
     ltank: ['Quick, cheap armour with a light cannon.', 'Light vehicles', 'Heavy tanks'],
     mtank: ['The Allied main battle tank: well armoured with a solid gun.', 'Vehicles, structures', 'Rockets, Tesla Coils'],
     htank: ['Thick Soviet armour and twin cannons.', 'Vehicles, structures', 'Rockets, artillery'],
@@ -46,7 +46,7 @@ const Manual = (() => {
   };
   const WEAPON = {
     rifle: 'Rifle', grenadier: 'Grenades (arcing, splash)', rocket: 'Dragon rockets; RedEye missiles (air)', pilot: 'Pistol',
-    ranger: 'Machine gun (hits aircraft too)', ltank: 'Light cannon', mtank: 'Cannon', htank: 'Twin cannons', mammoth: 'Twin cannons + anti-air missile pods',
+    ranger: 'Machine gun (hits helicopters, not jets)', ltank: 'Light cannon', mtank: 'Cannon', htank: 'Twin cannons', mammoth: 'Twin cannons + anti-air missile pods',
     arty: 'Howitzer (arcing, splash)', v2rl: 'V2 rocket (arcing, huge splash)', heli: 'Hellfire missiles (anti-armour)', hind: 'Chain gun',
     jet: 'Missiles (ground and air), bombs', mig: 'Missiles (ground and air), bombs',
     pillbox: 'Machine gun', turret: 'Cannon', aagun: 'Flak (aircraft only)', ftur: 'Flamethrower', tesla: 'Tesla bolt', sam: 'SAM missiles (aircraft only)',

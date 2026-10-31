@@ -629,7 +629,7 @@ function distTo(a, e) {
 
 function canHit(w, t) {
   if (!w) return false;
-  if (t.kind === 'unit' && isAirborne(t)) return !!w.air;
+  if (t.kind === 'unit' && isAirborne(t)) return !!w.air && !(w.heliOnly && t.def.fly === 'jet');   // heliOnly weapons cannot reach jets
   return w.ground !== false;
 }
 function canTarget(u, t) { return canHit(u.def.weapon, t) || canHit(u.def.weapon2, t); }
