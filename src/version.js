@@ -4,6 +4,18 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.31.2', date: '31 October 2026', title: 'A Bridge Too Far: a bigger map', groups: [
+    ['Map', [
+      'The map is now called A Bridge Too Far, and it is bigger: 144 by 144 cells, about 65% more ground.',
+      'There is a map screen when you start a skirmish, and online the host picks the map in the lobby. For now there is one map.',
+      'Ore fields are wider, with about two thirds more ore in total, and each side has a second rare gem field out near the far end of the lakes.',
+      'A skirmish saved on the old, smaller map cannot be continued.',
+    ]],
+    ['Combat', [
+      'Rangers now fire more slowly, and can no longer shoot jets. They can still shoot helicopters.',
+      'A pilot who ejects over water now drowns instead of turning up on the nearest land.',
+    ]],
+  ] },
   { v: '2026.10.31.1', date: '31 October 2026', title: 'Missiles, spread-out infantry and a new icon', groups: [
     ['Combat', [
       'Anti-air missiles now run out of fuel: a missile fired at an aircraft can only fly about 1.5 times its weapon\u2019s range, so a jet or helicopter that keeps flying away escapes it, and a missile gives up if its target lands. SAM Sites have a longer burn, 3 times their range.',
