@@ -147,6 +147,7 @@ function genMap(seed) {
   for (const [t, d, rad, rich, gem] of [
     [-10, 12.5, 3, 1.15],          // forward fields on the lake shores, between the crossings
     [10, 12.5, 2.4, 1, true],      // the rare gem field, out in the contested middle
+    [-27, 15, 2.4, 1, true],       // a second gem field, out by the far end of the lakes: a long way from either base
   ]) { const [cx, cy] = at(t * K, d * K); fieldsHalf.push({ cx, cy, r: gem ? rad : rad * FR, rich, gem }); }
   const fields = [];
   for (const f of fieldsHalf) fields.push({ ...f, gem: !!f.gem }, { ...f, cx: MAP - 1 - f.cx, cy: MAP - 1 - f.cy, gem: !!f.gem });
