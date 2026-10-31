@@ -1764,6 +1764,7 @@ function updateEject(fx, dt) {
 // Reaching any of its side's structures, the pilot is recovered: off the field, with a small bonus.
 const PILOT_BOUNTY = 100;
 function ejectPilot(e) {
+  if (G.remote) return;   // a PvP guest's copy runs the effect but never makes units: the host's pilot arrives in a snapshot
   const c = nearestFreeCell(cellOfPos(e.x, e.y), 4);
   if (c < 0) return;
   const team = G.teams[e.team], p = cellCenter(c);
