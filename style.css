@@ -566,3 +566,8 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 @media (prefers-reduced-motion: reduce) {
   #eva.show, .cameo.ready .st, .power[data-state="low"] i { animation: none; }
 }
+
+/* Map picker: a picture of each map beside its name and description. */
+.pick.maps button { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: center; text-align: left; }
+.pick.maps button small { grid-column: 2; }
+.pick.maps .map-img { grid-row: 1 / span 2; width: min(34vh, 180px); height: auto; aspect-ratio: 1; image-rendering: pixelated; border: 1px solid #000; }

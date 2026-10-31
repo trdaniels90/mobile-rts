@@ -5,6 +5,7 @@
 const MAPS = {
   bridge: {
     name: 'A Bridge Too Far',
+    img: 'maps/bridge.png',   // from tools/make-map-previews.js
     blurb: 'An island split by two long lakes. Fight over the central road, the timber bridges or round the lake ends.',
     info: '2v2 sized · 8 start positions',
   },
@@ -17,7 +18,7 @@ const validMap = (id) => (MAPS[id] ? id : DEFAULT_MAP);
 function mapCardsHtml(selected, cls = '') {
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
   return `<div class="pick maps ${cls}" role="group" aria-label="Map">${MAP_LIST.map((id) =>
-    `<button type="button" data-map="${id}" aria-pressed="${id === selected}">${esc(MAPS[id].name)}<small>${esc(MAPS[id].info)}. ${esc(MAPS[id].blurb)}</small></button>`).join('')}</div>`;
+    `<button type="button" data-map="${id}" aria-pressed="${id === selected}">${MAPS[id].img ? `<img class="map-img" src="${MAPS[id].img}" alt="" width="224" height="224">` : ''}<span>${esc(MAPS[id].name)}</span><small>${esc(MAPS[id].info)}. ${esc(MAPS[id].blurb)}</small></button>`).join('')}</div>`;
 }
 
 // The skirmish map screen: MapSelect.open(selectedId, (id) => start the game).
