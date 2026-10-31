@@ -105,6 +105,9 @@ const LT = (x, y) => (x + y) / 2, LD = (x, y) => (y - x) / Math.SQRT2;
 const LX = (t, d) => t - d / Math.SQRT2, LY = (t, d) => t + d / Math.SQRT2;
 // The layout was designed on an 88-cell map; K scales it to the current map size.
 const MID = (MAP - 1) / 2, K = MAP / 88, S96 = MAP / 96;
+// Ore fields grow with the map (FR is 1 at 112 cells), but each keeps its inner edge where it was, so the
+// ground around a start position stays as open for building as before. Gem fields stay small: they are rare.
+const FR = MAP / 112;
 const BASE_CLEAR = 14;   // radius of open ground kept clear of woods and rocks around each start position
 const LAKE_IN = 3.4 * K, LAKE_OUT = 34.5 * K, LAKE_W = 8 * K, BRIDGE_T = 18 * K;
 // Start positions on the lower-left side, in cells on a 96-cell map, each with its two ore
@@ -137,14 +140,14 @@ function genMap(seed) {
   // Each start position's own fields sit just outside its cleared building ground.
   const fieldsHalf = [];
   SPAWNS_HALF.forEach((s, i) => s.ore.forEach(([x, y], j) => {
-    const sp = half[i], r0 = j ? 3.1 : 3.4, dx = x * S96 - sp.cx, dy = y * S96 - sp.cy, d = Math.hypot(dx, dy) || 1;
-    const far = Math.max(d, BASE_CLEAR + r0 * 0.5), lo = r0 + 4.5, hi = MAP - 1 - lo;
-    fieldsHalf.push({ cx: Math.max(lo, Math.min(hi, sp.cx + dx / d * far)), cy: Math.max(lo, Math.min(hi, sp.cy + dy / d * far)), r: r0, rich: j ? 0.95 : 1.05 });
+    const sp = half[i], r0 = j ? 3.1 : 3.4, rN = r0 * FR, dx = x * S96 - sp.cx, dy = y * S96 - sp.cy, d = Math.hypot(dx, dy) || 1;
+    const far = Math.max(d, BASE_CLEAR + r0 * 0.5) + (rN - r0), lo = rN + 4.5, hi = MAP - 1 - lo;
+    fieldsHalf.push({ cx: Math.max(lo, Math.min(hi, sp.cx + dx / d * far)), cy: Math.max(lo, Math.min(hi, sp.cy + dy / d * far)), r: rN, rich: j ? 0.95 : 1.05 });
   }));
   for (const [t, d, rad, rich, gem] of [
     [-10, 12.5, 3, 1.15],          // forward fields on the lake shores, between the crossings
     [10, 12.5, 2.4, 1, true],      // the rare gem field, out in the contested middle
-  ]) { const [cx, cy] = at(t * K, d * K); fieldsHalf.push({ cx, cy, r: rad, rich, gem }); }
+  ]) { const [cx, cy] = at(t * K, d * K); fieldsHalf.push({ cx, cy, r: gem ? rad : rad * FR, rich, gem }); }
   const fields = [];
   for (const f of fieldsHalf) fields.push({ ...f, gem: !!f.gem }, { ...f, cx: MAP - 1 - f.cx, cy: MAP - 1 - f.cy, gem: !!f.gem });
   G.oreFields = fields;
