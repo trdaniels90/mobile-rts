@@ -784,9 +784,10 @@ function defendBase(team) {
   const ecy = buildingsOf(enemyOf(team).id).find((b) => b.type === 'cy'), own = mine.find((b) => b.type === 'cy');
   const homeHalf = (u) => !ecy || !own || dist(u, own) < dist(u, ecy);
   let army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward &&
-    (u.cls !== 'air' || (!airEmpty(u) && u.order.type === 'guard' && !u.order.hold)) &&
+    (u.cls !== 'air' || (!airEmpty(u) && !u.rearming && u.order.type === 'guard' && !u.order.hold)) &&
     (u.defending || idle(u) || (team.isAI && u.cls !== 'air' && !truckOnly && homeHalf(u))));
   if (!threats.length) {
+    team.raiders = [];
     if (++team.calm < DEFEND_CALM) return;
     team.defending = false;
     // Everyone pulled into a defence (aircraft that turned on a shooter too) goes back once its fight is over.
@@ -800,6 +801,7 @@ function defendBase(team) {
     return;
   }
   team.defending = true; team.calm = 0;
+  team.raiders = threats.map((t) => t.id);
   // The computer remembers which way attacks come from, to put new defences there.
   const cy = mine.find((b) => b.type === 'cy');
   if (team.isAI && cy && G.t - (team.fromT || -99) > 5) {
@@ -825,9 +827,9 @@ function defendBase(team) {
   army = picked;
   for (const u of army) {
     let best = null, bd = CELL * 32;
-    const skip = u.skip && u.skip.until > G.t ? u.skip.id : -1;   // a jet that circled a raider without a shot tries another
-    for (const t of threats) { const d = Math.hypot(u.x - t.x, u.y - t.y); if (d < bd && canTarget(u, t) && t.id !== skip) { bd = d; best = t; } }
-    if (!best && skip >= 0) for (const t of threats) { const d = Math.hypot(u.x - t.x, u.y - t.y); if (d < bd && canTarget(u, t)) { bd = d; best = t; } }
+    // Jets spread out: each takes a raider the others have not, and keeps it until it is dead.
+    if (u.def.fly === 'jet') best = u.target && u.target.alive && threats.includes(u.target) ? u.target : pickRaider(u);
+    else for (const t of threats) { const d = Math.hypot(u.x - t.x, u.y - t.y); if (d < bd && canTarget(u, t)) { bd = d; best = t; } }
     if (!best) continue;
     if (u.cls === 'air' && u.as === 'landed') { u.as = 'takeoff'; u.repairHold = false; }   // part-rearmed or part-repaired: good enough for a fight at home
     if (!u.defending) {
@@ -841,6 +843,23 @@ function defendBase(team) {
     if (u.cls !== 'air') goTo(u, best.x, best.y);
   }
 }
+
+// A defending jet's next raider: the nearest one no other defending aircraft is already after.
+function pickRaider(u) {
+  const claims = new Map();
+  for (const m of unitsOf(u.team)) if (m !== u && m.cls === 'air' && m.defending && m.target && m.target.alive) claims.set(m.target, (claims.get(m.target) || 0) + 1);
+  const ws = airWeapons(u);
+  let best = null, bs = Infinity;
+  for (const id of G.teams[u.team].raiders || []) {
+    const t = G.byId.get(id);
+    if (!t || !t.alive || !ws.some((w) => canHit(w, t))) continue;
+    const s = (claims.get(t) || 0) * 1e5 + Math.hypot(u.x - t.x, u.y - t.y);
+    if (s < bs) { bs = s; best = t; }
+  }
+  return best;
+}
+// Point a guard order at a target without losing the target.
+function setGuardKeep(u, t) { setGuard(u, t.x, t.y); u.target = t; }
 
 // --- Attack-group formations ----------------------------------------------------
 // A group follows one route, led by an invisible marker. Every unit keeps its own slot in a
@@ -2099,7 +2118,6 @@ function dropFlare(t) {
 }
 
 const HELI_ALT = 20, JET_ALT = 30;
-const JET_CHASE_MAX = 6;   // seconds a jet circles one target without firing before it looks for another
 
 // Every aircraft has a home pad. New ones are based at whichever pad has the fewest aircraft,
 // and if a home pad is lost they move to the least crowded one left, so aircraft spread out
@@ -2148,11 +2166,11 @@ function airTarget(u) {
   if (o.type === 'attack') { if (o.target.alive) return o.target; setGuard(u); }
   if (o.type === 'move' && u.def.fly === 'heli') return null;
   const ws = airWeapons(u);
-  // A target the jet circled without hitting is skipped for a while (see the jet branch of updateAir).
-  const ok = (e) => !(u.skip && u.skip.until > G.t && u.skip.id === e.id);
-  if (u.target && u.target.alive && ok(u.target) && ws.some((w) => canHit(w, u.target)) && distTo(u, u.target) < sight * 1.4) return u.target;
+  // A defender keeps the raider base defence gave it, however far away: each jet has its own.
+  if (u.defending && u.target && u.target.alive && ws.some((w) => canHit(w, u.target))) return u.target;
+  if (u.target && u.target.alive && ws.some((w) => canHit(w, u.target)) && distTo(u, u.target) < sight * 1.4) return u.target;
   const src = o.type === 'guard' ? { x: o.x, y: o.y, team: u.team } : u;
-  return ws.length ? acquire(src, sight, ws, ok) : null;
+  return ws.length ? acquire(src, sight, ws) : null;
 }
 
 function updateAir(u, dt) {
@@ -2183,6 +2201,7 @@ function updateAir(u, dt) {
     // Aircraft told to wait on their pad stay parked until auto attack, an order or a raid sends them up.
     // They also wait while repairs are under way, and one that came home damaged waits until it is
     // fully repaired, even if that means waiting for money.
+    if (airFull(u)) u.rearming = false;   // topped up: a defender can go out for another pass
     if (airFull(u) && !u.repairing && !u.repairHold && u.order.type !== 'rearm-hold' && !(u.order.type === 'guard' && u.order.pad)) u.as = 'takeoff';
     return;
   }
@@ -2207,7 +2226,7 @@ function updateAir(u, dt) {
   // air-to-air missiles for enemy aircraft met on the way (or for an air target the player picked).
   const o0 = u.order, huntingAir = o0.type === 'attack' && o0.target.alive && isAirborne(o0.target) && u.aam > 0;
   const strikeSpent = jet && u.ammo <= 0 && !(u.bombs > 0) && !huntingAir;
-  if (airEmpty(u) || strikeSpent || u.retreat || (u.order.type === 'guard' && u.order.pad)) {
+  if (airEmpty(u) || strikeSpent || u.retreat || u.rearming || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {
       const spot = padSpot(pad, u);
@@ -2227,14 +2246,18 @@ function updateAir(u, dt) {
     }
     // No pad: limp back to base and rearm slowly in the air.
     u.rt += dt;
-    if (u.rt > 6) { while (!airFull(u)) rearmStep(u); u.rt = 0; }
+    if (u.rt > 6) { while (!airFull(u)) rearmStep(u); u.rt = 0; u.rearming = false; }
     const home = buildingsOf(u.team)[0] || u;
     if (jet) orbit(u, home.x, home.y, dt); else flyHeli(u, home.x, home.y, dt);
     return;
   }
 
   u.think -= dt;
-  if (u.think <= 0) { u.think = 0.3; u.target = airTarget(u); }
+  if (u.think <= 0) {
+    u.think = 0.3; u.target = airTarget(u);
+    // A defender whose raider died on the way takes the next one that nobody else has.
+    if (!u.target && jet && u.defending && u.order.type === 'guard') { u.target = pickRaider(u); if (u.target) setGuardKeep(u, u.target); }
+  }
   const t = u.target;
   const o = u.order;
   if (jet) {
@@ -2243,25 +2266,20 @@ function updateAir(u, dt) {
       const d = distTo(u, t), ang = Math.atan2(t.y - u.y, t.x - u.x), air = isAirborne(t);
       // Air targets get air-to-air missiles; ground targets get missiles from range, then bombs overhead.
       const mw = air ? (u.aam > 0 ? u.def.weapon2 : null) : (u.ammo > 0 ? w : null);
-      // Circling a target without ever getting a shot or a bomb run in (too close to line up, or
-      // nothing to hit it with) just gets the jet shot at: after a few seconds it picks another target.
-      if (u.chaseId !== t.id) { u.chaseId = t.id; u.chaseT = 0; }
-      if ((u.chaseT += dt) > JET_CHASE_MAX && o.type !== 'attack') {
-        u.skip = { id: t.id, until: G.t + 8 }; u.target = null; u.chaseT = 0; u.think = 0;
-        orbit(u, u.x, u.y, dt);
-        return;
-      }
       if (mw && d <= mw.range && Math.abs(angDiff(ang, u.face)) < 0.35 && u.cd <= 0) {
-        u.chaseT = 0;
         shoot(u, mw, t); u.cd = mw.rof;
         if (air) u.aam--; else u.ammo--;
         if (Math.random() < 0.5) u.passT = 0.9;
+        // A jet defending the base makes one pass, then flies home to rearm: a missile at an aircraft,
+        // or at a ground target it has no bombs left for, ends it; otherwise the bomb run does.
+        if (u.defending && o.type !== 'attack' && (air || !(u.bombs > 0))) u.rearming = true;
       } else if (!air && u.bombs > 0 && d < 12 && u.cd2 <= 0) {
         for (let i = 0; i < 2; i++) {
           const ox = Math.cos(u.face) * i * 14, oy = Math.sin(u.face) * i * 14;
           G.projectiles.push({ kind: 'bomb', team: u.team, from: u, w: u.def.bomb, tx: u.x + ox, ty: u.y + oy, x: u.x + ox, y: u.y + oy - u.alt, z: u.alt, t: 0, dur: 0.5, delay: i * 0.08 });
         }
-        u.bombs -= 2; u.cd2 = 1.2; u.passT = 0.9; u.chaseT = 0;
+        u.bombs -= 2; u.cd2 = 1.2; u.passT = 0.9;
+        if (u.defending && o.type !== 'attack') u.rearming = true;
       }
       flyJet(u, t.x, t.y, dt);
     } else if (o.type === 'hunt') {

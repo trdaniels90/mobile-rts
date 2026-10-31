@@ -19,9 +19,9 @@ const { chromium, devices } = require('playwright');
       step(25);   // let them take off and settle on guard
       const raiders = []; const types = ['mtank', 'mtank', 'ranger', 'ranger', 'rocket', 'rocket', 'rifle', 'rifle', 'rifle'];
       types.forEach((t, i) => { const a = i * 0.7; const u = addUnit(t, foe, cy.x + 300 + Math.cos(a) * 30, cy.y + Math.sin(a) * 30 + 40); if (u) { raiders.push(u); u.order = { type: 'hunt' }; } });
-      const last = new Map(); let worst = 0; const t0 = G.t;
+      const last = new Map(); let worst = 0; const t0 = G.t; const log = [];
       while (G.t - t0 < 120) {
-        step(0.5);
+        step(0.5); if (Math.round((G.t - t0) * 2) % 20 === 0) log.push(Math.round(G.t - t0) + " " + migs.map((m) => m.alive ? m.as + (m.rearming ? "R" : "") + (m.defending ? "D" : "") + (m.target ? "T" : "-") + m.hp.toFixed(0) + "/" + m.ammo + m.aam + m.bombs : "x").join(" "));
         for (const m of migs) {
           if (!m.alive) continue;
           const key = (m.target ? m.target.id : -1) + ':' + m.ammo + ':' + m.aam + ':' + m.bombs;
@@ -30,7 +30,7 @@ const { chromium, devices } = require('playwright');
           else if (m.target && m.as === 'fly') worst = Math.max(worst, G.t - l.t);
         }
       }
-      return { seed, migs: migs.length, migsLost: migs.filter((m) => !m.alive).length, raiders: raiders.length, raidersKilled: raiders.filter((u) => !u.alive).length, worstNoFireSecs: Math.round(worst) };
+      globalThis.__log = log; return { seed, log: log.slice(0, 40), migs: migs.length, migsLost: migs.filter((m) => !m.alive).length, raiders: raiders.length, raidersKilled: raiders.filter((u) => !u.alive).length, worstNoFireSecs: Math.round(worst) };
     }, seed);
     console.log(JSON.stringify(r), errs.slice(0, 2));
   }
