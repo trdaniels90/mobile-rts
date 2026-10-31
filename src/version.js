@@ -4,6 +4,18 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.31.1', date: '31 October 2026', title: 'Missiles, spread-out infantry and a new icon', groups: [
+    ['Combat', [
+      'Anti-air missiles now run out of fuel: a missile fired at an aircraft can only fly about 1.5 times its weapon\u2019s range, so a jet or helicopter that keeps flying away escapes it, and a missile gives up if its target lands. SAM Sites have a longer burn, 3 times their range.',
+      'Infantry sent to attack, by an attack order or Auto Attack, now march spread out instead of in one ball, so a V2 or artillery shell kills fewer at once. Some waves still bunch up, so big blasts can still happen. Tanks are not affected.',
+    ]],
+    ['Online', [
+      'Fixed a crash in long online battles that left ghost and missing units on the guest\u2019s screen after an aircraft was shot down.',
+    ]],
+    ['Look', [
+      'New app icon. Home-screen icons are cached by your phone, so you may need to delete the app and add it again to see it.',
+    ]],
+  ] },
   { v: '2026.10.31', date: '31 October 2026', title: 'Smarter jet defence', groups: [
     ['', [
       'MiGs defending your base now each pick a different raider instead of all chasing the same one.',
