@@ -141,8 +141,9 @@
   // ---------------------------------------------------------------------------
   let online = null;   // { opponent } during an online battle
   let mission = false; // a skirmish the player started or continued (not the battle behind the menu): saved as it goes
+  let mapId = DEFAULT_MAP;   // the skirmish map chosen on the map screen
   function startGame(seed) {
-    newWorld(faction, diffKey, seed, mySide);
+    newWorld(faction, diffKey, seed, mySide, false, mapId);
     online = null; mission = false;
     afterNewWorld(faction);
   }
@@ -172,7 +173,7 @@
     Debrief.close();
     endPlace();
     Net.hookHost();
-    newWorld(o.faction, 'normal', o.seed, o.me, true);
+    newWorld(o.faction, 'normal', o.seed, o.me, true, o.map);
     online = { opponent: o.opponent };
     afterNewWorld(o.faction);
     Report.start(o.faction, null, 'pvp', o.opponent);
@@ -983,16 +984,20 @@
     b.disabled = true; b.textContent = 'Loading…';
     continueMission().finally(() => { b.disabled = false; showContinue(); });
   });
+  // Skirmish opens the map screen first; starting from there builds the battle.
   ui.startBtn.addEventListener('click', () => {
-    ui.startBtn.textContent = 'Loading…';
-    ui.startBtn.disabled = true;
-    setTimeout(() => {
-      endPlace();
-      startMission();
-      ui.startBtn.disabled = false;
-      hideMenu();
-      eva('Select a structure to build');
-    }, 30);
+    MapSelect.open(mapId, (id) => {
+      mapId = id;
+      ui.startBtn.textContent = 'Loading…';
+      ui.startBtn.disabled = true;
+      setTimeout(() => {
+        endPlace();
+        startMission();
+        ui.startBtn.disabled = false;
+        hideMenu();
+        eva('Select a structure to build');
+      }, 30);
+    });
   });
   ui.resumeBtn.addEventListener('click', hideMenu);
   // Quit mission: tap twice (no dialogs, which some hosts block). The match is reported as quit,

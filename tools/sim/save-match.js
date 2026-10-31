@@ -35,7 +35,7 @@ const fs = require('fs'), path = require('path');
     await p.waitForTimeout(1500);
     await p.reload(); await p.waitForTimeout(1500);
   };
-  await p.goto('https://rh.test/index.html'); await p.tap('#startBtn'); await p.waitForTimeout(800);
+  await p.goto('https://rh.test/index.html'); await p.tap('#startBtn'); await p.tap('#maps [data-map-go]'); await p.waitForTimeout(800);
   const local = await p.evaluate(() => Report.matchId);
   await playMinutes(3);
   await saveAndReload();
@@ -54,7 +54,7 @@ const fs = require('fs'), path = require('path');
   const first = { local, id1, id2, sameId: local && local === id1 && id1 === id2, gameT, inserted: inserted.map((x) => x.id), ended };
   // A save without a match id (made before this change) starts a new match.
   await p.tap('.db-new'); await p.waitForTimeout(500);
-  await p.tap('#startBtn'); await p.waitForTimeout(800);
+  await p.tap('#startBtn'); await p.tap('#maps [data-map-go]'); await p.waitForTimeout(800);
   await playMinutes(1);
   await p.evaluate(() => document.getElementById('menuBtn').click()); await p.waitForTimeout(1500);
   await p.evaluate(() => new Promise((res) => { const r = indexedDB.open('red-horizon', 1); r.onsuccess = () => { const s = r.result.transaction('save', 'readwrite').objectStore('save'); const g = s.get('skirmish'); g.onsuccess = () => { const v = g.result; v.meta.match = null; s.put(v, 'skirmish'); }; r.result.transaction('save').oncomplete = res; setTimeout(res, 600); }; }));

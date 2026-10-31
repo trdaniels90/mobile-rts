@@ -59,6 +59,7 @@ share globals. Read this file first; the commit history explains every change in
 | `src/world.js` | The simulation: `G` (game state), `update(dt)`, production, combat, aircraft (`updateAir`), fog, powers, win check |
 | `src/ai.js` | The computer opponent: build order, army mix, attack waves, raids, scouting |
 | `src/ui.js` | Input (touch and mouse), camera, sidebar, menus |
+| `src/maps.js` | The `MAPS` list, `mapCardsHtml` and the skirmish map screen (`MapSelect`). `newWorld(..., mapId)` stores `G.mapId`; the online host picks the map in the lobby and sends it with `start`. A new map needs an entry here and a layout in `genMap` |
 | `src/art.js`, `src/models.js`, `src/voxel.js` | Drawing |
 | `src/audio.js`, `src/music.js`, `src/sfx.js`, `src/voices.js` | Sound. Music is sequenced in the `SONGS` array in `audio.js` |
 | `src/manual.js` | The Field Manual and What's New pages |

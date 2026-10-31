@@ -3,7 +3,7 @@
 // there is no connection. Each version keeps its own cache, and older ones are cleared out.
 importScripts('src/version.js');
 const CACHE = 'red-horizon-' + VERSION;
-const FILES = ['./', 'index.html', 'style.css', 'src/version.js', 'src/data.js', 'src/voxel.js', 'src/models.js', 'src/art.js', 'src/world.js', 'src/ai.js', 'src/voices.js', 'src/sfx.js', 'src/music.js', 'src/audio.js', 'src/manual.js', 'src/debrief.js', 'src/report.js', 'src/profile.js', 'src/net.js', 'src/save.js', 'src/ui.js',
+const FILES = ['./', 'index.html', 'style.css', 'src/version.js', 'src/data.js', 'src/maps.js', 'src/voxel.js', 'src/models.js', 'src/art.js', 'src/world.js', 'src/ai.js', 'src/voices.js', 'src/sfx.js', 'src/music.js', 'src/audio.js', 'src/manual.js', 'src/debrief.js', 'src/report.js', 'src/profile.js', 'src/net.js', 'src/save.js', 'src/ui.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

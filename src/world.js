@@ -25,13 +25,14 @@ let hooks = { eva() {}, evaFor() {}, gameOver() {}, sfx() {}, shake() {} };
 // each side has uncovered, and `G.seen` is the one this device draws, `G.fog[G.me]`.
 // `me`: the side the human plays (default 0). The other side is the computer, or with `pvp`
 // a second human (online: see net.js).
-function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false) {
+function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId = DEFAULT_MAP) {
   seed = seed || (Math.random() * 1e9) | 0;
+  mapId = validMap(mapId);
   const enemyFaction = playerFaction === 'allies' ? 'soviets' : 'allies';
   const fog = [new Uint8Array(NCELLS), new Uint8Array(NCELLS)];
   const human = makeTeam(me, playerFaction, false), cpu = makeTeam(1 - me, enemyFaction, !pvp);
   G = {
-    t: 0, seed, diff: DIFFICULTY[diffKey], diffKey, nextId: 1,
+    t: 0, seed, mapId, diff: DIFFICULTY[diffKey], diffKey, nextId: 1,
     entities: [], byId: new Map(), effects: [], projectiles: [], pathQueue: [], groups: [],
     terr: new Uint8Array(NCELLS), block: new Uint8Array(NCELLS), bld: new Int32Array(NCELLS), resv: new Uint8Array(NCELLS),
     ore: new Uint16Array(NCELLS), gem: new Uint8Array(NCELLS), fog, me, seen: fog[me], shroudDirty: true, oreFields: [],
@@ -88,7 +89,7 @@ function makeTeam(id, faction, isAI) {
 }
 
 // ---------------------------------------------------------------------------
-// Map: "A Bridge Too Far", a fixed layout after the classic "A Path Beyond", with random dressing
+// Map "bridge" (A Bridge Too Far, see maps.js): a fixed layout after the classic "A Path Beyond", with random dressing
 // ---------------------------------------------------------------------------
 // Two long lakes cross the middle of the island from corner to corner. Armies can go over the
 // land gap in the centre (the main road), over a bridge across either lake, or around the far

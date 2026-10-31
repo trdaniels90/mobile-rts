@@ -88,7 +88,7 @@ const Net = (() => {
       lobby.connected = true; lobby.status = 'connected';
       heard = performance.now(); partBuf = '';
       send({ k: 'hi', name: myName(), v: VERSION, match: role ? lobby.match : null });
-      if (lobby.me === 'host') send({ k: 'lobby', faction: lobby.host.faction });
+      if (lobby.me === 'host') send({ k: 'lobby', faction: lobby.host.faction, map: lobby.host.map });
       if (inBattle()) resumed();
       listener();
     };
@@ -173,7 +173,7 @@ const Net = (() => {
     leave();
     let code = '';
     for (let i = 0; i < 4; i++) code += LETTERS[(Math.random() * LETTERS.length) | 0];
-    lobby = { code, me: 'host', gid: null, host: { name: myName(), faction }, guest: null, connected: false, status: 'waiting' };
+    lobby = { code, me: 'host', gid: null, host: { name: myName(), faction, map: DEFAULT_MAP }, guest: null, connected: false, status: 'waiting' };
     listen();
     listener();
   }
@@ -255,23 +255,30 @@ const Net = (() => {
   function swapSides() {
     if (!lobby || lobby.me !== 'host') return;
     lobby.host.faction = lobby.host.faction === 'allies' ? 'soviets' : 'allies';
-    send({ k: 'lobby', faction: lobby.host.faction });
+    send({ k: 'lobby', faction: lobby.host.faction, map: lobby.host.map });
+    listener();
+  }
+  function setMap(id) {
+    if (!lobby || lobby.me !== 'host' || !lobby.host) return;
+    lobby.host.map = validMap(id);
+    send({ k: 'lobby', faction: lobby.host.faction, map: lobby.host.map });
     listener();
   }
   function startBattle() {
     if (!lobby || lobby.me !== 'host' || !lobby.connected || !lobby.guest) return;
     const seed = (Math.random() * 1e9) | 0, match = newId();
-    send({ k: 'start', seed, faction: lobby.host.faction, match });
-    begin('host', seed, lobby.host.faction, match);
+    const map = validMap(lobby.host.map);
+    send({ k: 'start', seed, faction: lobby.host.faction, match, map });
+    begin('host', seed, lobby.host.faction, match, map);
   }
-  function begin(r, seed, hostFaction, match) {
+  function begin(r, seed, hostFaction, match, map) {
     role = r;
     lobby.match = match;
     resetHost();
     endWait();
     const guestFaction = hostFaction === 'allies' ? 'soviets' : 'allies';
     const opp = r === 'host' ? lobby.guest.name : lobby.host.name;
-    UIBridge.start({ seed, faction: r === 'host' ? hostFaction : guestFaction, me: r === 'host' ? 0 : 1, opponent: opp });
+    UIBridge.start({ seed, faction: r === 'host' ? hostFaction : guestFaction, me: r === 'host' ? 0 : 1, opponent: opp, map: validMap(map) });
     if (r === 'guest') {
       // The battle is the host's: start from an empty field and fill it from the snapshots.
       G.remote = true;
@@ -305,8 +312,8 @@ const Net = (() => {
       if (lobby.me === 'host') lobby.guest = { name: String(m.name || 'Commander').slice(0, 20) };
       else lobby.host = Object.assign(lobby.host || { faction: 'allies' }, { name: String(m.name || 'Commander').slice(0, 20) });
       listener();
-    } else if (m.k === 'lobby' && lobby.me === 'guest') { lobby.host = Object.assign(lobby.host || { name: 'Commander' }, { faction: m.faction }); listener(); }
-    else if (m.k === 'start' && lobby.me === 'guest') begin('guest', m.seed, m.faction, m.match);
+    } else if (m.k === 'lobby' && lobby.me === 'guest') { lobby.host = Object.assign(lobby.host || { name: 'Commander' }, { faction: m.faction, map: validMap(m.map) }); listener(); }
+    else if (m.k === 'start' && lobby.me === 'guest') begin('guest', m.seed, m.faction, m.match, m.map);
     else if (m.k === 's' && role === 'guest') applySnapshot(m);
     else if (m.k === 'end' && role === 'guest') applyEnd(m);
     else if (m.k === 'c' && role === 'host' && !G.hold) applyCommand(m);
@@ -604,7 +611,7 @@ const Net = (() => {
   }
 
   return {
-    host, join, leave, swapSides, startBattle, surrender, rematch, hostTick, guestStep, hookHost,
+    host, join, leave, swapSides, setMap, startBattle, surrender, rematch, hostTick, guestStep, hookHost,
     get role() { return role; }, get lobby() { return lobby; }, get waiting() { return !!wait; },
     // For tests: drop the connection without a word, and a shorter wait.
     test: { drop() { const L = link; if (L) { try { L.pc.close(); } catch (_) {} } lost(); }, waitLimit(s) { WAIT_LIMIT = s; }, get resyncs() { return resyncs; } },
@@ -630,6 +637,8 @@ const Online = (() => {
     body = root.querySelector('.on-body');
     root.addEventListener('click', (e) => {
       if (e.target.closest('.fm-close') || e.target === root) { close(); return; }
+      const m = e.target.closest('[data-map]');
+      if (m) { Net.setMap(m.dataset.map); return; }
       const b = e.target.closest('[data-on]');
       if (!b) return;
       const act = b.dataset.on;
@@ -675,6 +684,7 @@ const Online = (() => {
         ${row(me ? 'You' : 'Host', L.host && L.host.name, hostF)}
         ${row(me ? 'Friend' : 'You', L.guest && L.guest.name, guestF)}
       </tbody></table>
+      ${me ? mapCardsHtml(validMap(L.host && L.host.map)) : `<p class="lb-intro">Map: <b>${esc(MAPS[validMap(L.host && L.host.map)].name)}</b></p>`}
       <div class="on-btns">${me ? '<button type="button" class="pf-btn" data-on="swap">Swap sides</button><button type="button" class="pf-btn on-go" data-on="start">Start battle</button>' : '<p class="pf-small">Waiting for the host…</p>'}
         <button type="button" class="pf-btn" data-on="cancel">Leave</button></div>`;
   }

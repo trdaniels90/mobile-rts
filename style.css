@@ -266,7 +266,7 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
   color: #e6e1cf; background: linear-gradient(180deg, #4c5530, #2f3520);
   border: 2px solid; border-color: #7d8a4c #171b0c #171b0c #7d8a4c;
 }
-#manual, #news, #board, #profile, #online {
+#manual, #news, #board, #profile, #online, #maps {
   /* minmax(0, 1fr): the column must not grow to fit the tab strip, or the book runs off a narrow screen. */
   position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; grid-template-columns: minmax(0, 1fr);
   padding: calc(var(--safe-t) + 10px) max(10px, var(--safe-r)) calc(var(--safe-b) + 10px) max(10px, var(--safe-l));

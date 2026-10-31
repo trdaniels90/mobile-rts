@@ -5,7 +5,7 @@ const { chromium, devices } = require('playwright');
   const b = await chromium.launch();
   const p = await (await b.newContext({ ...devices['iPhone 13 landscape'] })).newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
   await p.route(/fonts|supabase/, (r) => r.abort());
-  await p.goto('file://' + root + '/index.html'); await p.tap('#startBtn'); await p.waitForTimeout(1000);
+  await p.goto('file://' + root + '/index.html'); await p.tap('#startBtn'); await p.tap('#maps [data-map-go]'); await p.waitForTimeout(1000);
   const r = await p.evaluate(() => {
     const c = document.querySelector('canvas');
     const ev = (type, id, x, y, primary) => c.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', isPrimary: primary, clientX: x, clientY: y, bubbles: true, cancelable: true }));

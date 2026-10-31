@@ -2,7 +2,6 @@
 // Game data: map size, factions, units, structures and damage tables.
 
 const CELL = 24;            // world pixels per map cell
-const MAP_NAME = 'A Bridge Too Far';   // the one map, laid out after the classic A Path Beyond
 const MAP = 112;            // map is MAP x MAP cells (sized for 2v2, after A Path Beyond)
 const WORLD = MAP * CELL;
 const NCELLS = MAP * MAP;

@@ -9,7 +9,7 @@ const { chromium, devices } = require('playwright');
   const ctx = await b.newContext({ ...devices['iPhone 13 landscape'] });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message + ' @ ' + (e.stack || '').split('\n')[1]));
   await p.route(/fonts|supabase/, (r) => r.abort());
-  await p.goto('file://' + root + '/index.html'); await p.tap('#startBtn'); await p.waitForTimeout(800);
+  await p.goto('file://' + root + '/index.html'); await p.tap('#startBtn'); await p.tap('#maps [data-map-go]'); await p.waitForTimeout(800);
   const summary = () => p.evaluate(() => {
     let decal = 0; const d = G.dctx.getImageData(0, 0, G.decals.width, G.decals.height).data; for (let i = 3; i < d.length; i += 64) if (d[i]) decal++;
     const refsOk = G.entities.every((e) => (!e.target || !e.target.id || G.byId.get(e.target.id) === e.target || !e.target.alive)) && G.entities.every((e) => G.byId.get(e.id) === e);

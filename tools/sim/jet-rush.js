@@ -6,7 +6,7 @@ const { chromium, devices } = require('playwright');
   for (const seed of seeds.split(',')) {
     const p = await (await b.newContext({ ...devices['iPhone 13 landscape'] })).newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
     await p.route(/fonts|supabase/, (r) => r.abort());
-    await p.goto('file://' + root + '/index.html'); await p.tap('#startBtn'); await p.waitForTimeout(600);
+    await p.goto('file://' + root + '/index.html'); await p.tap('#startBtn'); await p.tap('#maps [data-map-go]'); await p.waitForTimeout(600);
     const r = await p.evaluate((seed) => {
       newWorld('allies', 'normal', +seed);
       const me = G.teams[0]; me.auto = false; me.credits = 1e5; G.paused = true;

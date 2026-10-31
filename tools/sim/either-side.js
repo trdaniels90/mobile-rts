@@ -8,7 +8,7 @@ const { chromium, devices } = require('playwright');
   const b = await chromium.launch();
   const p = await (await b.newContext({ ...devices['iPhone 13 landscape'] })).newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
   await p.route(/fonts|supabase/, (r) => r.abort());
-  await p.goto('file://' + root + '/index.html?side=1'); await p.tap('#startBtn'); await p.waitForTimeout(600);
+  await p.goto('file://' + root + '/index.html?side=1'); await p.tap('#startBtn'); await p.tap('#maps [data-map-go]'); await p.waitForTimeout(600);
   const r = await p.evaluate(({ minutes }) => {
     const ps = window.__ps, out = {}, said = [];
     const eva = hooks.eva; hooks.eva = (m) => { said.push(m); eva(m); };
