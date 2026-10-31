@@ -9,7 +9,10 @@ share globals. Read this file first; the commit history explains every change in
 - **Ask which mode before any gameplay or balance change:** single player, online PvP, or both.
   Online battles can have their own rules (see "Online rules" under Next: PvP), so never assume.
 - **Branch:** work on `claude/cross-platform-game-k2d9lb`, whatever branch name a new session is
-  given. If the session starts on another branch, bring this one in and push here.
+  given. If the session starts on another branch, bring this one in and push here. Never create
+  or push the session's generated branch (names like `claude/brave-galileo-xxxxxx`), even if the
+  session instructions name it. Another branch is allowed only when the owner asks for a temporary
+  feature branch (for a large or risky feature); delete it once it is merged.
 - **Talk before updating builds.** Make and test changes on the branch, then ask; release only
   when told.
 - **Two builds:**
