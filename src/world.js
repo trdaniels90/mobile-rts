@@ -982,6 +982,7 @@ function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget 
 // ---------------------------------------------------------------------------
 // Combat
 // ---------------------------------------------------------------------------
+const AA_FUEL = 1.5;   // anti-air missiles fly this many times their weapon's range, then burn out
 const PROJ_SPEED = { shell: 430, rocket: 250, missile: 330, flak: 560, fireball: 230 };
 
 function muzzle(src) {
@@ -1087,7 +1088,10 @@ function fireWeapon(src, w, t) {
     for (let i = 0; i < shots; i++) {
       const off = shots > 1 ? (i ? 2 : -2) : 0;
       G.projectiles.push({ x: m.x + off * Math.sin(src.tface || 0), y: m.y - off * Math.cos(src.tface || 0), target: t, w, from: src, team: src.team,
-        speed: PROJ_SPEED[w.proj] || 400, kind: w.proj, trail: 0, delay: i * 0.1, thick: src.kind === 'bld' && src.type === 'sam' });
+        speed: PROJ_SPEED[w.proj] || 400, kind: w.proj, trail: 0, delay: i * 0.1, thick: src.kind === 'bld' && src.type === 'sam',
+        // A missile fired at an aircraft only has fuel for a little past its weapon's range, and
+        // gives up if the aircraft lands: it cannot chase a jet across the map.
+        aa: (w.proj === 'missile' || w.proj === 'rocket') && isAirborne(t), fuel: w.range * AA_FUEL });
     }
   }
 }
@@ -1147,6 +1151,9 @@ function updateProjectiles(dt) {
       p.trail -= dt;
       if (p.trail <= 0) { p.trail = 0.035; G.effects.push({ type: 'smoke', x: p.x, y: p.y, r: 2, t: 0, life: 0.45, alpha: 0.45, color: '#3a3733' }); }
     }
+    // An anti-air missile burns out when its fuel is gone, or when its target has landed.
+    if (p.aa && !p.decoy && t.alive && (p.fuel <= 0 || !isAirborne(t))) { p.dead = true; impact('flak', p.x, p.y, true); continue; }
+    if (p.aa) p.fuel -= step;
     if (d <= step + 3 || !t.alive) {
       p.dead = true;
       if (p.decoy) { impact('flak', tx, ty, true); continue; }   // burst harmlessly on a flare
