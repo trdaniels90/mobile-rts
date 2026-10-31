@@ -1765,7 +1765,9 @@ function updateEject(fx, dt) {
 const PILOT_BOUNTY = 100;
 function ejectPilot(e) {
   if (G.remote) return;   // a PvP guest's copy runs the effect but never makes units: the host's pilot arrives in a snapshot
-  const c = nearestFreeCell(cellOfPos(e.x, e.y), 4);
+  // Over water the pilot still parachutes down (landChute drowns it); anywhere else it needs open ground nearby.
+  const over = cellOfPos(Math.max(0, Math.min(WORLD - 1, e.x)), Math.max(0, Math.min(WORLD - 1, e.y)));
+  const c = wetAt(e.x, e.y) ? over : nearestFreeCell(over, 4);
   if (c < 0) return;
   const team = G.teams[e.team], p = cellCenter(c);
   const u = addUnit('pilot', team, p.x, p.y);
@@ -1775,8 +1777,10 @@ function ejectPilot(e) {
   if (!pilotHome(u)) { u.homeward = false; if (team.auto) setHunt(u); else setGuard(u); }
 }
 // Down in trees, water or on a roof: walk out to the nearest open ground, and set off from there.
+// An ejected pilot that comes down on water drowns instead: no swimming to the nearest shore.
 function landChute(u) {
   u.chute = 0;   // exactly 0: checks for "on the ground" test !u.chute, and the countdown overshoots below 0
+  if (u.type === 'pilot' && wetAt(u.x, u.y)) { u.alive = false; splash(u.x, u.y, false); return; }
   const c = cellOfPos(Math.max(0, Math.min(WORLD - 1, u.x)), Math.max(0, Math.min(WORLD - 1, u.y)));
   if (!freeCell(c)) {
     const n = nearestFreeCell(c, 8);
