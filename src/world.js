@@ -88,7 +88,7 @@ function makeTeam(id, faction, isAI) {
 }
 
 // ---------------------------------------------------------------------------
-// Map: a fixed layout after the classic "A Path Beyond", with random dressing
+// Map: "A Bridge Too Far", a fixed layout after the classic "A Path Beyond", with random dressing
 // ---------------------------------------------------------------------------
 // Two long lakes cross the middle of the island from corner to corner. Armies can go over the
 // land gap in the centre (the main road), over a bridge across either lake, or around the far
