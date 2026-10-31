@@ -53,3 +53,8 @@ Loaded from Google Fonts under the [SIL Open Font License 1.1](https://openfontl
 | [Black Ops One](https://fonts.google.com/specimen/Black+Ops+One) | James Grieshaber, Eben Sorkin |
 | [VT323](https://fonts.google.com/specimen/VT323) | Peter Hull |
 | [Archivo Narrow](https://fonts.google.com/specimen/Archivo+Narrow) | Omnibus-Type |
+
+## App icon
+
+The app icon (`icons/`) is AI-generated artwork made with ChatGPT for this project: a Soviet
+twin-barrel tank in a forest.
