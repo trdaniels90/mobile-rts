@@ -76,7 +76,7 @@ function aiAaSite(team) {
 // about, posted beside the key buildings, instead of sending them out with the waves.
 function aiHomeGuard(team, u) {
   const A = G.diff.ai;
-  const hitsAir = (w) => !!(w && w.air);
+  const hitsAir = (w) => !!(w && w.air && !w.heliOnly);   // Rangers (heliOnly) cannot hit jets, so they are not posted as anti-air
   if (!A.adapt || !team.sawAir || u.cls === 'air' || !(hitsAir(u.def.weapon) || hitsAir(u.def.weapon2))) return false;
   if (unitsOf(team.id).filter((e) => e.homeGuard).length >= A.homeGuard) return false;
   const site = aiAaSite(team);
