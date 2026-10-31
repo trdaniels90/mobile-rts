@@ -7,7 +7,7 @@ const MAPS = {
     name: 'A Bridge Too Far',
     img: 'maps/bridge.png',   // from tools/make-map-previews.js
     blurb: 'An island split by two long lakes. Fight over the central road, the timber bridges or round the lake ends.',
-    info: '2v2 sized · 8 start positions',
+    info: '144 × 144 cells · 8 start positions',
   },
 };
 const DEFAULT_MAP = 'bridge';

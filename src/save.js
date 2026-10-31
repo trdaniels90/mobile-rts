@@ -106,7 +106,7 @@ const SaveGame = (() => {
       if (!G || G.over) return Promise.resolve(null);
       const t0 = performance.now();
       const state = freeze(G);
-      const meta = { at: Date.now(), t: G.t, faction: view.faction, foe: G.teams[foeOf(G.me)].faction, diffKey: view.diffKey, version: VERSION, match: view.match || null };
+      const meta = { at: Date.now(), t: G.t, faction: view.faction, foe: G.teams[foeOf(G.me)].faction, diffKey: view.diffKey, version: VERSION, size: MAP, match: view.match || null };
       const done = put(KEY, { meta, state, cam: view.cam, ms: Math.round(performance.now() - t0) }).then(() => put(KEY + '-meta', meta));
       // The ground pictures take longer: one at a time, and an older pair is fine meanwhile.
       if (!pictures && G.terrainCanvas.toBlob) {
@@ -119,12 +119,13 @@ const SaveGame = (() => {
     } catch (_) { return Promise.resolve(null); }
   }
   // The saved game's summary, for the menu, or null.
-  const info = () => get(KEY + '-meta');
+  // A save made on a different map size (before 2026.10.31.2: 112 cells) cannot be continued.
+  const info = () => get(KEY + '-meta').then((m) => (m && m.size === MAP ? m : null));
   // Puts the saved game in G; resolves to { faction, diffKey, cam } or null.
   async function load() {
     try {
       const rec = await get(KEY);
-      if (!rec) return null;
+      if (!rec || rec.meta.size !== MAP) return null;
       const g = thaw(rec.state);
       g.byId = new Map(g.entities.map((e) => [e.id, e]));
       g.seen = g.fog[g.me]; g.selection = []; g.place = null; g.paused = false; g.inFx = false; g.shroudDirty = true;
