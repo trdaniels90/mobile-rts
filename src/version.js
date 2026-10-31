@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.10.31', date: '31 October 2026', title: 'Smarter jet defence', groups: [
+    ['', [
+      'MiGs defending your base now each pick a different raider instead of all chasing the same one.',
+      'After one attack pass a MiG flies home to rearm, then goes out again while raiders are still near.',
+      'If a MiG’s raider is destroyed on the way, it switches to the next one nobody else is after.',
+    ]],
+  ] },
   { v: '2026.10.30', date: '30 October 2026', title: 'One game, one record', groups: [
     ['', [
       'A skirmish you save and continue now counts as one game in your service record, instead of being counted again each time you continue it.',
