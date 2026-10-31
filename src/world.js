@@ -982,6 +982,7 @@ function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget 
 // ---------------------------------------------------------------------------
 // Combat
 // ---------------------------------------------------------------------------
+const SAM_FUEL = 3;   // SAM Sites have the longest burn: they are the answer to aircraft that fly away
 const AA_FUEL = 1.5;   // anti-air missiles fly this many times their weapon's range, then burn out
 const PROJ_SPEED = { shell: 430, rocket: 250, missile: 330, flak: 560, fireball: 230 };
 
@@ -1091,7 +1092,7 @@ function fireWeapon(src, w, t) {
         speed: PROJ_SPEED[w.proj] || 400, kind: w.proj, trail: 0, delay: i * 0.1, thick: src.kind === 'bld' && src.type === 'sam',
         // A missile fired at an aircraft only has fuel for a little past its weapon's range, and
         // gives up if the aircraft lands: it cannot chase a jet across the map.
-        aa: (w.proj === 'missile' || w.proj === 'rocket') && isAirborne(t), fuel: w.range * AA_FUEL });
+        aa: (w.proj === 'missile' || w.proj === 'rocket') && isAirborne(t), fuel: w.range * (src.kind === 'bld' && src.type === 'sam' ? SAM_FUEL : AA_FUEL) });
     }
   }
 }
