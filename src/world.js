@@ -471,6 +471,39 @@ function goTo(u, x, y) {
   u.path = null; u.pathIdx = 0; u.stuckN = 0; u.nearBest = null;
   if (!u.needPath) { u.needPath = true; G.pathQueue.push(u); }
 }
+// Infantry on the attack march a little off the straight line, each by its own sideways offset
+// (its lane), so a wave arrives strung out instead of in one ball that a V2 or a shell wipes out.
+// Each wave rolls once, shared by the orders given within 2 seconds of each other: most waves
+// spread out (wide lanes), but about one in three stays tight, so big splash kills still happen.
+// Lanes are dealt out evenly across the width (not at random), and a loose wave also gets a small
+// speed spread so it strings out in depth over a long march.
+const LANE_LOOSE = 70, LANE_TIGHT = 10, TIGHT_CHANCE = 0.3;
+function assignLane(u) {
+  if (u.cls !== 'inf') { u.lane = 0; u.paceMul = 1; return; }
+  if (!G.laneRoll || G.t - G.laneRoll.t > 2) G.laneRoll = { t: G.t, tight: Math.random() < TIGHT_CHANCE, n: 0, off: Math.random() };
+  const r = G.laneRoll, frac = (r.n++ * 0.618034 + r.off) % 1;
+  u.lane = (frac * 2 - 1) * (r.tight ? LANE_TIGHT : LANE_LOOSE);
+  u.paceMul = r.tight ? 1 : 0.88 + Math.random() * 0.2;
+}
+// Bends each leg of the path sideways by the unit's lane, easing back to the route at the corners
+// (so narrow gaps stay passable) but holding the full offset on the way in to the target.
+function laneOffsetPath(u) {
+  const out = []; let px = u.x, py = u.y;
+  const lastIdx = u.path.length - 1;
+  u.path.forEach((q, i) => {
+    const dx = q.x - px, dy = q.y - py, len = Math.hypot(dx, dy);
+    if (len > 90) {
+      const n = Math.floor(len / 60), nx = -dy / len, ny = dx / len;
+      for (let k = 1; k <= n; k++) {
+        const f = k / (n + 1), off = u.lane * (i === lastIdx ? Math.min(1, f * 4) : Math.sin(Math.PI * f));
+        const x = px + dx * f + nx * off, y = py + dy * f + ny * off;
+        if (passableAt(x, y)) out.push({ x, y });
+      }
+    }
+    out.push(q); px = q.x; py = q.y;
+  });
+  u.path = out;
+}
 function processPaths() {
   let budget = 8;
   while (budget-- > 0 && G.pathQueue.length) {
@@ -480,6 +513,7 @@ function processPaths() {
     u.path = findPath(u.x, u.y, u.dest.x, u.dest.y, u.def.r);
     u.pathIdx = 0;
     if (!u.path || !u.path.length) u.dest = null;
+    else if (u.lane && (u.order.type === 'hunt' || u.order.type === 'attack')) laneOffsetPath(u);
   }
 }
 
@@ -529,6 +563,7 @@ function followPath(u, dt) {
   const want = Math.atan2(dy, dx);
   let speed = u.def.speed, mx, my;
   // Keep to the group's pace, except to catch up with a slot left far behind.
+  if (u.paceMul && u.cls === 'inf' && (u.order.type === 'hunt' || u.order.type === 'attack')) speed *= u.paceMul;
   if (u.groupSpeed && u.order.type === 'hunt' && !u.target && !(u.group && u.slotFar)) speed = Math.min(speed, u.groupSpeed);
   if (u.cls === 'veh') {
     const diff = angDiff(want, u.face);
@@ -977,7 +1012,7 @@ function guardReach(u) {
 }
 // What a side has in view: there is no fog, only shroud, so anything on explored ground.
 const inViewOf = (side) => (e) => !!G.fog[side][cellOfPos(e.x, e.y)];
-function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget = null; u.group = null; u.focus = null; }
+function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget = null; u.group = null; u.focus = null; assignLane(u); }
 
 // ---------------------------------------------------------------------------
 // Combat
@@ -2772,7 +2807,7 @@ function commandAttack(units, target) {
   for (const u of units) {
     if (u.def.harvester || !canTarget(u, target)) continue;
     u.order = { type: 'attack', target }; u.staged = false; u.homeward = false; u.defending = false; u.repairHold = false; u.retreat = false;
-    u.target = target;
+    u.target = target; assignLane(u);
     if (u.cls === 'air' && u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff';
   }
 }
