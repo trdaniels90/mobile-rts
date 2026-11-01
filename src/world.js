@@ -2258,8 +2258,8 @@ function callFromReserve(team, r) {
   team.stats.units--;   // already counted when it was built
   u.hp = r.hp; u.ammo = r.ammo; u.aam = r.aam; u.bombs = r.bombs; u.flares = r.flares;
   u.as = 'fly'; u.alt = JET_ALT; u.speedCur = u.def.speed;
-  u.face = u.tface = Math.atan2(WORLD / 2 - u.y, WORLD / 2 - u.x);
   u.home = pad ? pad.id : null;
+  u.face = u.tface = pad ? Math.atan2(pad.y - u.y, pad.x - u.x) : Math.atan2(WORLD / 2 - u.y, WORLD / 2 - u.x);
   setGuard(u); u.order.pad = true; u.staged = true;
 }
 // A jet leaving for reserve takes off if parked, then flies straight off the nearest map edge.
@@ -2376,6 +2376,9 @@ function updateAir(u, dt) {
           if (a && Math.abs(angDiff(Math.atan2(a.y - u.y, a.x - u.x), u.face)) < 0.5) { shoot(u, u.def.weapon2, a); u.cd = u.def.weapon2.rof; u.aam--; }
         }
         if (d < 26) { u.as = 'landed'; u.x = spot.x; u.y = spot.y; u.face = 0; u.rt = 0; if (u.retreat) u.repairHold = true; u.retreat = false; strikeOver(u); return; }
+        // Close in, slow down in proportion to the distance, so a jet that came in at an angle spirals
+        // onto its spot instead of circling it for ever (its turning circle would miss the landing).
+        if (d < 140) u.speedCur = Math.min(u.speedCur || 0, Math.max(40, d * 1.2));
         flyJet(u, spot.x, spot.y, dt);
       } else {
         if (d < 3) { u.alt = Math.max(0, u.alt - 20 * dt); if (u.alt <= 0) { u.as = 'landed'; u.rt = 0; if (u.retreat) u.repairHold = true; u.retreat = false; strikeOver(u); } return; }
