@@ -16,7 +16,7 @@ const Manual = (() => {
     factory: ['Builds tanks, support vehicles, Ore Trucks and the Mobile Outpost. Unlocks the Helipad and Advanced Power Plant.', '', ''],
     dome: ['Turns on the radar minimap (it goes offline on low power) and unlocks the Airfield and your side\'s long-range support vehicle at the War Factory.', '', 'Without it you fight blind'],
     helipad: ['Builds and rearms helicopters. Comes with one free helicopter. Aircraft are repaired on their pad for credits.', '', ''],
-    airfield: ['Builds and rearms jets and charges the Spy Plane, Paratrooper and Bombing Run powers. Comes with one free jet.', '', ''],
+    airfield: ['Builds and rearms jets and charges the Spy Plane, Paratrooper and Bombing Run powers. Parks up to 4 jets, so build more Airfields for a bigger air force. Comes with one free jet.', '', ''],
     pillbox: ['A sandbagged machine-gun nest. Cheap and quick to build.', 'Infantry', 'Tanks'],
     turret: ['A heavy gun turret that outranges most tanks.', 'Tanks, vehicles', 'Infantry swarms, artillery'],
     aagun: ['Fills the sky with black flak. Cannot fire at ground targets.', 'Helicopters, jets', 'Anything on the ground'],

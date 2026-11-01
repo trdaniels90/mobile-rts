@@ -2199,14 +2199,31 @@ function padFor(u) {
   u.home = p ? p.id : null;
   return p;
 }
+// An Airfield holds AIRFIELD_SLOTS jets, parked two by two on the open asphalt beside the tower
+// and hangar (offsets from its corner). Jets cannot be built while every Airfield is full.
+const AIRFIELD_SLOTS = 4, AIRFIELD_SPOTS = [[30, 12], [53, 12], [30, 36], [53, 36]];
+// Free parking for new aircraft from this producer: slots on its usable pads, less the aircraft
+// based there or anywhere else (in the air too) and those already in a queue. Infinity if uncapped.
+function padRoom(team, producer) {
+  if (producer !== 'airfield') return Infinity;
+  let room = 0;
+  for (const e of G.entities) {
+    if (padUsable(e, team.id, producer)) room += AIRFIELD_SLOTS;
+    else if (e.alive && e.kind === 'unit' && e.team === team.id && e.def.producer === producer) room--;
+  }
+  room -= team.queues.jet.length;
+  return room;
+}
 function padSpot(pad, u) {
-  // Each aircraft based at a pad gets its own parking slot: on the runway and the apron below it,
-  // or on the pad and the ground around it for helicopters.
+  // Each aircraft based at a pad gets its own parking slot: on the Airfield's asphalt, or on the
+  // pad and the ground around it for helicopters.
   const mates = G.entities.filter((e) => e.alive && e.kind === 'unit' && e.team === u.team && e.home === pad.id).sort((a, b) => a.id - b.id);
-  // Past six, more rows below the runway, or a wider ring round the pad.
+  // Past six helicopters, a wider ring round the pad. Jets past the Airfield's slots (only after
+  // another Airfield was lost) line up on the ground below it.
   const k = Math.max(0, mates.indexOf(u));
   let s;
-  if (pad.type === 'airfield') s = { x: pad.cx * CELL + 14 + (k % 3) * 22, y: pad.cy * CELL + 27 + Math.floor(k / 3) * 29 };
+  if (pad.type === 'airfield') s = k < AIRFIELD_SLOTS ? { x: pad.cx * CELL + AIRFIELD_SPOTS[k][0], y: pad.cy * CELL + AIRFIELD_SPOTS[k][1] }
+    : { x: pad.cx * CELL + 14 + ((k - AIRFIELD_SLOTS) % 3) * 22, y: pad.cy * CELL + 62 + Math.floor((k - AIRFIELD_SLOTS) / 3) * 29 };
   else if (k < 6) s = [{ x: pad.x, y: pad.y }, { x: pad.x + 36, y: pad.y - 4 }, { x: pad.x + 34, y: pad.y + 28 },
     { x: pad.x - 36, y: pad.y - 4 }, { x: pad.x - 34, y: pad.y + 28 }, { x: pad.x, y: pad.y + 40 }][k];
   else { const a = (k - 6) * 0.9 - 1.6, r = 72 + Math.floor((k - 6) / 7) * 34; s = { x: pad.x + Math.cos(a) * r, y: pad.y + Math.sin(a) * r }; }
@@ -2586,6 +2603,7 @@ function startProduction(team, type) {
   }
   const list = team.queues[cat];
   if (list.length >= 9) return 'full';
+  if (padRoom(team, UNIT_DEFS[type].producer) <= 0) return 'pads-full';
   list.push({ type, progress: 0, spent: 0 });
   return null;
 }
@@ -2625,6 +2643,7 @@ function updateProduction(team, dt) {
     if (!item || item.ready) continue;
     if (!available(team, item.type)) continue;
     const def = defOf(item.type);
+    if (padRoom(team, def.producer) < 0) continue;   // an Airfield was lost: queued jets wait for room
     const dp = Math.min(dt * speed * producerBoost(team, def) / buildTime(def), 1 - item.progress);
     const cost = def.cost * dp;
     if (team.credits < cost) { item.stalled = true; notify(team, 'funds', 'Insufficient funds', 30); continue; }

@@ -240,7 +240,7 @@ function aiThink(team) {
   const air = G.entities.filter((e) => e.alive && e.team === team.id && e.cls === 'air').length + team.queues.heli.length + team.queues.jet.length;
   if (money > (anti ? 600 : 900) && air < 6 && !truckDue) {
     const heli = team.faction === 'allies' ? 'heli' : 'hind', jet = team.faction === 'allies' ? 'jet' : 'mig';
-    if (c.airfield && !team.queues.jet.length && (anti || Math.random() < 0.5)) startProduction(team, jet);
+    if (c.airfield && !team.queues.jet.length && padRoom(team, 'airfield') > 0 && (anti || Math.random() < 0.5)) startProduction(team, jet);
     else if (c.helipad && !team.queues.heli.length && (!anti || !c.airfield || Math.random() < 0.25)) startProduction(team, heli);
   }
 
