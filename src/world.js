@@ -1422,6 +1422,8 @@ function kill(e, attacker, wh, from) {
   if (e.kind === 'bld' && e.sellT <= 0) {
     team.stats.bldLost++;
     if (e.type === 'cy' || e.type === 'outpost') logEvent(e.team, e.type + ' lost');
+    // Jets parked on a destroyed Airfield go with it; those in the air survive (see updateReserves).
+    if (e.type === 'airfield' && !G.remote) for (const j of G.entities.filter((u) => u.alive && u.kind === 'unit' && u.home === e.id && u.as === 'landed' && !u.leaving)) kill(j, attacker, wh, from);
   }
   if (e.kind === 'unit' && e.kills) G.log.fallen.push({ team: e.team, type: e.type, faction: e.faction, kills: e.kills, worth: e.killWorth, born: e.born, died: G.t });
   const seed = (Math.random() * 1e6) | 0;
