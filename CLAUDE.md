@@ -102,6 +102,25 @@ share globals. Read this file first; the commit history explains every change in
   such spawns with `G.remote` (as `ejectPilot` does).
 - **App icon** is AI-generated (ChatGPT) art; credited in `CREDITS.md`.
 
+## Recent mechanics (2026.10.31.2)
+
+- **Map:** "A Bridge Too Far" (`MAPS.bridge`, `src/maps.js`), 144 x 144 cells (`MAP` in data.js). The
+  layout scales from an 88-cell design (`K`, `S96`, `FR` in world.js). Ore fields grow with the map
+  (`FR` = MAP / 112, inner edge unchanged so building ground is kept); gem fields stay small. Four gem
+  fields (two per side, the second out by the lake ends). Pictures in `maps/*.png` come from
+  `node tools/make-map-previews.js <repo>`; rerun it after any layout change. The sims tap Skirmish,
+  then Start on the map screen (`#maps [data-map-go]`).
+- **Saves** record `size: MAP`; a save from another map size is ignored (Continue hidden).
+- **Rangers:** `heliOnly` weapon flag (can hit helicopters, not jets, see `canHit`), fire every 1.3 s. The
+  computer's home guard (`aiHomeGuard`) no longer counts them as anti-air.
+- **Pilots** that come down on water drown (`landChute`).
+- **Decided to leave:** helicopters answer base-defence calls only for raiders within 32 cells
+  (`bd` in `defendBase`) while jets have no limit; the owner likes distant bases calling jets.
+- **Possible follow-ups:** move the second gem fields further from start positions 2 and 6; push ore
+  fields about 2 cells clear of the 14-cell building circles; record the map in match reports; check
+  performance on a real phone and a long `pvp-air-inf.js` run on the 144 map; per-map `MAP` size
+  once a second map exists.
+
 ## Supabase
 
 - **Project:** `yorrgemlhoxbxvyvzcwe`. The Supabase MCP tools work in these sessions.
