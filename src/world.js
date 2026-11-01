@@ -2211,8 +2211,74 @@ function padRoom(team, producer) {
     if (padUsable(e, team.id, producer)) room += AIRFIELD_SLOTS;
     else if (e.alive && e.kind === 'unit' && e.team === team.id && e.def.producer === producer) room--;
   }
-  room -= team.queues.jet.length;
+  room -= team.queues.jet.length + (team.reserve ? team.reserve.length : 0);
   return room;
+}
+
+// --- Jet reserves ---------------------------------------------------------------
+// When an Airfield is lost or sold and the others have no room, the surplus jets fly off the
+// map into reserve (kept as plain data in team.reserve). When room appears again, for example a
+// new Airfield, they fly back in from the edge nearest the base and land. Host only: the guest
+// just sees the jets leave and arrive like any other entity.
+function edgePoint(x, y, out) {
+  const l = x, r = WORLD - x, t = y, b = WORLD - y, m = Math.min(l, r, t, b);
+  return m === l ? { x: -out, y } : m === r ? { x: WORLD + out, y } : m === t ? { x, y: -out } : { x, y: WORLD + out };
+}
+function updateReserves() {
+  for (const team of G.teams) {
+    const cap = AIRFIELD_SLOTS * G.entities.filter((e) => padUsable(e, team.id, 'airfield')).length;
+    const res = team.reserve || (team.reserve = []);
+    const jets = G.entities.filter((e) => e.alive && e.kind === 'unit' && e.team === team.id && e.def.producer === 'airfield' && !e.def.scripted);
+    const active = jets.filter((j) => !j.leaving);
+    if (active.length > cap) {
+      // Jets whose Airfield is gone go first, and parked ones before those in the air.
+      const rank = (j) => (padUsable(G.byId.get(j.home), team.id, 'airfield') ? 2 : 0) + (j.as === 'landed' ? 0 : 1);
+      active.sort((a, b) => rank(a) - rank(b) || a.id - b.id);
+      for (const j of active.slice(0, active.length - cap)) {
+        j.leaving = true; j.defending = false; j.retreat = false; j.rearming = false; j.target = null; j.exitX = undefined;
+        setGuard(j);
+      }
+      notify(team, 'reserve', 'No room at the Airfield. Jets flying to reserve', 20);
+    } else {
+      let free = cap - active.length;
+      // Jets still on their way out turn back first, then the reserve flies in.
+      for (const j of jets) if (free > 0 && j.leaving) { j.leaving = false; free--; setGuard(j); j.order.pad = true; j.staged = true; j.home = null; }
+      let back = 0;
+      while (free > 0 && res.length) { free--; back++; callFromReserve(team, res.shift()); }
+      if (back) notify(team, 'reserve-back', 'Jets returning from reserve', 20);
+    }
+  }
+}
+function callFromReserve(team, r) {
+  const pad = leastBusyPad(team.id, 'airfield');
+  const e = edgePoint((team.start.cx + 0.5) * CELL, (team.start.cy + 0.5) * CELL, 0);
+  const u = addUnit(r.type, team, Math.max(8, Math.min(WORLD - 8, e.x)), Math.max(8, Math.min(WORLD - 8, e.y)));
+  team.stats.units--;   // already counted when it was built
+  u.hp = r.hp; u.ammo = r.ammo; u.aam = r.aam; u.bombs = r.bombs; u.flares = r.flares;
+  u.as = 'fly'; u.alt = JET_ALT; u.speedCur = u.def.speed;
+  u.face = u.tface = Math.atan2(WORLD / 2 - u.y, WORLD / 2 - u.x);
+  u.home = pad ? pad.id : null;
+  setGuard(u); u.order.pad = true; u.staged = true;
+}
+// A jet leaving for reserve takes off if parked, then flies straight off the nearest map edge.
+function flyAway(u, dt) {
+  if (u.as === 'landed') u.as = 'takeoff';
+  if (u.as === 'takeoff') {
+    u.alt = Math.min(JET_ALT, u.alt + 25 * dt);
+    u.speedCur = Math.min(u.def.speed, u.speedCur + 160 * dt);
+    u.x += Math.cos(u.face) * u.speedCur * dt; u.y += Math.sin(u.face) * u.speedCur * dt; u.moving = true;
+    if (u.alt >= JET_ALT) u.as = 'fly';
+    return;
+  }
+  if (u.exitX === undefined) { const e = edgePoint(u.x, u.y, 80); u.exitX = e.x; u.exitY = e.y; }
+  const ang = Math.atan2(u.exitY - u.y, u.exitX - u.x);
+  u.face = turnToward(u.face, ang, u.def.turn * dt);
+  u.speedCur = Math.min(u.def.speed, (u.speedCur || 0) + 160 * dt);
+  u.x += Math.cos(u.face) * u.speedCur * dt; u.y += Math.sin(u.face) * u.speedCur * dt; u.moving = true;
+  if (u.x < -40 || u.y < -40 || u.x > WORLD + 40 || u.y > WORLD + 40) {
+    (G.teams[u.team].reserve || (G.teams[u.team].reserve = [])).push({ type: u.type, hp: u.hp, ammo: u.ammo, aam: u.aam, bombs: u.bombs, flares: u.flares });
+    u.alive = false;   // gone without a wreck
+  }
 }
 function padSpot(pad, u) {
   // Each aircraft based at a pad gets its own parking slot: on the Airfield's asphalt, or on the
@@ -2245,6 +2311,7 @@ function airTarget(u) {
 
 function updateAir(u, dt) {
   const w = u.def.weapon, jet = u.def.fly === 'jet';
+  if (u.leaving) { flyAway(u, dt); return; }   // off to reserve: nothing else matters
   if (u.flareSeq) dropFlare(u);
   if (u.target && !u.target.alive) u.target = null;
   if (u.order.type === 'attack' && !u.order.target.alive) setGuard(u);   // its target is gone: hold here
@@ -2937,7 +3004,7 @@ function update(dt) {
   if ((T.shroud -= dt) <= 0) { T.shroud = 0.25; revealAround(); }
   if ((T.ore -= dt) <= 0) { T.ore = 2; growOre(); }
   if ((T.ai -= dt) <= 0) { T.ai = 1; if (!G.over) for (const team of G.teams) if (team.isAI) aiThink(team); }
-  if ((T.win -= dt) <= 0) { T.win = 1; checkWin(); if (!G.over) launchGroups(); }
+  if ((T.win -= dt) <= 0) { T.win = 1; if (!G.remote) updateReserves(); checkWin(); if (!G.over) launchGroups(); }
   if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); for (const t of G.teams) if (!t.isAI) adviseTrucks(t); }
   updateEffects(dt);
   sweepDead();
