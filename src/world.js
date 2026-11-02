@@ -3030,6 +3030,7 @@ function updateEffects(dt) {
     if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
   }
   structureDamageFx(dt);
+  updateSamPits(dt);
   for (let i = n0; i < G.effects.length; i++) G.effects[i].sent = true;
   G.inFx = false;
   G.effects = G.effects.filter((fx) => fx.t < fx.life);
@@ -3039,6 +3040,21 @@ function updateEffects(dt) {
 // and now and then one falls off on its own. It runs in the effects pass, so an online guest
 // works it out from the health it is sent, and none of it goes over the network. Repairs
 // bring a structure back below the thresholds and it all stops.
+// SAM Sites open up and raise the launcher when enemy aircraft come within a few cells of their
+// range, and stay up until none are left, then wait a moment and go back underground. Looks
+// only: the launcher rises in well under a second, and firing is not held back by it. Runs in
+// the effects pass, so an online guest works it out from what it is sent.
+function updateSamPits(dt) {
+  for (const b of G.entities) {
+    if (b.kind !== 'bld' || b.type !== 'sam' || !b.alive) continue;
+    if (b.buildT < 1) { b.popK = 0; continue; }
+    const R = b.def.weapon.range + 3 * CELL, tgt = b.target && b.target.alive;
+    let threat = tgt || b.fireT > 0;
+    if (!threat) for (const e of G.entities) if (e.alive && e.kind === 'unit' && e.team !== b.team && isAirborne(e) && Math.hypot(e.x - b.x, e.y - b.y) < R) { threat = true; break; }
+    b.popHold = threat ? 1.5 : (b.popHold || 0) - dt;
+    b.popK = b.popHold > 0 ? Math.min(1, (b.popK || 0) + dt / (tgt ? 0.35 : 0.7)) : Math.max(0, (b.popK || 0) - dt / 1.1);
+  }
+}
 function structureDamageFx(dt) {
   for (const b of G.entities) {
     if (b.kind !== 'bld' || !b.alive || b.buildT < 1 || b.sellT > 0) continue;

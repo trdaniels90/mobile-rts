@@ -705,10 +705,24 @@ const STRUCTURES = {
     m.cylX(5, 19, 19, 3, 0.8, C.gun, M_METAL);
     return m;
   },
-  sam() {
-    const m = new VModel(-2, -2, 50, 26, 5);
+  // SAM Site: a launcher pit in a concrete collar, shut by two sliding steel doors (samDoor,
+  // drawn apart in drawSamHead). The cameo shows the launcher up.
+  sam(pal, faction, cameo) {
+    const m = new VModel(-2, -2, 50, 26, 12);
     slabV(m, 0, 0, 48, 24);
-    m.cylZ(24, 12, 1, 3, 8, C.wall, M_MATTE);
+    m.cylZ(24, 12, 1, 3, 9.5, C.wall, M_MATTE);
+    m.cylZ(24, 12, 0, 3, 7.5, null);
+    m.cylZ(24, 12, 0, 1, 7.5, '#141310', M_ROUGH);
+    m.paint(14, 2, 1, 34, 22, 3, (x, y) => Math.hypot(x + 0.5 - 24, y + 0.5 - 12) < 8.6 ? C.concD : undefined);
+    for (const y of [3, 20]) m.box(5, y, 2, 43, y + 1, 3, C.steel, M_METAL);   // door rails
+    hazardV(m, 1, 1, 1, 4, 4, 2); hazardV(m, 44, 20, 1, 47, 23, 2);
+    if (cameo) {
+      const h = HEADS.sam[0](pal);
+      for (let z = 0; z < h.d; z++) for (let y = 0; y < h.h; y++) for (let x = 0; x < h.w; x++) {
+        const i = (z * h.h + y) * h.w + x;
+        if (h.col[i] >= 0) m.set(x + h.x0 + 24, y + h.y0 + 12, z + 3, h.col[i], h.mat[i]);
+      }
+    }
     return m;
   },
 };
@@ -741,6 +755,17 @@ const HEADS = {
     return m;
   }, 24, 12, 3],
 };
+
+// One half of the SAM Site's hatch: a ribbed steel plate with a hazard edge where they meet.
+function samDoor(right) {
+  const m = new VModel(0, 0, 9, 17, 5);
+  m.box(0, 0, 3, 9, 17, 4, '#5d5e58', M_METAL);
+  m.paint(0, 0, 3, 9, 17, 4, (x, y) => y % 4 === 0 ? '#46473f' : undefined);
+  const ex = right ? 0 : 8;
+  m.box(ex, 0, 3, ex + 1, 17, 4, C.yellow, M_MATTE);
+  m.paint(ex, 0, 3, ex + 1, 17, 4, (x, y) => (y >> 1) % 2 ? C.black : undefined);
+  return m;
+}
 
 // ---------------------------------------------------------------------------
 // Sprite getters used by the renderer

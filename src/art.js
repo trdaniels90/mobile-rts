@@ -532,7 +532,8 @@ function drawStructure(g, b, t) {
   const stage = dmgStage(b);
   blit(g, stage ? damagedSprite(b.type, b.faction, stage) : s, x, y);
   const head = HEADS[b.type];
-  if (head) {
+  if (b.type === 'sam') drawSamHead(g, b, x, y, stage);
+  else if (head) {
     const hx = x + head[1], hy = y + head[2] - head[3] * VK;
     blit(g, headSprite(b.type, b.faction, b.tface, stage), hx, hy, false);
     if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
@@ -551,6 +552,25 @@ function drawStructure(g, b, t) {
     g.fillStyle = '#000'; g.fillRect(cx - 4, cy - 4, 9, 9);
     g.fillStyle = '#3ed04a'; g.fillRect(cx - 3, cy - 1, 7, 3); g.fillRect(cx - 1, cy - 3, 3, 7);
   }
+}
+
+// The SAM Site's launcher lives underground: the doors slide apart, then it rises (b.popK,
+// set by updateSamPits in world.js: 0 = shut, 0.4 = doors open, 1 = up and ready).
+function drawSamHead(g, b, x, y, stage) {
+  const ease = (v) => v * v * (3 - 2 * v), k = b.popK || 0;
+  const open = ease(Math.min(1, k / 0.4)), rise = ease(Math.max(0, (k - 0.4) / 0.6));
+  const o = Math.round(open * 9);
+  blit(g, sprite('SAMdoorL', () => samDoor(false), 0, 0, { shadow: false }), x + 15 - o, y + 4, false);
+  blit(g, sprite('SAMdoorR', () => samDoor(true), 0, 0, { shadow: false }), x + 24 + o, y + 4, false);
+  if (rise <= 0) return;
+  const h = HEADS.sam, hz = -9 + (h[3] + 9) * rise, hx = x + h[1], hy = y + h[2] - hz * VK;
+  const hs = headSprite('sam', b.faction, b.tface, stage);
+  if (rise < 1) {   // the part still below ground is hidden by the pit's south lip
+    g.save(); g.beginPath();
+    g.rect(x + 16 - 10 * rise, y - 40, 16 + 20 * rise, 40 + 12 + 7 - 3 * VK);
+    g.clip(); blit(g, hs, hx, hy, false); g.restore();
+  } else blit(g, hs, hx, hy, false);
+  if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
 }
 
 function drawGhost(g, type, faction, cx, cy) {
@@ -858,7 +878,7 @@ function cameoURL(type, faction) {
     mdl = power === 'spy' ? jetModel(pal, faction === 'soviets') : cargoModel(pal, power === 'bomb');
     scale = power === 'spy' ? 1.6 : 1.05;
   } else if (BUILD_DEFS[type]) {
-    mdl = STRUCTURES[type](pal, faction);
+    mdl = STRUCTURES[type](pal, faction, true);
     angle = 0;
     const d = BUILD_DEFS[type], fw = d.w * CELL + 4, fh = d.h * CELL + mdl.d * VK;
     scale = Math.min(1.3, (W - 2) / fw, (H - 2) / fh);
