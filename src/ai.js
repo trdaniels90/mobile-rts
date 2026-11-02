@@ -125,9 +125,12 @@ function aiRemoteField(team) {
   }
   return best;
 }
+// An Outpost still waiting for its refinery. The refinery built for it is remembered (b.refinery), as
+// it can land a little over 9 cells away, which used to make the computer build a second one there.
 function aiLonelyOutpost(team) {
   const mine = buildingsOf(team.id);
-  return mine.find((b) => b.type === 'outpost' && !mine.some((r) => r.type === 'refinery' && dist(r, b) < CELL * 9)) || null;
+  return mine.find((b) => b.type === 'outpost' && !(b.refinery && b.refinery.alive) &&
+    !mine.some((r) => r.type === 'refinery' && dist(r, b) < CELL * 9)) || null;
 }
 // Drive a Mobile Outpost to just short of the field (on the home side) and deploy it there; on
 // Normal and Hard right at the field's edge, so the refinery that follows sits on the ore.
@@ -196,8 +199,10 @@ function aiThink(team) {
   const q = team.queues.structure;
   if (q && q.ready) {
     const spot = aiFindSpot(team, q.type);
-    if (spot) placeStructure(team, q.type, spot.cx, spot.cy);
-    else if (Math.random() < 0.05) cancelProduction(team, q.type);
+    const lone = q.type === 'refinery' && aiLonelyOutpost(team);
+    const b = spot && placeStructure(team, q.type, spot.cx, spot.cy);
+    if (b && lone) lone.refinery = b;
+    else if (!spot && Math.random() < 0.05) cancelProduction(team, q.type);
   } else if (!q) {
     const next = aiNextStructure(team, c);
     if (next && team.credits >= Math.min(BUILD_DEFS[next].cost * 0.25, 500)) startProduction(team, next);
