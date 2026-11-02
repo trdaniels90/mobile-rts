@@ -127,7 +127,7 @@ share globals. Read this file first; the commit history explains every change in
   performance on a real phone and a long `pvp-air-inf.js` run on the 144 map; per-map `MAP` size
   once a second map exists.
 
-## Unreleased (on the branch, not in either build yet)
+## Released in 2026.11.02 (also damaged structures and the SAM pit)
 
 - **Service Depot** (`depot` in `BUILD_DEFS`, `commandRepair` / `updateRepairOrder` in world.js): 1200
   credits, needs a War Factory, both modes. Ground vehicles drive onto its pad (the `exitCell`, drawn by

@@ -4,6 +4,30 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.02', date: '2 November 2026', title: 'Battle damage, a Service Depot and a new way to win', groups: [
+    ['New', [
+      'Service Depot (both sides, 1200, needs a War Factory): select damaged vehicles and tap REPAIR, or tap the depot. Vehicles drive onto its pad one at a time; a full repair costs half the vehicle\u2019s price.',
+      'Mobile Construction Yard (2500, built at the War Factory once you have a Service Depot): drive it anywhere and DEPLOY it into a full Construction Yard.',
+    ]],
+    ['How to win', [
+      'Losing your Construction Yard no longer ends the game. A side is beaten once it has no Construction Yard, Barracks, War Factory, Helipad or Airfield left and no Mobile Construction Yard on the move.',
+      'Once a side has no production buildings left, the enemy is shown where its Mobile Construction Yards are, so one can\u2019t be hidden to drag the battle out.',
+    ]],
+    ['Look', [
+      'Damaged buildings and defences now show it: below 60% health they get shell holes, scorch marks and soot, and below 30% bigger holes, a caved-in corner, glowing embers and rubble. Bigger fires and thick smoke come out of the holes, and pieces fall off. Repairs put it all right.',
+      'The Soviet SAM Site now hides its launcher underground. When enemy aircraft come near, its steel doors slide open and the launcher rises; it goes back down once they are gone. It fires exactly as before.',
+    ]],
+    ['Aircraft', [
+      'Each Airfield parks at most 4 jets, all on the runway. With every Airfield full, building another jet is refused.',
+      'If an Airfield is lost and the others have no room, its spare jets fly off the map into reserve and come back when there is room. Jets parked on an Airfield that is destroyed are destroyed with it.',
+      'Jets coming in to land slow down instead of circling their spot.',
+    ]],
+    ['Computer', [
+      'On Normal and Hard the computer sends Mobile Outposts to real expansions further out, builds 1 to 3 refineries at each, and guards each with 2 guns (3 on Hard). It can build 3 more defences in all.',
+      'The computer builds a Service Depot and repairs its vehicles, and builds a Mobile Construction Yard if it loses its Construction Yard.',
+      'Computer attackers now turn aside to destroy Outposts and far-off refineries they pass.',
+    ]],
+  ] },
   { v: '2026.10.31.2', date: '31 October 2026', title: 'A Bridge Too Far: a bigger map', groups: [
     ['Map', [
       'The map is now called A Bridge Too Far, and it is bigger: 144 by 144 cells, about 65% more ground.',
