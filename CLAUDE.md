@@ -100,6 +100,12 @@ share globals. Read this file first; the commit history explains every change in
 - **PvP guest must never create entities.** The guest runs effects, and anything an effect spawns
   with `addUnit` takes a low id that clashes with the host's, then `applySnapshot` crashes. Guard
   such spawns with `G.remote` (as `ejectPilot` does).
+- **Damaged structures** (`damageModel`, `damagedSprite`, `damageSpots` in models.js;
+  `structureDamageFx` in world.js): below 60% and 30% health every structure is drawn from a
+  damaged copy of its own voxel model (holes, char, embers, rubble; heads char too), built one at
+  a time in the background. Fire, smoke and falling pieces come out of the holes. They run in the
+  effects pass, so the PvP guest works them out from the health it is sent and nothing extra goes
+  over the network (their timers are in net.js `SKIP`).
 - **App icon** is AI-generated (ChatGPT) art; credited in `CREDITS.md`.
 
 ## Recent mechanics (2026.10.31.2)

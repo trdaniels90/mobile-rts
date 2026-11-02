@@ -749,9 +749,174 @@ function structureSprite(type, faction) {
   const pal = palFor(faction);
   return sprite('S' + type + pal.key, () => STRUCTURES[type](pal, faction), 0, 0);
 }
-function headSprite(type, faction, angle) {
-  const pal = palFor(faction), h = HEADS[type];
-  return facingSprite('H' + type + pal.key, () => h[0](pal), angle, FACINGS, { shadow: false });
+function headSprite(type, faction, angle, stage) {
+  const pal = palFor(faction), h = HEADS[type], key = 'H' + type + pal.key;
+  if (stage) return facingSprite(key + 'd' + stage, () => scorchModel(model(key, () => h[0](pal)), stage, type), angle, FACINGS, { shadow: false });
+  return facingSprite(key, () => h[0](pal), angle, FACINGS, { shadow: false });
+}
+
+// ---------------------------------------------------------------------------
+// Battle damage. Every structure gets two damaged models made from its own: stage 1 (below
+// 60% health) has shell holes knocked through the roof and the south and east walls, charred
+// paint and soot streaks; stage 2 (below 30%) has bigger holes, a corner caved in, glowing
+// embers inside, its lights out and rubble on the foundation. The holes are the same for a
+// type every time (seeded by its name), and `damageSpots` gives their positions so the fires
+// and smoke come out of them.
+// ---------------------------------------------------------------------------
+const DMG_AT = [0.6, 0.3];
+function dmgStage(b) { const f = b.hp / b.maxHp; return f < DMG_AT[1] ? 2 : f < DMG_AT[0] ? 1 : 0; }
+function strSeed(s) { let h = 7; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; }
+function copyModel(m) {
+  const c = Object.create(VModel.prototype);
+  Object.assign(c, { x0: m.x0, y0: m.y0, w: m.w, h: m.h, d: m.d, col: new Int32Array(m.col), mat: new Uint8Array(m.mat) });
+  return c;
+}
+function topOf(m) {
+  const t = new Int16Array(m.w * m.h).fill(-1);
+  for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) for (let z = m.d - 1; z >= 0; z--) if (m.col[(z * m.h + y) * m.w + x] >= 0) { t[y * m.w + x] = z; break; }
+  return t;
+}
+function darken(c, k) { return (Math.round(((c >> 16) & 255) * k) << 16) | (Math.round(((c >> 8) & 255) * k) << 8) | Math.round((c & 255) * k); }
+const dmgSpotCache = new Map();
+// Impact points in model coordinates {x, y, z, r, s}: s is the first stage that has it.
+function damageSpots(type, faction) {
+  if (dmgSpotCache.has(type)) return dmgSpotCache.get(type);
+  const pal = palFor(faction), m = model('S' + type + pal.key, () => STRUCTURES[type](pal, faction)), top = topOf(m), r = rng(strSeed(type));
+  let maxZ = 0, n = 0;
+  for (let i = 0; i < top.length; i++) if (top[i] >= 2) { maxZ = Math.max(maxZ, top[i]); n++; }
+  const spots = [], R = Math.max(2, Math.min(6, Math.sqrt(n) / 7));
+  const count = Math.max(3, Math.min(9, Math.round(n / 380) + 3));
+  for (let tries = 0; spots.length < count && tries < 400; tries++) {
+    const x = Math.floor(r() * m.w), y = Math.floor(r() * m.h), tz = top[y * m.w + x];
+    if (tz < 2 || tz < maxZ * 0.3) continue;
+    let sx = x, sy = y, sz = tz;
+    if (r() < 0.55) {   // a wall hit: walk south (or east) to the face the camera sees
+      const dx = r() < 0.35 ? 1 : 0, dy = 1 - dx;
+      sz = Math.max(2, Math.round(tz * (0.35 + r() * 0.5)));
+      while (sx + dx < m.w && sy + dy < m.h && m.col[(sz * m.h + sy + dy) * m.w + sx + dx] >= 0) { sx += dx; sy += dy; }
+      if (m.col[(sz * m.h + sy) * m.w + sx] < 0) continue;
+    }
+    if (spots.some((p) => Math.hypot(p.x - sx - m.x0, p.y - sy - m.y0) < R * 2.2)) continue;
+    spots.push({ x: sx + m.x0, y: sy + m.y0, z: sz, r: R * (0.7 + r() * 0.6), s: spots.length < Math.ceil(count * 0.45) ? 1 : 2 });
+  }
+  spots.maxZ = maxZ;
+  dmgSpotCache.set(type, spots);
+  return spots;
+}
+function damageModel(base, stage, type, faction) {
+  const m = copyModel(base), top = topOf(base), spots = damageSpots(type, faction).filter((p) => p.s <= stage), r = rng(strSeed(type) + stage * 977);
+  const W = m.w, H = m.h, D = m.d, CHAR = rgbInt('#1f1c19'), EMBER = [rgbInt('#ff7a1a'), rgbInt('#e8460f'), rgbInt('#ffb040')];
+  const removed = [];
+  const carve = (cx, cy, cz, rad, zMin) => {
+    for (let z = Math.max(zMin, Math.floor(cz - rad)); z < Math.min(D, cz + rad + 1); z++) for (let y = Math.max(0, Math.floor(cy - rad)); y < Math.min(H, cy + rad + 1); y++) for (let x = Math.max(0, Math.floor(cx - rad)); x < Math.min(W, cx + rad + 1); x++) {
+      const i = (z * H + y) * W + x;
+      if (m.col[i] < 0) continue;
+      const dd = Math.hypot(x - cx, y - cy, (z - cz) * 1.2) + (hash3(x, y, z) - 0.5) * 1.8;
+      if (dd < rad) { removed.push(m.col[i]); m.col[i] = -1; }
+    }
+  };
+  const grow = stage === 2 ? 1.35 : 1;
+  for (const p of spots) carve(p.x - m.x0, p.y - m.y0, p.z, p.r * grow, 2);
+  // Stage 2: one corner of the tallest part caves in.
+  if (stage === 2 && spots.maxZ >= 6) {
+    const cx = r() < 0.5 ? W * 0.2 : W * 0.8, cy = H * (0.25 + r() * 0.4), rad = Math.min(W, H) * 0.3, zc = spots.maxZ * 0.55;
+    for (let y = Math.max(0, Math.floor(cy - rad)); y < Math.min(H, cy + rad); y++) for (let x = Math.max(0, Math.floor(cx - rad)); x < Math.min(W, cx + rad); x++) {
+      const dd = Math.hypot(x - cx, y - cy) / rad, floor = Math.max(2, Math.round(zc + dd * dd * spots.maxZ * 0.6 + (hash3(x, y, 3) - 0.5) * 3));
+      for (let z = floor; z < D; z++) { const i = (z * H + y) * W + x; if (m.col[i] >= 0) { removed.push(m.col[i]); m.col[i] = -1; } }
+    }
+  }
+  // Char round each hole, darkest at the rim; embers glow in the deep ones.
+  const charR = stage === 2 ? 3.5 : 2.2;
+  for (const p of spots) {
+    const cx = p.x - m.x0, cy = p.y - m.y0, rad = p.r * grow + charR;
+    for (let z = Math.max(1, Math.floor(p.z - rad)); z < Math.min(D, p.z + rad); z++) for (let y = Math.max(0, Math.floor(cy - rad)); y < Math.min(H, cy + rad); y++) for (let x = Math.max(0, Math.floor(cx - rad)); x < Math.min(W, cx + rad); x++) {
+      const i = (z * H + y) * W + x;
+      if (m.col[i] < 0) continue;
+      const k = (Math.hypot(x - cx, y - cy, z - p.z) - p.r * grow) / charR + (hash3(x, y, z + 11) - 0.5) * 0.6;
+      if (k < 0.15) {
+        const h = hash3(x, y, z);
+        if (stage === 2 && h < 0.16) { m.col[i] = EMBER[(hash3(z, x, y) * 3) | 0]; m.mat[i] = M_GLOW; }
+        else { m.col[i] = h < 0.45 ? CHAR : darken(m.col[i], 0.22 + h * 0.15); m.mat[i] = M_ROUGH; }
+      }
+      else if (k < 1) { m.col[i] = darken(m.col[i], 0.3 + 0.6 * k); if (m.mat[i] === M_GLOW || m.mat[i] === M_GLASS) m.mat[i] = M_ROUGH; }
+    }
+    // Soot streaked up the wall above a wall hit.
+    for (let z = p.z; z < D; z++) for (let dx = -1; dx <= 1; dx++) {
+      const x = Math.round(cx + dx + (z - p.z) * 0.15), y = Math.round(cy), i = (z * H + y) * W + x;
+      if (x < 0 || x >= W || y < 0 || y >= H || m.col[i] < 0 || hash3(x, z, 5) < 0.3) continue;
+      m.col[i] = darken(m.col[i], 0.45 + (z - p.z) / D * 0.6);
+    }
+  }
+  // Scattered scorch over the whole building, more at stage 2; the lights go out at stage 2.
+  for (let i = 0; i < m.col.length; i++) {
+    if (m.col[i] < 0) continue;
+    const z = (i / (W * H)) | 0, rest = i - z * W * H, y = (rest / W) | 0, x = rest - y * W;
+    if (z < 1) continue;
+    const n = hash3(x >> 2, y >> 2, (z >> 2) + stage * 31);
+    if (n < (stage === 2 ? 0.2 : 0.1)) m.col[i] = darken(m.col[i], 0.55 + hash3(x, y, z) * 0.25);
+    if (stage === 2 && m.mat[i] === M_GLOW && !EMBER.includes(m.col[i])) { m.col[i] = darken(m.col[i], 0.25); m.mat[i] = M_ROUGH; }
+    if (stage === 2 && m.mat[i] === M_GLASS && hash3(x, y, z) < 0.5) m.col[i] = CHAR;
+  }
+  // Scorch splashes and potholes on top, which is all the damage a flat pad can show.
+  for (let k = 0; k < (stage === 2 ? 6 : 3); k++) {
+    const cx = 2 + r() * (W - 4), cy = 2 + r() * (H - 4), rad = 2.5 + r() * 3.5;
+    for (let y = Math.max(0, Math.floor(cy - rad)); y < Math.min(H, cy + rad); y++) for (let x = Math.max(0, Math.floor(cx - rad)); x < Math.min(W, cx + rad); x++) {
+      const dd = Math.hypot(x - cx, y - cy) / rad + (hash3(x, y, k) - 0.5) * 0.5, tz = top[y * W + x];
+      if (dd >= 1 || tz < 0) continue;
+      let z = tz; while (z > 0 && m.col[(z * H + y) * W + x] < 0) z--;
+      const i = (z * H + y) * W + x;
+      if (m.col[i] < 0) continue;
+      if (dd < 0.3 && z >= 1 && z <= 3 && stage === 2) { m.col[i] = -1; const j = ((z - 1) * H + y) * W + x; if (m.col[j] >= 0) m.col[j] = CHAR; }
+      else m.col[i] = darken(m.col[i], 0.3 + dd * 0.6);
+    }
+  }
+  // Rubble from the holes, heaped on bare foundation near them.
+  const heaps = stage === 2 ? 2 + (spots.length >> 1) : 1 + (spots.length >> 2);
+  for (let h = 0; h < heaps && removed.length; h++) {
+    const p = spots[h % spots.length], ang = r() * Math.PI * 2;
+    const hx = Math.round(p.x - m.x0 + Math.cos(ang) * (p.r + 3)), hy = Math.round(p.y - m.y0 + 2 + Math.abs(Math.sin(ang)) * (p.r + 3));
+    for (let k = 0; k < 14 + stage * 10; k++) {
+      const x = hx + Math.round((r() - 0.5) * 6), y = hy + Math.round((r() - 0.5) * 4);
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;
+      const tz = top[y * W + x];
+      if (tz < 0 || tz > 1 || m.col[(2 * H + y) * W + x] >= 0) continue;
+      const z = tz + 1 + (r() < 0.3 ? 1 : 0), c = removed[(r() * removed.length) | 0];
+      for (let zz = tz + 1; zz <= z && zz < D; zz++) { const i = (zz * H + y) * W + x; m.col[i] = r() < 0.3 ? CHAR : darken(c, 0.6 + r() * 0.3); m.mat[i] = M_ROUGH; }
+    }
+  }
+  return m;
+}
+// Weapon heads only char and lose a few pieces.
+function scorchModel(base, stage, type) {
+  const m = copyModel(base);
+  for (let i = 0; i < m.col.length; i++) {
+    if (m.col[i] < 0) continue;
+    const z = (i / (m.w * m.h)) | 0, rest = i - z * m.w * m.h, y = (rest / m.w) | 0, x = rest - y * m.w, n = hash3(x >> 1, y >> 1, z + strSeed(type) % 97);
+    if (stage === 2 && n < 0.07 && z > 0) m.col[i] = -1;
+    else if (n < (stage === 2 ? 0.45 : 0.22)) m.col[i] = darken(m.col[i], 0.35 + hash3(x, y, z) * 0.3);
+  }
+  return m;
+}
+// A damaged structure sprite, built one at a time in the background so the first hit on a new
+// type of building never stalls a frame: until it is ready, the next lighter stage is drawn.
+const dmgQueue = [];
+function damagedSprite(type, faction, stage) {
+  const pal = palFor(faction), k = 'S' + type + pal.key + 'd' + stage + '|0';
+  const s = spriteCache2.get(k);
+  if (s) return s;
+  if (!dmgQueue.some((q) => q.k === k)) {
+    dmgQueue.push({ k, type, faction, stage });
+    if (dmgQueue.length === 1) setTimeout(pumpDamaged, 0);
+  }
+  return stage > 1 ? damagedSprite(type, faction, stage - 1) : structureSprite(type, faction);
+}
+function pumpDamaged() {
+  const q = dmgQueue[0];
+  if (!q) return;
+  const pal = palFor(q.faction);
+  sprite('S' + q.type + pal.key + 'd' + q.stage, () => damageModel(model('S' + q.type + pal.key, () => STRUCTURES[q.type](pal, q.faction)), q.stage, q.type, q.faction), 0, 0);
+  dmgQueue.shift();
+  if (dmgQueue.length) setTimeout(pumpDamaged, 20);
 }
 function hullSprite(u, pal) {
   const d = u.def;

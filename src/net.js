@@ -384,7 +384,7 @@ const Net = (() => {
   // Fields the guest never needs: the host's own timers and bookkeeping. `anim` (the walk cycle)
   // the guest keeps itself.
   const SKIP = new Set(['def', 'path', 'pathIdx', 'needPath', 'lastX', 'lastY', 'stuckN', 'stuckT', 'think', 'cd', 'cd2', 'sent',
-    'smokeT', 'anim', 'htimer', 'hcell', 'crowdT', 'nearBest', 'clankT']);
+    'smokeT', 'dmgSeen', 'dmgHp', 'dropT', 'dmgFxT', 'anim', 'htimer', 'hcell', 'crowdT', 'nearBest', 'clankT']);
   const COARSE = new Set(['x', 'y', 'alt']);   // to a tenth of a pixel
   const OBJ = '\u0000';   // marks an object field, kept as JSON for comparing
   let sent, fogSent, oreSent, gemSent, teamSent, events, snapT, snapN, full;

@@ -2575,14 +2575,10 @@ function updateBuilding(b, dt) {
       else { b.repairing = false; notify(team, 'funds', 'Insufficient funds', 30); }
     }
   }
-  // Smoke and fire on damaged structures; steam from power plants.
+  // Steam from power plants. (Fire and smoke on damaged structures: structureDamageFx.)
   b.smokeT -= dt;
   if (b.smokeT <= 0) {
-    const f = b.hp / b.maxHp;
     b.smokeT = 0.18 + Math.random() * 0.2;
-    const px = (b.cx + 0.2 + Math.random() * (b.w - 0.4)) * CELL, py = (b.cy + 0.2 + Math.random() * (b.h - 0.6)) * CELL - 10;
-    if (f < 0.5) G.effects.push({ type: 'smoke', x: px, y: py, vy: -14, vx: 5, r: 3 + Math.random() * 3, t: 0, life: 1.6, alpha: 0.55, color: '#3a3733' });
-    if (f < 0.25) G.effects.push({ type: 'fire', x: px, y: py + 4, t: 0, life: 0.6 });
     if (b.type === 'apower' && b.buildT >= 1) for (const [tx, ty, h] of [[15, 17, 40], [41, 17, 40]]) if (Math.random() < 0.5) G.effects.push({ type: 'smoke', x: b.cx * CELL + tx, y: b.cy * CELL + ty - h * VK, vy: -16, vx: 6, r: 3, t: 0, life: 2, alpha: 0.4, color: '#c9c7c0' });
     if (b.type === 'power' && b.buildT >= 1 && Math.random() < 0.6) G.effects.push({ type: 'smoke', x: b.cx * CELL + 38, y: b.cy * CELL + 14 - 42 * VK, vy: -16, vx: 6, r: 2.5, t: 0, life: 1.8, alpha: 0.4, color: '#c9c7c0' });
   }
@@ -3033,9 +3029,54 @@ function updateEffects(dt) {
     if (fx.drag && fx.t > 0) { const k = Math.exp(-fx.drag * dt); fx.vx *= k; fx.vy = fx.vy * k - 3 * (1 - k); }   // billowing smoke slows, then rises
     if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
   }
+  structureDamageFx(dt);
   for (let i = n0; i < G.effects.length; i++) G.effects[i].sent = true;
   G.inFx = false;
   G.effects = G.effects.filter((fx) => fx.t < fx.life);
+}
+// Damaged structures burn and smoke out of the holes in their damaged model (damageSpots) and
+// shed pieces: a shower when they reach a new stage of damage, a piece or two when hit again,
+// and now and then one falls off on its own. It runs in the effects pass, so an online guest
+// works it out from the health it is sent, and none of it goes over the network. Repairs
+// bring a structure back below the thresholds and it all stops.
+function structureDamageFx(dt) {
+  for (const b of G.entities) {
+    if (b.kind !== 'bld' || !b.alive || b.buildT < 1 || b.sellT > 0) continue;
+    const stage = dmgStage(b);
+    if (b.dmgSeen === undefined) { b.dmgSeen = stage; b.dmgHp = b.hp; }
+    if (!stage) { b.dmgSeen = 0; b.dmgHp = b.hp; continue; }
+    const spots = damageSpots(b.type, b.faction), ox = b.cx * CELL, oy = b.cy * CELL, pal = FACTIONS[b.faction].pal;
+    const live = spots.filter((p) => p.s <= stage);
+    if (!live.length) continue;
+    const spot = () => live[(Math.random() * live.length) | 0];
+    const piece = (p, kick) => {
+      const a = Math.random() * Math.PI, sp = 4 + Math.random() * kick;
+      G.effects.push({ type: 'frag', x: ox + p.x + (Math.random() - 0.5) * p.r, y: oy + p.y, alt: p.z * VK, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.8 + 4, vz: -6 - Math.random() * kick * 0.5,
+        rot: Math.random() * 6, spin: (Math.random() - 0.5) * 16, w: 1.5 + Math.random() * 3, h: 1.5 + Math.random() * 2,
+        color: [pal.main, pal.dark || '#3b3a36', '#d6d3c9', '#2a2622', '#8f8d84'][(Math.random() * 5) | 0], burning: stage === 2 && Math.random() < 0.3, t: 0, life: 4, smokeT: 0 });
+    };
+    if (stage > b.dmgSeen) {   // a chunk gives way
+      const fresh = live.filter((p) => p.s === stage), p = fresh.length ? fresh[0] : spot();
+      G.effects.push({ type: 'expl', x: ox + p.x, y: oy + p.y - p.z * VK, size: 9, t: 0, life: 0.6, seed: (Math.random() * 1e6) | 0, debris: true });
+      for (let i = 0; i < 7; i++) piece(p, 26);
+      for (let i = 0; i < 4; i++) G.effects.push({ type: 'smoke', x: ox + p.x + (Math.random() - 0.5) * 10, y: oy + p.y - p.z * VK * 0.5, r: 4, t: -i * 0.05, life: 1.4, alpha: 0.6, color: '#8a7a62', vy: -10, vx: (Math.random() - 0.5) * 20, drag: 1.5 });
+      hooks.sfx('hitMed', ox + p.x, oy + p.y);
+    }
+    b.dmgSeen = stage;
+    if (b.dmgHp - b.hp > b.maxHp * 0.015) { const p = spot(); for (let i = 0; i < 1 + (Math.random() * 2 | 0); i++) piece(p, 16); }
+    b.dmgHp = b.hp;
+    if ((b.dropT = (b.dropT === undefined ? Math.random() * 3 : b.dropT) - dt) <= 0) { b.dropT = stage === 2 ? 1.2 + Math.random() * 2 : 3 + Math.random() * 4; piece(spot(), 8); }
+    if ((b.dmgFxT = (b.dmgFxT || 0) - dt) > 0) continue;
+    b.dmgFxT = stage === 2 ? 0.12 : 0.2;
+    // Thick black smoke rolling away on the wind, from one of the holes each tick.
+    const p = spot(), px = ox + p.x + (Math.random() - 0.5) * p.r, py = oy + p.y - p.z * VK;
+    G.effects.push({ type: 'smoke', x: px, y: py - 2, vy: -20 - Math.random() * 6, vx: 7 + Math.random() * 3, r: (stage === 2 ? 6.5 : 4.5) + Math.random() * 2.5, t: 0,
+      life: stage === 2 ? 3.6 : 2.8, alpha: stage === 2 ? 0.85 : 0.7, color: '#2e2b28' });
+    // Flames: in every hole at stage 2, in the first one at stage 1.
+    const fp = stage === 2 ? spot() : live[0];
+    if (Math.random() < (stage === 2 ? 0.6 : 0.35)) G.effects.push({ type: 'fire', x: ox + fp.x + (Math.random() - 0.5) * fp.r, y: oy + fp.y - fp.z * VK + 3 + Math.random() * 2, t: 0,
+      life: 0.5 + Math.random() * 0.3, s: stage === 2 ? 1.3 + Math.random() * 0.5 : 1, vy: -5 });
+  }
 }
 function sweepDead() {
   if (G.entities.some((e) => !e.alive)) {

@@ -529,11 +529,12 @@ function drawStructure(g, b, t) {
     g.fillStyle = '#d8b13a'; g.fillRect(x, Math.round(y + s.oy + H - hh), b.w * CELL, 1);
     return;
   }
-  blit(g, s, x, y);
+  const stage = dmgStage(b);
+  blit(g, stage ? damagedSprite(b.type, b.faction, stage) : s, x, y);
   const head = HEADS[b.type];
   if (head) {
     const hx = x + head[1], hy = y + head[2] - head[3] * VK;
-    blit(g, headSprite(b.type, b.faction, b.tface), hx, hy, false);
+    blit(g, headSprite(b.type, b.faction, b.tface, stage), hx, hy, false);
     if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
   }
   if ((b.type === 'pillbox' || b.type === 'ftur') && b.fireT > 0) {
@@ -688,9 +689,16 @@ function drawEffect(g, fx) {
       break;
     }
     case 'fire': {
-      const f = flameFrames[Math.floor(fx.t * 12 + (fx.x | 0)) % 4];
+      const f = flameFrames[Math.floor(fx.t * 12 + (fx.x | 0)) % 4], sc = fx.s || 1;
       g.globalAlpha = Math.min(1, (1 - k) * 3);
-      g.drawImage(f, Math.round(fx.x - 3), Math.round(fx.y - 11));
+      if (sc > 1.3) {   // a big blaze lights up what is around it
+        g.globalCompositeOperation = 'lighter';
+        g.fillStyle = `rgba(255,120,30,${0.12 * Math.min(1, (1 - k) * 3)})`;
+        g.beginPath(); g.arc(fx.x, fx.y - 4 * sc, 6 * sc, 0, 7); g.fill();
+        g.globalCompositeOperation = 'source-over';
+      }
+      if (sc === 1) g.drawImage(f, Math.round(fx.x - 3), Math.round(fx.y - 11));
+      else { const w = Math.round(7 * sc * (1 - k * 0.4)), h = Math.round(12 * sc * (1 - k * 0.5)); g.drawImage(f, Math.round(fx.x - w / 2), Math.round(fx.y - h + 1), w, h); }
       g.globalAlpha = 1;
       break;
     }
