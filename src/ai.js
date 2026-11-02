@@ -97,14 +97,15 @@ function aiKeepInterceptor(team, u) {
   u.interceptor = true;
   return true;
 }
-// An Outpost (or on Hard an outlying refinery) with no gun beside it yet.
+// An Outpost short of guns (or on Hard an outlying refinery with none beside it yet).
 function aiGuardSite(team) {
   const A = G.diff.ai;
   if (!A.guard.length) return null;
   const mine = buildingsOf(team.id), cy = mine.find((b) => b.type === 'cy');
   const guns = mine.filter((b) => b.def.defense && !b.def.antiAir);
+  // Outposts get guns up to A.outpostGuns; outlying refineries (Hard) one each.
   return mine.find((b) => A.guard.includes(b.type) && b.buildT >= 1 && (b.type !== 'refinery' || (cy && dist(b, cy) > CELL * 14)) &&
-    !guns.some((d) => dist(d, b) < CELL * 6)) || null;
+    guns.filter((d) => dist(d, b) < CELL * 6).length < (b.type === 'outpost' ? A.outpostGuns || 1 : 1)) || null;
 }
 
 // Forward mining: an ore field on its own half of the map that its refineries are far from.
