@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.02.1', date: '2 November 2026', title: 'Testing pass', groups: [
+    ['Fixes', [
+      'Checked a full round of single player and online battles after the recent updates, including building the Mobile Construction Yard for both sides. No problems found.',
+    ]],
+  ] },
   { v: '2026.11.02', date: '2 November 2026', title: 'Battle damage, a Service Depot and a new way to win', groups: [
     ['New', [
       'Service Depot (both sides, 1200, needs a War Factory): select damaged vehicles and tap REPAIR, or tap the depot. Vehicles drive onto its pad one at a time; a full repair costs half the vehicle\u2019s price.',

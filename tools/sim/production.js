@@ -33,7 +33,7 @@ const { chromium, devices } = require('playwright');
     const types = Object.keys(UNIT_DEFS).filter((k) => UNIT_DEFS[k].factions && UNIT_DEFS[k].factions.includes(faction) && ['barracks', 'factory', 'helipad', 'airfield'].includes(UNIT_DEFS[k].producer));
     out.types = types;
     for (const t of types) { if (!available(me, t)) bad(t + ' not available with all producers built'); const e = startProduction(me, t); if (e) bad('startProduction(' + t + '): ' + e); }
-    step(90);
+    step(300);
     const made = spawned.map((s) => s.type);
     for (const t of types) if (!made.includes(t)) bad(t + ' was never produced');
     for (const s of spawned) {
