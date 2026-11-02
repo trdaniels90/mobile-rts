@@ -469,7 +469,7 @@ const Net = (() => {
   // ground and the guest's own announcer lines. (Ones set off by eye candy the guest runs itself
   // are left out: G.inFx.)
   const queueEv = (ev) => { if (role === 'host' && G && !G.inFx && events.length < 400) events.push(ev); };
-  const DECALS = ['scorch', 'crater', 'rubble', 'bakeWreck', 'bibDecal'];
+  const DECALS = ['scorch', 'crater', 'rubble', 'bakeWreck', 'bibDecal', 'padDecal'];
   const ORIG = {};
   for (const n of DECALS) {
     ORIG[n] = window[n];
@@ -496,7 +496,7 @@ const Net = (() => {
   // Guest: orders go to the host. The sidebar's own answers (queue full, cannot place) are worked
   // out here on the copy of the battle, which the next snapshot then puts right.
   const COMMANDS = ['commandMove', 'commandAttack', 'commandHunt', 'commandGuard', 'commandStop', 'startProduction', 'cancelProduction',
-    'placeStructure', 'launchPower', 'deployFob', 'setAuto', 'setRepair', 'sellStructure'];
+    'placeStructure', 'launchPower', 'deployFob', 'setAuto', 'setRepair', 'sellStructure', 'commandRepair'];
   const ORIGC = {};
   const packArg = (v) => (Array.isArray(v) ? v.map(packArg) : isEnt(v) ? { $e: v.id } : v && typeof v === 'object' && v.queues ? { $t: v.id } : v);
   for (const f of COMMANDS) {

@@ -612,6 +612,7 @@ function addBuilding(type, team, cx, cy) {
   for (let y = cy; y < cy + d.h; y++) for (let x = cx; x < cx + d.w; x++) G.bld[idx(x, y)] = b.id;
   if (d.exit) { b.exitCell = idx(cx + Math.floor(d.w / 2), cy + d.h); G.resv[b.exitCell] = 1; }
   if (G.tctx) bibDecal(G.tctx, cx * CELL, cy * CELL, d.w * CELL, d.h * CELL, b.id * 977);
+  if (G.tctx && d.depot) padDecal(G.tctx, cellX(b.exitCell) * CELL, cellY(b.exitCell) * CELL);
   G.entities.push(b); G.byId.set(b.id, b);
   team.stats.built++;
   return b;
@@ -1828,6 +1829,8 @@ function updateUnit(u, dt) {
   if (u.def.scripted) { updateFlight(u, dt); return; }
   if (u.chute > 0) { u.chute -= dt; if (u.chute <= 0) landChute(u); return; }
   if (u.cls === 'air') { updateAir(u, dt); return; }
+  if (u.order.type === 'repair') { updateRepairOrder(u, dt); followPath(u, dt); checkStuck(u, dt); return; }
+  u.repairing = false;
   if (u.def.harvester) { updateHarvester(u, dt); followPath(u, dt); checkStuck(u, dt); return; }
 
   const o = u.order, w = u.def.weapon, sight = u.def.sight * CELL;
@@ -2128,6 +2131,84 @@ function updateHarvester(u, dt) {
     case 'manual':
       if (!u.dest && !u.needPath) u.hs = u.load >= cap ? 'return' : 'seek';
       break;
+  }
+}
+
+// --- Service Depot ---------------------------------------------------------
+// A vehicle sent for repairs drives to its Service Depot's pad, the open cell in front of it. One
+// at a time is repaired there, at the rate and price of aircraft on their pads (2% of its health
+// every quarter second for 1% of its price, so a full repair costs half its price); the rest wait
+// to one side until the pad is free. Repaired, it goes back to waiting around the base like a new
+// unit (Ore Trucks back to harvesting).
+const canService = (u) => u.alive && u.kind === 'unit' && u.cls === 'veh' && !u.def.scripted;
+function depotFor(u) {
+  let best = null, bd = Infinity;
+  for (const e of G.entities) {
+    if (!e.alive || e.kind !== 'bld' || e.team !== u.team || !e.def.depot || e.buildT < 1 || e.sellT > 0) continue;
+    const d = dist(u, e);
+    if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+function commandRepair(units, depot) {
+  for (const u of units) {
+    if (!canService(u) || u.hp >= u.maxHp) continue;
+    const d = depot && depot.alive && depot.team === u.team && depot.def.depot ? depot : depotFor(u);
+    if (!d) continue;
+    u.order = { type: 'repair', depot: d };
+    u.target = null; u.focus = null; u.huntTarget = null; u.group = null; u.groupSpeed = 0;
+    u.staged = false; u.defending = false; u.homeward = false; u.raider = false;
+    u.dest = null; u.path = null; u.svcGoal = null;
+  }
+}
+const padTaken = (d, u) => { const s = d.svc; return !!(s && s !== u && s.alive && s.order.type === 'repair' && s.order.depot === d); };
+function endRepair(u) {
+  const d = u.order.depot;
+  if (d && d.svc === u) d.svc = null;
+  u.repairing = false; u.svcGoal = null; u.svcWait = null;
+  if (u.def.harvester) { setGuard(u); u.hs = u.load > 0 ? 'return' : 'seek'; u.hcell = -1; u.dest = null; u.path = null; return; }
+  const s = scatterSpot(G.teams[u.team]);
+  setGuard(u, s.x, s.y); u.staged = true; goTo(u, s.x, s.y);
+}
+function updateRepairOrder(u, dt) {
+  const o = u.order;
+  u.repairing = false;
+  if (!o.depot || !o.depot.alive || o.depot.sellT > 0) {
+    o.depot = depotFor(u); u.svcGoal = null;
+    if (!o.depot) { endRepair(u); return; }
+  }
+  if (u.hp >= u.maxHp) { endRepair(u); return; }
+  const d = o.depot, pad = cellCenter(d.exitCell);
+  if (!padTaken(d, u)) {
+    d.svc = u;
+    if (Math.hypot(u.x - pad.x, u.y - pad.y) < 10) {
+      u.dest = null; u.path = null;
+      u.face = turnToward(u.face, -Math.PI / 2, 3 * dt);
+      const team = G.teams[u.team], cost = Math.max(1, u.def.cost * 0.01);
+      if (team.credits >= cost) {
+        u.repairing = true; u.svcBroke = 0;
+        if ((u.repT = (u.repT || 0) + dt) >= 0.25) { u.repT = 0; team.credits -= cost; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.02); }
+      } else {
+        notify(team, 'funds', 'Insufficient funds', 30);
+        // Out of money: an Ore Truck goes straight back to work (it is what brings money in), and
+        // the computer's vehicles give up after a while so they do not block the pad.
+        u.svcBroke = (u.svcBroke || 0) + dt;
+        if (u.def.harvester || (team.isAI && u.svcBroke > 8)) { u.svcBroke = 0; endRepair(u); }
+      }
+    } else if (Math.hypot(u.x - pad.x, u.y - pad.y) < CELL * 1.3) {
+      // Close: roll straight onto the pad (the building's edge can stop a path a little short).
+      const a = Math.atan2(pad.y - u.y, pad.x - u.x), step = Math.min(Math.hypot(u.x - pad.x, u.y - pad.y), u.def.speed * 0.6 * dt);
+      u.dest = null; u.path = null; u.needPath = false;
+      u.face = turnToward(u.face, a, 4 * dt); u.x += Math.cos(a) * step; u.y += Math.sin(a) * step; u.moving = true;
+    } else if (u.svcGoal !== 'pad' || (!u.dest && !u.needPath)) { u.svcGoal = 'pad'; goTo(u, pad.x, pad.y); }
+    return;
+  }
+  // The pad is busy: wait off to one side of it.
+  if (u.svcGoal !== 'wait' || !u.svcWait) {
+    const side = (u.id % 2 ? 1 : -1) * (2 + (u.id % 3) * 0.6);
+    const c = nearestFreeCell(cellOfPos(pad.x + side * CELL, pad.y + CELL * (1 + (u.id % 2))), 4);
+    u.svcGoal = 'wait'; u.svcWait = c >= 0 && c !== d.exitCell ? cellCenter(c) : { x: u.x, y: u.y };
+    goTo(u, u.svcWait.x, u.svcWait.y);
   }
 }
 

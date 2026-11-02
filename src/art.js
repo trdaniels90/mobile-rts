@@ -331,6 +331,15 @@ function bibDecal(tg, x, y, w, h, seed) {
     if (r() < 1.05 - dd * 1.1) { tg.fillStyle = tones[Math.floor(r() * 4)]; tg.fillRect(px, py, 1, 1); }
   }
 }
+// A Service Depot's repair pad, painted on the ground in front of it: concrete inside a yellow and
+// black border, with a white cross.
+function padDecal(tg, x, y) {
+  tg.fillStyle = '#6b6b63'; tg.fillRect(x, y, CELL, CELL);
+  for (let i = 0; i < CELL; i++) for (const [px, py] of [[x + i, y], [x + i, y + CELL - 1], [x, y + i], [x + CELL - 1, y + i]]) {
+    tg.fillStyle = ((px + py) >> 1) % 2 ? '#d8b13a' : '#1d1d1a'; tg.fillRect(px, py, 1, 1);
+  }
+  tg.fillStyle = '#d9d6c8'; tg.fillRect(x + 10, y + 5, 4, 14); tg.fillRect(x + 5, y + 10, 14, 4);
+}
 function rubble(tg, x, y, w, h, seed) {
   const r = rng(seed), cx = x + w / 2, cy = y + h / 2;
   for (let i = 0; i < (w * h) / 9; i++) {
@@ -467,6 +476,15 @@ function drawUnit(g, u, t) {
       const len = u.def.size.tur ? u.def.size.tur + u.def.size.barrel : 8;
       flash(g, tx + Math.cos(u.tface) * len, ty + Math.sin(u.tface) * len - 1.5, u.def.draw === 'jeep' ? 1 : 2);
     }
+  }
+  // On a Service Depot's pad: the blinking green cross, and sparks from the work.
+  if (u.repairing) {
+    if (Math.floor(t * 3) % 2) {
+      const cx = Math.round(u.x), cy = Math.round(u.y - 16);
+      g.fillStyle = '#000'; g.fillRect(cx - 4, cy - 4, 9, 9);
+      g.fillStyle = '#3ed04a'; g.fillRect(cx - 3, cy - 1, 7, 3); g.fillRect(cx - 1, cy - 3, 3, 7);
+    }
+    if (Math.random() < 0.3) { g.fillStyle = Math.random() < 0.5 ? '#fff6c0' : '#ffb84a'; g.fillRect(Math.round(u.x + (Math.random() - 0.5) * 14), Math.round(u.y - 4 - Math.random() * 8), 1, 1); }
   }
 }
 

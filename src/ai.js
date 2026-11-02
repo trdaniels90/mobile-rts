@@ -35,7 +35,7 @@ function aiNextStructure(team, c) {
   const fast = A.econ.fast;   // Normal and Hard: the second refinery straight after the Barracks
   const wants = [
     ['refinery', 1], ['barracks', 1], ['refinery', fast ? 2 : 1],
-    [antiInf, Math.min(1, capInf)], ['factory', 1], [defense, Math.min(1, capMain)], ['refinery', 2], ['dome', 1],
+    [antiInf, Math.min(1, capInf)], ['factory', 1], [defense, Math.min(1, capMain)], ['refinery', 2], ['dome', 1], ['depot', 1],
     ['helipad', 1], [antiInf, Math.min(2, capInf)], [defense, Math.min(2, capMain)], [aa, Math.min(1, aaWant)], ['airfield', 1],
     ['factory', 2], [defense, Math.min(3, capMain)], [aa, aaWant], ['refinery', 3], [defense, Math.min(4, capMain)],
     ['refinery', A.econ.refineries],
@@ -231,6 +231,22 @@ function aiThink(team) {
   if (c.factory && !fobs.length && !team.queues.vehicle.some((i) => i.type === 'fob') && (c.outpost || 0) < 2 &&
       (c.refinery || 0) >= 1 && team.credits > 1200 && aiRemoteField(team)) startProduction(team, 'fob');
 
+  // Damaged vehicles go to the Service Depot: ones waiting at home when hurt, Ore Trucks when badly
+  // hurt, and attackers that are nearly done for (which pulls them out of the fight). At most four
+  // queue at a depot.
+  if (c.depot && team.credits > 400) {
+    const busy = unitsOf(team.id).filter((u) => u.order.type === 'repair').length;
+    let room = 4 * c.depot - busy;
+    for (const u of unitsOf(team.id)) {
+      if (room <= 0) break;
+      if (!canService(u) || u.def.deploys || u.order.type === 'repair') continue;
+      const hp = u.hp / u.maxHp;
+      const go = u.def.harvester ? hp < 0.5 && u.hs !== 'unload'
+        : (u.order.type === 'guard' && !u.target && hp < 0.7) || (u.order.type === 'hunt' && hp < 0.3);
+      if (go) { commandRepair([u]); room--; }
+    }
+  }
+
   // Keep the economy running.
   const refineries = c.refinery || 0, trucks = c.harv || 0;
   const wantTrucks = refineries * 2 - (G.diffKey === 'easy' ? refineries : 0);
@@ -401,7 +417,7 @@ function aiWaveTarget(team, from) {
     return (roll < 0.45 ? cy : roll < 0.7 ? of(['refinery']) : roll < 0.85 ? of(['power', 'apower']) : expansionsOf(foe, from)[0]) || cy || theirs[0];
   }
   // Valuable and lightly guarded scores highest; whatever the last wave went for scores less.
-  const value = { cy: 2.4, refinery: 3, power: 2.6, apower: 2.8, factory: 2.2, outpost: 2.4, airfield: 2, helipad: 1.6, barracks: 1.6 };
+  const value = { cy: 2.4, refinery: 3, power: 2.6, apower: 2.8, factory: 2.2, outpost: 2.4, airfield: 2, helipad: 1.6, barracks: 1.6, depot: 1.4 };
   const guns = theirs.filter((b) => b.def.defense);
   let best = null, bs = -Infinity;
   for (const b of theirs) {

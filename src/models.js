@@ -578,6 +578,32 @@ const STRUCTURES = {
     m.cylZ(64, 8, 20, 32, 2.5, C.steel, M_METAL);
     return m;
   },
+  // Service Depot: a repair shed with its door facing the pad in front, a gantry crane over the
+  // door, a parts store and a fuel tank.
+  depot(pal) {
+    const m = new VModel(-2, -2, 74, 50, 36);
+    slabV(m, 0, 0, 72, 48);
+    m.box(14, 2, 1, 58, 40, 18, C.wall, M_MATTE);                        // the shed
+    for (let x = 14; x < 58; x++) { const h = Math.round(Math.max(0, 7 - Math.abs(x + 0.5 - 36) * 0.32)); m.box(x, 2, 18, x + 1, 40, 19 + h, pal.main, M_METAL); }
+    m.paint(14, 2, 18, 58, 40, 26, (x, y, z) => (x % 6 === 0 && z > 18) ? pal.dark : undefined);
+    m.clear(24, 38, 1, 48, 40, 15);                                      // the door, open
+    m.box(24, 39, 1, 48, 40, 2, '#2c2c28', M_ROUGH);
+    m.box(24, 38, 14, 48, 40, 15, '#3b3b37', M_METAL);
+    hazardV(m, 21, 38, 1, 24, 41, 16); hazardV(m, 48, 38, 1, 51, 41, 16);
+    for (const x of [18, 54]) m.box(x, 40, 1, x + 2, 42, 28, C.steel, M_METAL);   // gantry legs and beam
+    m.box(18, 40, 28, 56, 43, 30, C.yellow, M_METAL);
+    m.box(35, 41, 22, 37, 42, 28, C.black);                              // hook
+    m.box(34, 40, 20, 38, 43, 22, C.steel, M_METAL);
+    m.box(2, 4, 1, 12, 20, 9, C.wallD, M_MATTE);                         // parts store
+    m.box(2, 4, 9, 12, 20, 10, pal.main, M_METAL);
+    for (const [x, y] of [[3, 24], [3, 31], [8, 27]]) m.box(x, y, 1, x + 4, y + 4, 5, '#4b4d3a', M_METAL);   // crates
+    m.cylZ(65, 12, 1, 14, 5, C.steel, M_METAL);                          // fuel tank
+    m.box(60, 10, 14, 70, 14, 15, pal.main, M_METAL);
+    m.box(62, 26, 1, 70, 40, 12, C.wall, M_MATTE);                       // control booth
+    m.box(62, 39, 5, 70, 40, 10, C.glass, M_GLASS);
+    m.set(66, 33, 12, '#ff4a30', M_GLOW);
+    return m;
+  },
   helipad(pal) {
     const m = new VModel(-2, -2, 50, 50, 10);
     m.box(0, 0, 0, 48, 48, 2, '#5d5d57', M_ROUGH);

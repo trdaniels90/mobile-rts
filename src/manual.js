@@ -15,6 +15,7 @@ const Manual = (() => {
     barracks: ['Trains infantry. More Barracks do not train faster, but losing one does not stop training if you have another.', '', ''],
     factory: ['Builds tanks, support vehicles, Ore Trucks and the Mobile Outpost. Unlocks the Helipad and Advanced Power Plant.', '', ''],
     dome: ['Turns on the radar minimap (it goes offline on low power) and unlocks the Airfield and your side\'s long-range support vehicle at the War Factory.', '', 'Without it you fight blind'],
+    depot: ['Repairs ground vehicles: tanks, support vehicles, Ore Trucks and the Mobile Outpost. Select damaged vehicles and tap REPAIR, or tap the depot. One vehicle at a time is repaired on the pad in front of it while the rest wait beside it. A full repair costs half the vehicle\'s price. Needs a War Factory.', '', 'Vehicles on the pad do not fire back'],
     helipad: ['Builds and rearms helicopters. Comes with one free helicopter. Aircraft are repaired on their pad for credits.', '', ''],
     airfield: ['Builds and rearms jets and charges the Spy Plane, Paratrooper and Bombing Run powers. Parks up to 4 jets, so build more Airfields for a bigger air force. If one is lost and the rest have no room, the surplus jets fly off the map into reserve and come back and land when there is room again. Comes with one free jet.', '', ''],
     pillbox: ['A sandbagged machine-gun nest. Cheap and quick to build.', 'Infantry', 'Tanks'],
@@ -153,7 +154,7 @@ const Manual = (() => {
       <h4>Expansions</h4>
       <p>Outposts and outlying refineries are fair game: one auto-attack wave in three raids the ones you have found, and the computer raids yours.</p>` },
     { ch: 'Structures', title: 'Base and Economy', html: () => entries(['cy', 'power', 'apower', 'refinery', 'outpost', 'dome']) },
-    { ch: 'Structures', title: 'Production', html: () => entries(['barracks', 'factory', 'helipad', 'airfield']) },
+    { ch: 'Structures', title: 'Production', html: () => entries(['barracks', 'factory', 'depot', 'helipad', 'airfield']) },
     { ch: 'Structures', title: 'Defences', html: () => entries(['pillbox', 'turret', 'aagun', 'ftur', 'tesla', 'sam']) },
     { ch: 'Infantry', title: 'Infantry', html: () => entries(['rifle', 'grenadier', 'rocket', 'pilot']) },
     { ch: 'Vehicles', title: 'Armour', html: () => entries(['ranger', 'ltank', 'mtank', 'htank', 'mammoth']) },

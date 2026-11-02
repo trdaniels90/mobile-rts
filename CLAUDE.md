@@ -121,6 +121,17 @@ share globals. Read this file first; the commit history explains every change in
   performance on a real phone and a long `pvp-air-inf.js` run on the 144 map; per-map `MAP` size
   once a second map exists.
 
+## Unreleased (on the branch, not in either build yet)
+
+- **Service Depot** (`depot` in `BUILD_DEFS`, `commandRepair` / `updateRepairOrder` in world.js): 1200
+  credits, needs a War Factory, both modes. Ground vehicles drive onto its pad (the `exitCell`, drawn by
+  `padDecal`) one at a time (`depot.svc`) and are repaired at the aircraft-pad rate and price; others
+  wait beside it. REPAIR button for damaged vehicles, or tap the depot. Out of money, Ore Trucks leave
+  at once and the computer's vehicles after 8 s. The computer builds one on every difficulty and sends
+  damaged vehicles (only while it has over 400 credits, at most 4 queued per depot).
+- **Computer outposts** (Normal and Hard): `ai.expand`, `ai.outpostGuns`, 1 to 3 refineries per
+  Outpost (`o.refWant`, `o.refineries`), `defMax` up by 3.
+
 ## Supabase
 
 - **Project:** `yorrgemlhoxbxvyvzcwe`. The Supabase MCP tools work in these sessions.

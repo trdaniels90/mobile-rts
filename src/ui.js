@@ -474,6 +474,9 @@
         marker(e.x, e.y, '#3ed04a');
         return;
       }
+      // Damaged vehicles selected and your own Service Depot tapped: off for repairs.
+      const fix = e.kind === 'bld' && e.def.depot ? mine.filter((u) => canService(u) && u.hp < u.maxHp) : [];
+      if (fix.length) { commandRepair(fix, e); marker(e.x, e.y, '#3ed04a'); Sound.ack('veh'); return; }
       const now = performance.now();
       const dbl = lastTap && now - lastTap.t < 350 && lastTap.type === e.type;
       lastTap = { t: now, type: e.type };
@@ -894,6 +897,7 @@
     if (own.some((e) => e.kind === 'unit' && e.def.deploys)) btns.push(['deploy', 'DEPLOY']);
     if (fighters.length) btns.push(['hunt', 'ATTACK'], ['guard', 'GUARD']);
     if (own.some((e) => e.kind === 'unit')) btns.push(['stop', 'STOP']);
+    if (own.some((e) => canService(e) && e.hp < e.maxHp) && hasBuilt(G.teams[G.me], 'depot')) btns.push(['svc', 'REPAIR']);
     if (bld) {
       btns.push(['repair', bld.repairing ? 'REPAIRING' : 'REPAIR']);
       if (bld.type !== 'cy') btns.push(['sell', sellArmed === bld ? 'CONFIRM' : 'SELL']);
@@ -921,6 +925,7 @@
     }
     else if (act === 'guard') beginGuard(own.filter((u) => u.kind === 'unit' && !u.def.harvester));
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
+    else if (act === 'svc') { commandRepair(own.filter((u) => canService(u) && u.hp < u.maxHp)); eva('To the Service Depot'); Sound.ack('veh'); }
     else if (act === 'repair' && bld) setRepair(bld, !bld.repairing);
     else if (act === 'sell' && bld) {
       if (sellArmed === bld) { sellStructure(bld); select([]); sellArmed = null; eva('Structure sold'); Sound.play('sell'); }
