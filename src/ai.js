@@ -328,10 +328,12 @@ function aiThink(team) {
 }
 
 // --- Attack waves ------------------------------------------------------------------
-// The computer does not wait for groups of eight like the player's Auto Attack. Each wave is
-// planned in advance: an ordinary wave or a big push (sizes by difficulty), a formation, a
-// crossing to go by and a target. Between waves, small raids of its fastest units go after
-// Ore Trucks and outlying sites. Runs once a second with the units waiting at the rally point.
+// The computer does not wait for groups of ten like the player's Auto Attack. Each wave is
+// planned in advance: an ordinary wave or a big push (sizes by difficulty) and a target. Like the
+// player's, its units head out at their own top speed; any that pass near an enemy Outpost or
+// outlying refinery turn aside to destroy it first (detourToSite). Between waves, small raids of
+// its fastest units go after Ore Trucks and outlying sites. Runs once a second with the units
+// waiting at the rally point.
 function aiPlanWave(team) {
   const A = G.diff.ai, r = Math.random, big = !!A.big && G.t >= A.bigFrom && r() < A.bigChance;
   const [lo, hi] = big ? A.big : A.wave;

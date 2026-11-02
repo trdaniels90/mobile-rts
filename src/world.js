@@ -567,9 +567,8 @@ function followPath(u, dt) {
   }
   const want = Math.atan2(dy, dx);
   let speed = u.def.speed, mx, my;
-  // Keep to the group's pace, except to catch up with a slot left far behind.
+  // Infantry in a loose wave each keep their own pace (paceMul).
   if (u.paceMul && u.cls === 'inf' && (u.order.type === 'hunt' || u.order.type === 'attack')) speed *= u.paceMul;
-  if (u.groupSpeed && u.order.type === 'hunt' && !u.target && !(u.group && u.slotFar)) speed = Math.min(speed, u.groupSpeed);
   if (u.cls === 'veh') {
     const diff = angDiff(want, u.face);
     u.face = turnToward(u.face, want, u.def.turn * dt);
@@ -682,6 +681,26 @@ function lastStand(u) {
 }
 function enemyBaseKnown(tid = G.me) { return buildingsOf(1 - tid).some((b) => knownTo(tid, b)) || (!hasProduction(1 - tid) && mcvsOf(1 - tid).length > 0); }
 
+// The computer's attackers: one passing within 10 cells of a known enemy Outpost, or of a refinery
+// well away from every enemy Construction Yard, turns aside to destroy it (and what stands beside
+// it), then goes back to the target it was sent for (u.resume). Checked every second or so while it
+// has nothing to shoot at.
+function detourToSite(u) {
+  if (u.resume || u.raider || (u.detourT = (u.detourT || 0) - 1) > 0) return;
+  u.detourT = 3;
+  const foe = 1 - u.team, yards = buildingsOf(foe).filter((b) => b.type === 'cy');
+  let best = null, bd = CELL * 10;
+  for (const b of buildingsOf(foe)) {
+    if (b === u.focus || !targetable(u.team, b)) continue;
+    if (b.type !== 'outpost' && !(b.type === 'refinery' && yards.every((y) => dist(b, y) > CELL * 14))) continue;
+    const d = dist(u, b);
+    if (d < bd) { bd = d; best = b; }
+  }
+  if (!best) return;
+  u.resume = u.focus && u.focus.alive ? u.focus : null;
+  if (!u.resume) u.resume = true;   // (no particular target: just carry on afterwards)
+  u.focus = best; u.huntTarget = null;
+}
 function nearestEnemyBuilding(u) {
   // Raiding an outlying site: stay on it, finish off what else stands there, then move on.
   if (u.focus) {
@@ -696,6 +715,8 @@ function nearestEnemyBuilding(u) {
     u.focus = nb;
     if (nb) return nb;
   }
+  // A detour is over: back to what it was sent for.
+  if (u.resume) { const r = u.resume; u.resume = null; if (r !== true && r.alive) { u.focus = r; return r; } }
   let best = null, bd = Infinity, cy = null, cd = Infinity;
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.team === u.team || !targetable(u.team, e)) continue;
@@ -916,111 +937,9 @@ function pickRaider(u) {
 // Point a guard order at a target without losing the target.
 function setGuardKeep(u, t) { setGuard(u, t.x, t.y); u.target = t; }
 
-// --- Attack-group formations ----------------------------------------------------
-// A group follows one route, led by an invisible marker. Every unit keeps its own slot in a
-// formation around the marker (tanks in front, infantry behind), so the group moves spread
-// out instead of in single file, squeezing through gaps and fanning out again after.
-// The player's groups march in a block; the computer picks a shape for each wave, and can send
-// a wave by way of a chosen crossing (`via`).
-const SLOT_GAP = 32, ROW_GAP = 28;
-function formationSlots(form, n, spread) {
-  const S = SLOT_GAP * spread, R = ROW_GAP * spread, out = [];
-  for (let i = 0; i < n; i++) {
-    let side, back;
-    if (form === 'line') { side = (i - (n - 1) / 2) * S * 0.9; back = 0; }                         // line abreast
-    else if (form === 'column') { side = ((i % 2) - 0.5) * S * 0.8; back = Math.floor(i / 2) * R; }   // two files
-    else if (form === 'wedge') { const k = Math.ceil(i / 2); side = (i % 2 ? -1 : 1) * k * S * 0.75; back = k * R * 0.9; }   // arrowhead
-    else if (form === 'echelon') { side = (i - (n - 1) / 2) * S * 0.7; back = i * R * 0.55; }         // staggered diagonal
-    else if (form === 'skirmish') {                                                                   // loose, uneven spread
-      const cols = Math.max(3, Math.ceil(Math.sqrt(n * 2))), row = Math.floor(i / cols);
-      side = (i % cols - (Math.min(cols, n - row * cols) - 1) / 2) * S * 1.45 + (Math.random() - 0.5) * 14;
-      back = row * R * 1.5 + (Math.random() - 0.5) * 14;
-    } else {                                                                                          // block
-      const cols = Math.min(n, Math.max(3, Math.ceil(Math.sqrt(n * 2)))), row = Math.floor(i / cols);
-      side = (i % cols - (Math.min(cols, n - row * cols) - 1) / 2) * S; back = row * R;
-    }
-    out.push({ side, back });
-  }
-  return out;
-}
-function makeGroup(team, units, target, pace, opts) {
-  opts = opts || {};
-  let x = 0, y = 0;
-  for (const u of units) { x += u.x; y += u.y; }
-  x /= units.length; y /= units.length;
-  if (opts.from) { x = opts.from.x; y = opts.from.y; }   // muster at the rally point, then march
-  let path = null;
-  if (opts.via) {
-    const a = findPath(x, y, opts.via.x, opts.via.y, 10), b = a && findPath(opts.via.x, opts.via.y, target.x, target.y, 10);
-    if (a && b) path = a.concat(b);
-  }
-  path = path || findPath(x, y, target.x, target.y, 10) || [{ x: target.x, y: target.y }];
-  const g = { team: team.id, units: units.slice(), x, y, a: Math.atan2(path[0].y - y, path[0].x - x), target, pace: pace * 0.9, path, i: 0,
-    form: opts.form || 'block', strike: opts.strike || null };
-  g.units.sort((a, b) => (a.cls === 'inf') - (b.cls === 'inf') || b.def.hp - a.def.hp);
-  const slots = formationSlots(g.form, g.units.length, opts.spread || 1);
-  g.units.forEach((u, i) => { u.slot = slots[i]; u.group = g; u.slotGoal = null; });
-  G.groups.push(g);
-  return g;
-}
-// Where a unit's slot is right now, nudged ahead so units keep rolling instead of stopping
-// every few steps. Slots that fall on rocks or water collapse onto the route itself.
-function slotPos(u) {
-  const g = u.group, fx = Math.cos(g.a), fy = Math.sin(g.a);
-  const x = g.x - fx * u.slot.back - fy * u.slot.side, y = g.y - fy * u.slot.back + fx * u.slot.side;
-  const ok = passableAt(x, y);
-  return { x: (ok ? x : g.x) + fx * 26, y: (ok ? y : g.y) + fy * 26 };
-}
-function updateGroups(dt) {
-  for (const g of G.groups) {
-    g.units = g.units.filter((u) => {
-      const keep = u.alive && u.group === g && u.order.type === 'hunt';
-      if (!keep && u.group === g) u.group = null;   // given other orders: out of the formation
-      return keep;
-    });
-    // Arrived (or nothing left to lead): units fight on their own from here.
-    if (!g.units.length || !g.target.alive || g.i >= g.path.length || Math.hypot(g.target.x - g.x, g.target.y - g.y) < CELL * 6) {
-      for (const u of g.units) { u.group = null; if (g.raid) u.focus = g.target; }
-      g.done = true;
-      continue;
-    }
-    // Passing close to an enemy Outpost or outlying refinery: divert and destroy it first.
-    if (!g.raid && (g.scanT = (g.scanT || 0) - dt) <= 0) {
-      g.scanT = 1;
-      const near = expansionsOf(enemyOf(G.teams[g.team]), g).find((b) => Math.hypot(b.x - g.x, b.y - g.y) < CELL * 10);
-      if (near) {
-        g.target = near; g.raid = true;
-        g.path = findPath(g.x, g.y, near.x, near.y, 10) || [{ x: near.x, y: near.y }]; g.i = 0;
-        for (const u of g.units) { u.focus = near; u.slotGoal = null; }
-      }
-    }
-    // Closing in on the target: call in the Airfield powers held back for this push.
-    if (g.strike && Math.hypot(g.target.x - g.x, g.target.y - g.y) < CELL * 22) {
-      const team = G.teams[g.team];
-      for (const key of g.strike) launchPower(team, key, g.target.x, g.target.y + (key === 'para' ? CELL * 3 : 0));
-      g.strike = null; team.holdFor = null;
-    }
-    // Hold the marker back while the group is strung out or busy fighting.
-    let err = 0, fighting = 0;
-    for (const u of g.units) {
-      const fx = Math.cos(g.a), fy = Math.sin(g.a);
-      err += Math.hypot(u.x - (g.x - fx * u.slot.back - fy * u.slot.side), u.y - (g.y - fy * u.slot.back + fx * u.slot.side));
-      if (u.target) fighting++;
-    }
-    err /= g.units.length;
-    const p = g.path[g.i], dx = p.x - g.x, dy = p.y - g.y, d = Math.hypot(dx, dy);
-    if (d < 8) { g.i++; continue; }
-    g.a = turnToward(g.a, Math.atan2(dy, dx), 1.2 * dt);
-    const k = fighting > 0 ? 0 : err > 70 ? 0.15 : err > 40 ? 0.5 : 1;
-    const step = Math.min(d, g.pace * k * dt);
-    g.x += (dx / d) * step; g.y += (dy / d) * step;
-  }
-  if (G.groups.some((g) => g.done)) G.groups = G.groups.filter((g) => !g.done);
-}
-
 function setGuard(u, x, y) {
   u.order = { type: 'guard', x: x === undefined ? u.x : x, y: y === undefined ? u.y : y };
-  u.target = null; u.groupSpeed = 0; u.group = null; u.raider = false;
+  u.target = null; u.raider = false;
 }
 // How far from its spot a unit on a Guard order goes after enemies: aircraft by their sight (jets
 // see further), ground units a little past theirs, and long-range guns (Artillery, V2) as far as
@@ -1032,7 +951,7 @@ function guardReach(u) {
 }
 // What a side has in view: there is no fog, only shroud, so anything on explored ground.
 const inViewOf = (side) => (e) => !!G.fog[side][cellOfPos(e.x, e.y)];
-function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget = null; u.group = null; u.focus = null; assignLane(u); }
+function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget = null; u.focus = null; u.resume = null; assignLane(u); }
 
 // ---------------------------------------------------------------------------
 // Combat
@@ -1393,7 +1312,6 @@ function damage(t, amount, wh, attacker, from) {
     const cw = c && (canHit(t.def.weapon, c) ? t.def.weapon : t.def.weapon2 && canHit(t.def.weapon2, c) ? t.def.weapon2 : null);
     const busy = c && c.alive && c.kind === 'unit' && cw && distTo(t, c) <= cw.range;
     if (!busy) { t.target = attacker; t.avenge = attacker; }
-    if (t.group) t.group.hitBy = attacker;   // the rest of the wave learns where the fire comes from
   }
   // Aircraft shot at, parked or flying, turn on the shooter too. A parked one takes off if it has
   // any ammunition, even while waiting on repairs: sitting on a pad under fire only gets it killed.
@@ -1867,26 +1785,9 @@ function updateUnit(u, dt) {
         const t = far ? acquire(u, w.range, [w, u.def.weapon2], teamOf(u).isAI ? null : inViewOf(u.team)) : acquire(u, sight, [w, u.def.weapon2]);
         if (t && (!u.target || t.kind === 'unit')) u.target = t;
       }
-      // Part of a wave: join in on whatever the nearest squadmate is fighting.
-      if (!u.target && o.type === 'hunt' && u.group) {
-        let bd = Infinity;
-        const shooter = u.group.hitBy && u.group.hitBy.alive ? [{ target: u.group.hitBy, avenge: u.group.hitBy }] : [];
-        for (const m of u.group.units.concat(shooter)) {
-          const t = m.target;
-          if (m === u || !t || !t.alive || !canTarget(u, t)) continue;
-          const d = distTo(u, t), far = t === m.avenge ? ((t.def.weapon && t.def.weapon.range) || 0) + CELL * 3 : 0;
-          if (d < Math.max(sight * 1.4, far) && d < bd) { bd = d; u.target = t; u.avenge = far ? t : u.avenge; }
-        }
-      }
       if (!u.target) {
-        if (o.type === 'hunt' && u.group) {
-          // In formation: head for this unit's slot, re-routing only when the slot has moved on.
-          const s = slotPos(u);
-          u.slotFar = Math.hypot(s.x - u.x, s.y - u.y) > 60;
-          if (!u.slotGoal || Math.hypot(s.x - u.slotGoal.x, s.y - u.slotGoal.y) > 18 || (!u.dest && !u.needPath && Math.hypot(s.x - u.x, s.y - u.y) > 12)) {
-            u.slotGoal = s; goTo(u, s.x, s.y);
-          }
-        } else if (o.type === 'hunt') {
+        if (o.type === 'hunt') {
+          if (teamOf(u).isAI) detourToSite(u);
           const b = nearestEnemyBuilding(u);
           if (!b) nothingKnown(u);
           else if (u.huntTarget !== b || (!u.dest && !u.needPath)) { u.huntTarget = b; goTo(u, b.x, b.y); }
@@ -2170,7 +2071,7 @@ function commandRepair(units, depot) {
     const d = depot && depot.alive && depot.team === u.team && depot.def.depot ? depot : depotFor(u);
     if (!d) continue;
     u.order = { type: 'repair', depot: d };
-    u.target = null; u.focus = null; u.huntTarget = null; u.group = null; u.groupSpeed = 0;
+    u.target = null; u.focus = null; u.huntTarget = null; u.resume = null;
     u.staged = false; u.defending = false; u.homeward = false; u.raider = false;
     u.dest = null; u.path = null; u.svcGoal = null;
   }
@@ -3096,7 +2997,6 @@ function update(dt) {
   }
   separate();
   updateProjectiles(dt);
-  updateGroups(dt);
   processPaths();
   if (!G.over) for (const team of G.teams) { updateProduction(team, dt); updatePowers(team, dt); }
   const T = G.timers;
