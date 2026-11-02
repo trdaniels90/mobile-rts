@@ -105,9 +105,11 @@ function aiGuardSite(team) {
 }
 
 // Forward mining: an ore field on its own half of the map that its refineries are far from.
+// On Normal and Hard (expand) only fields well past its own base fields count, and a field is taken
+// only when a refinery or Outpost stands right beside it.
 function aiRemoteField(team) {
   const mine = buildingsOf(team.id).filter((b) => b.type === 'refinery' || b.type === 'outpost' || b.type === 'cy');
-  const home = team.start, foe = enemyOf(team).start;
+  const home = team.start, foe = enemyOf(team).start, expand = G.diff.ai.expand || 0;
   let best = null, bd = Infinity;
   for (const f of G.oreFields) {
     let ore = 0;
@@ -115,7 +117,10 @@ function aiRemoteField(team) {
     if (ore < 800) continue;
     const dHome = Math.hypot(f.cx - home.cx, f.cy - home.cy);
     if (dHome > Math.hypot(f.cx - foe.cx, f.cy - foe.cy)) continue;
-    if (mine.some((b) => Math.hypot(b.cx - f.cx, b.cy - f.cy) < 15)) continue;
+    if (expand) {
+      if (dHome < expand) continue;
+      if (mine.some((b) => b.type !== 'cy' && Math.hypot(b.cx - f.cx, b.cy - f.cy) < f.r + 5)) continue;
+    } else if (mine.some((b) => Math.hypot(b.cx - f.cx, b.cy - f.cy) < 15)) continue;
     if (dHome < bd) { bd = dHome; best = f; }
   }
   return best;
@@ -124,12 +129,13 @@ function aiLonelyOutpost(team) {
   const mine = buildingsOf(team.id);
   return mine.find((b) => b.type === 'outpost' && !mine.some((r) => r.type === 'refinery' && dist(r, b) < CELL * 9)) || null;
 }
-// Drive a Mobile Outpost to just short of the field (on the home side) and deploy it there.
+// Drive a Mobile Outpost to just short of the field (on the home side) and deploy it there; on
+// Normal and Hard right at the field's edge, so the refinery that follows sits on the ore.
 function aiDriveFob(team, u) {
   if (!u.aiGoal) {
     const f = aiRemoteField(team);
     if (!f) return;
-    const a = Math.atan2(team.start.cy - f.cy, team.start.cx - f.cx), back = f.r + 3;
+    const a = Math.atan2(team.start.cy - f.cy, team.start.cx - f.cx), back = f.r + (G.diff.ai.expand ? 1.5 : 3);
     u.aiGoal = { x: (f.cx + 0.5 + Math.cos(a) * back) * CELL, y: (f.cy + 0.5 + Math.sin(a) * back) * CELL };
     commandMove([u], u.aiGoal.x, u.aiGoal.y);
     return;
