@@ -23,7 +23,8 @@ function aiNextStructure(team, c) {
   if (unitsOf(enemyOf(team).id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
   if (A.adapt && available(team, aa) && n(aa) < (team.sawAir ? 2 : G.t >= 120 ? 1 : 0)) return build(aa);
   // An Outpost with no refinery beside it yet comes first: that is what it was sent out for.
-  if (aiLonelyOutpost(team) && available(team, 'refinery') && n('refinery') < 6) {
+  const outpostRef = aiOutpostForRefinery(team);
+  if (outpostRef && outpostRef.got === 0 && available(team, 'refinery') && n('refinery') < 8) {
     return p.prod - p.use < powerNeed('refinery') + 10 && available(team, pwr) ? pwr : 'refinery';
   }
   // How many defences it may have depends on the difficulty; more AA once the enemy flies.
@@ -43,6 +44,8 @@ function aiNextStructure(team, c) {
     if (n(type) >= count || !available(team, type)) continue;
     return build(type);
   }
+  // The rest of an Outpost's refineries (it wants 1 to 3, rolled when it deploys).
+  if (outpostRef && available(team, 'refinery') && n('refinery') < 8) return build('refinery');
   // Money piling up: more Barracks and War Factories, so it can build faster.
   if (team.credits > 5000) {
     if (n('factory') < 3 && available(team, 'factory')) return build('factory');
@@ -125,12 +128,24 @@ function aiRemoteField(team) {
   }
   return best;
 }
-// An Outpost still waiting for its refinery. The refinery built for it is remembered (b.refinery), as
-// it can land a little over 9 cells away, which used to make the computer build a second one there.
-function aiLonelyOutpost(team) {
-  const mine = buildingsOf(team.id);
-  return mine.find((b) => b.type === 'outpost' && !(b.refinery && b.refinery.alive) &&
-    !mine.some((r) => r.type === 'refinery' && dist(r, b) < CELL * 9)) || null;
+// Refineries at an Outpost: the ones built for it (b.refineries; they can land a little over 9 cells
+// away) plus any other right beside it.
+function aiOutpostRefineries(team, o) {
+  const own = (o.refineries || []).filter((r) => r.alive);
+  return own.length + buildingsOf(team.id).filter((r) => r.type === 'refinery' && !own.includes(r) && dist(r, o) < CELL * 9).length;
+}
+// An Outpost that wants another refinery, fewest first; .got says how many it has. Each Outpost wants
+// 1 to 3 (o.refWant, rolled once), so a player cannot count on finding just one.
+function aiOutpostForRefinery(team) {
+  let best = null, bg = Infinity;
+  for (const o of buildingsOf(team.id)) {
+    if (o.type !== 'outpost' || o.buildT < 1) continue;
+    if (!o.refWant) o.refWant = 1 + Math.floor(Math.random() * 3);
+    const got = aiOutpostRefineries(team, o);
+    if (got < o.refWant && got < bg) { bg = got; best = o; }
+  }
+  if (best) best.got = bg;
+  return best;
 }
 // Drive a Mobile Outpost to just short of the field (on the home side) and deploy it there; on
 // Normal and Hard right at the field's edge, so the refinery that follows sits on the ore.
@@ -150,7 +165,7 @@ function aiDriveFob(team, u) {
 
 function aiFindSpot(team, type) {
   const cy = G.entities.find((e) => e.alive && e.team === team.id && e.type === 'cy');
-  const lonely = type === 'refinery' && aiLonelyOutpost(team);
+  const lonely = type === 'refinery' && aiOutpostForRefinery(team);
   const d = BUILD_DEFS[type], foe = enemyOf(team).start;
   const guard = (d.defense && !d.antiAir && aiGuardSite(team)) || (d.antiAir && G.diff.ai.adapt && aiAaSite(team));
   const anchor = guard || lonely || cy || buildingsOf(team.id)[0];
@@ -160,11 +175,12 @@ function aiFindSpot(team, type) {
   const toFoe = from ? from[Math.floor(Math.random() * from.length)] : Math.atan2(foe.cy - anchor.cy, foe.cx - anchor.cx);
   // Refineries go toward the nearest ore field so trucks have short trips.
   let toOre = 0;
+  // At an Outpost every refinery faces its own field, even when one already stands there.
   if (type === 'refinery') {
     let bd = Infinity;
     for (const f of G.oreFields) {
       const dd = Math.hypot(f.cx - anchor.cx, f.cy - anchor.cy);
-      if (dd < bd && !buildingsOf(team.id).some((b) => b.type === 'refinery' && Math.hypot(f.cx - b.cx, f.cy - b.cy) < 7)) { bd = dd; toOre = Math.atan2(f.cy - anchor.cy, f.cx - anchor.cx); }
+      if (dd < bd && (anchor === lonely || !buildingsOf(team.id).some((b) => b.type === 'refinery' && Math.hypot(f.cx - b.cx, f.cy - b.cy) < 7))) { bd = dd; toOre = Math.atan2(f.cy - anchor.cy, f.cx - anchor.cx); }
     }
   }
   for (let i = 0; i < 160; i++) {
@@ -199,9 +215,9 @@ function aiThink(team) {
   const q = team.queues.structure;
   if (q && q.ready) {
     const spot = aiFindSpot(team, q.type);
-    const lone = q.type === 'refinery' && aiLonelyOutpost(team);
+    const lone = q.type === 'refinery' && aiOutpostForRefinery(team);
     const b = spot && placeStructure(team, q.type, spot.cx, spot.cy);
-    if (b && lone) lone.refinery = b;
+    if (b && lone) (lone.refineries = lone.refineries || []).push(b);
     else if (!spot && Math.random() < 0.05) cancelProduction(team, q.type);
   } else if (!q) {
     const next = aiNextStructure(team, c);
