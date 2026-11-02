@@ -25,7 +25,7 @@ const { chromium, devices } = require('playwright');
       bad('could not place ' + type); return null;
     };
     const blds = {};
-    for (const t of ['power', 'power', 'power', 'power', 'refinery', 'barracks', 'factory', 'helipad', 'airfield', 'dome']) blds[t] = place(t);
+    for (const t of ['power', 'power', 'power', 'power', 'refinery', 'barracks', 'factory', 'helipad', 'airfield', 'dome', 'depot']) blds[t] = place(t);
     step(1);
     const spawned = [];
     const realSpawn = spawnUnit;
