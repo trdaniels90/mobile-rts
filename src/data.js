@@ -105,6 +105,11 @@ const UNIT_DEFS = {
     name: 'Mobile Outpost', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies', 'soviets'], draw: 'fob',
     cost: 1000, hp: 500, armor: 'heavy', speed: 40, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 14 }, deploys: 'outpost',
   },
+  // Unpacks into a Construction Yard anywhere on the map. Needs a Service Depot.
+  mcv: {
+    name: 'Mobile Construction Yard', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['depot'], factions: ['allies', 'soviets'], draw: 'mcv',
+    cost: 2500, hp: 1200, armor: 'heavy', speed: 30, turn: 2, sight: 5, r: 12, size: { len: 28, wid: 16 }, deploys: 'cy',
+  },
   // Closer to the original Red Alert: the Allied helicopter's Hellfires are anti-armour (6 a sortie,
   // 4 cells), the Hind's chain gun shreds infantry (12 bursts a sortie, 5 cells).
   heli: {

@@ -861,6 +861,7 @@ function cameoURL(type, faction) {
     else if (d.draw === 'jeep') mdl = jeepModel(pal);
     else if (d.draw === 'harv') mdl = harvModel(pal, true);
     else if (d.draw === 'fob') mdl = fobModel(pal);
+    else if (d.draw === 'mcv') mdl = mcvModel(pal);
     else if (d.draw === 'arty') mdl = artyModel(pal);
     else if (d.draw === 'v2') mdl = v2Model(pal, true);
     else if (d.fly === 'heli') mdl = type === 'hind' ? hindModel(pal) : heliModel(pal);

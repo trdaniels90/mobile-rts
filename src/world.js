@@ -666,7 +666,21 @@ function knownTo(tid, b) {
   return false;
 }
 const targetable = (team, b) => knownTo(team, b);
-function enemyBaseKnown(tid = G.me) { return buildingsOf(1 - tid).some((b) => knownTo(tid, b)); }
+// The win rule: production buildings keep a side in the fight, and so does a Mobile Construction Yard
+// still driving. Once a side has no production building left, the enemy knows where its Mobile
+// Construction Yards are (lastStand), so a hidden one cannot drag the battle out.
+const PRODUCTION = ['cy', 'barracks', 'factory', 'helipad', 'airfield'];
+const hasProduction = (tid) => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === tid && PRODUCTION.includes(e.type));
+const mcvsOf = (tid) => G.entities.filter((e) => e.alive && e.kind === 'unit' && e.team === tid && e.def.deploys === 'cy');
+const inTheFight = (tid) => hasProduction(tid) || mcvsOf(tid).length > 0;
+function lastStand(u) {
+  const foe = 1 - u.team;
+  if (hasProduction(foe)) return null;
+  let best = null, bd = Infinity;
+  for (const m of mcvsOf(foe)) { const d = dist(u, m); if (d < bd) { bd = d; best = m; } }
+  return best;
+}
+function enemyBaseKnown(tid = G.me) { return buildingsOf(1 - tid).some((b) => knownTo(tid, b)) || (!hasProduction(1 - tid) && mcvsOf(1 - tid).length > 0); }
 
 function nearestEnemyBuilding(u) {
   // Raiding an outlying site: stay on it, finish off what else stands there, then move on.
@@ -689,8 +703,8 @@ function nearestEnemyBuilding(u) {
     if (d < bd) { bd = d; best = e; }
     if (e.type === 'cy' && d < cd) { cd = d; cy = e; }
   }
-  if (u.raider) return u.huntTarget && u.huntTarget.alive ? u.huntTarget : best;
-  return cy || best;
+  if (u.raider) return u.huntTarget && u.huntTarget.alive ? u.huntTarget : best || lastStand(u);
+  return cy || best || lastStand(u);
 }
 
 // New units spread out to random open spots around their base. Auto attack sends them out
@@ -2937,14 +2951,14 @@ function logWave(team, big) {
   else if (big) logEvent(team, 'big push');
 }
 
-// A side is defeated the moment its Construction Yard is destroyed.
+// A side is defeated once it has no production building left (Construction Yard, Barracks, War
+// Factory, Helipad, Airfield) and no Mobile Construction Yard on the move.
 function checkWin() {
   if (G.over) return;
-  const hasCY = (tid) => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === tid && e.type === 'cy');
-  const a = hasCY(PLAYER), b = hasCY(ENEMY);
+  const a = inTheFight(PLAYER), b = inTheFight(ENEMY);
   if (!a || !b) endBattle(b ? ENEMY : PLAYER);   // (both gone at once: side 0 wins, as before)
 }
-// how: undefined for a destroyed Construction Yard, 'quit' when the loser surrendered, 'left' when
+// how: undefined for the last production building destroyed, 'quit' when the loser surrendered, 'left' when
 // an online opponent did not come back.
 function endBattle(winner, how) {
   if (G.over) return;

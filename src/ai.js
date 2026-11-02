@@ -164,6 +164,20 @@ function aiDriveFob(team, u) {
   else if (u.order.type === 'guard') commandMove([u], u.aiGoal.x, u.aiGoal.y);
 }
 
+// A Mobile Construction Yard rebuilds a lost yard: it drives to where the first one stood (or near it,
+// further out after each failed try) and unpacks there.
+function aiDriveMcv(team, u) {
+  if (!u.aiGoal) {
+    const k = u.mcvTries || 0, a = Math.random() * Math.PI * 2, r = k ? 2 + k * 1.5 : 0;
+    u.aiGoal = { x: (team.start.cx + 0.5 + Math.cos(a) * r) * CELL, y: (team.start.cy + 0.5 + Math.sin(a) * r) * CELL };
+    commandMove([u], u.aiGoal.x, u.aiGoal.y);
+    return;
+  }
+  const d = Math.hypot(u.x - u.aiGoal.x, u.y - u.aiGoal.y);
+  if (d < CELL * 2.5 || (u.order.type === 'guard' && d < CELL * 6)) { if (!deployFob(u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; } }
+  else if (u.order.type === 'guard') commandMove([u], u.aiGoal.x, u.aiGoal.y);
+}
+
 function aiFindSpot(team, type) {
   const cy = G.entities.find((e) => e.alive && e.team === team.id && e.type === 'cy');
   const lonely = type === 'refinery' && aiOutpostForRefinery(team);
@@ -223,6 +237,15 @@ function aiThink(team) {
   } else if (!q) {
     const next = aiNextStructure(team, c);
     if (next && team.credits >= Math.min(BUILD_DEFS[next].cost * 0.25, 500)) startProduction(team, next);
+  }
+
+  // Construction Yard lost: build a Mobile Construction Yard and unpack it at home.
+  const mcvs = unitsOf(team.id).filter((u) => u.def.deploys === 'cy');
+  for (const u of mcvs) aiDriveMcv(team, u);
+  if (!c.cy && !mcvs.length && available(team, 'mcv') && !team.queues.vehicle.some((i) => i.type === 'mcv') && team.credits > 1250) {
+    startProduction(team, 'mcv');
+    const vq = team.queues.vehicle, i = vq.findIndex((x) => x.type === 'mcv');
+    if (i > 0) vq.unshift(vq.splice(i, 1)[0]);   // it jumps the queue: nothing else can be built without it
   }
 
   // Forward outposts: send a Mobile Outpost to a rich field far from its refineries.
@@ -405,7 +428,7 @@ function aiStrike(team) {
 // valuable building is least defended.
 function aiWaveTarget(team, from) {
   const A = G.diff.ai, r = Math.random, foe = enemyOf(team), theirs = buildingsOf(foe.id).filter((b) => targetable(team.id, b));
-  if (!theirs.length) return null;
+  if (!theirs.length) return lastStand({ team: team.id, x: from.x, y: from.y });
   const cy = theirs.find((b) => b.type === 'cy');
   if (A.targets === 'cy') {
     const exp = expansionsOf(foe, from);

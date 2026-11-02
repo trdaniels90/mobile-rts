@@ -129,6 +129,14 @@ share globals. Read this file first; the commit history explains every change in
   wait beside it. REPAIR button for damaged vehicles, or tap the depot. Out of money, Ore Trucks leave
   at once and the computer's vehicles after 8 s. The computer builds one on every difficulty and sends
   damaged vehicles (only while it has over 400 credits, at most 4 queued per depot).
+- **Win rule:** a side loses when it has no production building (`PRODUCTION`: cy, barracks, factory,
+  helipad, airfield) and no Mobile Construction Yard (`mcvsOf`) left (`inTheFight`, `checkWin`). Once a
+  side has no production building, the enemy is told where its Mobile Construction Yards are
+  (`lastStand`, also in `enemyBaseKnown` and `aiWaveTarget`). Sims end games by destroying every
+  production building.
+- **Mobile Construction Yard** (`mcv` in `UNIT_DEFS`, `deploys: 'cy'`, `mcvModel`): 2500, needs a Service
+  Depot, deploys anywhere with the Mobile Outpost's `deployFob`. The computer builds one only to replace
+  a lost yard (`aiDriveMcv`: drives home, tries further out if it cannot unpack).
 - **Computer outposts** (Normal and Hard): `ai.expand`, `ai.outpostGuns`, 1 to 3 refineries per
   Outpost (`o.refWant`, `o.refineries`), `defMax` up by 3.
 

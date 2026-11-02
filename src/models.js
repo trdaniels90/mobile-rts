@@ -132,6 +132,27 @@ function fobModel(pal) {
   m.box(-hl + 1, -2, 11, -hl + 4, 2, 12, '#5d5e58', M_METAL);
   return m;
 }
+// Mobile Construction Yard: a long six-wheeled carrier with the yard folded on its back: a crane
+// laid flat along the bed, a stack of wall panels and the control cabin.
+function mcvModel(pal) {
+  const hl = 16, hw = 9;
+  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 20);
+  for (const x of [-12, -6, 0, 10]) for (const [y0, y1] of [[-hw, -hw + 3], [hw - 3, hw]]) m.cylY(y0, y1, x, 2.6, 2.6, C.track, M_ROUGH);
+  m.box(-hl, -hw + 1, 2, hl, hw - 1, 4, C.metal, M_METAL);              // chassis
+  m.box(8, -hw, 4, hl, hw, 12, pal.main, M_METAL);                      // cab
+  m.box(hl - 1, -hw + 1, 8, hl, hw - 1, 11, C.glass, M_GLASS);
+  m.box(8, -hw, 11, hl, hw, 12, pal.dark, M_METAL);
+  m.box(hl - 1, -hw + 1, 5, hl, -hw + 2, 6, C.glow, M_GLASS); m.box(hl - 1, hw - 2, 5, hl, hw - 1, 6, C.glow, M_GLASS);
+  m.box(-hl, -hw, 4, 7, hw, 13, C.wall, M_MATTE);                       // the yard, folded into a container
+  m.paint(-hl, -hw, 4, 7, hw, 13, (x, y, z) => (x % 5 === 0 && z < 12) ? C.wallD : undefined);
+  m.box(-hl, -hw, 13, 7, hw, 14, pal.main, M_METAL);                    // roof in the side's colour
+  m.paint(-hl, -hw, 13, 7, hw, 14, (x, y) => (y === -hw || y === hw - 1) ? pal.dark : undefined);
+  hazardV(m, -hl, -hw, 4, -hl + 1, hw, 6);                              // tail stripes
+  m.box(2, -2, 14, 6, 2, 17, C.yellow, M_METAL);                        // crane turret and boom, laid along the roof
+  m.box(-hl + 2, -1, 15, 2, 1, 16, C.yellow, M_METAL);
+  m.box(-hl + 2, -1, 14, -hl + 3, 1, 15, C.black);
+  return m;
+}
 function harvModel(pal, loaded) {
   const hl = 12, hw = 7;
   const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 13);
@@ -738,6 +759,7 @@ function hullSprite(u, pal) {
   if (d.draw === 'tank') return facingSprite('T' + key, () => tankHull(pal, d.size), u.face);
   if (d.draw === 'jeep') return facingSprite('J' + key, () => jeepModel(pal), u.face);
   if (d.draw === 'fob') return facingSprite('F' + key, () => fobModel(pal), u.face);
+  if (d.draw === 'mcv') return facingSprite('M' + key, () => mcvModel(pal), u.face);
   if (d.draw === 'arty') return facingSprite('R' + key, () => artyModel(pal), u.face);
   if (d.draw === 'v2') { const loaded = !(u.cd > 1.2); return facingSprite('W' + key + loaded, () => v2Model(pal, loaded), u.face); }
   if (d.draw === 'harv') { const full = (u.load || 0) > d.capacity * 0.3; return facingSprite('V' + key + full, () => harvModel(pal, full), u.face); }

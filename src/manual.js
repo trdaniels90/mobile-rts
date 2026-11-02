@@ -7,7 +7,7 @@ const Manual = (() => {
   // --- What each piece is for ---------------------------------------------------
   const TEXT = {
     // Structures
-    cy: ['The heart of your base: every structure is built here. It cannot be sold, and if it falls the mission is lost. Guard it above all else.', '', ''],
+    cy: ['The heart of your base: every structure is built here, within reach of any of your buildings. It cannot be sold. Lose every Construction Yard and you can build no more structures until a Mobile Construction Yard unpacks a new one.', '', ''],
     power: ['Supplies 100 power. Keep production above demand: on low power everything builds more slowly, radar goes offline and Tesla Coils fall silent.', '', 'A tempting target for raids'],
     apower: ['Twice the output of a standard plant on a 3x3 footprint. Unlocked by the War Factory.', '', 'Losing one hurts twice as much'],
     refinery: ['Processes ore into credits. Each comes with a free Ore Truck that harvests and unloads on its own. Build them close to ore fields.', '', 'Key target for enemy raids'],
@@ -38,6 +38,7 @@ const Manual = (() => {
     arty: ['A tracked howitzer that outranges every defence. With no turret the whole vehicle turns to aim, and its shells drop in a high arc, so it can miss a moving target. Needs a Radar Dome.', 'Defences, infantry, anything standing still', 'Anything that reaches it'],
     v2rl: ['A truck carrying one huge rocket on a launch rail. Slow to reload but the blast wrecks buildings, with a crater and a shake you can feel. Needs a Radar Dome.', 'Structures, defences', 'Fast units, aircraft'],
     harv: ['Finds ore, fills up and drives home to unload, all on its own. It works the field nearest its refinery until every last bit is gone, then the next nearest; at most three trucks share a field. Gems are worth twice as much as ore but never grow back. Under fire it runs home and waits by the refinery until the danger has passed.', '', 'Unarmed: protect it'],
+    mcv: ['A Construction Yard on wheels. Drive it anywhere on the map and tap DEPLOY to start a second base, or to rebuild a lost yard. While it is driving it still keeps your side in the fight. Needs a Service Depot.', '', 'Slow and unarmed'],
     fob: ['Drive it to a distant ore field and tap DEPLOY: it unpacks into an Outpost you can build around.', '', 'Unarmed while driving'],
     // Aircraft
     heli: ['A fast gunship with six Hellfire missiles a sortie: armour-piercing, deadly to tanks but poor against infantry. Flies home to rearm.', 'Tanks, vehicles', 'Infantry, AA Guns, SAM sites, rocket soldiers'],
@@ -115,7 +116,7 @@ const Manual = (() => {
         <ol class="fm-toc">${CHAPTERS.slice(1).map((c) => `<li><button type="button" data-goto="${c.page}">${c.name}</button><span>${c.page + 1}</span></li>`).join('')}</ol>
       </div>` },
     { ch: 'Basics', title: 'Your Mission', html: () => `
-      <p>Somewhere on this island stands the enemy's <b>Construction Yard</b>. Destroy it and the mission is won. Lose yours and the mission is over: it cannot be rebuilt or sold.</p>
+      <p>Destroy every enemy <b>production building</b> on the island to win: each Construction Yard, Barracks, War Factory, Helipad and Airfield. A Mobile Construction Yard still on the move keeps its side in the fight too, so hunt it down. Lose all of yours and the mission is over. Refineries, power, defences, Service Depots and Outposts do not count.</p>
       <h4>Building a base</h4>
       <p>The left column of the sidebar builds structures, the right column builds units. When a structure is READY, tap the map to place it (it must touch your base: within 6 cells of your buildings, or 8 of an Outpost). A good start: <b>Power Plant</b>, then <b>Ore Refinery</b>, then <b>Barracks</b> and <b>War Factory</b>.</p>
       <h4>Money</h4>
@@ -158,7 +159,7 @@ const Manual = (() => {
     { ch: 'Structures', title: 'Defences', html: () => entries(['pillbox', 'turret', 'aagun', 'ftur', 'tesla', 'sam']) },
     { ch: 'Infantry', title: 'Infantry', html: () => entries(['rifle', 'grenadier', 'rocket', 'pilot']) },
     { ch: 'Vehicles', title: 'Armour', html: () => entries(['ranger', 'ltank', 'mtank', 'htank', 'mammoth']) },
-    { ch: 'Vehicles', title: 'Support Vehicles', html: () => entries(['arty', 'v2rl', 'harv', 'fob']) },
+    { ch: 'Vehicles', title: 'Support Vehicles', html: () => entries(['arty', 'v2rl', 'harv', 'fob', 'mcv']) },
     { ch: 'Aircraft', title: 'Aircraft', html: () => entries(['heli', 'hind', 'jet', 'mig']) },
     { ch: 'Powers', title: 'Airfield Support Powers', html: powers },
     { ch: 'Intel', title: 'The Enemy Commander', html: () => `

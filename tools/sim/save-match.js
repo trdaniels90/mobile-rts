@@ -49,7 +49,7 @@ const fs = require('fs'), path = require('path');
   const gameT = await p.evaluate(() => Math.round(G.t));
   await playMinutes(1);
   // Win it: one finished match, with the whole game's time.
-  await p.evaluate(() => { const c = G.entities.find((e) => e.team === 1 && e.type === 'cy'); damage(c, 1e6, 'HE', null); for (let i = 0; i < 40; i++) update(1 / 30); });
+  await p.evaluate(() => { for (const e of G.entities) if (e.alive && e.team === 1 && (PRODUCTION.includes(e.type) || e.def.deploys === 'cy')) damage(e, 1e7, 'HE', null); for (let i = 0; i < 40; i++) update(1 / 30); });
   await p.waitForTimeout(3500);
   const first = { local, id1, id2, sameId: local && local === id1 && id1 === id2, gameT, inserted: inserted.map((x) => x.id), ended };
   // A save without a match id (made before this change) starts a new match.

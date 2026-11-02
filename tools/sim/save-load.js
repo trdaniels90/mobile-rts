@@ -31,7 +31,7 @@ const { chromium, devices } = require('playwright');
   const same = {}; for (const k in before) if (k !== 'decal') same[k] = JSON.stringify(before[k]) === JSON.stringify(after[k]);
   // It carries on: two more minutes, then the player wins.
   const more = await p.evaluate(() => { G.teams[0].isAI = true; for (let i = 0; i < 2 * 60 * 30 && !G.over; i++) update(1 / 30); G.teams[0].isAI = false; return { t: Math.round(G.t), ents: G.entities.length, over: !!G.over }; });
-  await p.evaluate(() => { const c = G.entities.find((e) => e.team === 1 && e.type === 'cy'); if (c) damage(c, 1e6, 'HE', null); for (let i = 0; i < 40; i++) update(1 / 30); });
+  await p.evaluate(() => { for (const e of G.entities) if (e.alive && e.team === 1 && (PRODUCTION.includes(e.type) || e.def.deploys === 'cy')) damage(e, 1e7, 'HE', null); for (let i = 0; i < 40; i++) update(1 / 30); });
   await p.waitForTimeout(3000);
   const title = await p.evaluate(() => document.querySelector('#dbTitle').textContent);
   await p.reload(); await p.waitForTimeout(1500);

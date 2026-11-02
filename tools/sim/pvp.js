@@ -97,7 +97,7 @@ const { chromium, devices } = require('playwright');
     await A.evaluate(() => { for (const t of G.teams) t.isAI = false; });
   }
   // The host destroys the guest's Construction Yard: the host wins, the guest loses.
-  await A.evaluate(() => { const c = G.entities.find((e) => e.team === 1 && e.type === 'cy'); damage(c, 1e6, 'HE', null); });
+  await A.evaluate(() => { for (const e of G.entities) if (e.alive && e.team === 1 && (PRODUCTION.includes(e.type) || e.def.deploys === 'cy')) damage(e, 1e7, 'HE', null); });
   await A.waitForTimeout(4000);
   const ends = [await A.textContent('#dbTitle').catch(() => null), await B.textContent('#dbTitle').catch(() => null)];
   console.log(JSON.stringify({ code, connectMs, lobbyB, same, prod: await B.evaluate(() => window.__prod),

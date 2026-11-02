@@ -29,7 +29,7 @@ const { chromium, devices } = require('playwright');
     out.swapped = { me: G.me, drawn: G.seen === G.fog[0], camNear0: Math.round(dist(view(), cy(0))) };
     ps.viewSide(1);
     // Destroy the computer's Construction Yard: side 1 (this device) wins.
-    const c = cy(0); if (c) damage(c, 1e6, 'HE', null);
+    for (const e of G.entities) if (e.alive && e.team === 0 && (PRODUCTION.includes(e.type) || e.def.deploys === 'cy')) damage(e, 1e7, 'HE', null);   // the win rule: every production building
     for (let i = 0; i < 40; i++) ps.update(1 / 30);
     out.over = G.over;
     return out;
