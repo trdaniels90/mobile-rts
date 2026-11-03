@@ -389,6 +389,16 @@ function genLayoutMap(m) {
     for (const c of cells) G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - Math.hypot(cellX(c) - cx, cellY(c) - cy) / far) * 190) * ORE_START));
     G.oreFields.push({ cx, cy, r: Math.sqrt(cells.length / Math.PI) * 1.15, rich: 1, gem: false });
   }
+  // Gem fields (rare ore, worth twice as much and never growing back) on open ground.
+  for (const [gx, gy, gr] of m.gems || []) {
+    for (let y = Math.floor(gy - gr); y <= gy + gr; y++) for (let x = Math.floor(gx - gr); x <= gx + gr; x++) {
+      const d = Math.hypot(x - gx, y - gy), c = inMap(x, y) && idx(x, y);
+      if (c === false || d > gr || T[c] > 1 || G.ore[c]) continue;
+      G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - d / gr) * 190) * ORE_START));
+      G.gem[c] = 1;
+    }
+    G.oreFields.push({ cx: gx, cy: gy, r: gr, rich: 1, gem: true });
+  }
   // Bridges: each run of bridge cells is drawn as one timber bridge along its long side.
   G.road = []; G.bridges = [];
   const seenB = new Uint8Array(NCELLS);

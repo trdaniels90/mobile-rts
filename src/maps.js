@@ -13,7 +13,7 @@ const MAPS = {
   river: {
     name: 'Three Crossings',
     img: 'maps/river.png',
-    blurb: 'A winding river splits west from east. A bridge crosses it in the middle, and shallow fords in the far north and the south. Creeks and cliffs make chokepoints, and ore lies on both banks.',
+    blurb: 'A winding river splits west from east. A bridge crosses it in the middle, and shallow fords in the far north and the south. Creeks and cliffs make chokepoints. Ore lies on both banks, with gems beside every base and out by the crossings.',
     info: '144 × 144 cells · 8 start positions · made for 2 v 2',
     // Built for 2 v 2 (not playable as teams yet): the west bank (start positions 0-3) against the east (4-7).
     // A 1 v 1 starts one player on each bank. Not mirrored, so the banks differ a little.
@@ -21,6 +21,10 @@ const MAPS = {
     // A fixed layout, traced from the owner's design (maps/designs/river.png) by
     // python3 tools/map-from-image.py maps/designs/river.png 126 144 --ford 50,0,60,2 --bridge 65,50,78,52 --ford 72,111,83,113
     // Start positions in cells; rows run-length coded: '.' grass, ',' dirt, 'T' woods, '#' rock, '~' water, '=' bridge, 'f' ford (shallow water you can drive through), 'o' ore.
+    // Gem fields [x, y, radius]: one beside each start position (same order as spawns), then pairs out on the
+    // map, one on each bank: by the bridge, by each ford, out on the flanks and mid-bank.
+    gems: [[16, 12, 2.4], [26, 53, 2.4], [26, 92, 2.4], [28, 123, 2.4], [140, 6, 2.4], [115, 50, 2.4], [110, 99, 2.4], [122, 120, 2.4],
+      [62, 61, 2.6], [98, 56, 2.6], [55, 7, 2.6], [73, 11, 2.6], [81, 127, 2.6], [100, 123, 2.6], [9, 70, 2.6], [136, 60, 2.6], [50, 100, 2.6], [94, 42, 2.6]],
     spawns: [[9,8],[36,47],[37,90],[36,130],[130,12],[108,42],[106,89],[112,125]],
     rows: [
       '59.8f18.3T2.#6.16o17.T13.',

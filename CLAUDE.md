@@ -124,6 +124,8 @@ share globals. Read this file first; the commit history explains every change in
 - One bridge in the middle; the north and south crossings are shallow fords (`'f'`, `--ford` in the tool):
   terrain 5 like a bridge (walkable) with `G.ford` set, painted in `paintTerrain` as a rocky bed under
   shallow water (`fordStone` lays out lit, rounded stones; a few boulder stamps; ragged edges). No speed penalty. Ford ends with no river up or down stream become bank.
+- Gem fields (`gems` in `MAPS.river`, `[x, y, radius]`): one beside each start position, then ten in pairs
+  (one per bank) by the bridge, the fords, the flanks and mid-bank. Placed only on open ground.
 - Made for 2 v 2 (`teams`: west bank starts 0-3 against east bank 4-7); 2 v 2 itself is not built.
   A 1 v 1 puts one player on each bank (`newWorld` picks from opposite halves of `G.spawns`).
   The layout is not mirrored, so the banks are not exactly equal.
