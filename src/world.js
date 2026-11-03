@@ -2600,7 +2600,10 @@ const LAND_GLIDE = 170, LAND_ROLL = 50, LAND_SPEED = 100;
 function runwayDir(pad, spot) {
   if (pad.type !== 'airfield') return 1;
   const dx = spot.x - pad.cx * CELL;
-  return dx > 40 && dx < 70 ? -1 : 1;
+  const dir = dx > 40 && dx < 70 ? -1 : 1;
+  // Near a map edge there may be no room for the approach on that side: land the other way.
+  const room = LAND_ROLL + LAND_GLIDE + 150, fits = (d) => spot.x - d * room >= 8 && spot.x - d * room <= WORLD - 8;
+  return fits(dir) || !fits(-dir) ? dir : -dir;
 }
 function landJet(u, spot, dir, dt) {
   const T = { x: spot.x - dir * LAND_ROLL, y: spot.y };
@@ -2611,7 +2614,7 @@ function landJet(u, spot, dir, dt) {
   if (!u.final) {
     // Fly to a point well out on the approach line, climbing back to cruise height if it had started down.
     u.alt = Math.min(JET_ALT, (u.alt || 0) + 25 * dt);
-    flyJet(u, T.x - dir * (LAND_GLIDE + 150), T.y, dt);
+    flyJet(u, Math.max(8, Math.min(WORLD - 8, T.x - dir * (LAND_GLIDE + 150))), T.y, dt);
     return;
   }
   const frac = Math.max(0, Math.min(1, along / LAND_GLIDE));
