@@ -3038,11 +3038,21 @@ function update(dt) {
   sweepDead();
   rollCredits(dt);
 }
+// Wind: one steady direction for the whole match, taken from the map seed so an online guest sees the
+// same one, and swelling and easing slowly. It blows every puff of smoke along (the older the puff, the
+// more it is carried), so a firing turret trails a plume and burning buildings lean over. Looks only.
+const WIND = 30;   // px/s at its steady strength
+function windNow() {
+  const a = ((Math.imul(G.seed ^ 0x6c8e9cf5, 0x9e3779b1) >>> 0) / 4294967296) * Math.PI * 2;
+  const g = 1 + 0.4 * Math.sin(G.t * 0.35) + 0.2 * Math.sin(G.t * 0.9 + 1.3);
+  return { x: Math.cos(a) * WIND * g, y: Math.sin(a) * WIND * g * 0.6, a };
+}
 // Smoke, debris, bodies and the like. A PvP guest runs these itself; G.inFx marks what they set
 // off (more effects, sounds, marks on the ground), which the host need not send.
 function updateEffects(dt) {
   const n0 = G.effects.length;
   G.inFx = true;
+  const wind = windNow();
   for (const fx of G.effects) {
     if (fx.type === 'crash') updateCrash(fx, dt);
     else if (fx.type === 'frag') updateFrag(fx, dt);
@@ -3059,6 +3069,7 @@ function updateEffects(dt) {
     }
     fx.t += dt;
     if (fx.drag && fx.t > 0) { const k = Math.exp(-fx.drag * dt); fx.vx *= k; fx.vy = fx.vy * k - 3 * (1 - k); }   // billowing smoke slows, then rises
+    if (fx.type === 'smoke' && fx.t > 0) { const carry = Math.min(1, fx.t / 1.2) * dt; fx.x += wind.x * carry; fx.y += wind.y * carry; }
     if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
   }
   structureDamageFx(dt);
