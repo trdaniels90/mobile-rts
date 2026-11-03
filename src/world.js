@@ -921,7 +921,7 @@ function scramble(team) {
   }
 }
 
-const AIR_GROUP_WAIT = 90;   // seconds a lone computer aircraft waits for others before going out alone
+const AIR_GROUP_WAIT = 150;   // seconds a lone computer aircraft waits for others before going out alone
 // `focus`: where a group of aircraft all go (null: the main base); left out, one in three picks an outlying site.
 function launchAircraft(u, focus) {
   setHunt(u);
