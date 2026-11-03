@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.03.1', date: '3 November 2026', title: 'New Heavy Tank and Mammoth Tank', groups: [
+    ['Look', [
+      'The Soviet Heavy Tank has a new look: a low bright red hull, a wide flat turret with two dark hatches, a white aerial and two long black guns side by side.',
+      'The Soviet Mammoth Tank is redrawn: two big rounded track pods, an orange front plate, a turret with a flat silver hatch and side missile boxes, two tall white aerials and slim twin guns.',
+    ]],
+  ] },
   { v: '2026.11.03', date: '3 November 2026', title: 'Camouflaged Pillbox, longer defences and a new look', groups: [
     ['New', [
       'The Allied Pillbox is now camouflaged. The enemy cannot see it, pick it or aim at it until one of their ground units comes within 3 cells of it, or until it opens fire or is hit. It stays visible for 4 seconds after that, then hides again. It is always visible while it is being built, and you always see your own. It works the same online.',
