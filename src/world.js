@@ -1500,6 +1500,8 @@ function kill(e, attacker, wh, from) {
   } else {
     for (let y = e.cy; y < e.cy + e.h; y++) for (let x = e.cx; x < e.cx + e.w; x++) if (G.bld[idx(x, y)] === e.id) G.bld[idx(x, y)] = 0;
     if (e.exitCell !== undefined) G.resv[e.exitCell] = 0;
+    // The repair pad is painted into the ground: cover it with worn earth (the host's mark reaches a guest as an event).
+    if (e.def.depot && e.exitCell !== undefined && G.tctx && !G.remote) bibDecal(G.tctx, cellX(e.exitCell) * CELL, cellY(e.exitCell) * CELL, CELL, CELL, e.id * 977 + 5);
     if (e.sellT <= 0) {
       hooks.sfx('explodeBig', e.x, e.y);
       hooks.sfx('collapse', e.x, e.y);
