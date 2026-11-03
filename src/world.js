@@ -1014,9 +1014,21 @@ function tickBurst(u, dt) {
   if (--b.left <= 0) u.burst = null;
 }
 
+// Smoke out of a gun turret's barrel (a heavier puff that rolls forward and up) or a pillbox's
+// machine gun (a thin wisp for each round of the burst). Pushed on the host like any effect, so an
+// online guest gets it in the snapshot.
+function barrelSmoke(src, m) {
+  const cx = Math.cos(src.tface), cy = Math.sin(src.tface), r = Math.random, big = src.type === 'turret';
+  for (let i = 0, n = big ? 4 : 1; i < n; i++) {
+    G.effects.push({ type: 'smoke', x: m.x + cx * i * 1.5 + (r() - 0.5) * 2, y: m.y + cy * i * 1.5 + (r() - 0.5) * 2,
+      r: big ? 4 + r() * 3 : 2 + r() * 1.3, t: -i * 0.03, life: big ? 1.3 + r() * 0.9 : 0.7 + r() * 0.5, alpha: big ? 0.65 : 0.38, color: '#c9c7c0',
+      vx: cx * (big ? 10 + r() * 14 : 5 + r() * 8) + (r() - 0.5) * 6, vy: cy * (big ? 8 + r() * 10 : 4 + r() * 6) * 0.7 - (big ? 7 + r() * 5 : 5 + r() * 3), drag: big ? 1.6 : 1.2 });
+  }
+}
 function fireWeapon(src, w, t) {
   const m = muzzle(src);
   hooks.sfx(weaponSound(src, w), src.x, src.y);
+  if (src.kind === 'bld' && (src.type === 'turret' || src.type === 'pillbox')) barrelSmoke(src, m);
   src.fireT = w.proj === 'grenade' ? 0.35 : 0.1;
   const ty = aimY(t);
   if (w.proj === 'grenade') {
