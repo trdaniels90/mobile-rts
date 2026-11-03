@@ -779,13 +779,22 @@ const STRUCTURES = {
 
 // Rotating weapon heads on defences: [model builder, pivot x, pivot y, pivot height].
 const HEADS = {
+  // Gun Turret: an arrowhead. Triangular in plan with the point forward and a ridge down the middle,
+  // so the armour slopes away on both sides; the barrel comes out of the tip.
   turret: [(pal) => {
-    const m = new VModel(-7, -7, 17, 7, 6);
-    m.cylZ(0, 0, 0, 4, 5.5, pal.main, M_METAL);
-    m.box(-5, -4, 0, -2, 4, 3, pal.dark, M_METAL);
-    m.cylX(4, 15, 0, 2, 1.2, C.gun, M_METAL);
-    m.cylX(13, 15, 0, 2, 1.5, C.gun, M_METAL);
-    m.cylZ(-1, 0, 4, 5, 1.6, pal.light, M_METAL);
+    const m = new VModel(-9, -9, 18, 9, 9);
+    const hwAt = (x) => 8 * (9.4 - x) / 16.4;                           // half-width: wide at the back, a point at the front
+    for (let y = -9; y < 9; y++) for (let x = -7; x < 10; x++) {
+      const hw = hwAt(x + 0.5), ay = Math.abs(y + 0.5);
+      if (ay > hw) continue;
+      const top = 3 + Math.floor((1 - ay / hw) * 4.2 + 0.2);           // ridge in the middle, low at the edges
+      for (let z = 0; z < top; z++) m.set(x, y, z, hw - ay < 1.2 && z < 3 ? pal.dark : pal.main, M_METAL);
+    }
+    m.paint(-7, -9, 3, 10, 9, 9, (x, y, z) => (Math.abs(y + 0.5) < 0.9 && x < 6) ? pal.light : undefined);   // lit ridge
+    m.box(-8, -4, 0, -6, 4, 4, pal.dark, M_METAL);                      // rear plate
+    m.cylX(8, 16, 0, 2.5, 1.0, C.gun, M_METAL);                         // barrel
+    m.cylX(14, 16.5, 0, 2.5, 1.5, C.gun, M_METAL);                      // muzzle brake
+    m.box(7, -1, 1, 10, 1, 4, C.gun, M_METAL);                          // mantlet where the barrel leaves the tip
     return m;
   }, 12, 12, 6],
   aagun: [(pal) => {
