@@ -4,6 +4,18 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.03.3', date: '3 November 2026', title: 'A tougher Normal and tanks that spread out', groups: [
+    ['Computer opponent', [
+      'Normal attack waves are bigger: 6 to 11 units (was 5 to 10), and big pushes of 11 to 14 (was 10 to 13). Big pushes come a little more often and can come at any time, not only after 9 minutes.',
+      'On Normal the computer now goes for your least-defended valuable buildings, as it does on Hard, instead of a mix.',
+      'On Normal it now saves its Bombing Run as well as its Paratroopers to land together with a big push.',
+      'Two-pronged attacks (Normal and Hard): many waves split in two, gather on both sides of their target out of range of your guns, then close in together.',
+      'The computer now builds against your army (Normal and Hard). Against tanks it builds more anti-armour, against infantry more anti-infantry, and against a heavily fortified base more Artillery or V2 Rockets.',
+    ]],
+    ['Changes', [
+      'Tanks and other ground vehicles on an attack now spread out like infantry, each in its own lane and at a slightly different pace, instead of rolling in as one big blob. This applies to both sides, single player and online.',
+    ]],
+  ] },
   { v: '2026.11.03.2', date: '3 November 2026', title: 'Jets land properly, surviving crews and a new Medium Tank', groups: [
     ['New', [
       'A destroyed ground vehicle that does not cook off can now leave one surviving rifleman, about one time in three. He stands guard where the wreck fell. It works the same online.',
