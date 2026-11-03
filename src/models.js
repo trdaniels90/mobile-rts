@@ -701,6 +701,7 @@ const STRUCTURES = {
     const m = new VModel(-2, -2, 26, 26, 12);
     m.box(0, 0, 0, 24, 24, 1, C.bib, M_ROUGH);
     const R = 10.6, H = 0.866, CX = 12, CY = 12;
+    const base = pal.camo !== undefined ? pal.camo : 0x4a6330, sh = (k) => shadeInt(base, k);   // the roof takes the ground's colour
     const inHex = (x, y, r) => { const dx = Math.abs(x + 0.5 - CX), dy = Math.abs(y + 0.5 - CY); return dy <= r * H && dx + dy / 1.732 <= r; };
     // Walls: concrete, with a lighter course on top and a shadowed foot.
     for (let z = 1; z < 8; z++) for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) {
@@ -721,23 +722,23 @@ const STRUCTURES = {
     });
     m.paint(0, 0, 6, 24, 24, 7, (x, y) => (Math.hypot(x + 0.5 - CX, y + 0.5 - CY) > R * H - 1.2) ? C.concD : undefined);
     // Roof: grass-green slab with a darker rim, mottled with camouflage patches and a few tufts.
-    for (let z = 8; z < 10; z++) for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) if (inHex(x, y, R - 0.6 - (z - 8) * 0.8)) m.set(x, y, z, '#4a6330', M_ROUGH);
+    for (let z = 8; z < 10; z++) for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) if (inHex(x, y, R - 0.6 - (z - 8) * 0.8)) m.set(x, y, z, base, M_ROUGH);
     m.paint(0, 0, 8, 24, 24, 10, (x, y, z) => {
       const dx = x + 0.5 - CX, dy = y + 0.5 - CY, d = Math.hypot(dx, dy);
-      if (z === 8 && !inHex(x, y, R - 2)) return '#3a4a2a';                          // shaded rim
+      if (z === 8 && !inHex(x, y, R - 2)) return sh(0.72);                               // shaded rim
       const n = hash3(x >> 1, y >> 1, 3), n2 = hash3(x, y, 11);
       if (z === 9) {
-        if (d > 3.2 && d < 5.2 && Math.abs(Math.sin(Math.atan2(dy, dx) * 3)) > 0.22) return '#2c3b20';   // emblem ring, broken by three gaps
+        if (d > 3.2 && d < 5.2 && Math.abs(Math.sin(Math.atan2(dy, dx) * 3)) > 0.22) return sh(0.5);   // emblem ring, broken by three gaps
         if (d < 1.9) return pal.main;                                                // the side's colour at the centre
-        if (n < 0.22) return '#35482a';
-        if (n > 0.8) return '#6b7e3e';
-        if (n > 0.66 && n2 > 0.5) return '#7d6a42';                                  // dry earth patches
-        if (n2 > 0.9) return '#8da24c';
+        if (n < 0.22) return sh(0.78);
+        if (n > 0.8) return sh(1.25);
+        if (n > 0.66 && n2 > 0.5) return mixHex(base, '#7d6a42', 0.35);                // dry earth patches
+        if (n2 > 0.9) return sh(1.45);
       }
     });
     for (let i = 0; i < 26; i++) {                                                   // tufts of grass and netting
       const a = hash3(i, 5, 1) * 6.283, r = 2 + hash3(i, 9, 2) * 7, x = Math.floor(CX + Math.cos(a) * r), y = Math.floor(CY + Math.sin(a) * r * 0.9);
-      if (inHex(x, y, R - 2.2) && Math.hypot(x + 0.5 - CX, y + 0.5 - CY) > 2.4) m.set(x, y, 10, hash3(i, 1, 4) > 0.5 ? '#5f7a34' : '#3f5628', M_ROUGH);
+      if (inHex(x, y, R - 2.2) && Math.hypot(x + 0.5 - CX, y + 0.5 - CY) > 2.4) m.set(x, y, 10, hash3(i, 1, 4) > 0.5 ? sh(1.2) : sh(0.65), M_ROUGH);
     }
     return m;
   },
@@ -819,8 +820,18 @@ function samDoor(right) {
 // ---------------------------------------------------------------------------
 // Sprite getters used by the renderer
 // ---------------------------------------------------------------------------
-function structureSprite(type, faction) {
-  const pal = palFor(faction);
+// A palette tinted for camouflage: `col` is the ground colour (an rgb int) the structure sits on.
+const camoPals = new Map();
+function camoPal(faction, col) {
+  const base = palFor(faction);
+  if (col === null || col === undefined) return base;
+  const k = base.key + 'c' + col.toString(16);
+  let p = camoPals.get(k);
+  if (!p) { p = { ...base, key: k, camo: col }; camoPals.set(k, p); }
+  return p;
+}
+function structureSprite(type, faction, camo) {
+  const pal = camoPal(faction, camo);
   return sprite('S' + type + pal.key, () => STRUCTURES[type](pal, faction), 0, 0);
 }
 function headSprite(type, faction, angle, stage) {
@@ -974,20 +985,20 @@ function scorchModel(base, stage, type) {
 // A damaged structure sprite, built one at a time in the background so the first hit on a new
 // type of building never stalls a frame: until it is ready, the next lighter stage is drawn.
 const dmgQueue = [];
-function damagedSprite(type, faction, stage) {
-  const pal = palFor(faction), k = 'S' + type + pal.key + 'd' + stage + '|0';
+function damagedSprite(type, faction, stage, camo) {
+  const pal = camoPal(faction, camo), k = 'S' + type + pal.key + 'd' + stage + '|0';
   const s = spriteCache2.get(k);
   if (s) return s;
   if (!dmgQueue.some((q) => q.k === k)) {
-    dmgQueue.push({ k, type, faction, stage });
+    dmgQueue.push({ k, type, faction, stage, camo });
     if (dmgQueue.length === 1) setTimeout(pumpDamaged, 0);
   }
-  return stage > 1 ? damagedSprite(type, faction, stage - 1) : structureSprite(type, faction);
+  return stage > 1 ? damagedSprite(type, faction, stage - 1, camo) : structureSprite(type, faction, camo);
 }
 function pumpDamaged() {
   const q = dmgQueue[0];
   if (!q) return;
-  const pal = palFor(q.faction);
+  const pal = camoPal(q.faction, q.camo);
   sprite('S' + q.type + pal.key + 'd' + q.stage, () => damageModel(model('S' + q.type + pal.key, () => STRUCTURES[q.type](pal, q.faction)), q.stage, q.type, q.faction), 0, 0);
   dmgQueue.shift();
   if (dmgQueue.length) setTimeout(pumpDamaged, 20);

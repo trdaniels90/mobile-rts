@@ -516,8 +516,26 @@ function drawHusk(g, fx) {
   g.globalAlpha = 1;
 }
 
+// Camouflage: the colour of the ground a structure was built on, taken from the terrain map (the
+// picture under it is already covered by the building's dirt pad). Grass and dirt mix by how much
+// dirt is around, in a few steps so only a handful of sprite variants are ever built.
+const groundMemo = new WeakMap();
+function groundColour(b) {
+  let c = groundMemo.get(b);
+  if (c !== undefined) return c;
+  let f = 0, w = 0;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const x = b.cx + dx, y = b.cy + dy, k = dx || dy ? 1 : 3;
+    if (inMap(x, y)) { w += k; if (G.terr[idx(x, y)] === 1) f += k; }
+  }
+  const t = Math.round((w ? f / w : 0) * 4) / 4, GR = [50, 64, 38], EA = [92, 78, 55];
+  c = (Math.round(GR[0] + (EA[0] - GR[0]) * t) << 16) | (Math.round(GR[1] + (EA[1] - GR[1]) * t) << 8) | Math.round(GR[2] + (EA[2] - GR[2]) * t);
+  groundMemo.set(b, c);
+  return c;
+}
 function drawStructure(g, b, t) {
-  const s = structureSprite(b.type, b.faction);
+  const camo = b.type === 'pillbox' ? groundColour(b) : undefined;
+  const s = structureSprite(b.type, b.faction, camo);
   const x = b.cx * CELL, y = b.cy * CELL;
   let k = b.buildT;
   if (b.sellT > 0) k = Math.min(k, b.sellT / 1.2);
@@ -530,7 +548,7 @@ function drawStructure(g, b, t) {
     return;
   }
   const stage = dmgStage(b);
-  blit(g, stage ? damagedSprite(b.type, b.faction, stage) : s, x, y);
+  blit(g, stage ? damagedSprite(b.type, b.faction, stage, camo) : s, x, y);
   const head = HEADS[b.type];
   if (b.type === 'sam') drawSamHead(g, b, x, y, stage);
   else if (head) {
