@@ -223,7 +223,7 @@ function aiPowerTarget(team, cluster) {
   return { x: best.x, y: best.y };
 }
 
-const ARMY_UNITS = 60, ARMY_WORTH = 28000;
+const ARMY_UNITS = 80, ARMY_WORTH = 28000;
 function aiThink(team) {
   const c = aiCount(team);
   if (unitsOf(enemyOf(team).id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
@@ -285,18 +285,19 @@ function aiThink(team) {
   // A cap on the army, by headcount (for the frame rate) and by worth, so a side whose units cost
   // more (Soviet Heavy Tanks and Mammoths) does not field a stronger army of the same size.
   const armyUnits = G.entities.filter((e) => e.alive && e.team === team.id && e.kind === 'unit' && !e.def.harvester);
-  if (armyUnits.length > ARMY_UNITS || armyUnits.reduce((a, e) => a + e.def.cost, 0) > ARMY_WORTH) return;
+  // At the cap only army production stops (infantry, vehicles, aircraft, surplus tanks); the support powers and repairs carry on.
+  const capped = armyUnits.length > ARMY_UNITS || armyUnits.reduce((a, e) => a + e.def.cost, 0) > ARMY_WORTH;
   // Once the enemy flies aircraft (Normal and Hard), lean on units that can shoot them down:
   // rocket soldiers, Mammoths or Rangers, and fighters rather than helicopters.
   const A = G.diff.ai, anti = A.adapt && team.sawAir;
   const iq = team.queues.infantry;
-  if (c.barracks && iq.length < A.queue && money > (truckDue ? 900 : 150)) {
+  if (!capped && c.barracks && iq.length < A.queue && money > (truckDue ? 900 : 150)) {
     const r = Math.random();
     const sov = team.faction === 'soviets';   // no Rocket Soldiers: rifles and grenadiers
     // Allies: mostly rifles, and more Rocket Soldiers once the enemy flies, but never only them.
     startProduction(team, sov ? (r < 0.55 ? 'rifle' : 'grenadier') : r < (anti ? 0.6 : 0.4) ? 'rocket' : 'rifle');
   }
-  if (c.factory && vq.length < A.queue && money > 500 && !truckDue) {
+  if (!capped && c.factory && vq.length < A.queue && money > 500 && !truckDue) {
     const opts = team.faction === 'allies' ? (anti ? ['mtank', 'mtank', 'ranger', 'ranger', 'ltank'] : ['ltank', 'mtank', 'mtank', 'ranger'])
       : (anti ? ['htank', 'mammoth', 'mammoth', 'htank'] : ['htank', 'htank', 'htank', 'mammoth']);
     const sup = team.faction === 'allies' ? 'arty' : 'v2rl';                        // long-range support, once it has a Radar Dome
@@ -305,7 +306,7 @@ function aiThink(team) {
   }
   // Helicopters and jets have their own queues; against aircraft it leans on fighters.
   const air = G.entities.filter((e) => e.alive && e.team === team.id && e.cls === 'air').length + team.queues.heli.length + team.queues.jet.length;
-  if (money > (anti ? 600 : 900) && air < 6 && !truckDue) {
+  if (!capped && money > (anti ? 600 : 900) && air < 6 && !truckDue) {
     const heli = team.faction === 'allies' ? 'heli' : 'hind', jet = team.faction === 'allies' ? 'jet' : 'mig';
     if (c.airfield && !team.queues.jet.length && padRoom(team, 'airfield') > 0 && (anti || Math.random() < 0.5)) startProduction(team, jet);
     else if (c.helipad && !team.queues.heli.length && (!anti || !c.airfield || Math.random() < 0.25)) startProduction(team, heli);
@@ -324,7 +325,7 @@ function aiThink(team) {
     else if (team.credits > 800 && b.hp < b.maxHp * 0.6) b.repairing = true;
   }
   // Pour surplus cash into extra tanks.
-  if (team.credits > 4000 && c.factory && vq.length < 3) startProduction(team, team.faction === 'allies' ? 'mtank' : 'htank');
+  if (!capped && team.credits > 4000 && c.factory && vq.length < 3) startProduction(team, team.faction === 'allies' ? 'mtank' : 'htank');
 }
 
 // --- Attack waves ------------------------------------------------------------------
