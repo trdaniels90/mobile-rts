@@ -50,7 +50,7 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
   G.teams[PLAYER].start = { ...G.spawns[pi] };
   G.teams[ENEMY].start = { ...G.spawns[ei] };
   genMap(seed);
-  G.terrainCanvas = paintTerrain(G.terr, seed, G.road, G.bridges, G.cliff);
+  G.terrainCanvas = paintTerrain(G.terr, seed, G.road, G.bridges, G.cliff, G.ford);
   G.tctx = G.terrainCanvas.getContext('2d');
   // Bodies and wrecks get their own layer above the ground, so later craters and scorch
   // marks never paint over them.
@@ -347,7 +347,8 @@ function genMap(seed) {
 // A fixed layout (a map in maps.js with `rows`, see tools/map-from-image.py): the same every game.
 function genLayoutMap(m) {
   G.cliff = new Uint8Array(NCELLS);   // rock painted as cliff ridges (art.js paintCliffs), not loose boulders
-  const T = G.terr, code = { '.': 0, ',': 1, 'T': 2, '#': 3, '~': 4, '=': 5, 'o': 0 }, oreAt = [];
+  G.ford = new Uint8Array(NCELLS);    // shallow water units can cross: walkable like a bridge, painted as a creek bed
+  const T = G.terr, code = { '.': 0, ',': 1, 'T': 2, '#': 3, '~': 4, '=': 5, 'f': 5, 'o': 0 }, oreAt = [];
   m.rows.forEach((row, y) => {
     let x = 0;
     for (const [, n, ch] of row.matchAll(/(\d*)(\D)/g)) for (let k = +(n || 1); k-- > 0; x++) {
@@ -355,8 +356,18 @@ function genLayoutMap(m) {
       T[idx(x, y)] = code[ch];
       if (ch === 'o') oreAt.push(idx(x, y));
       if (ch === '#') G.cliff[idx(x, y)] = 1;
+      if (ch === 'f') G.ford[idx(x, y)] = 1;
     }
   });
+  // A ford's ends that reach past the river onto the bank (no water just up or down stream) are just bank.
+  const fordOff = [];
+  for (let c = 0; c < NCELLS; c++) {
+    if (!G.ford[c]) continue;
+    let wet = false;
+    for (let dy = -3; dy <= 3; dy++) { const x = cellX(c), y = cellY(c) + dy; if (inMap(x, y) && T[idx(x, y)] === 4) wet = true; }
+    if (!wet) fordOff.push(c);
+  }
+  for (const c of fordOff) { G.ford[c] = 0; T[c] = 1; }
   // Ground cleared for each start position's Construction Yard.
   for (const s of G.spawns) for (let y = s.cy - 3; y <= s.cy + 3; y++) for (let x = s.cx - 3; x <= s.cx + 3; x++) {
     if (inMap(x, y) && Math.hypot(x - s.cx, y - s.cy) < 3.2 && T[idx(x, y)] <= 3) T[idx(x, y)] = 1;
@@ -382,11 +393,11 @@ function genLayoutMap(m) {
   G.road = []; G.bridges = [];
   const seenB = new Uint8Array(NCELLS);
   for (let c0 = 0; c0 < NCELLS; c0++) {
-    if (T[c0] !== 5 || seenB[c0]) continue;
+    if (T[c0] !== 5 || G.ford[c0] || seenB[c0]) continue;
     const cells = [c0]; seenB[c0] = 1;
     for (let i = 0; i < cells.length; i++) for (const [dx, dy] of DIRS8) {
       const x = cellX(cells[i]) + dx, y = cellY(cells[i]) + dy;
-      if (inMap(x, y) && T[idx(x, y)] === 5 && !seenB[idx(x, y)]) { seenB[idx(x, y)] = 1; cells.push(idx(x, y)); }
+      if (inMap(x, y) && T[idx(x, y)] === 5 && !G.ford[idx(x, y)] && !seenB[idx(x, y)]) { seenB[idx(x, y)] = 1; cells.push(idx(x, y)); }
     }
     const xs = cells.map(cellX), ys = cells.map(cellY), x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, y0 = Math.min(...ys), y1 = Math.max(...ys) + 1;
     G.bridges.push(x1 - x0 >= y1 - y0

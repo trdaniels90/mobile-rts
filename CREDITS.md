@@ -56,7 +56,7 @@ Loaded from Google Fonts under the [SIL Open Font License 1.1](https://openfontl
 
 ## Maps
 
-The layout of "Three Bridges" is traced from a pixel map design supplied by the owner
+The layout of "Three Crossings" is traced from a pixel map design supplied by the owner
 (`maps/designs/river.png`) with `tools/map-from-image.py`.
 
 ## App icon

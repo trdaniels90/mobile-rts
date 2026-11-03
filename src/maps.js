@@ -11,21 +11,21 @@ const MAPS = {
     info: '144 × 144 cells · 8 start positions',
   },
   river: {
-    name: 'Three Bridges',
+    name: 'Three Crossings',
     img: 'maps/river.png',
-    blurb: 'A winding river splits west from east. Three bridges cross it: in the far north, the middle and the south. Creeks and cliffs make chokepoints, and ore lies on both banks.',
+    blurb: 'A winding river splits west from east. A bridge crosses it in the middle, and shallow fords in the far north and the south. Creeks and cliffs make chokepoints, and ore lies on both banks.',
     info: '144 × 144 cells · 8 start positions · made for 2 v 2',
     // Built for 2 v 2 (not playable as teams yet): the west bank (start positions 0-3) against the east (4-7).
     // A 1 v 1 starts one player on each bank. Not mirrored, so the banks differ a little.
     teams: [[0, 1, 2, 3], [4, 5, 6, 7]],
     // A fixed layout, traced from the owner's design (maps/designs/river.png) by
-    // python3 tools/map-from-image.py maps/designs/river.png 126 144 --bridge 50,0,60,2 --bridge 65,50,78,52 --bridge 72,111,83,113
-    // Start positions in cells; rows run-length coded: '.' grass, ',' dirt, 'T' woods, '#' rock, '~' water, '=' bridge, 'o' ore.
+    // python3 tools/map-from-image.py maps/designs/river.png 126 144 --ford 50,0,60,2 --bridge 65,50,78,52 --ford 72,111,83,113
+    // Start positions in cells; rows run-length coded: '.' grass, ',' dirt, 'T' woods, '#' rock, '~' water, '=' bridge, 'f' ford (shallow water you can drive through), 'o' ore.
     spawns: [[9,8],[36,47],[37,90],[36,130],[130,12],[108,42],[106,89],[112,125]],
     rows: [
-      '59.8=18.3T2.#6.16o17.T13.',
-      '30.8o5.4T10.13=13.6T.#5.19o15.3T11.',
-      '29.11o3.5T11.8=6.2T8.6T.#5.21o27.',
+      '59.8f18.3T2.#6.16o17.T13.',
+      '30.8o5.4T10.13f13.6T.#5.19o15.3T11.',
+      '29.11o3.5T11.8f6.2T8.6T.#5.21o27.',
       '27.14o4.4T10.2,6~6.5T3.T8.3#2.22o27.',
       '27.14o4.4T10.2,6~6.5T3.T8.3#2.22o27.',
       '27.8o2T4o4.4T10.2,6~2,5.5T2.2T7.#4.oT20o27.',
@@ -150,9 +150,9 @@ const MAPS = {
       ',7.3#26.5T19.2T14.T4.,10~,36.T2.2T9.',
       '8.#.#26.3T37.2T4.3,7~,26.#.5#3.3T11.',
       '3.3T24.T25.7o.o4.2o14.,7~,26.7#17.',
-      '2.4T24.2T24.16o13.9=26.7#17.',
-      '2.6T16.3#28.17o10.14=24.5#19.',
-      '3.6T15.#.#28.4o2T11o13.9=36.4o4.4#2.',
+      '2.4T24.2T24.16o13.9f26.7#17.',
+      '2.6T16.3#28.17o10.14f24.5#19.',
+      '3.6T15.#.#28.4o2T11o13.9f36.4o4.4#2.',
       '3.5T47.17o5.2T6.,7~,35.7o2.#2.#2.',
       '5.3T47.17o2.4T.2T2.2,6~3,34.14o2.',
       '5.3T47.17o2.4T.2T2.2,6~3,34.14o2.',

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Turn a pixel-art map design into a fixed layout for src/maps.js.
 
-    python3 tools/map-from-image.py <design.png> <cells per side in the design> <game MAP size> [--bridge x0,y0,x1,y1 ...]
+    python3 tools/map-from-image.py <design.png> <cells per side in the design> <game MAP size> [--bridge x0,y0,x1,y1 ...] [--ford x0,y0,x1,y1 ...]
 
 The design is read one colour per design cell (the picture may be scaled up by a whole number):
 dark green grass, blue water, brown shore (walkable dirt), light green woods, grey lines rock or
 cliffs, yellow ore (with its darker specks), red dots start positions. Each --bridge box (design
-cells, inclusive) marks the grey bar there as a bridge. The layout is scaled to the game's map
+cells, inclusive) marks the grey bar there as a bridge; each --ford box makes it a shallow ford. The layout is scaled to the game's map
 size and printed as run-length rows ('.' grass, ',' dirt, 'T' woods, '#' rock, '~' water,
-'=' bridge, 'o' ore) plus the start positions in game cells, west of the map's middle first.
+'=' bridge, 'f' ford, 'o' ore) plus the start positions in game cells, west of the map's middle first.
 """
 import sys
 from PIL import Image
@@ -21,11 +21,12 @@ SPECK = {(136, 104, 80), (84, 72, 72), (100, 80, 56), (108, 100, 56)}   # dark f
 
 def main():
     args = sys.argv[1:]
-    bridges = []
-    while '--bridge' in args:
-        i = args.index('--bridge')
-        bridges.append(tuple(int(v) for v in args[i + 1].split(',')))
-        del args[i:i + 2]
+    bridges, fords = [], []
+    for flag, boxes in (('--bridge', bridges), ('--ford', fords)):
+        while flag in args:
+            i = args.index(flag)
+            boxes.append(tuple(int(v) for v in args[i + 1].split(',')))
+            del args[i:i + 2]
     path, n, size = args[0], int(args[1]), int(args[2])
     im = Image.open(path).convert('RGB')
     px, k = im.load(), im.size[0] / n
@@ -38,7 +39,9 @@ def main():
             if c == WATER: grid[y][x] = '~'
             elif c == SHORE: grid[y][x] = ','
             elif c == WOODS: grid[y][x] = 'T'
-            elif c in ROCK: grid[y][x] = '=' if any(x0 <= x <= x1 and y0 <= y <= y1 for x0, y0, x1, y1 in bridges) else '#'
+            elif c in ROCK:
+                inside = lambda boxes: any(x0 <= x <= x1 and y0 <= y <= y1 for x0, y0, x1, y1 in boxes)
+                grid[y][x] = '=' if inside(bridges) else 'f' if inside(fords) else '#'
             elif c == ORE: grid[y][x] = 'o'
             elif c == RED: spawns.append((x, y))
             elif c not in SPECK and c != GRASS: print('unknown colour', c, 'at', x, y, file=sys.stderr)

@@ -23,7 +23,7 @@ function blit(g, s, x, y, shadow) {
 // ---------------------------------------------------------------------------
 const TERRAIN_MINI = ['#2f3d23', '#5a4c37', '#1c2a14', '#5e5a52', '#4a6a8a', '#6b5a3e'];
 
-function paintTerrain(terr, seed, roads, bridges, cliffs) {
+function paintTerrain(terr, seed, roads, bridges, cliffs, fords) {
   buildScenery();
   const c = mkCanvas(WORLD, WORLD), g = c.getContext('2d');
   const img = g.createImageData(WORLD, WORLD), d = img.data;
@@ -31,7 +31,8 @@ function paintTerrain(terr, seed, roads, bridges, cliffs) {
 
   // Cell-centre fields, sampled bilinearly so dirt and shorelines blend across cells.
   const dirt = new Float32Array(NCELLS), water = new Float32Array(NCELLS);
-  for (let i = 0; i < NCELLS; i++) { dirt[i] = terr[i] === 1 ? 1 : 0; water[i] = terr[i] >= 4 ? 1 : 0; }
+  const ford = new Float32Array(NCELLS);   // shallow fords (fixed-layout maps): a stony creek bed under clear water
+  for (let i = 0; i < NCELLS; i++) { dirt[i] = terr[i] === 1 ? 1 : 0; water[i] = terr[i] >= 4 ? 1 : 0; ford[i] = fords && fords[i] ? 1 : 0; }
   const nearFlag = new Uint8Array(NCELLS);
   for (let cy = 0; cy < MAP; cy++) for (let cx = 0; cx < MAP; cx++) {
     let f = 0;
@@ -40,6 +41,7 @@ function paintTerrain(terr, seed, roads, bridges, cliffs) {
       if (x < 0 || y < 0 || x >= MAP || y >= MAP) continue;
       if (dirt[y * MAP + x]) f |= 1;
       if (water[y * MAP + x]) f |= 2;
+      if (ford[y * MAP + x]) f |= 4;
     }
     nearFlag[cy * MAP + cx] = f;
   }
@@ -81,6 +83,15 @@ function paintTerrain(terr, seed, roads, bridges, cliffs) {
         const crest = ((x * 3 + y * 7 + Math.floor(noise(N1, x * 3, y) * 30)) % 23 === 0) && sp > 0.4;
         col = crest ? [150, 172, 190] : pickTone(WATER, 0.9 - (wv - 0.5) * 1.6 + (h - 0.5) * 0.5 + (sp - 0.5) * 0.4);
         if (wv < 0.545) col = sp > 0.35 ? [178, 192, 198] : [120, 140, 156];   // surf
+        const fv = near & 4 ? bil(ford, fx, fy) + (noise(N1, x, y) - 0.5) * 0.5 : 0;
+        if (fv > 0.3) {   // the ford: pebbles and sand showing through shallow water, with ripples
+          const st = noise(N1, (x * 2.2) % WORLD, (y * 2.2) % WORLD);   // stones: clumps of darker and paler pebbles in sand
+          const bed = st > 0.72 ? (sp > 0.5 ? [104, 96, 82] : [78, 72, 62]) : st < 0.22 ? [150, 138, 110] : sp > 0.88 ? [92, 86, 74] : pickTone(SANDS, h * 1.3 - 0.35 + (sp - 0.5) * 0.5);
+          const k = Math.min(1, (fv - 0.3) / 0.3), wt = 0.3;
+          let sh = [bed[0] + (96 - bed[0]) * wt, bed[1] + (128 - bed[1]) * wt, bed[2] + (148 - bed[2]) * wt];
+          if (((x * 2 + Math.floor(noise(N1, x, (y * 4) % WORLD) * 24)) % 19 === 0) && sp > 0.3) sh = [176, 196, 204];   // ripples across the current
+          col = [col[0] + (sh[0] - col[0]) * k, col[1] + (sh[1] - col[1]) * k, col[2] + (sh[2] - col[2]) * k];
+        }
       } else if (wv > 0.36) {
         col = pickTone(SANDS, (wv - 0.36) * 4 + (sp - 0.5) * 0.7);
         if (sp > 0.93) col = [92, 86, 74];                                   // pebbles
