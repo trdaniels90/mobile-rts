@@ -981,7 +981,7 @@ function muzzle(src) {
   }
   if (src.cls === 'air') return { x: src.x + Math.cos(src.face) * 9, y: src.y - (src.alt || 0) + Math.sin(src.face) * 9 };
   if (src.cls === 'inf') return { x: src.x + Math.cos(src.face) * 10, y: src.y + Math.sin(src.face) * 10 - 11 };
-  const s = src.def.size, len = s.tur ? s.tur + s.barrel : 8, z = (TURRET_Z[src.def.draw] + 1.5) * VK;
+  const s = src.def.size, len = s.tur ? s.tur + s.barrel : 8, z = (turretZ(src.def) + 1.5) * VK;
   return { x: src.x + Math.cos(src.tface) * len, y: src.y + Math.sin(src.tface) * len - z };
 }
 // Where shots should land on a target (its body, not its feet).

@@ -66,37 +66,38 @@ const HEAVY_RED = { key: 'soviets', main: '#c9170d', light: '#f0604a', dark: '#8
 function heavyHull(pal, s) {
   const P = pal.key === 'soviets' ? HEAVY_RED : pal;
   const L = s.len, W = s.wid, hl = Math.floor(L / 2), hw = Math.floor(W / 2);
-  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 10);
+  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 8);
   m.box(-hl + 1, -hw, 0, hl - 1, hw, 2, '#1f0f0c', M_ROUGH);                       // dark underside and track edge
-  m.box(-hl, -hw, 2, hl, hw, 6, P.main, M_METAL);                                   // hull slab
-  m.box(-hl + 1, -hw + 1, 6, hl - 2, hw - 1, 7, P.main, M_METAL);                   // top deck, inset
-  m.box(hl - 3, -hw, 2, hl, hw, 4, P.light, M_METAL);                               // pale sloped nose
-  m.clear(hl - 1, -hw, 5, hl, hw, 6); m.clear(hl - 2, -hw, 6, hl, hw, 7);
-  m.box(hl - 3, -hw + 1, 4, hl - 1, hw - 1, 6, P.light, M_METAL);
-  m.box(-hl, -hw, 5, hl, -hw + 1, 6, P.light, M_METAL); m.box(-hl, hw - 1, 5, hl, hw, 6, P.light, M_METAL);   // lit upper edges
-  m.box(-hl, -hw, 2, hl, -hw + 1, 3, P.dark, M_METAL); m.box(-hl, hw - 1, 2, hl, hw, 3, P.dark, M_METAL);    // shadowed lower edges
-  for (let x = -hl + 2; x < -hl + 8; x += 2) m.box(x, -hw + 3, 7, x + 1, hw - 3, 8, P.dark, M_METAL);       // rear deck louvres
-  m.clear(-hl, -hw, 0, -hl + 1, -hw + 1, 6); m.clear(-hl, hw - 1, 0, -hl + 1, hw, 6);                       // rounded rear corners
-  m.paint(-hl, -hw, 2, hl, hw, 7, (x, y, z, c) => (hash3(x, y, z) > 0.94 && c === rgbInt(P.main)) ? P.dark : undefined);
+  m.box(-hl, -hw, 2, hl, hw, 4, P.main, M_METAL);                                   // low hull slab
+  m.box(-hl + 1, -hw + 1, 4, hl - 2, hw - 1, 5, P.main, M_METAL);                   // top deck, inset
+  m.box(hl - 3, -hw, 2, hl, hw, 3, P.light, M_METAL);                               // pale sloped nose
+  m.box(hl - 3, -hw + 1, 3, hl - 1, hw - 1, 4, P.light, M_METAL);
+  m.box(hl - 2, -hw + 1, 4, hl - 1, hw - 1, 5, P.light, M_METAL);
+  m.box(-hl, -hw, 3, hl, -hw + 1, 4, P.light, M_METAL); m.box(-hl, hw - 1, 3, hl, hw, 4, P.light, M_METAL);       // lit upper edges
+  m.box(-hl, -hw, 2, hl, -hw + 1, 3, P.dark, M_METAL); m.box(-hl, hw - 1, 2, hl, hw, 3, P.dark, M_METAL);        // shadowed lower edges
+  for (let x = -hl + 2; x < -hl + 8; x += 2) m.box(x, -hw + 3, 4, x + 1, hw - 3, 5, P.dark, M_METAL);            // rear deck louvres
+  m.clear(-hl, -hw, 0, -hl + 1, -hw + 1, 4); m.clear(-hl, hw - 1, 0, -hl + 1, hw, 4);                            // rounded rear corners
+  m.paint(-hl, -hw, 2, hl, hw, 5, (x, y, z, c) => (hash3(x, y, z) > 0.94 && c === rgbInt(P.main)) ? P.dark : undefined);
   return m;
 }
 function heavyTurret(pal, s) {
   const P = pal.key === 'soviets' ? HEAVY_RED : pal;
-  const r = s.tur, bl = s.barrel, w = 6;
-  const m = new VModel(-r - 4, -r - 3, r + bl + 3, r + 3, 10);
-  m.box(-r - 1, -w, 0, r, w, 3, P.main, M_METAL);                                   // wide low turret box
-  m.box(-r, -w + 1, 3, r - 1, w - 1, 4, P.main, M_METAL);                           // roof
+  const r = s.tur, bl = s.barrel, w = 7;
+  const m = new VModel(-r - 3, -w - 2, r + bl + 3, w + 2, 9);
+  m.box(-r, -w, 0, r, w, 3, P.main, M_METAL);                                       // wide low turret box, centred on the hull
+  m.box(-r + 1, -w + 1, 3, r - 1, w - 1, 4, P.main, M_METAL);                       // roof
   m.clear(r - 1, -w, 0, r, -w + 1, 3); m.clear(r - 1, w - 1, 0, r, w, 3);           // chamfered front corners
+  m.clear(-r, -w, 0, -r + 1, -w + 1, 3); m.clear(-r, w - 1, 0, -r + 1, w, 3);       // and rear corners
   m.box(r - 2, -w + 1, 0, r + 1, w - 1, 3, P.light, M_METAL);                       // pale mantlet
-  m.box(-r - 1, -w, 2, r, -w + 1, 3, P.light, M_METAL); m.box(-r - 1, w - 1, 2, r, w, 3, P.light, M_METAL);
-  m.box(-r - 1, -w, 0, r, -w + 1, 1, P.dark, M_METAL); m.box(-r - 1, w - 1, 0, r, w, 1, P.dark, M_METAL);
-  for (const y of [-2.6, 2.6]) m.cylZ(-1, y, 3, 4, 1.9, P.deep, M_MATTE);           // two dark hatches
-  m.box(-4, -1, 3, -2, 1, 4, P.light, M_METAL);                                     // small panel between them
-  for (const y of [-2.2, 2.2]) {
-    m.cylX(0, r + bl, y, 2, 1.3, '#16120f', M_METAL);                               // thick black guns
-    m.cylX(r + bl - 2, r + bl, y, 2, 1.6, '#16120f', M_METAL);                      // muzzle
+  m.box(-r, -w, 2, r, -w + 1, 3, P.light, M_METAL); m.box(-r, w - 1, 2, r, w, 3, P.light, M_METAL);
+  m.box(-r, -w, 0, r, -w + 1, 1, P.dark, M_METAL); m.box(-r, w - 1, 0, r, w, 1, P.dark, M_METAL);
+  for (const y of [-2.8, 2.8]) m.cylZ(-1, y, 3, 4, 1.9, P.deep, M_MATTE);           // two dark hatches
+  m.box(-4, -1, 3, -2, 1, 4, P.light, M_METAL);                                     // small panel
+  for (const y of [-3.6, 3.6]) {                                                    // thin black guns, well apart
+    m.cylX(0, r + bl, y, 2, 1.0, '#16120f', M_METAL);
+    m.cylX(r + bl - 2, r + bl, y, 2, 1.3, '#16120f', M_METAL);
   }
-  m.line(-r, w - 2, 4, -r, w - 2, 9, '#e8e6dc'); m.set(-r, w - 2, 9, '#ffffff');    // white aerial, rear right
+  m.line(-r + 1, w - 2, 4, -r + 1, w - 2, 8, '#e8e6dc'); m.set(-r + 1, w - 2, 8, '#ffffff');   // white aerial, rear right
   return m;
 }
 function tankHull(pal, s) {
@@ -1125,6 +1126,7 @@ function infSprite(u, pal, frame) {
   return facingSprite(`I${u.type}${pal.key}${frame}`, () => infModel(pal, u.faction, u.type, frame), u.face, 16, { crisp: true });
 }
 const TURRET_Z = { tank: 7, jeep: 5, arty: 9, v2: 12 };
+function turretZ(d) { return d.size && d.size.tz !== undefined ? d.size.tz : TURRET_Z[d.draw]; }   // a def can sit its turret lower (Heavy Tank)
 
 // Scenery: trees, boulders, ore, all rendered once.
 function treeModel(seed, pine) {

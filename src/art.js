@@ -195,7 +195,7 @@ function bakeWreck(tg, x, y, def, face, tface, noTurret) {
   if (hs.sh) { tg.globalAlpha = 0.45; tg.drawImage(hs.sh, Math.round(x + hs.sox), Math.round(y + hs.soy)); tg.globalAlpha = 1; }
   tg.drawImage(charred(hs.img, seed), Math.round(x + hs.ox), Math.round(y + hs.oy));
   const ts = !noTurret && turretSprite(fake, BURNT);
-  if (ts) tg.drawImage(charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - TURRET_Z[def.draw] * VK + ts.oy));
+  if (ts) tg.drawImage(charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - turretZ(def) * VK + ts.oy));
 }
 // A turret blown off by a cook-off, charred, at its height above the ground and turned by rot.
 function turretImg(fx) {
@@ -469,7 +469,7 @@ function drawUnit(g, u, t) {
   blit(g, hullSprite(u, pal), u.x, u.y);
   const ts = turretSprite(u, pal);
   if (ts) {
-    const z = TURRET_Z[u.def.draw] * VK, off = u.def.draw === 'jeep' ? -3 : -1;
+    const z = turretZ(u.def) * VK, off = u.def.draw === 'jeep' ? -3 : -1;
     const tx = u.x + Math.cos(u.face) * off, ty = u.y + Math.sin(u.face) * off - z;
     blit(g, ts, tx, ty, false);
     if (u.fireT > 0) {
@@ -512,7 +512,7 @@ function drawHusk(g, fx) {
   g.globalAlpha = Math.min(1, (1 - fx.t / fx.life) * 4);
   blit(g, hullSprite(fake, BURNT), fx.x, fx.y);
   const ts = turretSprite(fake, BURNT);
-  if (ts) blit(g, ts, fx.x, fx.y - TURRET_Z[fx.def.draw] * VK, false);
+  if (ts) blit(g, ts, fx.x, fx.y - turretZ(fx.def) * VK, false);
   g.globalAlpha = 1;
 }
 
@@ -935,7 +935,7 @@ function cameoURL(type, faction) {
   if (d && (d.draw === 'tank' || d.draw === 'jeep')) {
     const tm = d.draw === 'tank' ? tankTurret(pal, d.size) : mgModel();
     const ts = renderVox(tm, angle, { scale, shadow: false });
-    const z = TURRET_Z[d.draw] * VK * scale, off = (d.draw === 'jeep' ? -3 : -1) * scale;
+    const z = turretZ(d) * VK * scale, off = (d.draw === 'jeep' ? -3 : -1) * scale;
     const ox = dx - s.ox * scale, oy = dy - s.oy * scale;
     g.drawImage(ts.img, Math.round(ox + Math.cos(angle) * off + ts.ox * scale), Math.round(oy + Math.sin(angle) * off - z + ts.oy * scale));
   }
