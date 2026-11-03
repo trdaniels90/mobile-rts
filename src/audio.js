@@ -610,6 +610,7 @@ const Sound = (() => {
     // Recorded pieces (src/industry.js, src/war.js), played whole instead of sequenced.
     { name: 'Industry', rec: 'industry', bpm: 120, key: E, parts: {}, order: [] },
     { name: 'War', rec: 'war', bpm: 120, key: E, parts: {}, order: [] },
+    { name: 'Smash', rec: 'smash', bpm: 120, key: E, parts: {}, order: [] },
   ];
   for (const song of SONGS) for (const part of Object.values(song.parts)) {
     for (const key of ['gtr', 'bass', 'lead', 'stab', 'pad']) {

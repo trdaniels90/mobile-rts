@@ -25,7 +25,7 @@ Sounds are trimmed, pitched, mixed, filtered and level-matched for the game by
 
 ## Recorded track
 
-"Industry" (`src/industry.js`) and "War" (`src/war.js`) are recorded pieces supplied by the owner, converted to a
+"Industry" (`src/industry.js`), "War" (`src/war.js`) and "Smash" (`src/smash.js`) are recorded pieces supplied by the owner, converted to a
 96 kbps MP3 and level-matched with ffmpeg. They are currently the whole soundtrack.
 
 ## Music instruments
