@@ -855,9 +855,22 @@ function launchGroups() {
     defendBase(team);
     const rally = rallyPoint(team);
     const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.def.harvester && (u.def.weapon || u.cls === 'air') && u.order.type === 'guard');
-    // Aircraft do not wait for a group: each one heads out on its own.
+    // The player's aircraft do not wait for a group: each one heads out on its own.
     // (A jet that came home early waits on its pad until it is fully rearmed.)
-    if (team.auto && enemyBaseKnown(team.id)) for (const u of waiting) if (u.cls === 'air' && !u.interceptor && (u.as !== 'landed' || airFull(u))) launchAircraft(u);
+    // The computer sends helicopters together and jets together: two or more at once, and a lone
+    // one only after waiting AIR_GROUP_WAIT seconds for company.
+    if (team.auto && enemyBaseKnown(team.id)) {
+      const flyers = waiting.filter((u) => u.cls === 'air' && !u.interceptor), ok = (u) => u.as !== 'landed' || airFull(u);
+      if (!team.isAI) for (const u of flyers) { if (ok(u)) launchAircraft(u); }
+      else for (const kind of ['heli', 'jet']) {
+        const mine = flyers.filter((u) => u.def.fly === kind), ready = mine.filter(ok);
+        for (const u of mine) if (!ok(u)) u.airReadyT = undefined;
+        for (const u of ready) if (u.airReadyT === undefined) u.airReadyT = G.t;
+        if (ready.length < 2 && !ready.some((u) => G.t - u.airReadyT >= AIR_GROUP_WAIT)) continue;
+        const exp = expansionsOf(enemyOf(team), ready[0]), focus = exp.length && Math.random() < 1 / 3 ? exp[0] : null;
+        for (const u of ready) { launchAircraft(u, focus); u.airReadyT = undefined; }
+      }
+    }
     scramble(team);
     const ready = waiting.filter((u) => u.cls !== 'air' && !u.dest && inBase(team, u));
     team.waiting = ready.length;
@@ -908,11 +921,13 @@ function scramble(team) {
   }
 }
 
-function launchAircraft(u) {
+const AIR_GROUP_WAIT = 90;   // seconds a lone computer aircraft waits for others before going out alone
+// `focus`: where a group of aircraft all go (null: the main base); left out, one in three picks an outlying site.
+function launchAircraft(u, focus) {
   setHunt(u);
   u.staged = false;
-  const exp = expansionsOf(enemyOf(G.teams[u.team]), u);
-  if (exp.length && Math.random() < 1 / 3) u.focus = exp[0];
+  if (focus === undefined) { const exp = expansionsOf(enemyOf(G.teams[u.team]), u); focus = exp.length && Math.random() < 1 / 3 ? exp[0] : null; }
+  if (focus) u.focus = focus;
   if (u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff';
 }
 
