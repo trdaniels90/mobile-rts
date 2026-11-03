@@ -93,9 +93,9 @@ function heavyTurret(pal, s) {
   m.box(-r, -w, 0, r, -w + 1, 1, P.dark, M_METAL); m.box(-r, w - 1, 0, r, w, 1, P.dark, M_METAL);
   for (const y of [-2.8, 2.8]) m.cylZ(-1, y, 3, 4, 1.9, P.deep, M_MATTE);           // two dark hatches
   m.box(-4, -1, 3, -2, 1, 4, P.light, M_METAL);                                     // small panel
-  for (const y of [-3.6, 3.6]) {                                                    // thin black guns, well apart
-    m.cylX(0, r + bl, y, 2, 1.0, '#16120f', M_METAL);
-    m.cylX(r + bl - 2, r + bl, y, 2, 1.3, '#16120f', M_METAL);
+  for (const y of [-3.6, 3.6]) {                                                        // thick black guns, as wide as the reference
+    m.cylX(0, r + bl, y, 2, 1.5, '#16120f', M_METAL);
+    m.cylX(r + bl - 3, r + bl, y, 2, 1.8, '#16120f', M_METAL);
   }
   m.line(-r + 1, w - 2, 4, -r + 1, w - 2, 8, '#e8e6dc'); m.set(-r + 1, w - 2, 8, '#ffffff');   // white aerial, rear right
   return m;
