@@ -2303,6 +2303,7 @@ function callFromReserve(team, r) {
 function flyAway(u, dt) {
   if (u.as === 'landed') u.as = 'takeoff';
   if (u.as === 'takeoff') {
+    u.roll = 0; u.final = false;
     u.alt = Math.min(JET_ALT, u.alt + 25 * dt);
     u.speedCur = Math.min(u.def.speed, u.speedCur + 160 * dt);
     u.x += Math.cos(u.face) * u.speedCur * dt; u.y += Math.sin(u.face) * u.speedCur * dt; u.moving = true;
@@ -2360,7 +2361,9 @@ function updateAir(u, dt) {
   }
 
   if (u.as === 'landed') {
+    if (u.roll > 0) { rollOut(u, dt); return; }   // still braking down the runway after touchdown
     u.alt = 0; u.speedCur = 0;
+    if (Math.abs(angDiff(0, u.face)) > 0.02) u.face = turnToward(u.face, 0, 3 * dt);   // taxi round to face the way parked jets do
     u.rt += dt;
     if (!airFull(u) && u.rt >= (jet ? 3.4 : 0.5)) { rearmStep(u); u.rt = 0; }   // a jet takes about 20 s to rearm fully
     // Ground crews patch up damage at the same rate and price as structure repairs: 2% of its
@@ -2412,11 +2415,7 @@ function updateAir(u, dt) {
           const a = acquire(u, u.def.weapon2.range, [u.def.weapon2]);
           if (a && Math.abs(angDiff(Math.atan2(a.y - u.y, a.x - u.x), u.face)) < 0.5) { shoot(u, u.def.weapon2, a); u.cd = u.def.weapon2.rof; u.aam--; }
         }
-        if (d < 26) { u.as = 'landed'; u.x = spot.x; u.y = spot.y; u.face = 0; u.rt = 0; if (u.retreat) u.repairHold = true; u.retreat = false; strikeOver(u); return; }
-        // Close in, slow down in proportion to the distance, so a jet that came in at an angle spirals
-        // onto its spot instead of circling it for ever (its turning circle would miss the landing).
-        if (d < 140) u.speedCur = Math.min(u.speedCur || 0, Math.max(40, d * 1.2));
-        flyJet(u, spot.x, spot.y, dt);
+        landJet(u, spot, runwayDir(pad, spot), dt);
       } else {
         if (d < 3) { u.alt = Math.max(0, u.alt - 20 * dt); if (u.alt <= 0) { u.as = 'landed'; u.rt = 0; if (u.retreat) u.repairHold = true; u.retreat = false; strikeOver(u); } return; }
         flyHeli(u, spot.x, spot.y, dt);
@@ -2431,6 +2430,7 @@ function updateAir(u, dt) {
     return;
   }
 
+  u.final = false;   // back to the fight: no longer lined up for a landing
   u.think -= dt;
   if (u.think <= 0) {
     u.think = 0.3; u.target = airTarget(u);
@@ -2515,6 +2515,50 @@ function flyHeli(u, x, y, dt) {
     u.x += Math.cos(ang) * step; u.y += Math.sin(ang) * step; u.moving = true;
   }
   clampAir(u);
+}
+// --- Jet landings ---------------------------------------------------------------
+// A jet lines up with its slot's runway, descends along a glide path at landing speed, touches down
+// short of the slot, brakes along the ground and then taxis round to park. Slots in the Airfield's
+// east column land westward so nobody rolls through a jet parked in the west column.
+const LAND_GLIDE = 170, LAND_ROLL = 50, LAND_SPEED = 100;
+function runwayDir(pad, spot) {
+  if (pad.type !== 'airfield') return 1;
+  const dx = spot.x - pad.cx * CELL;
+  return dx > 40 && dx < 70 ? -1 : 1;
+}
+function landJet(u, spot, dir, dt) {
+  const T = { x: spot.x - dir * LAND_ROLL, y: spot.y };
+  const along = (T.x - u.x) * dir, lat = Math.abs(u.y - T.y);   // along: run still to go to the touchdown point
+  const head = Math.abs(angDiff(dir > 0 ? 0 : Math.PI, u.face));
+  if (!u.final && along > 50 && along < LAND_GLIDE + 230 && lat < Math.min(150, along * 0.75) && head < 1.4) u.final = true;
+  if (u.final && along < 45 && lat > 32) u.final = false;      // too far off the line: go round again
+  if (!u.final) {
+    // Fly to a point well out on the approach line, climbing back to cruise height if it had started down.
+    u.alt = Math.min(JET_ALT, (u.alt || 0) + 25 * dt);
+    flyJet(u, T.x - dir * (LAND_GLIDE + 150), T.y, dt);
+    return;
+  }
+  const frac = Math.max(0, Math.min(1, along / LAND_GLIDE));
+  u.face = turnToward(u.face, Math.atan2(T.y - u.y, T.x - u.x), u.def.turn * 1.8 * dt);   // banking hard to get onto the line
+  u.alt = JET_ALT * frac;
+  u.speedCur = LAND_SPEED + (u.def.speed - LAND_SPEED) * frac * frac;
+  u.x += Math.cos(u.face) * u.speedCur * dt; u.y += Math.sin(u.face) * u.speedCur * dt;
+  u.moving = true;
+  clampAir(u);
+  if (along <= 4) {   // wheels down
+    u.as = 'landed'; u.alt = 0; u.speedCur = LAND_SPEED;
+    u.roll = LAND_ROLL; u.rollTo = { x: spot.x, y: spot.y }; u.final = false; u.rt = 0;
+    if (u.retreat) u.repairHold = true; u.retreat = false; strikeOver(u);
+  }
+}
+function rollOut(u, dt) {
+  const to = u.rollTo, left = Math.hypot(to.x - u.x, to.y - u.y);
+  u.alt = 0; u.moving = true;
+  if (left <= 1.5) { u.x = to.x; u.y = to.y; u.roll = 0; u.rollTo = null; u.speedCur = 0; u.moving = false; return; }
+  u.face = turnToward(u.face, Math.atan2(to.y - u.y, to.x - u.x), 6 * dt);   // wheels steer it onto its slot
+  u.speedCur = Math.max(14, LAND_SPEED * Math.min(1, left / LAND_ROLL));
+  const step = Math.min(left, u.speedCur * dt);
+  u.x += (to.x - u.x) / left * step; u.y += (to.y - u.y) / left * step;
 }
 function flyJet(u, x, y, dt) {
   const ang = Math.atan2(y - u.y, x - u.x);
