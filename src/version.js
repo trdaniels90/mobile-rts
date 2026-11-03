@@ -4,6 +4,18 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.03.2', date: '3 November 2026', title: 'Jets land properly, surviving crews and a new Medium Tank', groups: [
+    ['New', [
+      'A destroyed ground vehicle that does not cook off can now leave one surviving rifleman, about one time in three. He stands guard where the wreck fell. It works the same online.',
+    ]],
+    ['Changes', [
+      'Jets now land like real planes. They line up with the runway, come down on a glide path at landing speed, touch down, brake along the ground and taxi onto their parking spot, instead of slowing to a hover and dropping. Strike Jets and MiGs, both sides, single player and online.',
+      'The computer opponent can now field up to 80 units (it was 60). Reaching the limit stops it building more army only: it keeps using its Paratroopers and Bombing Run and repairing its buildings.',
+    ]],
+    ['Look', [
+      'The Allied Medium Tank has a new look: a pale silver hull with striped skirt panels, a small blue-lilac turret with two round hatches, a longer gun and a short aerial.',
+    ]],
+  ] },
   { v: '2026.11.03.1', date: '3 November 2026', title: 'New Heavy Tank and Mammoth Tank', groups: [
     ['Look', [
       'The Soviet Heavy Tank has a new look: a low bright red hull, a wide flat turret with two dark hatches, a white aerial and two long black guns side by side.',
