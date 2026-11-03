@@ -79,7 +79,7 @@ const UNIT_DEFS = {
   },
   mammoth: {
     name: 'Mammoth Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'tank',
-    cost: 1700, hp: 950, armor: 'heavy', speed: 30, turn: 2, sight: 6, r: 12, size: { len: 26, wid: 20, tur: 7.5, barrel: 14, twin: true, pods: true },
+    cost: 1700, hp: 950, armor: 'heavy', speed: 30, turn: 2, sight: 6, r: 12, size: { len: 26, wid: 20, tur: 7.5, barrel: 14, twin: true, pods: true, mammoth: true, tz: 5 },
     weapon: { dmg: 45, rof: 1.9, range: 118, wh: 'AP', proj: 'shell', twin: true },
     weapon2: { dmg: 35, rof: 2.6, range: 140, wh: 'HE', proj: 'rocket', air: true },
   },

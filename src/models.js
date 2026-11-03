@@ -100,7 +100,60 @@ function heavyTurret(pal, s) {
   m.line(-r + 1 + f, w - 2, 4, -r + 1 + f, w - 2, 8, '#e8e6dc'); m.set(-r + 1 + f, w - 2, 8, '#ffffff');   // white aerial, rear right
   return m;
 }
+// Soviet Mammoth Tank, copied from the reference: two big rounded red track pods either side of a
+// central hull with orange panels, a turret with a round grey emblem hatch, dark missile boxes at its
+// sides, two white aerials at the rear and a pair of slim grey guns.
+const MAMMOTH_ORANGE = '#cf5a1a', MAMMOTH_GREY = '#3b3e3c';
+function mammothHull(pal, s) {
+  const P = pal.key === 'soviets' ? HEAVY_RED : pal;
+  const hl = Math.floor(s.len / 2), hw = Math.floor(s.wid / 2), pw = 6;
+  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 9);
+  for (const side of [-1, 1]) {
+    const y0 = side < 0 ? -hw : hw - pw, y1 = y0 + pw, out = side < 0 ? -hw : hw - 1, inn = side < 0 ? y1 - 1 : y0;
+    m.box(-hl + 1, y0, 0, hl - 1, y1, 2, '#1f0f0c', M_ROUGH);                       // dark underside
+    m.box(-hl, y0, 1, hl, y1, 6, P.main, M_METAL);                                   // rounded track pod
+    m.clear(-hl, y0, 1, -hl + 1, y1, 2); m.clear(hl - 1, y0, 1, hl, y1, 2);          // rounded ends and top edges
+    m.clear(-hl, y0, 5, -hl + 1, y1, 6); m.clear(hl - 1, y0, 5, hl, y1, 6);
+    m.clear(-hl, out, 5, hl, out + 1, 6); m.clear(-hl, out, 1, hl, out + 1, 2);
+    m.box(-hl + 1, out + (side < 0 ? 1 : -1), 5, hl - 1, out + (side < 0 ? 2 : 0), 6, P.light, M_METAL);   // lit shoulder
+    m.paint(-hl, out, 2, hl, out + 1, 5, (x, y, z) => ((x + hl) % 5 === 0) ? P.dark : undefined);          // track blocks
+    m.paint(-hl, y0, 2, hl, y1, 6, (x, y, z, c) => (hash3(x, y, z) > 0.92 && c === rgbInt(P.main)) ? P.dark : undefined);
+  }
+  m.box(-hl + 1, -hw + pw, 1, hl - 1, hw - pw, 5, P.main, M_METAL);                  // central hull between the pods
+  m.box(-hl + 1, -hw + pw, 1, hl - 1, -hw + pw + 1, 5, P.dark, M_METAL); m.box(-hl + 1, hw - pw - 1, 1, hl - 1, hw - pw, 5, P.dark, M_METAL);
+  m.box(hl - 5, -3, 2, hl - 1, 3, 4, MAMMOTH_ORANGE, M_METAL);                       // front orange plate
+  for (const y of [-1, 1]) m.box(hl - 5, y, 3, hl - 1, y + 1, 4, P.dark);
+  m.box(-hl + 1, -3, 4, -hl + 8, 3, 5, MAMMOTH_ORANGE, M_METAL);                     // rear orange grille
+  for (let x = -hl + 2; x < -hl + 8; x += 2) m.box(x, -3, 4, x + 1, 3, 5, P.dark);
+  return m;
+}
+function mammothTurret(pal, s) {
+  const P = pal.key === 'soviets' ? HEAVY_RED : pal;
+  const r = 5, f = 1, w = 4, bl = s.barrel, reach = s.tur + bl;
+  const m = new VModel(-r - 4, -9, reach + 4, 9, 11);
+  m.box(-r + f, -w, 0, r + f, w, 4, P.main, M_METAL);                                // turret box
+  m.box(-r + 1 + f, -w + 1, 4, r - 1 + f, w - 1, 5, P.main, M_METAL);                // roof
+  m.clear(r - 1 + f, -w, 0, r + f, -w + 1, 4); m.clear(r - 1 + f, w - 1, 0, r + f, w, 4);
+  m.box(r - 2 + f, -w + 1, 0, r + 1 + f, w - 1, 4, P.light, M_METAL);                // pale front
+  m.box(-r + f, -w, 3, r + f, -w + 1, 4, P.light, M_METAL); m.box(-r + f, w - 1, 3, r + f, w, 4, P.light, M_METAL);
+  for (const sx of [-1, 1]) {                                                       // missile boxes either side
+    const y0 = sx < 0 ? -w - 2 : w, y1 = y0 + 2;
+    m.box(-3 + f, y0, 0, 3 + f, y1, 4, MAMMOTH_GREY, M_METAL);
+    m.box(-3 + f, y0, 3, 3 + f, y1, 4, '#4a4e4c', M_METAL);
+  }
+  m.cylZ(f, 0, 5, 6, 2.1, '#8d908e', M_METAL);                                      // round silver emblem hatch
+  m.cylZ(f, 0, 5, 6, 1.1, P.dark, M_METAL);     // red star, gold centre
+  for (const y of [-3, 3]) {                                                        // two white aerials, red tipped
+    m.line(-r + 1 + f, y, 5, -r + 1 + f, y, 9, '#ecebe3'); m.set(-r + 1 + f, y, 9, '#d12a1c');
+  }
+  for (const y of [-2.6, 2.6]) {                                                    // slim grey guns, well apart
+    m.cylX(r + f - 1, reach, y, 2.5, 1.15, MAMMOTH_GREY, M_METAL);
+    m.cylX(reach - 3, reach, y, 2.5, 1.5, '#25272a', M_METAL);
+  }
+  return m;
+}
 function tankHull(pal, s) {
+  if (s.mammoth) return mammothHull(pal, s);
   if (s.heavy) return heavyHull(pal, s);
   const L = s.len, W = s.wid, hl = Math.floor(L / 2), hw = Math.floor(W / 2), tw = Math.max(3, Math.round(W * 0.26));
   const m = new VModel(-hl - 2, -hw - 2, hl + 3 + (s.reach || 0), hw + 3, s.height || 10);   // reach/height: room for a big gun
@@ -123,6 +176,7 @@ function tankHull(pal, s) {
   return m;
 }
 function tankTurret(pal, s) {
+  if (s.mammoth) return mammothTurret(pal, s);
   if (s.heavy) return heavyTurret(pal, s);
   const r = s.tur, bl = s.barrel;
   const m = new VModel(-r - 2, -r - 2, r + bl + 3, r + 2, 7);
