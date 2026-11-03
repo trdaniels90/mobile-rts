@@ -3038,12 +3038,20 @@ function update(dt) {
   sweepDead();
   rollCredits(dt);
 }
-// Wind: one steady direction for the whole match, taken from the map seed so an online guest sees the
-// same one, and swelling and easing slowly. It blows every puff of smoke along (the older the puff, the
-// more it is carried), so a firing turret trails a plume and burning buildings lean over. Looks only.
-const WIND = 30;   // px/s at its steady strength
+// Wind: blows smoke along. It holds one direction for a spell, then swings round to a new random one,
+// and swells and eases slowly. Every direction is worked out from the map seed and the match clock, so
+// an online guest sees the same wind as the host. The older a puff, the more it is carried, so a firing
+// turret trails a plume and burning buildings lean over. Looks only.
+const WIND = 30, WIND_SPELL = 50;   // px/s at its steady strength; seconds between changes of direction
+function windDirection(n) {   // the nth spell's direction: a fixed random angle per seed and spell
+  let x = ((G.seed ^ 0x6c8e9cf5) + Math.imul(n + 1, 0x85ebca6b)) | 0;
+  x = Math.imul(x ^ (x >>> 15), 0x2c1b3c6d); x = Math.imul(x ^ (x >>> 12), 0x297a2d39); x ^= x >>> 15;
+  return ((x >>> 0) / 4294967296) * Math.PI * 2;
+}
 function windNow() {
-  const a = ((Math.imul(G.seed ^ 0x6c8e9cf5, 0x9e3779b1) >>> 0) / 4294967296) * Math.PI * 2;
+  const k = Math.floor(G.t / WIND_SPELL), f = G.t / WIND_SPELL - k;
+  const a0 = windDirection(k), turn = ((windDirection(k + 1) - a0 + Math.PI * 3) % (Math.PI * 2)) - Math.PI;   // the shorter way round
+  const s = f < 0.7 ? 0 : (f - 0.7) / 0.3, a = a0 + turn * s * s * (3 - 2 * s);                                 // holds, then swings over the last 15 s
   const g = 1 + 0.4 * Math.sin(G.t * 0.35) + 0.2 * Math.sin(G.t * 0.9 + 1.3);
   return { x: Math.cos(a) * WIND * g, y: Math.sin(a) * WIND * g * 0.6, a };
 }
