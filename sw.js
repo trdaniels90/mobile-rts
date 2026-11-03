@@ -3,13 +3,16 @@
 // there is no connection. Each version keeps its own cache, and older ones are cleared out.
 importScripts('src/version.js');
 const CACHE = 'red-horizon-' + VERSION;
-const FILES = ['./', 'index.html', 'style.css', 'src/version.js', 'src/data.js', 'src/maps.js', 'src/voxel.js', 'src/models.js', 'src/art.js', 'src/world.js', 'src/ai.js', 'src/voices.js', 'src/sfx.js', 'src/music.js', 'src/industry.js', 'src/war.js', 'src/smash.js', 'src/rain.js', 'src/audio.js', 'src/manual.js', 'src/debrief.js', 'src/report.js', 'src/profile.js', 'src/net.js', 'src/save.js', 'src/ui.js',
+// The soundtrack is big, so it is fetched in the background after install (never blocking an update).
+const TRACKS = ['music/industry.mp3', 'music/war.mp3', 'music/smash.mp3', 'music/rain.mp3'];
+const FILES = ['./', 'index.html', 'style.css', 'src/version.js', 'src/data.js', 'src/maps.js', 'src/voxel.js', 'src/models.js', 'src/art.js', 'src/world.js', 'src/ai.js', 'src/voices.js', 'src/sfx.js', 'src/music.js', 'src/audio.js', 'src/manual.js', 'src/debrief.js', 'src/report.js', 'src/profile.js', 'src/net.js', 'src/save.js', 'src/ui.js',
   'manifest.webmanifest', 'maps/bridge.png', 'maps/river.png', 'icons/icon.svg', 'icons/icon-192.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
+  caches.open(CACHE).then((c) => TRACKS.reduce((p, t) => p.then(() => c.match(t).then((hit) => hit || c.add(t))).catch(() => {}), Promise.resolve()));
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', (e) => {

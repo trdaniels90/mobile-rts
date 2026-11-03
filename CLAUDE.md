@@ -85,19 +85,21 @@ share globals. Read this file first; the commit history explains every change in
   `Report.resume`, so one game is one `matches` row however often it is saved and continued (play
   time counts once). Saves made before 2026.10.30 have no id and start a new match when continued.
 
-## Soundtrack (2026.11.03.6)
+## Soundtrack (separate files since 2026.11.03.9)
 
-- Four recorded tracks, shuffled: Industry, War, Smash, Rain. Each is an MP3 as base64 in `src/<name>.js`
-  (`REC_TRACKS.<name>`), listed in `SONGS` in `audio.js` with `rec: '<name>'`. `Music.nextSong` deals a shuffled
-  deck (no immediate repeat), `Music.newMatch` (called from `startMission` and the online start in ui.js) opens
-  a match on a random track. Only the playing track is kept decoded (about 60 to 100 MB).
-- **The soundtrack must work offline.** Every track file must be in `FILES` in `sw.js`. If the tracks move to
-  separate `.mp3` files, cache them there too (background download on first online run) and test with the
-  network off in an installed copy.
-- **Artifact size limit: 16 MB per page.** The single-file build was 14.6 MB at 2026.11.03.6. Check the size
-  every release and tell the owner when it nears the limit. Agreed plan, only when it is hit: publish the tracks
-  as separate files beside the page (`files` on the Artifact tool, 16 MB each) instead of inlining them. Until
-  then, a lower bitrate or mono tracks buy room.
+- Four recorded tracks, shuffled: Industry, War, Smash, Rain. Each is an MP3 in `music/<name>.mp3`, listed in `SONGS`
+  in `audio.js` with `rec: '<name>'`. `Music.loadRec` fetches the file (`music/<id>.mp3`) and decodes it on demand;
+  if the fetch or decode fails the song is skipped (`recFailed`). `Music.nextSong` deals a shuffled deck (no immediate
+  repeat), `Music.newMatch` (called from `startMission` and the online start in ui.js) opens a match on a random
+  track. Only the playing track is kept decoded (about 60 to 100 MB).
+- **Adding a track:** put `music/<name>.mp3` in the repo, add it to `SONGS` in `audio.js` and to `TRACKS` in `sw.js`
+  (the service worker downloads the tracks in the background after install, so the soundtrack works offline), credit
+  it in `CREDITS.md`.
+- **The single-file build no longer contains the music.** For the owner's artifact, build to `.build/index.html`,
+  copy `music/` to `.build/music/`, and publish with the Artifact tool's `files` map
+  (`"music/<name>.mp3": ".build/music/<name>.mp3"`) alongside the page, so the page's relative `music/...` URLs work.
+  Each file may be up to 16 MB; the page is now about 2.5 MB. Later releases only need to resend the page
+  (files left out are kept). Remove `.build` afterwards.
 - The owner supplies the tracks (credited in `CREDITS.md`). Convert with ffmpeg: `loudnorm=I=-16:TP=-1.5`,
   a 2.5 s fade out, 44.1 kHz stereo, 96 kbps.
 - Volume sliders (`musicVol`, `sfxVol` in `Sound.settings`, `setVolume`) scale the buses; full is the original mix.

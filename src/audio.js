@@ -673,13 +673,15 @@ const Sound = (() => {
     // Each recorded track is decoded once, in the background, when it is first wanted.
     recBufs: {}, recLoading: {}, recSrc: null,
     loadRec(id) {
-      if (this.recBufs[id] || this.recLoading[id] || typeof REC_TRACKS === 'undefined' || !REC_TRACKS[id]) return;
+      if (this.recBufs[id] || this.recLoading[id]) return;
       this.recLoading[id] = Date.now();
-      // Decoded on demand and not kept after it plays: three minutes of stereo is about 60 MB of memory.
-      const bin = atob(REC_TRACKS[id]), bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      try { ctx.decodeAudioData(bytes.buffer, (buf) => { if (SONGS[this.song].rec === id) this.recBufs[id] = buf; }, () => {}); } catch (_) {}
+      // Fetched from music/<id>.mp3 (the service worker keeps a copy for offline play) and decoded on
+      // demand, not kept after it plays: three minutes of stereo is about 60 MB of memory.
+      fetch('music/' + id + '.mp3').then((r) => { if (!r.ok) throw 0; return r.arrayBuffer(); })
+        .then((ab) => ctx.decodeAudioData(ab, (buf) => { if (SONGS[this.song].rec === id) this.recBufs[id] = buf; }, () => this.recFailed(id)))
+        .catch(() => this.recFailed(id));
     },
+    recFailed(id) { if (SONGS[this.song].rec === id && !this.recBufs[id]) this.skip(); },   // not available: move on
     stopRec() {
       if (!this.recSrc) return;
       const s = this.recSrc; this.recSrc = null; s.onended = null;
@@ -689,7 +691,7 @@ const Sound = (() => {
     tickRec(id) {
       if (this.recSrc) return;
       const buf = this.recBufs[id];
-      if (!buf) { if (!this.recLoading[id] || Date.now() - this.recLoading[id] > 20000) this.skip(); return; }   // not available: move on
+      if (!buf) { if (!this.recLoading[id] || Date.now() - this.recLoading[id] > 45000) this.skip(); return; }   // too slow: move on
       const src = ctx.createBufferSource();
       src.buffer = buf; src.connect(recIn);
       src.onended = () => { if (this.recSrc === src) this.skip(); };
