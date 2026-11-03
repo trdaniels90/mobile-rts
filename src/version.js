@@ -4,6 +4,16 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.03.10', date: '3 November 2026', title: 'Two new songs, bigger Normal waves', groups: [
+    ['New', [
+      'Two new songs in the soundtrack: Airstrike and Roll.',
+    ]],
+    ['Changes', [
+      'Normal computer: attack waves are bigger (10 to 16 units, big pushes 16 to 22) and come at least 3 minutes apart. Single player.',
+      'The computer now sends its helicopters together and its jets together, not one at a time. A lone aircraft waits up to 2.5 minutes for company. All difficulties, single player.',
+      'The music is now loaded as separate files, so the game page is much smaller and loads faster. Installed copies download the songs in the background so they still play offline.',
+    ]],
+  ] },
   { v: '2026.11.03.9', date: '3 November 2026', title: 'Smarter Ore Trucks, calmer music', groups: [
     ['Changes', [
       'Ore Trucks now work the field closest to their refinery until it is down to 1/8 of its ore, then move to the next closest. A field they have left is not used again until it has regrown to 6/8. There is no limit on trucks per field any more. Single player and online.',
