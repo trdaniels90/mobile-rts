@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.03.9', date: '3 November 2026', title: 'Smarter Ore Trucks, calmer music', groups: [
+    ['Changes', [
+      'Ore Trucks now work the field closest to their refinery until it is down to 1/8 of its ore, then move to the next closest. A field they have left is not used again until it has regrown to 6/8. There is no limit on trucks per field any more. Single player and online.',
+      'Music no longer rattles or distorts phone speakers: the deep bass that phones cannot play is filtered out of the recorded tracks, and loud explosions squash the music less.',
+    ]],
+  ] },
   { v: '2026.11.03.8', date: '3 November 2026', title: 'Airfield and depot fixes', groups: [
     ['Fixes', [
       'Jets no longer get stuck when an Airfield is built next to the edge or corner of the map. They now land from the side that has room.',
