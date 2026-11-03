@@ -23,6 +23,12 @@ Sounds are trimmed, pitched, mixed, filtered and level-matched for the game by
 | Flame Tower | [Catching fire](https://opengameart.org/content/catching-fire) | themightyglider | CC0 |
 | Flame Tower | [Fire Crackling](https://opengameart.org/content/fire-crackling) | Antum Deluge | CC0 |
 
+## Recorded track
+
+"Industry" (`src/industry.js`) is a recorded piece supplied by the owner, converted to a
+96 kbps MP3 and level-matched with ffmpeg. It is the only soundtrack piece that is not
+sequenced from the instruments below.
+
 ## Music instruments
 
 The four soundtrack pieces are original. They are played on these recorded instruments,

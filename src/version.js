@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.03.5', date: '3 November 2026', title: 'A fifth soundtrack piece', groups: [
+    ['New', [
+      'A new soundtrack piece, Industry (about 3 minutes), joins the rotation after Cold Front. Tap the track name in the menu to skip to it.',
+    ]],
+  ] },
   { v: '2026.11.03.4', date: '3 November 2026', title: 'New map: Three Crossings', groups: [
     ['New', [
       'A new map, Three Crossings, built for 2 v 2 (team games are coming; for now it plays 1 v 1, one player on each bank). A winding river splits west from east. A timber bridge crosses it in the middle, and rocky shallow fords cross it in the far north and the south. Creeks and rocky cliffs make chokepoints. Eight start positions, four on each bank. Ore lies on both banks, with gem fields beside every base and out by the crossings. Pick it on the Skirmish map screen.',

@@ -701,6 +701,8 @@ const Sound = (() => {
       },
       order: ['intro', 'a', 'b', 'a', 'b'],
     },
+    // A recorded piece (src/industry.js), played whole instead of sequenced.
+    { name: 'Industry', rec: true, bpm: 120, key: E, parts: {}, order: [] },
   ];
   for (const song of SONGS) for (const part of Object.values(song.parts)) {
     for (const key of ['gtr', 'bass', 'lead', 'stab', 'pad']) {
@@ -718,11 +720,35 @@ const Sound = (() => {
       this.timer = setInterval(() => this.tick(), 40);
     },
     skip() {
+      this.stopRec();
       this.song = (this.song + 1) % SONGS.length; this.part = 0; this.bar = 0; this.step = 0;
       if (ctx) this.next = ctx.currentTime + 0.3;
     },
+    // The recorded track is decoded once, in the background, the first time music starts.
+    recBuf: null, recSrc: null, recLoading: false,
+    loadRec() {
+      if (this.recBuf || this.recLoading || typeof INDUSTRY_TRACK === 'undefined') return;
+      this.recLoading = true; this.recAt = Date.now();
+      clipBuffer(INDUSTRY_TRACK, (buf) => { this.recBuf = buf; });
+    },
+    stopRec() {
+      if (!this.recSrc) return;
+      const s = this.recSrc; this.recSrc = null; s.onended = null;
+      try { s.stop(); } catch (_) {}
+    },
+    tickRec() {
+      if (this.recSrc) return;
+      if (!this.recBuf) { if (!this.recLoading || Date.now() - this.recAt > 20000) this.skip(); return; }   // not available: move on
+      const src = ctx.createBufferSource();
+      src.buffer = this.recBuf; src.connect(musicBus);
+      src.onended = () => { if (this.recSrc === src) { this.recSrc = null; this.skip(); } };
+      this.recSrc = src;
+      src.start(ctx.currentTime + 0.1);
+    },
     tick() {
       if (!ctx || ctx.state !== 'running') return;
+      this.loadRec();
+      if (SONGS[this.song].rec) return this.tickRec();
       // Schedule well ahead so a busy frame never makes the music skip.
       if (this.next < ctx.currentTime) this.next = ctx.currentTime + 0.02;
       while (this.next < ctx.currentTime + 0.3) {
