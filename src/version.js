@@ -4,6 +4,22 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.03', date: '3 November 2026', title: 'Camouflaged Pillbox, longer defences and a new look', groups: [
+    ['New', [
+      'The Allied Pillbox is now camouflaged. The enemy cannot see it, pick it or aim at it until one of their ground units comes within 3 cells of it, or until it opens fire or is hit. It stays visible for 4 seconds after that, then hides again. It is always visible while it is being built, and you always see your own. It works the same online.',
+      'Its roof takes the colour of the ground it is built on, so it blends in on grass, dirt and the places between.',
+    ]],
+    ['Balance', [
+      'Ground defences reach 25% further: Pillbox 115 to 145, Flame Tower 105 to 130, Gun Turret 130 to 165, Tesla Coil 150 to 190. Every tank is now outranged by every ground defence. Artillery and V2 launchers still outrange all of them. The AA Gun and SAM Site are unchanged.',
+    ]],
+    ['Look', [
+      'New infantry: stockier soldiers in their side\u2019s colour with bigger helmets, a pack and rolled blanket, and a clearer rifle. The Rocket Soldier carries a big pale launcher tube on the shoulder.',
+      'The Gun Turret has a new arrowhead top, pointed at the front with sloping armour.',
+      'The Pillbox is now a low hexagonal bunker with a turf roof, concrete corner buttresses and firing slits. Its muzzle flash comes out of the slit it is aiming through.',
+      'The Gun Turret and the Pillbox give off smoke when they fire. The turret\u2019s hangs in a thick cloud around the barrel for a few seconds.',
+      'There is now a wind. It blows all the smoke in the game one way and changes to a new random direction every 50 seconds or so, so firing turrets trail plumes and burning buildings lean over. Online, both players see the same wind.',
+    ]],
+  ] },
   { v: '2026.11.02.1', date: '2 November 2026', title: 'Testing pass', groups: [
     ['Fixes', [
       'Checked a full round of single player and online battles after the recent updates, including building the Mobile Construction Yard for both sides. No problems found.',
