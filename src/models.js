@@ -82,22 +82,22 @@ function heavyHull(pal, s) {
 }
 function heavyTurret(pal, s) {
   const P = pal.key === 'soviets' ? HEAVY_RED : pal;
-  const r = s.tur, bl = s.barrel, w = 7;
-  const m = new VModel(-r - 3, -w - 2, r + bl + 3, w + 2, 9);
-  m.box(-r, -w, 0, r, w, 3, P.main, M_METAL);                                       // wide low turret box, centred on the hull
-  m.box(-r + 1, -w + 1, 3, r - 1, w - 1, 4, P.main, M_METAL);                       // roof
-  m.clear(r - 1, -w, 0, r, -w + 1, 3); m.clear(r - 1, w - 1, 0, r, w, 3);           // chamfered front corners
-  m.clear(-r, -w, 0, -r + 1, -w + 1, 3); m.clear(-r, w - 1, 0, -r + 1, w, 3);       // and rear corners
-  m.box(r - 2, -w + 1, 0, r + 1, w - 1, 3, P.light, M_METAL);                       // pale mantlet
-  m.box(-r, -w, 2, r, -w + 1, 3, P.light, M_METAL); m.box(-r, w - 1, 2, r, w, 3, P.light, M_METAL);
-  m.box(-r, -w, 0, r, -w + 1, 1, P.dark, M_METAL); m.box(-r, w - 1, 0, r, w, 1, P.dark, M_METAL);
-  for (const y of [-2.8, 2.8]) m.cylZ(-1, y, 3, 4, 1.9, P.deep, M_MATTE);           // two dark hatches
-  m.box(-4, -1, 3, -2, 1, 4, P.light, M_METAL);                                     // small panel
+  const r = s.tur, bl = s.barrel, w = 7, f = 2;                                   // f: the turret sits this far forward of the hull's middle
+  const m = new VModel(-r - 3, -w - 2, r + bl + 3 + f, w + 2, 9);
+  m.box(-r + f, -w, 0, r + f, w, 3, P.main, M_METAL);                                       // wide low turret box, centred on the hull
+  m.box(-r + 1 + f, -w + 1, 3, r - 1 + f, w - 1, 4, P.main, M_METAL);                       // roof
+  m.clear(r - 1 + f, -w, 0, r + f, -w + 1, 3); m.clear(r - 1 + f, w - 1, 0, r + f, w, 3);           // chamfered front corners
+  m.clear(-r + f, -w, 0, -r + 1 + f, -w + 1, 3); m.clear(-r + f, w - 1, 0, -r + 1 + f, w, 3);       // and rear corners
+  m.box(r - 2 + f, -w + 1, 0, r + 1 + f, w - 1, 3, P.light, M_METAL);                       // pale mantlet
+  m.box(-r + f, -w, 2, r + f, -w + 1, 3, P.light, M_METAL); m.box(-r + f, w - 1, 2, r + f, w, 3, P.light, M_METAL);
+  m.box(-r + f, -w, 0, r + f, -w + 1, 1, P.dark, M_METAL); m.box(-r + f, w - 1, 0, r + f, w, 1, P.dark, M_METAL);
+  for (const y of [-2.8, 2.8]) m.cylZ(-1 + f, y, 3, 4, 1.9, P.deep, M_MATTE);           // two dark hatches
+  m.box(-4 + f, -1, 3, -2 + f, 1, 4, P.light, M_METAL);                                     // small panel
   for (const y of [-3.6, 3.6]) {                                                        // thick black guns, as wide as the reference
     m.cylX(0, r + bl, y, 2, 1.5, '#16120f', M_METAL);
     m.cylX(r + bl - 3, r + bl, y, 2, 1.8, '#16120f', M_METAL);
   }
-  m.line(-r + 1, w - 2, 4, -r + 1, w - 2, 8, '#e8e6dc'); m.set(-r + 1, w - 2, 8, '#ffffff');   // white aerial, rear right
+  m.line(-r + 1 + f, w - 2, 4, -r + 1 + f, w - 2, 8, '#e8e6dc'); m.set(-r + 1 + f, w - 2, 8, '#ffffff');   // white aerial, rear right
   return m;
 }
 function tankHull(pal, s) {
