@@ -97,6 +97,13 @@ share globals. Read this file first; the commit history explains every change in
 - **Infantry lanes** (`assignLane`, `laneOffsetPath`): infantry on a hunt or attack order march
   in their own lane off the route, and a loose wave gets a speed spread (`paceMul`). Each wave rolls
   once; `TIGHT_CHANCE` (0.3) of waves stay tight so V2 blasts still kill big groups.
+  Ground vehicles (not Ore Trucks or deployables) get lanes too since 2026.11.03: wider
+  (`LANE_VEH_LOOSE` 100, `LANE_VEH_TIGHT` 50) and a pace spread that only slows them. Measure with
+  `node tools/sim/infantry-spread.js <repo> <runs> mtank`.
+- **Computer on Normal and Hard** (`pincer`, `counter` in `DIFFICULTY`): two-pronged attacks
+  (`aiPincerStart` / `aiPincer`: a wave splits, gathers 13 cells off either flank of the target, then
+  closes in together) and counter-building (`aiCounter`: `team.counter` = inf / armor / turtle).
+  Normal now targets 'weak' and holds bombs for big pushes too.
 - **PvP guest must never create entities.** The guest runs effects, and anything an effect spawns
   with `addUnit` takes a low id that clashes with the host's, then `applySnapshot` crashes. Guard
   such spawns with `G.remote` (as `ejectPilot` does).

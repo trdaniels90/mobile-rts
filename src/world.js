@@ -482,13 +482,15 @@ function goTo(u, x, y) {
 // spread out (wide lanes), but about one in three stays tight, so big splash kills still happen.
 // Lanes are dealt out evenly across the width (not at random), and a loose wave also gets a small
 // speed spread so it strings out in depth over a long march.
-const LANE_LOOSE = 70, LANE_TIGHT = 10, TIGHT_CHANCE = 0.3;
+// Ground vehicles get lanes too, wider (they are bigger) and never fully tight: a tight wave of
+// tanks is a narrower column, not a ball. Their pace spread only slows them (never past top speed).
+const LANE_LOOSE = 70, LANE_TIGHT = 10, TIGHT_CHANCE = 0.3, LANE_VEH_LOOSE = 100, LANE_VEH_TIGHT = 50;
 function assignLane(u) {
-  if (u.cls !== 'inf') { u.lane = 0; u.paceMul = 1; return; }
+  if ((u.cls !== 'inf' && u.cls !== 'veh') || u.def.harvester || u.def.deploys) { u.lane = 0; u.paceMul = 1; return; }
   if (!G.laneRoll || G.t - G.laneRoll.t > 2) G.laneRoll = { t: G.t, tight: Math.random() < TIGHT_CHANCE, n: 0, off: Math.random() };
-  const r = G.laneRoll, frac = (r.n++ * 0.618034 + r.off) % 1;
-  u.lane = (frac * 2 - 1) * (r.tight ? LANE_TIGHT : LANE_LOOSE);
-  u.paceMul = r.tight ? 1 : 0.88 + Math.random() * 0.2;
+  const r = G.laneRoll, frac = (r.n++ * 0.618034 + r.off) % 1, veh = u.cls === 'veh';
+  u.lane = (frac * 2 - 1) * (veh ? (r.tight ? LANE_VEH_TIGHT : LANE_VEH_LOOSE) : r.tight ? LANE_TIGHT : LANE_LOOSE);
+  u.paceMul = veh ? 0.88 + Math.random() * 0.12 : r.tight ? 1 : 0.88 + Math.random() * 0.2;
 }
 // Bends each leg of the path sideways by the unit's lane, easing back to the route at the corners
 // (so narrow gaps stay passable) but holding the full offset on the way in to the target.
@@ -567,8 +569,8 @@ function followPath(u, dt) {
   }
   const want = Math.atan2(dy, dx);
   let speed = u.def.speed, mx, my;
-  // Infantry in a loose wave each keep their own pace (paceMul).
-  if (u.paceMul && u.cls === 'inf' && (u.order.type === 'hunt' || u.order.type === 'attack')) speed *= u.paceMul;
+  // Infantry in a loose wave, and vehicles, each keep their own pace (paceMul).
+  if (u.paceMul && u.paceMul !== 1 && (u.order.type === 'hunt' || u.order.type === 'attack')) speed *= u.paceMul;
   if (u.cls === 'veh') {
     const diff = angDiff(want, u.face);
     u.face = turnToward(u.face, want, u.def.turn * dt);
