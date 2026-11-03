@@ -59,58 +59,44 @@ function sandbagsV(m, x0, y0, x1, y1, h) {
 // ---------------------------------------------------------------------------
 // Vehicles
 // ---------------------------------------------------------------------------
-// Soviet Heavy Tank, after the Red Alert original: a wide, low slab of a hull with skirted tracks
-// and a sloped nose, a broad flat turret with a thick mantlet, twin long guns and a rear bustle.
+// Soviet Heavy Tank, copied from the Red Alert original's look: a bright red slab of a hull with the
+// tracks barely showing, a wide low turret with two dark hatches, a white aerial at the rear right and
+// two thick black guns side by side.
+const HEAVY_RED = { key: 'soviets', main: '#c9170d', light: '#f0604a', dark: '#8c0d08', deep: '#2b0604' };
 function heavyHull(pal, s) {
-  const L = s.len, W = s.wid, hl = Math.floor(L / 2), hw = Math.floor(W / 2), tw = 4;
+  const P = pal.key === 'soviets' ? HEAVY_RED : pal;
+  const L = s.len, W = s.wid, hl = Math.floor(L / 2), hw = Math.floor(W / 2);
   const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 10);
-  for (const side of [-1, 1]) {
-    const y0 = side < 0 ? -hw : hw - tw, y1 = y0 + tw, out = side < 0 ? -hw : hw - 1;
-    m.box(-hl, y0, 0, hl, y1, 5, C.track, M_ROUGH);
-    m.clear(-hl, y0, 0, -hl + 1, y1, 1); m.clear(hl - 1, y0, 0, hl, y1, 1);       // rounded ends
-    m.clear(-hl, y0, 4, -hl + 1, y1, 5); m.clear(hl - 1, y0, 4, hl, y1, 5);
-    for (let x = -hl; x < hl; x += 2) m.box(x, y0, 4, x + 1, y1, 5, C.trackHi, M_ROUGH);
-    for (let x = -hl + 2; x < hl - 2; x += 3) m.cylY(out, out + 1, x + 1, 2, 1.6, C.wheel, M_METAL);   // road wheels
-    m.box(-hl + 1, y0, 5, hl - 3, y1, 6, pal.main, M_METAL);                       // fender over the track
-    m.box(-hl + 1, out, 6, hl - 3, out + 1, 7, pal.dark, M_METAL);                 // skirt lip
-    m.box(hl - 3, y0, 5, hl - 1, y1, 6, pal.main, M_METAL);                        // front mudguard, dipping
-    m.box(hl - 1, y0, 4, hl, y1, 5, pal.main, M_METAL);
-  }
-  m.box(-hl + 1, -hw + tw, 1, hl - 1, hw - tw, 5, pal.dark);
-  m.box(-hl + 1, -hw + tw, 5, hl - 3, hw - tw, 7, pal.main, M_METAL);              // upper hull between the fenders
-  for (const [x0, top] of [[hl - 3, 6], [hl - 2, 5]]) m.box(x0, -hw + tw, 5, x0 + 1, hw - tw, top, pal.light, M_METAL);   // sloped nose
-  m.box(hl - 1, -hw + tw, 3, hl, hw - tw, 5, pal.dark, M_METAL);
-  m.box(-hl, -hw + tw, 2, -hl + 1, hw - tw, 6, pal.dark, M_METAL);                 // rear plate
-  m.box(-hl + 1, -hw + tw, 7, -hl + 7, hw - tw, 8, pal.main, M_METAL);             // engine deck
-  for (let x = -hl + 2; x < -hl + 7; x += 2) m.box(x, -hw + tw + 1, 8, x + 1, hw - tw - 1, 9, pal.deep);   // grille slats
-  m.box(-hl + 1, hw - tw - 1, 7, -hl + 4, hw - tw, 9, C.metal, M_METAL);           // exhaust stack
-  m.box(hl - 3, -hw + tw, 6, hl - 2, -hw + tw + 1, 7, C.glow, M_GLASS); m.box(hl - 3, hw - tw - 1, 6, hl - 2, hw - tw, 7, C.glow, M_GLASS);
-  m.box(hl - 4, -hw + tw + 1, 6, hl - 3, -hw + tw + 2, 7, pal.deep);               // driver's vision slit
-  m.paint(-hl, -hw, 5, hl, hw, 7, (x, y, z, c) => (c === rgbInt(pal.main) && hash3(x, y, z) > 0.93) ? pal.dark : undefined);   // worn paint
+  m.box(-hl + 1, -hw, 0, hl - 1, hw, 2, '#1f0f0c', M_ROUGH);                       // dark underside and track edge
+  m.box(-hl, -hw, 2, hl, hw, 6, P.main, M_METAL);                                   // hull slab
+  m.box(-hl + 1, -hw + 1, 6, hl - 2, hw - 1, 7, P.main, M_METAL);                   // top deck, inset
+  m.box(hl - 3, -hw, 2, hl, hw, 4, P.light, M_METAL);                               // pale sloped nose
+  m.clear(hl - 1, -hw, 5, hl, hw, 6); m.clear(hl - 2, -hw, 6, hl, hw, 7);
+  m.box(hl - 3, -hw + 1, 4, hl - 1, hw - 1, 6, P.light, M_METAL);
+  m.box(-hl, -hw, 5, hl, -hw + 1, 6, P.light, M_METAL); m.box(-hl, hw - 1, 5, hl, hw, 6, P.light, M_METAL);   // lit upper edges
+  m.box(-hl, -hw, 2, hl, -hw + 1, 3, P.dark, M_METAL); m.box(-hl, hw - 1, 2, hl, hw, 3, P.dark, M_METAL);    // shadowed lower edges
+  for (let x = -hl + 2; x < -hl + 8; x += 2) m.box(x, -hw + 3, 7, x + 1, hw - 3, 8, P.dark, M_METAL);       // rear deck louvres
+  m.clear(-hl, -hw, 0, -hl + 1, -hw + 1, 6); m.clear(-hl, hw - 1, 0, -hl + 1, hw, 6);                       // rounded rear corners
+  m.paint(-hl, -hw, 2, hl, hw, 7, (x, y, z, c) => (hash3(x, y, z) > 0.94 && c === rgbInt(P.main)) ? P.dark : undefined);
   return m;
 }
 function heavyTurret(pal, s) {
-  const r = s.tur, bl = s.barrel;
-  const m = new VModel(-r - 4, -r - 3, r + bl + 3, r + 3, 9);
-  const w = r + 1;                                                                  // half-width: wider than long
-  m.box(-r, -w, 0, r - 1, w, 2, pal.main, M_METAL);                                 // lower slab
-  m.box(-r + 1, -w + 1, 2, r - 1, w - 1, 4, pal.main, M_METAL);                     // sloped sides
-  m.box(-r + 2, -w + 2, 4, r - 3, w - 2, 5, pal.light, M_METAL);                    // roof
-  for (const sx of [-1, 1]) for (const [x, y] of [[-r, sx * w], [r - 2, sx * w]]) m.clear(x, sx < 0 ? -w : w - 1, 0, x + 1, sx < 0 ? -w + 1 : w, 2);   // cut the corners
-  m.box(-r - 3, -w + 2, 0, -r, w - 2, 3, pal.dark, M_METAL);                        // rear bustle
-  m.box(-r - 3, -w + 3, 3, -r, w - 3, 4, pal.main, M_METAL);
-  m.box(r - 2, -w + 1, 0, r + 1, w - 1, 4, pal.dark, M_METAL);                      // thick mantlet
-  for (const y of [-2.5, 2.5]) {
-    m.cylX(r + 1, r + bl, y, 2, 1.5, C.gun, M_METAL);
-    m.box(r + bl - 3, y - 2, 0, r + bl, y + 2, 4, C.gun, M_METAL);                  // muzzle brake
-    m.clear(r + bl - 2, y - 1, 1, r + bl - 1, y + 1, 3);
-    m.box(r, y - 2, 0, r + 3, y + 2, 4, pal.dark, M_METAL);                         // gun sleeve
+  const P = pal.key === 'soviets' ? HEAVY_RED : pal;
+  const r = s.tur, bl = s.barrel, w = 6;
+  const m = new VModel(-r - 4, -r - 3, r + bl + 3, r + 3, 10);
+  m.box(-r - 1, -w, 0, r, w, 3, P.main, M_METAL);                                   // wide low turret box
+  m.box(-r, -w + 1, 3, r - 1, w - 1, 4, P.main, M_METAL);                           // roof
+  m.clear(r - 1, -w, 0, r, -w + 1, 3); m.clear(r - 1, w - 1, 0, r, w, 3);           // chamfered front corners
+  m.box(r - 2, -w + 1, 0, r + 1, w - 1, 3, P.light, M_METAL);                       // pale mantlet
+  m.box(-r - 1, -w, 2, r, -w + 1, 3, P.light, M_METAL); m.box(-r - 1, w - 1, 2, r, w, 3, P.light, M_METAL);
+  m.box(-r - 1, -w, 0, r, -w + 1, 1, P.dark, M_METAL); m.box(-r - 1, w - 1, 0, r, w, 1, P.dark, M_METAL);
+  for (const y of [-2.6, 2.6]) m.cylZ(-1, y, 3, 4, 1.9, P.deep, M_MATTE);           // two dark hatches
+  m.box(-4, -1, 3, -2, 1, 4, P.light, M_METAL);                                     // small panel between them
+  for (const y of [-2.2, 2.2]) {
+    m.cylX(0, r + bl, y, 2, 1.3, '#16120f', M_METAL);                               // thick black guns
+    m.cylX(r + bl - 2, r + bl, y, 2, 1.6, '#16120f', M_METAL);                      // muzzle
   }
-  m.cylZ(-2, -3.5, 5, 6, 2, pal.light, M_METAL);                                    // commander's hatch
-  m.cylZ(-2, -3.5, 6, 7, 1.2, pal.dark, M_METAL);
-  m.box(-r + 1, 3, 5, -r + 4, 5, 6, C.gun, M_METAL);                                // machine gun mount
-  m.cylX(-r + 3, -r + 8, 4, 5.5, 0.6, C.gun, M_METAL);
-  m.line(-r - 2, w - 3, 3, -r - 2, w - 3, 8, C.black);                              // antenna
+  m.line(-r, w - 2, 4, -r, w - 2, 9, '#e8e6dc'); m.set(-r, w - 2, 9, '#ffffff');    // white aerial, rear right
   return m;
 }
 function tankHull(pal, s) {
