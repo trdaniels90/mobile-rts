@@ -15,7 +15,10 @@ const Sound = (() => {
 
   let ctx = null, master, sfxBus, farBus, musicBus, verb, verbIn, delayIn, noise, shaperHeavy, shaperSoft;
   const lastPlayed = new Map();
-  let voices = 0, farVoices = 0;
+  // Live effect voices, each {pri, t, out, far}. A busy battle fills the budget; a more important
+  // sound then takes over the least important (or oldest) voice instead of being dropped.
+  const live = [];
+  const NEAR_MAX = 28, FAR_MAX = 10;
 
   // Half a second of silence. Keeping a media element playing it puts iOS into "playback"
   // mode, so older iPhones do not mute Web Audio when the ring/silent switch is on silent.
@@ -297,6 +300,10 @@ const Sound = (() => {
     denied(t, o) { tone(t, 'square', 220, 200, 0.18, 0.1, o); },
   };
   const THROTTLE = { die: 0.09, dieBlast: 0.12, dieFire: 0.2, build: 0.12, collapse: 0.3, cashUp: 0.07, cashDown: 0.07, rifle: 0.03, mg: 0.03, cannon: 0.05, cannonHeavy: 0.06, turretGun: 0.06, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, missile: 0.05, flak: 0.06, tesla: 0.1 };
+  // How much each sound matters when the voices run out, and how long it occupies one.
+  const PRIORITY = { click: 9, ready: 9, denied: 9, sell: 9, place: 9, cashUp: 8, cashDown: 8, explodeBig: 10, collapse: 9, explodeVeh: 8, cannonHeavy: 7, missile: 6, rocket: 6, tesla: 6,
+    cannon: 5, turretGun: 5, hitMed: 5, flame: 5, fireHit: 5, throw: 4, flak: 4, mg: 3, hitSmall: 3, build: 2, die: 2, dieBlast: 3, dieFire: 3, rifle: 2 };
+  const HOLD = { explodeBig: 1.6, collapse: 1.6, explodeVeh: 1.1, cannonHeavy: 0.9, cannon: 0.6, turretGun: 0.6, hitMed: 0.6, tesla: 0.8, flame: 0.9, fireHit: 0.8, missile: 0.9, rocket: 0.9, build: 0.5, die: 0.5, dieBlast: 0.7, dieFire: 0.8, rifle: 0.35, mg: 0.35, hitSmall: 0.3, flak: 0.5, throw: 0.5 };
   const UI_SOUNDS = new Set(['click', 'ready', 'denied', 'sell', 'place', 'cashUp', 'cashDown']);
   // Rough loudness of each effect so distant battles do not drown nearby ones.
   const LEVEL = { rifle: 0.55, mg: 1.0, throw: 0.8, cannon: 0.8, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, missile: 0.7, flak: 0.75, tesla: 0.85,
@@ -315,8 +322,16 @@ const Sound = (() => {
     if (far) vol = Math.max(vol, CARRY[name] || 0.06);
     const now = ctx.currentTime, key = far ? name + '~' : name;
     const last = lastPlayed.get(key) || 0;
-    if (now - last < (THROTTLE[name] || 0.02) * (far ? 3 : 1)) return;
-    if (far ? farVoices >= 6 : voices >= 14) return;
+    if (now - last < (THROTTLE[name] || 0.02) * 0.6 * (far ? 2 : 1)) return;
+    const pri = PRIORITY[name] === undefined ? 5 : PRIORITY[name];
+    let mine = 0; for (const x of live) if (x.far === far) mine++;
+    if (mine >= (far ? FAR_MAX : NEAR_MAX)) {
+      let victim = null;
+      for (const x of live) if (x.far === far && (!victim || x.pri < victim.pri || (x.pri === victim.pri && x.t < victim.t))) victim = x;
+      if (!victim || victim.pri > pri || (victim.pri === pri && now - victim.t < 0.15)) return;
+      try { victim.out.gain.cancelScheduledValues(now); victim.out.gain.setTargetAtTime(0, now, 0.012); } catch (_) {}
+      live.splice(live.indexOf(victim), 1);
+    }
     lastPlayed.set(key, now);
     const v = vol * (LEVEL[name] || 1) * (0.9 + Math.random() * 0.2);
     const out = gain(v, null);
@@ -324,8 +339,9 @@ const Sound = (() => {
     if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan || 0)); out.connect(p); node = p; }
     node.connect(far ? farBus : sfxBus);
     const s = { send(amount) { if (!far) { const g = gain(amount * v, verbIn); out.connect(g); } } };
-    if (far) { farVoices++; setTimeout(() => { farVoices--; }, 1600); }
-    else { voices++; setTimeout(() => { voices--; }, 1600); }
+    const entry = { pri, t: now, out, far };
+    live.push(entry);
+    setTimeout(() => { const i = live.indexOf(entry); if (i >= 0) live.splice(i, 1); }, (HOLD[name] || 0.7) * 1000);
     if (playRecorded(name, out, s)) return;   // recordings already carry their lo-fi treatment
     // Synthesised battle sounds go through the lo-fi stage before their volume is applied.
     let into = out;
