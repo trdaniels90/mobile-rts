@@ -13,7 +13,7 @@ const Sound = (() => {
   const sfxLevel = () => settings.sfx ? 0.85 * volOf('sfxVol') : 0;
   const save = () => { try { localStorage.setItem('ps-audio', JSON.stringify(settings)); } catch (_) {} };
 
-  let ctx = null, master, sfxBus, farBus, musicBus, verb, verbIn, delayIn, noise, shaperHeavy, shaperSoft;
+  let ctx = null, recIn, master, sfxBus, farBus, musicBus, verb, verbIn, delayIn, noise, shaperHeavy, shaperSoft;
   const lastPlayed = new Map();
   // Live effect voices, each {pri, t, out, far}. A busy battle fills the budget; a more important
   // sound then takes over the least important (or oldest) voice instead of being dropped.
@@ -62,7 +62,7 @@ const Sound = (() => {
     // Larger audio buffers: a little more latency, but no crackle when the phone is busy.
     try { ctx = new AC({ latencyHint: 'playback' }); } catch (_) { ctx = new AC(); }
     const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -18; comp.knee.value = 6; comp.ratio.value = 6; comp.attack.value = 0.002; comp.release.value = 0.2;
+    comp.threshold.value = -18; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.25;
     comp.connect(ctx.destination);
     master = gain(0.75, comp);
     sfxBus = gain(sfxLevel(), master);
@@ -70,6 +70,8 @@ const Sound = (() => {
     const farLp = ctx.createBiquadFilter(); farLp.type = 'lowpass'; farLp.frequency.value = 1700; farLp.Q.value = 0.4;
     farBus = gain(1, farLp); farLp.connect(sfxBus);
     musicBus = gain(musicLevel(), master);
+    // Recorded tracks go through a high-pass: phone speakers cannot play deep bass, and trying to makes them rattle and distort.
+    recIn = ctx.createBiquadFilter(); recIn.type = 'highpass'; recIn.frequency.value = 130; recIn.Q.value = 0.6; recIn.connect(musicBus);
     // Room reverb from a generated impulse response.
     verb = ctx.createConvolver();
     const len = Math.floor(ctx.sampleRate * 1.5), ir = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -689,7 +691,7 @@ const Sound = (() => {
       const buf = this.recBufs[id];
       if (!buf) { if (!this.recLoading[id] || Date.now() - this.recLoading[id] > 20000) this.skip(); return; }   // not available: move on
       const src = ctx.createBufferSource();
-      src.buffer = buf; src.connect(musicBus);
+      src.buffer = buf; src.connect(recIn);
       src.onended = () => { if (this.recSrc === src) this.skip(); };
       this.recSrc = src;
       src.start(ctx.currentTime + 0.1);
