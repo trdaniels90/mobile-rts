@@ -138,16 +138,16 @@ function mammothTurret(pal, s) {
   m.box(-r, -w, 0, r, w, 4, P.main, M_METAL);                                        // big turret box
   m.box(-r + 1, -w + 1, 4, r - 1, w - 1, 5, P.main, M_METAL);                        // roof
   for (const [x0, x1] of [[r - 1, r], [-r, -r + 1]]) { m.clear(x0, -w, 0, x1, -w + 1, 4); m.clear(x0, w - 1, 0, x1, w, 4); }
-  m.box(r - 2, -w + 1, 0, r + 1, w - 1, 4, P.light, M_METAL);                        // pale front face
+  m.box(r - 2, -w + 1, 0, r, w - 1, 4, P.light, M_METAL);                            // pale front face
   m.box(-r, -w, 3, r, -w + 1, 4, P.light, M_METAL); m.box(-r, w - 1, 3, r, w, 4, P.light, M_METAL);
   for (const sx of [-1, 1]) {                                                        // dark missile boxes at the sides
     const y0 = sx < 0 ? -w - 2 : w, y1 = y0 + 2;
-    m.box(-4, y0, 0, 3, y1, 6, MAMMOTH_GREY, M_METAL);
-    m.box(-4, y0, 5, 3, y1, 6, '#555957', M_METAL);
+    m.box(-3, y0, 0, 3, y1, 6, MAMMOTH_GREY, M_METAL);
+    m.box(-3, y0, 5, 3, y1, 6, '#555957', M_METAL);
   }
   for (const y of [-4.2, 4.2]) m.box(r - 3, y - 0.5, 5, r - 1, y + 0.5, 6, P.light, M_METAL);   // pale studs
-  m.cylZ(-1, 0, 5, 6, 3.4, '#9a9d9b', M_METAL);                                        // long silver emblem hatch
-  m.cylZ(-1, 0, 5, 6, 2.2, P.dark, M_METAL); m.cylZ(-1, 0, 5, 6, 1.2, '#c9cbc8', M_METAL);
+  m.cylZ(0, 0, 4, 5, 3.4, '#9a9d9b', M_METAL);                                      // flat silver emblem hatch, set into the roof
+  m.cylZ(0, 0, 4, 5, 2.4, '#b4b7b5', M_METAL); m.cylZ(0, 0, 4, 5, 1.3, '#7d807e', M_METAL);
   for (const y of [-4.4, 4.4]) {                                                     // two tall white aerials, red tipped
     m.line(-r + 1, y, 5, -r + 1, y, 11, '#ecebe3'); m.set(-r + 1, y, 11, '#d12a1c'); m.set(-r + 1, y, 10, '#d12a1c');
   }
