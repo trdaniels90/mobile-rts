@@ -74,7 +74,7 @@ const UNIT_DEFS = {
   },
   htank: {
     name: 'Heavy Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'tank',
-    cost: 950, hp: 550, armor: 'heavy', speed: 42, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 16, tur: 6, barrel: 14, twin: true, heavy: true, tz: 5 },
+    cost: 950, hp: 550, armor: 'heavy', speed: 42, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 16, tur: 6, barrel: 14, twin: true, heavy: true, tz: 6 },
     weapon: { dmg: 30, rof: 1.7, range: 114, wh: 'AP', proj: 'shell', twin: true },
   },
   mammoth: {
