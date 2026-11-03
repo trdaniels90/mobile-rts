@@ -695,21 +695,50 @@ const STRUCTURES = {
     m.ellipsoid(12, 35, 50, 6, 6, 5.5, C.steel, M_METAL);
     return m;
   },
-  // Squat concrete bunker with firing slits all round.
+  // Camouflaged hexagonal bunker: a turf-and-netting roof with the side's emblem, concrete buttresses
+  // at the six corners and dark firing slits between them.
   pillbox(pal) {
     const m = new VModel(-2, -2, 26, 26, 12);
     m.box(0, 0, 0, 24, 24, 1, C.bib, M_ROUGH);
-    for (let z = 1; z < 9; z++) {
-      const r = z < 7 ? 10.5 : 10.5 - (z - 6) * 1.6;
-      for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) {
-        const dx = Math.abs(x + 0.5 - 12), dy = Math.abs(y + 0.5 - 12);
-        if (Math.max(dx, dy) + Math.min(dx, dy) * 0.42 <= r) m.set(x, y, z, z % 3 === 0 ? C.wallD : C.wall, M_ROUGH);
-      }
+    const R = 10.6, H = 0.866, CX = 12, CY = 12;
+    const inHex = (x, y, r) => { const dx = Math.abs(x + 0.5 - CX), dy = Math.abs(y + 0.5 - CY); return dy <= r * H && dx + dy / 1.732 <= r; };
+    // Walls: concrete, with a lighter course on top and a shadowed foot.
+    for (let z = 1; z < 8; z++) for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) {
+      if (inHex(x, y, R)) m.set(x, y, z, z === 1 ? C.concD : z === 7 ? C.conc : (z + (x >> 3)) % 3 === 0 ? C.concD : '#7d7b72', M_ROUGH);
     }
-    // Firing slits: a dark band broken by concrete pillars.
-    m.paint(0, 0, 4, 24, 24, 6, (x, y) => (Math.round(Math.atan2(y - 12, x - 12) * 4) % 2 === 0) ? '#1d1c1a' : undefined);
-    m.cylZ(12, 12, 9, 10, 2.5, pal.main, M_METAL);
-    for (const [x, y] of [[1, 18], [19, 1], [1, 2]]) sandbagsV(m, x, y, x + 4, y + 4, 3);
+    // Buttresses: a sloping block at each corner, leaning out from the wall.
+    for (let k = 0; k < 6; k++) {
+      const a = k * Math.PI / 3, bx = CX + Math.cos(a) * (R - 0.4), by = CY + Math.sin(a) * (R - 0.4);
+      for (let z = 1; z < 7; z++) m.cylZ(bx, by, z, z + 1, 2.9 - z * 0.22, z % 2 ? '#6a685f' : '#7d7b72', M_ROUGH);
+    }
+    // Firing slits between the buttresses, and a shadow band under the roof.
+    m.paint(0, 0, 3, 24, 24, 6, (x, y, z) => {
+      const dx = x + 0.5 - CX, dy = y + 0.5 - CY;
+      for (let k = 0; k < 6; k++) {
+        const a = Math.PI / 6 + k * Math.PI / 3, c = Math.cos(a), sn = Math.sin(a);
+        if (dx * c + dy * sn > R * H - 1.6 && Math.abs(-dx * sn + dy * c) < 3.6) return '#171614';
+      }
+    });
+    m.paint(0, 0, 6, 24, 24, 7, (x, y) => (Math.hypot(x + 0.5 - CX, y + 0.5 - CY) > R * H - 1.2) ? C.concD : undefined);
+    // Roof: grass-green slab with a darker rim, mottled with camouflage patches and a few tufts.
+    for (let z = 8; z < 10; z++) for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) if (inHex(x, y, R - 0.6 - (z - 8) * 0.8)) m.set(x, y, z, '#4a6330', M_ROUGH);
+    m.paint(0, 0, 8, 24, 24, 10, (x, y, z) => {
+      const dx = x + 0.5 - CX, dy = y + 0.5 - CY, d = Math.hypot(dx, dy);
+      if (z === 8 && !inHex(x, y, R - 2)) return '#3a4a2a';                          // shaded rim
+      const n = hash3(x >> 1, y >> 1, 3), n2 = hash3(x, y, 11);
+      if (z === 9) {
+        if (d > 3.2 && d < 5.2 && Math.abs(Math.sin(Math.atan2(dy, dx) * 3)) > 0.22) return '#2c3b20';   // emblem ring, broken by three gaps
+        if (d < 1.9) return pal.main;                                                // the side's colour at the centre
+        if (n < 0.22) return '#35482a';
+        if (n > 0.8) return '#6b7e3e';
+        if (n > 0.66 && n2 > 0.5) return '#7d6a42';                                  // dry earth patches
+        if (n2 > 0.9) return '#8da24c';
+      }
+    });
+    for (let i = 0; i < 26; i++) {                                                   // tufts of grass and netting
+      const a = hash3(i, 5, 1) * 6.283, r = 2 + hash3(i, 9, 2) * 7, x = Math.floor(CX + Math.cos(a) * r), y = Math.floor(CY + Math.sin(a) * r * 0.9);
+      if (inHex(x, y, R - 2.2) && Math.hypot(x + 0.5 - CX, y + 0.5 - CY) > 2.4) m.set(x, y, 10, hash3(i, 1, 4) > 0.5 ? '#5f7a34' : '#3f5628', M_ROUGH);
+    }
     return m;
   },
   // Flame tower: a tapered tower with a nozzle on top and fuel tanks at its foot.
