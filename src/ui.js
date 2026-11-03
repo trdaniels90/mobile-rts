@@ -1017,7 +1017,7 @@
   // Quit mission: tap twice (no dialogs, which some hosts block). The match is reported as quit,
   // with its debrief numbers so far, and the menu comes back over a fresh battlefield.
   let quitArmed = null;
-  function disarmQuit() { clearTimeout(quitArmed); quitArmed = null; ui.quitBtn.textContent = 'Quit to main menu'; }
+  function disarmQuit() { clearTimeout(quitArmed); quitArmed = null; ui.quitBtn.textContent = 'Quit mission'; }
   ui.quitBtn.addEventListener('click', () => {
     if (!quitArmed) { ui.quitBtn.textContent = 'Tap again to quit'; quitArmed = setTimeout(disarmQuit, 3000); return; }
     disarmQuit();

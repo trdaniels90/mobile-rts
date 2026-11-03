@@ -137,7 +137,7 @@ const Manual = (() => {
         <tr><td>Cancel production</td><td>Hold the icon</td><td>Right click the icon</td></tr>
         <tr><td>Scroll and zoom</td><td>Drag, pinch, or tap the radar</td><td>Arrow keys or WASD, mouse wheel, click the radar</td></tr>
         <tr><td>Pause</td><td>The Options tab</td><td>P or Space</td></tr>
-        <tr><td>Quit a mission</td><td colspan="2">Pause, then tap Quit to main menu twice</td></tr>
+        <tr><td>Quit a mission</td><td colspan="2">Pause, then tap Quit mission twice</td></tr>
       </table>
       <p>Select one of your structures to <b>repair</b> it (costs credits and takes about a minute; a quarter of the speed while under fire) or <b>sell</b> it. Select a Mobile Outpost and tap <b>DEPLOY</b> to unpack it.</p>` },
     { ch: 'Basics', title: 'Your Army in Battle', html: () => `

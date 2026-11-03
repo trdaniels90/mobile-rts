@@ -4,6 +4,15 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.03.8', date: '3 November 2026', title: 'Airfield and depot fixes', groups: [
+    ['Fixes', [
+      'Jets no longer get stuck when an Airfield is built next to the edge or corner of the map. They now land from the side that has room.',
+      'When a Service Depot is destroyed or sold, its repair pad (the plus sign) no longer stays on the ground.',
+    ]],
+    ['Changes', [
+      'The end-of-mission screen button that starts over is now called Main Menu.',
+    ]],
+  ] },
   { v: '2026.11.03.7', date: '3 November 2026', title: 'Fuller battle sound', groups: [
     ['Changes', [
       'Big battles no longer lose sounds. Twice as many effects can play at once, and when the sound gets crowded the important ones (explosions, collapses, big guns) win over rifle fire and deaths instead of being skipped. Gunfire is also denser. Single player and online.',
