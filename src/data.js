@@ -69,7 +69,7 @@ const UNIT_DEFS = {
   },
   mtank: {
     name: 'Medium Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'tank',
-    cost: 800, hp: 400, armor: 'heavy', speed: 48, turn: 2.8, sight: 5, r: 9, size: { len: 20, wid: 15, tur: 5.5, barrel: 12 },
+    cost: 800, hp: 400, armor: 'heavy', speed: 48, turn: 2.8, sight: 5, r: 9, size: { len: 20, wid: 15, tur: 5.5, barrel: 12, grizzly: true, tz: 5 },
     weapon: { dmg: 40, rof: 1.5, range: 114, wh: 'AP', proj: 'shell' },
   },
   htank: {

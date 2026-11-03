@@ -158,7 +158,49 @@ function mammothTurret(pal, s) {
   }
   return m;
 }
+// Allied Medium Tank, copied from the reference: a long low pale-silver hull with striped skirt panels,
+// dark track ends, a small blue-lilac turret with two round dark hatches, one thin black gun and a
+// short aerial at the rear.
+const GRIZ = { key: 'allies', main: '#c3cde4', light: '#f1f4fb', dark: '#7b8bb8', deep: '#2b3454', turret: '#8e9bd2', turretHi: '#b7c1ec' };
+function grizzlyHull(pal, s) {
+  const P = pal.key === 'allies' ? GRIZ : pal;
+  const hl = Math.floor(s.len / 2), hw = Math.floor(s.wid / 2), sk = 3;
+  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 9);
+  m.box(-hl + 1, -hw, 0, hl - 1, hw, 2, '#1c2033', M_ROUGH);                         // dark underside
+  for (const side of [-1, 1]) {                                                       // skirt panels over the tracks
+    const y0 = side < 0 ? -hw : hw - sk, y1 = y0 + sk, out = side < 0 ? -hw : hw - 1;
+    m.box(-hl, y0, 1, hl, y1, 5, P.main, M_METAL);
+    for (let x = -hl + 1; x < hl - 1; x += 4) {                                       // panel stripes
+      m.box(x, y0, 4, x + 2, y1, 5, P.light, M_METAL);
+      m.box(x + 3, y0, 2, x + 4, y1, 5, P.dark, M_METAL);
+    }
+    m.box(-hl, out, 1, hl, out + 1, 3, P.dark, M_METAL);                              // shadowed lower skirt
+    for (const [x0, x1] of [[-hl, -hl + 2], [hl - 2, hl]]) { m.box(x0, y0, 1, x1, y1, 3, '#1c2033', M_ROUGH); m.box(x0, y0, 3, x1, y1, 5, P.main, M_METAL); }   // dark track ends
+  }
+  m.box(-hl + 1, -hw + sk, 1, hl - 1, hw - sk, 4, P.main, M_METAL);                   // central hull
+  m.box(-hl + 2, -hw + sk, 4, hl - 2, hw - sk, 5, P.light, M_METAL);                  // pale deck
+  m.box(hl - 3, -hw + sk, 3, hl - 1, hw - sk, 5, P.light, M_METAL);                   // sloped nose
+  m.box(hl - 1, -hw + sk, 2, hl, hw - sk, 4, P.dark, M_METAL);
+  for (let x = -hl + 2; x < -hl + 7; x += 2) m.box(x, -2, 5, x + 1, 2, 6, P.dark, M_METAL);   // rear engine vents
+  m.paint(-hl, -hw, 2, hl, hw, 6, (x, y, z, c) => (hash3(x, y, z) > 0.95 && c === rgbInt(P.main)) ? P.dark : undefined);
+  return m;
+}
+function grizzlyTurret(pal, s) {
+  const P = pal.key === 'allies' ? GRIZ : pal;
+  const r = 4, w = 4, f = 1, reach = s.tur + s.barrel;
+  const m = new VModel(-r - 4, -w - 3, reach + 3, w + 3, 10);
+  m.box(-r + f, -w, 0, r + f, w, 3, P.turret, M_METAL);                               // low blue-lilac turret
+  m.box(-r + 1 + f, -w + 1, 3, r - 1 + f, w - 1, 4, P.turretHi, M_METAL);             // roof
+  for (const [x0, x1] of [[r - 1 + f, r + f], [-r + f, -r + 1 + f]]) { m.clear(x0, -w, 0, x1, -w + 1, 3); m.clear(x0, w - 1, 0, x1, w, 3); }
+  m.box(r - 1 + f, -2, 0, r + 2 + f, 2, 3, P.dark, M_METAL);                          // gun mantlet
+  for (const y of [-2.5, 2.5]) m.cylZ(-1 + f, y, 3, 4, 1.35, '#14172a', M_MATTE);           // two round dark hatches
+  m.cylX(r + f, reach, 0, 1.6, 0.9, '#16182a', M_METAL);                              // thin black gun
+  m.cylX(reach - 2, reach, 0, 1.6, 1.2, '#16182a', M_METAL);
+  m.line(-r + 1 + f, w - 1, 3, -r + 1 + f, w - 1, 8, '#1c2033');                      // aerial, rear right
+  return m;
+}
 function tankHull(pal, s) {
+  if (s.grizzly) return grizzlyHull(pal, s);
   if (s.mammoth) return mammothHull(pal, s);
   if (s.heavy) return heavyHull(pal, s);
   const L = s.len, W = s.wid, hl = Math.floor(L / 2), hw = Math.floor(W / 2), tw = Math.max(3, Math.round(W * 0.26));
@@ -182,6 +224,7 @@ function tankHull(pal, s) {
   return m;
 }
 function tankTurret(pal, s) {
+  if (s.grizzly) return grizzlyTurret(pal, s);
   if (s.mammoth) return mammothTurret(pal, s);
   if (s.heavy) return heavyTurret(pal, s);
   const r = s.tur, bl = s.barrel;
