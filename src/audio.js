@@ -5,8 +5,12 @@
 // src/voices.js.
 
 const Sound = (() => {
-  const settings = { music: true, sfx: true, voice: true };
+  const settings = { music: true, sfx: true, voice: true, musicVol: 1, sfxVol: 1 };   // volumes 0 to 1; 1 is the mix the game was balanced at
   try { Object.assign(settings, JSON.parse(localStorage.getItem('ps-audio') || '{}')); } catch (_) {}
+  // Slider position to gain: squared, so the lower half of the slider is not all loud.
+  const vol = (k) => { const v = Math.min(1, Math.max(0, +settings[k])); return v * v; };
+  const musicLevel = () => settings.music ? 0.42 * vol('musicVol') : 0;
+  const sfxLevel = () => settings.sfx ? 0.85 * vol('sfxVol') : 0;
   const save = () => { try { localStorage.setItem('ps-audio', JSON.stringify(settings)); } catch (_) {} };
 
   let ctx = null, master, sfxBus, farBus, musicBus, verb, verbIn, delayIn, noise, shaperHeavy, shaperSoft;
@@ -58,11 +62,11 @@ const Sound = (() => {
     comp.threshold.value = -18; comp.knee.value = 6; comp.ratio.value = 6; comp.attack.value = 0.002; comp.release.value = 0.2;
     comp.connect(ctx.destination);
     master = gain(0.75, comp);
-    sfxBus = gain(settings.sfx ? 0.85 : 0, master);
+    sfxBus = gain(sfxLevel(), master);
     // Distant battles share one muffled, roomy bus: the far-off rumble of fighting elsewhere.
     const farLp = ctx.createBiquadFilter(); farLp.type = 'lowpass'; farLp.frequency.value = 1700; farLp.Q.value = 0.4;
     farBus = gain(1, farLp); farLp.connect(sfxBus);
-    musicBus = gain(settings.music ? 0.42 : 0, master);
+    musicBus = gain(musicLevel(), master);
     // Room reverb from a generated impulse response.
     verb = ctx.createConvolver();
     const len = Math.floor(ctx.sampleRate * 1.5), ir = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -379,14 +383,14 @@ const Sound = (() => {
     if (!ctx || !settings.voice || ctx.state !== 'running') return;
     clipBuffer(b64, (buf) => {
       const src = ctx.createBufferSource(); src.buffer = buf;
-      const g = gain(vol, master); src.connect(g);
+      const g = gain(vol * vol('sfxVol'), master); src.connect(g);
       if (isEva) {
         if (evaSrc) try { evaSrc.stop(); } catch (_) {}
         evaSrc = src;
         const now = ctx.currentTime;
         musicBus.gain.cancelScheduledValues(now);
-        musicBus.gain.setTargetAtTime(settings.music ? 0.22 : 0, now, 0.05);
-        musicBus.gain.setTargetAtTime(settings.music ? 0.42 : 0, now + buf.duration, 0.3);
+        musicBus.gain.setTargetAtTime(musicLevel() * 0.52, now, 0.05);
+        musicBus.gain.setTargetAtTime(musicLevel(), now + buf.duration, 0.3);
       } else ackBusyUntil = ctx.currentTime + buf.duration;
       src.start();
     });
@@ -804,14 +808,23 @@ const Sound = (() => {
     },
   };
 
+  // Volume sliders: 'musicVol' is the soundtrack, 'sfxVol' is effects and voices together.
+  function setVolume(key, v) {
+    settings[key] = Math.min(1, Math.max(0, v));
+    save();
+    if (!ctx) return;
+    if (key === 'musicVol') musicBus.gain.setTargetAtTime(musicLevel(), ctx.currentTime, 0.05);
+    if (key === 'sfxVol') sfxBus.gain.setTargetAtTime(sfxLevel(), ctx.currentTime, 0.05);
+  }
+
   function setOption(key, on) {
     settings[key] = on;
     save();
     if (!ctx) return;
-    if (key === 'music') musicBus.gain.setTargetAtTime(on ? 0.42 : 0, ctx.currentTime, 0.1);
-    if (key === 'sfx') sfxBus.gain.setTargetAtTime(on ? 0.85 : 0, ctx.currentTime, 0.05);
+    if (key === 'music') musicBus.gain.setTargetAtTime(musicLevel(), ctx.currentTime, 0.1);
+    if (key === 'sfx') sfxBus.gain.setTargetAtTime(sfxLevel(), ctx.currentTime, 0.05);
     if (key === 'voice' && !on && evaSrc) try { evaSrc.stop(); } catch (_) {}
   }
 
-  return { init: unlock, unlock, status, play, say, ack, settings, setOption, music: Music, get debug() { return { ctx, master, musicClips: Object.values(MBUF).reduce((n, l) => n + l.filter(Boolean).length, 0) }; } };
+  return { init: unlock, unlock, status, play, say, ack, settings, setOption, setVolume, music: Music, get debug() { return { ctx, master, musicClips: Object.values(MBUF).reduce((n, l) => n + l.filter(Boolean).length, 0) }; } };
 })();

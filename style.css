@@ -226,6 +226,8 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 }
 .audio button[aria-pressed="true"] { color: #fff; border-color: var(--amber); }
 .audio button[aria-pressed="true"]::before { content: '● '; color: var(--green); }
+.audio .vol { grid-column: 1 / -1; display: grid; grid-template-columns: 11em 1fr; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--ink); }
+.audio .vol input { width: 100%; min-width: 0; height: 32px; margin: 0; accent-color: var(--amber); touch-action: pan-y; }
 .audio .track { grid-column: 1 / -1; color: var(--ink); }
 .audio .track span { color: var(--amber); }
 .quit-btn {

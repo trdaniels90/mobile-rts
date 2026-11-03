@@ -961,7 +961,13 @@
     syncMenuChoices();
   });
   $('trackBtn').addEventListener('click', () => { Sound.init(); Sound.setOption('music', true); Sound.music.skip(); syncMenuChoices(); });
+  for (const [id, key] of [['musicVol', 'musicVol'], ['sfxVol', 'sfxVol']]) {
+    $(id).addEventListener('input', (e) => { Sound.init(); Sound.setVolume(key, e.target.value / 100); });
+    // Let go of the effects slider and a sample plays, so the level can be judged.
+    if (id === 'sfxVol') $(id).addEventListener('change', () => Sound.play && Sound.play('rifle'));
+  }
   function syncMenuChoices() {
+    $('musicVol').value = Math.round(Sound.settings.musicVol * 100); $('sfxVol').value = Math.round(Sound.settings.sfxVol * 100);
     for (const b of ui.menu.querySelectorAll('[data-audio]')) b.setAttribute('aria-pressed', String(!!Sound.settings[b.dataset.audio]));
     $('trackName').textContent = '· ' + Sound.music.name;
     $('audioStatus').textContent = 'Sound: ' + Sound.status();
