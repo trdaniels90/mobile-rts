@@ -30,7 +30,7 @@ const Debrief = (() => {
         <section class="db-panel"><p class="db-ptitle">Your kills by unit</p><div class="db-bytype"></div></section>
       </div>
       <div class="db-extra"></div>
-      <div class="db-buttons"><button type="button" class="db-rematch">Rematch</button><button type="button" class="db-new">New Mission</button></div>
+      <div class="db-buttons"><button type="button" class="db-rematch">Rematch</button><button type="button" class="db-new">Main Menu</button></div>
     </div>`;
     document.body.appendChild(root);
     root.querySelector('.db-ptabs').addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (b) page(b.dataset.p); });
