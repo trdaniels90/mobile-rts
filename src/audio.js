@@ -8,9 +8,9 @@ const Sound = (() => {
   const settings = { music: true, sfx: true, voice: true, musicVol: 1, sfxVol: 1 };   // volumes 0 to 1; 1 is the mix the game was balanced at
   try { Object.assign(settings, JSON.parse(localStorage.getItem('ps-audio') || '{}')); } catch (_) {}
   // Slider position to gain: squared, so the lower half of the slider is not all loud.
-  const vol = (k) => { const v = Math.min(1, Math.max(0, +settings[k])); return v * v; };
-  const musicLevel = () => settings.music ? 0.42 * vol('musicVol') : 0;
-  const sfxLevel = () => settings.sfx ? 0.85 * vol('sfxVol') : 0;
+  const volOf = (k) => { const v = Math.min(1, Math.max(0, +settings[k])); return v * v; };
+  const musicLevel = () => settings.music ? 0.42 * volOf('musicVol') : 0;
+  const sfxLevel = () => settings.sfx ? 0.85 * volOf('sfxVol') : 0;
   const save = () => { try { localStorage.setItem('ps-audio', JSON.stringify(settings)); } catch (_) {} };
 
   let ctx = null, master, sfxBus, farBus, musicBus, verb, verbIn, delayIn, noise, shaperHeavy, shaperSoft;
@@ -383,7 +383,7 @@ const Sound = (() => {
     if (!ctx || !settings.voice || ctx.state !== 'running') return;
     clipBuffer(b64, (buf) => {
       const src = ctx.createBufferSource(); src.buffer = buf;
-      const g = gain(vol * vol('sfxVol'), master); src.connect(g);
+      const g = gain(vol * volOf('sfxVol'), master); src.connect(g);
       if (isEva) {
         if (evaSrc) try { evaSrc.stop(); } catch (_) {}
         evaSrc = src;
