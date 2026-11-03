@@ -26,12 +26,11 @@ Sounds are trimmed, pitched, mixed, filtered and level-matched for the game by
 ## Recorded track
 
 "Industry" (`src/industry.js`) is a recorded piece supplied by the owner, converted to a
-96 kbps MP3 and level-matched with ffmpeg. It is the only soundtrack piece that is not
-sequenced from the instruments below.
+96 kbps MP3 and level-matched with ffmpeg. It is currently the whole soundtrack.
 
 ## Music instruments
 
-The four soundtrack pieces are original. They are played on these recorded instruments,
+The sequenced soundtrack pieces were original (all removed for now, the instruments stay in the code for a new soundtrack). They were played on these recorded instruments,
 cut into single notes, power chords, brass stabs, string chords and drum hits:
 
 | Used for | Sample library | Author | Licence |
