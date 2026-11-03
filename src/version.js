@@ -4,12 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
-  { v: '2026.11.03.6', date: '3 November 2026', title: 'Volume sliders, one track', groups: [
+  { v: '2026.11.03.6', date: '3 November 2026', title: 'Volume sliders, new soundtrack', groups: [
     ['New', [
       'Two volume sliders on the menu: Music, and Game sound (effects and voices together). They are remembered on your device. Full is the mix the game had before, so the sliders only turn it down.',
     ]],
     ['Changes', [
-      'The soundtrack is now just Industry while a new one is being made. It loops.',
+      'The soundtrack is now just two recorded tracks, Industry and War, while a new one is being made. They play in turn.',
     ]],
   ] },
   { v: '2026.11.03.5', date: '3 November 2026', title: 'A fifth soundtrack piece', groups: [

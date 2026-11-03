@@ -607,8 +607,9 @@ const Sound = (() => {
   // a semitone offset from the song key, '-' to hold, '.' to rest, 'm' suffix for palm-muted.
   const E = 40; // E2
   const SONGS = [
-    // A recorded piece (src/industry.js), played whole instead of sequenced.
-    { name: 'Industry', rec: true, bpm: 120, key: E, parts: {}, order: [] },
+    // Recorded pieces (src/industry.js, src/war.js), played whole instead of sequenced.
+    { name: 'Industry', rec: 'industry', bpm: 120, key: E, parts: {}, order: [] },
+    { name: 'War', rec: 'war', bpm: 120, key: E, parts: {}, order: [] },
   ];
   for (const song of SONGS) for (const part of Object.values(song.parts)) {
     for (const key of ['gtr', 'bass', 'lead', 'stab', 'pad']) {
@@ -630,31 +631,36 @@ const Sound = (() => {
       this.song = (this.song + 1) % SONGS.length; this.part = 0; this.bar = 0; this.step = 0;
       if (ctx) this.next = ctx.currentTime + 0.3;
     },
-    // The recorded track is decoded once, in the background, the first time music starts.
-    recBuf: null, recSrc: null, recLoading: false,
-    loadRec() {
-      if (this.recBuf || this.recLoading || typeof INDUSTRY_TRACK === 'undefined') return;
-      this.recLoading = true; this.recAt = Date.now();
-      clipBuffer(INDUSTRY_TRACK, (buf) => { this.recBuf = buf; });
+    // Each recorded track is decoded once, in the background, when it is first wanted.
+    recBufs: {}, recLoading: {}, recSrc: null,
+    loadRec(id) {
+      if (this.recBufs[id] || this.recLoading[id] || typeof REC_TRACKS === 'undefined' || !REC_TRACKS[id]) return;
+      this.recLoading[id] = Date.now();
+      // Decoded on demand and not kept after it plays: three minutes of stereo is about 60 MB of memory.
+      const bin = atob(REC_TRACKS[id]), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      try { ctx.decodeAudioData(bytes.buffer, (buf) => { if (SONGS[this.song].rec === id) this.recBufs[id] = buf; }, () => {}); } catch (_) {}
     },
     stopRec() {
       if (!this.recSrc) return;
       const s = this.recSrc; this.recSrc = null; s.onended = null;
       try { s.stop(); } catch (_) {}
+      this.recBufs = {}; this.recLoading = {};
     },
-    tickRec() {
+    tickRec(id) {
       if (this.recSrc) return;
-      if (!this.recBuf) { if (!this.recLoading || Date.now() - this.recAt > 20000) this.skip(); return; }   // not available: move on
+      const buf = this.recBufs[id];
+      if (!buf) { if (!this.recLoading[id] || Date.now() - this.recLoading[id] > 20000) this.skip(); return; }   // not available: move on
       const src = ctx.createBufferSource();
-      src.buffer = this.recBuf; src.connect(musicBus);
-      src.onended = () => { if (this.recSrc === src) { this.recSrc = null; this.skip(); } };
+      src.buffer = buf; src.connect(musicBus);
+      src.onended = () => { if (this.recSrc === src) this.skip(); };
       this.recSrc = src;
       src.start(ctx.currentTime + 0.1);
     },
     tick() {
       if (!ctx || ctx.state !== 'running') return;
-      this.loadRec();
-      if (SONGS[this.song].rec) return this.tickRec();
+      const rec = SONGS[this.song].rec;
+      if (rec) { this.loadRec(rec); return this.tickRec(rec); }
       // Schedule well ahead so a busy frame never makes the music skip.
       if (this.next < ctx.currentTime) this.next = ctx.currentTime + 0.02;
       while (this.next < ctx.currentTime + 0.3) {
