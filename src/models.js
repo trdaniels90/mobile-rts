@@ -82,7 +82,7 @@ function heavyHull(pal, s) {
 }
 function heavyTurret(pal, s) {
   const P = pal.key === 'soviets' ? HEAVY_RED : pal;
-  const r = s.tur, bl = s.barrel, w = 7, f = 2;                                   // f: the turret sits this far forward of the hull's middle
+  const r = s.tur, bl = s.barrel, w = 7, f = 0;                                   // f: the turret sits this far forward of the hull's middle
   const m = new VModel(-r - 3, -w - 2, r + bl + 3 + f, w + 2, 9);
   m.box(-r + f, -w, 0, r + f, w, 3, P.main, M_METAL);                                       // wide low turret box, centred on the hull
   m.box(-r + 1 + f, -w + 1, 3, r - 1 + f, w - 1, 4, P.main, M_METAL);                       // roof
