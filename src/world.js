@@ -610,7 +610,7 @@ function addBuilding(type, team, cx, cy) {
   };
   for (let y = cy; y < cy + d.h; y++) for (let x = cx; x < cx + d.w; x++) G.bld[idx(x, y)] = b.id;
   if (d.exit) { b.exitCell = idx(cx + Math.floor(d.w / 2), cy + d.h); G.resv[b.exitCell] = 1; }
-  if (G.tctx) bibDecal(G.tctx, cx * CELL, cy * CELL, d.w * CELL, d.h * CELL, b.id * 977);
+  if (G.tctx && !d.camo) bibDecal(G.tctx, cx * CELL, cy * CELL, d.w * CELL, d.h * CELL, b.id * 977);   // (a camouflaged structure leaves no pad to give it away)
   if (G.tctx && d.depot) padDecal(G.tctx, cellX(b.exitCell) * CELL, cellY(b.exitCell) * CELL);
   G.entities.push(b); G.byId.set(b.id, b);
   team.stats.built++;
@@ -644,6 +644,7 @@ function acquire(src, range, weapons, visible) {
   for (const e of G.entities) {
     if (!e.alive || e.team === src.team || e.sellT > 0) continue;
     if (!weapons.some((w) => canHit(w, e))) continue;
+    if (e.kind === 'bld' && camoHidden(e, src.team)) continue;
     if (visible && !visible(e)) continue;
     const d = distTo(src, e);
     if (d > range) continue;
@@ -664,7 +665,13 @@ function knownTo(tid, b) {
   for (let y = b.cy; y < b.cy + b.h; y++) for (let x = b.cx; x < b.cx + b.w; x++) if (inMap(x, y) && grid[idx(x, y)]) return true;
   return false;
 }
-const targetable = (team, b) => knownTo(team, b);
+// Camouflage (the Pillbox): hidden from the other side until an enemy ground unit comes within
+// CAMO_DETECT, or until it fires or is hit, and for CAMO_REVEAL seconds after. A hidden structure
+// cannot be seen, picked, targeted or aimed at by either side's units, and the host never tells an
+// online guest it exists (net.js `shown`). `exposed` is the flag the guest's copy reads.
+const CAMO_DETECT = CELL * 3, CAMO_REVEAL = 4;
+const camoHidden = (b, viewer) => b.kind === 'bld' && !!b.def.camo && b.team !== viewer && !b.exposed;
+const targetable = (team, b) => knownTo(team, b) && !camoHidden(b, team);
 // The win rule: production buildings keep a side in the fight, and so does a Mobile Construction Yard
 // still driving. Once a side has no production building left, the enemy knows where its Mobile
 // Construction Yards are (lastStand), so a hidden one cannot drag the battle out.
@@ -679,7 +686,7 @@ function lastStand(u) {
   for (const m of mcvsOf(foe)) { const d = dist(u, m); if (d < bd) { bd = d; best = m; } }
   return best;
 }
-function enemyBaseKnown(tid = G.me) { return buildingsOf(1 - tid).some((b) => knownTo(tid, b)) || (!hasProduction(1 - tid) && mcvsOf(1 - tid).length > 0); }
+function enemyBaseKnown(tid = G.me) { return buildingsOf(1 - tid).some((b) => targetable(tid, b)) || (!hasProduction(1 - tid) && mcvsOf(1 - tid).length > 0); }
 
 // The computer's attackers: one passing within 10 cells of a known enemy Outpost, or of a refinery
 // well away from every enemy Construction Yard, turns aside to destroy it (and what stands beside
@@ -1276,6 +1283,7 @@ function impact(kind, x, y, inAir) {
 // `from`: where the hit came from (a blast centre or the shooter), for how a soldier falls.
 function damage(t, amount, wh, attacker, from) {
   if (!t.alive || G.remote) return;   // (a PvP guest's copy only shows the host's battle)
+  if (t.kind === 'bld' && t.def.camo && !(attacker && attacker.team === t.team)) t.revealT = CAMO_REVEAL;   // being hit gives it away
   // As in Red Alert: whoever fires at a support plane (Spy Plane, Paratroopers transport, bomber)
   // gives away where it stands, to either side.
   if (t.def && t.def.scripted && attacker && attacker.team !== t.team) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5, G.fog[t.team]);
@@ -2582,6 +2590,7 @@ function updateBuilding(b, dt) {
     if (b.type === 'apower' && b.buildT >= 1) for (const [tx, ty, h] of [[15, 17, 40], [41, 17, 40]]) if (Math.random() < 0.5) G.effects.push({ type: 'smoke', x: b.cx * CELL + tx, y: b.cy * CELL + ty - h * VK, vy: -16, vx: 6, r: 3, t: 0, life: 2, alpha: 0.4, color: '#c9c7c0' });
     if (b.type === 'power' && b.buildT >= 1 && Math.random() < 0.6) G.effects.push({ type: 'smoke', x: b.cx * CELL + 38, y: b.cy * CELL + 14 - 42 * VK, vy: -16, vx: 6, r: 2.5, t: 0, life: 1.8, alpha: 0.4, color: '#c9c7c0' });
   }
+  if (b.def.camo) b.exposed = b.buildT < 1 || (b.revealT = Math.max(0, (b.revealT || 0) - dt)) > 0;   // seen while going up, then only when it gives itself away
   const w = b.def.weapon;
   if (!w || b.buildT < 1) return;
   tickBurst(b, dt);
@@ -2590,6 +2599,7 @@ function updateBuilding(b, dt) {
   b.think -= dt;
   if (b.think <= 0) {
     b.think = 0.3;
+    if (b.def.camo) for (const e of G.entities) if (e.alive && e.kind === 'unit' && e.team !== b.team && !isAirborne(e) && Math.hypot(e.x - b.x, e.y - b.y) < CAMO_DETECT) { b.revealT = CAMO_REVEAL; break; }
     const src = { x: b.x, y: b.y, team: b.team };
     if (!b.target || !b.target.alive || distTo(src, b.target) > w.range) b.target = acquire(src, w.range, [w]);
   }
@@ -2597,7 +2607,7 @@ function updateBuilding(b, dt) {
   if (!t || !t.alive) return;
   const ang = Math.atan2(t.y - (t.alt || 0) - b.y, t.x - b.x);
   if (b.type !== 'tesla') b.tface = turnToward(b.tface, ang, 5 * dt);
-  if (b.cd <= 0 && (b.type === 'tesla' || Math.abs(angDiff(ang, b.tface)) < 0.15)) { shoot(b, w, t); b.cd = w.rof; }
+  if (b.cd <= 0 && (b.type === 'tesla' || Math.abs(angDiff(ang, b.tface)) < 0.15)) { shoot(b, w, t); b.cd = w.rof; if (b.def.camo) b.revealT = CAMO_REVEAL; }
 }
 
 // How far (in cells) from one of its own structures a side may place a new one; Outposts reach further.

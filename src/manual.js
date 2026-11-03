@@ -18,7 +18,7 @@ const Manual = (() => {
     depot: ['Repairs ground vehicles: tanks, support vehicles, Ore Trucks and the Mobile Outpost. Select damaged vehicles and tap REPAIR, or tap the depot. One vehicle at a time is repaired on the pad in front of it while the rest wait beside it. A full repair costs half the vehicle\'s price. Needs a War Factory.', '', 'Vehicles on the pad do not fire back'],
     helipad: ['Builds and rearms helicopters. Comes with one free helicopter. Aircraft are repaired on their pad for credits.', '', ''],
     airfield: ['Builds and rearms jets and charges the Spy Plane, Paratrooper and Bombing Run powers. Parks up to 4 jets, so build more Airfields for a bigger air force. If one is lost and the rest have no room, the surplus jets fly off the map into reserve and come back and land when there is room again. Comes with one free jet.', '', ''],
-    pillbox: ['A sandbagged machine-gun nest. Cheap and quick to build.', 'Infantry', 'Tanks'],
+    pillbox: ['A camouflaged machine-gun nest, coloured to match the ground. The enemy cannot see it until a ground unit comes within 3 cells or it opens fire, and it hides again a few seconds later. Cheap and quick to build.', 'Infantry', 'Tanks'],
     turret: ['A heavy gun turret that outranges most tanks.', 'Tanks, vehicles', 'Infantry swarms, artillery'],
     aagun: ['Fills the sky with black flak. Cannot fire at ground targets.', 'Helicopters, jets', 'Anything on the ground'],
     ftur: ['Throws burning fuel that keeps burning on the ground for a moment.', 'Infantry', 'Tanks'],

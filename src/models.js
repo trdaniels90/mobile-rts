@@ -699,10 +699,10 @@ const STRUCTURES = {
   // at the six corners and dark firing slits between them.
   pillbox(pal) {
     const m = new VModel(-2, -2, 26, 26, 12);
-    m.box(0, 0, 0, 24, 24, 1, C.bib, M_ROUGH);
     const R = 10.6, H = 0.866, CX = 12, CY = 12;
     const base = pal.camo !== undefined ? pal.camo : 0x4a6330, sh = (k) => shadeInt(base, k);   // the roof takes the ground's colour
     const inHex = (x, y, r) => { const dx = Math.abs(x + 0.5 - CX), dy = Math.abs(y + 0.5 - CY); return dy <= r * H && dx + dy / 1.732 <= r; };
+    for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) if (inHex(x, y, R + 0.6)) m.set(x, y, 0, sh(0.8), M_ROUGH);   // a hex of ground under it, no dirt pad
     // Walls: concrete, with a lighter course on top and a shadowed foot.
     for (let z = 1; z < 8; z++) for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) {
       if (inHex(x, y, R)) m.set(x, y, z, z === 1 ? C.concD : z === 7 ? C.conc : (z + (x >> 3)) % 3 === 0 ? C.concD : '#7d7b72', M_ROUGH);

@@ -384,7 +384,7 @@ const Net = (() => {
   // Fields the guest never needs: the host's own timers and bookkeeping. `anim` (the walk cycle)
   // the guest keeps itself.
   const SKIP = new Set(['def', 'path', 'pathIdx', 'needPath', 'lastX', 'lastY', 'stuckN', 'stuckT', 'think', 'cd', 'cd2', 'sent',
-    'smokeT', 'dmgSeen', 'dmgHp', 'dropT', 'dmgFxT', 'popK', 'popHold', 'anim', 'htimer', 'hcell', 'crowdT', 'nearBest', 'clankT']);
+    'smokeT', 'revealT', 'dmgSeen', 'dmgHp', 'dropT', 'dmgFxT', 'popK', 'popHold', 'anim', 'htimer', 'hcell', 'crowdT', 'nearBest', 'clankT']);
   const COARSE = new Set(['x', 'y', 'alt']);   // to a tenth of a pixel
   const OBJ = '\u0000';   // marks an object field, kept as JSON for comparing
   let sent, fogSent, oreSent, gemSent, teamSent, events, snapT, snapN, full;
@@ -410,6 +410,7 @@ const Net = (() => {
   const seen = (x, y) => !!G.fog[peerSide()][cellOfPos(x, y)];
   function shown(x, last) {
     if (x.team === peerSide()) return true;
+    if (x.kind === 'bld' && camoHidden(x, peerSide()) && !last) return false;   // a camouflaged structure is not mentioned until it gives itself away
     if (x.kind === 'bld') return seen(x.cx * CELL + 1, x.cy * CELL + 1) || seen((x.cx + x.w) * CELL - 1, (x.cy + x.h) * CELL - 1);
     return seen(x.x, x.y) || (last && typeof last.x === 'number' && seen(last.x, last.y));
   }

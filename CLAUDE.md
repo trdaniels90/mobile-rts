@@ -146,6 +146,20 @@ share globals. Read this file first; the commit history explains every change in
 - **Computer outposts** (Normal and Hard): `ai.expand`, `ai.outpostGuns`, 1 to 3 refineries per
   Outpost (`o.refWant`, `o.refineries`), `defMax` up by 3.
 
+## Camouflaged Pillbox (after 2026.11.02.1, both modes)
+
+- The Allied Pillbox has `camo: true` in data.js. `camoHidden(b, viewer)` (world.js) is true for an enemy
+  structure that is not `exposed`. Hidden means: not drawn, picked or shown on the minimap
+  (`visibleToPlayer` in ui.js), not chosen by `acquire` or `targetable` (so the computer's attack logic
+  ignores it), and the host never sends it to an online guest until it is exposed (`shown` in net.js).
+- Exposed for `CAMO_REVEAL` (4 s) after an enemy ground unit comes within `CAMO_DETECT` (3 cells), after it
+  fires, or after it takes damage. Always exposed while under construction. `exposed` is synced;
+  `revealT` is a host timer (in net.js `SKIP`).
+- It leaves no dirt pad (`addBuilding` skips `bibDecal` for `camo`). Its roof takes the colour of the
+  ground (`groundColour` in art.js, `camoPal` in models.js): grass, dirt or a mix, in quarter steps.
+- Tested with throwaway scripts: hidden/exposed/hidden again, and an online host/guest pair (the guest
+  has no entry for a hidden host Pillbox, gets it when exposed, keeps `exposed` current afterwards).
+
 ## Supabase
 
 - **Project:** `yorrgemlhoxbxvyvzcwe`. The Supabase MCP tools work in these sessions.

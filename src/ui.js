@@ -240,7 +240,7 @@
     g.fillRect(x1 - L + 1, y1, L, 1); g.fillRect(x1, y1 - L + 1, 1, L);
   }
   const seenAt = (x, y) => G.seen[cellOfPos(x, y)];
-  const visibleToPlayer = (e) => e.team === G.me || (e.kind === 'bld' ? G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)] : seenAt(e.x, e.y));
+  const visibleToPlayer = (e) => e.team === G.me || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y));
 
   function draw() {
     const z = cam.z;
