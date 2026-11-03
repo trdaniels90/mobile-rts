@@ -1021,11 +1021,18 @@ function tickBurst(u, dt) {
 // machine gun (a thin wisp for each round of the burst). Pushed on the host like any effect, so an
 // online guest gets it in the snapshot.
 function barrelSmoke(src, m) {
-  const cx = Math.cos(src.tface), cy = Math.sin(src.tface), r = Math.random, big = src.type === 'turret';
-  for (let i = 0, n = big ? 4 : 1; i < n; i++) {
-    G.effects.push({ type: 'smoke', x: m.x + cx * i * 1.5 + (r() - 0.5) * 2, y: m.y + cy * i * 1.5 + (r() - 0.5) * 2,
-      r: big ? 4 + r() * 3 : 2 + r() * 1.3, t: -i * 0.03, life: big ? 1.3 + r() * 0.9 : 0.7 + r() * 0.5, alpha: big ? 0.65 : 0.38, color: '#c9c7c0',
-      vx: cx * (big ? 10 + r() * 14 : 5 + r() * 8) + (r() - 0.5) * 6, vy: cy * (big ? 8 + r() * 10 : 4 + r() * 6) * 0.7 - (big ? 7 + r() * 5 : 5 + r() * 3), drag: big ? 1.6 : 1.2 });
+  const cx = Math.cos(src.tface), cy = Math.sin(src.tface), r = Math.random;
+  if (src.type === 'turret') {
+    // Six puffs a shell: three roll out along the barrel, three hang about the muzzle and fade slowly.
+    for (let i = 0; i < 6; i++) {
+      const slow = i >= 3;
+      G.effects.push({ type: 'smoke', x: m.x + cx * i * 1.2 + (r() - 0.5) * 3, y: m.y + cy * i * 1.2 + (r() - 0.5) * 3,
+        r: 5 + r() * 4, t: -i * 0.03, life: slow ? 2.6 + r() * 1.4 : 1.8 + r() * 1, alpha: 0.7, color: '#c9c7c0',
+        vx: cx * (slow ? 3 + r() * 5 : 12 + r() * 14) + (r() - 0.5) * 6, vy: cy * (slow ? 2 + r() * 4 : 8 + r() * 10) * 0.7 - (slow ? 4 + r() * 4 : 7 + r() * 5), drag: slow ? 1.2 : 1.6 });
+    }
+  } else {
+    G.effects.push({ type: 'smoke', x: m.x + (r() - 0.5) * 2, y: m.y + (r() - 0.5) * 2, r: 2 + r() * 1.3, t: 0, life: 0.7 + r() * 0.5, alpha: 0.38, color: '#c9c7c0',
+      vx: cx * (5 + r() * 8) + (r() - 0.5) * 6, vy: cy * (4 + r() * 6) * 0.7 - (5 + r() * 3), drag: 1.2 });
   }
 }
 function fireWeapon(src, w, t) {
