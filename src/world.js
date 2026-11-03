@@ -346,7 +346,7 @@ function genMap(seed) {
 
 // A fixed layout (a map in maps.js with `rows`, see tools/map-from-image.py): the same every game.
 function genLayoutMap(m) {
-  G.cliff = new Uint8Array(NCELLS);   // rock drawn as walls (art.js cliffCell), not loose boulders
+  G.cliff = new Uint8Array(NCELLS);   // rock painted as cliff ridges (art.js paintCliffs), not loose boulders
   const T = G.terr, code = { '.': 0, ',': 1, 'T': 2, '#': 3, '~': 4, '=': 5, 'o': 0 }, oreAt = [];
   m.rows.forEach((row, y) => {
     let x = 0;

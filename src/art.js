@@ -88,6 +88,7 @@ function paintTerrain(terr, seed, roads, bridges, cliffs) {
       d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2]; d[p + 3] = 255;
     }
   }
+  if (cliffs) paintCliffs(d, terr, cliffs, seed);
   g.putImageData(img, 0, 0);
 
   // Wheel ruts along the roads.
@@ -138,7 +139,7 @@ function paintTerrain(terr, seed, roads, bridges, cliffs) {
           stamps.push({ s: set[Math.floor(r() * set.length)], x: x0 + 4 + r() * 16, y: y0 + 6 + r() * 14 });
         }
       } else if (t === 3 && cliffs && cliffs[cy * MAP + cx]) {
-        stamps.push({ k: 'cliff', rocks: cliffRocks(cx, cy, r), x: x0, y: y0 + CELL });
+        // painted with the ground (paintCliffs)
       } else if (t === 3) {
         stamps.push({ s: scenery.rocks[Math.floor(r() * scenery.rocks.length)], x: x0 + 12 + (r() - 0.5) * 4, y: y0 + 13 + (r() - 0.5) * 4 });
       } else if (t === 0 && r() < 0.28 && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([ox, oy]) => terr[(cy + oy) * MAP + cx + ox] === 4)) {
@@ -149,11 +150,9 @@ function paintTerrain(terr, seed, roads, bridges, cliffs) {
     }
   }
   stamps.sort((a, b) => a.y - b.y);
-  for (const s of stamps) if (s.k === 'cliff') cliffShadow(g, s.rocks);
   for (const s of stamps) if (s.s) { g.globalAlpha = 0.45; g.drawImage(s.s.sh, Math.round(s.x + s.s.sox), Math.round(s.y + s.s.soy)); g.globalAlpha = 1; }
   for (const s of stamps) {
     if (s.s) { g.drawImage(s.s.img, Math.round(s.x + s.s.ox), Math.round(s.y + s.s.oy)); continue; }
-    if (s.k === 'cliff') { cliffCell(g, s.rocks); continue; }
     const x = Math.round(s.x), y = Math.round(s.y);
     g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x + 1, y + 1, 5, 2);
     g.fillStyle = '#1f2e15'; g.fillRect(x - 2, y - 2, 5, 3);
@@ -163,42 +162,75 @@ function paintTerrain(terr, seed, roads, bridges, cliffs) {
   return c;
 }
 
-// Rock walls (cliff cells of a fixed-layout map): each cell is a heap of big shaded boulders that
-// overlap their neighbours', so a line of cells reads as one rocky ridge. Drawn back to front with
-// the trees, so a southern boulder's top hides the foot of the one behind it.
-function cliffRocks(cx, cy, r) {
-  const rocks = [], n = 3 + (r() < 0.5 ? 1 : 0);
-  for (let i = 0; i < n; i++) {
-    const big = i === 0, rad = big ? 12 + r() * 3 : 8 + r() * 4, h = 10 + r() * 8;
-    const x = cx * CELL + CELL / 2 + (big ? (r() - 0.5) * 4 : (r() - 0.5) * 14), y = cy * CELL + CELL / 2 + (big ? (r() - 0.5) * 4 : (r() - 0.5) * 14);
-    const pts = [], k = 7 + Math.floor(r() * 3), a0 = r() * 6.3;
-    for (let j = 0; j < k; j++) { const a = a0 + j / k * Math.PI * 2, d = rad * (0.75 + r() * 0.35); pts.push([Math.cos(a) * d, Math.sin(a) * d * 0.82]); }
-    rocks.push({ x, y, h, pts, tone: Math.floor(r() * 3), crack: r() < 0.6 ? [r() - 0.5, r() - 0.5, r() * 6.3] : null });
+// Cliffs (cliff cells of a fixed-layout map): painted into the ground as a continuous rocky ridge.
+// The ground rises to a jagged crest over the cliff cells (a height field with noise), and the slopes are shaded as if lit from the upper left,
+// in browns and tans, with a shadow on the ground below and loose scree at the foot.
+const CLIFF_H = 16;
+function paintCliffs(d, terr, cliffs, seed) {
+  const isC = (x, y) => x >= 0 && y >= 0 && x < MAP && y < MAP && terr[y * MAP + x] === 3 && cliffs[y * MAP + x];
+  // Value noise on an unbounded lattice.
+  const hash = (i, j, k) => { let h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(k + seed, 1442695041); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const vn = (x, y, s, k) => {
+    const fx = x / s, fy = y / s, i = Math.floor(fx), j = Math.floor(fy), tx = fx - i, ty = fy - j, u = tx * tx * (3 - 2 * tx), v = ty * ty * (3 - 2 * ty);
+    const a = hash(i, j, k), b = hash(i + 1, j, k), c = hash(i, j + 1, k), e = hash(i + 1, j + 1, k);
+    return (a + (b - a) * u) * (1 - v) + (c + (e - c) * u) * v;
+  };
+  // The ridge: every cliff cell spreads a soft mound; where the mounds add up past a threshold the
+  // ground rises, so lines, corners and doubled lines all merge into one ridge with a jagged edge.
+  const cells = new Map(), SIG2 = 2 * 10 * 10, R = 2;
+  for (let cy = 0; cy < MAP; cy++) for (let cx = 0; cx < MAP; cx++) {
+    if (!isC(cx, cy)) continue;
+    for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) {
+      const x = cx + i, y = cy + j;
+      if (x < 0 || y < 0 || x >= MAP || y >= MAP) continue;
+      let l = cells.get(y * MAP + x); if (!l) cells.set(y * MAP + x, l = []);
+      l.push((cx + 0.5) * CELL, (cy + 0.5) * CELL);
+    }
   }
-  return rocks.sort((p, q) => p.y - q.y);
-}
-function cliffShadow(g, rocks) {
-  g.fillStyle = 'rgba(6,10,4,0.38)';
-  for (const k of rocks) { g.beginPath(); k.pts.forEach(([x, y], i) => (i ? g.lineTo(k.x + x + 6, k.y + y + 5) : g.moveTo(k.x + x + 6, k.y + y + 5))); g.fill(); }
-}
-function cliffCell(g, rocks) {
-  const poly = (k, dx, dy, sc) => { g.beginPath(); k.pts.forEach(([x, y], i) => (i ? g.lineTo(k.x + x * sc + dx, k.y + y * sc + dy) : g.moveTo(k.x + x * sc + dx, k.y + y * sc + dy))); g.closePath(); };
-  for (const k of rocks) {
-    const top = -k.h;
-    // The sides: the outline swept from the ground up to the top.
-    g.fillStyle = '#342e28';
-    for (let z = 0; z >= top; z -= 2) { poly(k, 0, z, 1); g.fill(); }
-    poly(k, 0, 0, 1); g.fillStyle = '#28231e'; g.fill();
-    for (let z = top + 2; z < 0; z += 4) { poly(k, 0.6, z, 0.98); g.strokeStyle = 'rgba(70,62,52,0.35)'; g.lineWidth = 1; g.stroke(); }   // strata
-    // The top, lit from the upper left.
-    poly(k, 0, top, 1); g.fillStyle = ['#6a6256', '#726a5c', '#625b50'][k.tone]; g.fill();
-    poly(k, -1.5, top - 1.5, 0.62); g.fillStyle = ['#81786a', '#8a8070', '#7a7264'][k.tone]; g.fill();
-    poly(k, -2.5, top - 2.5, 0.28); g.fillStyle = 'rgba(170,160,140,0.35)'; g.fill();
-    poly(k, 1.2, top + 1.2, 0.92); g.strokeStyle = 'rgba(30,26,22,0.35)'; g.lineWidth = 1.5; g.stroke();
-    if (k.crack) {
-      const [ox, oy, a] = k.crack, x = k.x + ox * 8, y = k.y + oy * 6 + top;
-      g.strokeStyle = 'rgba(32,28,24,0.7)'; g.lineWidth = 1;
-      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * 5, y + Math.sin(a) * 4); g.lineTo(x + Math.cos(a + 0.8) * 8, y + Math.sin(a + 0.8) * 6); g.stroke();
+  const height = (x, y) => {
+    const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+    const l = cx >= 0 && cy >= 0 && cx < MAP && cy < MAP && cells.get(cy * MAP + cx);
+    if (!l) return 0;
+    let o = 0;
+    for (let i = 0; i < l.length; i += 2) { const dx = x - l[i], dy = y - l[i + 1]; o += Math.exp(-(dx * dx + dy * dy) / SIG2); }
+    o += (vn(x, y, 11, 1) - 0.5) * 0.75 + (vn(x, y, 4, 7) - 0.5) * 0.3 + (vn(x, y, 1.6, 2) - 0.5) * 0.12;   // ragged edge
+    const q = (o - 0.5) / 0.5;
+    if (q <= 0) return 0;
+    const f = Math.min(1, q * 2.5);   // crags and facets fade in from the foot
+    return CLIFF_H * Math.pow(q, 0.7) * (0.75 + 0.5 * vn(x, y, 16, 3)) + ((vn(x, y, 5, 4) - 0.5) * 7 + (vn(x, y, 2, 6) - 0.5) * 2.5) * f;
+  };
+  const near = cells;
+  const ROCK = [[44, 34, 26], [62, 49, 36], [84, 67, 49], [108, 88, 65], [134, 112, 84], [162, 139, 106], [190, 168, 132]];
+  const lx = -0.55, ly = -0.65, lz = 0.52;   // towards the light
+  // Work the height out once per pixel (only cells near a cliff can rise), then shade from that.
+  const tiles = new Map();
+  for (const c of near.keys()) {
+    const x0 = (c % MAP) * CELL, y0 = Math.floor(c / MAP) * CELL, t = new Float32Array(CELL * CELL);
+    for (let y = 0; y < CELL; y++) for (let x = 0; x < CELL; x++) t[y * CELL + x] = height(x0 + x, y0 + y);
+    tiles.set(c, t);
+  }
+  const H = (x, y) => {
+    if (x < 0 || y < 0 || x >= WORLD || y >= WORLD) return 0;
+    const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL), t = tiles.get(cy * MAP + cx);
+    return t ? t[(y - cy * CELL) * CELL + x - cx * CELL] : 0;
+  };
+  for (const c of tiles.keys()) {
+    const x0 = (c % MAP) * CELL, y0 = Math.floor(c / MAP) * CELL;
+    for (let y = y0; y < y0 + CELL; y++) for (let x = x0; x < x0 + CELL; x++) {
+      const p = (y * WORLD + x) * 4, h = H(x, y), sp = hash(x, y, 9);
+      if (h <= 0.4) {
+        const sh = H(x - 5, y - 6);   // the ridge's shadow on the ground below it
+        if (sh > 5) { const k = sh > 9 ? 0.55 : 0.7; d[p] *= k; d[p + 1] *= k; d[p + 2] *= k; }
+        else if (h > 0 && sp < 0.35) { const t = ROCK[1 + Math.floor(sp * 8)]; d[p] = t[0]; d[p + 1] = t[1]; d[p + 2] = t[2]; }   // scree
+        continue;
+      }
+      const gx = H(x + 1, y) - H(x - 1, y), gy = H(x, y + 1) - H(x, y - 1);
+      const nl = Math.hypot(gx * 0.5, gy * 0.5, 1), lit = (-gx * 0.5 * lx - gy * 0.5 * ly + lz) / nl;
+      let v = 2.3 + (lit - lz) * 7 + h / CLIFF_H * 1.2 + (sp - 0.5) * 0.6;   // flat ground mid-brown, sunlit faces tan, the rest dark
+      if (vn(x, y, 4, 5) > 0.72) v -= 1.2;   // cracks and gullies
+      const t = ROCK[Math.max(0, Math.min(ROCK.length - 1, Math.floor(v)))];
+      const a = Math.min(1, (h - 0.4) * 1.5);   // the foot blends into the ground
+      d[p] += (t[0] - d[p]) * a; d[p + 1] += (t[1] - d[p + 1]) * a; d[p + 2] += (t[2] - d[p + 2]) * a;
     }
   }
 }

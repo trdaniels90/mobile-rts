@@ -124,8 +124,9 @@ share globals. Read this file first; the commit history explains every change in
 - Made for 2 v 2 (`teams`: west bank starts 0-3 against east bank 4-7); 2 v 2 itself is not built.
   A 1 v 1 puts one player on each bank (`newWorld` picks from opposite halves of `G.spawns`).
   The layout is not mirrored, so the banks are not exactly equal.
-- Its rock (`'#'`) is drawn as walls of heaped boulders (`G.cliff` mask, `cliffRocks` / `cliffCell` in art.js)
-  instead of loose stones. Walls only block; the game has no height or high-ground bonus.
+- Its rock (`'#'`) is painted into the ground as brown rocky ridges (`G.cliff` mask, `paintCliffs` in art.js:
+  a height field from the cliff cells, shaded by slope, cached per cell). They only block; the game has no
+  height or high-ground bonus.
 
 ## Recent mechanics (2026.10.31.2)
 
