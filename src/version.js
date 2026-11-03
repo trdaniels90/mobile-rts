@@ -4,6 +4,14 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.03.4', date: '3 November 2026', title: 'New map: Three Crossings', groups: [
+    ['New', [
+      'A new map, Three Crossings, built for 2 v 2 (team games are coming; for now it plays 1 v 1, one player on each bank). A winding river splits west from east. A timber bridge crosses it in the middle, and rocky shallow fords cross it in the far north and the south. Creeks and rocky cliffs make chokepoints. Eight start positions, four on each bank. Ore lies on both banks, with gem fields beside every base and out by the crossings. Pick it on the Skirmish map screen.',
+    ]],
+    ['Changes', [
+      'Rocket Soldier anti-air missiles chase a little further before burning out: 1.7 times their range, up from 1.5. Single player and online.',
+    ]],
+  ] },
   { v: '2026.11.03.3', date: '3 November 2026', title: 'A tougher Normal and tanks that spread out', groups: [
     ['Computer opponent', [
       'Normal attack waves are bigger: 6 to 11 units (was 5 to 10), and big pushes of 11 to 14 (was 10 to 13). Big pushes come a little more often and can come at any time, not only after 9 minutes.',
