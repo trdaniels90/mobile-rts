@@ -115,6 +115,16 @@ share globals. Read this file first; the commit history explains every change in
   over the network (their timers are in net.js `SKIP`).
 - **App icon** is AI-generated (ChatGPT) art; credited in `CREDITS.md`.
 
+## Map "Three Bridges" (after 2026.11.02.1, not released yet)
+
+- `MAPS.river` in maps.js: a fixed layout traced from the owner's design `maps/designs/river.png` by
+  `tools/map-from-image.py` (run-length `rows` plus `spawns`). Any map with `rows` is laid out by
+  `genLayoutMap` (world.js) instead of the procedural `genMap`: ore fields come from touching ore
+  cells, bridges from runs of bridge cells. Same map every game.
+- Made for 2 v 2 (`teams`: west bank starts 0-3 against east bank 4-7); 2 v 2 itself is not built.
+  A 1 v 1 puts one player on each bank (`newWorld` picks from opposite halves of `G.spawns`).
+  The layout is not mirrored, so the banks are not exactly equal.
+
 ## Recent mechanics (2026.10.31.2)
 
 - **Map:** "A Bridge Too Far" (`MAPS.bridge`, `src/maps.js`), 144 x 144 cells (`MAP` in data.js). The

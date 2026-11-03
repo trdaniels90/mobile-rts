@@ -42,11 +42,11 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
     teams: me === PLAYER ? [human, cpu] : [cpu, human],
   };
   if (!pvp) cpu.credits = G.diff.credits;
-  // Start positions: a random one of the eight for the player, and for the enemy a random one
-  // of the four across the lakes, so the two bases never start on the same side.
+  // Start positions: a random one for the player, and for the enemy a random one from the other
+  // half of the list (across the lakes or the river), so the two bases never start on the same side.
   const sr = rng(Math.imul(seed ^ 0x2545f491, 0x9e3779b1) ^ (seed >>> 7)); sr(); sr();
-  G.spawns = spawnPoints();
-  const pi = Math.floor(sr() * 8), ei = (pi < 4 ? 4 : 0) + Math.floor(sr() * 4);
+  G.spawns = spawnPoints(mapId);
+  const nh = G.spawns.length / 2, pi = Math.floor(sr() * nh * 2), ei = (pi < nh ? nh : 0) + Math.floor(sr() * nh);
   G.teams[PLAYER].start = { ...G.spawns[pi] };
   G.teams[ENEMY].start = { ...G.spawns[ei] };
   genMap(seed);
@@ -118,12 +118,14 @@ const SPAWNS_HALF = [
   { at: [47, 84], ore: [[58, 86], [36, 86]] },    // bottom edge, by the far bridge
   { at: [31, 64], ore: [[24, 56], [39, 72]] },    // forward, on the main road
 ];
-function spawnPoints() {
+function spawnPoints(mapId) {
+  if (MAPS[mapId] && MAPS[mapId].rows) return MAPS[mapId].spawns.map(([cx, cy]) => ({ cx, cy }));
   const half = SPAWNS_HALF.map((s) => ({ cx: Math.round(s.at[0] * S96), cy: Math.round(s.at[1] * S96) }));
   return half.concat(half.map((s) => ({ cx: MAP - 1 - s.cx, cy: MAP - 1 - s.cy })));
 }
 
 function genMap(seed) {
+  if (MAPS[G.mapId].rows) { genLayoutMap(MAPS[G.mapId]); return; }
   const r = rng(seed ^ 0x5bd1e995);
   const T = G.terr;
   const spawns = G.spawns, half = spawns.slice(0, 4);
@@ -339,6 +341,55 @@ function genMap(seed) {
     }
     for (let c = hit; c >= 0 && from[c] !== c; c = from[c]) { const x = cellX(c), y = cellY(c); open(x, y); open(x + 1, y); open(x, y + 1); }
     R = reach();
+  }
+}
+
+// A fixed layout (a map in maps.js with `rows`, see tools/map-from-image.py): the same every game.
+function genLayoutMap(m) {
+  const T = G.terr, code = { '.': 0, ',': 1, 'T': 2, '#': 3, '~': 4, '=': 5, 'o': 0 }, oreAt = [];
+  m.rows.forEach((row, y) => {
+    let x = 0;
+    for (const [, n, ch] of row.matchAll(/(\d*)(\D)/g)) for (let k = +(n || 1); k-- > 0; x++) {
+      if (!inMap(x, y)) continue;
+      T[idx(x, y)] = code[ch];
+      if (ch === 'o') oreAt.push(idx(x, y));
+    }
+  });
+  // Ground cleared for each start position's Construction Yard.
+  for (const s of G.spawns) for (let y = s.cy - 3; y <= s.cy + 3; y++) for (let x = s.cx - 3; x <= s.cx + 3; x++) {
+    if (inMap(x, y) && Math.hypot(x - s.cx, y - s.cy) < 3.2 && T[idx(x, y)] <= 3) T[idx(x, y)] = 1;
+  }
+  for (let i = 0; i < NCELLS; i++) G.block[i] = T[i] >= 2 && T[i] <= 4 ? 1 : 0;
+  // Ore: each patch of touching ore cells is a field, richest at its middle.
+  const isOre = new Uint8Array(NCELLS), done = new Uint8Array(NCELLS);
+  for (const c of oreAt) isOre[c] = 1;
+  G.oreFields = [];
+  for (const c0 of oreAt) {
+    if (done[c0]) continue;
+    const cells = [c0]; done[c0] = 1;
+    for (let i = 0; i < cells.length; i++) for (const [dx, dy] of DIRS8) {
+      const x = cellX(cells[i]) + dx, y = cellY(cells[i]) + dy;
+      if (inMap(x, y) && isOre[idx(x, y)] && !done[idx(x, y)]) { done[idx(x, y)] = 1; cells.push(idx(x, y)); }
+    }
+    const cx = cells.reduce((a, c) => a + cellX(c), 0) / cells.length, cy = cells.reduce((a, c) => a + cellY(c), 0) / cells.length;
+    const far = Math.max(...cells.map((c) => Math.hypot(cellX(c) - cx, cellY(c) - cy))) + 1;
+    for (const c of cells) G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - Math.hypot(cellX(c) - cx, cellY(c) - cy) / far) * 190) * ORE_START));
+    G.oreFields.push({ cx, cy, r: Math.sqrt(cells.length / Math.PI) * 1.15, rich: 1, gem: false });
+  }
+  // Bridges: each run of bridge cells is drawn as one timber bridge along its long side.
+  G.road = []; G.bridges = [];
+  const seenB = new Uint8Array(NCELLS);
+  for (let c0 = 0; c0 < NCELLS; c0++) {
+    if (T[c0] !== 5 || seenB[c0]) continue;
+    const cells = [c0]; seenB[c0] = 1;
+    for (let i = 0; i < cells.length; i++) for (const [dx, dy] of DIRS8) {
+      const x = cellX(cells[i]) + dx, y = cellY(cells[i]) + dy;
+      if (inMap(x, y) && T[idx(x, y)] === 5 && !seenB[idx(x, y)]) { seenB[idx(x, y)] = 1; cells.push(idx(x, y)); }
+    }
+    const xs = cells.map(cellX), ys = cells.map(cellY), x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, y0 = Math.min(...ys), y1 = Math.max(...ys) + 1;
+    G.bridges.push(x1 - x0 >= y1 - y0
+      ? { a: { x: x0 * CELL, y: (y0 + y1) / 2 * CELL }, b: { x: x1 * CELL, y: (y0 + y1) / 2 * CELL }, w: (y1 - y0 + 0.4) * CELL }
+      : { a: { x: (x0 + x1) / 2 * CELL, y: y0 * CELL }, b: { x: (x0 + x1) / 2 * CELL, y: y1 * CELL }, w: (x1 - x0 + 0.4) * CELL });
   }
 }
 

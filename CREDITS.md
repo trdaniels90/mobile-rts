@@ -54,6 +54,11 @@ Loaded from Google Fonts under the [SIL Open Font License 1.1](https://openfontl
 | [VT323](https://fonts.google.com/specimen/VT323) | Peter Hull |
 | [Archivo Narrow](https://fonts.google.com/specimen/Archivo+Narrow) | Omnibus-Type |
 
+## Maps
+
+The layout of "Three Bridges" is traced from a pixel map design supplied by the owner
+(`maps/designs/river.png`) with `tools/map-from-image.py`.
+
 ## App icon
 
 The app icon (`icons/`) is AI-generated artwork made with ChatGPT for this project: a Soviet
