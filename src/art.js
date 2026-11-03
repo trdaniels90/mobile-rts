@@ -83,13 +83,22 @@ function paintTerrain(terr, seed, roads, bridges, cliffs, fords) {
         const crest = ((x * 3 + y * 7 + Math.floor(noise(N1, x * 3, y) * 30)) % 23 === 0) && sp > 0.4;
         col = crest ? [150, 172, 190] : pickTone(WATER, 0.9 - (wv - 0.5) * 1.6 + (h - 0.5) * 0.5 + (sp - 0.5) * 0.4);
         if (wv < 0.545) col = sp > 0.35 ? [178, 192, 198] : [120, 140, 156];   // surf
-        const fv = near & 4 ? bil(ford, fx, fy) + (noise(N1, x, y) - 0.5) * 0.5 : 0;
-        if (fv > 0.3) {   // the ford: pebbles and sand showing through shallow water, with ripples
-          const st = noise(N1, (x * 2.2) % WORLD, (y * 2.2) % WORLD);   // stones: clumps of darker and paler pebbles in sand
-          const bed = st > 0.72 ? (sp > 0.5 ? [104, 96, 82] : [78, 72, 62]) : st < 0.22 ? [150, 138, 110] : sp > 0.88 ? [92, 86, 74] : pickTone(SANDS, h * 1.3 - 0.35 + (sp - 0.5) * 0.5);
-          const k = Math.min(1, (fv - 0.3) / 0.3), wt = 0.3;
-          let sh = [bed[0] + (96 - bed[0]) * wt, bed[1] + (128 - bed[1]) * wt, bed[2] + (148 - bed[2]) * wt];
-          if (((x * 2 + Math.floor(noise(N1, x, (y * 4) % WORLD) * 24)) % 19 === 0) && sp > 0.3) sh = [176, 196, 204];   // ripples across the current
+        const fv = near & 4 ? bil(ford, fx, fy) + (noise(N1, x, y) - 0.5) * 1.6 + (noise(N2, x, y) - 0.5) * 1.0 : 0;   // a ragged edge
+        if (fv > 0.3) {   // the ford: a bed of rounded stones and sand under shallow water, with ripples
+          const k = Math.min(1, (fv - 0.3) / 0.12), st = fordStone(x, y, seed);
+          let sh;
+          if (st) {   // a stone breaking the surface, lit from the upper left, wet and dark at its rim
+            const [dx, dy, tone] = st, lit = -(dx + dy) * 0.5, rim = dx * dx + dy * dy > 0.62;
+            const base = [[86, 80, 70], [104, 96, 84], [122, 114, 98], [96, 92, 86]][Math.floor(tone * 4)];
+            const m = rim ? 0.62 : 1 + lit * 0.45;
+            sh = [base[0] * m, base[1] * m, base[2] * m];
+            if (!rim && lit > 0.35 && sp > 0.4) sh = [168, 160, 142];   // a dry, sunlit top
+          } else {
+            const bed = sp > 0.85 ? [70, 66, 58] : pickTone(SANDS, h * 1.2 - 0.45 + (sp - 0.5) * 0.5);
+            const shade = fordStone(x - 2, y - 2, seed) ? 0.6 : 1;   // stones shade the bed below-right of them
+            sh = [(bed[0] + (80 - bed[0]) * 0.42) * shade, (bed[1] + (116 - bed[1]) * 0.42) * shade, (bed[2] + (138 - bed[2]) * 0.42) * shade];
+            if (((x * 2 + Math.floor(noise(N1, x, (y * 4) % WORLD) * 24)) % 13 === 0) && sp > 0.25) sh = [176, 196, 204];   // white water between the stones
+          }
           col = [col[0] + (sh[0] - col[0]) * k, col[1] + (sh[1] - col[1]) * k, col[2] + (sh[2] - col[2]) * k];
         }
       } else if (wv > 0.36) {
@@ -149,6 +158,8 @@ function paintTerrain(terr, seed, roads, bridges, cliffs, fords) {
           const set = pine ? scenery.pines : scenery.trees;
           stamps.push({ s: set[Math.floor(r() * set.length)], x: x0 + 4 + r() * 16, y: y0 + 6 + r() * 14 });
         }
+      } else if (t === 5 && fords && fords[cy * MAP + cx]) {
+        if (r() < 0.3) stamps.push({ s: scenery.rocks[Math.floor(r() * scenery.rocks.length)], x: x0 + 4 + r() * 16, y: y0 + 4 + r() * 16 });   // a few boulders in the ford
       } else if (t === 3 && cliffs && cliffs[cy * MAP + cx]) {
         // painted with the ground (paintCliffs)
       } else if (t === 3) {
@@ -171,6 +182,20 @@ function paintTerrain(terr, seed, roads, bridges, cliffs, fords) {
     g.fillStyle = '#46632a'; g.fillRect(x - 1, y - 3, 1, 1);
   }
   return c;
+}
+
+// The stones of a ford's bed: one in most 8-pixel squares, jittered, 2 to 5 pixels across. Returns the
+// offset from the stone's middle (scaled to its size) and its tone, or null between stones.
+function fordStone(x, y, seed) {
+  const S = 8, gi = Math.floor(x / S), gj = Math.floor(y / S);
+  const hs = (i, j, k) => { let h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(k + seed, 1442695041); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  for (let j = gj - 1; j <= gj + 1; j++) for (let i = gi - 1; i <= gi + 1; i++) {
+    if (hs(i, j, 1) > 0.78) continue;
+    const big = hs(i, j, 5) > 0.85, rad = big ? 4.5 + hs(i, j, 4) * 2 : 2 + hs(i, j, 4) * 2.6;
+    const dx = (x - (i + 0.15 + 0.7 * hs(i, j, 2)) * S) / rad, dy = (y - (j + 0.15 + 0.7 * hs(i, j, 3)) * S) / (rad * 0.8);
+    if (dx * dx + dy * dy < 1) return [dx, dy, hs(i, j, 6)];
+  }
+  return null;
 }
 
 // Cliffs (cliff cells of a fixed-layout map): painted into the ground as a continuous rocky ridge.
