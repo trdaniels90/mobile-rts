@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.03.7', date: '3 November 2026', title: 'Fuller battle sound', groups: [
+    ['Changes', [
+      'Big battles no longer lose sounds. Twice as many effects can play at once, and when the sound gets crowded the important ones (explosions, collapses, big guns) win over rifle fire and deaths instead of being skipped. Gunfire is also denser. Single player and online.',
+    ]],
+  ] },
   { v: '2026.11.03.6', date: '3 November 2026', title: 'Volume sliders, new soundtrack', groups: [
     ['New', [
       'Two volume sliders on the menu: Music, and Game sound (effects and voices together). They are remembered on your device. Full is the mix the game had before, so the sliders only turn it down.',
