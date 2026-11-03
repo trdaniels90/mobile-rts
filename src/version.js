@@ -9,7 +9,7 @@ const RELEASES = [
       'Two volume sliders on the menu: Music, and Game sound (effects and voices together). They are remembered on your device. Full is the mix the game had before, so the sliders only turn it down.',
     ]],
     ['Changes', [
-      'The soundtrack is now just three recorded tracks, Industry, War and Smash, while a new one is being made. They play in turn.',
+      'The soundtrack is now just four recorded tracks, Industry, War, Smash and Rain, while a new one is being made. They play in turn.',
     ]],
   ] },
   { v: '2026.11.03.5', date: '3 November 2026', title: 'A fifth soundtrack piece', groups: [
