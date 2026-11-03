@@ -187,7 +187,7 @@ function grizzlyHull(pal, s) {
 }
 function grizzlyTurret(pal, s) {
   const P = pal.key === 'allies' ? GRIZ : pal;
-  const r = 6, w = 6, f = 1, reach = s.tur + s.barrel;
+  const r = 5, w = 6, f = 1, reach = s.tur + s.barrel;
   const m = new VModel(-r - 4, -w - 3, reach + 3, w + 3, 11);
   m.box(-r + f, -w, 0, r + f, w, 4, P.turret, M_METAL);                               // low blue-lilac turret
   m.box(-r + 1 + f, -w + 1, 4, r - 1 + f, w - 1, 5, P.turretHi, M_METAL);             // roof
