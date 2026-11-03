@@ -625,13 +625,32 @@ const Sound = (() => {
     start() {
       if (this.started || !ctx) return;
       this.started = true;
+      this.song = this.nextSong();   // a random track to begin with
       this.next = ctx.currentTime + 0.15;
       this.timer = setInterval(() => this.tick(), 40);
     },
+    // The tracks play in a shuffled order: every track once, then a fresh shuffle (never starting with
+    // the track that just played), so players do not hear the same few songs every time.
+    deck: [], last: -1,
+    nextSong() {
+      if (!this.deck.length) {
+        const d = SONGS.map((_, i) => i);
+        for (let i = d.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+        if (d.length > 1 && d[d.length - 1] === this.last) [d[0], d[d.length - 1]] = [d[d.length - 1], d[0]];   // the deck is dealt from the end
+        this.deck = d;
+      }
+      return (this.last = this.deck.pop());
+    },
     skip() {
       this.stopRec();
-      this.song = (this.song + 1) % SONGS.length; this.part = 0; this.bar = 0; this.step = 0;
+      this.song = this.nextSong(); this.part = 0; this.bar = 0; this.step = 0;
       if (ctx) this.next = ctx.currentTime + 0.3;
+    },
+    // A new match: reshuffle and open with a random track (not the one that was playing).
+    newMatch() {
+      if (!ctx || !this.started) return;
+      this.deck = [];
+      this.skip();
     },
     // Each recorded track is decoded once, in the background, when it is first wanted.
     recBufs: {}, recLoading: {}, recSrc: null,
@@ -678,7 +697,7 @@ const Sound = (() => {
         this.step = 0;
         if (++this.bar >= part.bars) {
           this.bar = 0;
-          if (++this.part >= song.order.length) { this.part = 0; this.song = (this.song + 1) % SONGS.length; }
+          if (++this.part >= song.order.length) { this.part = 0; this.song = this.nextSong(); }
         }
       }
     },
@@ -736,5 +755,5 @@ const Sound = (() => {
     if (key === 'voice' && !on && evaSrc) try { evaSrc.stop(); } catch (_) {}
   }
 
-  return { init: unlock, unlock, status, play, say, ack, settings, setOption, setVolume, music: Music, get debug() { return { ctx, master, musicClips: Object.values(MBUF).reduce((n, l) => n + l.filter(Boolean).length, 0) }; } };
+  return { init: unlock, unlock, status, play, say, ack, settings, setOption, setVolume, music: Music, newMatch: () => Music.newMatch(), get debug() { return { ctx, master, musicClips: Object.values(MBUF).reduce((n, l) => n + l.filter(Boolean).length, 0) }; } };
 })();

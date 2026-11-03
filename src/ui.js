@@ -175,6 +175,7 @@
     Net.hookHost();
     newWorld(o.faction, 'normal', o.seed, o.me, true, o.map);
     online = { opponent: o.opponent };
+    Sound.newMatch();
     afterNewWorld(o.faction);
     Report.start(o.faction, null, 'pvp', o.opponent);
     hideMenu();
@@ -188,6 +189,7 @@
     Report.quit();   // a mission left undecided counts as quit
     SaveGame.clear();
     startGame();
+    Sound.newMatch();
     mission = true;
     Report.start(faction, diffKey);
   }
