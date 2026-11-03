@@ -50,7 +50,7 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
   G.teams[PLAYER].start = { ...G.spawns[pi] };
   G.teams[ENEMY].start = { ...G.spawns[ei] };
   genMap(seed);
-  G.terrainCanvas = paintTerrain(G.terr, seed, G.road, G.bridges);
+  G.terrainCanvas = paintTerrain(G.terr, seed, G.road, G.bridges, G.cliff);
   G.tctx = G.terrainCanvas.getContext('2d');
   // Bodies and wrecks get their own layer above the ground, so later craters and scorch
   // marks never paint over them.
@@ -346,6 +346,7 @@ function genMap(seed) {
 
 // A fixed layout (a map in maps.js with `rows`, see tools/map-from-image.py): the same every game.
 function genLayoutMap(m) {
+  G.cliff = new Uint8Array(NCELLS);   // rock drawn as walls (art.js cliffCell), not loose boulders
   const T = G.terr, code = { '.': 0, ',': 1, 'T': 2, '#': 3, '~': 4, '=': 5, 'o': 0 }, oreAt = [];
   m.rows.forEach((row, y) => {
     let x = 0;
@@ -353,6 +354,7 @@ function genLayoutMap(m) {
       if (!inMap(x, y)) continue;
       T[idx(x, y)] = code[ch];
       if (ch === 'o') oreAt.push(idx(x, y));
+      if (ch === '#') G.cliff[idx(x, y)] = 1;
     }
   });
   // Ground cleared for each start position's Construction Yard.

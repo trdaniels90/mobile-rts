@@ -23,7 +23,7 @@ function blit(g, s, x, y, shadow) {
 // ---------------------------------------------------------------------------
 const TERRAIN_MINI = ['#2f3d23', '#5a4c37', '#1c2a14', '#5e5a52', '#4a6a8a', '#6b5a3e'];
 
-function paintTerrain(terr, seed, roads, bridges) {
+function paintTerrain(terr, seed, roads, bridges, cliffs) {
   buildScenery();
   const c = mkCanvas(WORLD, WORLD), g = c.getContext('2d');
   const img = g.createImageData(WORLD, WORLD), d = img.data;
@@ -137,6 +137,8 @@ function paintTerrain(terr, seed, roads, bridges) {
           const set = pine ? scenery.pines : scenery.trees;
           stamps.push({ s: set[Math.floor(r() * set.length)], x: x0 + 4 + r() * 16, y: y0 + 6 + r() * 14 });
         }
+      } else if (t === 3 && cliffs && cliffs[cy * MAP + cx]) {
+        stamps.push({ k: 'cliff', rocks: cliffRocks(cx, cy, r), x: x0, y: y0 + CELL });
       } else if (t === 3) {
         stamps.push({ s: scenery.rocks[Math.floor(r() * scenery.rocks.length)], x: x0 + 12 + (r() - 0.5) * 4, y: y0 + 13 + (r() - 0.5) * 4 });
       } else if (t === 0 && r() < 0.28 && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([ox, oy]) => terr[(cy + oy) * MAP + cx + ox] === 4)) {
@@ -147,9 +149,11 @@ function paintTerrain(terr, seed, roads, bridges) {
     }
   }
   stamps.sort((a, b) => a.y - b.y);
+  for (const s of stamps) if (s.k === 'cliff') cliffShadow(g, s.rocks);
   for (const s of stamps) if (s.s) { g.globalAlpha = 0.45; g.drawImage(s.s.sh, Math.round(s.x + s.s.sox), Math.round(s.y + s.s.soy)); g.globalAlpha = 1; }
   for (const s of stamps) {
     if (s.s) { g.drawImage(s.s.img, Math.round(s.x + s.s.ox), Math.round(s.y + s.s.oy)); continue; }
+    if (s.k === 'cliff') { cliffCell(g, s.rocks); continue; }
     const x = Math.round(s.x), y = Math.round(s.y);
     g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x + 1, y + 1, 5, 2);
     g.fillStyle = '#1f2e15'; g.fillRect(x - 2, y - 2, 5, 3);
@@ -157,6 +161,46 @@ function paintTerrain(terr, seed, roads, bridges) {
     g.fillStyle = '#46632a'; g.fillRect(x - 1, y - 3, 1, 1);
   }
   return c;
+}
+
+// Rock walls (cliff cells of a fixed-layout map): each cell is a heap of big shaded boulders that
+// overlap their neighbours', so a line of cells reads as one rocky ridge. Drawn back to front with
+// the trees, so a southern boulder's top hides the foot of the one behind it.
+function cliffRocks(cx, cy, r) {
+  const rocks = [], n = 3 + (r() < 0.5 ? 1 : 0);
+  for (let i = 0; i < n; i++) {
+    const big = i === 0, rad = big ? 12 + r() * 3 : 8 + r() * 4, h = 10 + r() * 8;
+    const x = cx * CELL + CELL / 2 + (big ? (r() - 0.5) * 4 : (r() - 0.5) * 14), y = cy * CELL + CELL / 2 + (big ? (r() - 0.5) * 4 : (r() - 0.5) * 14);
+    const pts = [], k = 7 + Math.floor(r() * 3), a0 = r() * 6.3;
+    for (let j = 0; j < k; j++) { const a = a0 + j / k * Math.PI * 2, d = rad * (0.75 + r() * 0.35); pts.push([Math.cos(a) * d, Math.sin(a) * d * 0.82]); }
+    rocks.push({ x, y, h, pts, tone: Math.floor(r() * 3), crack: r() < 0.6 ? [r() - 0.5, r() - 0.5, r() * 6.3] : null });
+  }
+  return rocks.sort((p, q) => p.y - q.y);
+}
+function cliffShadow(g, rocks) {
+  g.fillStyle = 'rgba(6,10,4,0.38)';
+  for (const k of rocks) { g.beginPath(); k.pts.forEach(([x, y], i) => (i ? g.lineTo(k.x + x + 6, k.y + y + 5) : g.moveTo(k.x + x + 6, k.y + y + 5))); g.fill(); }
+}
+function cliffCell(g, rocks) {
+  const poly = (k, dx, dy, sc) => { g.beginPath(); k.pts.forEach(([x, y], i) => (i ? g.lineTo(k.x + x * sc + dx, k.y + y * sc + dy) : g.moveTo(k.x + x * sc + dx, k.y + y * sc + dy))); g.closePath(); };
+  for (const k of rocks) {
+    const top = -k.h;
+    // The sides: the outline swept from the ground up to the top.
+    g.fillStyle = '#342e28';
+    for (let z = 0; z >= top; z -= 2) { poly(k, 0, z, 1); g.fill(); }
+    poly(k, 0, 0, 1); g.fillStyle = '#28231e'; g.fill();
+    for (let z = top + 2; z < 0; z += 4) { poly(k, 0.6, z, 0.98); g.strokeStyle = 'rgba(70,62,52,0.35)'; g.lineWidth = 1; g.stroke(); }   // strata
+    // The top, lit from the upper left.
+    poly(k, 0, top, 1); g.fillStyle = ['#6a6256', '#726a5c', '#625b50'][k.tone]; g.fill();
+    poly(k, -1.5, top - 1.5, 0.62); g.fillStyle = ['#81786a', '#8a8070', '#7a7264'][k.tone]; g.fill();
+    poly(k, -2.5, top - 2.5, 0.28); g.fillStyle = 'rgba(170,160,140,0.35)'; g.fill();
+    poly(k, 1.2, top + 1.2, 0.92); g.strokeStyle = 'rgba(30,26,22,0.35)'; g.lineWidth = 1.5; g.stroke();
+    if (k.crack) {
+      const [ox, oy, a] = k.crack, x = k.x + ox * 8, y = k.y + oy * 6 + top;
+      g.strokeStyle = 'rgba(32,28,24,0.7)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * 5, y + Math.sin(a) * 4); g.lineTo(x + Math.cos(a + 0.8) * 8, y + Math.sin(a + 0.8) * 6); g.stroke();
+    }
+  }
 }
 
 // Permanent marks burnt into the terrain: a crater with a lit rim and scattered soot.

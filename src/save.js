@@ -141,7 +141,7 @@ const SaveGame = (() => {
           ground.getContext('2d').drawImage(a, 0, 0); g.dctx.drawImage(b, 0, 0);
         } catch (_) { ground = null; }
       }
-      g.terrainCanvas = ground || paintTerrain(g.terr, g.seed, g.road, g.bridges);
+      g.terrainCanvas = ground || paintTerrain(g.terr, g.seed, g.road, g.bridges, g.cliff);
       g.tctx = g.terrainCanvas.getContext('2d');
       G = g;
       return { faction: rec.meta.faction, diffKey: rec.meta.diffKey, cam: rec.cam, match: rec.meta.match };
