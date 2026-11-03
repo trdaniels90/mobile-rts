@@ -167,12 +167,15 @@ const Manual = (() => {
       <table class="fm-table">
         <tr><th></th><th>Easy</th><th>Normal</th><th>Hard</th></tr>
         <tr><td>Finding you</td><td colspan="3">It knows only what it has seen, like you: when its first-attack time comes it scouts for your base with a Spy Plane, a helicopter or its fastest unit, and attacks once it has found you</td></tr>
-        <tr><td>First attack</td><td>After 6 minutes</td><td>After 6 minutes; big pushes from 9</td><td>After 4 minutes</td></tr>
-        <tr><td>Attack waves</td><td>4 to 7 units</td><td>5 to 10, big pushes of 10 to 13</td><td>6 to 12, big pushes of 12 to 16</td></tr>
-        <tr><td>Targets</td><td>Your Construction Yard</td><td>A mix: yard, refineries, power, Outposts</td><td>Your weakest valuable buildings</td></tr>
+        <tr><td>First attack</td><td>After 6 minutes</td><td>After 6 minutes; big pushes can come from the start</td><td>After 4 minutes</td></tr>
+        <tr><td>Attack waves</td><td>4 to 7 units</td><td>6 to 11, big pushes of 11 to 14</td><td>6 to 12, big pushes of 12 to 16</td></tr>
+        <tr><td>Targets</td><td>Your Construction Yard</td><td colspan="2">Your weakest valuable buildings</td></tr>
         <tr><td>Raids</td><td>Rare, from about 7 minutes</td><td>From about 6½ minutes</td><td>Once it has found you</td></tr>
         <tr><td>Defences</td><td>Up to 4</td><td>Up to 8, plus AA</td><td>Up to 12, plus AA</td></tr>
         <tr><td>Against aircraft</td><td>No special answer</td><td>More anti-air troops and fighters, AA where you strike</td><td>The same, in greater numbers</td></tr>
+        <tr><td>Two-pronged attacks</td><td>No</td><td>Half its waves split, gather on both sides of the target and strike together</td><td>Most of its waves</td></tr>
+        <tr><td>Answering your army</td><td>No</td><td colspan="2">More anti-armour against tanks, more anti-infantry against troops, and more Artillery or V2s against a fortified base</td></tr>
+        <tr><td>Airfield powers</td><td>Used as soon as they are ready</td><td colspan="2">Paratroopers and bombing runs saved to land with its big pushes</td></tr>
       </table>` },
     { ch: 'Intel', title: 'Field Tips', html: () => `
       <ul class="fm-tips">

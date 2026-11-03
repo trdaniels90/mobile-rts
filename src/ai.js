@@ -226,6 +226,8 @@ function aiPowerTarget(team, cluster) {
 const ARMY_UNITS = 80, ARMY_WORTH = 28000;
 function aiThink(team) {
   const c = aiCount(team);
+  aiCounter(team);
+  aiPincer(team);
   if (unitsOf(enemyOf(team).id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
   const q = team.queues.structure;
   if (q && q.ready) {
@@ -295,13 +297,21 @@ function aiThink(team) {
     const r = Math.random();
     const sov = team.faction === 'soviets';   // no Rocket Soldiers: rifles and grenadiers
     // Allies: mostly rifles, and more Rocket Soldiers once the enemy flies, but never only them.
-    startProduction(team, sov ? (r < 0.55 ? 'rifle' : 'grenadier') : r < (anti ? 0.6 : 0.4) ? 'rocket' : 'rifle');
+    // Against an armoured army: more Rocket Soldiers (Allies) or Grenadiers (Soviets); against infantry, rifles.
+    const k = team.counter || {}, rockets = anti ? 0.6 : k.armor ? 0.65 : k.inf ? 0.25 : 0.4;
+    startProduction(team, sov ? (r < (k.armor ? 0.3 : 0.55) ? 'rifle' : 'grenadier') : r < rockets ? 'rocket' : 'rifle');
   }
   if (!capped && c.factory && vq.length < A.queue && money > 500 && !truckDue) {
     const opts = team.faction === 'allies' ? (anti ? ['mtank', 'mtank', 'ranger', 'ranger', 'ltank'] : ['ltank', 'mtank', 'mtank', 'ranger'])
       : (anti ? ['htank', 'mammoth', 'mammoth', 'htank'] : ['htank', 'htank', 'htank', 'mammoth']);
     const sup = team.faction === 'allies' ? 'arty' : 'v2rl';                        // long-range support, once it has a Radar Dome
-    if (available(team, sup) && (c[sup] || 0) < 4) opts.push(sup);
+    const k = team.counter || {};
+    if (!anti && k.armor) opts.push(...(team.faction === 'allies' ? ['mtank', 'mtank'] : ['mammoth', 'htank']));
+    if (!anti && k.inf) opts.push(...(team.faction === 'allies' ? ['ranger', 'ranger'] : ['mammoth']));
+    // Long-range guns: more of them, and more often, against infantry crowds or a fortified base.
+    const supMax = k.turtle ? 8 : k.inf ? 6 : 4;
+    if (available(team, sup) && (c[sup] || 0) < supMax) opts.push(sup);
+    if (available(team, sup) && (c[sup] || 0) < supMax && (k.turtle || k.inf)) opts.push(sup, sup);
     startProduction(team, opts[Math.floor(Math.random() * opts.length)]);
   }
   // Helicopters and jets have their own queues; against aircraft it leans on fighters.
@@ -364,7 +374,7 @@ function aiLaunch(team, ready) {
   const target = aiWaveTarget(team, ready[0]);
   if (!target) return;
   const strike = team.plan.big && A.strike.length ? A.strike : null;
-  aiSend(team, ready, target, { strike });
+  if (!(ready.length >= 6 && r() < (A.pincer || 0) && aiPincerStart(team, ready, target, strike))) aiSend(team, ready, target, { strike });
   team.waves = (team.waves || 0) + 1;
   team.lastWave = G.t;
   team.plan = aiPlanWave(team);
@@ -425,6 +435,63 @@ function aiStrike(team) {
   if (!s.units.some((u) => u.alive && dist(u, s.target) < CELL * 22)) return;
   for (const key of s.keys) launchPower(team, key, s.target.x, s.target.y + (key === 'para' ? CELL * 3 : 0));
   team.strike = null; team.holdFor = null;
+}
+// Two-pronged attack (Normal and Hard, A.pincer): the wave splits in two, each half gathers at a
+// point on either flank of the target, out of range of its guns, and once both are in place (or
+// 30 seconds after the first half gets there, or at once if a quarter of the wave is lost) they close in together, so the attack comes from two sides at once. Each half
+// guards its gathering point on the way, so it fights back if attacked.
+function aiPincerStart(team, units, target, strike) {
+  if (team.pincer) return false;
+  const r = rallyPoint(team), base = Math.atan2(r.y - target.y, r.x - target.x), spots = [];
+  for (const side of [-1, 1]) {
+    const a = base + side * 1.2, d = CELL * 13;
+    const cx = Math.max(3, Math.min(MAP - 4, Math.floor((target.x + Math.cos(a) * d) / CELL)));
+    const cy = Math.max(3, Math.min(MAP - 4, Math.floor((target.y + Math.sin(a) * d) / CELL)));
+    const c = nearestFreeCell(idx(cx, cy), 6);
+    if (c < 0) return false;
+    spots.push({ x: (cellX(c) + 0.5) * CELL, y: (cellY(c) + 0.5) * CELL });
+  }
+  // Split the wave by which side each unit is on, so neither half crosses the other's path.
+  const side = (u) => Math.sin(Math.atan2(u.y - target.y, u.x - target.x) - base) * dist(u, target);
+  const sorted = units.slice().sort((a, b) => side(a) - side(b));
+  const half = Math.ceil(sorted.length / 2), groups = [sorted.slice(0, half), sorted.slice(half)];
+  groups.forEach((g, i) => {
+    const p = spots[i];
+    for (const u of g) { setGuard(u, p.x + (Math.random() - 0.5) * CELL * 3, p.y + (Math.random() - 0.5) * CELL * 3); u.staged = false; goTo(u, u.order.x, u.order.y); }
+  });
+  team.pincer = { groups, spots, target, strike, since: G.t, n: units.length };
+  return true;
+}
+function aiPincer(team) {
+  const p = team.pincer;
+  if (!p) return;
+  const alive = p.groups.map((g) => g.filter((u) => u.alive && u.order.type === 'guard' && !u.defending));
+  const all = alive[0].concat(alive[1]);
+  const there = alive.map((g, i) => !g.length || g.filter((u) => Math.hypot(u.x - p.spots[i].x, u.y - p.spots[i].y) < CELL * 5).length >= g.length * 0.6);
+  if (!all.length) { team.pincer = null; return; }
+  if (p.firstIn === undefined && there.some((x, i) => x && alive[i].length)) p.firstIn = G.t;
+  const waited = p.firstIn !== undefined ? G.t - p.firstIn > 30 : G.t - p.since > 150;
+  if (!there.every((x) => x) && p.target.alive && !waited && all.length >= p.n * 0.75) return;
+  team.pincer = null;
+  const target = p.target.alive ? p.target : aiWaveTarget(team, all[0]);
+  if (target) aiSend(team, all, target, { strike: p.strike });
+  else for (const u of all) setHunt(u);
+}
+// What the computer builds against (Normal and Hard, A.counter): the enemy ground army it can see
+// (mostly infantry, or mostly armour) and how fortified the enemy base it knows of is.
+function aiCounter(team) {
+  if (!G.diff.ai.counter) return;
+  if (team.counterT && G.t - team.counterT < 10) return;
+  team.counterT = G.t;
+  const foe = enemyOf(team), seen = inViewOf(team.id);
+  let inf = 0, veh = 0;
+  for (const u of unitsOf(foe.id)) {
+    if (u.def.harvester || u.def.scripted || u.cls === 'air' || u.def.deploys || !u.def.weapon || !seen(u)) continue;
+    if (u.cls === 'inf') inf += u.def.cost; else veh += u.def.cost;
+  }
+  const n = inf + veh;
+  const guns = buildingsOf(foe.id).filter((b) => b.def.defense && !b.def.antiAir && targetable(team.id, b)).length;
+  team.counter = { inf: n >= 1500 && inf > n * 0.55, armor: n >= 2500 && veh > n * 0.6, turtle: guns >= 6 };
 }
 // What a wave goes for. Easy: the Construction Yard, and one wave in three an outlying site.
 // Normal: a mix of the Construction Yard, refineries, power and outlying sites. Hard: whatever
