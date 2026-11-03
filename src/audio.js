@@ -630,6 +630,7 @@ const Sound = (() => {
     { name: 'War', rec: 'war', bpm: 120, key: E, parts: {}, order: [] },
     { name: 'Smash', rec: 'smash', bpm: 120, key: E, parts: {}, order: [] },
     { name: 'Rain', rec: 'rain', bpm: 120, key: E, parts: {}, order: [] },
+    { name: 'Airstrike', rec: 'airstrike', bpm: 120, key: E, parts: {}, order: [] },
   ];
   for (const song of SONGS) for (const part of Object.values(song.parts)) {
     for (const key of ['gtr', 'bass', 'lead', 'stab', 'pad']) {
