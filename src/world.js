@@ -970,7 +970,10 @@ const PROJ_SPEED = { shell: 430, rocket: 250, missile: 330, flak: 560, fireball:
 function muzzle(src) {
   if (src.kind === 'bld') {
     if (src.type === 'tesla') return { x: src.cx * CELL + 12, y: src.cy * CELL + 35 - 50 * VK };
-    if (src.type === 'pillbox') return { x: src.x + Math.cos(src.tface) * 9, y: src.y - 5 + Math.sin(src.tface) * 7 };
+    if (src.type === 'pillbox') {   // out of the firing slit nearest to where it aims (slits sit at 30 degrees plus 60 per side), low on the wall and in front of the roof
+      const sa = Math.round((src.tface - Math.PI / 6) / (Math.PI / 3)) * (Math.PI / 3) + Math.PI / 6;
+      return { x: src.x + Math.cos(sa) * 13, y: src.y + Math.sin(sa) * 13 - 4 };
+    }
     if (src.type === 'ftur') return { x: src.cx * CELL + 12, y: src.cy * CELL + 13 - 25 * VK };
     const h = HEADS[src.type];
     const hx = src.cx * CELL + h[1], hy = src.cy * CELL + h[2] - (h[3] + 2) * VK;
