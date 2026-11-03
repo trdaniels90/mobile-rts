@@ -163,7 +163,7 @@ function mammothTurret(pal, s) {
 // short aerial at the rear.
 const GRIZ = { key: 'allies', main: '#c3cde4', light: '#f1f4fb', dark: '#7b8bb8', deep: '#2b3454', turret: '#8e9bd2', turretHi: '#b7c1ec' };
 function grizzlyHull(pal, s) {
-  const P = pal.key === 'allies' ? GRIZ : pal;
+  const P = pal.key === 'allies' ? GRIZ : { ...pal, turret: pal.main, turretHi: pal.light };   // wrecks use the burnt palette
   const hl = Math.floor(s.len / 2), hw = Math.floor(s.wid / 2), sk = 3;
   const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 9);
   m.box(-hl + 1, -hw, 0, hl - 1, hw, 2, '#1c2033', M_ROUGH);                         // dark underside
@@ -186,7 +186,7 @@ function grizzlyHull(pal, s) {
   return m;
 }
 function grizzlyTurret(pal, s) {
-  const P = pal.key === 'allies' ? GRIZ : pal;
+  const P = pal.key === 'allies' ? GRIZ : { ...pal, turret: pal.main, turretHi: pal.light };   // wrecks use the burnt palette
   const r = 5, w = 6, f = 1, rb = 2, reach = s.tur + s.barrel;
   const m = new VModel(-r - rb - 4, -w - 3, reach + 3, w + 3, 11);
   m.box(-r - rb + f, -w, 0, r + f, w, 4, P.turret, M_METAL);                               // low blue-lilac turret

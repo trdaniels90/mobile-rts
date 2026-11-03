@@ -1402,6 +1402,7 @@ function kill(e, attacker, wh, from) {
       craterAt(e.x + Math.cos(e.face) * 6, e.y + Math.sin(e.face) * 6, 5);
       bakeWreck(G.dctx, e.x, e.y, e.def, e.face, e.tface, cook);
       if (cook) cookOff(e, seed);
+      else if (!G.remote && Math.random() < CREW_SURVIVES) crewBailOut(e);   // no cook-off: the crew may get out
       for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: e.x + (Math.random() - 0.5) * 8, y: e.y + (Math.random() - 0.5) * 6, t: -i * 0.3, life: 2.5 + Math.random() * 2 });
       smoulder(e.x, e.y - 4, 25);
     } else if ((e.alt || 0) > 4) {
@@ -1604,6 +1605,16 @@ function deployFob(u) {
 }
 
 // Soldiers stumble out of a destroyed structure and join the defence: more from bigger buildings.
+// A destroyed ground vehicle that did not cook off may leave one rifleman: the crew scrambles out of the
+// wreck and stands guard. Made on the host only (a PvP guest gets the unit in a snapshot).
+const CREW_SURVIVES = 1 / 3;
+function crewBailOut(e) {
+  const c = nearestFreeCell(cellOfPos(Math.max(0, Math.min(WORLD - 1, e.x)), Math.max(0, Math.min(WORLD - 1, e.y))), 3);
+  if (c < 0) return;
+  const p = cellCenter(c), u = addUnit('rifle', G.teams[e.team], p.x, p.y);
+  u.face = u.tface = e.face;
+  setGuard(u);
+}
 function escapeSurvivors(b) {
   const team = G.teams[b.team], n = b.type === 'cy' ? 4 : Math.min(3, Math.max(1, Math.round(b.w * b.h / 2)));
   for (let i = 0; i < n; i++) {
