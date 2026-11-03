@@ -187,16 +187,16 @@ function grizzlyHull(pal, s) {
 }
 function grizzlyTurret(pal, s) {
   const P = pal.key === 'allies' ? GRIZ : pal;
-  const r = 5, w = 5, f = 1, reach = s.tur + s.barrel;
-  const m = new VModel(-r - 4, -w - 3, reach + 3, w + 3, 10);
-  m.box(-r + f, -w, 0, r + f, w, 3, P.turret, M_METAL);                               // low blue-lilac turret
-  m.box(-r + 1 + f, -w + 1, 3, r - 1 + f, w - 1, 4, P.turretHi, M_METAL);             // roof
-  for (const [x0, x1] of [[r - 1 + f, r + f], [-r + f, -r + 1 + f]]) { m.clear(x0, -w, 0, x1, -w + 1, 3); m.clear(x0, w - 1, 0, x1, w, 3); }
-  m.box(r - 1 + f, -3, 0, r + 1 + f, 3, 3, P.dark, M_METAL);                          // gun mantlet
-  for (const y of [-2.7, 2.7]) m.cylZ(-1 + f, y, 3, 4, 1.7, '#14172a', M_MATTE);           // two round dark hatches
-  m.cylX(r + f, reach, 0, 1.6, 0.9, '#16182a', M_METAL);                              // thin black gun
-  m.cylX(reach - 2, reach, 0, 1.6, 1.2, '#16182a', M_METAL);
-  m.line(-r + 1 + f, w - 1, 3, -r + 1 + f, w - 1, 8, '#1c2033');                      // aerial, rear right
+  const r = 6, w = 6, f = 1, reach = s.tur + s.barrel;
+  const m = new VModel(-r - 4, -w - 3, reach + 3, w + 3, 11);
+  m.box(-r + f, -w, 0, r + f, w, 4, P.turret, M_METAL);                               // low blue-lilac turret
+  m.box(-r + 1 + f, -w + 1, 4, r - 1 + f, w - 1, 5, P.turretHi, M_METAL);             // roof
+  for (const [x0, x1] of [[r - 1 + f, r + f], [-r + f, -r + 1 + f]]) { m.clear(x0, -w, 0, x1, -w + 1, 4); m.clear(x0, w - 1, 0, x1, w, 4); }
+  m.box(r - 1 + f, -3, 0, r + 1 + f, 3, 4, P.dark, M_METAL);                          // gun mantlet
+  for (const y of [-3.2, 3.2]) m.cylZ(-1 + f, y, 4, 5, 2.1, '#14172a', M_MATTE);           // two round dark hatches
+  m.cylX(r + f, reach, 0, 2, 1.0, '#16182a', M_METAL);                              // thin black gun
+  m.cylX(reach - 2, reach, 0, 2, 1.3, '#16182a', M_METAL);
+  m.line(-r + 1 + f, w - 1, 4, -r + 1 + f, w - 1, 9, '#1c2033');                      // aerial, rear right
   return m;
 }
 function tankHull(pal, s) {
