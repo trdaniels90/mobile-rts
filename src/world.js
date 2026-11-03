@@ -1965,8 +1965,8 @@ function checkStuck(u, dt) {
   else if (u.stuckN >= 6) { u.dest = null; u.path = null; u.stuckN = 0; }
 }
 
-// Ore trucks run entirely on their own. They work the field nearest their refinery until every
-// last bit of it is gone, then the next nearest, leaving worked-out fields to regrow. Within the
+// Ore trucks run entirely on their own. They work the field nearest their refinery until it is down to 1/8, then
+// the next nearest, leaving worked-out fields to regrow to 6/8 (see pickField). Within the
 // field they go for the richest cells first.
 // How far a field reaches: its original ore, plus whatever it has spread into since.
 const fieldReach = (f) => f.r + 0.8 + (f.ext || 0);
@@ -1994,19 +1994,32 @@ function walkDistances(start) {
   }
   return dist;
 }
-// A truck keeps to its field while any ore is left on it. Then it takes the nearest field by road
-// from its refinery (round the lakes, not as the crow flies) that has ore worth the drive and room
-// for another truck: once a field has three trucks on it, the rest go on to the next nearest.
-const FIELD_EMPTY = 150;   // less ore than this on a field: not worth driving to
-const FIELD_TRUCKS = 3;    // most trucks (of either side) working one field
+// A truck works the field nearest its refinery (by road, round the lakes, not as the crow flies)
+// and stays on it until it is down to 1/8 of its full ore. The field is then resting: no truck
+// picks it again until it has regrown to 6/8, and the trucks move to the next nearest field.
+// There is no limit on trucks per field. Only if every field is resting do trucks go back to the
+// one with the most ore, so the economy never stalls.
+const FIELD_LEAVE = 1 / 8;   // a field this empty (of its full size) is left to regrow
+const FIELD_RETURN = 6 / 8;  // and is not used again until it is back to this
+const FIELD_EMPTY = 150;     // less ore than this on a field: not worth driving to
+// Called every couple of seconds from growOre: keeps each field's full size and resting state.
+function updateFieldRest(f) {
+  const v = fieldValue(f);
+  f.max = Math.max(f.max || 0, v);
+  if (f.gem) { if (v < FIELD_EMPTY) f.rest = true; return; }   // gems never grow back
+  if (!f.rest && v <= f.max * FIELD_LEAVE) f.rest = true;
+  else if (f.rest && v >= f.max * FIELD_RETURN) f.rest = false;
+}
 function pickField(u) {
-  const others = G.entities.filter((e) => e.alive && e !== u && e.def.harvester && e.field && e.hs !== 'manual');
-  if (u.field && fieldValue(u.field) > 0 && others.filter((e) => e.field === u.field).length < FIELD_TRUCKS) return u.field;
+  if (u.field && !u.field.rest && fieldValue(u.field) > 0) { updateFieldRest(u.field); if (!u.field.rest) return u.field; }
   const ref = nearestOwn(u, 'refinery');
   const walk = walkDistances(cellOfPos(ref ? dockPoint(ref).x : u.x, ref ? dockPoint(ref).y : u.y));
-  let best = null, bd = Infinity;
+  let best = null, bd = Infinity, rich = null, rv = 0;
   for (const f of G.oreFields) {
-    if (fieldValue(f) < FIELD_EMPTY || others.filter((e) => e.field === f).length >= FIELD_TRUCKS) continue;
+    updateFieldRest(f);
+    const v = fieldValue(f);
+    if (v < FIELD_EMPTY) continue;
+    if (f.rest) { if (v > rv) { rv = v; rich = f; } continue; }
     const R = fieldReach(f);
     for (let y = Math.floor(f.cy - R); y <= f.cy + R; y++) for (let x = Math.floor(f.cx - R); x <= f.cx + R; x++) {
       if (!inMap(x, y) || !inFieldCell(f, x, y)) continue;
@@ -2014,7 +2027,7 @@ function pickField(u) {
       if (w >= 0 && w < bd) { bd = w; best = f; }
     }
   }
-  return best;
+  return best || rich;
 }
 function findOre(u) {
   const start = cellOfPos(u.x, u.y);
@@ -2977,6 +2990,7 @@ function spreadOre(f) {
 function growOre() {
   const r = Math.random;
   for (const f of G.oreFields) {
+    updateFieldRest(f);
     if (f.gem) continue;   // gems never grow back
     if (r() < 0.05) spreadOre(f);   // about once every 40 seconds
     {   // one cell a field every couple of seconds: a scraped-out field takes several minutes to recover
