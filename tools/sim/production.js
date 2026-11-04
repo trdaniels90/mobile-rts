@@ -61,13 +61,14 @@ const { chromium, devices } = require('playwright');
     const sA = spawned.slice(before).find((s) => s.type === tank);
     if (!sA) bad('blocked exit: no tank produced');
     else { if (!isFinite(sA.x) || G.bld[cellOfPos(sA.x, sA.y)]) bad('blocked exit: tank spawned inside a building or bad position'); note('blocked exit: spawned ' + Math.round(Math.hypot(sA.x - ex.x, sA.y - ex.y)) + 'px from the exit'); }
-    // Stress B: eight helicopters on one Helipad.
+    // Stress B: eight ordered on one Helicopter Base: only four fit, on four different pads.
     const heli = faction === 'allies' ? 'heli' : 'hind';
     for (let i = 0; i < 8; i++) startProduction(me, heli);
     step(120);
     const helis = unitsOf(0).filter((u) => u.type === heli && u.as === 'landed');
     const spots = new Set(helis.map((u) => Math.round(u.x / 4) + ',' + Math.round(u.y / 4)));
     out.notes.push(helis.length + ' helicopters on 1 Helipad use ' + spots.size + ' parking spots');
+    if (helis.length !== 4) bad(`expected 4 helicopters on one base (the cap), got ${helis.length}`);
     if (spots.size < helis.length) bad(`${helis.length} helicopters on one Helipad share ${spots.size} spots (stacked on top of each other)`);
     // Stress C: a jet at the front of the aircraft queue with the Airfield gone.
     const jet = faction === 'allies' ? 'jet' : 'mig';

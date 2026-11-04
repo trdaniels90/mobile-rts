@@ -777,7 +777,7 @@
     else if (res === 'busy') evaCalm('Unable to comply. Building in progress', 4);
     else if (res === 'busy-same') evaCalm('Building', 6);
     else if (res === 'full') evaCalm('Queue is full', 4);
-    else if (res === 'pads-full') evaCalm('Airfield full. Build another Airfield', 4);
+    else if (res === 'pads-full') evaCalm(UNIT_DEFS[type].producer === 'helipad' ? 'Helicopter Base full. Build another base' : 'Airfield full. Build another Airfield', 4);
     else if (res) eva(res);
     else if (!wasBusy) evaCalm(cat === 'infantry' ? 'Training' : 'Building', 6);
   }

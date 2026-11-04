@@ -2347,18 +2347,19 @@ function padFor(u) {
 // An Airfield holds AIRFIELD_SLOTS jets, parked two by two on the open asphalt beside the tower
 // and hangar (offsets from its corner). Jets cannot be built while every Airfield is full.
 // A Helicopter Base has four landing pads, one in each quarter (offsets from its centre).
-const HELIBASE_SPOTS = [[-24, -24], [24, -24], [-24, 24], [24, 24]];
+const HELIBASE_SPOTS = [[-24, -24], [24, -24], [-24, 24], [24, 24]], HELIBASE_SLOTS = 4;   // one helicopter a pad: more needs another base
 const AIRFIELD_SLOTS = 4, AIRFIELD_SPOTS = [[30, 12], [53, 12], [30, 36], [53, 36]];
 // Free parking for new aircraft from this producer: slots on its usable pads, less the aircraft
 // based there or anywhere else (in the air too) and those already in a queue. Infinity if uncapped.
 function padRoom(team, producer) {
-  if (producer !== 'airfield') return Infinity;
+  const per = producer === 'airfield' ? AIRFIELD_SLOTS : producer === 'helipad' ? HELIBASE_SLOTS : 0;
+  if (!per) return Infinity;
   let room = 0;
   for (const e of G.entities) {
-    if (padUsable(e, team.id, producer)) room += AIRFIELD_SLOTS;
+    if (padUsable(e, team.id, producer)) room += per;
     else if (e.alive && e.kind === 'unit' && e.team === team.id && e.def.producer === producer) room--;
   }
-  room -= team.queues.jet.length + (team.reserve ? team.reserve.length : 0);
+  room -= producer === 'airfield' ? team.queues.jet.length + (team.reserve ? team.reserve.length : 0) : team.queues.heli.length;
   return room;
 }
 
@@ -2904,7 +2905,7 @@ function updateProduction(team, dt) {
     if (!item || item.ready) continue;
     if (!available(team, item.type)) continue;
     const def = defOf(item.type);
-    if (padRoom(team, def.producer) < 0) continue;   // an Airfield was lost: queued jets wait for room
+    if (padRoom(team, def.producer) < 0) continue;   // an Airfield was lost: queued aircraft wait for room
     const dp = Math.min(dt * speed * producerBoost(team, def) / buildTime(def), 1 - item.progress);
     const cost = def.cost * dp;
     if (team.credits < cost) { item.stalled = true; notify(team, 'funds', 'Insufficient funds', 30); continue; }
