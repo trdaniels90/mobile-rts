@@ -4,6 +4,17 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.04.5', date: '4 November 2026', title: 'Ally button and team colours', groups: [
+    ['New', [
+      'Team battles: an ALLY button next to Auto Attack sends your idle ground units to guard an ally\'s base, and new units follow. They fight raiders there. Press it again to bring them home.',
+      'A computer ally now helps defend your base (and its own ally\'s) when it is attacked, on Normal and Hard.',
+      'Teammates on the same faction now get different colours: the second is green (Allies) or amber (Soviets).',
+      'The announcer now says "Ally defeated" and "Enemy defeated" aloud, and speaks when you send units to help an ally.',
+    ]],
+    ['Changes', [
+      'The debrief in team battles compares your whole team with the whole enemy team.',
+    ]],
+  ] },
   { v: '2026.11.04.4', date: '4 November 2026', title: 'Team battles and a game server', groups: [
     ['New', [
       '2 v 2 skirmish: on the map screen, pick 2 v 2 to fight two computer sides with a computer ally.',

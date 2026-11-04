@@ -11,7 +11,7 @@
   const ui = {
     sidebar: $('sidebar'), credits: $('credits'), powerBar: $('powerBar'), topstrip: $('topstrip'), homeBtn: $('homeBtn'),
     stripL: $('stripL'), stripR: $('stripR'), strips: document.querySelector('.sb-strips'),
-    autoBtn: $('autoBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'),
+    autoBtn: $('autoBtn'), allyBtn: $('allyBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'),
     eva: $('eva'), selbar: $('selbar'), selName: $('selName'), selHp: $('selHp'), selBtns: $('selBtns'),
     placebar: $('placebar'), placeText: $('placeText'), placeOk: $('placeOk'), placeCancel: $('placeCancel'),
     menu: $('menu'), menuTitle: $('menuTitle'), menuSub: $('menuSub'),
@@ -167,6 +167,7 @@
     // once an enemy building has been uncovered.
     if (!resumed) G.teams[G.me].auto = false;
     ui.autoBtn.setAttribute('aria-pressed', String(!!G.teams[G.me].auto));
+    ui.allyBtn.hidden = !teamGame();
     layout();
     if (resumed) return;
     const cy = G.entities.find((e) => e.team === G.me && e.type === 'cy');
@@ -394,6 +395,7 @@
     const d = BUILD_DEFS[p.type];
     const team = G.teams[G.me];
     p.ok = canPlace(team, p.type, p.cx, p.cy, 0);
+    drawVar = team.variant | 0;
     drawGhost(v, p.type, team.faction, p.cx, p.cy);
     for (let y = 0; y < d.h; y++) for (let x = 0; x < d.w; x++) {
       const c = idx(p.cx + x, p.cy + y);
@@ -831,6 +833,15 @@
       eva('Auto attack on');
     } else eva('Auto attack off. New units guard the base');
   });
+  ui.allyBtn.addEventListener('click', () => {
+    if (!G) return;
+    const team = G.teams[G.me];
+    if (!team.assist && !G.teams.some((o) => o !== team && o.ally === team.ally && !o.out)) { evaCalm('No ally to help', 4); return; }
+    setAssist(team, !team.assist);
+    ui.allyBtn.setAttribute('aria-pressed', String(!!team.assist));
+    ui.autoBtn.setAttribute('aria-pressed', String(!!team.auto));
+    eva(team.assist ? 'Defending our ally' : 'Returning to base');
+  });
   ui.menuBtn.addEventListener('click', togglePause);
 
   let hudT = 0, lastCredits = null;
@@ -846,6 +857,8 @@
     lastCredits = shown;
     const autoLabel = team.auto ? `AUTO ${Math.min(team.waiting || 0, GROUP_SIZE)}/${GROUP_SIZE}` : 'AUTO OFF';
     if (ui.autoLabel.textContent !== autoLabel) ui.autoLabel.textContent = autoLabel;
+    if (ui.allyBtn.getAttribute('aria-pressed') !== String(!!team.assist)) ui.allyBtn.setAttribute('aria-pressed', String(!!team.assist));
+    if (ui.autoBtn.getAttribute('aria-pressed') !== String(!!team.auto)) ui.autoBtn.setAttribute('aria-pressed', String(!!team.auto));
     // Vertical power bar: green fill is output, the red tick is demand.
     const { prod, use } = team.power;
     const top = Math.max(100, prod, use) * 1.15;

@@ -263,9 +263,7 @@ share globals. Read this file first; the commit history explains every change in
   so `acquire` only looks nearby; a unit with a second weapon and nothing in reach waits 0.3 s before
   looking again (it searched every frame). A 2 v 2 of four Hard computers peaks around 440 units and
   8 s of CPU per game minute on the dev container.
-- **Not done yet:** allies of the same faction share a colour; new announcer lines ("Ally defeated",
-  "Enemy defeated") have no voice clip, so they only show as text; the debrief compares you with the first
-  enemy side only; computer allies do not help defend each other's bases.
+- **Team extras (2026.11.04.5):** teammates of the same faction get a second colour (`team.variant`, `FACTIONS[f].alt`, `drawVar` in models.js, set per draw in art.js); "Ally defeated"/"Enemy defeated" have voice clips (rendered with `scripts/make_voices.py`'s pipeline, Kokoro model from the kokoro-onnx releases); the debrief compares your whole alliance with all foes; the ALLY button (`setAssist`, `defendAllies` in world.js, `team.assist`, `u.garrison`/`u.assisting`) garrisons an ally's base, and computer allies help defend (Normal and Hard, ground units only).
 
 ## Supabase
 

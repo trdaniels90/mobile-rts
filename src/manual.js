@@ -130,6 +130,8 @@ const Manual = (() => {
       <h4>Allies</h4>
       <p>Your ally's units and structures show on your map and your minimap, and you see whatever they have uncovered. You cannot command your ally's forces, and your units never fire on them.</p>
       <h4>Winning</h4>
+      <p>The <b>ALLY</b> button, next to Auto Attack, sends every idle ground unit to guard an ally's base, and new units follow. When that base is attacked they go for the raiders. Press it again to bring them home. A computer ally helps defend your base on its own (Normal and Hard).</p>
+      <p>If two teammates play the same faction, the second one's units and buildings are drawn in a second colour (green Allies, amber Soviets).</p>
       <p>A side that loses every production building and Mobile Construction Yard is out; its remaining units fight on. The battle ends when only one team has a side still in it. If a player leaves an online team battle, the computer takes over their side.</p>` },
     { ch: 'Basics', title: 'Controls', html: () => `
       <table class="fm-table">

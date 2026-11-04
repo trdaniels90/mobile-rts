@@ -53,7 +53,7 @@ const NetCore = (() => {
     return OBJ + JSON.stringify(v, rep);
   }
   // What a remote sidebar and debrief use of each side.
-  const TEAM = ['id', 'faction', 'isAI', 'ally', 'credits', 'power', 'low', 'auto', 'waiting', 'queues', 'stats', 'powers', 'name', 'out'];
+  const TEAM = ['id', 'faction', 'isAI', 'ally', 'credits', 'power', 'low', 'auto', 'assist', 'waiting', 'queues', 'stats', 'powers', 'name', 'out'];
   const teamJSON = (t) => JSON.stringify(Object.fromEntries(TEAM.map((k) => [k, k === 'credits' ? Math.round(t[k]) : t[k]])), rep);
 
   // A remote player: side is the side they command. full: the next snapshot carries everything and
@@ -162,7 +162,7 @@ const NetCore = (() => {
   // ---------------------------------------------------------------------------
   // Orders from a remote player, for their own side only.
   const COMMANDS = ['commandMove', 'commandAttack', 'commandHunt', 'commandGuard', 'commandStop', 'startProduction', 'cancelProduction',
-    'placeStructure', 'launchPower', 'deployFob', 'setAuto', 'setRepair', 'sellStructure', 'commandRepair'];
+    'placeStructure', 'launchPower', 'deployFob', 'setAuto', 'setAssist', 'setRepair', 'sellStructure', 'commandRepair'];
   const ORIGC = {};
   for (const f of COMMANDS) ORIGC[f] = root[f];
   function applyCommand(side, m) {

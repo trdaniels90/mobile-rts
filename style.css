@@ -84,13 +84,14 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
   display: block; width: 100%; aspect-ratio: 1; touch-action: none; image-rendering: pixelated;
   background: #000; border: 3px solid; border-color: var(--metal-lo) var(--metal-hi) var(--metal-hi) var(--metal-lo);
 }
-.sb-buttons { grid-area: buttons; display: flex; gap: 4px; }
+.sb-buttons { grid-area: buttons; display: flex; gap: 3px; min-width: 0; }
 .icon {
-  flex: 1; min-height: 34px; padding: 1px 0 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex: 1 1 0; min-width: 0; min-height: 34px; padding: 1px 0 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
   line-height: 1; color: #d4d6cc;
 }
 .icon span { font-size: 17px; }
-.icon small { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: #a9ac9f; }
+.icon small { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; text-align: center; color: #a9ac9f; }
+.icon[hidden] { display: none; }
 .icon[aria-pressed="true"] { color: #fff; background: linear-gradient(180deg, var(--accent), #262829); }
 .icon[aria-pressed="true"] small { color: #fff; }
 

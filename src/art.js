@@ -398,6 +398,7 @@ function pxLine(g, x0, y0, x1, y1, w, col) {
 }
 // A settled ragdoll painted into the ground for good: a dark stain, then the body a shade dimmer.
 function bakeRagdoll(tg, fx) {
+  drawVar = fx.v | 0;
   const P = fx.P, cx = Math.round(P[6]), cy = Math.round(P[7]), R = 26;
   if (fx.pool) drawPool(tg, fx, 1);
   else {   // a scorched patch under a burnt body
@@ -517,6 +518,7 @@ function idlePose(u, t) {
   return null;
 }
 function drawUnit(g, u, t) {
+  drawVar = G.teams[u.team].variant | 0;
   const pal = palFor(u.faction);
   if (u.cls === 'inf') {
     const stance = !u.moving && u.stance;
@@ -647,6 +649,7 @@ function groundColour(b) {
   return c;
 }
 function drawStructure(g, b, t) {
+  drawVar = G.teams[b.team].variant | 0;
   const camo = b.type === 'pillbox' ? groundColour(b) : undefined;
   const s = structureSprite(b.type, b.faction, camo);
   const x = b.cx * CELL, y = b.cy * CELL;
@@ -801,6 +804,7 @@ const flameFrames = (() => {
 })();
 
 function drawEffect(g, fx) {
+  drawVar = fx.v | 0;
   const k = fx.t / fx.life;
   switch (fx.type) {
     case 'expl': {

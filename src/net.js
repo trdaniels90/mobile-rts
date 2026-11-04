@@ -557,6 +557,7 @@ const Net = (() => {
     }
     if (f === 'launchPower') { const ok = powerReady(a[0], a[1]); if (ok) go(); return ok; }
     if (f === 'setAuto') a[0].auto = !!a[1];
+    if (f === 'setAssist') a[0].assist = !!a[1];
     if (f === 'setRepair') a[0].repairing = !!a[1];
     go();
     return f === 'deployFob' ? null : undefined;

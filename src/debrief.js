@@ -4,6 +4,10 @@
 // your kills by unit type). Built from what the world recorded in G.log as the game went on.
 const Debrief = (() => {
   let root = null, onRematch = null, onNew = null;
+  // The sides compared: you (with your allies in a team game) against every enemy side.
+  let mine = [], foes = [], lMe = 'You', lFoe = 'Enemy';
+  const total = (arr, ids) => ids.reduce((a, i) => a + (arr[i] || 0), 0);
+  const stat = (ids, k) => ids.reduce((a, i) => a + G.teams[i].stats[k], 0);
   const SIDE = { allies: '#5f8fd6', soviets: '#e0584a' };   // checked for colour-blind contrast on the panel
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
   const money = (v) => '$' + (v >= 10000 ? (v / 1000).toFixed(v >= 100000 ? 0 : 1) + 'k' : Math.round(v).toLocaleString('en-US'));
@@ -47,6 +51,9 @@ const Debrief = (() => {
     if (!root) build();
     onRematch = opts.onRematch; onNew = opts.onNew;
     const me = G.teams[G.me], foe = G.teams[foeOf(G.me)], L = G.log;
+    const team = teamGame();
+    mine = G.teams.filter((t) => alliedSides(G.me, t.id)).map((t) => t.id); foes = foesOf(G.me);
+    lMe = team ? 'Your team' : 'You'; lFoe = team ? 'Enemy team' : 'Enemy';
     const cMe = SIDE[me.faction], cFoe = SIDE[foe.faction];
     const sideName = (t) => (t.faction === 'allies' ? 'Allies' : 'Soviets');
     root.querySelector('.db-kick').textContent = `${sideName(me)} vs ${sideName(foe)} · ${opts.difficulty}`;
@@ -54,7 +61,7 @@ const Debrief = (() => {
     title.textContent = won ? 'Mission Accomplished' : 'Mission Failed';
     title.className = won ? 'won' : 'lost';
     root.querySelector('.db-time').textContent = fmt(G.t);
-    root.querySelector('.db-legend').innerHTML = `<span><i style="background:${cMe}"></i>You (${sideName(me)})</span><span><i style="background:${cFoe}"></i>Enemy (${sideName(foe)})</span>`;
+    root.querySelector('.db-legend').innerHTML = `<span><i style="background:${cMe}"></i>${lMe}${team ? '' : ` (${sideName(me)})`}</span><span><i style="background:${cFoe}"></i>${lFoe}${team ? '' : ` (${sideName(foe)})`}</span>`;
 
     // Most valuable unit: the player's unit with the most kills, standing or fallen.
     const alive = unitsOf(G.me).filter((u) => u.kills).map((u) => ({ type: u.type, faction: u.faction, kills: u.kills, worth: u.killWorth, born: u.born, died: null }));
@@ -67,9 +74,9 @@ const Debrief = (() => {
 
     // Scorecard.
     const rows = [['Units built', 'units'], ['Units lost', 'lost', true], ['Enemies destroyed', 'killed'], ['Buildings destroyed', 'bldKilled'], ['Buildings lost', 'bldLost', true], ['Ore harvested', 'harvested']];
-    root.querySelector('.db-table').innerHTML = `<thead><tr><th></th><th><i style="background:${cMe}"></i>You</th><th><i style="background:${cFoe}"></i>Enemy</th></tr></thead><tbody>` +
+    root.querySelector('.db-table').innerHTML = `<thead><tr><th></th><th><i style="background:${cMe}"></i>${lMe}</th><th><i style="background:${cFoe}"></i>${lFoe}</th></tr></thead><tbody>` +
       rows.map(([label, k, low]) => {
-        const a = me.stats[k], b = foe.stats[k], f = k === 'harvested' ? money : (v) => v;
+        const a = stat(mine, k), b = stat(foes, k), f = k === 'harvested' ? money : (v) => v;
         return `<tr><td>${label}</td><td class="${(low ? a < b : a > b) ? 'lead' : ''}">${f(a)}</td><td class="${(low ? b < a : b > a) ? 'lead' : ''}">${f(b)}</td></tr>`;
       }).join('') + '</tbody>';
     const byType = {};
@@ -96,9 +103,9 @@ const Debrief = (() => {
     const evText = (e) => (e.team === G.me ? 'Your ' : alliedSides(e.team, G.me) ? 'Ally ' : 'Enemy ') + (e.kind === 'cy lost' ? 'Construction Yard destroyed' : e.kind === 'outpost lost' ? 'Outpost lost' : e.kind);
     const evColor = (e) => (alliedSides(e.team, G.me) ? cMe : cFoe);
     const unit = { army: money, income: (v) => money(v) + '/min', blds: (v) => Math.round(v) };
-    const series = (k) => (k !== 'income' ? L.samples.map((s) => [s.t, s[k][G.me], s[k][foeOf(G.me)]])
+    const series = (k) => (k !== 'income' ? L.samples.map((s) => [s.t, total(s[k], mine), total(s[k], foes)])
       // income averaged over the last minute: single truckloads make the raw figures jump about
-      : L.samples.map((s, i) => { const w = L.samples.slice(Math.max(0, i - 3), i + 1); return [s.t, w.reduce((a, q) => a + q.income[G.me], 0) / w.length, w.reduce((a, q) => a + q.income[foeOf(G.me)], 0) / w.length]; }));
+      : L.samples.map((s, i) => { const w = L.samples.slice(Math.max(0, i - 3), i + 1); return [s.t, w.reduce((a, q) => a + total(q.income, mine), 0) / w.length, w.reduce((a, q) => a + total(q.income, foes), 0) / w.length]; }));
     const niceMax = (v) => { const p = Math.pow(10, Math.floor(Math.log10(v || 1))), n = v / p; return [1, 1.2, 1.6, 2, 2.4, 3, 4, 5, 6, 8, 10].find((q) => q >= n) * p; };
     let key = 'army';
     function draw() {
@@ -122,7 +129,7 @@ const Debrief = (() => {
         for (const [c, i] of [['.db-d1', 1], ['.db-d2', 2]]) { const d = svg.querySelector(c); d.setAttribute('cx', x); d.setAttribute('cy', Y(q[i])); d.setAttribute('visibility', 'visible'); }
         const xh = svg.querySelector('.db-xh'); xh.setAttribute('x1', x); xh.setAttribute('x2', x); xh.setAttribute('visibility', 'visible');
         const ev = EV.filter((e) => Math.abs(e.t - q[0]) <= 20).map((e) => `<div class="db-tipev">${evText(e)}</div>`).join('');
-        tip.innerHTML = `<b>${fmt(q[0])}</b><div><i style="background:${cMe}"></i>You ${unit[key](q[1])}</div><div><i style="background:${cFoe}"></i>Enemy ${unit[key](q[2])}</div>${ev}`;
+        tip.innerHTML = `<b>${fmt(q[0])}</b><div><i style="background:${cMe}"></i>${lMe} ${unit[key](q[1])}</div><div><i style="background:${cFoe}"></i>${lFoe} ${unit[key](q[2])}</div>${ev}`;
         tip.style.display = 'block';
         const tw = tip.offsetWidth, px = x / W * r.width;
         tip.style.left = Math.max(tw / 2, Math.min(r.width - tw / 2, px)) + 'px';

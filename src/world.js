@@ -36,6 +36,8 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
     sides = [0, 1].map((i) => (i === me ? { faction: playerFaction, ally: i, ai: false } : { faction: enemyFaction, ally: i, ai: !pvp }));
   }
   const teams = sides.map((d, i) => Object.assign(makeTeam(i, d.faction, !!d.ai), { ally: d.ally, name: d.name || null }));
+  // A teammate of the same faction as an earlier teammate gets the faction's alternate colours.
+  teams.forEach((t, i) => { if (teams.slice(0, i).some((o) => o.ally === t.ally && o.faction === t.faction && !o.variant)) { t.variant = 1; t.pal = FACTIONS[t.faction].alt; } });
   const fogFor = new Map();
   const fog = teams.map((t) => fogFor.get(t.ally) || fogFor.set(t.ally, new Uint8Array(NCELLS)).get(t.ally));
   G = {
@@ -111,7 +113,7 @@ function makeTeam(id, faction, isAI) {
     power: { prod: 0, use: 0 }, low: false, auto: !!isAI,
     queues: { structure: null, infantry: [], vehicle: [], heli: [], jet: [] },
     stats: { built: 0, units: 0, lost: 0, killed: 0, bldKilled: 0, bldLost: 0, harvested: 0 },
-    cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, defending: false, calm: 0, harvHit: null,
+    cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, defending: false, calm: 0, allyCalm: 0, assist: false, harvHit: null,
   };
 }
 
@@ -911,16 +913,92 @@ function rallyPoint(team) {
 // busy defending, or on a move or attack order, carry on); after that new units go out in batches.
 function launchAll(team) {
   const idle = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.defending && !u.homeward &&
-    u.cls !== 'air' && u.order.type === 'guard' && !u.order.hold);
+    u.cls !== 'air' && u.order.type === 'guard' && !u.order.hold && !u.assisting);
   for (const u of idle) { setHunt(u); u.staged = false; }
   if (idle.length) logWave(team.id, idle.length >= 15);
   return idle.length;
 }
+
+// ---------------------------------------------------------------------------
+// Helping an ally (team games). The Ally button (`setAssist`) sends every idle ground unit to stand
+// guard around an ally's base, and new units follow while it is on; when the ally's base is attacked,
+// those garrison units go for the raiders (`defendAllies`). A computer ally does the same without
+// being asked, on every difficulty but Easy: its idle units near its own base answer an allied
+// base's call, only as many as it takes. Aircraft stay out of it. Runs once a second.
+// ---------------------------------------------------------------------------
+const alliesOf = (team) => G.teams.filter((o) => o !== team && o.ally === team.ally && !o.out && buildingsOf(o.id).length);
+const idleGround = (team) => unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.defending && !u.assisting && !u.homeward &&
+  u.cls !== 'air' && u.order.type === 'guard' && !u.order.hold);
+function sendToAlly(team, units) {
+  const ally = alliesOf(team)[0];
+  if (!ally) return 0;
+  for (const u of units) { const s = scatterSpot(ally); setGuard(u, s.x, s.y); u.staged = false; u.garrison = true; goTo(u, s.x, s.y); }
+  return units.length;
+}
+function setAssist(team, on) {
+  on = !!on && alliesOf(team).length > 0;
+  team.assist = on;
+  if (on) {
+    team.auto = false;
+    sendToAlly(team, idleGround(team).filter((u) => !u.garrison));
+    return;
+  }
+  // Off: the garrison goes home and waits there again.
+  for (const u of unitsOf(team.id)) {
+    if (!u.garrison) continue;
+    u.garrison = false;
+    if (u.order.type !== 'guard' || u.order.hold) continue;
+    const s = scatterSpot(team);
+    setGuard(u, s.x, s.y); u.staged = true; u.assisting = false; goTo(u, s.x, s.y);
+  }
+}
+function defendAllies(team) {
+  if (!teamGame()) return;
+  if (team.assist && !alliesOf(team).length) setAssist(team, false);
+  const helping = team.assist || (team.isAI && G.diff.ai.adapt);
+  if (!helping && !unitsOf(team.id).some((u) => u.assisting)) return;
+  const allies = alliesOf(team);
+  const hit = (a, u) => buildingsOf(a.id).some((b) => distTo(u, b) < CELL * 14) ||
+    (a.baseHit && a.baseHit.until > G.t && Math.hypot(u.x - a.baseHit.x, u.y - a.baseHit.y) < CELL * 8);
+  const threats = helping ? enemyUnitsOf(team.id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute && allies.some((a) => hit(a, u))) : [];
+  if (!threats.length) {
+    if (++team.allyCalm < DEFEND_CALM) return;
+    for (const u of unitsOf(team.id)) {
+      if (!u.assisting || (u.target && u.target.alive)) continue;
+      u.assisting = false;
+      if (u.garrison && team.assist && allies.length) { const s = scatterSpot(allies[0]); setGuard(u, s.x, s.y); goTo(u, s.x, s.y); }
+      else if (u.post) { setGuard(u, u.post.x, u.post.y); u.staged = u.post.staged; goTo(u, u.post.x, u.post.y); }
+    }
+    return;
+  }
+  team.allyCalm = 0;
+  const near = (u) => Math.min(...threats.map((t) => Math.hypot(u.x - t.x, u.y - t.y)));
+  let army = unitsOf(team.id).filter((u) => u.assisting).concat(idleGround(team).filter((u) => (team.assist ? u.garrison : near(u) < CELL * 70)))
+    .filter((u) => threats.some((t) => canTarget(u, t)));
+  army.sort((a, b) => (!!b.assisting - !!a.assisting) || near(a) - near(b));
+  // Garrison units all go; the computer sends worth half again what the raiders are.
+  const need = threats.reduce((a, t) => a + (t.def.cost || 300), 0) * 1.5;
+  let got = 0;
+  for (const u of army) {
+    if (!team.assist && !u.assisting && got >= need) continue;
+    got += u.def.cost || 300;
+    let best = null, bd = Infinity;
+    for (const t of threats) { const d = Math.hypot(u.x - t.x, u.y - t.y); if (d < bd && canTarget(u, t)) { bd = d; best = t; } }
+    if (!best) continue;
+    if (!u.assisting) { const g = u.order.type === 'guard'; u.post = { x: g ? u.order.x : u.x, y: g ? u.order.y : u.y, staged: !!u.staged }; }
+    u.assisting = true; u.staged = false;
+    if (u.target === best || (u.target && u.target.alive && threats.includes(u.target))) continue;
+    setGuard(u, best.x, best.y); u.target = best; goTo(u, best.x, best.y);
+  }
+}
 function launchGroups() {
   for (const team of G.teams) {
     defendBase(team);
+    defendAllies(team);
+    // New units follow the others to an ally's base while the Ally button is on.
+    if (team.assist) sendToAlly(team, idleGround(team).filter((u) => !u.garrison && u.staged && inBase(team, u) && !u.dest));
     const rally = rallyPoint(team);
-    const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.def.harvester && (u.def.weapon || u.cls === 'air') && u.order.type === 'guard');
+    const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.assisting && !u.def.harvester && (u.def.weapon || u.cls === 'air') && u.order.type === 'guard');
     // The player's aircraft do not wait for a group: each one heads out on its own.
     // (A jet that came home early waits on its pad until it is fully rearmed.)
     // The computer sends helicopters together and jets together: two or more at once, and a lone
@@ -1574,7 +1652,7 @@ function kill(e, attacker, wh, from) {
       G.effects.push({ type: 'crash', x: e.x, y: e.y, alt: e.alt, vz: jet ? -6 : 0, face: e.face, vx, vy, jet, seed,
         spin: jet ? side * 0.2 : side * (3 + Math.random() * 2), spinUp: jet ? side * (0.4 + Math.random() * 0.4) : side * 2.5,
         roll: 0, rollV: jet ? side * (1.5 + Math.random() * 2) : 0, bounced: false, ground: false, hit: [],
-        def: e.def, faction: e.faction, t: 0, life: 40, smokeT: 0, shedT: 0.3, furrowT: 0 });
+        def: e.def, faction: e.faction, v: teamOf(e).variant | 0, t: 0, life: 40, smokeT: 0, shedT: 0.3, furrowT: 0 });
       for (let i = 0; i < 2; i++) shed(e.x, e.y, e.alt, vx, vy, e.faction, true);
     } else {
       crashLanding(e.x, e.y, e.face, e.def, e.faction, seed);
@@ -1618,7 +1696,7 @@ function ragdoll(e, wh, from) {
   const r = Math.random;
   const a = from && (from.x !== e.x || from.y !== e.y) ? Math.atan2(e.y - from.y, e.x - from.x) : r() * Math.PI * 2;
   const blast = wh === 'HE' || wh === 'AP' || wh === 'ART' || wh === 'AT' || wh === 'HF';
-  const fx = { type: 'ragdoll', x: e.x, y: e.y, unitType: e.type, faction: e.faction, face: e.face, t: 0, life: 14, age: 0, still: 0, acc: 0 };
+  const fx = { type: 'ragdoll', x: e.x, y: e.y, unitType: e.type, faction: e.faction, v: teamOf(e).variant | 0, face: e.face, t: 0, life: 14, age: 0, still: 0, acc: 0 };
   // Joints in world space, standing as the soldier stood.
   const n = RAG_PTS.length, ca = Math.cos(e.face), sa = Math.sin(e.face);
   const P = new Float32Array(n * 3), V = new Float32Array(n * 3);
@@ -1887,7 +1965,7 @@ function ejectSeat(e, vx, vy) {
   G.effects.push({ type: 'frag', x: e.x, y: e.y, alt: e.alt + 2, vx: vx * 0.8 + (Math.random() - 0.5) * 20, vy: vy * 0.8 + (Math.random() - 0.5) * 20, vz: -55,
     rot: e.face, spin: 9, w: 5, h: 3, color: 'rgba(150,185,205,0.85)', burning: false, t: 0, life: 7, smokeT: 0 });
   G.effects.push({ type: 'eject', x: e.x, y: e.y, alt: e.alt + 2, vx: vx * 0.45, vy: vy * 0.45, vz: -95, face: e.face,
-    team: e.team, faction: e.faction, t: 0, life: 0.85, smokeT: 0 });
+    team: e.team, faction: e.faction, v: teamOf(e).variant | 0, t: 0, life: 0.85, smokeT: 0 });
 }
 function updateEject(fx, dt) {
   const burn = fx.t < 0.3;
@@ -3207,6 +3285,7 @@ function commandGuard(units, x, y) {
 function setAuto(team, on) {
   team.auto = !!on;
   if (!on) return;
+  if (team.assist) { team.assist = false; for (const u of unitsOf(team.id)) u.garrison = false; }
   // Every idle ground unit attacks now; aircraft waiting on their pads take off.
   launchAll(team);
   for (const u of unitsOf(team.id)) if (u.cls === 'air' && !u.def.scripted && u.order.type === 'guard') u.staged = true;

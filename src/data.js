@@ -12,10 +12,12 @@ const FACTIONS = {
   allies: {
     name: 'Allies',
     pal: { main: '#5b7fb0', light: '#97b4da', dark: '#36547c', deep: '#1d2f48' },
+    alt: { main: '#4f9a5a', light: '#8fd09a', dark: '#2f6a3a', deep: '#173a20' },   // a teammate of the same faction: green
   },
   soviets: {
     name: 'Soviets',
     pal: { main: '#ad3128', light: '#dd6c5c', dark: '#781d18', deep: '#45100c' },
+    alt: { main: '#c98a1e', light: '#efc062', dark: '#8c5c0e', deep: '#4e3206' },   // a teammate of the same faction: amber
   },
 };
 

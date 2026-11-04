@@ -11,7 +11,14 @@ const C = {
   rock: ['#6d685e', '#7d786c', '#5c584f'], ore: ['#b48a1c', '#d2a62a', '#e8c24a', '#9a7414'],
 };
 const BURNT = { key: 'burnt', main: '#3b3631', light: '#4b453d', dark: '#26231f', deep: '#171512' };
-function palFor(faction) { const p = FACTIONS[faction].pal; p.key = p.key || faction; return p; }
+// `drawVar` is 1 while drawing a teammate that shares a faction with an earlier teammate: it gets the faction's
+// alternate colours (and its own sprite caches, through the palette's key).
+let drawVar = 0;
+function palFor(faction) {
+  const f = FACTIONS[faction], alt = drawVar && f.alt, p = alt || f.pal;
+  p.key = p.key || (alt ? faction + '2' : faction);
+  return p;
+}
 
 const modelCache = new Map();
 function model(key, build) {
@@ -1236,7 +1243,7 @@ function damagedSprite(type, faction, stage, camo) {
   const s = spriteCache2.get(k);
   if (s) return s;
   if (!dmgQueue.some((q) => q.k === k)) {
-    dmgQueue.push({ k, type, faction, stage, camo });
+    dmgQueue.push({ k, type, faction, stage, camo, v: drawVar });
     if (dmgQueue.length === 1) setTimeout(pumpDamaged, 0);
   }
   return stage > 1 ? damagedSprite(type, faction, stage - 1, camo) : structureSprite(type, faction, camo);
@@ -1244,7 +1251,9 @@ function damagedSprite(type, faction, stage, camo) {
 function pumpDamaged() {
   const q = dmgQueue[0];
   if (!q) return;
+  const keep = drawVar; drawVar = q.v;
   const pal = camoPal(q.faction, q.camo);
+  drawVar = keep;
   sprite('S' + q.type + pal.key + 'd' + q.stage, () => damageModel(model('S' + q.type + pal.key, () => STRUCTURES[q.type](pal, q.faction)), q.stage, q.type, q.faction), 0, 0);
   dmgQueue.shift();
   if (dmgQueue.length) setTimeout(pumpDamaged, 20);
