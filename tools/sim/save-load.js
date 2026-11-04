@@ -9,12 +9,12 @@ const { chromium, devices } = require('playwright');
   const ctx = await b.newContext({ ...devices['iPhone 13 landscape'] });
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message + ' @ ' + (e.stack || '').split('\n')[1]));
   await p.route(/fonts|supabase/, (r) => r.abort());
-  await p.goto('file://' + root + '/index.html'); await p.tap('#startBtn'); await p.tap('#maps [data-map-go]'); await p.waitForTimeout(800);
+  await p.goto('file://' + root + '/index.html'); await p.tap('#startBtn'); if (process.argv[4] === '2v2') await p.tap('#maps [data-mode="2v2"]'); await p.tap('#maps [data-map-go]'); await p.waitForTimeout(800);
   const summary = () => p.evaluate(() => {
     let decal = 0; const d = G.dctx.getImageData(0, 0, G.decals.width, G.decals.height).data; for (let i = 3; i < d.length; i += 64) if (d[i]) decal++;
     const refsOk = G.entities.every((e) => (!e.target || !e.target.id || G.byId.get(e.target.id) === e.target || !e.target.alive)) && G.entities.every((e) => G.byId.get(e.id) === e);
     return { t: Math.round(G.t * 10) / 10, ents: G.entities.length, nextId: G.nextId, credits: G.teams.map((t) => Math.round(t.credits)), stats: G.teams.map((t) => t.stats.killed + '/' + t.stats.lost + '/' + Math.round(t.stats.harvested)),
-      pos: G.entities.slice(0, 40).map((e) => Math.round(e.x) + ',' + Math.round(e.y)).join(' '), groups: G.groups.length, fogSeen: G.fog[G.me].reduce((a, x) => a + x, 0), ore: G.ore.reduce((a, x) => a + x, 0), decal, refsOk, auto: G.teams[G.me].auto };
+      pos: G.entities.slice(0, 40).map((e) => Math.round(e.x) + ',' + Math.round(e.y)).join(' '), groups: G.groups.length, fogSeen: G.fog[G.me].reduce((a, x) => a + x, 0), sides: G.teams.length + ' sides, fog shared ' + (G.teams.length > 2 && G.fog[0] === G.fog[2]), ore: G.ore.reduce((a, x) => a + x, 0), decal, refsOk, auto: G.teams[G.me].auto };
   });
   await p.evaluate((m) => { G.teams[0].isAI = true; G.teams[0].auto = true; for (let i = 0; i < m * 60 * 30 && !G.over; i++) { G.paused = false; update(1 / 30); } G.teams[0].isAI = false; }, +minutes);
   await p.evaluate(() => document.getElementById('menuBtn').click());   // the menu pauses the game and saves it
@@ -31,7 +31,7 @@ const { chromium, devices } = require('playwright');
   const same = {}; for (const k in before) if (k !== 'decal') same[k] = JSON.stringify(before[k]) === JSON.stringify(after[k]);
   // It carries on: two more minutes, then the player wins.
   const more = await p.evaluate(() => { G.teams[0].isAI = true; for (let i = 0; i < 2 * 60 * 30 && !G.over; i++) update(1 / 30); G.teams[0].isAI = false; return { t: Math.round(G.t), ents: G.entities.length, over: !!G.over }; });
-  await p.evaluate(() => { for (const e of G.entities) if (e.alive && e.team === 1 && (PRODUCTION.includes(e.type) || e.def.deploys === 'cy')) damage(e, 1e7, 'HE', null); for (let i = 0; i < 40; i++) update(1 / 30); });
+  await p.evaluate(() => { for (const e of G.entities) if (e.alive && G.teams[e.team].ally === 1 && (PRODUCTION.includes(e.type) || e.def.deploys === 'cy')) damage(e, 1e7, 'HE', null); for (let i = 0; i < 40; i++) update(1 / 30); });
   await p.waitForTimeout(3000);
   const title = await p.evaluate(() => document.querySelector('#dbTitle').textContent);
   await p.reload(); await p.waitForTimeout(1500);

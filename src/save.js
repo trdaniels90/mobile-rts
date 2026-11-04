@@ -18,7 +18,7 @@ const SaveGame = (() => {
   })(ROOTS, []);
   const fromPath = (path) => path.reduce((o, k) => o[k], ROOTS);
   // Not saved: rebuilt on loading (byId, the canvases, what is drawn) or for this session only.
-  const SKIP = new Set(['byId', 'terrainCanvas', 'tctx', 'decals', 'dctx', 'seen', 'selection', 'place', 'paused', 'inFx', 'shroudDirty']);
+  const SKIP = new Set(['grid', 'byId', 'terrainCanvas', 'tctx', 'decals', 'dctx', 'seen', 'selection', 'place', 'paused', 'inFx', 'shroudDirty']);
   const TYPED = { Uint8Array, Uint16Array, Int32Array, Float32Array, Float64Array, Int16Array, Uint32Array, Int8Array };
 
   function b64(a) {
@@ -128,6 +128,12 @@ const SaveGame = (() => {
       if (!rec || rec.meta.size !== MAP || !rec.meta.hbase) return null;
       const g = thaw(rec.state);
       g.byId = new Map(g.entities.map((e) => [e.id, e]));
+      // Alliances (team games, 2026.11.05): a save from before has none, each side its own. Allies share
+      // one fog array, which the save keeps as copies: join them up again.
+      g.teams.forEach((t, i) => { if (t.ally === undefined) t.ally = i; });
+      const fogs = new Map();
+      g.fog = g.teams.map((t, i) => fogs.get(t.ally) || fogs.set(t.ally, g.fog[i]).get(t.ally));
+      if (!g.log.waves || g.log.waves.length < g.teams.length) { g.log.waves = g.teams.map((t, i) => (g.log.waves && g.log.waves[i]) || 0); g.log.lastH = g.teams.map((t, i) => (g.log.lastH && g.log.lastH[i]) || 0); }
       g.seen = g.fog[g.me]; g.selection = []; g.place = null; g.paused = false; g.inFx = false; g.shroudDirty = true;
       // The ground from its saved picture; without one, painted afresh (without the marks of battle).
       g.decals = mkCanvas(WORLD, WORLD);

@@ -45,6 +45,9 @@ share globals. Read this file first; the commit history explains every change in
    `publish_files` only reads files inside the repo folder, so build to `.build/index.html`, publish,
    then `rm -rf .build` (it is not gitignored, and the Stop hook complains about untracked files).
 5. Commit, then push the branch `claude/cross-platform-game-k2d9lb`.
+5a. **Game server:** phones only use the server when its version matches theirs (otherwise they play
+   phone to phone, and team games are unavailable), so deploy it with every release that goes to
+   testers: `fly deploy` from the repository root (see "Dedicated server" below).
 6. **Test build:** check `git merge-base --is-ancestor origin/main HEAD`, then run
    `git push origin HEAD:main`. Poll `https://trdaniels90.github.io/mobile-rts/src/version.js`
    until it shows the new version.
@@ -67,7 +70,9 @@ share globals. Read this file first; the commit history explains every change in
 | `src/report.js` | Match reporting to Supabase and the leaderboard |
 | `src/profile.js` | Accounts (email plus a 6-digit code), commander names and the service record |
 | `src/save.js` | Save and continue a skirmish: one slot in IndexedDB, the whole of `G` as a graph (references kept, data.js tables by name), the ground as pictures |
-| `src/net.js` | Online play: room codes over Supabase Realtime, WebRTC, the host's snapshots, the guest's copy and orders, the online page |
+| `src/netcore.js` | The host's snapshot engine (per remote player: only what their side sees), event and decal relays, carrying out remote orders. Used by a hosting phone and by the server |
+| `src/net.js` | Online play: the game server first, else room codes over Supabase Realtime and WebRTC; the guest's copy and orders; the online page and lobby |
+| `server/` | The dedicated game server (Node, `ws`): `headless.js` loads the game scripts without a browser, `server.js` runs rooms and battles. `Dockerfile` and `fly.toml` at the root deploy it to Fly.io |
 
 - **Sides:** `PLAYER = 0`, `ENEMY = 1` are just the two slots. `G.me` is the side this device
   shows and commands; either side can be "you" (`newWorld(..., me)`, `?side=1` in the address,
@@ -224,6 +229,38 @@ share globals. Read this file first; the commit history explains every change in
 - Added after PvP match 67484441 froze at about 22 minutes on both phones (stuck picture, no message,
   shortly after a big Auto Attack). Its cause is still unknown: look at `stats.errors` after the next one.
 
+## Dedicated server and team battles (branch `claude/dedicated-server-2v2`, not released yet)
+
+- **Server** (`server/server.js`, run in Node by `headless.js`: the game scripts in a `vm` context with stub
+  canvases; their `const`/`let` names are read with `ctx.get('G')`). One context per room. Rooms by 4-letter
+  code, up to 4 seats; seat 0 leads (picks battle, map, co-op difficulty). Battle runs at 30 steps a second,
+  snapshots 10 a second per player (`NetCore.snapshots`). Holds while a player is away; after `WAIT_LIMIT`
+  a 1 v 1 is lost, and in a team game the computer takes over the side (`handOver`, also on surrender); an
+  alliance with no players left loses. The server sets `G.me = -1` so every side's announcer lines go out.
+- **Phones:** `net.js` tries `SERVER` (`wss://red-horizon-rts.fly.dev`, `?server=<url>` to override,
+  `?server=off`) for 7 s on Host or Join; failing that, or on a version mismatch, 1 v 1 goes phone to phone
+  as before. On the server both phones are guests (`role === 'guest'`), `lobby.via === 'server'`.
+- **Fly.io:** app `red-horizon-rts` (change it in `fly.toml` and `SERVER` together if taken), one machine
+  (rooms are in memory), sleeps when idle and wakes on the next connection. Health: `GET /` returns the
+  version and room count.
+- **Teams in the simulation:** `newWorld(..., sides)` takes up to four `{ faction, ally, ai, name }`. Sides
+  with the same `ally` are a team: `hostile(a, b)` is the enemy test everywhere (never compare `team`
+  directly for enemies), `alliedSides`, `foesOf`, `enemyUnitsOf`, `enemyBuildingsOf`. Allies share one fog
+  array (`G.fog[a] === G.fog[b]`; save.js joins them up again on load). `enemyOf(team)` is the enemy side
+  the AI fights now (nearest still in the fight, kept 20 s). A side with nothing left is `out`; the battle
+  ends when one alliance is left, and `G.over.winner` is an **alliance** number (in a 1 v 1 the same as
+  the side). In a 1 v 1 each side is its own alliance (`ally = id`), so old behaviour is unchanged.
+- **Modes:** skirmish 1 v 1 or 2 v 2 (you and a computer ally; the map screen's `data-mode`); online
+  `1v1`, `2v2` (four players) and `coop` (two players against two computer sides, reported as `pve` with
+  its difficulty). Team games need the server. A 2 v 2 skirmish never offers the leaderboard.
+- **Performance** (found with 4 sides): `G.grid` buckets entities every step (`buildGrid`, `nearBuckets`)
+  so `acquire` only looks nearby; a unit with a second weapon and nothing in reach waits 0.3 s before
+  looking again (it searched every frame). A 2 v 2 of four Hard computers peaks around 440 units and
+  8 s of CPU per game minute on the dev container.
+- **Not done yet:** allies of the same faction share a colour; new announcer lines ("Ally defeated",
+  "Enemy defeated") have no voice clip, so they only show as text; the debrief compares you with the first
+  enemy side only; computer allies do not help defend each other's bases.
+
 ## Supabase
 
 - **Project:** `yorrgemlhoxbxvyvzcwe`. The Supabase MCP tools work in these sessions.
@@ -259,6 +296,9 @@ Supabase.
 | `aa-missiles.js` | A Rocket Soldier's missile against a MiG flying away or landing: how far it chases, and whether it hits |
 | `infantry-spread.js` | How bunched a marching infantry wave is (most units inside one V2 blast). `<repo> <runs>` |
 | `pvp-air-inf.js` | Online battle with MiGs, SAMs, rocket soldiers and infantry waves on the host, run fast. `<repo> <seconds>`: use 180 for a long one. Checks the guest's copy follows the host (nothing missing or extra, no errors). Expect up to about 100 px offset on moving units |
+| `server.js` | The dedicated server in-process: two pages host and join through it, play, one drops and comes back, the battle ends; and the fallback to phone to phone |
+| `server-teams.js` | Four pages play a 2 v 2 through the server (own side, shared sight, a surrender handed to the computer, the right winners), then two pages play co-op |
+| `teams.js` | Headless (no browser): the computer plays every side of a 2 v 2 (`<repo> <games> <minutes> <map> [1v1]`), with CPU time per game minute |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP

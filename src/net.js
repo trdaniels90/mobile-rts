@@ -284,7 +284,7 @@ const Net = (() => {
     viaServer({ k: 'join', code: lobby.code }, (ok, m, ws) => {
       if (link !== L) return;
       if (ok) { wireServer(ws, m); return; }
-      if (m && (m.k === 'err')) { if (inBattle()) { endWait(); endBattle(peerSide(), 'left'); } else lost('The game has closed. Host or join a new game.'); return; }
+      if (m && (m.k === 'err')) { if (inBattle()) { endWait(); endBattle(otherAlly(side), 'left'); } else lost('The game has closed. Host or join a new game.'); return; }
       setTimeout(() => { if (link === L) rejoinServer(); }, 2000);   // no answer yet: keep trying
     });
   }
@@ -374,14 +374,15 @@ const Net = (() => {
     if (!role) return;
     if (document.hidden) { hiddenAt = performance.now(); send({ k: 'away' }); return; }
     if (!inBattle()) return;
-    if ((performance.now() - hiddenAt) / 1000 > WAIT_LIMIT) { close(); endBattle(peerSide(), 'left'); return; }
+    if ((performance.now() - hiddenAt) / 1000 > WAIT_LIMIT) { close(); endBattle(otherAlly(side), 'left'); return; }
     if (performance.now() - heard > SILENT) lost();
     else { send({ k: 'back' }); if (wait && !wait.peerAway) endWait(); }
   });
   setInterval(() => {
     if (link && link.dc && link.dc.readyState === 'open') send({ k: 'ping', t: performance.now() });
     if (inBattle() && lobby && lobby.connected && performance.now() - heard > SILENT && !document.hidden) lost();
-    if (wait && inBattle() && (performance.now() - wait.since) / 1000 > WAIT_LIMIT) { const w = mySide(); endWait(); close(); endBattle(w, 'left'); }
+    if (wait && inBattle() && !(lobby.via === 'server' && lobby.connected) && (performance.now() - wait.since) / 1000 > WAIT_LIMIT) {   // (on the server, the server decides)
+      const w = allyOf(side); endWait(); close(); endBattle(w, 'left'); }
     hud();
   }, PING);
 
@@ -395,20 +396,29 @@ const Net = (() => {
   }
   function setMap(id) {
     if (!lobby || lobby.me !== 'host' || !lobby.host) return;
+    if (onServer() && lobby.mode !== '1v1') { send({ k: 'setup', map: validMap(id) }); return; }
     lobby.host.map = validMap(id);
     send({ k: 'lobby', faction: lobby.host.faction, map: lobby.host.map });
     listener();
   }
+  // On the server: the battle (mode '1v1', '2v2' or 'coop'), the computer's difficulty in co-op, a
+  // side's faction (your own; the leader also the computer's), and moving to the other team.
+  const onServer = () => lobby && lobby.via === 'server' && lobby.connected;
+  function setMode(mode) { if (onServer() && lobby.me === 'host') send({ k: 'setup', mode }); }
+  function setDiff(diff) { if (onServer() && lobby.me === 'host') send({ k: 'setup', diff }); }
+  function setFaction(slot, faction) { if (onServer()) send({ k: 'faction', slot, faction }); }
+  function switchTeam() { if (onServer()) send({ k: 'team' }); }
   function startBattle() {
+    if (lobby && lobby.via === 'server' && lobby.me === 'host' && lobby.connected) { if (lobby.ready) send({ k: 'go' }); return; }   // the server starts it
     if (!lobby || lobby.me !== 'host' || !lobby.connected || !lobby.guest) return;
-    if (lobby.via === 'server') { send({ k: 'go' }); return; }   // the server starts it
     const seed = (Math.random() * 1e9) | 0, match = newId();
     const map = validMap(lobby.host.map);
     send({ k: 'start', seed, faction: lobby.host.faction, match, map });
     begin('host', seed, lobby.host.faction, match, map);
   }
   // hostFaction: side 0's. me: this phone's side (given by the server; phone to phone the host is 0).
-  function begin(r, seed, hostFaction, match, map, me) {
+  // sides (from the server, team games): every side's { faction, ally, ai, name }; diff, mode likewise.
+  function begin(r, seed, hostFaction, match, map, me, sides, diff, mode) {
     role = r;
     side = me !== undefined ? me : r === 'host' ? 0 : 1;
     lobby.match = match;
@@ -416,8 +426,16 @@ const Net = (() => {
     resetHost();
     endWait();
     const other = hostFaction === 'allies' ? 'soviets' : 'allies';
-    const opp = lobby.me === 'host' ? lobby.guest && lobby.guest.name : lobby.host && lobby.host.name;
-    UIBridge.start({ seed, faction: side === 0 ? hostFaction : other, me: side, opponent: opp || 'Commander', map: validMap(map) });
+    let opp = lobby.me === 'host' ? lobby.guest && lobby.guest.name : lobby.host && lobby.host.name;
+    let faction = side === 0 ? hostFaction : other;
+    if (Array.isArray(sides) && sides[side]) {
+      faction = sides[side].faction;
+      const mine = sides[side].ally, names = (f) => sides.filter(f).map((x) => (x.ai ? 'Computer' : x.name || 'Commander'));
+      opp = names((x) => x.ally !== mine).join(' & ');
+      lobby.team = { sides, mode, mates: names((x, i) => x.ally === mine && i !== side) };
+    } else { sides = null; lobby.team = null; }
+    lobby.oppName = sides ? opp : null;
+    UIBridge.start({ seed, faction, me: side, opponent: opp || 'Commander', map: validMap(map), sides, diff, mode });
     if (r === 'guest') {
       // The battle is the host's: start from an empty field and fill it from the snapshots.
       G.remote = true;
@@ -430,9 +448,9 @@ const Net = (() => {
   // Quitting an online battle is surrendering. The host's battle decides; the guest asks it.
   function surrender() {
     if (!inBattle()) return;
-    if (role === 'host' || !lobby.connected) { endWait(); endBattle(peerSide(), 'quit'); return; }
+    if (role === 'host' || !lobby.connected) { endWait(); endBattle(otherAlly(side), 'quit'); return; }
     send({ k: 'quit' });
-    setTimeout(() => { if (inBattle()) endBattle(peerSide(), 'quit'); }, 3000);   // no answer: lose anyway
+    setTimeout(() => { if (inBattle()) endBattle(otherAlly(side), 'quit'); }, 3000);   // no answer: lose anyway
   }
   // After the debrief: back to the lobby, still connected, for another battle.
   function rematch() {
@@ -455,16 +473,19 @@ const Net = (() => {
       // The server's room: who is in it, and the leader's choices.
       lobby.host = { name: String((m.host && m.host.name) || 'Commander').slice(0, 20), faction: m.faction, map: validMap(m.map) };
       lobby.guest = m.guest ? { name: String(m.guest.name || 'Commander').slice(0, 20) } : null;
+      lobby.mode = m.mode || '1v1'; lobby.diff = m.diff || 'normal'; lobby.slots = Array.isArray(m.slots) ? m.slots : null;
+      lobby.mine = m.mine; lobby.ready = !!m.ready; lobby.players = m.players || 0;
       listener();
     } else if (m.k === 'lobby' && lobby.me === 'guest') { lobby.host = Object.assign(lobby.host || { name: 'Commander' }, { faction: m.faction, map: validMap(m.map) }); listener(); }
-    else if (m.k === 'start' && (lobby.me === 'guest' || lobby.via === 'server')) begin('guest', m.seed, m.faction, m.match, m.map, m.side);
+    else if (m.k === 'start' && (lobby.me === 'guest' || lobby.via === 'server')) begin('guest', m.seed, m.faction, m.match, m.map, m.side, m.sides, m.diff, m.mode);
+    else if (m.k === 'left' && inBattle()) hooks.eva(`${String(m.name || 'A player').slice(0, 20)} has left: the computer takes over`);
     else if (m.k === 's' && role === 'guest') applySnapshot(m);
     else if (m.k === 'end' && role === 'guest') applyEnd(m);
     else if (m.k === 'c' && role === 'host' && !G.hold) applyCommand(m);
     else if (m.k === 'away') startWait(true);
     else if (m.k === 'back' || m.k === 'resume') { if (inBattle()) endWait(); }
-    else if (m.k === 'quit' && role === 'host' && inBattle()) { endWait(); endBattle(mySide(), 'quit'); }
-    else if (m.k === 'bye') { if (inBattle()) { endWait(); close(); endBattle(mySide(), 'quit'); } else lost('Your friend has left. Host or join a new game.'); }
+    else if (m.k === 'quit' && role === 'host' && inBattle()) { endWait(); endBattle(allyOf(side), 'quit'); }
+    else if (m.k === 'bye') { if (inBattle()) { endWait(); close(); endBattle(allyOf(side), 'quit'); } else lost('Your friend has left. Host or join a new game.'); }
   }
 
   // ---------------------------------------------------------------------------
@@ -481,15 +502,17 @@ const Net = (() => {
     const on = inBattle();
     hudEl.hidden = !on;
     if (on) {
-      const opp = lobby && (lobby.me === 'host' ? lobby.guest : lobby.host);
+      const opp = lobby && (lobby.oppName ? { name: lobby.oppName } : lobby.me === 'host' ? lobby.guest : lobby.host);
       hudEl.textContent = `vs ${opp ? opp.name : '…'}${lobby.connected && rtt ? ` · ${rtt} ms` : ''}`;
       hudEl.classList.toggle('slow', rtt > 250);
     }
     waitEl.hidden = !(on && wait);
     if (on && wait) {
       const left = Math.max(0, Math.ceil(WAIT_LIMIT - (performance.now() - wait.since) / 1000));
-      waitEl.querySelector('.nw-title').textContent = wait.peerAway && lobby.connected ? 'Your opponent left the game for a moment' : 'Waiting for your opponent…';
-      waitEl.querySelector('.nw-sub').textContent = `The battle is paused. If they are not back in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}, you win.`;
+      const who = lobby.team ? 'A player' : 'Your opponent';
+      waitEl.querySelector('.nw-title').textContent = wait.peerAway && lobby.connected ? `${who} left the game for a moment` : lobby.via === 'server' && !lobby.connected ? 'Reconnecting to the game server…' : lobby.team ? 'Waiting for a player…' : 'Waiting for your opponent…';
+      const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+      waitEl.querySelector('.nw-sub').textContent = lobby.team ? `The battle is paused. If they are not back in ${clock}, the computer takes over their side.` : `The battle is paused. If they are not back in ${clock}, you win.`;
     }
   }
 
@@ -593,7 +616,7 @@ const Net = (() => {
     if (G.over) return;
     endWait();
     G.log = unpack(m.log);
-    G.over = { winner: m.over.winner, won: m.over.winner === G.me, t: m.over.t, how: m.over.how };
+    G.over = { winner: m.over.winner, won: allyOf(G.me) === m.over.winner, t: m.over.t, how: m.over.how };
     hooks.gameOver(G.over.won);
   }
   // Each frame on the guest: glide toward the latest positions and run the eye candy.
@@ -621,7 +644,7 @@ const Net = (() => {
   }
 
   return {
-    host, join, leave, swapSides, setMap, startBattle, surrender, rematch, hostTick, guestStep, hookHost, netStats,
+    host, join, leave, swapSides, setMap, setMode, setDiff, setFaction, switchTeam, startBattle, surrender, rematch, hostTick, guestStep, hookHost, netStats,
     get role() { return role; }, get lobby() { return lobby; }, get waiting() { return !!wait; },
     // For tests: drop the connection without a word, and a shorter wait.
     test: { drop() { const L = link; if (L) { try { L.pc.close(); } catch (_) {} } lost(); }, waitLimit(s) { WAIT_LIMIT = s; }, get resyncs() { return resyncs; } },
@@ -656,6 +679,10 @@ const Online = (() => {
       else if (act === 'swap') Net.swapSides();
       else if (act === 'start') Net.startBattle();
       else if (act === 'cancel') { Net.leave(); render(); }
+      else if (act === 'mode') Net.setMode(b.dataset.v);
+      else if (act === 'diff') Net.setDiff(b.dataset.v);
+      else if (act === 'faction') Net.setFaction(+b.dataset.slot, b.dataset.v);
+      else if (act === 'team') Net.switchTeam();
     });
     root.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -682,6 +709,7 @@ const Online = (() => {
       body.innerHTML = `<p class="lb-intro">Opening a game…</p><div class="on-btns"><button type="button" class="pf-btn" data-on="cancel">Cancel</button></div>`;
       return;
     }
+    if (L.via === 'server' && L.connected && L.slots) { serverLobby(L); return; }
     if (!L.connected || !L.guest) {
       const msg = L.me === 'host'
         ? (L.status === 'connecting' ? 'Your friend is joining…' : 'Tell your friend to tap Play online, then join with this code.')
@@ -700,6 +728,32 @@ const Online = (() => {
       </tbody></table>
       ${me ? mapCardsHtml(validMap(L.host && L.host.map)) : `<p class="lb-intro">Map: <b>${esc(MAPS[validMap(L.host && L.host.map)].name)}</b></p>`}
       <div class="on-btns">${me ? '<button type="button" class="pf-btn" data-on="swap">Swap sides</button><button type="button" class="pf-btn on-go" data-on="start">Start battle</button>' : '<p class="pf-small">Waiting for the host…</p>'}
+        <button type="button" class="pf-btn" data-on="cancel">Leave</button></div>`;
+  }
+  // A room on the game server: the battle (1 v 1, 2 v 2, or two of you against the computer), its
+  // sides and who sits where, the map, and Start once every player's place is taken.
+  const MODES = [['1v1', '1 v 1'], ['2v2', '2 v 2'], ['coop', '2 of you vs computer']];
+  const DIFFS = [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']];
+  function serverLobby(L) {
+    const lead = L.me === 'host', mode = L.mode || '1v1';
+    const need = L.slots.filter((x) => !x.ai).length, have = L.slots.filter((x) => !x.ai && x.name).length;
+    const pick = (list, cur, act, can) => `<div class="on-modes">${list.map(([k, l]) => `<button type="button" class="pf-btn${k === cur ? ' on-go' : ''}"${can ? ` data-on="${act}" data-v="${k}"` : ' disabled'} aria-pressed="${k === cur}">${l}</button>`).join('')}</div>`;
+    const slot = (x, i) => {
+      const you = i === L.mine, canFlip = you || (lead && x.ai);
+      const who = x.ai ? 'Computer' : x.name ? esc(x.name) + (you ? ' (you)' : '') : '<i>open</i>';
+      return `<tr${you ? ' class="on-you"' : ''}><td>${who}</td><td class="on-side" data-faction="${x.faction}">${canFlip ? `<button type="button" class="pf-btn" data-on="faction" data-slot="${i}" data-v="${x.faction === 'allies' ? 'soviets' : 'allies'}">${SIDE[x.faction]}</button>` : SIDE[x.faction]}</td></tr>`;
+    };
+    const team = (a) => `<table class="on-lobby"><caption>${mode === '1v1' ? (a === 0 ? 'Side 1' : 'Side 2') : 'Team ' + (a + 1)}</caption><tbody>${L.slots.map((x, i) => (x.ally === a ? slot(x, i) : '')).join('')}</tbody></table>`;
+    const mineAlly = L.slots[L.mine] && L.slots[L.mine].ally;
+    const canMove = mode === '2v2' && L.slots.some((x, i) => x.ally !== mineAlly && !x.ai && !x.name);
+    body.innerHTML = `<p class="on-code" aria-label="Room code">${esc(L.code)}</p>
+      <p class="lb-intro">${have < need ? `Friends join with this code (${have} of ${need} players here).` : lead ? 'Everyone is here. Start when ready.' : 'Everyone is here. The leader starts the battle.'}</p>
+      ${pick(MODES, mode, 'mode', lead)}
+      ${mode === 'coop' ? pick(DIFFS, L.diff || 'normal', 'diff', lead) : ''}
+      <div class="on-teams">${team(0)}${team(1)}</div>
+      ${canMove ? '<div class="on-btns"><button type="button" class="pf-btn" data-on="team">Switch team</button></div>' : ''}
+      ${lead ? mapCardsHtml(validMap(L.host && L.host.map)) : `<p class="lb-intro">Map: <b>${esc(MAPS[validMap(L.host && L.host.map)].name)}</b></p>`}
+      <div class="on-btns">${lead ? `<button type="button" class="pf-btn on-go" data-on="start"${L.ready ? '' : ' disabled'}>Start battle</button>` : '<p class="pf-small">Waiting for the leader…</p>'}
         <button type="button" class="pf-btn" data-on="cancel">Leave</button></div>`;
   }
   function open(f) {

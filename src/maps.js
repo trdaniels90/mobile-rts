@@ -187,9 +187,12 @@ function mapCardsHtml(selected, cls = '') {
 
 // The skirmish map screen: MapSelect.open(selectedId, (id) => start the game).
 const MapSelect = (() => {
-  let root = null, chosen = DEFAULT_MAP, go = null;
+  let root = null, chosen = DEFAULT_MAP, go = null, mode = '1v1';
+  // The battle: 1 v 1 against the computer, or 2 v 2 (you and a computer ally against two).
+  const MODES = [['1v1', '1 v 1'], ['2v2', '2 v 2 · you and a computer ally']];
   function render() {
     root.querySelector('.map-body').innerHTML = mapCardsHtml(chosen) +
+      `<div class="on-modes" role="radiogroup" aria-label="Battle">${MODES.map(([k, l]) => `<button type="button" class="pf-btn${k === mode ? ' on-go' : ''}" role="radio" aria-checked="${k === mode}" data-mode="${k}">${l}</button>`).join('')}</div>` +
       '<div class="on-btns"><button type="button" class="pf-btn on-go" data-map-go>Start skirmish</button></div>';
   }
   function build() {
@@ -206,7 +209,9 @@ const MapSelect = (() => {
       if (e.target.closest('.fm-close') || e.target === root) { close(); return; }
       const card = e.target.closest('[data-map]');
       if (card) { chosen = validMap(card.dataset.map); render(); return; }
-      if (e.target.closest('[data-map-go]')) { const f = go; close(); if (f) f(chosen); }
+      const m = e.target.closest('[data-mode]');
+      if (m) { mode = m.dataset.mode; render(); return; }
+      if (e.target.closest('[data-map-go]')) { const f = go; close(); if (f) f(chosen, mode); }
     });
   }
   function open(selected, onGo) {

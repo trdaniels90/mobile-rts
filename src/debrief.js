@@ -93,8 +93,8 @@ const Debrief = (() => {
     const svg = root.querySelector('svg'), tip = root.querySelector('.db-tip'), box = root.querySelector('.db-chart');
     const W = 600, H = 270, Lm = 50, R = 12, T = 18, B = 26, L = G.log, tMax = Math.max(60, G.t);
     const EV = L.events;
-    const evText = (e) => (e.team === G.me ? 'Your ' : 'Enemy ') + (e.kind === 'cy lost' ? 'Construction Yard destroyed' : e.kind === 'outpost lost' ? 'Outpost lost' : e.kind);
-    const evColor = (e) => (e.team === G.me ? cMe : cFoe);
+    const evText = (e) => (e.team === G.me ? 'Your ' : alliedSides(e.team, G.me) ? 'Ally ' : 'Enemy ') + (e.kind === 'cy lost' ? 'Construction Yard destroyed' : e.kind === 'outpost lost' ? 'Outpost lost' : e.kind);
+    const evColor = (e) => (alliedSides(e.team, G.me) ? cMe : cFoe);
     const unit = { army: money, income: (v) => money(v) + '/min', blds: (v) => Math.round(v) };
     const series = (k) => (k !== 'income' ? L.samples.map((s) => [s.t, s[k][G.me], s[k][foeOf(G.me)]])
       // income averaged over the last minute: single truckloads make the raw figures jump about
