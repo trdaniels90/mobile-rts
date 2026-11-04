@@ -154,7 +154,8 @@ const BUILD_DEFS = {
   refinery: { name: 'Ore Refinery', w: 3, h: 2, hp: 900,  power: -40, cost: 2000, req: ['power'],    factions: ['allies', 'soviets'], exit: true },
   barracks: { name: 'Barracks',     w: 2, h: 2, hp: 500,  power: -20, cost: 300,  req: ['power'],    factions: ['allies', 'soviets'], exit: true },
   factory:  { name: 'War Factory',  w: 3, h: 2, hp: 1000, power: -30, cost: 2000, req: ['refinery'], factions: ['allies', 'soviets'], exit: true },
-  helipad:  { name: 'Helipad',      w: 2, h: 2, hp: 400,  power: -10, cost: 1500, req: ['factory'],  factions: ['allies', 'soviets'] },
+  // Four landing pads in one base (the type stays 'helipad' so the computer and saves keep working).
+  helipad:  { name: 'Helicopter Base', w: 4, h: 4, hp: 800, power: -20, cost: 3000, req: ['factory'], factions: ['allies', 'soviets'] },
   // Repairs ground vehicles one at a time on its pad, the open cell in front of it, for credits.
   depot:    { name: 'Service Depot', w: 3, h: 2, hp: 800, power: -30, cost: 1200, req: ['factory'], factions: ['allies', 'soviets'], exit: true, depot: true },
   dome:     { name: 'Radar Dome',   w: 2, h: 2, hp: 1000, power: -40, cost: 1000, req: ['refinery'], factions: ['allies', 'soviets'], sight: 10 },

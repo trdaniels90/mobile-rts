@@ -13,10 +13,10 @@ const Manual = (() => {
     refinery: ['Processes ore into credits. Each comes with a free Ore Truck that harvests and unloads on its own. Build them close to ore fields.', '', 'Key target for enemy raids'],
     outpost: ['Unpacked from a Mobile Outpost. You can build up to 8 cells around it, so a refinery can sit right beside a distant ore field.', '', 'Lightly defended unless you add guns'],
     barracks: ['Trains infantry. More Barracks do not train faster, but losing one does not stop training if you have another.', '', ''],
-    factory: ['Builds tanks, support vehicles, Ore Trucks and the Mobile Outpost. Unlocks the Helipad and Advanced Power Plant.', '', ''],
+    factory: ['Builds tanks, support vehicles, Ore Trucks and the Mobile Outpost. Unlocks the Helicopter Base and Advanced Power Plant.', '', ''],
     dome: ['Turns on the radar minimap (it goes offline on low power) and unlocks the Airfield and your side\'s long-range support vehicle at the War Factory.', '', 'Without it you fight blind'],
     depot: ['Repairs ground vehicles: tanks, support vehicles, Ore Trucks and the Mobile Outpost. Select damaged vehicles and tap REPAIR, or tap the depot. One vehicle at a time is repaired on the pad in front of it while the rest wait beside it. A full repair costs half the vehicle\'s price. Needs a War Factory.', '', 'Vehicles on the pad do not fire back'],
-    helipad: ['Builds and rearms helicopters. Comes with one free helicopter. Aircraft are repaired on their pad for credits.', '', ''],
+    helipad: ['Four landing pads in one base. Builds and rearms helicopters, each parked on its own pad, and comes with one free helicopter. Aircraft are repaired on their pad for credits. Replaces the old single Helipad.', '', ''],
     airfield: ['Builds and rearms jets and charges the Spy Plane, Paratrooper and Bombing Run powers. Parks up to 4 jets, so build more Airfields for a bigger air force. If one is lost and the rest have no room, the surplus jets fly off the map into reserve and come back and land when there is room again. Comes with one free jet.', '', ''],
     pillbox: ['A camouflaged machine-gun nest, coloured to match the ground. The enemy cannot see it until a ground unit comes within 3 cells or it opens fire, and it hides again a few seconds later. Cheap and quick to build.', 'Infantry', 'Tanks'],
     turret: ['A heavy gun turret that outranges most tanks.', 'Tanks, vehicles', 'Infantry swarms, artillery'],
@@ -116,7 +116,7 @@ const Manual = (() => {
         <ol class="fm-toc">${CHAPTERS.slice(1).map((c) => `<li><button type="button" data-goto="${c.page}">${c.name}</button><span>${c.page + 1}</span></li>`).join('')}</ol>
       </div>` },
     { ch: 'Basics', title: 'Your Mission', html: () => `
-      <p>Destroy every enemy <b>production building</b> on the island to win: each Construction Yard, Barracks, War Factory, Helipad and Airfield. A Mobile Construction Yard still on the move keeps its side in the fight too, so hunt it down. Lose all of yours and the mission is over. Refineries, power, defences, Service Depots and Outposts do not count.</p>
+      <p>Destroy every enemy <b>production building</b> on the island to win: each Construction Yard, Barracks, War Factory, Helicopter Base and Airfield. A Mobile Construction Yard still on the move keeps its side in the fight too, so hunt it down. Lose all of yours and the mission is over. Refineries, power, defences, Service Depots and Outposts do not count.</p>
       <h4>Building a base</h4>
       <p>The left column of the sidebar builds structures, the right column builds units. When a structure is READY, tap the map to place it (it must touch your base: within 6 cells of your buildings, or 8 of an Outpost). A good start: <b>Power Plant</b>, then <b>Ore Refinery</b>, then <b>Barracks</b> and <b>War Factory</b>.</p>
       <h4>Money</h4>

@@ -791,17 +791,44 @@ const STRUCTURES = {
     m.set(66, 33, 12, '#ff4a30', M_GLOW);
     return m;
   },
-  helipad(pal) {
-    const m = new VModel(-2, -2, 50, 50, 10);
-    m.box(0, 0, 0, 48, 48, 2, '#5d5d57', M_ROUGH);
-    m.paintTop(0, 0, 48, 48, (x, y) => {
-      const r = Math.hypot(x + 0.5 - 24, y + 0.5 - 24);
-      if (r > 16 && r < 18.5) return C.yellow;
-      if ((x >= 17 && x < 20 || x >= 28 && x < 31) && y >= 15 && y < 33) return C.white;
-      if (x >= 20 && x < 28 && y >= 23 && y < 25) return C.white;
-      if (x === 0 || y === 0 || x === 47 || y === 47) return '#77776f';
+  // Four landing pads, one in each quarter, round a control tower in the middle.
+  helipad(pal, faction) {
+    const m = new VModel(-2, -2, 98, 98, 36);
+    const sov = faction === 'soviets';
+    const centres = [[24, 24], [72, 24], [24, 72], [72, 72]];
+    m.box(0, 0, 0, 96, 96, 2, sov ? '#4d4c47' : '#767a80', M_ROUGH);
+    m.paintTop(0, 0, 96, 96, (x, y) => {
+      for (const [cx, cy] of centres) {
+        const dx = x + 0.5 - cx, dy = y + 0.5 - cy, r = Math.hypot(dx, dy);
+        if (r > 16 && r < 18.5) return sov ? pal.light : C.white;
+        if (r < 16) {
+          if ((Math.abs(dx + 5) < 1.5 || Math.abs(dx - 5) < 1.5) && Math.abs(dy) < 8) return sov ? C.white : pal.main;   // the H
+          if (Math.abs(dx) < 5 && Math.abs(dy) < 1.2) return sov ? C.white : pal.main;
+          return sov ? '#3f3e3a' : '#8a8f96';
+        }
+      }
+      if (x === 0 || y === 0 || x === 95 || y === 95) return sov ? C.yellow : '#9aa0a6';
+      if (sov && (x < 3 || y < 3 || x > 92 || y > 92) && ((x + y) >> 2) % 2 === 0) return C.black;   // hazard edge
+      if (x >= 44 && x < 52 || y >= 44 && y < 52) return sov ? '#5a5953' : '#6b7077';   // service lanes between the pads
     });
-    for (const [x, y] of [[1, 1], [45, 1], [1, 45], [45, 45]]) m.box(x, y, 2, x + 2, y + 2, 4, pal.light, M_GLOW);
+    for (const [x, y] of [[1, 1], [93, 1], [1, 93], [93, 93]]) m.box(x, y, 2, x + 2, y + 2, 5, pal.light, M_GLOW);
+    // Control tower in the middle.
+    if (sov) {
+      m.box(43, 43, 2, 53, 53, 16, C.concD, M_MATTE);
+      m.paint(43, 52, 2, 53, 53, 16, (x, y, z) => (z >= 8 && z <= 11 && x % 3 !== 0) ? C.glass : undefined);
+      m.box(41, 41, 16, 55, 55, 21, pal.main, M_METAL);
+      m.paintTop(41, 41, 55, 55, (x, y) => (Math.abs(x + 0.5 - 48) < 1.2 || Math.abs(y + 0.5 - 48) < 1.2) ? pal.light : undefined);
+      m.line(48, 48, 21, 48, 48, 33, C.black); m.set(48, 48, 33, '#ff4a30', M_GLOW);
+      m.box(51, 41, 21, 53, 43, 25, C.red, M_METAL);   // flag post
+      for (const [x, y] of [[10, 47], [10, 51], [84, 47], [84, 51]]) m.cylZ(x, y, 2, 7, 2.2, pal.main, M_METAL);   // fuel drums
+    } else {
+      m.box(44, 44, 2, 52, 52, 14, C.wall, M_MATTE);
+      m.box(42, 42, 14, 54, 54, 20, C.glass, M_GLASS);
+      m.box(41, 41, 20, 55, 55, 22, pal.main, M_METAL);
+      m.line(48, 48, 22, 48, 48, 31, C.steel, M_METAL); m.cylZ(48, 48, 28, 29, 4.5, pal.light, M_METAL);   // radar dish
+      m.set(48, 48, 31, '#ff4a30', M_GLOW);
+      m.box(45, 6, 2, 51, 10, 6, C.steel, M_METAL); m.box(45, 86, 2, 51, 90, 6, C.steel, M_METAL);   // fuel bowsers
+    }
     return m;
   },
   airfield(pal) {
