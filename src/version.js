@@ -14,6 +14,7 @@ const RELEASES = [
     ]],
     ['Changes', [
       'The debrief in team battles compares your whole team with the whole enemy team.',
+      'The BASE button is gone to make room for RETURN (tap the minimap to jump the view).',
     ]],
   ] },
   { v: '2026.11.04.4', date: '4 November 2026', title: 'Team battles and a game server', groups: [
