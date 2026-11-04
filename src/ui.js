@@ -66,7 +66,7 @@
       G.paused = true;
       Debrief.open(won, {
         difficulty: vs ? 'Online vs ' + vs.opponent + ending : DIFFICULTY[diffKey].label,
-        extra: won && !vs ? Leaderboard.nameBox(Report.score(G.teams[G.me].stats, G.over.t, diffKey)) : null,
+        extra: won && !vs && !teamGame() ? Leaderboard.nameBox(Report.score(G.teams[G.me].stats, G.over.t, diffKey)) : null,
         // same side and difficulty; online, back to the lobby page
         onRematch: vs ? () => { Net.rematch(); startGame(); showMenu('start'); Online.open(faction); } : () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },
         onNew: () => { if (vs) { Net.leave(); startGame(); } showMenu('start'); },
@@ -142,8 +142,15 @@
   let online = null;   // { opponent } during an online battle
   let mission = false; // a skirmish the player started or continued (not the battle behind the menu): saved as it goes
   let mapId = DEFAULT_MAP;   // the skirmish map chosen on the map screen
-  function startGame(seed) {
-    newWorld(faction, diffKey, seed, mySide, false, mapId);
+  let battleMode = '1v1';    // and the battle: '1v1', or '2v2' (you and a computer ally against two)
+  // A 2 v 2 skirmish: you (side 0) and a computer ally of your side against two of the other.
+  function teamSides(f) {
+    const foe = f === 'allies' ? 'soviets' : 'allies';
+    return [{ faction: f, ally: 0, ai: false }, { faction: foe, ally: 1, ai: true }, { faction: f, ally: 0, ai: true }, { faction: foe, ally: 1, ai: true }];
+  }
+  function startGame(seed, mode = '1v1') {
+    if (mode === '2v2') newWorld(faction, diffKey, seed, 0, false, mapId, teamSides(faction));
+    else newWorld(faction, diffKey, seed, mySide, false, mapId);
     online = null; mission = false;
     afterNewWorld(faction);
   }
@@ -173,11 +180,12 @@
     Debrief.close();
     endPlace();
     Net.hookHost();
-    newWorld(o.faction, 'normal', o.seed, o.me, true, o.map);
+    newWorld(o.faction, o.diff || 'normal', o.seed, o.me, true, o.map, o.sides);
     online = { opponent: o.opponent };
     Sound.newMatch();
     afterNewWorld(o.faction);
-    Report.start(o.faction, null, 'pvp', o.opponent);
+    // Co-op against the computer is 'pve', with its difficulty; the rest 'pvp'.
+    if (o.mode === 'coop') Report.start(o.faction, o.diff || 'normal', 'pve', o.opponent); else Report.start(o.faction, null, 'pvp', o.opponent);
     hideMenu();
     eva('Select a structure to build');
   };
@@ -188,7 +196,7 @@
     Net.leave();
     Report.quit();   // a mission left undecided counts as quit
     SaveGame.clear();
-    startGame();
+    startGame(undefined, battleMode);
     Sound.newMatch();
     mission = true;
     Report.start(faction, diffKey);
@@ -242,7 +250,7 @@
     g.fillRect(x1 - L + 1, y1, L, 1); g.fillRect(x1, y1 - L + 1, 1, L);
   }
   const seenAt = (x, y) => G.seen[cellOfPos(x, y)];
-  const visibleToPlayer = (e) => e.team === G.me || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y));
+  const visibleToPlayer = (e) => alliedSides(e.team, G.me) || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y));
 
   function draw() {
     const z = cam.z;
@@ -496,7 +504,7 @@
       return;
     }
     if (mine.length) {
-      if (e && e.team !== G.me && e.team !== undefined) {
+      if (e && e.team !== undefined && hostile(e.team, G.me)) {
         const able = mine.filter((u) => canTarget(u, e));
         if (able.length) { commandAttack(able, e); marker(e.x, e.y - (e.alt || 0), '#ff4a3a'); Sound.ack(able[0].cls === 'inf' ? 'attack' : able[0].cls); return; }
       }
@@ -888,7 +896,7 @@
     if (!sel.length) { ui.selbar.hidden = true; selSig = ''; return; }
     ui.selbar.hidden = false;
     const one = sel.length === 1 ? sel[0] : null;
-    ui.selName.textContent = one ? (one.def.name + (one.team !== G.me ? ' · enemy' : '')) : `${sel.length} units`;
+    ui.selName.textContent = one ? (one.def.name + (hostile(one.team, G.me) ? ' · enemy' : one.team !== G.me ? ' · ally' : '')) : `${sel.length} units`;
     const hp = one ? one.hp / one.maxHp : sel.reduce((s, e) => s + e.hp / e.maxHp, 0) / sel.length;
     ui.selHp.style.setProperty('--p', Math.max(0, hp));
     ui.selHp.dataset.state = hp > 0.5 ? 'ok' : hp > 0.25 ? 'warn' : 'low';
@@ -1000,8 +1008,8 @@
   });
   // Skirmish opens the map screen first; starting from there builds the battle.
   ui.startBtn.addEventListener('click', () => {
-    MapSelect.open(mapId, (id) => {
-      mapId = id;
+    MapSelect.open(mapId, (id, mode) => {
+      mapId = id; battleMode = mode || '1v1';
       ui.startBtn.textContent = 'Loading…';
       ui.startBtn.disabled = true;
       setTimeout(() => {

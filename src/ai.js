@@ -20,7 +20,7 @@ function aiNextStructure(team, c) {
   // Normal and Hard: one AA site from 2:00 (up by about 2:30) whether or not it has seen aircraft (beside the
   // Construction Yard), and a second as soon as enemy aircraft turn up. These come before anything else.
   const A = G.diff.ai;
-  if (unitsOf(enemyOf(team).id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
+  if (enemyUnitsOf(team.id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
   if (A.adapt && available(team, aa) && n(aa) < (team.sawAir ? 2 : G.t >= 120 ? 1 : 0)) return build(aa);
   // An Outpost with no refinery beside it yet comes first: that is what it was sent out for.
   const outpostRef = aiOutpostForRefinery(team);
@@ -29,7 +29,7 @@ function aiNextStructure(team, c) {
   }
   // How many defences it may have depends on the difficulty; more AA once the enemy flies.
   const capMain = Math.round(A.defMax * 0.6), capInf = A.defMax - capMain;
-  const enemyAir = unitsOf(enemyOf(team).id).filter((u) => u.cls === 'air' && !u.def.scripted).length;
+  const enemyAir = enemyUnitsOf(team.id).filter((u) => u.cls === 'air' && !u.def.scripted).length;
   if (enemyAir) team.sawAir = true;
   const aaWant = team.sawAir ? Math.min(A.aaMax, A.aa + Math.ceil(enemyAir / 2)) : A.aa;
   const fast = A.econ.fast;   // Normal and Hard: the second refinery straight after the Barracks
@@ -228,7 +228,7 @@ function aiThink(team) {
   const c = aiCount(team);
   aiCounter(team);
   aiPincer(team);
-  if (unitsOf(enemyOf(team).id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
+  if (enemyUnitsOf(team.id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
   const q = team.queues.structure;
   if (q && q.ready) {
     const spot = aiFindSpot(team, q.type);

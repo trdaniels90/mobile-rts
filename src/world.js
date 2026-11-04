@@ -25,30 +25,51 @@ let hooks = { eva() {}, evaFor() {}, gameOver() {}, sfx() {}, shake() {} };
 // each side has uncovered, and `G.seen` is the one this device draws, `G.fog[G.me]`.
 // `me`: the side the human plays (default 0). The other side is the computer, or with `pvp`
 // a second human (online: see net.js).
-function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId = DEFAULT_MAP) {
+// sides (optional, for team games): one entry per side, { faction, ally, ai, name }. Sides with the
+// same `ally` fight together and share what they have uncovered (their G.fog entries are one array).
+// Without it: the classic 1 v 1, this device's side (me) against the computer (or, pvp, a person).
+function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId = DEFAULT_MAP, sides = null) {
   seed = seed || (Math.random() * 1e9) | 0;
   mapId = validMap(mapId);
   const enemyFaction = playerFaction === 'allies' ? 'soviets' : 'allies';
-  const fog = [new Uint8Array(NCELLS), new Uint8Array(NCELLS)];
-  const human = makeTeam(me, playerFaction, false), cpu = makeTeam(1 - me, enemyFaction, !pvp);
+  if (!sides) {
+    sides = [0, 1].map((i) => (i === me ? { faction: playerFaction, ally: i, ai: false } : { faction: enemyFaction, ally: i, ai: !pvp }));
+  }
+  const teams = sides.map((d, i) => Object.assign(makeTeam(i, d.faction, !!d.ai), { ally: d.ally, name: d.name || null }));
+  const fogFor = new Map();
+  const fog = teams.map((t) => fogFor.get(t.ally) || fogFor.set(t.ally, new Uint8Array(NCELLS)).get(t.ally));
   G = {
     t: 0, seed, mapId, diff: DIFFICULTY[diffKey], diffKey, nextId: 1,
     entities: [], byId: new Map(), effects: [], projectiles: [], pathQueue: [], groups: [],
     terr: new Uint8Array(NCELLS), block: new Uint8Array(NCELLS), bld: new Int32Array(NCELLS), resv: new Uint8Array(NCELLS),
-    ore: new Uint16Array(NCELLS), gem: new Uint8Array(NCELLS), fog, me, seen: fog[me], shroudDirty: true, oreFields: [],
+    ore: new Uint16Array(NCELLS), gem: new Uint8Array(NCELLS), fog, me, seen: fog[me] || fog[0], shroudDirty: true, oreFields: [],
     selection: [], place: null, over: null, paused: false,
     timers: { power: 0, shroud: 0, ore: 0, ai: 0, win: 0, log: 0 },
-    log: { samples: [], events: [], fallen: [], waves: [0, 0], lastH: [0, 0] },   // for the debrief
-    teams: me === PLAYER ? [human, cpu] : [cpu, human],
+    log: { samples: [], events: [], fallen: [], waves: teams.map(() => 0), lastH: teams.map(() => 0) },   // for the debrief
+    teams,
   };
-  if (!pvp) cpu.credits = G.diff.credits;
-  // Start positions: a random one for the player, and for the enemy a random one from the other
-  // half of the list (across the lakes or the river), so the two bases never start on the same side.
+  for (const t of teams) if (t.isAI) t.credits = G.diff.credits;
+  // Start positions: a random one for side 0, and for the enemy a random one from the other half of
+  // the list (across the lakes or the river), so the two bases never start on the same side. In a
+  // team game each alliance gets its own half, one position each, none shared.
   const sr = rng(Math.imul(seed ^ 0x2545f491, 0x9e3779b1) ^ (seed >>> 7)); sr(); sr();
   G.spawns = spawnPoints(mapId);
-  const nh = G.spawns.length / 2, pi = Math.floor(sr() * nh * 2), ei = (pi < nh ? nh : 0) + Math.floor(sr() * nh);
-  G.teams[PLAYER].start = { ...G.spawns[pi] };
-  G.teams[ENEMY].start = { ...G.spawns[ei] };
+  const nh = G.spawns.length / 2;
+  if (teams.length === 2 && teams[0].ally !== teams[1].ally) {
+    const pi = Math.floor(sr() * nh * 2), ei = (pi < nh ? nh : 0) + Math.floor(sr() * nh);
+    teams[0].start = { ...G.spawns[pi] };
+    teams[1].start = { ...G.spawns[ei] };
+  } else {
+    const flip = sr() < 0.5, used = new Set();
+    for (const t of teams) {
+      const half = (t.ally % 2 === 0) !== flip ? 0 : nh;
+      const free = [];
+      for (let i = half; i < half + nh; i++) if (!used.has(i)) free.push(i);
+      const i = free[Math.floor(sr() * free.length)];
+      used.add(i);
+      t.start = { ...G.spawns[i] };
+    }
+  }
   genMap(seed);
   G.terrainCanvas = paintTerrain(G.terr, seed, G.road, G.bridges, G.cliff, G.ford);
   G.tctx = G.terrainCanvas.getContext('2d');
@@ -76,7 +97,13 @@ function setViewer(side) {
   G.me = side; G.seen = G.fog[side]; G.shroudDirty = true;
   G.selection = []; G.place = null;
 }
-const foeOf = (side) => 1 - side;
+// Alliances: sides with the same `ally` number fight together (a team game); in a 1 v 1 each side
+// is its own. `hostile` is the test for "enemy" everywhere.
+const hostile = (a, b) => a !== b && !!G.teams[a] && !!G.teams[b] && G.teams[a].ally !== G.teams[b].ally;
+const alliedSides = (a, b) => a === b || (!!G.teams[a] && !!G.teams[b] && G.teams[a].ally === G.teams[b].ally);
+const foesOf = (side) => G.teams.filter((t) => hostile(side, t.id)).map((t) => t.id);
+const foeOf = (side) => foesOf(side)[0];
+const teamGame = () => G.teams.length > 2;
 
 function makeTeam(id, faction, isAI) {
   return {
@@ -694,7 +721,22 @@ function addBuilding(type, team, cx, cy) {
 }
 
 const teamOf = (e) => G.teams[e.team];
-const enemyOf = (team) => G.teams[1 - team.id];
+// The enemy side a side is fighting now: in a 1 v 1 the other one; in a team game the nearest enemy
+// still in the fight (kept a while, so waves and raids keep going the same way).
+function enemyOf(team) {
+  const foes = G.teams.filter((t) => hostile(team.id, t.id));
+  if (foes.length === 1) return foes[0];
+  let f = G.teams[team.foe];
+  if (f && hostile(team.id, f.id) && G.t < (team.foeT || 0) && !f.out) return f;
+  const live = foes.filter((t) => !t.out && inTheFight(t.id));
+  const pool = live.length ? live : foes;
+  const d = (t) => Math.hypot(t.start.cx - team.start.cx, t.start.cy - team.start.cy);
+  f = pool.reduce((a, b) => (d(a) <= d(b) ? a : b));
+  team.foe = f.id; team.foeT = G.t + 20;
+  return f;
+}
+const enemyBuildingsOf = (tid) => G.entities.filter((e) => e.alive && e.kind === 'bld' && hostile(tid, e.team));
+const enemyUnitsOf = (tid) => G.entities.filter((e) => e.alive && e.kind === 'unit' && hostile(tid, e.team));
 const buildingsOf = (tid) => G.entities.filter((e) => e.alive && e.kind === 'bld' && e.team === tid);
 const unitsOf = (tid) => G.entities.filter((e) => e.alive && e.kind === 'unit' && e.team === tid);
 const isAirborne = (e) => e.cls === 'air' && e.as !== 'landed';
@@ -715,10 +757,33 @@ function canHit(w, t) {
 }
 function canTarget(u, t) { return canHit(u.def.weapon, t) || canHit(u.def.weapon2, t); }
 
+// Who is where, in buckets of GRID_CELLS cells, rebuilt at the start of every step (update): target
+// searches look only at the buckets within reach instead of at every entity on the map. Not saved or
+// sent (save.js and net.js leave G.grid out); without one (between steps), searches look at everything.
+const GRID_CELLS = 8, GRID_N = Math.ceil(MAP / GRID_CELLS), GRID_PX = GRID_CELLS * CELL;
+function buildGrid() {
+  const g = G.grid && G.grid.length === GRID_N * GRID_N ? G.grid : (G.grid = Array.from({ length: GRID_N * GRID_N }, () => []));
+  for (const b of g) b.length = 0;
+  const at = (v) => Math.max(0, Math.min(GRID_N - 1, Math.floor(v / GRID_PX)));
+  for (const e of G.entities) if (e.alive) g[at(e.y) * GRID_N + at(e.x)].push(e);
+}
+// The buckets within r of (x, y), as a list of arrays to loop through.
+const nearOut = [];
+function nearBuckets(x, y, r) {
+  const g = G.grid;
+  nearOut.length = 0;
+  if (!g) { nearOut.push(G.entities); return nearOut; }
+  const at = (v) => Math.max(0, Math.min(GRID_N - 1, Math.floor(v / GRID_PX)));
+  const x0 = at(x - r), x1 = at(x + r), y0 = at(y - r), y1 = at(y + r);
+  for (let by = y0; by <= y1; by++) for (let bx = x0; bx <= x1; bx++) { const b = g[by * GRID_N + bx]; if (b.length) nearOut.push(b); }
+  return nearOut;
+}
 function acquire(src, range, weapons, visible) {
   let best = null, bs = Infinity;
-  for (const e of G.entities) {
-    if (!e.alive || e.team === src.team || e.sellT > 0) continue;
+  const buckets = nearBuckets(src.x, src.y, range + CELL * 3);
+  for (let bi = 0; bi < buckets.length; bi++) for (const e of buckets[bi]) {
+    if (!e.alive || !hostile(e.team, src.team) || e.sellT > 0) continue;
+    if (Math.abs(e.x - src.x) > range + CELL * 3 || Math.abs(e.y - src.y) > range + CELL * 3) continue;   // far off: no need to measure (structures are at most 4 cells across)
     if (!weapons.some((w) => canHit(w, e))) continue;
     if (e.kind === 'bld' && camoHidden(e, src.team)) continue;
     if (visible && !visible(e)) continue;
@@ -746,7 +811,7 @@ function knownTo(tid, b) {
 // cannot be seen, picked, targeted or aimed at by either side's units, and the host never tells an
 // online guest it exists (net.js `shown`). `exposed` is the flag the guest's copy reads.
 const CAMO_DETECT = CELL * 3, CAMO_REVEAL = 4;
-const camoHidden = (b, viewer) => b.kind === 'bld' && !!b.def.camo && b.team !== viewer && !b.exposed;
+const camoHidden = (b, viewer) => b.kind === 'bld' && !!b.def.camo && !alliedSides(b.team, viewer) && !b.exposed;
 const targetable = (team, b) => knownTo(team, b) && !camoHidden(b, team);
 // The win rule: production buildings keep a side in the fight, and so does a Mobile Construction Yard
 // still driving. Once a side has no production building left, the enemy knows where its Mobile
@@ -756,13 +821,14 @@ const hasProduction = (tid) => G.entities.some((e) => e.alive && e.kind === 'bld
 const mcvsOf = (tid) => G.entities.filter((e) => e.alive && e.kind === 'unit' && e.team === tid && e.def.deploys === 'cy');
 const inTheFight = (tid) => hasProduction(tid) || mcvsOf(tid).length > 0;
 function lastStand(u) {
-  const foe = 1 - u.team;
-  if (hasProduction(foe)) return null;
   let best = null, bd = Infinity;
-  for (const m of mcvsOf(foe)) { const d = dist(u, m); if (d < bd) { bd = d; best = m; } }
+  for (const foe of foesOf(u.team)) {
+    if (hasProduction(foe)) continue;
+    for (const m of mcvsOf(foe)) { const d = dist(u, m); if (d < bd) { bd = d; best = m; } }
+  }
   return best;
 }
-function enemyBaseKnown(tid = G.me) { return buildingsOf(1 - tid).some((b) => targetable(tid, b)) || (!hasProduction(1 - tid) && mcvsOf(1 - tid).length > 0); }
+function enemyBaseKnown(tid = G.me) { return foesOf(tid).some((f) => buildingsOf(f).some((b) => targetable(tid, b)) || (!hasProduction(f) && mcvsOf(f).length > 0)); }
 
 // The computer's attackers: one passing within 10 cells of a known enemy Outpost, or of a refinery
 // well away from every enemy Construction Yard, turns aside to destroy it (and what stands beside
@@ -771,9 +837,9 @@ function enemyBaseKnown(tid = G.me) { return buildingsOf(1 - tid).some((b) => ta
 function detourToSite(u) {
   if (u.resume || u.raider || (u.detourT = (u.detourT || 0) - 1) > 0) return;
   u.detourT = 3;
-  const foe = 1 - u.team, yards = buildingsOf(foe).filter((b) => b.type === 'cy');
+  const theirs = enemyBuildingsOf(u.team), yards = theirs.filter((b) => b.type === 'cy');
   let best = null, bd = CELL * 10;
-  for (const b of buildingsOf(foe)) {
+  for (const b of theirs) {
     if (b === u.focus || !targetable(u.team, b)) continue;
     if (b.type !== 'outpost' && !(b.type === 'refinery' && yards.every((y) => dist(b, y) > CELL * 14))) continue;
     const d = dist(u, b);
@@ -791,7 +857,7 @@ function nearestEnemyBuilding(u) {
     const f = u.focus;
     let nb = null, nd = CELL * 9;
     for (const e of G.entities) {
-      if (!e.alive || e.kind !== 'bld' || e.team === u.team || !targetable(u.team, e)) continue;
+      if (!e.alive || e.kind !== 'bld' || !hostile(e.team, u.team) || !targetable(u.team, e)) continue;
       const d = Math.hypot(e.x - f.x, e.y - f.y);
       if (d < nd) { nd = d; nb = e; }
     }
@@ -802,7 +868,7 @@ function nearestEnemyBuilding(u) {
   if (u.resume) { const r = u.resume; u.resume = null; if (r !== true && r.alive) { u.focus = r; return r; } }
   let best = null, bd = Infinity, cy = null, cd = Infinity;
   for (const e of G.entities) {
-    if (!e.alive || e.kind !== 'bld' || e.team === u.team || !targetable(u.team, e)) continue;
+    if (!e.alive || e.kind !== 'bld' || !hostile(e.team, u.team) || !targetable(u.team, e)) continue;
     const d = dist(u, e);
     if (d < bd) { bd = d; best = e; }
     if (e.type === 'cy' && d < cd) { cd = d; cy = e; }
@@ -895,7 +961,7 @@ function launchGroups() {
 function expansionsOf(team, from) {
   const cy = G.entities.find((e) => e.alive && e.team === team.id && e.type === 'cy');
   if (!cy) return [];
-  return buildingsOf(team.id).filter((b) => (b.type === 'outpost' || b.type === 'refinery') && dist(b, cy) > CELL * 14 && targetable(1 - team.id, b))
+  return buildingsOf(team.id).filter((b) => (b.type === 'outpost' || b.type === 'refinery') && dist(b, cy) > CELL * 14 && foesOf(team.id).some((f) => targetable(f, b)))
     .sort((a, b) => (a.type !== 'outpost') - (b.type !== 'outpost') || dist(a, from) - dist(b, from));
 }
 // Enemy jets or helicopters over the base scramble the fighters waiting on their Airfield, on
@@ -903,7 +969,7 @@ function expansionsOf(team, from) {
 function scramble(team) {
   if (team.isAI && !G.diff.ai.adapt) return;
   const mine = buildingsOf(team.id);
-  const intruders = unitsOf(enemyOf(team).id).filter((u) => u.cls === 'air' && !u.def.scripted && isAirborne(u) && mine.some((b) => distTo(u, b) < CELL * 20));
+  const intruders = enemyUnitsOf(team.id).filter((u) => u.cls === 'air' && !u.def.scripted && isAirborne(u) && mine.some((b) => distTo(u, b) < CELL * 20));
   for (const u of unitsOf(team.id)) {
     if (u.def.fly !== 'jet' || !(u.aam > 0) || u.repairHold || u.retreat) continue;
     const waiting = u.as === 'landed' && u.order.type === 'guard' && !u.order.hold;
@@ -948,7 +1014,7 @@ function defendBase(team) {
   const nearShooter = (u) => bh && Math.hypot(u.x - bh.x, u.y - bh.y) < CELL * 8;
   // Once fighting has started the zone widens, so raiders stepping back do not end the defence.
   const zone = team.defending ? 18 : 14;
-  const threats = unitsOf(enemyOf(team).id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute &&
+  const threats = enemyUnitsOf(team.id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute &&
     (nearBase(u, zone) || nearHarv(u, 9) || nearShooter(u)));
   // Only an Ore Truck under fire, away from the base: a few units close to it go to help.
   const truckOnly = threats.length && !threats.some((u) => nearBase(u, zone) || nearShooter(u));
@@ -1273,7 +1339,7 @@ function fireBlast(p, x, y) {
   for (let i = 0; i < 5; i++) G.effects.push({ type: 'fire', x: x + (Math.random() - 0.5) * 18, y: y + (Math.random() - 0.5) * 12, t: -i * 0.05, life: 1.2 + Math.random() * 1.2 });
   scorch(G.tctx, x, y, 8, (Math.random() * 1e6) | 0);
   for (const e of G.entities) {
-    if (!e.alive || e.team === p.team || isAirborne(e)) continue;
+    if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
     if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, from, { x, y });
   }
@@ -1287,7 +1353,7 @@ function grenadeBlast(p) {
   craterAt(x, y, 4);
   const from = p.from || null;
   for (const e of G.entities) {
-    if (!e.alive || e.team === p.team || isAirborne(e)) continue;
+    if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
     if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.6), w.wh, from, { x, y });
   }
@@ -1303,7 +1369,7 @@ function lobBlast(p) {
   craterAt(x, y, v2 ? 9 : 5);
   const from = p.from || null;
   for (const e of G.entities) {
-    if (!e.alive || e.team === p.team || isAirborne(e)) continue;
+    if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
     if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.65), w.wh, from, { x, y });
   }
@@ -1315,7 +1381,7 @@ function bombBlast(p) {
   scorch(G.tctx, x, y, 11, (Math.random() * 1e6) | 0);
   craterAt(x, y, 8);
   for (const e of G.entities) {
-    if (!e.alive || e.team === p.team || isAirborne(e)) continue;
+    if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
     if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, p.from || null, { x, y });
   }
@@ -1371,7 +1437,7 @@ function smoulder(x, y, life) { G.effects.push({ type: 'smoulder', x, y, t: 0, l
 
 function splash(x, y, rad, dmg, team, skip, attacker) {
   for (const e of G.entities) {
-    if (!e.alive || e === skip || e.team === team || e.kind !== 'unit' || isAirborne(e)) continue;
+    if (!e.alive || e === skip || !hostile(e.team, team) || e.kind !== 'unit' || isAirborne(e)) continue;
     if (Math.hypot(e.x - x, e.y - y) < rad) damage(e, dmg, 'HE', attacker || null, { x, y });
   }
 }
@@ -1398,10 +1464,10 @@ function impact(kind, x, y, inAir) {
 // `from`: where the hit came from (a blast centre or the shooter), for how a soldier falls.
 function damage(t, amount, wh, attacker, from) {
   if (!t.alive || G.remote) return;   // (a PvP guest's copy only shows the host's battle)
-  if (t.kind === 'bld' && t.def.camo && !(attacker && attacker.team === t.team)) t.revealT = CAMO_REVEAL;   // being hit gives it away
+  if (t.kind === 'bld' && t.def.camo && !(attacker && alliedSides(attacker.team, t.team))) t.revealT = CAMO_REVEAL;   // being hit gives it away
   // As in Red Alert: whoever fires at a support plane (Spy Plane, Paratroopers transport, bomber)
   // gives away where it stands, to either side.
-  if (t.def && t.def.scripted && attacker && attacker.team !== t.team) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5, G.fog[t.team]);
+  if (t.def && t.def.scripted && attacker && hostile(attacker.team, t.team)) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5, G.fog[t.team]);
   const armor = t.kind === 'bld' ? 'bld' : isAirborne(t) ? 'air' : t.def.armor === 'air' ? 'light' : t.def.armor;
   const mult = WARHEADS[wh][armor];
   if (!mult) return;
@@ -1422,13 +1488,13 @@ function damage(t, amount, wh, attacker, from) {
   }
   // Either side: an Ore Truck under fire calls nearby units to its aid.
   if (t.def && t.def.harvester && attacker && attacker.kind === 'unit') team.harvHit = { x: t.x, y: t.y, until: G.t + 8 };
-  if (t.def && t.def.harvester && attacker && attacker.team !== t.team) truckRetreat(t, attacker);
+  if (t.def && t.def.harvester && attacker && hostile(attacker.team, t.team)) truckRetreat(t, attacker);
   // A structure shot at from outside the base zone: answer the fire wherever it comes from.
   else if (t.kind === 'bld' && attacker && attacker.kind === 'unit' && !isAirborne(attacker)) team.baseHit = { x: attacker.x, y: attacker.y, until: G.t + 8 };
   if (attacker && attacker.cls === 'air' && !attacker.def.scripted && G.teams[t.team]) { const tm = G.teams[t.team]; tm.airHit = { x: t.x, y: t.y, t: G.t }; tm.sawAir = true; }   // where enemy aircraft strike
   // Shot at while guarding or on the attack: turn on the shooter, wherever it is, unless
   // already trading fire with an enemy unit in range.
-  if (attacker && attacker.alive && attacker.team !== t.team && t.kind === 'unit' && t.alive && t.cls !== 'air' && !t.def.harvester &&
+  if (attacker && attacker.alive && hostile(attacker.team, t.team) && t.kind === 'unit' && t.alive && t.cls !== 'air' && !t.def.harvester &&
       (t.order.type === 'guard' || t.order.type === 'hunt') && t.target !== attacker && canTarget(t, attacker)) {
     const c = t.target;
     // (its target may have taken off since it was picked, out of reach of every weapon it has)
@@ -1439,7 +1505,7 @@ function damage(t, amount, wh, attacker, from) {
   // Aircraft shot at, parked or flying, turn on the shooter too. A parked one takes off if it has
   // any ammunition, even while waiting on repairs: sitting on a pad under fire only gets it killed.
   // Base defence brings it home once that fight is over; aircraft guarding an area keep to it.
-  if (attacker && attacker.alive && attacker.team !== t.team && t.kind === 'unit' && t.alive && t.cls === 'air' && !t.def.scripted &&
+  if (attacker && attacker.alive && hostile(attacker.team, t.team) && t.kind === 'unit' && t.alive && t.cls === 'air' && !t.def.scripted &&
       (t.order.type === 'guard' || t.order.type === 'hunt') && !airEmpty(t) && !t.retreat && canTarget(t, attacker)) {
     const parked = t.as === 'landed';
     if (parked || !(t.target && t.target.alive && t.target.kind === 'unit')) {
@@ -1470,7 +1536,7 @@ function notify(team, key, msg, cooldown) {
 function kill(e, attacker, wh, from) {
   e.alive = false;
   const team = teamOf(e);
-  if (attacker && attacker.team !== e.team) {
+  if (attacker && hostile(attacker.team, e.team)) {
     const st = G.teams[attacker.team].stats;
     if (e.kind === 'unit') st.killed++; else st.bldKilled++;
     if (attacker.kind === 'unit') { attacker.kills = (attacker.kills || 0) + 1; attacker.killWorth = (attacker.killWorth || 0) + (e.def.cost || 0); }
@@ -1946,7 +2012,7 @@ function updateUnit(u, dt) {
     if (t2) {
       if (u.cls === 'inf') { u.face = Math.atan2(t2.y - (t2.alt || 0) - u.y, t2.x - u.x); u.cd = Math.max(u.cd, u.def.weapon2.rof); }
       fireWeapon(u, u.def.weapon2, t2); u.cd2 = u.def.weapon2.rof;
-    }
+    } else u.cd2 = 0.3;   // nothing in reach: look again shortly (not every frame)
   }
   checkStuck(u, dt);
 }
@@ -2120,7 +2186,7 @@ function truckRetreat(u, from) {
 }
 function threatNear(u) {
   if (!u.threat) return false;
-  return G.entities.some((e) => e.alive && e.kind === 'unit' && e.team !== u.team && !e.def.scripted && Math.hypot(e.x - u.threat.x, e.y - u.threat.y) < CELL * 9);
+  return G.entities.some((e) => e.alive && e.kind === 'unit' && hostile(e.team, u.team) && !e.def.scripted && Math.hypot(e.x - u.threat.x, e.y - u.threat.y) < CELL * 9);
 }
 function updateHarvester(u, dt) {
   const cap = u.def.capacity, team = teamOf(u);
@@ -2789,7 +2855,7 @@ function updateBuilding(b, dt) {
   b.think -= dt;
   if (b.think <= 0) {
     b.think = 0.3;
-    if (b.def.camo) for (const e of G.entities) if (e.alive && e.kind === 'unit' && e.team !== b.team && !isAirborne(e) && Math.hypot(e.x - b.x, e.y - b.y) < CAMO_DETECT) { b.revealT = CAMO_REVEAL; break; }
+    if (b.def.camo) for (const e of G.entities) if (e.alive && e.kind === 'unit' && hostile(e.team, b.team) && !isAirborne(e) && Math.hypot(e.x - b.x, e.y - b.y) < CAMO_DETECT) { b.revealT = CAMO_REVEAL; break; }
     const src = { x: b.x, y: b.y, team: b.team };
     if (!b.target || !b.target.alive || distTo(src, b.target) > w.range) b.target = acquire(src, w.range, [w]);
   }
@@ -3051,17 +3117,25 @@ function logWave(team, big) {
 
 // A side is defeated once it has no production building left (Construction Yard, Barracks, War
 // Factory, Helipad, Airfield) and no Mobile Construction Yard on the move.
+// A side with nothing left to fight with is out (`out`); the battle ends when only one alliance has a
+// side still in it. The winner is that alliance's `ally` number (in a 1 v 1, the same as its side).
 function checkWin() {
   if (G.over) return;
-  const a = inTheFight(PLAYER), b = inTheFight(ENEMY);
-  if (!a || !b) endBattle(b ? ENEMY : PLAYER);   // (both gone at once: side 0 wins, as before)
+  for (const t of G.teams) if (!t.out && !inTheFight(t.id)) {
+    t.out = true;
+    if (teamGame()) for (const o of G.teams) if (o !== t && !o.out) say(o.id, alliedSides(o.id, t.id) ? 'Ally defeated' : 'Enemy defeated');
+  }
+  const left = new Set(G.teams.filter((t) => !t.out).map((t) => t.ally));
+  if (left.size <= 1) endBattle(left.size ? [...left][0] : G.teams[0].ally);   // (all gone at once: side 0's alliance wins, as before)
 }
+const allyOf = (side) => (G.teams[side] ? G.teams[side].ally : side);
+const otherAlly = (side) => (allyOf(side) === 0 ? 1 : 0);
 // how: undefined for the last production building destroyed, 'quit' when the loser surrendered, 'left' when
 // an online opponent did not come back.
 function endBattle(winner, how) {
   if (G.over) return;
   logSample();
-  G.over = { winner, won: winner === G.me, t: G.t, how };
+  G.over = { winner, won: !!G.teams[G.me] && G.teams[G.me].ally === winner, t: G.t, how };
   hooks.gameOver(G.over.won);
 }
 
@@ -3188,6 +3262,7 @@ function separate() {
 function update(dt) {
   if (!G || G.paused || G.hold) return;   // hold: an online battle waiting for a player
   G.t += dt;
+  buildGrid();
   for (const e of G.entities) {
     if (!e.alive) continue;
     if (e.kind === 'unit') updateUnit(e, dt); else updateBuilding(e, dt);
@@ -3270,7 +3345,7 @@ function updateSamPits(dt) {
     if (b.buildT < 1) { b.popK = 0; continue; }
     const R = b.def.weapon.range + 3 * CELL, tgt = b.target && b.target.alive;
     let threat = tgt || b.fireT > 0;
-    if (!threat) for (const e of G.entities) if (e.alive && e.kind === 'unit' && e.team !== b.team && isAirborne(e) && Math.hypot(e.x - b.x, e.y - b.y) < R) { threat = true; break; }
+    if (!threat) for (const e of G.entities) if (e.alive && e.kind === 'unit' && hostile(e.team, b.team) && isAirborne(e) && Math.hypot(e.x - b.x, e.y - b.y) < R) { threat = true; break; }
     b.popHold = threat ? 1.5 : (b.popHold || 0) - dt;
     b.popK = b.popHold > 0 ? Math.min(1, (b.popK || 0) + dt / (tgt ? 0.35 : 0.7)) : Math.max(0, (b.popK || 0) - dt / 1.1);
   }

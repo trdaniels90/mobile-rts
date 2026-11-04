@@ -1,0 +1,25 @@
+# Fly.io settings for the game server. The app name must be unique on Fly: if it is taken, change
+# it here and SERVER in src/net.js together.
+app = 'red-horizon-rts'
+primary_region = 'dfw'   # Dallas, Texas: chosen by the owner (players in US Central)
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Rooms live in memory, so keep to one machine. It may sleep when nobody is connected and wakes
+  # on the next connection (the phones wait up to 7 s before playing phone to phone instead).
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  [http_service.concurrency]
+    type = 'connections'
+    soft_limit = 200
+    hard_limit = 250
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
