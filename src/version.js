@@ -4,6 +4,18 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.04.4', date: '4 November 2026', title: 'Team battles and a game server', groups: [
+    ['New', [
+      '2 v 2 skirmish: on the map screen, pick 2 v 2 to fight two computer sides with a computer ally.',
+      'Online team battles for up to four players: 1 v 1, 2 v 2, or two of you against the computer (2 v AI, with its difficulty). The room leader picks the mode and map; everyone picks a faction and can switch team.',
+      'In a team battle, a player who surrenders or does not come back is handed to the computer. A team with no players left loses.',
+      'A Team Battles page in the Field Manual.',
+    ]],
+    ['Changes', [
+      'Online battles now run on a game server, with both phones as players. If the server cannot be reached, a 1 v 1 goes phone to phone as before. Team battles need the server.',
+      'Big battles run faster, so four computer sides on Hard keep up on a phone. Both modes.',
+    ]],
+  ] },
   { v: '2026.11.04.3', date: '4 November 2026', title: 'Helicopter Base and Soviet Rocket Soldiers', groups: [
     ['New', [
       'The Helipad is now a Helicopter Base with four landing pads, each side with its own look: a bright open apron for the Allies and a sandbagged concrete fortress for the Soviets. It costs 3000 and has 800 health (the old Helipad was 1500 and 400). Both modes.',
