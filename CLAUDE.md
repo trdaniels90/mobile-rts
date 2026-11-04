@@ -47,7 +47,8 @@ share globals. Read this file first; the commit history explains every change in
 5. Commit, then push the branch `claude/cross-platform-game-k2d9lb`.
 5a. **Game server:** phones only use the server when its version matches theirs (otherwise they play
    phone to phone, and team games are unavailable), so deploy it with every release that goes to
-   testers: `fly deploy` from the repository root (see "Dedicated server" below).
+   testers: `flyctl deploy --remote-only --depot=false --ha=false` from the repository root (see
+   "Deploying the game server" below).
 6. **Test build:** check `git merge-base --is-ancestor origin/main HEAD`, then run
    `git push origin HEAD:main`. Poll `https://trdaniels90.github.io/mobile-rts/src/version.js`
    until it shows the new version.
@@ -243,6 +244,11 @@ share globals. Read this file first; the commit history explains every change in
 - **Fly.io:** app `red-horizon-rts` (change it in `fly.toml` and `SERVER` together if taken), one machine
   (rooms are in memory), sleeps when idle and wakes on the next connection. Health: `GET /` returns the
   version and room count.
+- **Deploying the game server:** the environment's setup script installs `flyctl` (in `~/.fly/bin`) and
+  `FLY_API_TOKEN` is set in sessions. From the repository root: `flyctl deploy --remote-only --depot=false
+  --ha=false`. `--depot=false` because Fly's default builder (Depot) rejects the session proxy's certificate;
+  `--ha=false` keeps one machine. Then check `curl https://red-horizon-rts.fly.dev/` shows the new version.
+  The app was created (personal org, `dfw`) and first deployed on 2026-11-04 from this branch.
 - **Teams in the simulation:** `newWorld(..., sides)` takes up to four `{ faction, ally, ai, name }`. Sides
   with the same `ally` are a team: `hostile(a, b)` is the enemy test everywhere (never compare `team`
   directly for enemies), `alliedSides`, `foesOf`, `enemyUnitsOf`, `enemyBuildingsOf`. Allies share one fog
