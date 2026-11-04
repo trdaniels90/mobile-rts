@@ -4,6 +4,17 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.04.3', date: '4 November 2026', title: 'Helicopter Base and Soviet Rocket Soldiers', groups: [
+    ['New', [
+      'The Helipad is now a Helicopter Base with four landing pads, each side with its own look: a bright open apron for the Allies and a sandbagged concrete fortress for the Soviets. It costs 3000 and has 800 health (the old Helipad was 1500 and 400). Both modes.',
+      'Each Helicopter Base holds four helicopters. For more, build another base. Both modes.',
+      'The Soviets can train Rocket Soldiers again, drawn with an olive RPG-style launcher. The computer\'s Soviets use them too. Both modes.',
+      'Rocket Soldiers raise a long, slim RedEye launcher and play a different launch sound when they fire at aircraft. Both sides.',
+    ]],
+    ['Changes', [
+      'A skirmish saved before this update can no longer be continued, because the old Helipad no longer exists. Start a new one.',
+    ]],
+  ] },
   { v: '2026.11.04.2', date: '4 November 2026', title: 'Easier online joining', groups: [
     ['Fixes', [
       'Online: if a friend\'s first try at joining fails, the host\'s room now stays open for another try. Before, the host had to start a new game, and the retry could say "That game already has two players".',
