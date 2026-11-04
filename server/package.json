@@ -1,0 +1,9 @@
+{
+  "name": "red-horizon-server",
+  "private": true,
+  "description": "Red Horizon's dedicated game server: runs online battles headless and relays snapshots to the phones.",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=20" },
+  "dependencies": { "ws": "8.18.0" }
+}

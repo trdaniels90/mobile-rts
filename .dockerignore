@@ -1,0 +1,7 @@
+*
+!src/
+!server/
+server/node_modules
+src/music.js
+src/voices.js
+src/sfx.js
