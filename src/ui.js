@@ -11,7 +11,7 @@
   const ui = {
     sidebar: $('sidebar'), credits: $('credits'), powerBar: $('powerBar'), topstrip: $('topstrip'), homeBtn: $('homeBtn'),
     stripL: $('stripL'), stripR: $('stripR'), strips: document.querySelector('.sb-strips'),
-    autoBtn: $('autoBtn'), allyBtn: $('allyBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'),
+    autoBtn: $('autoBtn'), allyBtn: $('allyBtn'), returnBtn: $('returnBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'),
     eva: $('eva'), selbar: $('selbar'), selName: $('selName'), selHp: $('selHp'), selBtns: $('selBtns'),
     placebar: $('placebar'), placeText: $('placeText'), placeOk: $('placeOk'), placeCancel: $('placeCancel'),
     menu: $('menu'), menuTitle: $('menuTitle'), menuSub: $('menuSub'),
@@ -167,7 +167,7 @@
     // once an enemy building has been uncovered.
     if (!resumed) G.teams[G.me].auto = false;
     ui.autoBtn.setAttribute('aria-pressed', String(!!G.teams[G.me].auto));
-    ui.allyBtn.hidden = !teamGame();
+    ui.allyBtn.hidden = ui.returnBtn.hidden = !teamGame();
     layout();
     if (resumed) return;
     const cy = G.entities.find((e) => e.team === G.me && e.type === 'cy');
@@ -840,7 +840,14 @@
     setAssist(team, !team.assist);
     ui.allyBtn.setAttribute('aria-pressed', String(!!team.assist));
     ui.autoBtn.setAttribute('aria-pressed', String(!!team.auto));
-    eva(team.assist ? 'Defending our ally' : 'Returning to base');
+    eva(team.assist ? 'Defending our ally' : 'Ally support off. Units stay and defend');
+  });
+  ui.returnBtn.addEventListener('click', () => {
+    if (!G) return;
+    const team = G.teams[G.me];
+    recallAlly(team);
+    ui.allyBtn.setAttribute('aria-pressed', 'false');
+    eva('Returning to base');
   });
   ui.menuBtn.addEventListener('click', togglePause);
 

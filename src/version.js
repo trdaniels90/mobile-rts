@@ -6,7 +6,8 @@
 const RELEASES = [
   { v: '2026.11.04.5', date: '4 November 2026', title: 'Ally button and team colours', groups: [
     ['New', [
-      'Team battles: an ALLY button next to Auto Attack sends your idle ground units to guard an ally\'s base, and new units follow. They fight raiders there. Press it again to bring them home.',
+      'Team battles: an ALLY button next to Auto Attack sends your idle ground units to guard an ally\'s base, and new units follow. They fight raiders there. Press ALLY again to stop sending units; RETURN brings them home.',
+      'Pressing ALLY again stops new units going; the ones already there keep defending. A RETURN button brings them all home.',
       'A computer ally now helps defend your base (and its own ally\'s) when it is attacked, on Normal and Hard.',
       'Teammates on the same faction now get different colours: the second is green (Allies) or amber (Soviets).',
       'The announcer now says "Ally defeated" and "Enemy defeated" aloud, and speaks when you send units to help an ally.',

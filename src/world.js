@@ -938,12 +938,13 @@ function sendToAlly(team, units) {
 function setAssist(team, on) {
   on = !!on && alliesOf(team).length > 0;
   team.assist = on;
-  if (on) {
-    team.auto = false;
-    sendToAlly(team, idleGround(team).filter((u) => !u.garrison));
-    return;
-  }
-  // Off: the garrison goes home and waits there again.
+  if (!on) return;   // off: the units already sent keep defending, new ones stay home (recallAlly brings them back)
+  team.auto = false;
+  sendToAlly(team, idleGround(team).filter((u) => !u.garrison));
+}
+// The Return button: everything sent to an ally goes home and waits there again.
+function recallAlly(team) {
+  team.assist = false;
   for (const u of unitsOf(team.id)) {
     if (!u.garrison) continue;
     u.garrison = false;
@@ -954,8 +955,8 @@ function setAssist(team, on) {
 }
 function defendAllies(team) {
   if (!teamGame()) return;
-  if (team.assist && !alliesOf(team).length) setAssist(team, false);
-  const helping = team.assist || (team.isAI && G.diff.ai.adapt);
+  if (!alliesOf(team).length && unitsOf(team.id).some((u) => u.garrison)) recallAlly(team);   // nobody left to help
+  const helping = team.isAI ? G.diff.ai.adapt : unitsOf(team.id).some((u) => u.garrison);
   if (!helping && !unitsOf(team.id).some((u) => u.assisting)) return;
   const allies = alliesOf(team);
   const hit = (a, u) => buildingsOf(a.id).some((b) => distTo(u, b) < CELL * 14) ||
@@ -966,21 +967,21 @@ function defendAllies(team) {
     for (const u of unitsOf(team.id)) {
       if (!u.assisting || (u.target && u.target.alive)) continue;
       u.assisting = false;
-      if (u.garrison && team.assist && allies.length) { const s = scatterSpot(allies[0]); setGuard(u, s.x, s.y); goTo(u, s.x, s.y); }
+      if (u.garrison && allies.length) { const s = scatterSpot(allies[0]); setGuard(u, s.x, s.y); goTo(u, s.x, s.y); }
       else if (u.post) { setGuard(u, u.post.x, u.post.y); u.staged = u.post.staged; goTo(u, u.post.x, u.post.y); }
     }
     return;
   }
   team.allyCalm = 0;
   const near = (u) => Math.min(...threats.map((t) => Math.hypot(u.x - t.x, u.y - t.y)));
-  let army = unitsOf(team.id).filter((u) => u.assisting).concat(idleGround(team).filter((u) => (team.assist ? u.garrison : near(u) < CELL * 70)))
+  let army = unitsOf(team.id).filter((u) => u.assisting).concat(idleGround(team).filter((u) => (team.isAI ? near(u) < CELL * 70 : u.garrison)))
     .filter((u) => threats.some((t) => canTarget(u, t)));
   army.sort((a, b) => (!!b.assisting - !!a.assisting) || near(a) - near(b));
-  // Garrison units all go; the computer sends worth half again what the raiders are.
+  // A human's garrison units all go; the computer sends worth half again what the raiders are.
   const need = threats.reduce((a, t) => a + (t.def.cost || 300), 0) * 1.5;
   let got = 0;
   for (const u of army) {
-    if (!team.assist && !u.assisting && got >= need) continue;
+    if (team.isAI && !u.assisting && got >= need) continue;
     got += u.def.cost || 300;
     let best = null, bd = Infinity;
     for (const t of threats) { const d = Math.hypot(u.x - t.x, u.y - t.y); if (d < bd && canTarget(u, t)) { bd = d; best = t; } }
