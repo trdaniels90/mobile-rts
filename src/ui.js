@@ -9,7 +9,7 @@
   const shroudImg = sctx.createImageData(MAP, MAP);
   const miniTerrain = mkCanvas(MAP, MAP), mtctx = miniTerrain.getContext('2d');
   const ui = {
-    sidebar: $('sidebar'), credits: $('credits'), powerBar: $('powerBar'), topstrip: $('topstrip'), homeBtn: $('homeBtn'),
+    sidebar: $('sidebar'), credits: $('credits'), powerBar: $('powerBar'), topstrip: $('topstrip'),
     stripL: $('stripL'), stripR: $('stripR'), strips: document.querySelector('.sb-strips'),
     autoBtn: $('autoBtn'), allyBtn: $('allyBtn'), returnBtn: $('returnBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'),
     eva: $('eva'), selbar: $('selbar'), selName: $('selName'), selHp: $('selHp'), selBtns: $('selBtns'),
@@ -765,12 +765,6 @@
       strip.scrollBy({ top: (+b.dataset.dir) * ((cam ? cam.offsetHeight : 48) + 3) * 2, behavior: 'smooth' });
     });
   }
-  ui.homeBtn.addEventListener('click', () => {
-    if (!G) return;
-    const b = G.entities.find((e) => e.team === G.me && e.type === 'cy') || buildingsOf(G.me)[0];
-    if (b) centerOn(b.x, b.y);
-  });
-
   function cameoAction(type) {
     if (!G || G.over) return;
     Sound.play('click');
