@@ -93,7 +93,7 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 .icon small { font-size: 10px; font-weight: 700; letter-spacing: 0.03em; text-align: center; color: #a9ac9f; }
 .icon[hidden] { display: none; }
 .sb-buttons .icon small { font-size: 9px; letter-spacing: 0; }
-#returnBtn small { font-size: 8px; }
+#returnBtn small, #boxBtn small { font-size: 7px; }
 .icon[aria-pressed="true"] { color: #fff; background: linear-gradient(180deg, var(--accent), #262829); }
 .icon[aria-pressed="true"] small { color: #fff; }
 
