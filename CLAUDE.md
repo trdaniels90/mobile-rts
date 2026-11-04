@@ -237,7 +237,7 @@ share globals. Read this file first; the commit history explains every change in
   code, up to 4 seats; seat 0 leads (picks battle, map, co-op difficulty). Battle runs at 30 steps a second,
   snapshots 10 a second per player (`NetCore.snapshots`). Holds while a player is away; after `WAIT_LIMIT`
   a 1 v 1 is lost, and in a team game the computer takes over the side (`handOver`, also on surrender); an
-  alliance with no players left loses. The server sets `G.me = -1` so every side's announcer lines go out.
+  alliance with no players left loses; if every player is gone when the wait runs out, the room just closes with no winner (`tick`). The server sets `G.me = -1` so every side's announcer lines go out.
 - **Phones:** `net.js` tries `SERVER` (`wss://red-horizon-rts.fly.dev`, `?server=<url>` to override,
   `?server=off`) for 7 s on Host or Join; failing that, or on a version mismatch, 1 v 1 goes phone to phone
   as before. On the server both phones are guests (`role === 'guest'`), `lobby.via === 'server'`.
