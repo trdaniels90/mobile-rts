@@ -49,10 +49,10 @@ const UNIT_DEFS = {
     name: 'Pilot', cls: 'inf', cat: 'infantry', factions: [], cost: 0, hp: 35, armor: 'inf', speed: 27, sight: 4, r: 5,
     weapon: { dmg: 5, rof: 1.1, range: 60, wh: 'SA', proj: 'bullet' },
   },
-  // As in the original Red Alert: Allied only, a Dragon rocket for armour and a RedEye
-  // missile, with more reach, for aircraft. Both fire as often as a Medium Tank's gun.
+  // A Dragon rocket for armour and a RedEye missile, with more reach, for aircraft. Both fire as often
+  // as a Medium Tank's gun. Both sides train it; the Soviet one is drawn with an olive RPG-style launcher.
   rocket: {
-    name: 'Rocket Soldier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies'],
+    name: 'Rocket Soldier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
     cost: 300, hp: 45, armor: 'inf', speed: 24, sight: 5, r: 5,
     weapon: { dmg: 35, rof: 1.5, range: 120, wh: 'AT', proj: 'rocket' },
     weapon2: { dmg: 50, rof: 1.5, range: 180, wh: 'AT', proj: 'rocket', air: true, ground: false, fuel: 1.7 },   // chases a little further than AA_FUEL

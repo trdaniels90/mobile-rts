@@ -295,11 +295,14 @@ function aiThink(team) {
   const iq = team.queues.infantry;
   if (!capped && c.barracks && iq.length < A.queue && money > (truckDue ? 900 : 150)) {
     const r = Math.random();
-    const sov = team.faction === 'soviets';   // no Rocket Soldiers: rifles and grenadiers
+    const sov = team.faction === 'soviets';   // rifles and grenadiers, with some Rocket Soldiers
     // Allies: mostly rifles, and more Rocket Soldiers once the enemy flies, but never only them.
     // Against an armoured army: more Rocket Soldiers (Allies) or Grenadiers (Soviets); against infantry, rifles.
     const k = team.counter || {}, rockets = anti ? 0.6 : k.armor ? 0.65 : k.inf ? 0.25 : 0.4;
-    startProduction(team, sov ? (r < (k.armor ? 0.3 : 0.55) ? 'rifle' : 'grenadier') : r < rockets ? 'rocket' : 'rifle');
+    // Soviets: Rocket Soldiers once the enemy flies or fields armour, otherwise rifles and grenadiers.
+    const sovRockets = anti ? 0.45 : k.armor ? 0.3 : k.inf ? 0 : 0.15;
+    if (sov && Math.random() < sovRockets) startProduction(team, 'rocket');
+    else startProduction(team, sov ? (r < (k.armor ? 0.3 : 0.55) ? 'rifle' : 'grenadier') : r < rockets ? 'rocket' : 'rifle');
   }
   if (!capped && c.factory && vq.length < A.queue && money > 500 && !truckDue) {
     const opts = team.faction === 'allies' ? (anti ? ['mtank', 'mtank', 'ranger', 'ranger', 'ltank'] : ['ltank', 'mtank', 'mtank', 'ranger'])

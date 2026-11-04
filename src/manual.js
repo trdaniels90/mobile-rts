@@ -27,7 +27,7 @@ const Manual = (() => {
     // Infantry
     rifle: ['The backbone of every army: cheap, quick to train and useful in numbers. Under fire they drop into cover, crouching or going prone.', 'Infantry', 'Tanks, flame, Tesla'],
     grenadier: ['Lobs grenades in an arc over cover, with a blast that hurts groups. Carries spare grenades in bags on his hips.', 'Infantry groups, light vehicles', 'Tanks at range'],
-    rocket: ['Allied anti-armour and anti-aircraft infantry, as in the original: Dragon rockets punch through tank armour, and RedEye missiles reach further to bring down aircraft. One launcher, so it fires one or the other.', 'Tanks, aircraft', 'Infantry, light vehicles'],
+    rocket: ['Anti-armour and anti-aircraft infantry for both sides (the Soviet one carries an olive RPG-style launcher): Dragon rockets punch through tank armour, and RedEye missiles reach further to bring down aircraft. One launcher, so it fires one or the other.', 'Tanks, aircraft', 'Infantry, light vehicles'],
     pilot: ['Bails out of a downed aircraft, parachutes down and runs for the nearest friendly structure. Reaching it, the pilot is recovered and you get $100. Cannot be trained.', '', ''],
     // Vehicles
     ranger: ['A fast armed jeep for scouting and raids. Its machine gun can also fire at helicopters, but not at jets.', 'Infantry, Ore Trucks', 'Tanks'],

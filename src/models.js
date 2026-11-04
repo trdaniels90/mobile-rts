@@ -467,7 +467,7 @@ function infModel(pal, faction, type, frame) {
   // A stocky figure in the side's colour from boots to collar, so a squad reads as one colour
   // at a glance: thick legs, a broad chest, a big helmet and a pack on the back.
   const m = new VModel(-9, -7, 12, 7, 22);
-  const sov = faction === 'soviets';
+  const sov = faction === 'soviets', sovRk = sov && type === 'rocket';
   const step = frame === 1 ? 1.5 : frame === 2 ? -1.5 : 0, throwing = frame === 3;
   const pose = frame === 6 ? 'rest' : frame === 7 ? 'aim' : frame === 10 ? 'stretch' : null;
   const K = infKit(pal, faction), tunic = pal.main, sleeve = shadeInt(pal.main, 0.84), hi = shadeInt(pal.main, 1.12);
@@ -531,6 +531,9 @@ function infModel(pal, faction, type, frame) {
     m.box(-6, -1, 10, -5, 2, 12, shadeInt(K.pack, 0.85));                          // side pocket
     m.cylY(-3, 4, -4, 14.5, 1, '#8c7c58');                                         // blanket roll
   }
+  if (sovRk) for (const y of [-1, 2]) {                                              // spare rockets in the pack, heads up
+    m.cylZ(-5, y, 13, 19, 1, '#5f6a3c', M_METAL); m.ellipsoid(-5, y, 19.8, 1.4, 1.4, 1.6, '#4a4f3a', M_METAL); m.set(-5, y, 21, '#c8281e');
+  }
   // Head: face front with eyes and a shadowed chin.
   m.box(-1, -1, 14, 2, 2, 17, K.skin);
   m.set(1, -1, 16, '#2a1e18'); m.set(1, 1, 16, '#2a1e18');
@@ -556,7 +559,7 @@ function infModel(pal, faction, type, frame) {
   }
   // Weapons.
   const RIF = !['rocket', 'grenadier', 'pilot'].includes(type);
-  const tube = '#c3c4b8', tubeD = '#5d5f58';
+  const tube = sovRk ? '#5f6a3c' : '#c3c4b8', tubeD = sovRk ? '#2f3520' : '#5d5f58';   // Soviet: olive RPG-style launcher
   if (pose === 'stretch') {                                                  // slung on the back
     if (type === 'rocket') { m.cylY(-6, 6, -6, 13, 1.4, tube); m.box(-7, 5, 12, -5, 6, 15, tubeD); }
     else if (RIF) { m.line(-6, -2, 6, -6, 2, 16, C.gun, M_METAL); m.box(-7, -3, 5, -5, -1, 8, '#6a4426'); }
@@ -569,6 +572,12 @@ function infModel(pal, faction, type, frame) {
     m.cylX(-7, 7, 3.5, 15.5, 1.5, tube);                                      // launcher tube on the right shoulder
     m.box(7, 2, 14, 9, 5, 17, tubeD); m.box(-8, 2, 14, -7, 5, 17, tubeD);    // muzzle and exhaust
     m.box(3, 3, 13, 4, 4, 15, tubeD); m.box(1, 2, 16, 3, 3, 18, '#2a2a24');  // grip and sight
+    if (sovRk) {
+      m.ellipsoid(9.5, 3.5, 15.5, 2.8, 2.3, 2.3, '#4a4f3a', M_METAL); m.set(12, 3, 15, '#c8281e'); m.set(12, 4, 15, '#c8281e');   // bulbous rocket head, red tip
+      m.box(-2, 2, 14, 0, 5, 17, '#3a4026', M_METAL);                                                       // flared rear venturi
+      m.box(3, 3, 11, 4, 4, 14, '#6a4426');                                                                // wooden grip
+      m.paint(-7, 2, 14, 7, 5, 17, (x, y, z) => (x === -3 || x === 2) ? '#3a3f26' : undefined);               // steel bands
+    }
   } else if (RIF) {
     m.line(0, 2.5, 9.5, 9, -1.5, 11.5, C.gun, M_METAL);                     // barrel, rising forward across the body
     m.line(0, 2.5, 10.5, 9, -1.5, 12.5, C.gun, M_METAL);
@@ -1268,7 +1277,10 @@ function proneModel(pal, faction, type) {
   m.box(2, -1, 0, 5, 2, 3, K.skin);
   m.box(1, -2, 2, 5, 3, 4, type === 'pilot' ? '#cfcab8' : type === 'grenadier' ? '#5d6236' : K.helm);
   for (const y of [-3, 2]) { m.box(1, y, 0, 5, y + 1, 1.5, shadeInt(pal.main, 0.86)); m.set(5, y, 0, K.skin); }
-  if (type === 'rocket') { m.cylX(-4, 8, -2.5, 3.5, 1.3, '#56603a'); m.box(8, -4, 2, 10, -1, 5, '#2a2a24'); }
+  if (type === 'rocket') {
+    m.cylX(-4, 8, -2.5, 3.5, 1.3, '#56603a'); m.box(8, -4, 2, 10, -1, 5, '#2a2a24');
+    if (faction === 'soviets') { m.ellipsoid(9, -2.5, 3.5, 2.4, 1.9, 1.9, '#4a4f3a', M_METAL); m.set(11, -3, 3, '#c8281e'); }   // rocket head
+  }
   else if (type === 'grenadier') m.box(5, 1, 0, 7, 3, 1.5, '#3f4a2a');
   else { m.box(4, -1, 0.5, 12, 0, 1.5, C.gun, M_METAL); m.box(1, -1, 0.5, 4, 0, 2, '#6a4426'); }
   return m;
@@ -1289,7 +1301,7 @@ function pushupModel(pal, faction, type, up) {
     if (up) { m.box(0, y, 1, 1, y + 1, 5, shadeInt(pal.main, 0.86)); m.set(0, y, 0, K.skin); }          // straight arms
     else { m.box(-1, y + (y < 0 ? -1 : 1), 0, 1, y + (y < 0 ? 0 : 2), 2, shadeInt(pal.main, 0.86)); m.set(1, y, 0, K.skin); }   // elbows out
   }
-  if (type === 'rocket') m.cylX(-8, 4, -5, 0.7, 0.9, '#56603a');
+  if (type === 'rocket') { m.cylX(-8, 4, -5, 0.7, 0.9, '#56603a'); if (faction === 'soviets') m.ellipsoid(5, -5, 0.8, 1.6, 1.3, 1.3, '#4a4f3a', M_METAL); }
   else if (type !== 'grenadier' && type !== 'pilot') { m.box(-6, 4, 0, 3, 5, 1, C.gun, M_METAL); m.box(-9, 4, 0, -6, 5, 1.5, '#6a4426'); }
   return m;
 }
