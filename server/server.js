@@ -178,7 +178,9 @@ function tick(R) {
     R.held = true;
     if (!R.waitSince) R.waitSince = now;
     if ((now - R.waitSince) / 1000 > WAIT_LIMIT) {
-      // Waited long enough: those still away are gone.
+      // Waited long enough: those still away are gone. If every player has gone, nobody won: close
+      // the room with no result (no computer takeover, no winner sent to anyone).
+      if (missing.length === R.seats.filter((s) => !s.left).length) { closeRoom(R, 'abandoned: every player left'); return; }
       G.hold = false; R.waitSince = 0;
       for (const s of missing) handOver(R, s, 'left');
     }
