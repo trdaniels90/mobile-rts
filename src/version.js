@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.04.2', date: '4 November 2026', title: 'Easier online joining', groups: [
+    ['Fixes', [
+      'Online: if a friend\'s first try at joining fails, the host\'s room now stays open for another try. Before, the host had to start a new game, and the retry could say "That game already has two players".',
+      'Online: connection details that arrived early are no longer thrown away, which helps joining work the first time.',
+    ]],
+  ] },
   { v: '2026.11.04.1', date: '4 November 2026', title: 'No more frozen battles', groups: [
     ['Fixes', [
       'An error in the game no longer freezes the battle: the game carries on instead of the picture getting stuck. This could stop an online battle on both phones at once. Both modes.',

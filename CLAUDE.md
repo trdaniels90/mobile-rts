@@ -215,7 +215,7 @@ share globals. Read this file first; the commit history explains every change in
   (average, worst, share over 250 and 500 ms) and per minute of battle (ping, worst, this phone's real
   frames per second, frames over 100 ms, units alive) in `stats.net`. High ping with low host fps in big
   fights means the host phone is overloaded; high ping at any battle size means the route between phones.
-- **Joining** (net.js `listen`, `knock`, `dropAttempt`, `retryable`; after 2026.11.04.1, not released yet):
+- **Joining** (net.js `listen`, `knock`, `dropAttempt`, `retryable`; 2026.11.04.2):
   a connection attempt that fails before the lobby connects no longer kills the host's room. The host drops
   it and keeps listening, and a new hello replaces a stale attempt (before, the retry got "already has two
   players", so the host had to start a new room). The guest also keeps host ICE candidates that arrive
