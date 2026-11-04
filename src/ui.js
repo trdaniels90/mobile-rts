@@ -1047,20 +1047,24 @@
       if (keys.has('ArrowDown') || keys.has('s')) cam.y += k;
       clampCam();
       const total = dt;
-      if (Net.role === 'guest') Net.guestStep(dt);
-      else while (dt > 0) { const step = Math.min(dt, 1 / 30); update(step); dt -= step; }
-      Net.hostTick(total);
+      // Each part of a frame is guarded: an error is recorded with the match (Report.oops) and the
+      // game carries on, instead of the loop stopping and the battle freezing on both phones.
+      if (Net.role === 'guest') guard('guest', () => Net.guestStep(dt));
+      else guard('update', () => { while (dt > 0) { const step = Math.min(dt, 1 / 30); dt -= step; update(step); } });
+      guard('net', () => Net.hostTick(total));
     }
-    draw();
-    updateSidebar(1 / 60);
-    drawRadar(1 / 60);
-    requestAnimationFrame(frame);
+    guard('draw', draw);
+    guard('sidebar', () => updateSidebar(1 / 60));
+    guard('radar', () => drawRadar(1 / 60));
   }
+  function guard(where, fn) { try { fn(); } catch (e) { Report.oops(where, e); } }
+  // The next frame is asked for first, so nothing that goes wrong in this one can stop the loop.
+  function loop(now) { requestAnimationFrame(loop); frame(now); }
 
   layout();
   startGame();
   showMenu('start');
-  requestAnimationFrame(frame);
+  requestAnimationFrame(loop);
 
   // Hook for automated tests.
   // viewSide(side): show and command the other side from here on (tests; the guest's view in PvP).

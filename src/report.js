@@ -55,7 +55,27 @@ const Report = (() => {
   let match = null;   // { id, row, saved: promise of true/null, ended }
   const insert = (m) => post('matches', m.row);
   // mode: 'skirmish' against the computer, or 'pvp' online, with the opponent's name.
+  // Errors during a match (the main loop catches them so the game keeps going): the first few
+  // distinct ones, with how often each came back, go into the match's stats so a freeze or glitch
+  // a player reports can be traced to the line that broke.
+  let errs = [];
+  function oops(where, e) {
+    try {
+      const msg = String((e && e.message) || e).slice(0, 200);
+      const old = errs.find((x) => x.where === where && x.msg === msg);
+      if (old) { old.n++; return; }
+      if (errs.length >= 6) return;
+      const stack = String((e && e.stack) || '').split('\n').slice(0, 6).map((l) => l.trim().replace(/^.*\/(src\/)/, '$1')).join(' | ').slice(0, 600);
+      errs.push({ where, msg, stack, t: G ? Math.round(G.t) : null, n: 1, v: typeof VERSION === 'string' ? VERSION : null });
+      try { console.error('[' + where + ']', e); } catch (_) {}
+    } catch (_) {}
+  }
+  try {
+    window.addEventListener('error', (ev) => oops('window', ev.error || ev.message));
+    window.addEventListener('unhandledrejection', (ev) => oops('promise', ev.reason));
+  } catch (_) {}
   function start(side, difficulty, mode = 'skirmish', opponent = null) {
+    errs = [];
     try {
       quit();
       if (local) return;
@@ -70,6 +90,7 @@ const Report = (() => {
   // sure the match exists (it may have started offline); if it already does, it is refused, which
   // is fine.
   function resume(id, side, difficulty) {
+    errs = [];
     try {
       if (!id || !UUID.test(id)) return start(side, difficulty);
       quit();
@@ -97,6 +118,7 @@ const Report = (() => {
     for (const u of alive.concat(fallen)) names[u.type] = UNIT_DEFS[u.type].name;
     const out = { player: G.me, teams: G.teams.map((t) => ({ faction: t.faction, ai: t.isAI, stats: t.stats })),
       log: { samples: G.log.samples, events: G.log.events, fallen, alive, waves: G.log.waves }, names };
+    if (errs.length) out.errors = errs;
     while (JSON.stringify(out).length > 90000 && out.log.samples.length > 40) out.log.samples = out.log.samples.filter((_, i) => i % 2 === 0);   // a very long game: a coarser graph
     if (JSON.stringify(out).length > 90000) delete out.log.samples;
     return out;
@@ -155,7 +177,7 @@ const Report = (() => {
   function claim() { return local ? Promise.resolve(null) : post('rpc/claim_device', { p_device: device }, true); }
   // The name for the leaderboard: the commander name of a signed-in player, else the last one typed here.
   const name = () => (typeof Account !== 'undefined' && Account.name) || store('ps-name') || '';
-  return { start, resume, end, quit, submitName, board, claim, score, get name() { return name(); }, get matchId() { return match && match.id; } };
+  return { start, resume, end, quit, oops, get errors() { return errs; }, submitName, board, claim, score, get name() { return name(); }, get matchId() { return match && match.id; } };
 })();
 
 // The leaderboard page, on the same paper as What's New, and the name box in the debrief.
