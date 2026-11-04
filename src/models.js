@@ -466,10 +466,10 @@ function infModel(pal, faction, type, frame) {
   if (frame === 8 || frame === 9) return pushupModel(pal, faction, type, frame === 8);
   // A stocky figure in the side's colour from boots to collar, so a squad reads as one colour
   // at a glance: thick legs, a broad chest, a big helmet and a pack on the back.
-  const m = new VModel(-9, -7, 12, 7, 22);
+  const m = new VModel(-9, -7, 12, 7, frame === 11 ? 30 : 22);
   const sov = faction === 'soviets', sovRk = sov && type === 'rocket';
   const step = frame === 1 ? 1.5 : frame === 2 ? -1.5 : 0, throwing = frame === 3;
-  const pose = frame === 6 ? 'rest' : frame === 7 ? 'aim' : frame === 10 ? 'stretch' : null;
+  const pose = frame === 6 ? 'rest' : frame === 7 ? 'aim' : frame === 10 ? 'stretch' : frame === 11 ? 'sam' : null;
   const K = infKit(pal, faction), tunic = pal.main, sleeve = shadeInt(pal.main, 0.84), hi = shadeInt(pal.main, 1.12);
   // Boots and trousers, legs apart with a gap between them, swinging when walking.
   for (const [y0, s] of [[-3, step], [1, -step]]) {
@@ -568,6 +568,20 @@ function infModel(pal, faction, type, frame) {
     else if (RIF) { m.box(1, 4, 10, 2, 5, 21, C.gun, M_METAL); m.box(1, 4, 8, 2, 5, 12, '#6a4426'); }   // rifle on the shoulder
   } else if (pose === 'aim' && RIF) {
     m.box(2, -1, 13, 11, 0, 14, C.gun, M_METAL); m.box(-1, -1, 12, 3, 0, 14, '#6a4426'); m.box(5, -1, 11, 6, 0, 13, C.gun, M_METAL);
+  } else if (pose === 'sam') {
+    // RedEye: a long, slim tube on the shoulder pointed up at the sky, with a boxy gripstock and
+    // battery under it, a seeker head at the front and a flip-up sight. Pale with an orange band
+    // for the Allies; olive with a red band for the Soviets.
+    const body = sov ? '#5f6a3c' : '#d9dbd0', band = sov ? '#c8281e' : '#e8742a', dk = sov ? '#2f3520' : '#4c5058';
+    const x0 = -6, z0 = 12, x1 = 11, z1 = 26, n = 18;
+    for (let i = 0; i <= n; i++) {
+      const k = i / n, x = Math.round(x0 + (x1 - x0) * k), z = Math.round(z0 + (z1 - z0) * k);
+      m.box(x - 1, 2.5, z - 1, x + 1, 4.5, z + 1, (i === 6 || i === 7 || i === 12) ? band : i >= 17 ? dk : body, M_METAL);
+    }
+    m.ellipsoid(12, 3.5, 26.5, 1.6, 1.6, 1.8, dk, M_METAL);                         // seeker head
+    m.box(-7, 2, 11, -5, 5, 14, dk, M_METAL);                                        // rear cone
+    m.box(2, 2, 12, 5, 5, 15, dk, M_METAL); m.box(3, 3, 10, 4, 4, 12, '#6a4426');   // gripstock, grip
+    m.box(0, 5, 16, 2, 6, 19, sov ? '#3a4026' : '#7b8087', M_METAL);                 // flip-up sight
   } else if (type === 'rocket') {
     m.cylX(-7, 7, 3.5, 15.5, 1.5, tube);                                      // launcher tube on the right shoulder
     m.box(7, 2, 14, 9, 5, 17, tubeD); m.box(-8, 2, 14, -7, 5, 17, tubeD);    // muzzle and exhaust

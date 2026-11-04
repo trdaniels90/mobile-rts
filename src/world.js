@@ -1084,6 +1084,7 @@ function aimY(t) {
 }
 
 function weaponSound(src, w) {
+  if (w.sound) return w.sound;   // a weapon with a sound of its own (the RedEye)
   if (w.proj === 'bullet') return src.cls === 'inf' ? 'rifle' : 'mg';
   if (w.proj === 'grenade') return 'throw';
   if (w.proj === 'fireball') return 'flame';
@@ -1131,6 +1132,7 @@ function fireWeapon(src, w, t) {
   hooks.sfx(weaponSound(src, w), src.x, src.y);
   if (src.kind === 'bld' && (src.type === 'turret' || src.type === 'pillbox')) barrelSmoke(src, m);
   src.fireT = w.proj === 'grenade' ? 0.35 : 0.1;
+  if (w.sound === 'redeye' && src.cls === 'inf') src.aaUntil = G.t + 1.1;   // shows the shoulder-fired RedEye launcher a moment
   const ty = aimY(t);
   if (w.proj === 'grenade') {
     // Lobbed in an arc at where the target stands now; it can miss a moving target.

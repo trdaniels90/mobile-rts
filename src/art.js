@@ -524,8 +524,9 @@ function drawUnit(g, u, t) {
     if (u.chute > 0) { drawChute(g, u, pal, t); return; }
     const idle = idlePose(u, t);
     if (idle) { frame = idle.frame; if (idle.turn) u = { type: u.type, faction: u.faction, face: u.face + idle.turn, x: u.x, y: u.y }; }
+    if (u.aaUntil > G.t && frame === 0 && u.type === 'rocket') frame = 11;   // firing the RedEye at an aircraft
     blit(g, infSprite(u, pal, frame), u.x, u.y);
-    const mh = stance === 'prone' ? 2 : stance === 'crouch' ? 6 : 11, mr = stance === 'prone' ? 12 : 10;
+    const mh = frame === 11 ? 20 : stance === 'prone' ? 2 : stance === 'crouch' ? 6 : 11, mr = frame === 11 ? 13 : stance === 'prone' ? 12 : 10;
     if (u.fireT > 0) flash(g, u.x + Math.cos(u.face) * mr, u.y + Math.sin(u.face) * mr - mh, 1);
     return;
   }

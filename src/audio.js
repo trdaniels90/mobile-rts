@@ -231,6 +231,13 @@ const Sound = (() => {
       noiseHit(t, 0.6, 'bandpass', 4200, 1500, 1.1, 1.0, o, 0.012);
       noiseHit(t, 0.45, 'lowpass', 1300, 350, 0.7, 0.55, o, 0.02);
     },
+    // RedEye: a soft ejection pop from the tube, then the motor lights a beat later and whistles upward.
+    redeye(t, o) {
+      noiseHit(t, 0.05, 'lowpass', 700, 300, 0.8, 0.7, o);
+      tone(t, 'sine', 130, 60, 0.12, 0.5, o);
+      noiseHit(t + 0.11, 0.6, 'bandpass', 1800, 6500, 1.6, 0.7, o, 0.03);
+      tone(t + 0.11, 'sawtooth', 500, 2300, 0.5, 0.05, o);
+    },
     // Wreckage into the water: a deep plunge, then a wash of spray falling back.
     splash(t, o, s) {
       tone(t, 'sine', 120, 45, 0.3, 0.7, o);
@@ -320,19 +327,19 @@ const Sound = (() => {
     ready(t, o) { tone(t, 'square', 880, 880, 0.06, 0.14, o); tone(t + 0.08, 'square', 1320, 1320, 0.08, 0.14, o); },
     denied(t, o) { tone(t, 'square', 220, 200, 0.18, 0.1, o); },
   };
-  const THROTTLE = { die: 0.09, dieBlast: 0.12, dieFire: 0.2, build: 0.12, collapse: 0.3, cashUp: 0.07, cashDown: 0.07, rifle: 0.03, mg: 0.03, cannon: 0.05, cannonHeavy: 0.06, turretGun: 0.06, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, missile: 0.05, flak: 0.06, tesla: 0.1 };
+  const THROTTLE = { die: 0.09, dieBlast: 0.12, dieFire: 0.2, build: 0.12, collapse: 0.3, cashUp: 0.07, cashDown: 0.07, rifle: 0.03, mg: 0.03, cannon: 0.05, cannonHeavy: 0.06, turretGun: 0.06, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, redeye: 0.05, missile: 0.05, flak: 0.06, tesla: 0.1 };
   // How much each sound matters when the voices run out, and how long it occupies one.
-  const PRIORITY = { click: 9, ready: 9, denied: 9, sell: 9, place: 9, cashUp: 8, cashDown: 8, explodeBig: 10, collapse: 9, explodeVeh: 8, cannonHeavy: 7, missile: 6, rocket: 6, tesla: 6,
+  const PRIORITY = { click: 9, ready: 9, denied: 9, sell: 9, place: 9, cashUp: 8, cashDown: 8, explodeBig: 10, collapse: 9, explodeVeh: 8, cannonHeavy: 7, missile: 6, rocket: 6, redeye: 6, tesla: 6,
     cannon: 5, turretGun: 5, hitMed: 5, flame: 5, fireHit: 5, throw: 4, flak: 4, mg: 3, hitSmall: 3, build: 2, die: 2, dieBlast: 3, dieFire: 3, rifle: 2 };
-  const HOLD = { explodeBig: 1.6, collapse: 1.6, explodeVeh: 1.1, cannonHeavy: 0.9, cannon: 0.6, turretGun: 0.6, hitMed: 0.6, tesla: 0.8, flame: 0.9, fireHit: 0.8, missile: 0.9, rocket: 0.9, build: 0.5, die: 0.5, dieBlast: 0.7, dieFire: 0.8, rifle: 0.35, mg: 0.35, hitSmall: 0.3, flak: 0.5, throw: 0.5 };
+  const HOLD = { explodeBig: 1.6, collapse: 1.6, explodeVeh: 1.1, cannonHeavy: 0.9, cannon: 0.6, turretGun: 0.6, hitMed: 0.6, tesla: 0.8, flame: 0.9, fireHit: 0.8, missile: 0.9, rocket: 0.9, redeye: 0.9, build: 0.5, die: 0.5, dieBlast: 0.7, dieFire: 0.8, rifle: 0.35, mg: 0.35, hitSmall: 0.3, flak: 0.5, throw: 0.5 };
   const UI_SOUNDS = new Set(['click', 'ready', 'denied', 'sell', 'place', 'cashUp', 'cashDown']);
   // Rough loudness of each effect so distant battles do not drown nearby ones.
-  const LEVEL = { rifle: 0.55, mg: 1.0, throw: 0.8, cannon: 0.8, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, missile: 0.7, flak: 0.75, tesla: 0.85,
+  const LEVEL = { rifle: 0.55, mg: 1.0, throw: 0.8, cannon: 0.8, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, redeye: 0.65, missile: 0.7, flak: 0.75, tesla: 0.85,
     hitSmall: 0.7, hitMed: 0.8, explodeVeh: 0.9, explodeBig: 1.0, flame: 0.8, fireHit: 0.8, build: 0.55, collapse: 1.0, die: 0.7, dieBlast: 0.75, dieFire: 0.7 };
 
   // How far each sound carries: the quietest it gets however far away the fighting is.
   const CARRY = { die: 0.04, dieBlast: 0.05, dieFire: 0.04, collapse: 0.26, build: 0.05, explodeBig: 0.3, explodeVeh: 0.24, cannon: 0.18, cannonHeavy: 0.2, turretGun: 0.18, hitMed: 0.18, tesla: 0.18,
-    rocket: 0.14, missile: 0.14, flak: 0.12, hitSmall: 0.12, mg: 0.12, fireHit: 0.1, flame: 0.1, rifle: 0.09, throw: 0.06 };
+    rocket: 0.14, redeye: 0.14, missile: 0.14, flak: 0.12, hitSmall: 0.12, mg: 0.12, fireHit: 0.1, flame: 0.1, rifle: 0.09, throw: 0.06 };
 
   // dist: screens from the camera (1 = screen edge). Near and far sounds have separate voice
   // budgets, so a big fight on screen never silences one across the map, and vice versa.
