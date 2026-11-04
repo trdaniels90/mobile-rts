@@ -21,7 +21,8 @@ const Sound = (() => {
   // Phones get a smaller budget: iPhone Safari crackles and skips when a big battle starts dozens
   // of sounds at once (its audio thread loses the race with the game creating audio nodes).
   const PHONE = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 1 || /iPhone|iPad|iPod|Android/.test(navigator.userAgent));
-  const NEAR_MAX = PHONE ? 14 : 28, FAR_MAX = PHONE ? 5 : 10;
+  // With the mixer (below) a sound creates no audio nodes at all, so phones get the full budget.
+  const nearMax = () => mixer || !PHONE ? 28 : 14, farMax = () => mixer || !PHONE ? 10 : 5;
   // Fixed pan positions, each one panner made once, so a sound adds no panner of its own.
   const PANS = [-0.85, -0.5, -0.2, 0, 0.2, 0.5, 0.85];
   let panNear = null, panFar = null;
@@ -108,6 +109,7 @@ const Sound = (() => {
     for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
     shaperHeavy = curve(140); shaperSoft = curve(12);
     Music.start();
+    startMixer();
     preload();
   }
   document.addEventListener('visibilitychange', () => {
@@ -344,22 +346,47 @@ const Sound = (() => {
     if (now - last < (THROTTLE[name] || 0.02) * 0.6 * (far ? 2 : 1)) return;
     const pri = PRIORITY[name] === undefined ? 5 : PRIORITY[name];
     let mine = 0; for (const x of live) if (x.far === far) mine++;
-    if (mine >= (far ? FAR_MAX : NEAR_MAX)) {
+    if (mine >= (far ? farMax() : nearMax())) {
       let victim = null;
       for (const x of live) if (x.far === far && (!victim || x.pri < victim.pri || (x.pri === victim.pri && x.t < victim.t))) victim = x;
       if (!victim || victim.pri > pri || (victim.pri === pri && now - victim.t < 0.15)) return;
-      try { victim.out.gain.cancelScheduledValues(now); victim.out.gain.setTargetAtTime(0, now, 0.012); } catch (_) {}
+      try { victim.stop(); } catch (_) {}
       live.splice(live.indexOf(victim), 1);
     }
     lastPlayed.set(key, now);
     const v = vol * (LEVEL[name] || 1) * (0.9 + Math.random() * 0.2);
+    const pn = Math.max(-1, Math.min(1, pan || 0));
+    const hold = (entry) => { live.push(entry); setTimeout(() => { const i = live.indexOf(entry); if (i >= 0) live.splice(i, 1); }, (HOLD[name] || 0.7) * 1000); };
+    const takes = takesFor(name);
+    // Recordings go to the mixer when it is running: no nodes are made for the sound at all.
+    if (takes && mixer) {
+      const vid = ++mixVid, send = far ? 0 : (REVERB[name] || 0) * v;
+      hold({ pri, t: now, far, stop: () => mixer.port.postMessage({ t: 'fade', vid }) });
+      playTakes(takes, (buf, delay, rate, level) => mixPlay(vid, buf, delay, rate, v * level, pn, far, send * level));
+      return;
+    }
+    // Synthesised sounds are rendered once into a recording, then mixed the same way.
+    const synth = !takes && mixer && synthBufs(name);
+    if (synth) {
+      const r = synth[Math.floor(Math.random() * synth.length)], vid = ++mixVid;
+      hold({ pri, t: now, far, stop: () => mixer.port.postMessage({ t: 'fade', vid }) });
+      mixPlay(vid, r.buf, 0, UI_SOUNDS.has(name) ? 1 : 0.97 + Math.random() * 0.06, v, pn, far, far ? 0 : r.send * v);
+      return;
+    }
     const out = gain(v, null);
-    out.connect(panBus(Math.max(-1, Math.min(1, pan || 0)), far));
+    out.connect(panBus(pn, far));
     const s = { send(amount) { if (!far) { const g = gain(amount * v, verbIn); out.connect(g); } } };
-    const entry = { pri, t: now, out, far };
-    live.push(entry);
-    setTimeout(() => { const i = live.indexOf(entry); if (i >= 0) live.splice(i, 1); }, (HOLD[name] || 0.7) * 1000);
-    if (playRecorded(name, out, s)) return;   // recordings already carry their lo-fi treatment
+    hold({ pri, t: now, far, stop: () => { out.gain.cancelScheduledValues(ctx.currentTime); out.gain.setTargetAtTime(0, ctx.currentTime, 0.012); } });
+    if (takes) {   // recordings already carry their lo-fi treatment
+      playTakes(takes, (buf, delay, rate, level) => {
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        src.playbackRate.value = rate;
+        if (level !== 1) src.connect(gain(level, out)); else src.connect(out);
+        src.start(ctx.currentTime + delay);
+      });
+      if (REVERB[name]) s.send(REVERB[name]);
+      return;
+    }
     // Synthesised battle sounds go through the lo-fi stage before their volume is applied.
     let into = out;
     if (!UI_SOUNDS.has(name)) {
@@ -376,26 +403,135 @@ const Sound = (() => {
   // so repeated shots never sound identical. Returns false when there is no recording.
   const RECORDED = typeof SFX_CLIPS !== 'undefined' ? SFX_CLIPS : {};
   const REVERB = { build: 0.15, collapse: 0.45, cannon: 0.2, cannonHeavy: 0.25, turretGun: 0.3, hitMed: 0.3, explodeVeh: 0.4, explodeBig: 0.55, tesla: 0.3, fireHit: 0.2 };
-  function playRecorded(name, out, s) {
-    const take = (key, delay, rate, level) => {
-      const list = RECORDED[key];
-      if (!list) return false;
-      const b64 = list[Math.floor(Math.random() * list.length)];
-      clipBuffer(b64, (buf) => {
-        const src = ctx.createBufferSource(); src.buffer = buf;
-        src.playbackRate.value = (rate || 1) * (0.94 + Math.random() * 0.12);
-        if (level && level !== 1) src.connect(gain(level, out)); else src.connect(out);
-        src.start(ctx.currentTime + (delay || 0));
-      });
-      return true;
+  // Some effects layer several recordings: [clip, delay s, pitch, level].
+  const COMBO = {
+    cannonHeavy: [['cannon', 0, 0.9, 1], ['cannon', 0.028, 0.86, 0.8]],   // both barrels at once
+    explodeBig: [['explodeBig', 0, 1, 1], ['explodeVeh', 0.28, 0.9, 0.7], ['hitMed', 0.55, 0.85, 0.6]],
+    fireHit: [['fireHit', 0.02, 1, 1], ['hitSmall', 0, 0.9, 0.7]],
+  };
+  function takesFor(name) {
+    const t = COMBO[name] || [[name, 0, 1, 1]];
+    return t.every((x) => RECORDED[x[0]]) ? t : null;
+  }
+  // Each take picks a random recording and nudges its pitch so repeated shots never sound identical.
+  function playTakes(takes, start) {
+    for (const [key, delay, rate, level] of takes) {
+      const list = RECORDED[key], b64 = list[Math.floor(Math.random() * list.length)];
+      clipBuffer(b64, (buf) => start(buf, delay, rate * (0.94 + Math.random() * 0.12), level));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // The effects mixer: one AudioWorklet node that mixes every recorded battle sound itself.
+  // Making and wiring nodes for each shot (dozens a second in a big battle) makes iPhone Safari
+  // crackle and skip; through the mixer a sound is only a message. Its three outputs feed the
+  // near bus, the far (muffled) bus and the reverb. Where AudioWorklet is missing or fails to
+  // load, sounds use nodes as before (with a smaller budget on phones).
+  // ---------------------------------------------------------------------------
+  const MIX_CODE = `
+class SfxMix extends AudioWorkletProcessor {
+  constructor() {
+    super(); this.clips = []; this.v = [];
+    this.port.onmessage = (e) => {
+      const m = e.data;
+      if (m.t === 'clip') this.clips[m.id] = m.d;
+      else if (m.t === 'play') { m.pos = 0; m.fade = 1; m.fd = 0; m.st = Math.round(m.at * sampleRate); this.v.push(m); }
+      else if (m.t === 'fade') { for (const x of this.v) if (x.vid === m.vid) x.fd = 1 / (0.04 * sampleRate); }
     };
-    let ok;
-    if (name === 'cannonHeavy') ok = take('cannon', 0, 0.9) && take('cannon', 0.028, 0.86, 0.8);   // both barrels at once
-    else if (name === 'explodeBig') ok = take('explodeBig', 0) && take('explodeVeh', 0.28, 0.9, 0.7) && take('hitMed', 0.55, 0.85, 0.6);
-    else if (name === 'fireHit') ok = take('fireHit', 0.02) && take('hitSmall', 0, 0.9, 0.7);
-    else ok = take(name, 0);
-    if (ok && REVERB[name]) s.send(REVERB[name]);
-    return ok;
+  }
+  process(inputs, outs) {
+    const n = outs[0][0].length;
+    for (let k = this.v.length - 1; k >= 0; k--) {
+      const x = this.v[k], d = this.clips[x.clip];
+      if (!d) { this.v.splice(k, 1); continue; }
+      let i = Math.max(0, x.st - currentFrame);
+      if (i >= n) continue;
+      const o = outs[x.o], L = o[0], R = o[1] || o[0], S = x.sg ? outs[2] : null;
+      let done = false;
+      for (; i < n; i++) {
+        const p = x.pos | 0;
+        if (p + 1 >= d.length || x.fade <= 0) { done = true; break; }
+        const smp = (d[p] + (d[p + 1] - d[p]) * (x.pos - p)) * x.fade;
+        L[i] += smp * x.gl; R[i] += smp * x.gr;
+        if (S) { S[0][i] += smp * x.sg; if (S[1]) S[1][i] += smp * x.sg; }
+        x.pos += x.rate;
+        if (x.fd) x.fade -= x.fd;
+      }
+      if (done) this.v.splice(k, 1);
+    }
+    return true;
+  }
+}
+registerProcessor('sfx-mix', SfxMix);
+`;
+  let mixer = null, mixVid = 0, mixClipId = 0;
+  const mixClips = new Map();   // AudioBuffer -> id in the mixer
+  function startMixer() {
+    if (!ctx.audioWorklet || typeof AudioWorkletNode === 'undefined') return;
+    const make = () => {
+      const node = new AudioWorkletNode(ctx, 'sfx-mix', { numberOfInputs: 0, numberOfOutputs: 3, outputChannelCount: [2, 2, 2] });
+      node.connect(sfxBus, 0); node.connect(farBus, 1); node.connect(verbIn, 2);
+      mixer = node;
+    };
+    const blob = () => { const u = URL.createObjectURL(new Blob([MIX_CODE], { type: 'application/javascript' })); return ctx.audioWorklet.addModule(u); };
+    const data = () => ctx.audioWorklet.addModule('data:application/javascript,' + encodeURIComponent(MIX_CODE));
+    try { blob().catch(data).then(make).catch(() => {}); } catch (_) { try { data().then(make).catch(() => {}); } catch (_) {} }
+  }
+  // Render a synthesised effect offline (two takes, as the noise differs each time). Until they are
+  // ready the effect plays from nodes.
+  const synthCache = {};
+  function synthBufs(name) {
+    const c = synthCache[name];
+    if (c) return c.ready ? c.list : null;
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const entry = synthCache[name] = { ready: false, list: [] };
+    if (!OAC || !FX[name]) return null;
+    const ui = UI_SOUNDS.has(name), len = ui ? 0.6 : 1.6;
+    let pending = 2;
+    for (let k = 0; k < 2; k++) {
+      let off;
+      try { off = new OAC(1, Math.ceil(ctx.sampleRate * len), ctx.sampleRate); } catch (_) { return null; }
+      const real = ctx;
+      let send = 0;
+      try {
+        ctx = off;   // the FX helpers build on ctx; this is synchronous, so it is put back at once
+        const outN = off.destination;
+        let into = outN;
+        if (!ui) {
+          if (!crushCurve) crushCurve = lofiCurve();
+          const pre = gain(1, null), lo = shaper(crushCurve, null), lp = off.createBiquadFilter();
+          lp.type = 'lowpass'; lp.frequency.value = 9500; lp.Q.value = 0.5;
+          pre.connect(lo); lo.connect(lp); lp.connect(outN);
+          into = pre;
+        }
+        FX[name](0.002, into, { send(a) { send = a; } });
+      } catch (_) { ctx = real; return null; }
+      ctx = real;
+      const done = (buf) => {
+        const d = buf.getChannelData(0);
+        let end = d.length;
+        while (end > 1 && Math.abs(d[end - 1]) < 1e-4) end--;
+        const b = ctx.createBuffer(1, Math.max(2, end), buf.sampleRate);
+        b.getChannelData(0).set(d.subarray(0, Math.max(2, end)));
+        entry.list.push({ buf: b, send });
+        if (--pending === 0) entry.ready = true;
+      };
+      const pr = off.startRendering();
+      if (pr && pr.then) pr.then(done).catch(() => {}); else off.oncomplete = (e) => done(e.renderedBuffer);
+    }
+    return null;
+  }
+  function mixPlay(vid, buf, delay, rate, level, pan, far, send) {
+    let id = mixClips.get(buf);
+    if (id === undefined) {
+      // Mono copy (the effects are mono; a stereo take is folded down).
+      const d = new Float32Array(buf.getChannelData(0));
+      if (buf.numberOfChannels > 1) { const r = buf.getChannelData(1); for (let i = 0; i < d.length; i++) d[i] = (d[i] + r[i]) / 2; }
+      id = mixClipId++; mixClips.set(buf, id);
+      mixer.port.postMessage({ t: 'clip', id, d });
+    }
+    const a = (pan + 1) * Math.PI / 4;   // equal power, like a StereoPannerNode
+    mixer.port.postMessage({ t: 'play', vid, clip: id, at: ctx.currentTime + delay, rate, gl: level * Math.cos(a), gr: level * Math.sin(a), o: far ? 1 : 0, sg: send });
   }
 
   // ---------------------------------------------------------------------------
@@ -792,5 +928,5 @@ const Sound = (() => {
     if (key === 'voice' && !on && evaSrc) try { evaSrc.stop(); } catch (_) {}
   }
 
-  return { init: unlock, unlock, status, play, say, ack, settings, setOption, setVolume, music: Music, newMatch: () => Music.newMatch(), get debug() { return { ctx, master, musicClips: Object.values(MBUF).reduce((n, l) => n + l.filter(Boolean).length, 0) }; } };
+  return { init: unlock, unlock, status, play, say, ack, settings, setOption, setVolume, music: Music, newMatch: () => Music.newMatch(), get debug() { return { ctx, master, mixer: !!mixer, musicClips: Object.values(MBUF).reduce((n, l) => n + l.filter(Boolean).length, 0) }; } };
 })();
