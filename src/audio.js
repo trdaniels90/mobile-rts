@@ -18,7 +18,20 @@ const Sound = (() => {
   // Live effect voices, each {pri, t, out, far}. A busy battle fills the budget; a more important
   // sound then takes over the least important (or oldest) voice instead of being dropped.
   const live = [];
-  const NEAR_MAX = 28, FAR_MAX = 10;
+  // Phones get a smaller budget: iPhone Safari crackles and skips when a big battle starts dozens
+  // of sounds at once (its audio thread loses the race with the game creating audio nodes).
+  const PHONE = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 1 || /iPhone|iPad|iPod|Android/.test(navigator.userAgent));
+  const NEAR_MAX = PHONE ? 14 : 28, FAR_MAX = PHONE ? 5 : 10;
+  // Fixed pan positions, each one panner made once, so a sound adds no panner of its own.
+  const PANS = [-0.85, -0.5, -0.2, 0, 0.2, 0.5, 0.85];
+  let panNear = null, panFar = null;
+  function panBus(pan, far) {
+    const list = far ? panFar : panNear;
+    if (!list) return far ? farBus : sfxBus;
+    let best = 0;
+    for (let i = 1; i < PANS.length; i++) if (Math.abs(PANS[i] - pan) < Math.abs(PANS[best] - pan)) best = i;
+    return list[best];
+  }
 
   // Half a second of silence. Keeping a media element playing it puts iOS into "playback"
   // mode, so older iPhones do not mute Web Audio when the ring/silent switch is on silent.
@@ -69,6 +82,10 @@ const Sound = (() => {
     // Distant battles share one muffled, roomy bus: the far-off rumble of fighting elsewhere.
     const farLp = ctx.createBiquadFilter(); farLp.type = 'lowpass'; farLp.frequency.value = 1700; farLp.Q.value = 0.4;
     farBus = gain(1, farLp); farLp.connect(sfxBus);
+    if (ctx.createStereoPanner) {
+      const make = (dest) => PANS.map((v) => { const pn = ctx.createStereoPanner(); pn.pan.value = v; pn.connect(dest); return pn; });
+      panNear = make(sfxBus); panFar = make(farBus);
+    }
     musicBus = gain(musicLevel(), master);
     // Recorded tracks go through a high-pass: phone speakers cannot play deep bass, and trying to makes them rattle and distort.
     recIn = ctx.createBiquadFilter(); recIn.type = 'highpass'; recIn.frequency.value = 130; recIn.Q.value = 0.6; recIn.connect(musicBus);
@@ -337,9 +354,7 @@ const Sound = (() => {
     lastPlayed.set(key, now);
     const v = vol * (LEVEL[name] || 1) * (0.9 + Math.random() * 0.2);
     const out = gain(v, null);
-    let node = out;
-    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan || 0)); out.connect(p); node = p; }
-    node.connect(far ? farBus : sfxBus);
+    out.connect(panBus(Math.max(-1, Math.min(1, pan || 0)), far));
     const s = { send(amount) { if (!far) { const g = gain(amount * v, verbIn); out.connect(g); } } };
     const entry = { pri, t: now, out, far };
     live.push(entry);
@@ -369,7 +384,7 @@ const Sound = (() => {
       clipBuffer(b64, (buf) => {
         const src = ctx.createBufferSource(); src.buffer = buf;
         src.playbackRate.value = (rate || 1) * (0.94 + Math.random() * 0.12);
-        const g = gain(level || 1, out); src.connect(g);
+        if (level && level !== 1) src.connect(gain(level, out)); else src.connect(out);
         src.start(ctx.currentTime + (delay || 0));
       });
       return true;
