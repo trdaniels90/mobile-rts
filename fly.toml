@@ -1,7 +1,7 @@
 # Fly.io settings for the game server. The app name must be unique on Fly: if it is taken, change
 # it here and SERVER in src/net.js together.
 app = 'red-horizon-rts'
-primary_region = 'iad'
+primary_region = 'ord'   # Chicago: the owner and testers are in US Central
 
 [build]
   dockerfile = 'Dockerfile'
