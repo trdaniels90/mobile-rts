@@ -732,7 +732,7 @@ const Online = (() => {
   }
   // A room on the game server: the battle (1 v 1, 2 v 2, or two of you against the computer), its
   // sides and who sits where, the map, and Start once every player's place is taken.
-  const MODES = [['1v1', '1 v 1'], ['2v2', '2 v 2'], ['coop', '2 of you vs computer']];
+  const MODES = [['1v1', '1 v 1'], ['2v2', '2 v 2'], ['coop', '2 v AI']];
   const DIFFS = [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']];
   function serverLobby(L) {
     const lead = L.me === 'host', mode = L.mode || '1v1';

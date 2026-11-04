@@ -126,7 +126,7 @@ const Manual = (() => {
       <h4>Radar</h4>
       <p>You start without radar. Build a <b>Radar Dome</b> to switch on the minimap, then tap it to jump the view.</p>` },
     { ch: 'Basics', title: 'Team Battles', html: () => `
-      <p>A <b>2 v 2</b> skirmish puts you and a computer ally against two computer commanders. Online, the room's leader picks <b>1 v 1</b>, <b>2 v 2</b> (four players) or <b>2 of you vs computer</b>, and friends join with the room code.</p>
+      <p>A <b>2 v 2</b> skirmish puts you and a computer ally against two computer commanders. Online, the room's leader picks <b>1 v 1</b>, <b>2 v 2</b> (four players) or <b>2 v AI</b> (the two of you against two computer commanders), and friends join with the room code.</p>
       <h4>Allies</h4>
       <p>Your ally's units and structures show on your map and your minimap, and you see whatever they have uncovered. You cannot command your ally's forces, and your units never fire on them.</p>
       <h4>Winning</h4>
