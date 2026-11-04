@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.04', date: '4 November 2026', title: 'Smooth battle sound on iPhone', groups: [
+    ['Fixes', [
+      'Battle sound no longer crackles, skips or cuts out on iPhone during long, heavy fights. Every battle sound now goes through one mixer instead of building new audio pieces for each shot, so phones keep up and play as many sounds as a computer does.',
+    ]],
+  ] },
   { v: '2026.11.03.10', date: '3 November 2026', title: 'Two new songs, bigger Normal waves', groups: [
     ['New', [
       'Two new songs in the soundtrack: Airstrike and Roll.',
