@@ -791,17 +791,85 @@ const STRUCTURES = {
     m.set(66, 33, 12, '#ff4a30', M_GLOW);
     return m;
   },
-  helipad(pal) {
-    const m = new VModel(-2, -2, 50, 50, 10);
-    m.box(0, 0, 0, 48, 48, 2, '#5d5d57', M_ROUGH);
-    m.paintTop(0, 0, 48, 48, (x, y) => {
-      const r = Math.hypot(x + 0.5 - 24, y + 0.5 - 24);
-      if (r > 16 && r < 18.5) return C.yellow;
-      if ((x >= 17 && x < 20 || x >= 28 && x < 31) && y >= 15 && y < 33) return C.white;
-      if (x >= 20 && x < 28 && y >= 23 && y < 25) return C.white;
-      if (x === 0 || y === 0 || x === 47 || y === 47) return '#77776f';
-    });
-    for (const [x, y] of [[1, 1], [45, 1], [1, 45], [45, 45]]) m.box(x, y, 2, x + 2, y + 2, 4, pal.light, M_GLOW);
+  // Four landing pads, one in each quarter (centres 24 and 72), round a tower in the middle. The
+  // Allies get an open, bright, modern apron; the Soviets a sandbagged concrete fortress.
+  helipad(pal, faction) {
+    const m = new VModel(-2, -2, 98, 98, 40);
+    const centres = [[24, 24], [72, 24], [24, 72], [72, 72]];
+    const lane = (x, y) => x >= 44 && x < 52 || y >= 44 && y < 52;
+    if (faction === 'allies') {
+      m.box(0, 0, 0, 96, 96, 2, '#aeb4ba', M_ROUGH);
+      m.paintTop(0, 0, 96, 96, (x, y) => {
+        for (const [cx, cy] of centres) {
+          const dx = x + 0.5 - cx, dy = y + 0.5 - cy, r = Math.hypot(dx, dy);
+          if (r > 17 && r < 19) return pal.main;
+          if (r > 14.5 && r < 16) return C.white;
+          if (r < 14.5) {
+            if ((Math.abs(dx + 5) < 1.5 || Math.abs(dx - 5) < 1.5) && Math.abs(dy) < 8) return C.white;   // the H
+            if (Math.abs(dx) < 5 && Math.abs(dy) < 1.2) return C.white;
+            return pal.dark;
+          }
+        }
+        if (lane(x, y)) return (x + y) % 8 < 4 ? '#c9ced3' : '#b3b9bf';
+        if (x === 0 || y === 0 || x === 95 || y === 95) return pal.light;
+      });
+      for (let i = 0; i < 6; i++) for (const t of [45, 51]) {   // blue lane lights
+        m.box(4 + i * 15 + (i > 2 ? 12 : 0), t - 0.5 | 0, 2, 5 + i * 15 + (i > 2 ? 12 : 0), (t - 0.5 | 0) + 1, 3, pal.light, M_GLOW);
+        m.box(t - 0.5 | 0, 4 + i * 15 + (i > 2 ? 12 : 0), 2, (t - 0.5 | 0) + 1, 5 + i * 15 + (i > 2 ? 12 : 0), 3, pal.light, M_GLOW);
+      }
+      for (const [x, y] of [[0, 0], [90, 0], [0, 90], [90, 90]]) m.clear(x, y, 0, x + 6, y + 6, 8);   // clipped corners
+      for (const [x, y] of [[6, 6], [86, 6], [6, 86], [86, 86]]) m.box(x - 1, y - 1, 2, x + 1, y + 1, 4, pal.light, M_GLOW);
+      // Slim glass control tower with a radar dish.
+      m.cylZ(48, 48, 2, 15, 4, C.wall, M_MATTE);
+      m.cylZ(48, 48, 15, 21, 6.5, C.glass, M_GLASS);
+      m.cylZ(48, 48, 21, 23, 7.5, pal.main, M_METAL);
+      m.line(48, 48, 23, 48, 48, 31, C.steel, M_METAL);
+      m.box(42, 47, 29, 54, 49, 31, pal.light, M_METAL);   // radar bar
+      m.set(48, 48, 31, '#ff4a30', M_GLOW);
+      // Fuel tanks and a windsock mast.
+      m.cylZ(48, 10, 2, 9, 5, C.steel, M_METAL); m.cylZ(48, 86, 2, 9, 5, C.steel, M_METAL);
+      m.box(10, 46, 2, 12, 48, 18, C.steel, M_METAL); m.box(4, 46, 14, 10, 48, 17, '#e8742a', M_MATTE);
+    } else {
+      m.box(0, 0, 0, 96, 96, 3, '#4a4944', M_ROUGH);
+      m.paintTop(0, 0, 96, 96, (x, y) => {
+        for (const [cx, cy] of centres) {
+          const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+          if (Math.abs(dx) < 19 && Math.abs(dy) < 19) {
+            if (Math.abs(dx) > 17 || Math.abs(dy) > 17) return pal.light;   // square pad, red border
+            if ((Math.abs(dx + 6) < 1.8 || Math.abs(dx - 6) < 1.8) && Math.abs(dy) < 9) return C.white;   // the H
+            if (Math.abs(dx) < 6 && Math.abs(dy) < 1.6) return C.white;
+            return '#383733';
+          }
+        }
+        if (lane(x, y)) return ((x + y) >> 2) % 2 ? C.yellow : C.black;   // hazard-striped lanes
+      });
+      for (let y = 0; y < 96; y++) for (let x = 0; x < 96; x++) {         // sandbagged perimeter
+        if (x < 3 || y < 3 || x >= 93 || y >= 93) {
+          m.box(x, y, 3, x + 1, y + 1, 7, C.sand, M_ROUGH);
+          if ((x + (y % 2) * 2) % 4 === 0 || (y + (x % 2) * 2) % 4 === 0) m.paint(x, y, 3, x + 1, y + 1, 7, () => C.sandD);
+        }
+      }
+      m.clear(44, 0, 3, 52, 3, 8); m.clear(44, 93, 3, 52, 96, 8); m.clear(0, 44, 3, 3, 52, 8); m.clear(93, 44, 3, 96, 52, 8);   // gates
+      for (const [x, y] of [[0, 0], [90, 0], [0, 90], [90, 90]]) {      // floodlight towers
+        m.box(x, y, 6, x + 6, y + 6, 14, C.concD, M_MATTE);
+        m.line(x + 3, y + 3, 14, x + 3, y + 3, 24, C.steel, M_METAL);
+        m.box(x + 1, y + 1, 24, x + 6, y + 6, 26, pal.main, M_METAL); m.set(x + 3, y + 3, 26, C.glow, M_GLOW);
+      }
+      for (const [x0, y0, x1, y1] of [[44, 18, 52, 22], [44, 74, 52, 78], [18, 44, 22, 52], [74, 44, 78, 52]])
+        m.box(x0, y0, 3, x1, y1, 6, C.conc, M_MATTE);                   // blast walls between the pads
+      // Squat bunker tower with a red roof and a star.
+      m.box(41, 41, 3, 55, 55, 16, C.concD, M_MATTE);
+      m.paint(40, 55, 3, 56, 56, 18, (x, y, z) => (z >= 10 && z <= 12 && x % 4 < 2) ? C.black : undefined);   // gun slits
+      m.paint(55, 40, 3, 56, 56, 18, (x, y, z) => (z >= 10 && z <= 12 && y % 4 < 2) ? C.black : undefined);
+      m.box(39, 39, 16, 57, 57, 20, pal.main, M_METAL);
+      m.paintTop(39, 39, 57, 57, (x, y) => {
+        const dx = x + 0.5 - 48, dy = y + 0.5 - 48, a = Math.atan2(dy, dx) + Math.PI / 2, r = Math.hypot(dx, dy);
+        const k = Math.abs(((a / (Math.PI * 2 / 5)) % 1 + 1) % 1 - 0.5) * 2;
+        return r < 2 + 7.5 * k * k ? C.yellow : undefined;
+      });
+      m.line(48, 48, 22, 48, 48, 34, C.black); m.set(48, 48, 34, '#ff4a30', M_GLOW);
+      for (const [x, y] of [[9, 47], [9, 51], [85, 47], [85, 51]]) m.cylZ(x, y, 3, 8, 2.2, pal.dark, M_METAL);   // fuel drums
+    }
     return m;
   },
   airfield(pal) {

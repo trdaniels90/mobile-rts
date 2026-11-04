@@ -2346,6 +2346,8 @@ function padFor(u) {
 }
 // An Airfield holds AIRFIELD_SLOTS jets, parked two by two on the open asphalt beside the tower
 // and hangar (offsets from its corner). Jets cannot be built while every Airfield is full.
+// A Helicopter Base has four landing pads, one in each quarter (offsets from its centre).
+const HELIBASE_SPOTS = [[-24, -24], [24, -24], [-24, 24], [24, 24]];
 const AIRFIELD_SLOTS = 4, AIRFIELD_SPOTS = [[30, 12], [53, 12], [30, 36], [53, 36]];
 // Free parking for new aircraft from this producer: slots on its usable pads, less the aircraft
 // based there or anywhere else (in the air too) and those already in a queue. Infinity if uncapped.
@@ -2436,9 +2438,8 @@ function padSpot(pad, u) {
   let s;
   if (pad.type === 'airfield') s = k < AIRFIELD_SLOTS ? { x: pad.cx * CELL + AIRFIELD_SPOTS[k][0], y: pad.cy * CELL + AIRFIELD_SPOTS[k][1] }
     : { x: pad.cx * CELL + 14 + ((k - AIRFIELD_SLOTS) % 3) * 22, y: pad.cy * CELL + 62 + Math.floor((k - AIRFIELD_SLOTS) / 3) * 29 };
-  else if (k < 6) s = [{ x: pad.x, y: pad.y }, { x: pad.x + 36, y: pad.y - 4 }, { x: pad.x + 34, y: pad.y + 28 },
-    { x: pad.x - 36, y: pad.y - 4 }, { x: pad.x - 34, y: pad.y + 28 }, { x: pad.x, y: pad.y + 40 }][k];
-  else { const a = (k - 6) * 0.9 - 1.6, r = 72 + Math.floor((k - 6) / 7) * 34; s = { x: pad.x + Math.cos(a) * r, y: pad.y + Math.sin(a) * r }; }
+  else if (k < 4) s = { x: pad.x + HELIBASE_SPOTS[k][0], y: pad.y + HELIBASE_SPOTS[k][1] };   // the Helicopter Base's four pads
+  else { const a = (k - 4) * 0.9 - 1.6, r = 80 + Math.floor((k - 4) / 7) * 34; s = { x: pad.x + Math.cos(a) * r, y: pad.y + Math.sin(a) * r }; }   // the rest park on the ground round it
   s.x = Math.max(8, Math.min(WORLD - 8, s.x)); s.y = Math.max(8, Math.min(WORLD - 8, s.y));
   return s;
 }
