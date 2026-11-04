@@ -81,7 +81,10 @@ const Net = (() => {
     ws.onmessage = (m) => {
       let d;
       try { d = JSON.parse(m.data); } catch (_) { return; }
-      if (d.event === 'phx_reply' && d.ref === '1') { joined = true; while (queue.length) send(...queue.shift()); }
+      if (d.event === 'phx_reply' && d.ref === '1') {
+        if (d.payload && d.payload.status && d.payload.status !== 'ok') { if (!closed) { closed = true; clearInterval(beat); try { ws.close(); } catch (_) {} onMsg('signal-lost', {}); } return; }   // refused: not a room
+        joined = true; while (queue.length) send(...queue.shift());
+      }
       else if (d.event === 'broadcast' && d.payload) onMsg(d.payload.event, d.payload.payload || {});
     };
     ws.onclose = () => { clearInterval(beat); if (!closed) onMsg('signal-lost', {}); };
@@ -137,7 +140,10 @@ const Net = (() => {
     link.pc = pc;
     link.pending = [];
     pc.onicecandidate = (e) => { if (e.candidate && link && link.sig) link.sig.send('ice', { to: link.to, from: link.id, c: e.candidate.toJSON() }); };
-    pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' && link && link.pc === pc) lost(); };
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState !== 'failed' || !link || link.pc !== pc) return;
+      if (lobby && lobby.me === 'host' && !lobby.connected && !inBattle()) retryable(link); else lost();
+    };
     return pc;
   }
   async function remote(sdp) {
@@ -151,6 +157,21 @@ const Net = (() => {
   const myName = () => (typeof Account !== 'undefined' && Account.name) || 'Commander';
   const newId = () => Math.random().toString(36).slice(2, 10);
 
+  // An attempt that did not connect (a guest whose phone could not be reached, or who gave up): the
+  // host drops it and keeps the room open for the next try, instead of making the host start over.
+  function dropAttempt(L) {
+    clearTimeout(L.timer);
+    const dc = L.dc, pc = L.pc;
+    L.dc = null; L.pc = null; L.to = null; L.pending = [];
+    if (dc) { dc.onclose = null; dc.onopen = null; dc.onmessage = null; try { dc.close(); } catch (_) {} }
+    if (pc) { pc.onicecandidate = null; pc.onconnectionstatechange = null; try { pc.close(); } catch (_) {} }
+  }
+  function retryable(L) {
+    dropAttempt(L);
+    if (lobby) { lobby.status = 'waiting'; lobby.gid = null; }
+    listener();
+  }
+
   // The host listens on its room code, for the guest's first hello and for it coming back.
   function listen() {
     link = { id: newId(), to: null };
@@ -159,9 +180,14 @@ const Net = (() => {
       if (link !== L) return;
       if (ev === 'signal-lost') { if (!lobby.connected && !inBattle()) fail('No connection. Check it and try again.'); else if (inBattle()) setTimeout(() => { if (link === L && !lobby.connected) { close(); listen(); } }, 3000); return; }
       if (ev === 'hello') {
-        if (lobby.gid && p.gid !== lobby.gid) { L.sig.send('full', { to: p.from }); return; }
         if (p.v !== VERSION) { L.sig.send('version', { to: p.from, v: VERSION }); return; }
-        if (L.to) return;
+        if (L.to === p.from) return;   // the same guest knocking again
+        // Someone else while a guest is connected (or the battle is on): the room is taken. While an
+        // attempt has not connected, a new hello (the guest trying again, perhaps from a reloaded
+        // page) replaces it.
+        if ((lobby.connected || inBattle()) && lobby.gid && p.gid !== lobby.gid) { L.sig.send('full', { to: p.from }); return; }
+        if (L.to && lobby.connected) return;
+        if (L.to) dropAttempt(L);
         L.to = p.from; lobby.gid = p.gid;
         lobby.status = 'connecting'; listener();
         const pc = peer();
@@ -169,7 +195,7 @@ const Net = (() => {
         await pc.setLocalDescription(await pc.createOffer());
         L.sig.send('offer', { to: L.to, from: L.id, sdp: pc.localDescription.toJSON() });
         // No connection after all: listen again for another try.
-        L.timer = setTimeout(() => { if (link === L && !lobby.connected) { if (inBattle()) { close(); listen(); } else fail('Could not connect to your friend. Try again, or try another network.'); } }, CONNECT_TIMEOUT);
+        L.timer = setTimeout(() => { if (link === L && !lobby.connected) { if (inBattle()) { close(); listen(); } else retryable(L); } }, CONNECT_TIMEOUT);
       } else if (p.to === L.id && p.from === L.to) {
         if (ev === 'answer') await remote(p.sdp).catch(() => {});
         else if (ev === 'ice') candidate(p.c);
@@ -192,11 +218,16 @@ const Net = (() => {
         lobby.status = 'connecting'; listener();
         const pc = peer();
         pc.ondatachannel = (e) => wire(e.channel);
+        for (const e of L.early || []) if (e.from === p.from) link.pending.push(e.c);   // sent before the offer arrived
+        L.early = null;
         await remote(p.sdp).catch(() => {});
         await pc.setLocalDescription(await pc.createAnswer());
         L.sig.send('answer', { to: L.to, from: L.id, sdp: pc.localDescription.toJSON() });
         L.timer = setTimeout(() => { if (link === L && !lobby.connected) { if (inBattle()) { close(); knock(); } else fail('Could not connect to your friend. Try again, or try another network.'); } }, CONNECT_TIMEOUT);
-      } else if (ev === 'ice' && p.from === L.to) candidate(p.c);
+      } else if (ev === 'ice') {
+        if (L.to === null) (L.early = L.early || []).push({ from: p.from, c: p.c });
+        else if (p.from === L.to) candidate(p.c);
+      }
     });
     const hello = () => L.sig.send('hello', { from: L.id, gid: lobby.gid, name: myName(), v: VERSION });
     hello();

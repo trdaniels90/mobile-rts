@@ -215,6 +215,12 @@ share globals. Read this file first; the commit history explains every change in
   (average, worst, share over 250 and 500 ms) and per minute of battle (ping, worst, this phone's real
   frames per second, frames over 100 ms, units alive) in `stats.net`. High ping with low host fps in big
   fights means the host phone is overloaded; high ping at any battle size means the route between phones.
+- **Joining** (net.js `listen`, `knock`, `dropAttempt`, `retryable`; after 2026.11.04.1, not released yet):
+  a connection attempt that fails before the lobby connects no longer kills the host's room. The host drops
+  it and keeps listening, and a new hello replaces a stale attempt (before, the retry got "already has two
+  players", so the host had to start a new room). The guest also keeps host ICE candidates that arrive
+  before the offer. `tools/sim`-style check: a ghost guest that never answers, then a real guest.
+  Still open: only STUN is configured, so some mobile networks may need a TURN relay.
 - Added after PvP match 67484441 froze at about 22 minutes on both phones (stuck picture, no message,
   shortly after a big Auto Attack). Its cause is still unknown: look at `stats.errors` after the next one.
 
