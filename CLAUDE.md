@@ -204,13 +204,17 @@ share globals. Read this file first; the commit history explains every change in
 - Tested with throwaway scripts: hidden/exposed/hidden again, and an online host/guest pair (the guest
   has no entry for a hidden host Pillbox, gets it when exposed, keeps `exposed` current afterwards).
 
-## Errors in a match (after 2026.11.04, not released yet)
+## Errors and ping in a match (2026.11.04.1)
 
 - The main loop (`frame` in ui.js) runs each part (update or `guestStep`, `hostTick`, draw, sidebar,
   radar) inside `guard`, and asks for the next frame first, so an error no longer freezes the game.
   Errors go to `Report.oops(where, e)`, with uncaught `error` and `unhandledrejection` events too: up to 6
   distinct ones per match, with a repeat count, end up in the match's `stats.errors` (sent with the
   heartbeat and the result). Find them with `select id, stats->'errors' from matches where stats ? 'errors'`.
+- **Ping** (net.js `notePing`, `noteFrame`, `netStats`): each phone records its ping over the battle
+  (average, worst, share over 250 and 500 ms) and per minute of battle (ping, worst, this phone's real
+  frames per second, frames over 100 ms, units alive) in `stats.net`. High ping with low host fps in big
+  fights means the host phone is overloaded; high ping at any battle size means the route between phones.
 - Added after PvP match 67484441 froze at about 22 minutes on both phones (stuck picture, no message,
   shortly after a big Auto Attack). Its cause is still unknown: look at `stats.errors` after the next one.
 

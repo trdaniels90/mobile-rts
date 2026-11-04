@@ -119,6 +119,7 @@ const Report = (() => {
     const out = { player: G.me, teams: G.teams.map((t) => ({ faction: t.faction, ai: t.isAI, stats: t.stats })),
       log: { samples: G.log.samples, events: G.log.events, fallen, alive, waves: G.log.waves }, names };
     if (errs.length) out.errors = errs;
+    try { const n = typeof Net !== 'undefined' && Net.netStats(); if (n) out.net = n; } catch (_) {}
     while (JSON.stringify(out).length > 90000 && out.log.samples.length > 40) out.log.samples = out.log.samples.filter((_, i) => i % 2 === 0);   // a very long game: a coarser graph
     if (JSON.stringify(out).length > 90000) delete out.log.samples;
     return out;

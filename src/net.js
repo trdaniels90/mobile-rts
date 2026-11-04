@@ -24,6 +24,42 @@ const Net = (() => {
   let lobby = null;
   let listener = () => {};     // the online page's redraw
   let heard = 0, rtt = 0, resyncs = 0;      // when the other phone was last heard from; ping time in ms
+  // Connection quality for the match report (Report adds netStats() to the stats): the ping over the
+  // whole battle and minute by minute, beside this phone's frame rate and the number of units alive,
+  // so high ping can be told apart from a phone struggling in a big fight. Starts afresh with each G.
+  let pl = null;
+  function plFor() {
+    if (!pl || pl.g !== G) pl = { g: G, n: 0, sum: 0, max: 0, slow: 0, bad: 0, min: [] };
+    return pl;
+  }
+  function plMinute() {
+    const p = plFor(), i = Math.min(120, Math.floor(G.t / 60));
+    return p.min[i] || (p.min[i] = { p: 0, c: 0, max: 0, f: 0, ft: 0, u: 0 });
+  }
+  function notePing(ms) {
+    if (!inBattle() || G.hold) return;
+    const p = plFor(), m = plMinute();
+    p.n++; p.sum += ms; p.max = Math.max(p.max, ms);
+    if (ms > 250) p.slow++;
+    if (ms > 500) p.bad++;
+    m.p += ms; m.c++; m.max = Math.max(m.max, ms);
+    if (!m.u) m.u = G.entities.filter((e) => e.alive && e.kind === 'unit').length;
+  }
+  let lastFrameAt = 0;
+  function noteFrame() {   // real time between frames (the game's own dt is capped)
+    const now = performance.now(), gap = (now - lastFrameAt) / 1000;
+    lastFrameAt = now;
+    if (!inBattle() || G.hold || gap > 1) return;   // a gap over a second is a pause or the phone asleep
+    const m = plMinute(); m.f++; m.ft += gap;
+    if (gap > 0.1) m.long = (m.long || 0) + 1;
+  }
+  function netStats() {
+    if (!pl || pl.g !== G || !pl.n) return null;
+    return { role, avg: Math.round(pl.sum / pl.n), max: pl.max, n: pl.n, over250: +(pl.slow / pl.n).toFixed(3), over500: +(pl.bad / pl.n).toFixed(3), resyncs,
+      // Per minute of battle: average and worst ping (ms), this phone's frames per second, frames over
+      // 100 ms (stutters), units alive.
+      minutes: pl.min.map((m, i) => m && { m: i, ping: m.c ? Math.round(m.p / m.c) : null, max: m.max, fps: m.ft ? Math.round(m.f / m.ft) : null, long: m.long || 0, units: m.u }).filter(Boolean) };
+  }
   let wait = null;             // { since, peerAway } while a battle waits for the other player
   const peerSide = () => (role === 'host' ? 1 : 0);   // the host plays side 0, the guest side 1
   const mySide = () => (role === 'host' ? 0 : 1);
@@ -307,7 +343,7 @@ const Net = (() => {
 
   function onMessage(m) {
     if (m.k === 'ping') { send({ k: 'pong', t: m.t }); return; }
-    if (m.k === 'pong') { rtt = Math.round(performance.now() - m.t); return; }
+    if (m.k === 'pong') { rtt = Math.round(performance.now() - m.t); notePing(rtt); return; }
     if (m.k === 'hi') {
       if (lobby.me === 'host') lobby.guest = { name: String(m.name || 'Commander').slice(0, 20) };
       else lobby.host = Object.assign(lobby.host || { faction: 'allies' }, { name: String(m.name || 'Commander').slice(0, 20) });
@@ -460,6 +496,7 @@ const Net = (() => {
     return s;
   }
   function hostTick(dt) {
+    if (role === 'host') noteFrame(dt);
     if (role !== 'host' || !link || !link.dc) return;
     if ((snapT -= dt) > 0) return;
     snapT = SNAP;
@@ -591,6 +628,7 @@ const Net = (() => {
   // Each frame on the guest: glide toward the latest positions and run the eye candy.
   function guestStep(dt) {
     if (!G || G.over || G.hold) return;
+    noteFrame(dt);
     G.t += dt;
     const k = 1 - Math.exp(-dt * 14);
     for (const x of G.entities) {
@@ -612,7 +650,7 @@ const Net = (() => {
   }
 
   return {
-    host, join, leave, swapSides, setMap, startBattle, surrender, rematch, hostTick, guestStep, hookHost,
+    host, join, leave, swapSides, setMap, startBattle, surrender, rematch, hostTick, guestStep, hookHost, netStats,
     get role() { return role; }, get lobby() { return lobby; }, get waiting() { return !!wait; },
     // For tests: drop the connection without a word, and a shorter wait.
     test: { drop() { const L = link; if (L) { try { L.pc.close(); } catch (_) {} } lost(); }, waitLimit(s) { WAIT_LIMIT = s; }, get resyncs() { return resyncs; } },

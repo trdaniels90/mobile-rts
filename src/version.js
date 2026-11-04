@@ -4,6 +4,14 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.04.1', date: '4 November 2026', title: 'No more frozen battles', groups: [
+    ['Fixes', [
+      'An error in the game no longer freezes the battle: the game carries on instead of the picture getting stuck. This could stop an online battle on both phones at once. Both modes.',
+    ]],
+    ['Changes', [
+      'Matches now record any errors, and online battles record the ping and how smoothly each phone ran, so problems testers report can be tracked down.',
+    ]],
+  ] },
   { v: '2026.11.04', date: '4 November 2026', title: 'Smooth battle sound on iPhone', groups: [
     ['Fixes', [
       'Battle sound no longer crackles, skips or cuts out on iPhone during long, heavy fights. Every battle sound now goes through one mixer instead of building new audio pieces for each shot, so phones keep up and play as many sounds as a computer does.',
