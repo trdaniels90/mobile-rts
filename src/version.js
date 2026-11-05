@@ -4,6 +4,20 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.05.5', date: '5 November 2026', title: 'New looks for Soviet bases, aircraft and power plants', groups: [
+    ['New', [
+      'Soviet buildings have a Cold War look: concrete panel blocks, flat roofs with big red stars, banners and striped smokestacks.',
+      'The Soviet Power Plants are now nuclear stations, with reactor blocks and a tall vent stack in a steel frame. The Allied Power Plants are coal-fired, with brick boiler houses, coal heaps and chimneys that pour out dark smoke.',
+      'New aircraft: the MiG is now a MiG-23, the Allied attack helicopter is a Longbow Apache with its radar dome, and the Hind is a Hind-D.',
+      'The Airfield is bigger (4 x 3), with four marked parking stands for its jets.',
+      'Tank turrets and the Gun Turret kick back when they fire. Heavy Tanks fire their two barrels one after the other.',
+    ]],
+    ['Fixes', [
+      'Online and team battles: tank shells fly smoothly and every muzzle flash shows (before, shells jumped along and some flashes were missed).',
+      'Mammoth Tank rockets and helicopter missiles no longer leave a white box where they hit, and they do their blast damage around the target again.',
+      'In team battles, a teammate in the second colour now sees their whole sidebar in their own colour.',
+    ]],
+  ] },
   { v: '2026.11.05.4', date: '5 November 2026', title: 'Co-op leaderboard', groups: [
     ['New', [
       'Co-op leaderboard: win an online co-op battle and enter your name in the debrief. The new Co-op tab on the leaderboard shows the five best teams at each difficulty, with both teammates\' names.',
