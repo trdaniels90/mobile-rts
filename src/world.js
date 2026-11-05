@@ -2967,16 +2967,7 @@ function updateBuilding(b, dt) {
       else { b.repairing = false; notify(team, 'funds', 'Insufficient funds', 30); }
     }
   }
-  // Steam from power plants. (Fire and smoke on damaged structures: structureDamageFx.)
-  b.smokeT -= dt;
-  if (b.smokeT <= 0) {
-    b.smokeT = 0.18 + Math.random() * 0.2;
-    // Smoke from each stack (plantStacks in models.js): pale from the Soviet reactors' vents, darker coal smoke from the Allied chimneys.
-    if ((b.type === 'apower' || b.type === 'power') && b.buildT >= 1) {
-      const coal = b.faction !== 'soviets', big = b.type === 'apower';
-      for (const [tx, ty, h] of plantStacks(b.type, b.faction)) if (Math.random() < (big ? 0.5 : 0.6)) G.effects.push({ type: 'smoke', x: b.cx * CELL + tx, y: b.cy * CELL + ty - h * VK, vy: -16, vx: 6, r: (big ? 3 : 2.5) * (coal ? 1.5 : 1), t: 0, life: coal ? 2.8 : 1.8, alpha: coal ? 0.95 : 0.35, color: coal ? '#3a3733' : '#c9c7c0' });
-    }
-  }
+  // (Power plant smoke: plantSmoke. Fire and smoke on damaged structures: structureDamageFx.)
   if (b.def.camo) b.exposed = b.buildT < 1 || (b.revealT = Math.max(0, (b.revealT || 0) - dt)) > 0;   // seen while going up, then only when it gives itself away
   const w = b.def.weapon;
   if (!w || b.buildT < 1) return;
@@ -3460,10 +3451,29 @@ function updateEffects(dt) {
     if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
   }
   structureDamageFx(dt);
+  plantSmoke(dt);
   updateSamPits(dt);
   for (let i = n0; i < G.effects.length; i++) G.effects[i].sent = true;
   G.inFx = false;
   G.effects = G.effects.filter((fx) => fx.t < fx.life);
+}
+// Power plant smoke, out of each stack (plantStacks in models.js). The Allied coal chimneys send up a
+// steady dark plume that rises, slows, spreads, drifts with the wind and thins away; the Soviet
+// reactor vents give a little pale vapour. It runs in the effects pass, so each phone makes its own
+// and nothing goes over the network, and only for plants this player has uncovered.
+function plantSmoke(dt) {
+  if (G.me < 0 || !G.seen) return;   // the game server draws nothing
+  for (const b of G.entities) {
+    if (!b.alive || b.kind !== 'bld' || (b.type !== 'power' && b.type !== 'apower') || !(b.buildT >= 1) || !G.seen[idx(b.cx, b.cy)]) continue;
+    const coal = b.faction !== 'soviets', big = b.type === 'apower';
+    if ((b.plumeT = (b.plumeT || 0) - dt) > 0) continue;
+    b.plumeT = coal ? 0.14 + Math.random() * 0.05 : 0.3 + Math.random() * 0.2;
+    for (const [tx, ty, h] of plantStacks(b.type, b.faction)) {
+      const x = b.cx * CELL + tx + (Math.random() - 0.5) * 1.5, y = b.cy * CELL + ty - h * VK;
+      if (coal) G.effects.push({ type: 'smoke', x, y, r: big ? 5 : 4.2, t: 0, life: 4.2 + Math.random() * 1, alpha: 0.85, color: '#2a2724', vy: -17 - Math.random() * 4, vx: (Math.random() - 0.5) * 3, drag: 0.45 });
+      else if (Math.random() < 0.6) G.effects.push({ type: 'smoke', x, y, r: big ? 3 : 2.5, t: 0, life: 1.8, alpha: 0.35, color: '#c9c7c0', vy: -16, vx: 6 });
+    }
+  }
 }
 // Damaged structures burn and smoke out of the holes in their damaged model (damageSpots) and
 // shed pieces: a shower when they reach a new stage of damage, a piece or two when hit again,
