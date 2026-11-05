@@ -2127,10 +2127,8 @@ function checkStuck(u, dt) {
   else if (u.stuckN >= 6) { u.dest = null; u.path = null; u.stuckN = 0; }
 }
 
-// Ore trucks run entirely on their own. They work the field nearest their refinery until it is down to 1/8, then
-// the next nearest, leaving worked-out fields to regrow to 6/8 (see pickField). Within the
-// field they go for the richest cells first.
-// How far a field reaches: its original ore, plus whatever it has spread into since.
+// Ore trucks run entirely on their own. Like the classic harvesters, a truck stays on its field and mines it
+// down to bare ground (richest cells first), then moves to the next field (see pickField).
 const fieldReach = (f) => f.r + 0.8 + (f.ext || 0);
 const inFieldCell = (f, x, y) => Math.hypot(x - f.cx, y - f.cy) <= fieldReach(f);
 function fieldValue(f) {
@@ -2156,38 +2154,47 @@ function walkDistances(start) {
   }
   return dist;
 }
-// A truck works the field nearest its refinery (by road, round the lakes, not as the crow flies)
-// and stays on it until it is down to 1/8 of its full ore. The field is then resting: no truck
-// picks it again until it has regrown to 6/8, and the trucks move to the next nearest field.
-// There is no limit on trucks per field. Only if every field is resting do trucks go back to the
-// one with the most ore, so the economy never stalls.
-const FIELD_LEAVE = 1 / 8;   // a field this empty (of its full size) is left to regrow
-const FIELD_RETURN = 6 / 8;  // and is not used again until it is back to this
-const FIELD_EMPTY = 150;     // less ore than this on a field: not worth driving to
-// Called every couple of seconds from growOre: keeps each field's full size and resting state.
-function updateFieldRest(f) {
-  const v = fieldValue(f);
-  f.max = Math.max(f.max || 0, v);
-  if (f.gem) { if (v < FIELD_EMPTY) f.rest = true; return; }   // gems never grow back
-  if (!f.rest && v <= f.max * FIELD_LEAVE) f.rest = true;
-  else if (f.rest && v >= f.max * FIELD_RETURN) f.rest = false;
+// A truck works one field until it is almost bare (FIELD_EMPTY), then picks the cheapest field to drive to from
+// its refinery: the distance by road (round the lakes), counted FOE_SIDE times over for a field nearer an enemy
+// building than to its own side's, plus FIELD_CROWD steps for each truck (of any side) already working it.
+// So trucks spread over the fields at home and only cross to the enemy's side once home is mined out.
+// (Before 2026.11.05.1 a field left at 1/8 rested until it regrew to 6/8, which sent half the trucks across the
+// map while home fields held thousands of ore.) If every field is nearly bare, the richest one.
+const FIELD_EMPTY = 300;   // less ore than this on a field: move on
+const FOE_SIDE = 3;
+const FIELD_CROWD = 12;
+// Called every couple of seconds from growOre: keeps each field's full size (for the stats).
+function updateFieldRest(f) { f.max = Math.max(f.max || 0, fieldValue(f)); }
+function foeSideField(f, team) {
+  let own = Infinity, foe = Infinity;
+  for (const b of G.entities) {
+    if (!b.alive || b.kind !== 'bld') continue;
+    const d = Math.hypot(b.cx + b.w / 2 - f.cx, b.cy + b.h / 2 - f.cy);
+    if (hostile(b.team, team)) { if (d < foe) foe = d; } else if (d < own) own = d;
+  }
+  return foe < own;
 }
 function pickField(u) {
-  if (u.field && !u.field.rest && fieldValue(u.field) > 0) { updateFieldRest(u.field); if (!u.field.rest) return u.field; }
+  if (u.field && fieldValue(u.field) >= FIELD_EMPTY) return u.field;
   const ref = nearestOwn(u, 'refinery');
   const walk = walkDistances(cellOfPos(ref ? dockPoint(ref).x : u.x, ref ? dockPoint(ref).y : u.y));
-  let best = null, bd = Infinity, rich = null, rv = 0;
+  const crowd = new Map();
+  for (const e of G.entities) if (e.alive && e !== u && e.def.harvester && e.field) crowd.set(e.field, (crowd.get(e.field) || 0) + 1);
+  let best = null, bc = Infinity, rich = null, rv = 0;
   for (const f of G.oreFields) {
-    updateFieldRest(f);
     const v = fieldValue(f);
-    if (v < FIELD_EMPTY) continue;
-    if (f.rest) { if (v > rv) { rv = v; rich = f; } continue; }
+    if (v <= 0) continue;
+    if (v < FIELD_EMPTY) { if (v > rv) { rv = v; rich = f; } continue; }
     const R = fieldReach(f);
+    let w = Infinity;
     for (let y = Math.floor(f.cy - R); y <= f.cy + R; y++) for (let x = Math.floor(f.cx - R); x <= f.cx + R; x++) {
       if (!inMap(x, y) || !inFieldCell(f, x, y)) continue;
-      const w = walk[idx(x, y)];
-      if (w >= 0 && w < bd) { bd = w; best = f; }
+      const d = walk[idx(x, y)];
+      if (d >= 0 && d < w) w = d;
     }
+    if (w === Infinity) continue;
+    const cost = w * (foeSideField(f, u.team) ? FOE_SIDE : 1) + (crowd.get(f) || 0) * FIELD_CROWD;
+    if (cost < bc) { bc = cost; best = f; }
   }
   return best || rich;
 }
