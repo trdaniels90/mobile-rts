@@ -19,7 +19,12 @@ primary_region = 'dfw'   # Dallas, Texas: chosen by the owner (players in US Cen
     soft_limit = 200
     hard_limit = 250
 
+# A dedicated CPU: a shared one is held to 6.25% of a core once its short burst allowance is spent
+# (it starts at 5 s each time the machine wakes), and a 4-sided battle needs about a third of a core
+# by mid-game, so battles turned into a slideshow. Billed only while awake (auto_stop above).
+[env]
+  CPU_KIND = 'performance-1x'   # reported to the stats page; keep it in step with size below
+
 [[vm]]
-  memory = '512mb'
-  cpu_kind = 'shared'
-  cpus = 1
+  size = 'performance-1x'
+  memory = '2gb'

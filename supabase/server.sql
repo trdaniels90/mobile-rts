@@ -12,7 +12,7 @@ alter table public.server_secret enable row level security;
 create table if not exists public.server_status (
   id int primary key default 1 check (id = 1),
   version text, started_at timestamptz, last_seen timestamptz,
-  rooms int, battles int, players int, mem_mb int, step_ms real, step_max_ms real);
+  rooms int, battles int, players int, mem_mb int, step_ms real, step_max_ms real, cpu_pct real, cpu text);
 alter table public.server_status enable row level security;
 
 create table if not exists public.server_battles (
@@ -26,12 +26,12 @@ create or replace function public.server_beat(p_token text, p jsonb)
 returns void language plpgsql security definer set search_path = '' as $$
 begin
   if not public.server_token_ok(p_token) then raise exception 'bad token'; end if;
-  insert into public.server_status as s (id, version, started_at, last_seen, rooms, battles, players, mem_mb, step_ms, step_max_ms)
+  insert into public.server_status as s (id, version, started_at, last_seen, rooms, battles, players, mem_mb, step_ms, step_max_ms, cpu_pct, cpu)
   values (1, p->>'version', (p->>'started_at')::timestamptz, now(), (p->>'rooms')::int, (p->>'battles')::int,
-          (p->>'players')::int, (p->>'mem_mb')::int, (p->>'step_ms')::real, (p->>'step_max_ms')::real)
+          (p->>'players')::int, (p->>'mem_mb')::int, (p->>'step_ms')::real, (p->>'step_max_ms')::real, (p->>'cpu_pct')::real, p->>'cpu')
   on conflict (id) do update set version = excluded.version, started_at = excluded.started_at, last_seen = now(),
     rooms = excluded.rooms, battles = excluded.battles, players = excluded.players, mem_mb = excluded.mem_mb,
-    step_ms = excluded.step_ms, step_max_ms = excluded.step_max_ms;
+    step_ms = excluded.step_ms, step_max_ms = excluded.step_max_ms, cpu_pct = excluded.cpu_pct, cpu = excluded.cpu;
 end $$;
 
 create or replace function public.server_battle(p_token text, p jsonb)

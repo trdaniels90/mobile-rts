@@ -43,6 +43,7 @@ const log = (...a) => console.log(new Date().toISOString(), ...a);
 // row per battle (when it starts and when it ends). Only with the SERVER_TOKEN secret set (Fly secret);
 // without it (tests, a local run) nothing is sent.
 const STARTED = new Date().toISOString();
+const CPU_KIND = process.env.CPU_KIND || null;   // the machine size, as Fly names it
 const SUPA = { url: process.env.SUPABASE_URL || 'https://yorrgemlhoxbxvyvzcwe.supabase.co/',
   key: process.env.SUPABASE_KEY || 'sb_publishable_FkCzdcgsEyqNy_UwmajBiQ_kp8V2Vi6', token: process.env.SERVER_TOKEN || '' };
 function rpc(fn, p) {
@@ -55,12 +56,21 @@ function rpc(fn, p) {
 }
 // Step times over the last minute, every battle together (for the status beat).
 const stepStat = { n: 0, ms: 0, max: 0 };
+// The whole process's CPU use since the last beat, in % of one core (Fly limits a shared CPU to 6.25%).
+let cpuMark = { at: process.hrtime.bigint(), use: process.cpuUsage() };
+function cpuPct(mark) {
+  const now = process.hrtime.bigint(), use = process.cpuUsage(mark.use);
+  const wall = Number(now - mark.at) / 1000;   // microseconds
+  return wall > 0 ? +((use.user + use.system) / wall * 100).toFixed(1) : null;
+}
 function beat() {
   const battles = [...rooms.values()].filter((r) => r.phase === 'battle');
   const players = [...rooms.values()].reduce((n, r) => n + r.seats.filter((s) => s.ws).length, 0);
   const p = { version: VERSION, started_at: STARTED, rooms: rooms.size, battles: battles.length, players,
     mem_mb: Math.round(process.memoryUsage().rss / 1048576),
-    step_ms: stepStat.n ? +(stepStat.ms / stepStat.n).toFixed(2) : null, step_max_ms: stepStat.n ? +stepStat.max.toFixed(1) : null };
+    step_ms: stepStat.n ? +(stepStat.ms / stepStat.n).toFixed(2) : null, step_max_ms: stepStat.n ? +stepStat.max.toFixed(1) : null,
+    cpu_pct: cpuPct(cpuMark), cpu: CPU_KIND };
+  cpuMark = { at: process.hrtime.bigint(), use: process.cpuUsage() };
   stepStat.n = 0; stepStat.ms = 0; stepStat.max = 0;
   return rpc('server_beat', p);
 }
@@ -71,7 +81,8 @@ function reportBattle(R, how, winner) {
   const G = R.G, secs = Math.max(1, (Date.now() - B.t0) / 1000);
   const perf = { steps: B.steps, step_ms: B.steps ? +(B.stepMs / B.steps).toFixed(2) : null, step_max_ms: +B.stepMax.toFixed(1),
     slow_steps: B.slow, peak_units: B.peak, snap_kb_s: +(B.bytes / 1024 / secs / Math.max(1, B.seats)).toFixed(1),
-    snap_max_kb: +(B.snapMax / 1024).toFixed(1), held_s: Math.round(B.heldMs / 1000) };
+    snap_max_kb: +(B.snapMax / 1024).toFixed(1), held_s: Math.round(B.heldMs / 1000),
+    cpu_pct: cpuPct(B.cpu), cpu_peak_pct: B.cpuPeak, cpu: CPU_KIND };
   const players = B.sides.map((x, i) => {
     const s = R.seats.find((o) => o.side === i);
     return { side: i, ally: x.ally, faction: x.faction, name: x.ai ? null : x.name, ai: !!x.ai, left: !!(s && s.left), took_over: !x.ai && !!(G && G.teams[i] && G.teams[i].isAI) };
@@ -188,7 +199,8 @@ function start(R) {
   R.seats.forEach((s) => { s.side = s.slot; s.peer = NetCore.peer(s.side); s.away = false; s.left = false; });
   R.phase = 'battle'; R.snapT = 0; R.waitSince = 0; R.held = false; R.last = Date.now();
   R.battle = { id: uuid(), at: new Date().toISOString(), t0: Date.now(), map: R.map, diff, sides, seats: R.seats.length,
-    steps: 0, stepMs: 0, stepMax: 0, slow: 0, peak: 0, bytes: 0, snapMax: 0, heldMs: 0, errors: [] };
+    steps: 0, stepMs: 0, stepMax: 0, slow: 0, peak: 0, bytes: 0, snapMax: 0, heldMs: 0, errors: [],
+    cpu: { at: process.hrtime.bigint(), use: process.cpuUsage() }, cpuMin: { at: process.hrtime.bigint(), use: process.cpuUsage() }, cpuPeak: 0 };
   reportBattle(R);
   R.seats.forEach((s) => send(s.ws, { k: 'start', seed, faction: sides[0].faction, match, map: R.map, side: s.side, sides, mode: R.mode, diff }));
   clearInterval(R.timer);
@@ -267,6 +279,10 @@ function tick(R) {
   if (B) {
     B.steps++; B.stepMs += ms; if (ms > B.stepMax) B.stepMax = ms; if (ms > STEP * 1000) B.slow++;
     if (B.steps % 30 === 0 && R.G) { let n = 0; for (const e of R.G.entities) if (e.alive) n++; if (n > B.peak) B.peak = n; }
+    if (B.steps % 1800 === 0) {   // about a minute: the busiest minute's CPU use
+      const c = cpuPct(B.cpuMin); if (c > B.cpuPeak) B.cpuPeak = c;
+      B.cpuMin = { at: process.hrtime.bigint(), use: process.cpuUsage() };
+    }
   }
   if ((R.snapT -= STEP * SPEED) <= 0) {
     R.snapT = SNAP;

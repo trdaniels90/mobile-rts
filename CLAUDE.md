@@ -241,6 +241,10 @@ share globals. Read this file first; the commit history explains every change in
 - **Phones:** `net.js` tries `SERVER` (`wss://red-horizon-rts.fly.dev`, `?server=<url>` to override,
   `?server=off`) for 7 s on Host or Join; failing that, or on a version mismatch, 1 v 1 goes phone to phone
   as before. On the server both phones are guests (`role === 'guest'`), `lobby.via === 'server'`.
+- **Machine size:** `performance-1x` (dedicated CPU, 2 GB) since 2026-11-05. On `shared-cpu-1x` a co-op battle
+  (match 81ea382d, ~470 units) became a slideshow: a shared CPU is held to 6.25% of a core once its burst balance
+  (5 s at each wake) is spent, and a 4-sided battle needs about a third of a core by mid-game. Billed only while
+  awake. The beat and each battle's `perf` report CPU use (`cpu_pct`, `cpu_peak_pct`, machine in `CPU_KIND`).
 - **Fly.io:** app `red-horizon-rts` (change it in `fly.toml` and `SERVER` together if taken), one machine
   (rooms are in memory), sleeps when idle and wakes on the next connection. Health: `GET /` returns the
   version and room count.
