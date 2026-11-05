@@ -4,6 +4,16 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.05.1', date: '5 November 2026', title: 'Beaten, not stuck; smarter Ore Trucks', groups: [
+    ['New', [
+      'Team battles: if your side is beaten while your ally fights on, choose Keep watching (the whole map is shown, and if your ally wins, you win too) or Debrief to end your game now as a loss. Before, the battle just carried on with nothing to command.',
+      'Send an Ore Truck to an ore or gem field and it keeps going back there until the field is empty.',
+    ]],
+    ['Fixes', [
+      'Ore Trucks now mine the fields near your base down to bare ground before driving anywhere else, and prefer fields on your own side of the map, so they no longer wander into enemy territory.',
+      'A player who surrenders in a team battle now gets the full graphs in their debrief.',
+    ]],
+  ] },
   { v: '2026.11.05', date: '5 November 2026', title: 'Smoother online battles', groups: [
     ['Fixes', [
       'Online battles on the game server no longer slow to a slideshow as the armies grow: the server now has a full processor to itself.',
