@@ -581,10 +581,10 @@ function drawUnit(g, u, t) {
     }
     return;
   }
-  // A tank gun firing rocks the whole tank back a pixel, the turret a little further (recoil).
+  // A tank gun firing kicks the turret back along the barrel (recoil); the hull stays put.
   const rk = u.def.weapon && u.def.weapon.proj === 'shell' && !isAirborne(u) ? recoil(u) : 0;
-  const hk = rk * 1.0, kick = rk * (u.type === 'mammoth' || u.type === 'htank' ? 2 : 1.6);
-  blit(g, hullSprite(u, pal), u.x - Math.cos(u.tface) * hk, u.y - Math.sin(u.tface) * hk * 0.6);
+  const kick = rk * (u.type === 'mammoth' || u.type === 'htank' ? 2 : 1.6);
+  blit(g, hullSprite(u, pal), u.x, u.y);
   const ts = turretSprite(u, pal);
   if (ts) {
     const z = turretZ(u.def) * VK, off = u.def.draw === 'jeep' ? -3 : -1;
