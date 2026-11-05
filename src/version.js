@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.05', date: '5 November 2026', title: 'Smoother online battles', groups: [
+    ['Fixes', [
+      'Online battles on the game server no longer slow to a slideshow as the armies grow: the server now has a full processor to itself.',
+      'If every player leaves an online battle, it now ends with no winner, rather than handing a win to one team.',
+    ]],
+  ] },
   { v: '2026.11.04.5', date: '4 November 2026', title: 'Ally button and team colours', groups: [
     ['New', [
       'Team battles: an ALLY button next to Auto Attack sends your idle ground units to guard an ally\'s base, and new units follow. They fight raiders there. Press ALLY again to stop sending units; RETURN brings them home.',
