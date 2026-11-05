@@ -371,31 +371,41 @@ function hindModel(pal) {
 function jetModel(pal, mig) {
   const m = new VModel(-17, -13, 17, 13, 11);
   if (mig) {
-    // MiG: a slim fuselage in the side's colour with a long pointed nose and a blue canopy, swept
-    // grey wings and tailplanes carrying stars, a tall swept fin and a dark exhaust.
+    // MiG-23: a wide body in the side's colour with big boxy intakes beside the cockpit, a long
+    // pointed nose and a bubble canopy, a raised spine running back into a tall fin with a long
+    // fillet, shoulder-mounted swing wings (swept back for speed) and big low tailplanes, both
+    // grey with stars, and a dark exhaust.
     const GR = '#8e9397', GRD = '#6d7276';
-    for (let x = -14; x < 17; x++) {                                      // fuselage, tapering to the nose
-      const r = x < 8 ? 1.9 : Math.max(0.5, 1.9 - (x - 8) * 0.18);
+    for (let x = -14; x < 17; x++) {                                      // fuselage: wide behind the intakes, a cone to the nose
+      const r = x < 8 ? 1.9 : Math.max(0.45, 1.9 - (x - 8) * 0.19);
       m.cylX(x, x + 1, 0, 3, r, pal.main, M_METAL);
     }
-    m.cylX(-16, -14, 0, 3, 1.6, '#2a2a28', M_METAL);                       // exhaust
-    m.cylX(-17, -16, 0, 3, 1.1, '#141413');
-    for (const y of [-2, 2]) m.box(2, y < 0 ? -3 : 2, 2, 7, y < 0 ? -1 : 3, 4, pal.dark, M_METAL);   // intakes
-    m.ellipsoid(7.5, 0, 4.6, 3.2, 1.1, 1.4, '#3f86c4', M_GLASS);         // canopy
-    m.set(8, 0, 5, '#9fd2f2', M_GLASS);
+    m.box(-12, -3, 2, 4, 3, 4, pal.main, M_METAL);                         // the flat, wide centre body
+    for (const sgn of [-1, 1]) {                                          // intakes: boxes beside the cockpit, open at the front
+      const y0 = sgn < 0 ? -4 : 2;
+      m.box(-2, y0, 1, 7, y0 + 2, 4, pal.main, M_METAL);
+      m.box(6, y0, 1, 7, y0 + 2, 4, '#1b1b1a');
+      m.box(-2, y0, 1, 7, y0 + 2, 2, pal.dark, M_METAL);
+    }
+    m.box(-12, 0, 4, 5, 1, 5, pal.main, M_METAL);                          // dorsal spine
+    m.ellipsoid(8, 0, 4.4, 3, 1.15, 1.4, '#3f86c4', M_GLASS);            // canopy
+    m.set(9, 0, 5, '#9fd2f2', M_GLASS);
+    m.cylX(-16, -14, 0, 3, 1.7, '#2a2a28', M_METAL);                       // exhaust
+    m.cylX(-17, -16, 0, 3, 1.2, '#141413');
     for (const sgn of [-1, 1]) {
-      for (let k = 2; k <= 12; k++) {                                       // wings: swept back, thin
-        const lead = 3 - (k - 2) * 0.9, trail = -4 - (k - 2) * 0.45;
-        m.box(Math.round(trail), sgn < 0 ? -k - 1 : k, 2, Math.round(lead) + 1, sgn < 0 ? -k : k + 1, 3, k > 11 ? GRD : GR, M_METAL);
+      for (let k = 3; k <= 12; k++) {                                       // swing wings: a fixed glove, then swept back
+        const lead = 3 - (k - 3) * 0.78, trail = -5.5 - (k - 3) * 0.3;
+        m.box(Math.round(trail), sgn < 0 ? -k - 1 : k, 3, Math.round(lead) + 1, sgn < 0 ? -k : k + 1, 4, k > 11 ? GRD : GR, M_METAL);
       }
-      starTop(m, -3.4, sgn * 8, 2.7, pal.main);
-      for (let k = 2; k <= 6; k++) {                                        // tailplanes
-        const lead = -9 - (k - 2) * 0.7, trail = -14 - (k - 2) * 0.2;
+      for (let x = 2; x < 7; x++) m.set(x, sgn < 0 ? -4 : 3, 4, GR, M_METAL);   // glove leading edge along the intake
+      starTop(m, -3.6, sgn * 8.4, 2.5, pal.main);
+      for (let k = 2; k <= 7; k++) {                                        // tailplanes, set low
+        const lead = -9 - (k - 2) * 0.75, trail = -14 - (k - 2) * 0.25;
         m.box(Math.round(trail), sgn < 0 ? -k - 1 : k, 2, Math.round(lead) + 1, sgn < 0 ? -k : k + 1, 3, GR, M_METAL);
       }
     }
-    for (let z = 4; z < 11; z++) {                                          // the fin, swept back
-      const lead = -8 - (z - 4) * 0.75, trail = -14 - (z - 4) * 0.2;
+    for (let z = 5; z < 11; z++) {                                          // the fin, swept, with a long fillet at its foot
+      const lead = (z === 5 ? -3 : -8) - (z - 6) * 0.8, trail = -14 - (z - 5) * 0.2;
       m.box(Math.round(trail), 0, z, Math.round(lead) + 1, 1, z + 1, z === 10 ? pal.dark : pal.main, M_METAL);
     }
   } else {
