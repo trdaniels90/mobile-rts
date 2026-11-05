@@ -2154,7 +2154,7 @@ function walkDistances(start) {
   }
   return dist;
 }
-// A truck works one field until it is almost bare (FIELD_EMPTY), then picks the cheapest field to drive to from
+// A truck works one field until it is almost bare (FIELD_EMPTY; a player who sends it to a field sets it), then picks the cheapest field to drive to from
 // its refinery: the distance by road (round the lakes), counted FOE_SIDE times over for a field nearer an enemy
 // building than to its own side's, plus FIELD_CROWD steps for each truck (of any side) already working it.
 // So trucks spread over the fields at home and only cross to the enemy's side once home is mined out.
@@ -2165,6 +2165,13 @@ const FOE_SIDE = 3;
 const FIELD_CROWD = 12;
 // Called every couple of seconds from growOre: keeps each field's full size (for the stats).
 function updateFieldRest(f) { f.max = Math.max(f.max || 0, fieldValue(f)); }
+// The ore field a cell belongs to (the nearest centre, where fields touch).
+function fieldAt(c) {
+  const x = cellX(c), y = cellY(c);
+  let best = null, bd = Infinity;
+  for (const f of G.oreFields) { const d = Math.hypot(x - f.cx, y - f.cy); if (inFieldCell(f, x, y) && d < bd) { bd = d; best = f; } }
+  return best;
+}
 function foeSideField(f, team) {
   let own = Infinity, foe = Infinity;
   for (const b of G.entities) {
@@ -3244,7 +3251,7 @@ function commandMove(units, x, y) {
     u.target = null; u.staged = false; u.defending = false; u.homeward = false;
     if (u.def.harvester) {
       const c = cellOfPos(x, y);
-      if (G.ore[c] > 0) { u.hcell = c; u.hs = 'seek'; goTo(u, x, y); }
+      if (G.ore[c] > 0) { u.hcell = c; u.hs = 'seek'; u.field = fieldAt(c) || u.field; goTo(u, x, y); }   // sent to a field: it keeps coming back until the field is bare
       else { u.hs = 'manual'; goTo(u, s.x, s.y); }
     } else if (u.cls === 'air') {
       if (airEmpty(u)) return;
