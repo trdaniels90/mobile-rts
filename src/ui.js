@@ -66,7 +66,8 @@
       G.paused = true;
       Debrief.open(won, {
         difficulty: vs ? 'Online vs ' + vs.opponent + ending : DIFFICULTY[diffKey].label,
-        extra: won && !vs && !teamGame() ? Leaderboard.nameBox(Report.score(G.teams[G.me].stats, G.over.t, diffKey)) : null,
+        // a win against the computer goes on the leaderboard: a 1 v 1 skirmish, or online co-op (its own board)
+        extra: won && (vs ? vs.coop : !teamGame()) ? Leaderboard.nameBox(Report.score(G.teams[G.me].stats, G.over.t, vs ? vs.diff : diffKey)) : null,
         // same side and difficulty; online, back to the lobby page
         onRematch: vs ? () => { Net.rematch(); startGame(); showMenu('start'); Online.open(faction); } : () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },
         onNew: () => { if (vs) { Net.leave(); startGame(); } showMenu('start'); },
@@ -182,11 +183,12 @@
     endPlace();
     Net.hookHost();
     newWorld(o.faction, o.diff || 'normal', o.seed, o.me, true, o.map, o.sides);
-    online = { opponent: o.opponent };
+    online = { opponent: o.opponent, coop: o.mode === 'coop', diff: o.diff || 'normal' };
     Sound.newMatch();
     afterNewWorld(o.faction);
     // Co-op against the computer is 'pve', with its difficulty; the rest 'pvp'.
-    if (o.mode === 'coop') Report.start(o.faction, o.diff || 'normal', 'pve', o.opponent); else Report.start(o.faction, null, 'pvp', o.opponent);
+    // In co-op the match row's opponent column holds the teammate's name, for the co-op leaderboard.
+    if (o.mode === 'coop') Report.start(o.faction, o.diff || 'normal', 'pve', o.partner || 'Commander'); else Report.start(o.faction, null, 'pvp', o.opponent);
     hideMenu();
     eva('Select a structure to build');
   };

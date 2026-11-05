@@ -87,14 +87,15 @@ returns integer language sql immutable set search_path = '' as $$
 $$;
 
 -- The leaderboard: the five best scores at each difficulty, hardest first, each commander's best only
--- (names match ignoring case and spaces at the ends). p_limit (at most 5) is the places per difficulty; p_mode leaves room
--- for PvE and PvP boards later.
+-- (names match ignoring case and spaces at the ends). p_limit (at most 5) is the places per difficulty; p_mode is 'skirmish' or
+-- 'pve' (online co-op, where opponent holds the teammate's name and comes back as partner).
 drop function if exists public.get_leaderboard(text, integer);
 create function public.get_leaderboard(p_mode text default 'skirmish', p_limit integer default 5)
-returns table (rank bigint, player_name text, side text, difficulty text, duration_s integer, ended_at timestamptz, score integer)
+returns table (rank bigint, player_name text, side text, difficulty text, duration_s integer, ended_at timestamptz, score integer, partner text)
 language sql stable security definer set search_path = '' as $$
   with scored as (
-    select m.player_name, m.side, m.difficulty, m.duration_s, m.ended_at, public.match_score(m.stats, m.duration_s, m.difficulty) as score
+    select m.player_name, m.side, m.difficulty, m.duration_s, m.ended_at, public.match_score(m.stats, m.duration_s, m.difficulty) as score,
+           case when m.mode = 'pve' then m.opponent end as partner   -- co-op: the teammate
     from public.matches m
     where m.mode = p_mode and m.result = 'win' and m.player_name is not null and m.duration_s is not null
   ), best as (
@@ -103,7 +104,7 @@ language sql stable security definer set search_path = '' as $$
   ), ranked as (
     select b.*, row_number() over (partition by b.difficulty order by b.score desc, b.duration_s, b.ended_at) as rk from best b where b.mine = 1
   )
-  select r.rk, r.player_name, r.side, r.difficulty, r.duration_s, r.ended_at, r.score
+  select r.rk, r.player_name, r.side, r.difficulty, r.duration_s, r.ended_at, r.score, r.partner
   from ranked r
   where r.rk <= least(greatest(p_limit, 1), 5)
   order by case r.difficulty when 'hard' then 0 when 'normal' then 1 when 'easy' then 2 else 3 end, r.rk;

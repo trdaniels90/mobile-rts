@@ -435,7 +435,7 @@ const Net = (() => {
       lobby.team = { sides, mode, mates: names((x, i) => x.ally === mine && i !== side) };
     } else { sides = null; lobby.team = null; }
     lobby.oppName = sides ? opp : null;
-    UIBridge.start({ seed, faction, me: side, opponent: opp || 'Commander', map: validMap(map), sides, diff, mode });
+    UIBridge.start({ seed, faction, me: side, opponent: opp || 'Commander', partner: lobby.team ? lobby.team.mates.join(' & ') : null, map: validMap(map), sides, diff, mode });
     if (r === 'guest') {
       // The battle is the host's: start from an empty field and fill it from the snapshots.
       G.remote = true;
