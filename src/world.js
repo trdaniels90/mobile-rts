@@ -1283,7 +1283,14 @@ function barrelSmoke(src, m) {
       vx: cx * (5 + r() * 8) + (r() - 0.5) * 6, vy: cy * (4 + r() * 6) * 0.7 - (5 + r() * 3), drag: 1.2 });
   }
 }
+// A side fired on from ground it has never uncovered gets a glimpse of the shooter: SHOT_REVEAL cells round
+// it are uncovered (a V2 or artillery out of sight no longer fires unseen).
+const SHOT_REVEAL = 2;
 function fireWeapon(src, w, t) {
+  if (t && !G.remote && t.team !== undefined && hostile(src.team, t.team)) {
+    const fog = G.fog[t.team];
+    if (fog && !fog[cellOfPos(src.x, src.y)]) revealCircle(src.x / CELL, src.y / CELL, SHOT_REVEAL, fog);
+  }
   const m = muzzle(src);
   hooks.sfx(weaponSound(src, w), src.x, src.y);
   if (src.kind === 'bld' && (src.type === 'turret' || src.type === 'pillbox')) barrelSmoke(src, m);
