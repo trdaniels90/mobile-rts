@@ -44,7 +44,7 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
     t: 0, seed, mapId, diff: DIFFICULTY[diffKey], diffKey, nextId: 1,
     entities: [], byId: new Map(), effects: [], projectiles: [], pathQueue: [], groups: [],
     terr: new Uint8Array(NCELLS), block: new Uint8Array(NCELLS), bld: new Int32Array(NCELLS), resv: new Uint8Array(NCELLS),
-    ore: new Uint16Array(NCELLS), gem: new Uint8Array(NCELLS), fog, me, seen: fog[me] || fog[0], shroudDirty: true, oreFields: [],
+    ore: new Uint16Array(NCELLS), gem: new Uint8Array(NCELLS), oreRich: teams.length > 2 ? TEAM_ORE_RICH : 1, fog, me, seen: fog[me] || fog[0], shroudDirty: true, oreFields: [],
     selection: [], place: null, over: null, paused: false,
     timers: { power: 0, shroud: 0, ore: 0, ai: 0, win: 0, log: 0 },
     log: { samples: [], events: [], fallen: [], waves: teams.map(() => 0), lastH: teams.map(() => 0) },   // for the debrief
@@ -325,7 +325,7 @@ function genMap(seed) {
         const c = idx(x, y);
         if (T[c] >= 4) continue;
         if (G.block[c]) { G.block[c] = 0; T[c] = 0; }
-        G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - d / f.r) * 190) * f.rich * ORE_START));
+        G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - d / f.r) * 190) * f.rich * ORE_START) * G.oreRich);
         if (f.gem) G.gem[c] = 1;
       }
     }
@@ -415,7 +415,7 @@ function genLayoutMap(m) {
     }
     const cx = cells.reduce((a, c) => a + cellX(c), 0) / cells.length, cy = cells.reduce((a, c) => a + cellY(c), 0) / cells.length;
     const far = Math.max(...cells.map((c) => Math.hypot(cellX(c) - cx, cellY(c) - cy))) + 1;
-    for (const c of cells) G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - Math.hypot(cellX(c) - cx, cellY(c) - cy) / far) * 190) * ORE_START));
+    for (const c of cells) G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - Math.hypot(cellX(c) - cx, cellY(c) - cy) / far) * 190) * ORE_START) * G.oreRich);
     G.oreFields.push({ cx, cy, r: Math.sqrt(cells.length / Math.PI) * 1.15, rich: 1, gem: false });
   }
   // Gem fields (rare ore, worth twice as much and never growing back) on open ground.
@@ -423,7 +423,7 @@ function genLayoutMap(m) {
     for (let y = Math.floor(gy - gr); y <= gy + gr; y++) for (let x = Math.floor(gx - gr); x <= gx + gr; x++) {
       const d = Math.hypot(x - gx, y - gy), c = inMap(x, y) && idx(x, y);
       if (c === false || d > gr || T[c] > 1 || G.ore[c]) continue;
-      G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - d / gr) * 190) * ORE_START));
+      G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - d / gr) * 190) * ORE_START) * G.oreRich);
       G.gem[c] = 1;
     }
     G.oreFields.push({ cx: gx, cy: gy, r: gr, rich: 1, gem: true });
@@ -3165,17 +3165,20 @@ function spreadOre(f) {
   G.ore[c] = 15;
   f.ext = Math.max(f.ext || 0, d - f.r - 0.8);
 }
+// Four-sided games (2 v 2 and co-op) have richer fields: TEAM_ORE_RICH times the ore, growing back
+// TEAM_ORE_REGROW times as fast (G.oreRich; 1 in a 1 v 1, and in saves from before 2026.11.05.3).
+const TEAM_ORE_RICH = 1.5, TEAM_ORE_REGROW = 2;
 function growOre() {
-  const r = Math.random;
+  const r = Math.random, rich = G.oreRich || 1, grows = rich > 1 ? TEAM_ORE_REGROW : 1;
   for (const f of G.oreFields) {
     updateFieldRest(f);
     if (f.gem) continue;   // gems never grow back
     if (r() < 0.05) spreadOre(f);   // about once every 40 seconds
-    {   // one cell a field every couple of seconds: a scraped-out field takes several minutes to recover
+    for (let k = 0; k < grows; k++) {   // one cell a field every couple of seconds: a scraped-out field takes several minutes to recover
       const a = r() * Math.PI * 2, d = Math.sqrt(r()) * fieldReach(f);
       const x = Math.floor(f.cx + Math.cos(a) * d), y = Math.floor(f.cy + Math.sin(a) * d);
       const c = inMap(x, y) ? idx(x, y) : -1;
-      const cap = Math.round(Math.min(ORE_MAX, (60 + (1 - Math.min(1, d / f.r)) * 190) * f.rich));
+      const cap = Math.round(Math.min(ORE_MAX, (60 + (1 - Math.min(1, d / f.r)) * 190) * f.rich) * rich);
       if (c >= 0 && !G.block[c] && !G.bld[c] && G.ore[c] < cap) G.ore[c] = Math.min(cap, G.ore[c] + 15);
     }
   }
