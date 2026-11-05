@@ -249,6 +249,13 @@ share globals. Read this file first; the commit history explains every change in
   --ha=false`. `--depot=false` because Fly's default builder (Depot) rejects the session proxy's certificate;
   `--ha=false` keeps one machine. Then check `curl https://red-horizon-rts.fly.dev/` shows the new version.
   The app was created (personal org, `dfw`) and first deployed on 2026-11-04 from this branch.
+- **Stats page reports** (`rpc`, `beat`, `reportBattle`, `noteError` in server.js; tables and functions in
+  `supabase/server.sql`): with the `SERVER_TOKEN` Fly secret set, the server sends a status beat every minute
+  (`server_status`: version, rooms, battles, players, memory, step time) and a `server_battles` row when a battle
+  starts and when it ends (mode, map, players, winner, `how` incl. `abandoned`, up to 6 errors, `perf`: step ms,
+  slow steps over 33 ms, peak units, snapshot KB/s per player, time held). Supabase keeps only the token's SHA-256
+  (`server_secret`); the functions refuse any other token, and the tables are not readable through the API. Without
+  the secret (tests, local runs) nothing is sent. The owner's stats page shows them in its "Game server" section.
 - **Teams in the simulation:** `newWorld(..., sides)` takes up to four `{ faction, ally, ai, name }`. Sides
   with the same `ally` are a team: `hostile(a, b)` is the enemy test everywhere (never compare `team`
   directly for enemies), `alliedSides`, `foesOf`, `enemyUnitsOf`, `enemyBuildingsOf`. Allies share one fog

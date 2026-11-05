@@ -38,6 +38,61 @@ const VERSION = headless.load().get('VERSION');   // the game version this serve
 const rooms = new Map();
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
+// ---------------------------------------------------------------------------
+// Reports to the owner's stats page (Supabase, supabase/server.sql): a status beat every minute and a
+// row per battle (when it starts and when it ends). Only with the SERVER_TOKEN secret set (Fly secret);
+// without it (tests, a local run) nothing is sent.
+const STARTED = new Date().toISOString();
+const SUPA = { url: process.env.SUPABASE_URL || 'https://yorrgemlhoxbxvyvzcwe.supabase.co/',
+  key: process.env.SUPABASE_KEY || 'sb_publishable_FkCzdcgsEyqNy_UwmajBiQ_kp8V2Vi6', token: process.env.SERVER_TOKEN || '' };
+function rpc(fn, p) {
+  if (!SUPA.token || typeof fetch !== 'function') return Promise.resolve(false);
+  return fetch(SUPA.url + 'rest/v1/rpc/' + fn, { method: 'POST', signal: AbortSignal.timeout(10000),
+    headers: { apikey: SUPA.key, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({ p_token: SUPA.token, p }) })
+    .then((r) => { if (!r.ok) log('report', fn, 'failed:', r.status); return r.ok; })
+    .catch((e) => { log('report', fn, 'failed:', e && e.message); return false; });
+}
+// Step times over the last minute, every battle together (for the status beat).
+const stepStat = { n: 0, ms: 0, max: 0 };
+function beat() {
+  const battles = [...rooms.values()].filter((r) => r.phase === 'battle');
+  const players = [...rooms.values()].reduce((n, r) => n + r.seats.filter((s) => s.ws).length, 0);
+  const p = { version: VERSION, started_at: STARTED, rooms: rooms.size, battles: battles.length, players,
+    mem_mb: Math.round(process.memoryUsage().rss / 1048576),
+    step_ms: stepStat.n ? +(stepStat.ms / stepStat.n).toFixed(2) : null, step_max_ms: stepStat.n ? +stepStat.max.toFixed(1) : null };
+  stepStat.n = 0; stepStat.ms = 0; stepStat.max = 0;
+  return rpc('server_beat', p);
+}
+// A battle's row. how: 'win' (destroyed), 'quit', 'left', or 'abandoned' (every player gone, no winner).
+function reportBattle(R, how, winner) {
+  const B = R.battle;
+  if (!B) return;
+  const G = R.G, secs = Math.max(1, (Date.now() - B.t0) / 1000);
+  const perf = { steps: B.steps, step_ms: B.steps ? +(B.stepMs / B.steps).toFixed(2) : null, step_max_ms: +B.stepMax.toFixed(1),
+    slow_steps: B.slow, peak_units: B.peak, snap_kb_s: +(B.bytes / 1024 / secs / Math.max(1, B.seats)).toFixed(1),
+    snap_max_kb: +(B.snapMax / 1024).toFixed(1), held_s: Math.round(B.heldMs / 1000) };
+  const players = B.sides.map((x, i) => {
+    const s = R.seats.find((o) => o.side === i);
+    return { side: i, ally: x.ally, faction: x.faction, name: x.ai ? null : x.name, ai: !!x.ai, left: !!(s && s.left), took_over: !x.ai && !!(G && G.teams[i] && G.teams[i].isAI) };
+  });
+  const done = how !== undefined;
+  return rpc('server_battle', { id: B.id, code: R.code, version: VERSION, mode: R.mode, map: B.map, difficulty: B.diff, players,
+    started_at: B.at, ended_at: done ? new Date().toISOString() : null, duration_s: done && G ? Math.round(G.t) : null,
+    winner: done && winner !== undefined && winner !== null ? winner : null, how: done ? how : null,
+    errors: B.errors.length ? B.errors : null, perf: done ? perf : null });
+}
+function noteError(R, where, e) {
+  log(R.code, where, 'error', e && e.stack);
+  const B = R.battle;
+  if (!B) return;
+  const msg = where + ': ' + String((e && e.message) || e).slice(0, 200);
+  const old = B.errors.find((x) => x.msg === msg);
+  if (old) old.n++;
+  else if (B.errors.length < 6) B.errors.push({ msg, at: G_t(R), n: 1, stack: String((e && e.stack) || '').split('\n').slice(1, 4).join(' | ').slice(0, 400) });
+}
+const G_t = (R) => (R.G ? Math.round(R.G.t) : 0);
+
 function newCode() {
   for (let n = 0; n < 1000; n++) {
     let c = '';
@@ -47,6 +102,7 @@ function newCode() {
   return null;
 }
 const newId = () => Math.random().toString(36).slice(2, 10);
+const uuid = () => require('crypto').randomUUID();
 const send = (ws, o) => { if (ws && ws.readyState === 1) try { ws.send(typeof o === 'string' ? o : JSON.stringify(o)); } catch (_) {} };
 const clean = (s) => String(s || 'Commander').replace(/[\u0000-\u001f]/g, '').slice(0, 20) || 'Commander';
 const other = (f) => (f === 'allies' ? 'soviets' : 'allies');
@@ -68,6 +124,8 @@ function makeRoom(code) {
     const end = JSON.stringify(NetCore.endMsg());
     for (const s of R.seats) send(s.ws, end);
     log(code, 'battle over, winner alliance', R.G.over.winner, R.G.over.how || '', 'at', Math.round(R.G.t), 's');
+    reportBattle(R, R.G.over.how || 'win', R.G.over.winner);
+    R.battle = null;
     setTimeout(() => backToLobby(R), 0);
   };
   rooms.set(code, R);
@@ -75,6 +133,8 @@ function makeRoom(code) {
 }
 function closeRoom(R, why) {
   clearInterval(R.timer);
+  if (R.phase === 'battle' && R.battle && !(R.G && R.G.over)) reportBattle(R, 'abandoned', null);
+  R.battle = null;
   for (const s of R.seats) { send(s.ws, { k: 'bye' }); try { s.ws && s.ws.close(); } catch (_) {} }
   rooms.delete(R.code);
   log(R.code, 'closed:', why, '| rooms', rooms.size);
@@ -127,6 +187,9 @@ function start(R) {
   NetCore.hosting = true;
   R.seats.forEach((s) => { s.side = s.slot; s.peer = NetCore.peer(s.side); s.away = false; s.left = false; });
   R.phase = 'battle'; R.snapT = 0; R.waitSince = 0; R.held = false; R.last = Date.now();
+  R.battle = { id: uuid(), at: new Date().toISOString(), t0: Date.now(), map: R.map, diff, sides, seats: R.seats.length,
+    steps: 0, stepMs: 0, stepMax: 0, slow: 0, peak: 0, bytes: 0, snapMax: 0, heldMs: 0, errors: [] };
+  reportBattle(R);
   R.seats.forEach((s) => send(s.ws, { k: 'start', seed, faction: sides[0].faction, match, map: R.map, side: s.side, sides, mode: R.mode, diff }));
   clearInterval(R.timer);
   R.timer = setInterval(() => tick(R), Math.round(STEP * 1000 / Math.max(1, SPEED)));
@@ -146,7 +209,12 @@ function backToLobby(R) {
 function broadcastSnaps(R, all) {
   const seats = R.seats.filter((s) => s.ws && s.peer);
   const of = new Map(seats.map((s) => [s.peer, s]));
-  R.NetCore.snapshots(seats.map((s) => s.peer), (P, snap) => send(of.get(P).ws, snap), (P) => all || of.get(P).ws.bufferedAmount <= 512 * 1024);
+  const B = R.battle;
+  R.NetCore.snapshots(seats.map((s) => s.peer), (P, snap) => {
+    const txt = typeof snap === 'string' ? snap : JSON.stringify(snap);
+    if (B) { B.bytes += txt.length; if (txt.length > B.snapMax) B.snapMax = txt.length; }
+    send(of.get(P).ws, txt);
+  }, (P) => all || of.get(P).ws.bufferedAmount <= 512 * 1024);
 }
 
 // A player who has gone for good (surrendered, or did not come back). In a 1 v 1 they lose. In a team
@@ -175,6 +243,8 @@ function tick(R) {
   const missing = R.seats.filter((s) => !s.left && (!s.ws || s.away));
   G.hold = missing.length > 0;
   if (G.hold) {
+    if (R.battle) R.battle.heldMs += now - (R.lastHold || now);
+    R.lastHold = now;
     R.held = true;
     if (!R.waitSince) R.waitSince = now;
     if ((now - R.waitSince) / 1000 > WAIT_LIMIT) {
@@ -186,13 +256,21 @@ function tick(R) {
     }
     return;
   }
+  R.lastHold = 0;
   if (R.held) { R.held = false; R.waitSince = 0; for (const s of R.seats) send(s.ws, { k: 'resume' }); }
+  const t0 = process.hrtime.bigint();
   try {
     while (dt > 0) { const step = Math.min(dt, STEP); dt -= step; R.update(step); }
-  } catch (e) { log(R.code, 'update error', e && e.stack); }
+  } catch (e) { noteError(R, 'update', e); }
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6, B = R.battle;
+  stepStat.n++; stepStat.ms += ms; if (ms > stepStat.max) stepStat.max = ms;
+  if (B) {
+    B.steps++; B.stepMs += ms; if (ms > B.stepMax) B.stepMax = ms; if (ms > STEP * 1000) B.slow++;
+    if (B.steps % 30 === 0 && R.G) { let n = 0; for (const e of R.G.entities) if (e.alive) n++; if (n > B.peak) B.peak = n; }
+  }
   if ((R.snapT -= STEP * SPEED) <= 0) {
     R.snapT = SNAP;
-    try { broadcastSnaps(R); } catch (e) { log(R.code, 'snapshot error', e && e.stack); }
+    try { broadcastSnaps(R); } catch (e) { noteError(R, 'snapshot', e); }
   }
 }
 
@@ -331,5 +409,9 @@ setInterval(() => {
     else if ((now - R.emptySince) / 1000 > (R.phase === 'battle' ? WAIT_LIMIT + 10 : IDLE_LIMIT)) closeRoom(R, 'idle');
   }
 }, 10000);
-server.listen(PORT, () => log('Red Horizon server', VERSION, 'listening on', PORT));
+server.listen(PORT, () => {
+  log('Red Horizon server', VERSION, 'listening on', PORT, SUPA.token ? '(reporting to the stats page)' : '(not reporting)');
+  beat();
+  setInterval(beat, 60000).unref();
+});
 module.exports = { rooms, server };
