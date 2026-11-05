@@ -756,7 +756,7 @@
       const btn = document.createElement('button');
       btn.type = 'button'; btn.className = 'cameo'; btn.dataset.type = type;
       btn.title = pw ? d.name : `${d.name}: $${d.cost}`;
-      btn.innerHTML = `<img alt="" src="${cameoURL(type, team.faction)}"><span class="nm">${d.name}</span><span class="cost">${pw ? '' : '$' + d.cost}</span><span class="clock"></span><span class="st"></span><span class="ct"></span>`;
+      btn.innerHTML = `<img alt="" src="${cameoURL(type, team.faction, team.variant)}"><span class="nm">${d.name}</span><span class="cost">${pw ? '' : '$' + d.cost}</span><span class="clock"></span><span class="st"></span><span class="ct"></span>`;
       strip.appendChild(btn);
       cameoEls.set(type, { btn, clock: btn.querySelector('.clock'), st: btn.querySelector('.st'), ct: btn.querySelector('.ct') });
     }

@@ -66,7 +66,7 @@ const Debrief = (() => {
     // Most valuable unit: the player's unit with the most kills, standing or fallen.
     const alive = unitsOf(G.me).filter((u) => u.kills).map((u) => ({ type: u.type, faction: u.faction, kills: u.kills, worth: u.killWorth, born: u.born, died: null }));
     const mvp = alive.concat(L.fallen.filter((u) => u.team === G.me)).sort((a, b) => b.kills - a.kills || b.worth - a.worth)[0];
-    root.querySelector('.db-mvp').innerHTML = mvp ? `<div class="db-mvp-head"><img src="${cameoURL(mvp.type, mvp.faction)}" alt="">
+    root.querySelector('.db-mvp').innerHTML = mvp ? `<div class="db-mvp-head"><img src="${cameoURL(mvp.type, mvp.faction, G && G.teams[G.me] && G.teams[G.me].variant)}" alt="">
         <div><p class="db-medal">★ Most valuable unit</p><h3>${esc(UNIT_DEFS[mvp.type].name)}</h3>
         <p class="db-call">Built at ${fmt(mvp.born)} · ${mvp.died === null ? 'survived' : 'fell at ' + fmt(mvp.died)}</p></div></div>
         <div class="db-mvpstats"><div><b>${mvp.kills}</b><span>Kills</span></div><div><b>${money(mvp.worth)}</b><span>Enemy value</span></div><div><b>${fmt((mvp.died === null ? G.t : mvp.died) - mvp.born)}</b><span>In action</span></div></div>`

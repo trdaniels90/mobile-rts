@@ -1016,9 +1016,15 @@ function drawEffect(g, fx) {
 // Sidebar cameos: close-up renders of each unit and structure
 // ---------------------------------------------------------------------------
 const cameoCache = new Map();
-function cameoURL(type, faction) {
-  const key = type + faction;
+// variant: 1 for a teammate's second colour (team.variant). It is set here, not left to whatever
+// was drawn last, and is part of the cache key (before, a co-op player's sidebar mixed both colours).
+function cameoURL(type, faction, variant) {
+  const v = variant | 0, key = type + faction + v;
   if (cameoCache.has(key)) return cameoCache.get(key);
+  const keep = drawVar; drawVar = v;
+  try { return makeCameo(type, faction, key); } finally { drawVar = keep; }
+}
+function makeCameo(type, faction, key) {
   const W = 64, H = 48, c = mkCanvas(W, H), g = c.getContext('2d');
   const grd = g.createLinearGradient(0, 0, 0, H);
   grd.addColorStop(0, '#26313b'); grd.addColorStop(0.5, '#46525c'); grd.addColorStop(0.52, '#4c5530'); grd.addColorStop(1, '#262c16');
