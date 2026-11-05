@@ -1115,22 +1115,46 @@ const SOVIET = {
     m.box(34, 2, 24, 38, 5, 26, C.gun, M_METAL);
     return m;
   },
-  // Power Plant: a turbine block, a tall striped smokestack, and a transformer yard.
+  // Power Plant: a small RBMK-style nuclear station. A tall reactor block with banded panels, a long
+  // turbine hall in front, and the tall ventilation stack held in its steel lattice frame.
   power(pal) {
-    const m = new VModel(-2, -2, 50, 50, 46);
+    const m = new VModel(-2, -2, 50, 50, 50);
     slabV(m, 0, 0, 48, 48);
-    panelBox(m, 2, 14, 1, 30, 44, 16);
-    flatRoof(m, 2, 14, 30, 44, 16, pal);
-    stripWin(m, 3, 29, 43, 9, 11);
-    starFront(m, 16, 43, 5, 2.6, pal.main);
-    starTop(m, 16, 29, 8, pal.main);
-    for (const x of [5, 22]) m.box(x, 18, 17, x + 5, 24, 20, SV.steel, M_METAL);   // vents
-    m.box(32, 6, 1, 46, 22, 6, SV.conc, M_ROUGH);                       // stack base
-    stackV(m, 39, 13, 6, 45, 4, pal);
-    m.cylX(26, 35, 18, 12, 1.4, SV.steel, M_METAL);
-    m.box(34, 34, 1, 46, 46, 8, '#5d5e58', M_METAL);                     // transformers
-    m.paint(34, 45, 3, 46, 46, 8, (x) => (x % 3 === 0 ? '#46473f' : undefined));
-    m.box(39, 45, 5, 41, 46, 7, C.yellow);
+    const band = (x0, y0, z0, x1, y1, z1) => {                          // pale panels in horizontal bands
+      m.box(x0, y0, z0, x1, y1, z1, '#d2cec2', M_ROUGH);
+      m.paint(x0, y0, z0, x1, y1, z1, (x, y, z) => ((z - z0) % 5 >= 3 ? '#86827a' : (x - x0) % 6 === 0 || (y - y0) % 6 === 0 ? '#bcb8ac' : undefined));
+    };
+    band(3, 6, 1, 29, 30, 27);                                           // reactor block
+    flatRoof(m, 3, 6, 29, 30, 27, pal);
+    band(8, 10, 28, 24, 24, 34);                                         // the raised reactor hall on top
+    flatRoof(m, 8, 10, 24, 24, 34, pal);
+    m.box(10, 23, 30, 22, 24, 32, SV.win, M_GLASS);
+    starTop(m, 16, 17, 5, pal.main);
+    panelBox(m, 2, 31, 1, 46, 46, 13);                                   // turbine hall
+    flatRoof(m, 2, 31, 46, 46, 13, pal);
+    stripWin(m, 3, 21, 45, 7, 10); stripWin(m, 27, 45, 45, 7, 10);
+    starFront(m, 24, 45, 6.5, 2.6, pal.main);
+    for (const x of [6, 16, 30, 40]) m.box(x, 35, 14, x + 5, 41, 16, SV.steel, M_METAL);   // roof vents
+    // Ventilation stack in its lattice frame, banded at the top.
+    const SX = 38.5, SY = 15, FR = '#5a5f5c';
+    m.box(32, 8, 1, 46, 22, 5, SV.conc, M_ROUGH);
+    for (let z = 5; z < 49; z++) m.cylZ(SX, SY, z, z + 1, 2.4, z > 31 ? (Math.floor((49 - z) / 3) % 2 ? C.white : pal.main) : '#c8c4b8', z > 31 ? M_MATTE : M_ROUGH);
+    m.cylZ(SX, SY, 47, 49, 1.4, null);
+    m.cylZ(SX, SY, 48, 49, 2.7, '#2c2b28', M_METAL);
+    const half = (z) => 6 - (z - 5) * 0.1;                               // the frame tapers upward
+    for (let z = 5; z < 36; z++) {
+      const h = half(z);
+      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) m.set(Math.round(SX + dx * h), Math.round(SY + dy * h), z, FR, M_METAL);
+    }
+    for (let z = 10; z < 36; z += 8) {                                  // rings, and struts to the stack
+      const h = half(z);
+      m.line(SX - h, SY + h, z, SX + h, SY + h, z, FR, M_METAL); m.line(SX - h, SY - h, z, SX + h, SY - h, z, FR, M_METAL);
+      m.line(SX - h, SY - h, z, SX - h, SY + h, z, FR, M_METAL); m.line(SX + h, SY - h, z, SX + h, SY + h, z, FR, M_METAL);
+      m.line(SX - h, SY + h, z - 8, SX + h, SY + h, z, FR, M_METAL);      // one diagonal on the front face per bay
+    }
+    m.cylX(29, 36, 20, 18, 1.3, SV.steel, M_METAL);                    // duct from the reactor to the stack
+    m.box(36, 24, 1, 46, 30, 6, '#5d5e58', M_METAL);                    // transformers
+    m.paint(36, 29, 2, 46, 30, 6, (x) => (x % 3 === 0 ? '#46473f' : undefined));
     return m;
   },
   // Advanced Power Plant: two concrete cooling towers, a striped stack, a turbine hall under a star.
