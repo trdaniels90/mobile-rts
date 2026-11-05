@@ -4,6 +4,16 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.05.3', date: '5 November 2026', title: 'Richer team battles, smoother server', groups: [
+    ['Changes', [
+      '2 v 2 and co-op: ore fields start 50% richer and grow back twice as fast, so long team battles no longer run dry by minute 15 to 20.',
+      'V2 rockets do less damage away from the point of impact. A direct hit is as deadly as before.',
+      'Enemy units that fire on you from ground you have not explored (like a V2 out of sight) are now revealed, so you can see what hit you.',
+    ]],
+    ['Fixes', [
+      'Big online battles no longer stutter: fixed the game server stalls (up to half a second) in large fights.',
+    ]],
+  ] },
   { v: '2026.11.05.2', date: '5 November 2026', title: 'Stats after a lost connection', groups: [
     ['Fixes', [
       'If you lose connection in an online battle and cannot get back in, your debrief and stats now still show the graphs.',
