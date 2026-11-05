@@ -242,7 +242,7 @@ function handOver(R, s, how) {
   for (const o of R.seats) if (o !== s) send(o.ws, { k: 'left', name: s.name, side: s.side });
   // Their battle is over (a loss): send them the battle's log, or their debrief and stats would have no graphs.
   send(s.ws, { k: 'end', over: { winner: otherAlly(s.side), t: G.t, how }, log: R.NetCore.pack(G.log) });
-  log(R.code, s.name, how === 'quit' ? 'surrendered' : 'left', ': the computer takes side', s.side);
+  log(R.code, s.name, how === 'quit' ? 'surrendered' : how === 'out' ? 'was beaten and left' : 'left', ': the computer takes side', s.side);
   const stay = R.seats.some((o) => !o.left && G.teams[o.side].ally === t.ally);
   if (!stay) R.run(`endBattle(${otherAlly(s.side)}, '${how}')`);
 }
@@ -395,7 +395,8 @@ function onMessage(ws, m, st) {
   else if (m.k === 'c' && R.phase === 'battle' && !R.G.hold && s.peer && !s.left) R.NetCore.applyCommand(s.side, m);
   else if (m.k === 'away' && R.phase === 'battle') { s.away = true; R.held = true; for (const o of R.seats) if (o !== s) send(o.ws, { k: 'away' }); }
   else if (m.k === 'back' || m.k === 'resume') s.away = false;
-  else if (m.k === 'quit' && R.phase === 'battle' && !R.G.over && !s.left) handOver(R, s, 'quit');
+  else if (m.k === 'quit' && R.phase === 'battle' && !R.G.over && !s.left) handOver(R, s, m.how === 'out' ? 'out' : 'quit');
+  else if (m.k === 'watch' && R.phase === 'battle' && s.peer && R.G.teams[s.side].out) s.peer.watch = true;   // beaten, watching: the whole map
   else if (m.k === 'bye') leave(R, s);
 }
 

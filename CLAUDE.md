@@ -276,6 +276,16 @@ share globals. Read this file first; the commit history explains every change in
   8 s of CPU per game minute on the dev container.
 - **Team extras (2026.11.04.5):** teammates of the same faction get a second colour (`team.variant`, `FACTIONS[f].alt`, `drawVar` in models.js, set per draw in art.js); "Ally defeated"/"Enemy defeated" have voice clips (rendered with `scripts/make_voices.py`'s pipeline, Kokoro model from the kokoro-onnx releases); the debrief compares your whole alliance with all foes; the ALLY button (`setAssist`, `defendAllies` in world.js, `team.assist`, `u.garrison`/`u.assisting`) garrisons an ally's base, and computer allies help defend (Normal and Hard, ground units only).
 
+## Beaten in a team game (after 2026.11.05, both modes)
+
+- A side with no production left is `out`, but the battle goes on while an ally is in it. The phone then shows a card
+  (`beaten` in ui.js): **Keep watching** (`G.watching`; `G.seen` becomes this device's own all-revealed array, the
+  shared ally fog is untouched; online `Net.watch()` sends `watch`, and the server's peer gets `watch`, so `snapshot`
+  in netcore.js sends the whole map) and the alliance's result counts; or **Debrief**: a loss now with `how = 'out'`
+  (online `Net.surrender('out')`, the server's `handOver(.., 'out')`).
+- The server sends a player it hands over (surrender or beaten) an `end` with the battle's log, so their debrief and
+  match report have graphs (before, match a858b156 had none).
+
 ## Supabase
 
 - **Project:** `yorrgemlhoxbxvyvzcwe`. The Supabase MCP tools work in these sessions.
@@ -314,6 +324,7 @@ Supabase.
 | `server.js` | The dedicated server in-process: two pages host and join through it, play, one drops and comes back, the battle ends; and the fallback to phone to phone |
 | `server-teams.js` | Four pages play a 2 v 2 through the server (own side, shared sight, a surrender handed to the computer, the right winners), then two pages play co-op |
 | `teams.js` | Headless (no browser): the computer plays every side of a 2 v 2 (`<repo> <games> <minutes> <map> [1v1]`), with CPU time per game minute |
+| `team-beaten.js` | A beaten side in a team game: the defeat card, Keep watching and Debrief, in a 2 v 2 skirmish and online co-op |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP

@@ -446,12 +446,15 @@ const Net = (() => {
   }
   function clearCopy() { G.entities = []; G.byId.clear(); G.bld.fill(0); G.resv.fill(0); G.projectiles = []; G.selection = []; }
   // Quitting an online battle is surrendering. The host's battle decides; the guest asks it.
-  function surrender() {
+  // how: 'quit', or 'out' when their side was already beaten in a team game and they leave for the debrief.
+  function surrender(how = 'quit') {
     if (!inBattle()) return;
-    if (role === 'host' || !lobby.connected) { endWait(); endBattle(otherAlly(side), 'quit'); return; }
-    send({ k: 'quit' });
-    setTimeout(() => { if (inBattle()) endBattle(otherAlly(side), 'quit'); }, 3000);   // no answer: lose anyway
+    if (role === 'host' || !lobby.connected) { endWait(); endBattle(otherAlly(side), how); return; }
+    send({ k: 'quit', how });
+    setTimeout(() => { if (inBattle()) endBattle(otherAlly(side), how); }, 3000);   // no answer: lose anyway
   }
+  // Beaten in a team game, staying to watch: the server sends the whole map from now on.
+  function watch() { if (inBattle()) send({ k: 'watch' }); }
   // After the debrief: back to the lobby, still connected, for another battle.
   function rematch() {
     const was = role;
@@ -646,7 +649,7 @@ const Net = (() => {
   }
 
   return {
-    host, join, leave, swapSides, setMap, setMode, setDiff, setFaction, switchTeam, startBattle, surrender, rematch, hostTick, guestStep, hookHost, netStats,
+    host, join, leave, swapSides, setMap, setMode, setDiff, setFaction, switchTeam, startBattle, surrender, watch, rematch, hostTick, guestStep, hookHost, netStats,
     get role() { return role; }, get lobby() { return lobby; }, get waiting() { return !!wait; },
     // For tests: drop the connection without a word, and a shorter wait.
     test: { drop() { const L = link; if (L) { try { L.pc.close(); } catch (_) {} } lost(); }, waitLimit(s) { WAIT_LIMIT = s; }, get resyncs() { return resyncs; } },

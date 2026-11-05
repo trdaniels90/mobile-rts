@@ -66,6 +66,7 @@ const NetCore = (() => {
   }
   // What a side shares with: its own fog and units, and (in a team game) its allies'.
   const fogOf = (side) => G.fog[side];
+  let ALL = null;
   const friendly = (team, side) => team === side || (typeof alliedSides === 'function' && alliedSides(team, side));
 
   // A remote player only needs what they can see: no news of the other sides, or of smoke, shots
@@ -73,7 +74,8 @@ const NetCore = (() => {
   // snapshot that takes it out of sight.) Nothing is lost: what was held back goes out once uncovered.
   function snapshot(P, fx, ev) {
     const fog = fogOf(P.side);
-    const seen = (x, y) => !!fog[cellOfPos(x, y)];
+    const view = P.watch ? (ALL || (ALL = new Uint8Array(NCELLS).fill(1))) : fog;   // a beaten player watching sees everything
+    const seen = (x, y) => !!view[cellOfPos(x, y)];
     function shown(x, last) {
       if (friendly(x.team, P.side)) return true;
       if (x.kind === 'bld' && camoHidden(x, P.side) && !last) return false;   // a camouflaged structure is not mentioned until it gives itself away
@@ -116,7 +118,7 @@ const NetCore = (() => {
     if (f.length) s.fog = f;
     if (P.snapN++ % ORE_EVERY === 0) {
       const o = [];
-      for (let i = 0; i < NCELLS; i++) if ((G.ore[i] !== P.oreSent[i] || G.gem[i] !== P.gemSent[i]) && fog[i]) { P.oreSent[i] = G.ore[i]; P.gemSent[i] = G.gem[i]; o.push(i, G.ore[i], G.gem[i]); }
+      for (let i = 0; i < NCELLS; i++) if ((G.ore[i] !== P.oreSent[i] || G.gem[i] !== P.gemSent[i]) && view[i]) { P.oreSent[i] = G.ore[i]; P.gemSent[i] = G.gem[i]; o.push(i, G.ore[i], G.gem[i]); }
       if (o.length) s.ore = o;
     }
     if (G.over) s.over = { winner: G.over.winner, t: round(G.over.t) };

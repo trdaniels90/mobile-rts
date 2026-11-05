@@ -61,7 +61,7 @@
     Report.end(won);
     if (mission) { SaveGame.clear(); mission = false; }
     const vs = online, how = G.over.how;
-    const ending = how === 'quit' ? (won ? ' · they surrendered' : ' · you surrendered') : how === 'left' ? (won ? ' · they left' : ' · you left') : '';
+    const ending = how === 'quit' ? (won ? ' · they surrendered' : ' · you surrendered') : how === 'left' ? (won ? ' · they left' : ' · you left') : how === 'out' ? ' · your side was beaten' : '';
     setTimeout(() => {
       G.paused = true;
       Debrief.open(won, {
@@ -1075,9 +1075,36 @@
       else guard('update', () => { while (dt > 0) { const step = Math.min(dt, 1 / 30); dt -= step; update(step); } });
       guard('net', () => Net.hostTick(total));
     }
+    guard('beaten', beaten);
     guard('draw', draw);
     guard('sidebar', () => updateSidebar(1 / 60));
     guard('radar', () => drawRadar(1 / 60));
+  }
+  // A team game where this side is beaten (no production left) but an ally fights on: a card offers
+  // the debrief now (a loss) or staying to watch with the whole map shown (then the alliance's result).
+  let beatenEl = null;
+  function beaten() {
+    const on = !!(G && !G.over && G.teams.length > 2 && G.teams[G.me] && G.teams[G.me].out);
+    if (on && G.watching) {
+      if (G.seen === G.fog[G.me]) { G.seen = new Uint8Array(NCELLS).fill(1); G.shroudDirty = true; radarWas = null; }   // own copy: allies' sight stays theirs
+    }
+    if (!beatenEl) {
+      if (!on) return;
+      beatenEl = document.createElement('div'); beatenEl.id = 'beaten'; beatenEl.className = 'nw-wrap';
+      beatenEl.innerHTML = '<div class="nw-card" role="alert"><p class="nw-title">You have been defeated</p>'
+        + '<p class="nw-sub">Your ally fights on. Watch the rest of the battle with the whole map shown: if your ally wins, you win too.</p>'
+        + '<button type="button" class="pf-btn" data-b="watch">Keep watching</button> <button type="button" class="pf-btn" data-b="debrief">Debrief (a loss)</button></div>';
+      beatenEl.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-b]');
+        if (!b || !G || G.over) return;
+        if (b.dataset.b === 'watch') { G.watching = true; if (Net.role) Net.watch(); eva('Watching the battle'); }
+        else if (Net.role) Net.surrender('out');
+        else endBattle(otherAlly(G.me), 'out');
+        beatenEl.hidden = true;
+      });
+      document.body.append(beatenEl);
+    }
+    beatenEl.hidden = !on || !!G.watching;
   }
   function guard(where, fn) { try { fn(); } catch (e) { Report.oops(where, e); } }
   // The next frame is asked for first, so nothing that goes wrong in this one can stop the loop.
