@@ -584,6 +584,9 @@ const Net = (() => {
       const d = s.e[id], x = G.byId.get(+id), glide = x.kind === 'unit' && !fresh.has(x);
       for (const k in d) {
         const v = unpack(d[k]);
+        // A new shot: the muzzle flash, timed here (fireT itself is not sent: a 0.1 s flash often
+        // ended between two snapshots and was never seen).
+        if (k === 'shots' && v !== x.shots && !fresh.has(x)) x.fireT = x.type === 'grenadier' ? 0.35 : 0.1;
         if (glide && LERP.includes(k) && typeof v === 'number' && typeof x[k] === 'number') x._to[k] = v;
         else x[k] = v;
       }
@@ -632,6 +635,32 @@ const Net = (() => {
     hooks.gameOver(G.over.won);
   }
   // Each frame on the guest: glide toward the latest positions and run the eye candy.
+  // Shots in flight between snapshots: carried on along their course, as the host's updateProjectiles
+  // does, without its damage, blasts or smoke (those come from the host). Before, they only moved
+  // with each snapshot, ten times a second, so shells jumped along.
+  function flyShots(dt) {
+    for (const p of G.projectiles) {
+      if (p.delay > 0) { p.delay -= dt; continue; }
+      if (p.kind === 'bomb' || p.kind === 'lob' || p.kind === 'grenade') {
+        if (!(p.dur > 0)) continue;
+        p.t = Math.min(p.dur, p.t + dt);
+        const k = p.t / p.dur;
+        if (p.kind === 'bomb') { p.x = p.tx; p.y = p.ty - p.z * (1 - k * k); continue; }
+        const px = p.x, py = p.y;
+        p.gx = p.sx + (p.tx - p.sx) * k; p.gy = p.sy + (p.ty - p.sy) * k;
+        p.x = p.gx; p.y = p.gy - (p.z * (1 - k) + p.h * 4 * k * (1 - k));
+        p.a = p.kind === 'grenade' ? (p.a || 0) + dt * 14 : Math.atan2(p.y - py, p.x - px);
+        continue;
+      }
+      const t = p.target;
+      if (!t || !(p.speed > 0) || typeof t.x !== 'number') continue;
+      const ty = aimY(t), dx = t.x - p.x, dy = ty - p.y, d = Math.hypot(dx, dy), step = p.speed * dt;
+      if (d < 1) continue;
+      p.a = Math.atan2(dy, dx);
+      const m = Math.min(step, Math.max(0, d - 3));   // stops at the target; the host's next snapshot ends it
+      p.x += (dx / d) * m; p.y += (dy / d) * m;
+    }
+  }
   function guestStep(dt) {
     if (!G || G.over || G.hold) return;
     noteFrame(dt);
@@ -650,6 +679,8 @@ const Net = (() => {
       const moved = Math.hypot(x.x - ox, x.y - oy);
       if (moved < CELL) x.anim += moved;
     }
+    for (const x of G.entities) if (x.fireT > 0) x.fireT = Math.max(0, x.fireT - dt);
+    flyShots(dt);
     updateEffects(dt);
     sweepDead();
     rollCredits(dt);
