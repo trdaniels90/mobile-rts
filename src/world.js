@@ -614,9 +614,14 @@ function laneOffsetPath(u) {
   });
   u.path = out;
 }
+// Routes are worked out from a queue: up to 8 a step, and once PATH_MS of route-finding is spent the rest wait
+// for the next step (a long route round the river can take 20 to 40 ms; 8 at once stalled the battle).
+const PATH_MS = 6;
+const clockMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 function processPaths() {
   let budget = 8;
-  while (budget-- > 0 && G.pathQueue.length) {
+  const t0 = clockMs();
+  while (budget-- > 0 && G.pathQueue.length && (budget === 7 || clockMs() - t0 < PATH_MS)) {
     const u = G.pathQueue.shift();
     if (!u.alive || !u.needPath || !u.dest) { u.needPath = false; continue; }
     u.needPath = false;
@@ -959,7 +964,8 @@ function defendAllies(team) {
   const helping = team.isAI ? G.diff.ai.adapt : unitsOf(team.id).some((u) => u.garrison);
   if (!helping && !unitsOf(team.id).some((u) => u.assisting)) return;
   const allies = alliesOf(team);
-  const hit = (a, u) => buildingsOf(a.id).some((b) => distTo(u, b) < CELL * 14) ||
+  const allyBlds = new Map(allies.map((a) => [a, buildingsOf(a.id)]));   // once, not per enemy unit
+  const hit = (a, u) => allyBlds.get(a).some((b) => distTo(u, b) < CELL * 14) ||
     (a.baseHit && a.baseHit.until > G.t && Math.hypot(u.x - a.baseHit.x, u.y - a.baseHit.y) < CELL * 8);
   const threats = helping ? enemyUnitsOf(team.id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute && allies.some((a) => hit(a, u))) : [];
   if (!threats.length) {
@@ -1086,7 +1092,10 @@ const DEFEND_CALM = 4;
 function defendBase(team) {
   const mine = buildingsOf(team.id);
   // Measured from building edges, so a big base is covered all the way round.
-  const nearBase = (u, r) => mine.some((b) => distTo(u, b) < CELL * r);
+  // (A box round the whole base first: most enemy units are nowhere near it.)
+  let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+  for (const b of mine) { bx0 = Math.min(bx0, b.cx * CELL); by0 = Math.min(by0, b.cy * CELL); bx1 = Math.max(bx1, (b.cx + b.w) * CELL); by1 = Math.max(by1, (b.cy + b.h) * CELL); }
+  const nearBase = (u, r) => u.x > bx0 - CELL * r && u.x < bx1 + CELL * r && u.y > by0 - CELL * r && u.y < by1 + CELL * r && mine.some((b) => distTo(u, b) < CELL * r);
   const hh = team.harvHit && team.harvHit.until > G.t ? team.harvHit : null;
   const nearHarv = (u, r) => hh && Math.hypot(u.x - hh.x, u.y - hh.y) < CELL * r;
   const bh = team.baseHit && team.baseHit.until > G.t ? team.baseHit : null;
