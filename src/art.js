@@ -581,13 +581,14 @@ function drawUnit(g, u, t) {
     }
     return;
   }
-  blit(g, hullSprite(u, pal), u.x, u.y);
+  // A tank gun firing rocks the whole tank back a pixel, the turret a little further (recoil).
+  const rk = u.def.weapon && u.def.weapon.proj === 'shell' && !isAirborne(u) ? recoil(u) : 0;
+  const hk = rk * 1.0, kick = rk * (u.type === 'mammoth' || u.type === 'htank' ? 2 : 1.6);
+  blit(g, hullSprite(u, pal), u.x - Math.cos(u.tface) * hk, u.y - Math.sin(u.tface) * hk * 0.6);
   const ts = turretSprite(u, pal);
   if (ts) {
     const z = turretZ(u.def) * VK, off = u.def.draw === 'jeep' ? -3 : -1;
-    // Tank guns kick the turret back along the barrel when they fire.
-    const kick = u.def.weapon && u.def.weapon.proj === 'shell' ? recoil(u) * (u.type === 'mammoth' || u.type === 'htank' ? 3 : 2.5) : 0;
-    const tx = u.x + Math.cos(u.face) * off - Math.cos(u.tface) * kick, ty = u.y + Math.sin(u.face) * off - z - Math.sin(u.tface) * kick;
+    const tx = u.x + Math.cos(u.face) * off - Math.cos(u.tface) * kick, ty = u.y + Math.sin(u.face) * off - z - Math.sin(u.tface) * kick * 0.6;
     blit(g, ts, tx, ty, false);
     if (u.fireT > 0) {
       const len = u.def.size.tur ? u.def.size.tur + u.def.size.barrel : 8;
@@ -670,8 +671,8 @@ function drawStructure(g, b, t) {
   const head = HEADS[b.type];
   if (b.type === 'sam') drawSamHead(g, b, x, y, stage);
   else if (head) {
-    const kick = b.type === 'turret' ? recoil(b) * 3 : 0;   // the Gun Turret's head kicks back when it fires
-    const hx = x + head[1] - Math.cos(b.tface) * kick, hy = y + head[2] - head[3] * VK - Math.sin(b.tface) * kick;
+    const kick = b.type === 'turret' ? recoil(b) * 1.6 : 0;   // the Gun Turret's head kicks back when it fires
+    const hx = x + head[1] - Math.cos(b.tface) * kick, hy = y + head[2] - head[3] * VK - Math.sin(b.tface) * kick * 0.6;
     blit(g, headSprite(b.type, b.faction, b.tface, stage), hx, hy, false);
     if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
   }
@@ -691,16 +692,16 @@ function drawStructure(g, b, t) {
   }
 }
 
-// The SAM Site's launcher lives underground: the doors slide apart, then it rises (b.popK,
-// set by updateSamPits in world.js: 0 = shut, 0.4 = doors open, 1 = up and ready).
-// A gun's recoil, 0 to 1: a sharp kick back when it fires (shotAt, world.js fireWeapon), easing
-// back into place over about a third of a second.
+// A gun's recoil, 0 to 1 (shotAt, set in world.js fireWeapon): it kicks back at once, holds a
+// moment, then eases home, slowing as it settles, within 0.3 s.
 function recoil(e) {
   const k = G.t - (e.shotAt == null ? -9 : e.shotAt);
-  if (k < 0 || k >= 0.32) return 0;
-  return k < 0.04 ? k / 0.04 : (1 - (k - 0.04) / 0.28) ** 2;
+  if (k < 0 || k >= 0.3) return 0;
+  return k < 0.04 ? 1 : (1 - (k - 0.04) / 0.26) ** 2;
 }
 
+// The SAM Site's launcher lives underground: the doors slide apart, then it rises (b.popK,
+// set by updateSamPits in world.js: 0 = shut, 0.4 = doors open, 1 = up and ready).
 function drawSamHead(g, b, x, y, stage) {
   const ease = (v) => v * v * (3 - 2 * v), k = b.popK || 0;
   const open = ease(Math.min(1, k / 0.4)), rise = ease(Math.max(0, (k - 0.4) / 0.6));
