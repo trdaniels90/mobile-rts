@@ -371,15 +371,33 @@ function hindModel(pal) {
 function jetModel(pal, mig) {
   const m = new VModel(-17, -13, 17, 13, 11);
   if (mig) {
-    m.cylX(-13, 11, 0, 3, 2, pal.main, M_METAL);
-    m.cylX(10, 14, 0, 3, 1.6, C.gun, M_METAL);
-    m.cylX(11, 13, 0, 3, 0.8, C.black);
-    for (let x = -10; x < 6; x++) { const span = Math.round((6 - x) * 0.72); m.box(x, -span - 1, 2, x + 1, span + 1, 3, pal.main, M_METAL); }
-    m.box(-13, 0, 3, -9, 1, 9, pal.dark, M_METAL);
-    for (let x = -14; x < -10; x++) { const sp = Math.round((-10 - x) * 1.2) + 1; m.box(x, -sp - 1, 3, x + 1, sp + 1, 4, pal.dark); }
-    m.ellipsoid(6, 0, 4.5, 3, 1.2, 1.3, C.glass, M_GLASS);
-    m.paintTop(-6, -8, 0, 8, (x, y) => Math.abs(y) === 6 && x < -2 ? C.red : undefined);
-    m.box(-16, -1, 2, -14, 1, 4, C.black);
+    // MiG: a slim fuselage in the side's colour with a long pointed nose and a blue canopy, swept
+    // grey wings and tailplanes carrying stars, a tall swept fin and a dark exhaust.
+    const GR = '#8e9397', GRD = '#6d7276';
+    for (let x = -14; x < 17; x++) {                                      // fuselage, tapering to the nose
+      const r = x < 8 ? 1.9 : Math.max(0.5, 1.9 - (x - 8) * 0.18);
+      m.cylX(x, x + 1, 0, 3, r, pal.main, M_METAL);
+    }
+    m.cylX(-16, -14, 0, 3, 1.6, '#2a2a28', M_METAL);                       // exhaust
+    m.cylX(-17, -16, 0, 3, 1.1, '#141413');
+    for (const y of [-2, 2]) m.box(2, y < 0 ? -3 : 2, 2, 7, y < 0 ? -1 : 3, 4, pal.dark, M_METAL);   // intakes
+    m.ellipsoid(7.5, 0, 4.6, 3.2, 1.1, 1.4, '#3f86c4', M_GLASS);         // canopy
+    m.set(8, 0, 5, '#9fd2f2', M_GLASS);
+    for (const sgn of [-1, 1]) {
+      for (let k = 2; k <= 12; k++) {                                       // wings: swept back, thin
+        const lead = 3 - (k - 2) * 0.9, trail = -4 - (k - 2) * 0.45;
+        m.box(Math.round(trail), sgn < 0 ? -k - 1 : k, 2, Math.round(lead) + 1, sgn < 0 ? -k : k + 1, 3, k > 11 ? GRD : GR, M_METAL);
+      }
+      starTop(m, -3.4, sgn * 8, 2.7, pal.main);
+      for (let k = 2; k <= 6; k++) {                                        // tailplanes
+        const lead = -9 - (k - 2) * 0.7, trail = -14 - (k - 2) * 0.2;
+        m.box(Math.round(trail), sgn < 0 ? -k - 1 : k, 2, Math.round(lead) + 1, sgn < 0 ? -k : k + 1, 3, GR, M_METAL);
+      }
+    }
+    for (let z = 4; z < 11; z++) {                                          // the fin, swept back
+      const lead = -8 - (z - 4) * 0.75, trail = -14 - (z - 4) * 0.2;
+      m.box(Math.round(trail), 0, z, Math.round(lead) + 1, 1, z + 1, z === 10 ? pal.dark : pal.main, M_METAL);
+    }
   } else {
     // Strike Eagle: a grey twin-engined airframe with boxy intakes beside a long two-seat canopy,
     // big clipped delta wings, stabilators and twin canted fins in the side's colour.
