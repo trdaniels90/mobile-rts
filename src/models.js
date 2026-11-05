@@ -1021,6 +1021,306 @@ const STRUCTURES = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Soviet structures: Cold War Soviet in style. Grey precast concrete panels and flat roofs, strip
+// windows, olive steel, and the side's colour as the accent: stars, hanging banners, parapets and
+// red-and-white smokestacks. Same footprints, doors and pads as the shared models above.
+// ---------------------------------------------------------------------------
+const SV = { conc: '#a39e91', seam: '#878275', stain: '#938e81', light: '#b5b0a3', roof: '#77746a', roofD: '#67645b',
+  win: '#1f2a30', winL: '#3d5866', olive: '#56603b', oliveD: '#414a2c', steel: '#7f8480' };
+// Is (dx, dy) inside a five-pointed star of radius r, point up (dy grows downward)?
+function inStar(dx, dy, r) {
+  const a = Math.atan2(dy, dx) + Math.PI / 2, d = Math.hypot(dx, dy);
+  const k = Math.abs(((a / (Math.PI * 2 / 5)) % 1 + 1) % 1 - 0.5) * 2;
+  return d < r * (0.4 + 0.6 * k * k);
+}
+// A wall of precast panels: seams every 8 across and 6 up, a few weather streaks.
+function panelBox(m, x0, y0, z0, x1, y1, z1) {
+  m.box(x0, y0, z0, x1, y1, z1, SV.conc, M_ROUGH);
+  m.paint(x0, y0, z0, x1, y1, z1, (x, y, z) => {
+    if ((x - x0) % 8 === 0 || (y - y0) % 8 === 0 || (z - z0) % 6 === 5) return SV.seam;
+    const n = hash3(x, y >> 2, 21);
+    if (n > 0.86) return SV.stain;
+    if (n < 0.06) return SV.light;
+  });
+}
+// A flat tar roof on top of a box (at height z) with a concrete parapet; its outer face carries the side's colour.
+function flatRoof(m, x0, y0, x1, y1, z, pal) {
+  m.box(x0, y0, z, x1, y1, z + 1, SV.roof, M_ROUGH);
+  m.paintTop(x0, y0, x1, y1, (x, y) => (hash3(x, y, 5) > 0.8 ? SV.roofD : undefined));
+  m.paintTop(x0, y0, x1, y1, (x, y) => ((x - x0) % 12 === 6 || (y - y0) % 12 === 6 ? SV.roofD : undefined));   // roof slab joints
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (x === x0 || y === y0 || x === x1 - 1 || y === y1 - 1) m.set(x, y, z + 1, pal.main, M_MATTE);   // the parapet, in the side's colour
+  m.box(x0, y1 - 1, z - 1, x1, y1, z, pal.dark, M_MATTE);
+}
+// A strip of windows on the front face (y = the wall's front row), with mullions.
+function stripWin(m, x0, x1, y, z0, z1) {
+  m.box(x0, y, z0, x1, y + 1, z1, SV.win, M_GLASS);
+  m.paint(x0, y, z0, x1, y + 1, z1, (x, yy, z) => ((x - x0) % 4 === 3 ? SV.seam : z === z1 - 1 ? SV.winL : undefined));
+}
+// A star on the front face (at row y), centred on x = cx, z = cz.
+function starFront(m, cx, y, cz, r, col) {
+  for (let z = Math.floor(cz - r); z <= cz + r; z++) for (let x = Math.floor(cx - r); x <= cx + r; x++) {
+    if (inStar(x + 0.5 - cx, cz - (z + 0.5), r)) m.set(x, y, z, col, M_MATTE);
+  }
+}
+// A star painted on a roof (top voxels), point to the north.
+function starTop(m, cx, cy, r, col) {
+  m.paintTop(Math.floor(cx - r), Math.floor(cy - r), Math.ceil(cx + r), Math.ceil(cy + r), (x, y) => (inStar(x + 0.5 - cx, y + 0.5 - cy, r) ? col : undefined));
+}
+// A banner hanging down the front face from height top: the side's colour with a small gold star.
+function bannerV(m, x0, x1, y, top, len, pal) {
+  m.box(x0, y, top - len, x1, y + 1, top, pal.main, M_MATTE);
+  m.box(x0, y, top - len, x1, y + 1, top - len + 1, pal.dark, M_MATTE);
+  starFront(m, (x0 + x1) / 2, y, top - 2.5, Math.min(2, (x1 - x0) / 2 - 0.2), C.yellow);
+  m.box(x0 - 1, y, top, x1 + 1, y + 1, top + 1, SV.steel, M_METAL);
+}
+// A smokestack banded in the side's colour and white, with a dark lip.
+function stackV(m, x, y, z0, z1, r, pal) {
+  for (let z = z0; z < z1; z++) m.cylZ(x, y, z, z + 1, r, z > z1 - 15 ? (Math.floor((z1 - z) / 3) % 2 ? C.white : pal.main) : SV.conc, z > z1 - 15 ? M_MATTE : M_ROUGH);
+  m.cylZ(x, y, z1 - 2, z1, r - 1, null);
+  m.cylZ(x, y, z1 - 1, z1, r + 0.4, '#2c2b28', M_METAL);
+}
+// A lattice mast (radio, cranes): steel with cross-bracing.
+function latticeV(m, x, y, z0, z1, col) {
+  for (const [dx, dy] of [[0, 0], [2, 0], [0, 2], [2, 2]]) m.line(x + dx, y + dy, z0, x + dx, y + dy, z1, col, M_METAL);
+  for (let z = z0; z < z1; z += 3) { m.line(x, y, z, x + 2, y, z + 2, col, M_METAL); m.line(x, y + 2, z + 2, x + 2, y + 2, z, col, M_METAL); }
+}
+
+const SOVIET = {
+  // Construction Yard: a long assembly hall with a stepped office tower, a gold star over the gate,
+  // banners, and a tower crane.
+  cy(pal) {
+    const m = new VModel(-2, -2, 76, 76, 48);
+    slabV(m, 0, 0, 72, 72);
+    panelBox(m, 4, 8, 1, 68, 54, 22);
+    flatRoof(m, 4, 8, 68, 54, 22, pal);
+    panelBox(m, 6, 8, 23, 30, 30, 36);                                  // office tower at the back left
+    flatRoof(m, 6, 8, 30, 30, 36, pal);
+    stripWin(m, 7, 29, 29, 27, 29); stripWin(m, 7, 29, 29, 31, 33);
+    m.box(56, 12, 23, 64, 22, 26, SV.steel, M_METAL);                   // roof plant
+    starTop(m, 46, 36, 12, pal.main);
+    stripWin(m, 4, 20, 53, 15, 17); stripWin(m, 52, 68, 53, 15, 17);
+    m.clear(22, 52, 1, 50, 54, 13);                                     // the gate
+    m.box(22, 52, 1, 50, 53, 13, SV.olive, M_METAL);
+    m.paint(22, 52, 1, 50, 53, 13, (x, y, z) => (z % 2 ? SV.oliveD : undefined));
+    hazardV(m, 19, 51, 1, 22, 55, 14); hazardV(m, 50, 51, 1, 53, 55, 14);
+    starFront(m, 36, 53, 17.5, 4.2, C.yellow);
+    m.box(30, 53, 13, 42, 54, 14, pal.main, M_MATTE);
+    bannerV(m, 8, 13, 53, 13, 10, pal); bannerV(m, 59, 64, 53, 13, 10, pal);
+    m.paintTop(28, 58, 44, 70, (x, y) => (y - 58) % 4 < 2 ? C.yellow : undefined);
+    latticeV(m, 63, 2, 1, 44, C.yellow);                                 // tower crane
+    m.box(30, 2, 43, 67, 5, 45, C.yellow, M_METAL);
+    m.box(64, 1, 45, 68, 6, 47, '#5d5e58', M_METAL);
+    m.line(36, 3.5, 42, 36, 3.5, 26, C.black);
+    m.box(34, 2, 24, 38, 5, 26, C.gun, M_METAL);
+    return m;
+  },
+  // Power Plant: a turbine block, a tall striped smokestack, and a transformer yard.
+  power(pal) {
+    const m = new VModel(-2, -2, 50, 50, 46);
+    slabV(m, 0, 0, 48, 48);
+    panelBox(m, 2, 14, 1, 30, 44, 16);
+    flatRoof(m, 2, 14, 30, 44, 16, pal);
+    stripWin(m, 3, 29, 43, 9, 11);
+    starFront(m, 16, 43, 5, 2.6, pal.main);
+    starTop(m, 16, 29, 8, pal.main);
+    for (const x of [5, 22]) m.box(x, 18, 17, x + 5, 24, 20, SV.steel, M_METAL);   // vents
+    m.box(32, 6, 1, 46, 22, 6, SV.conc, M_ROUGH);                       // stack base
+    stackV(m, 39, 13, 6, 45, 4, pal);
+    m.cylX(26, 35, 18, 12, 1.4, SV.steel, M_METAL);
+    m.box(34, 34, 1, 46, 46, 8, '#5d5e58', M_METAL);                     // transformers
+    m.paint(34, 45, 3, 46, 46, 8, (x) => (x % 3 === 0 ? '#46473f' : undefined));
+    m.box(39, 45, 5, 41, 46, 7, C.yellow);
+    return m;
+  },
+  // Advanced Power Plant: two concrete cooling towers, a striped stack, a turbine hall under a star.
+  apower(pal) {
+    const m = new VModel(-2, -2, 74, 74, 48);
+    slabV(m, 0, 0, 72, 72);
+    panelBox(m, 3, 38, 1, 68, 68, 16);
+    flatRoof(m, 3, 38, 68, 68, 16, pal);
+    stripWin(m, 4, 26, 67, 8, 11); stripWin(m, 45, 67, 67, 8, 11);
+    starFront(m, 35.5, 67, 9, 4, pal.main);
+    for (const x of [6, 16, 48, 58]) m.box(x, 44, 17, x + 7, 54, 20, SV.steel, M_METAL);
+    starTop(m, 35.5, 53, 10, pal.main);
+    for (const [cx, cy, h] of [[15, 17, 40], [41, 17, 40]]) {
+      for (let z = 1; z < h; z++) {
+        const r = 11 * (1 - 0.28 * Math.sin(Math.PI * Math.min(1, z / (h * 0.85))));
+        m.cylZ(cx, cy, z, z + 1, r, z > h - 3 ? pal.main : z % 7 === 0 ? SV.seam : SV.conc, M_ROUGH);
+      }
+      m.paint(cx - 12, cy - 12, 4, cx + 12, cy + 12, h - 3, (x, y, z) => (hash3(x, y, 9) > 0.8 && z < h - 6 ? SV.stain : undefined));   // rain streaks
+      m.cylZ(cx, cy, h - 6, h, 6.5, null);
+      m.cylY(27, 38, cx, 7, 1.8, SV.steel, M_METAL);
+    }
+    stackV(m, 63, 10, 1, 47, 3.5, pal);
+    m.box(56, 18, 1, 70, 34, 6, '#5d5e58', M_METAL);                    // transformer yard
+    m.paint(56, 18, 3, 70, 34, 6, (x, y) => (x % 4 === 0 || y % 6 === 0 ? '#46473f' : undefined));
+    for (const y of [22, 28]) m.line(63, y, 6, 63, y, 13, C.steel, M_METAL);
+    return m;
+  },
+  // Ore Refinery: a concrete processing hall with its hopper, banded silos and a conveyor.
+  refinery(pal) {
+    const m = new VModel(-2, -2, 74, 50, 40);
+    slabV(m, 0, 0, 72, 48);
+    panelBox(m, 2, 4, 1, 42, 44, 16);
+    flatRoof(m, 2, 4, 42, 44, 16, pal);
+    starTop(m, 13, 30, 8, pal.main);
+    m.box(24, 10, 17, 38, 22, 22, SV.olive, M_METAL);
+    m.clear(25, 11, 19, 37, 21, 22);
+    m.box(25, 11, 19, 37, 21, 20, C.ore[1], M_METAL);
+    stripWin(m, 3, 27, 43, 9, 11);
+    starFront(m, 15, 43, 4.5, 2.6, pal.main);
+    bannerV(m, 4, 8, 43, 15, 7, pal);
+    for (const [x, y, r, h] of [[52, 12, 7, 32], [65, 22, 6, 26]]) {
+      m.cylZ(x, y, 1, h, r, SV.conc, M_ROUGH);
+      m.paint(x - r, y - r, 1, x + r, y + r, h, (xx, yy, z) => (z % 6 === 0 ? SV.seam : undefined));
+      m.ellipsoid(x, y, h, r, r, 3, SV.steel, M_METAL);
+      m.paint(x - r, y - r, h - 7, x + r, y + r, h - 4, () => pal.main);
+    }
+    m.line(42, 10, 18, 50, 10, 30, SV.steel, M_METAL);                 // conveyor to the silo
+    m.line(42, 11, 18, 50, 11, 30, SV.steel, M_METAL);
+    m.box(30, 40, 1, 42, 48, 6, C.gun, M_METAL);
+    hazardV(m, 28, 40, 1, 30, 48, 6); hazardV(m, 42, 40, 1, 44, 48, 6);
+    m.cylX(42, 46, 20, 10, 1.5, SV.steel, M_METAL);
+    return m;
+  },
+  // Radar: a concrete bunker carrying a big curved mesh antenna, and a banded lattice mast.
+  dome(pal) {
+    const m = new VModel(-2, -2, 50, 50, 46);
+    slabV(m, 0, 0, 48, 48);
+    panelBox(m, 4, 14, 1, 44, 44, 12);
+    flatRoof(m, 4, 14, 44, 44, 12, pal);
+    stripWin(m, 6, 26, 43, 6, 8);
+    m.box(30, 43, 1, 38, 44, 9, SV.olive, M_METAL);
+    m.cylZ(22, 28, 13, 18, 3, SV.steel, M_METAL);                       // pedestal
+    for (let x = 6; x < 39; x++) {                                       // the antenna: a curved mesh
+      const dx = x + 0.5 - 22.5, y = Math.round(25 - dx * dx / 34);
+      for (let z = 18; z < 33; z++) m.set(x, y, z, (x + z) % 2 ? '#6a6f6c' : '#454a48', M_ROUGH);
+      if (x % 4 === 0) m.line(x, y + 1, 18, 22, 29, 22, '#4f5452', M_METAL);
+    }
+    m.box(21, 17, 24, 24, 28, 26, SV.steel, M_METAL);                   // feed horn boom
+    latticeV(m, 38, 16, 13, 42, SV.steel);
+    m.paint(37, 15, 13, 42, 20, 42, (x, y, z) => (Math.floor(z / 4) % 2 ? pal.main : C.white));
+    m.set(39, 17, 43, '#ff4030', M_GLOW);
+    return m;
+  },
+  // Outpost: the unpacked shelter, a concrete blockhouse with a star on the roof, a radio mast and the flag.
+  outpost(pal) {
+    const m = new VModel(-2, -2, 50, 50, 30);
+    slabV(m, 0, 0, 48, 48);
+    sandbagsV(m, 2, 2, 46, 46, 3);
+    panelBox(m, 10, 14, 1, 34, 34, 11);
+    flatRoof(m, 10, 14, 34, 34, 11, pal);
+    starTop(m, 22, 24, 7, pal.main);
+    m.box(18, 33, 2, 24, 34, 9, SV.oliveD);
+    latticeV(m, 13, 16, 12, 27, SV.steel);
+    m.line(38, 10, 1, 38, 10, 24, C.steel, M_METAL);
+    m.box(38, 10, 18, 46, 11, 24, pal.main);
+    m.set(40, 10, 22, C.yellow);
+    for (const [x, y] of [[40, 34], [6, 38]]) m.box(x, y, 1, x + 4, y + 3, 4, SV.olive, M_METAL);
+    return m;
+  },
+  // Barracks: a two-storey concrete block with strip windows, a star on the roof, banners and sandbags.
+  barracks(pal) {
+    const m = new VModel(-2, -2, 54, 50, 34);
+    slabV(m, 0, 0, 48, 48);
+    panelBox(m, 4, 6, 1, 44, 44, 17);
+    flatRoof(m, 4, 6, 44, 44, 17, pal);
+    stripWin(m, 5, 18, 43, 11, 13); stripWin(m, 30, 43, 43, 11, 13);
+    starTop(m, 24, 25, 12, pal.main);
+    m.box(19, 43, 1, 29, 44, 9, '#2a2420');
+    m.box(18, 43, 9, 30, 44, 10, SV.conc, M_ROUGH);
+    bannerV(m, 20, 28, 43, 16, 5, pal);
+    m.line(8, 8, 18, 8, 8, 30, C.steel, M_METAL);
+    m.box(8, 8, 25, 15, 9, 30, pal.main);
+    for (const x of [8, 34]) sandbagsV(m, x, 45, x + 7, 48, 3);
+    return m;
+  },
+  // War Factory: a tall concrete assembly hall, the gate under a gold star, banners and two stacks.
+  factory(pal) {
+    const m = new VModel(-2, -2, 74, 50, 40);
+    slabV(m, 0, 0, 72, 48);
+    panelBox(m, 2, 4, 1, 70, 46, 24);
+    flatRoof(m, 2, 4, 70, 46, 24, pal);
+    for (const x of [6, 54]) m.box(x, 10, 25, x + 12, 38, 27, SV.winL, M_GLASS);   // roof lights
+    starTop(m, 36, 25, 13, pal.main);
+    stripWin(m, 3, 17, 45, 12, 15); stripWin(m, 55, 69, 45, 12, 15);
+    m.clear(20, 44, 1, 52, 46, 16);
+    m.box(20, 45, 1, 52, 46, 16, SV.olive, M_METAL);
+    m.paint(20, 45, 1, 52, 46, 16, (x, y, z) => (z % 2 ? SV.oliveD : undefined));
+    hazardV(m, 17, 44, 1, 20, 47, 17); hazardV(m, 52, 44, 1, 55, 47, 17);
+    starFront(m, 36, 45, 20, 3.6, C.yellow);
+    m.box(24, 45, 16, 48, 46, 17, pal.main, M_MATTE);
+    bannerV(m, 6, 11, 45, 22, 8, pal); bannerV(m, 61, 66, 45, 22, 8, pal);
+    stackV(m, 60, 9, 25, 39, 2.6, pal); stackV(m, 66, 9, 25, 37, 2.2, pal);
+    return m;
+  },
+  // Service Depot: an olive arched workshop with a concrete gable, a red gantry and a fuel tank.
+  depot(pal) {
+    const m = new VModel(-2, -2, 74, 50, 36);
+    slabV(m, 0, 0, 72, 48);
+    for (let x = 14; x < 58; x++) {                                      // barrel vault
+      const h = Math.round(Math.sqrt(Math.max(0, 22 * 22 - (x + 0.5 - 36) ** 2)) * 0.95);
+      if (h) m.box(x, 2, 1, x + 1, 40, 1 + h, SV.olive, M_METAL);
+    }
+    m.paint(14, 2, 1, 58, 40, 24, (x, y) => (y % 5 === 0 ? SV.oliveD : undefined));
+    m.paint(14, 39, 1, 58, 40, 24, () => SV.conc);                       // concrete front gable
+    m.clear(24, 38, 1, 48, 40, 15);
+    m.box(24, 39, 1, 48, 40, 2, '#2c2c28', M_ROUGH);
+    m.box(24, 38, 14, 48, 40, 15, '#3b3b37', M_METAL);
+    hazardV(m, 21, 38, 1, 24, 41, 16); hazardV(m, 48, 38, 1, 51, 41, 16);
+    starFront(m, 36, 39, 18.5, 3, pal.main);
+    for (const x of [18, 54]) m.box(x, 40, 1, x + 2, 42, 28, SV.steel, M_METAL);
+    m.box(18, 40, 28, 56, 43, 30, pal.main, M_METAL);
+    m.box(35, 41, 22, 37, 42, 28, C.black);
+    m.box(34, 40, 20, 38, 43, 22, C.steel, M_METAL);
+    panelBox(m, 2, 4, 1, 12, 20, 9);
+    flatRoof(m, 2, 4, 12, 20, 9, pal);
+    for (const [x, y] of [[3, 24], [3, 31], [8, 27]]) m.box(x, y, 1, x + 4, y + 4, 5, SV.olive, M_METAL);
+    m.cylZ(65, 12, 1, 14, 5, SV.olive, M_METAL);
+    m.paint(60, 7, 8, 70, 18, 10, () => pal.main);
+    panelBox(m, 62, 26, 1, 70, 40, 12);
+    m.box(62, 39, 6, 70, 40, 9, SV.win, M_GLASS);
+    m.set(66, 33, 12, '#ff4a30', M_GLOW);
+    return m;
+  },
+  // Airfield: a concrete control tower with a star, and a hardened shelter with a camouflaged roof.
+  airfield(pal) {
+    const m = new VModel(-2, -2, 74, 50, 32);
+    m.box(0, 0, 0, 72, 48, 1, '#5a5a54', M_ROUGH);
+    m.paintTop(0, 0, 72, 48, (x, y) => {
+      if ((x % 8 === 0 || y % 8 === 0) && x > 19) return '#4c4c47';        // concrete slabs, not asphalt
+      if (y >= 29 && y < 31 && x > 22 && (x % 8) < 4) return C.white;
+      if (x >= 68 && x < 71 && y >= 21 && y < 40 && y % 3 === 0) return C.white;
+      if (y === 12 && x > 20) return C.yellow;
+    });
+    panelBox(m, 2, 2, 1, 16, 18, 16);
+    m.box(3, 3, 16, 15, 17, 20, SV.win, M_GLASS);
+    m.paint(3, 3, 16, 15, 17, 20, (x, y, z) => (z === 19 ? SV.winL : (x + y) % 4 === 0 ? SV.seam : undefined));
+    flatRoof(m, 2, 2, 16, 18, 20, pal);
+    starFront(m, 9, 17, 10, 3, pal.main);
+    m.line(5, 5, 21, 5, 5, 29, C.black); m.set(5, 5, 29, '#ff4a30', M_GLOW);
+    for (let y = 24; y < 46; y++) {                                      // hardened aircraft shelter
+      const h = Math.round(Math.sqrt(Math.max(0, 121 - (y + 0.5 - 35) ** 2)) * 1.05);
+      if (h) m.box(2, y, 1, 18, y + 1, 1 + h, SV.conc, M_ROUGH);
+    }
+    m.paintTop(2, 24, 18, 46, (x, y) => (hash3(x >> 1, y >> 1, 3) > 0.55 ? SV.olive : hash3(x >> 1, y >> 1, 4) > 0.6 ? SV.oliveD : undefined));
+    m.paint(17, 24, 1, 18, 46, 13, () => SV.seam);
+    m.box(17, 28, 1, 18, 42, 8, '#262624', M_METAL);                    // shelter doors
+    return m;
+  },
+  // Tesla Coil: on a concrete plinth with a star.
+  tesla(pal) {
+    const m = STRUCTURES_SHARED.tesla(pal);
+    panelBox(m, 4, 26, 1, 20, 44, 6);
+    starFront(m, 12, 43, 3.5, 2.2, pal.main);
+    return m;
+  },
+};
+// The shared models stay for the Allies; a Soviet structure uses its own where there is one.
+const STRUCTURES_SHARED = Object.assign({}, STRUCTURES);
+for (const k in SOVIET) STRUCTURES[k] = (pal, faction, cameo) => (faction === 'soviets' ? SOVIET[k](pal, cameo) : STRUCTURES_SHARED[k](pal, faction, cameo));
+
 // Rotating weapon heads on defences: [model builder, pivot x, pivot y, pivot height].
 const HEADS = {
   // Gun Turret: an arrowhead. Triangular in plan with the point forward and a ridge down the middle,
