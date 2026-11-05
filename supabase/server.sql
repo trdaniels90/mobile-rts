@@ -39,9 +39,9 @@ returns void language plpgsql security definer set search_path = '' as $$
 begin
   if not public.server_token_ok(p_token) then raise exception 'bad token'; end if;
   insert into public.server_battles as b (id, code, version, mode, map, difficulty, players, started_at, ended_at, duration_s, winner, how, errors, perf)
-  values ((p->>'id')::uuid, p->>'code', p->>'version', p->>'mode', p->>'map', p->>'difficulty', p->'players',
+  values ((p->>'id')::uuid, p->>'code', p->>'version', p->>'mode', p->>'map', p->>'difficulty', nullif(p->'players', 'null'::jsonb),
           (p->>'started_at')::timestamptz, (p->>'ended_at')::timestamptz, (p->>'duration_s')::int,
-          (p->>'winner')::int, p->>'how', p->'errors', p->'perf')
+          (p->>'winner')::int, p->>'how', nullif(p->'errors', 'null'::jsonb), nullif(p->'perf', 'null'::jsonb))
   on conflict (id) do update set ended_at = excluded.ended_at, duration_s = excluded.duration_s, winner = excluded.winner,
     how = excluded.how, errors = excluded.errors, perf = excluded.perf, players = excluded.players;
 end $$;
