@@ -140,7 +140,20 @@ function makeRoom(code) {
     setTimeout(() => backToLobby(R), 0);
   };
   rooms.set(code, R);
+  warmDamage(R);
   return R;
+}
+// The first time a structure type is damaged, the game builds its damaged model (damageSpots), about 0.2 s
+// of work that stalls the battle. A new room does them in the background, one every quarter second.
+function warmDamage(R) {
+  const types = Object.keys(R.ctx.get('BUILD_DEFS'));
+  const next = () => {
+    if (!rooms.has(R.code) || !types.length) return;
+    const t = types.shift();
+    try { R.run(`damageSpots(${JSON.stringify(t)}, 'allies')`); } catch (_) {}
+    setTimeout(next, 250).unref();
+  };
+  setTimeout(next, 250).unref();
 }
 function closeRoom(R, why) {
   clearInterval(R.timer);
