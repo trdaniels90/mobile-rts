@@ -1086,6 +1086,39 @@ function latticeV(m, x, y, z0, z1, col) {
   for (let z = z0; z < z1; z += 3) { m.line(x, y, z, x + 2, y, z + 2, col, M_METAL); m.line(x, y + 2, z + 2, x + 2, y + 2, z, col, M_METAL); }
 }
 
+// An RBMK reactor block: pale panels in horizontal bands, its roof, and the raised reactor hall on top.
+function reactorV(m, x0, y0, x1, y1, h, pal) {
+  const band = (a0, b0, z0, a1, b1, z1) => {
+    m.box(a0, b0, z0, a1, b1, z1, '#d2cec2', M_ROUGH);
+    m.paint(a0, b0, z0, a1, b1, z1, (x, y, z) => ((z - z0) % 5 >= 3 ? '#86827a' : (x - a0) % 6 === 0 || (y - b0) % 6 === 0 ? '#bcb8ac' : undefined));
+  };
+  band(x0, y0, 1, x1, y1, h);
+  flatRoof(m, x0, y0, x1, y1, h, pal);
+  const hx0 = x0 + 5, hx1 = x1 - 5, hy0 = y0 + 4, hy1 = y1 - 6;
+  band(hx0, hy0, h + 1, hx1, hy1, h + 7);
+  flatRoof(m, hx0, hy0, hx1, hy1, h + 7, pal);
+  m.box(hx0 + 2, hy1 - 1, h + 3, hx1 - 2, hy1, h + 5, SV.win, M_GLASS);
+  starTop(m, (hx0 + hx1) / 2, (hy0 + hy1) / 2, Math.min(hx1 - hx0, hy1 - hy0) / 2 - 1.5, pal.main);
+}
+// The ventilation stack in its tapering lattice frame (half-width w at the foot), banded at the top.
+function ventStackV(m, SX, SY, z0, top, w, pal) {
+  const FR = '#5a5f5c', band = top - 17, frameTop = top - 13;
+  for (let z = z0; z < top; z++) m.cylZ(SX, SY, z, z + 1, 2.4, z > band ? (Math.floor((top - z) / 3) % 2 ? C.white : pal.main) : '#c8c4b8', z > band ? M_MATTE : M_ROUGH);
+  m.cylZ(SX, SY, top - 2, top, 1.4, null);
+  m.cylZ(SX, SY, top - 1, top, 2.7, '#2c2b28', M_METAL);
+  const half = (z) => w - (z - z0) * (w - 2.6) / (frameTop - z0);
+  for (let z = z0; z < frameTop; z++) {
+    const h = half(z);
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) m.set(Math.round(SX + dx * h), Math.round(SY + dy * h), z, FR, M_METAL);
+  }
+  for (let z = z0 + 5; z < frameTop; z += 8) {                          // rings, and a diagonal on the front per bay
+    const h = half(z), hb = half(Math.max(z0, z - 8));
+    m.line(SX - h, SY + h, z, SX + h, SY + h, z, FR, M_METAL); m.line(SX - h, SY - h, z, SX + h, SY - h, z, FR, M_METAL);
+    m.line(SX - h, SY - h, z, SX - h, SY + h, z, FR, M_METAL); m.line(SX + h, SY - h, z, SX + h, SY + h, z, FR, M_METAL);
+    m.line(SX - hb, SY + hb, z - 8, SX + h, SY + h, z, FR, M_METAL);
+  }
+}
+
 const SOVIET = {
   // Construction Yard: a long assembly hall with a stepped office tower, a gold star over the gate,
   // banners, and a tower crane.
@@ -1120,66 +1153,41 @@ const SOVIET = {
   power(pal) {
     const m = new VModel(-2, -2, 50, 50, 50);
     slabV(m, 0, 0, 48, 48);
-    const band = (x0, y0, z0, x1, y1, z1) => {                          // pale panels in horizontal bands
-      m.box(x0, y0, z0, x1, y1, z1, '#d2cec2', M_ROUGH);
-      m.paint(x0, y0, z0, x1, y1, z1, (x, y, z) => ((z - z0) % 5 >= 3 ? '#86827a' : (x - x0) % 6 === 0 || (y - y0) % 6 === 0 ? '#bcb8ac' : undefined));
-    };
-    band(3, 6, 1, 29, 30, 27);                                           // reactor block
-    flatRoof(m, 3, 6, 29, 30, 27, pal);
-    band(8, 10, 28, 24, 24, 34);                                         // the raised reactor hall on top
-    flatRoof(m, 8, 10, 24, 24, 34, pal);
-    m.box(10, 23, 30, 22, 24, 32, SV.win, M_GLASS);
-    starTop(m, 16, 17, 5, pal.main);
+    reactorV(m, 3, 6, 29, 30, 27, pal);
     panelBox(m, 2, 31, 1, 46, 46, 13);                                   // turbine hall
     flatRoof(m, 2, 31, 46, 46, 13, pal);
     stripWin(m, 3, 21, 45, 7, 10); stripWin(m, 27, 45, 45, 7, 10);
     starFront(m, 24, 45, 6.5, 2.6, pal.main);
     for (const x of [6, 16, 30, 40]) m.box(x, 35, 14, x + 5, 41, 16, SV.steel, M_METAL);   // roof vents
-    // Ventilation stack in its lattice frame, banded at the top.
-    const SX = 38.5, SY = 15, FR = '#5a5f5c';
     m.box(32, 8, 1, 46, 22, 5, SV.conc, M_ROUGH);
-    for (let z = 5; z < 49; z++) m.cylZ(SX, SY, z, z + 1, 2.4, z > 31 ? (Math.floor((49 - z) / 3) % 2 ? C.white : pal.main) : '#c8c4b8', z > 31 ? M_MATTE : M_ROUGH);
-    m.cylZ(SX, SY, 47, 49, 1.4, null);
-    m.cylZ(SX, SY, 48, 49, 2.7, '#2c2b28', M_METAL);
-    const half = (z) => 6 - (z - 5) * 0.1;                               // the frame tapers upward
-    for (let z = 5; z < 36; z++) {
-      const h = half(z);
-      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) m.set(Math.round(SX + dx * h), Math.round(SY + dy * h), z, FR, M_METAL);
-    }
-    for (let z = 10; z < 36; z += 8) {                                  // rings, and struts to the stack
-      const h = half(z);
-      m.line(SX - h, SY + h, z, SX + h, SY + h, z, FR, M_METAL); m.line(SX - h, SY - h, z, SX + h, SY - h, z, FR, M_METAL);
-      m.line(SX - h, SY - h, z, SX - h, SY + h, z, FR, M_METAL); m.line(SX + h, SY - h, z, SX + h, SY + h, z, FR, M_METAL);
-      m.line(SX - h, SY + h, z - 8, SX + h, SY + h, z, FR, M_METAL);      // one diagonal on the front face per bay
-    }
+    ventStackV(m, 38.5, 15, 5, 49, 6, pal);
     m.cylX(29, 36, 20, 18, 1.3, SV.steel, M_METAL);                    // duct from the reactor to the stack
     m.box(36, 24, 1, 46, 30, 6, '#5d5e58', M_METAL);                    // transformers
     m.paint(36, 29, 2, 46, 30, 6, (x) => (x % 3 === 0 ? '#46473f' : undefined));
     return m;
   },
-  // Advanced Power Plant: two concrete cooling towers, a striped stack, a turbine hall under a star.
+  // Advanced Power Plant: a twin-reactor station. Two reactor blocks share one taller stack in its
+  // lattice frame between them, with a long turbine hall across the front and a switchyard.
   apower(pal) {
-    const m = new VModel(-2, -2, 74, 74, 48);
+    const m = new VModel(-2, -2, 74, 74, 60);
     slabV(m, 0, 0, 72, 72);
-    panelBox(m, 3, 38, 1, 68, 68, 16);
-    flatRoof(m, 3, 38, 68, 68, 16, pal);
-    stripWin(m, 4, 26, 67, 8, 11); stripWin(m, 45, 67, 67, 8, 11);
-    starFront(m, 35.5, 67, 9, 4, pal.main);
-    for (const x of [6, 16, 48, 58]) m.box(x, 44, 17, x + 7, 54, 20, SV.steel, M_METAL);
-    starTop(m, 35.5, 53, 10, pal.main);
-    for (const [cx, cy, h] of [[15, 17, 40], [41, 17, 40]]) {
-      for (let z = 1; z < h; z++) {
-        const r = 11 * (1 - 0.28 * Math.sin(Math.PI * Math.min(1, z / (h * 0.85))));
-        m.cylZ(cx, cy, z, z + 1, r, z > h - 3 ? pal.main : z % 7 === 0 ? SV.seam : SV.conc, M_ROUGH);
-      }
-      m.paint(cx - 12, cy - 12, 4, cx + 12, cy + 12, h - 3, (x, y, z) => (hash3(x, y, 9) > 0.8 && z < h - 6 ? SV.stain : undefined));   // rain streaks
-      m.cylZ(cx, cy, h - 6, h, 6.5, null);
-      m.cylY(27, 38, cx, 7, 1.8, SV.steel, M_METAL);
+    reactorV(m, 2, 6, 28, 34, 28, pal);
+    reactorV(m, 44, 6, 70, 34, 28, pal);
+    m.box(28, 12, 1, 44, 30, 10, SV.conc, M_ROUGH);                       // the link block between them
+    flatRoof(m, 28, 12, 44, 30, 10, pal);
+    ventStackV(m, 36, 21, 10, 59, 7, pal);
+    m.cylX(28, 32, 24, 22, 1.4, SV.steel, M_METAL); m.cylX(40, 44, 24, 22, 1.4, SV.steel, M_METAL);   // ducts into the stack
+    panelBox(m, 2, 38, 1, 70, 68, 15);                                    // turbine hall
+    flatRoof(m, 2, 38, 70, 68, 15, pal);
+    stripWin(m, 3, 27, 67, 8, 11); stripWin(m, 45, 69, 67, 8, 11);
+    starFront(m, 36, 67, 8.5, 3.8, pal.main);
+    bannerV(m, 29, 32, 67, 14, 9, pal); bannerV(m, 40, 43, 67, 14, 9, pal);
+    for (const x of [6, 16, 26, 40, 50, 60]) m.box(x, 43, 16, x + 6, 50, 18, SV.steel, M_METAL);   // roof vents
+    starTop(m, 36, 57, 8, pal.main);
+    for (const x of [4, 64]) {                                            // switchyard pylons by the hall
+      m.line(x + 2, 36, 1, x + 2, 36, 22, SV.steel, M_METAL);
+      m.line(x, 36, 20, x + 4, 36, 20, SV.steel, M_METAL);
     }
-    stackV(m, 63, 10, 1, 47, 3.5, pal);
-    m.box(56, 18, 1, 70, 34, 6, '#5d5e58', M_METAL);                    // transformer yard
-    m.paint(56, 18, 3, 70, 34, 6, (x, y) => (x % 4 === 0 || y % 6 === 0 ? '#46473f' : undefined));
-    for (const y of [22, 28]) m.line(63, y, 6, 63, y, 13, C.steel, M_METAL);
     return m;
   },
   // Ore Refinery: a concrete processing hall with its hopper, banded silos and a conveyor.
