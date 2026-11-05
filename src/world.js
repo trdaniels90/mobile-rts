@@ -2971,8 +2971,11 @@ function updateBuilding(b, dt) {
   b.smokeT -= dt;
   if (b.smokeT <= 0) {
     b.smokeT = 0.18 + Math.random() * 0.2;
-    if (b.type === 'apower' && b.buildT >= 1) for (const [tx, ty, h] of [[15, 17, 40], [41, 17, 40]]) if (Math.random() < 0.5) G.effects.push({ type: 'smoke', x: b.cx * CELL + tx, y: b.cy * CELL + ty - h * VK, vy: -16, vx: 6, r: 3, t: 0, life: 2, alpha: 0.4, color: '#c9c7c0' });
-    if (b.type === 'power' && b.buildT >= 1 && Math.random() < 0.6) G.effects.push({ type: 'smoke', x: b.cx * CELL + 38, y: b.cy * CELL + 14 - 42 * VK, vy: -16, vx: 6, r: 2.5, t: 0, life: 1.8, alpha: 0.4, color: '#c9c7c0' });
+    // Smoke from each stack (plantStacks in models.js): pale from the Soviet reactors' vents, darker coal smoke from the Allied chimneys.
+    if ((b.type === 'apower' || b.type === 'power') && b.buildT >= 1) {
+      const coal = b.faction !== 'soviets', big = b.type === 'apower';
+      for (const [tx, ty, h] of plantStacks(b.type, b.faction)) if (Math.random() < (big ? 0.5 : 0.6)) G.effects.push({ type: 'smoke', x: b.cx * CELL + tx, y: b.cy * CELL + ty - h * VK, vy: -16, vx: 6, r: (big ? 3 : 2.5) * (coal ? 1.5 : 1), t: 0, life: coal ? 2.8 : 1.8, alpha: coal ? 0.95 : 0.35, color: coal ? '#3a3733' : '#c9c7c0' });
+    }
   }
   if (b.def.camo) b.exposed = b.buildT < 1 || (b.revealT = Math.max(0, (b.revealT || 0) - dt)) > 0;   // seen while going up, then only when it gives itself away
   const w = b.def.weapon;

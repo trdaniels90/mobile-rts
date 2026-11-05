@@ -701,6 +701,44 @@ function airfieldMarks(x, y, soviet) {
   if (x >= 91 && x < 95 && y > 4 && y < 68 && y % 3 === 0 && (y < 26 || y > 44)) return C.white;   // thresholds
   if (soviet && (x % 8 === 0 || y % 8 === 0)) return '#4c4c47';
 }
+// Coal plant parts (the Allied power plants).
+function brickBox(m, x0, y0, z0, x1, y1, z1) {
+  m.box(x0, y0, z0, x1, y1, z1, C.brick, M_ROUGH);
+  m.paint(x0, y0, z0, x1, y1, z1, (x, y, z) => {
+    if (z % 3 === 0) return '#76392c';                                     // mortar courses
+    if (hash3(x, y, z) > 0.88) return '#9a5241';
+    if (z > z1 - 4 && hash3(x >> 1, y, 4) > 0.55) return '#5c2f25';        // soot below the eaves
+  });
+}
+// A pitched roof along x over a box, rising h above z, in the side's colour with darker seams.
+function gableRoof(m, x0, y0, x1, y1, z, h, pal) {
+  const mid = (y0 + y1) / 2, half = (y1 - y0) / 2;
+  for (let y = y0 - 1; y < y1 + 1; y++) {
+    const k = Math.round(h * (1 - Math.abs(y + 0.5 - mid) / (half + 1)));
+    m.box(x0 - 1, y, z, x1 + 1, y + 1, z + 1 + k, pal.main, M_METAL);
+  }
+  m.paint(x0 - 1, y0 - 1, z, x1 + 1, y1 + 1, z + h + 2, (x) => (x % 5 === 0 ? pal.dark : undefined));
+}
+// A brick chimney, blackened toward the top, with a dark lip.
+function chimneyV(m, x, y, z0, z1, r) {
+  for (let z = z0; z < z1; z++) {
+    const k = (z - z0) / (z1 - z0), rr = r * (1 - 0.18 * k);
+    m.cylZ(x, y, z, z + 1, rr, k > 0.75 ? '#2f2a27' : k > 0.55 && hash3(z, 1, 2) > 0.4 ? '#4a2f28' : z % 3 === 0 ? '#76392c' : C.brick, M_ROUGH);
+  }
+  m.cylZ(x, y, z1 - 2, z1, r * 0.82 - 1, null);
+  m.cylZ(x, y, z1 - 1, z1, r * 0.82 + 0.3, '#1c1a18', M_METAL);
+}
+// A heap of coal: a dark mound with glints.
+function coalHeap(m, cx, cy, r, h) {
+  m.ellipsoid(cx, cy, 1, r, r * 0.85, h, '#1f1d1b', M_ROUGH);
+  m.paintTop(cx - r, cy - r, cx + r, cy + r, (x, y) => (hash3(x, y, 8) > 0.82 ? '#45423d' : hash3(x, y, 9) > 0.9 ? '#5c5953' : undefined));
+}
+// Where each power plant's smoke comes out: [x, y, height] from its corner, by faction.
+function plantStacks(type, faction) {
+  if (faction === 'soviets') return type === 'power' ? [[38.5, 15, 49]] : [[36, 21, 59]];
+  return type === 'power' ? [[38, 12, 43], [9, 10, 31]] : [[15, 9, 50], [35, 9, 50]];
+}
+
 const STRUCTURES = {
   cy(pal) {
     const m = new VModel(-2, -2, 76, 76, 48);
@@ -727,23 +765,20 @@ const STRUCTURES = {
     m.ellipsoid(14.5, 16.5, 27, 4, 4, 1.5, C.steel, M_METAL);
     return m;
   },
+  // Power Plant (Allied): a small coal-fired station. A brick boiler house with tall windows under a
+  // pitched roof in the side's colour, two soot-blackened chimneys, and a coal heap with a conveyor.
   power(pal) {
-    const m = new VModel(-2, -2, 50, 50, 44);
+    const m = new VModel(-2, -2, 50, 50, 46);
     slabV(m, 0, 0, 48, 48);
-    m.box(2, 12, 1, 30, 44, 14, C.wall, M_MATTE);
-    m.box(2, 12, 14, 30, 44, 15, pal.main, M_METAL);
-    m.paint(2, 16, 13, 30, 20, 15, () => pal.main);
-    m.paint(2, 43, 1, 30, 44, 14, (x, y, z) => (z >= 5 && z <= 7 && x % 5 < 2) ? C.glass : undefined);
-    m.box(8, 22, 15, 14, 30, 18, '#5d5e58', M_METAL); m.box(18, 22, 15, 24, 30, 18, '#5d5e58', M_METAL);
-    m.cylZ(38, 14, 1, 42, 6, C.wall, M_MATTE);
-    m.cylZ(38, 14, 38, 42, 4.2, null);
-    m.paint(31, 7, 30, 46, 22, 33, () => pal.main);
-    m.paint(31, 7, 22, 46, 22, 24, () => pal.main);
-    m.cylX(29, 33, 22, 9, 1.6, C.steel, M_METAL);
-    m.cylX(29, 33, 30, 9, 1.6, C.steel, M_METAL);
-    m.box(34, 36, 1, 46, 46, 8, '#5d5e58', M_METAL);
-    m.paint(34, 45, 3, 46, 46, 8, (x, y, z) => (x % 3 === 0) ? '#46473f' : undefined);
-    m.box(39, 45, 5, 41, 46, 7, C.yellow);
+    brickBox(m, 2, 18, 1, 30, 44, 15);
+    gableRoof(m, 2, 18, 30, 44, 15, 6, pal);
+    for (const x of [5, 11, 19, 25]) m.box(x, 43, 4, x + 3, 44, 13, '#55707e', M_GLASS);   // tall windows
+    m.box(13, 43, 1, 17, 44, 8, '#2c2722');                               // door
+    chimneyV(m, 38, 12, 1, 43, 3.6);
+    chimneyV(m, 9, 10, 1, 31, 2.6);
+    m.box(4, 6, 1, 16, 17, 9, '#6d6f6a', M_METAL);                         // ash hopper by the small stack
+    coalHeap(m, 40, 36, 6.5, 5);
+    m.line(36, 33, 4, 29, 28, 15, '#5b5d58', M_METAL); m.line(36, 34, 4, 29, 29, 15, '#5b5d58', M_METAL);   // conveyor
     return m;
   },
   // Radar Dome: a white radome on a low concrete block, with a mast and a dish beside it.
@@ -761,30 +796,31 @@ const STRUCTURES = {
     m.set(40, 14, 35, '#ff4030', M_GLOW);
     return m;
   },
-  // Advanced Power Plant: a turbine hall and two hyperboloid cooling towers.
+  // Advanced Power Plant (Allied): a big coal-fired station. A long brick boiler house with a
+  // clerestory under a pitched roof, two tall sooty chimneys behind dust filters, a coal yard
+  // with two heaps and a conveyor gantry, and a transformer bank.
   apower(pal) {
-    const m = new VModel(-2, -2, 74, 74, 46);
+    const m = new VModel(-2, -2, 74, 74, 52);
     slabV(m, 0, 0, 72, 72);
-    // Turbine hall along the front
-    m.box(3, 38, 1, 68, 68, 15, C.wall, M_MATTE);
-    m.box(3, 38, 15, 68, 68, 16, pal.main, M_METAL);
-    m.paint(3, 38, 15, 68, 68, 16, (x) => x % 6 === 0 ? pal.dark : undefined);
-    m.paint(3, 67, 1, 68, 68, 15, (x, y, z) => (z >= 6 && z <= 8 && x % 5 < 2) ? C.glass : undefined);
-    for (const x of [8, 20, 32, 44, 56]) m.box(x, 44, 16, x + 7, 54, 20, '#5d5e58', M_METAL);
-    // Two cooling towers side by side at the back, piped to the hall
-    for (const [cx, cy, h] of [[15, 17, 40], [41, 17, 40]]) {
-      for (let z = 1; z < h; z++) {
-        const r = 11 * (1 - 0.28 * Math.sin(Math.PI * Math.min(1, z / (h * 0.85))));
-        m.cylZ(cx, cy, z, z + 1, r, z > h - 4 ? pal.main : C.wall, M_MATTE);
-      }
-      m.cylZ(cx, cy, h - 6, h, 6.5, null);
-      m.cylY(27, 38, cx, 7, 1.8, C.steel, M_METAL);
+    brickBox(m, 3, 32, 1, 50, 68, 20);
+    gableRoof(m, 3, 32, 50, 68, 20, 7, pal);
+    m.box(10, 46, 27, 44, 54, 31, '#55707e', M_GLASS);                     // clerestory along the ridge
+    m.box(10, 46, 31, 44, 54, 32, pal.dark, M_METAL);
+    for (let x = 6; x < 48; x += 6) m.box(x, 67, 4, x + 3, 68, 17, '#55707e', M_GLASS);   // tall windows
+    for (const x of [8, 28]) {                                             // dust filters behind the hall
+      m.box(x, 18, 1, x + 14, 31, 14, '#7a7c76', M_METAL);
+      m.paint(x, 18, 1, x + 14, 31, 14, (xx, y, z) => ((xx - x) % 5 === 0 || z === 13 ? '#5d5f5a' : undefined));
     }
-    // Transformer yard
-    m.box(56, 4, 1, 70, 32, 6, '#5d5e58', M_METAL);
-    m.paint(56, 4, 3, 70, 32, 6, (x, y) => (x % 4 === 0 || y % 6 === 0) ? '#46473f' : undefined);
-    for (const y of [10, 18, 26]) m.line(63, y, 6, 63, y, 13, C.steel, M_METAL);
-    m.box(55, 4, 4, 56, 32, 6, C.yellow);
+    chimneyV(m, 15, 9, 1, 50, 4.4);
+    chimneyV(m, 35, 9, 1, 50, 4.4);
+    for (const x of [15, 35]) m.cylY(9, 18, x, 10, 1.6, '#5b5d58', M_METAL);   // flues into the stacks
+    coalHeap(m, 62, 20, 7.5, 7); coalHeap(m, 62, 44, 6.5, 6);
+    m.box(52, 30, 1, 71, 34, 3, '#3d3a35', M_ROUGH);                       // yard track
+    for (const y of [26, 40]) m.box(55, y, 1, 57, y + 2, 20, '#5b5d58', M_METAL);   // conveyor gantry legs
+    m.box(48, 31, 18, 66, 34, 20, '#5b5d58', M_METAL);                     // the gantry, into the hall
+    m.box(54, 56, 1, 70, 70, 7, '#5d5e58', M_METAL);                       // transformers
+    m.paint(54, 56, 3, 70, 70, 7, (x, y) => (x % 4 === 0 || y % 5 === 0 ? '#46473f' : undefined));
+    for (const x of [58, 66]) m.line(x, 63, 7, x, 63, 14, C.steel, M_METAL);
     return m;
   },
   refinery(pal) {
