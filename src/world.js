@@ -1915,7 +1915,8 @@ function shed(x, y, alt, vx, vy, faction, burning, blade) {
     rot: Math.random() * 6, spin: (Math.random() - 0.5) * 22, w: blade ? 13 : 2 + Math.random() * 4, h: blade ? 1.5 : 1.5 + Math.random() * 2,
     color: blade ? '#2c2c28' : Math.random() < 0.5 ? '#3b3a36' : FACTIONS[faction].pal.main || '#555', burning, t: 0, life: 9, smokeT: 0 });
 }
-function splash(x, y, big) {
+// (Named apart from splash(), the blast damage: with one name, this replaced it.)
+function waterSplash(x, y, big) {
   hooks.sfx('splash', x, y);
   for (let i = 0; i < (big ? 9 : 3); i++) G.effects.push({ type: 'smoke', x: x + (Math.random() - 0.5) * (big ? 16 : 5), y: y + (Math.random() - 0.5) * 6, r: big ? 4 : 2, t: -i * 0.03, life: 1.1, alpha: 0.75, color: '#dfe8ec', vy: -(big ? 30 : 14) * Math.random(), vx: 0 });
   if (big) G.effects.push({ type: 'ring', x, y, t: 0, life: 1.4, color: 'rgba(225,238,245,0.85)' });
@@ -1935,7 +1936,7 @@ function updateCrash(fx, dt) {
     if ((fx.shedT -= dt) <= 0) { fx.shedT = 0.35 + Math.random() * 0.5; shed(fx.x, fx.y, fx.alt, fx.vx, fx.vy, fx.faction, Math.random() < 0.5); }
     if (fx.alt > 0) return;
     fx.alt = 0;
-    if (wetAt(fx.x, fx.y)) { splash(fx.x, fx.y, true); fx.t = fx.life; return; }
+    if (wetAt(fx.x, fx.y)) { waterSplash(fx.x, fx.y, true); fx.t = fx.life; return; }
     const seed = (Math.random() * 1e6) | 0;
     if (!fx.jet) {   // rotor blades break away and the fuselage burns where it falls
       for (let i = 0; i < 3; i++) shed(fx.x, fx.y, 6, fx.vx, fx.vy, fx.faction, false, true);
@@ -1954,7 +1955,7 @@ function updateCrash(fx, dt) {
   const f = Math.max(0, sp - 70 * dt) / (sp || 1);
   fx.vx *= f; fx.vy *= f; fx.spin *= Math.exp(-2.5 * dt); fx.face += fx.spin * dt;
   const nx = fx.x + fx.vx * dt, ny = fx.y + fx.vy * dt;
-  if (wetAt(nx, ny)) { splash(nx, ny, true); fx.t = fx.life; return; }
+  if (wetAt(nx, ny)) { waterSplash(nx, ny, true); fx.t = fx.life; return; }
   const c = cellOfPos(Math.max(0, Math.min(WORLD - 1, nx)), Math.max(0, Math.min(WORLD - 1, ny))), b = G.bld[c] && G.byId.get(G.bld[c]);
   const blocked = !passableAt(nx, ny);
   if (b && b.alive) damage(b, 60, 'HE', null);
@@ -1974,7 +1975,7 @@ function updateFrag(fx, dt) {
     fx.vz += 70 * dt; fx.alt -= fx.vz * dt;
     if (fx.alt <= 0) {
       fx.alt = 0;
-      if (wetAt(fx.x, fx.y)) { splash(fx.x, fx.y, false); fx.t = fx.life; return; }
+      if (wetAt(fx.x, fx.y)) { waterSplash(fx.x, fx.y, false); fx.t = fx.life; return; }
       if (fx.vz > 18) { fx.vz = -fx.vz * 0.35; fx.vx *= 0.6; fx.vy *= 0.6; fx.spin *= 0.6; fx.alt = 0.01; } else fx.vz = 0;
     }
   } else { const k = Math.exp(-7 * dt); fx.vx *= k; fx.vy *= k; fx.spin *= k; }
@@ -2023,11 +2024,11 @@ function ejectPilot(e) {
 // An ejected pilot that comes down on water drowns instead: no swimming to the nearest shore.
 function landChute(u) {
   u.chute = 0;   // exactly 0: checks for "on the ground" test !u.chute, and the countdown overshoots below 0
-  if (u.type === 'pilot' && wetAt(u.x, u.y)) { u.alive = false; splash(u.x, u.y, false); return; }
+  if (u.type === 'pilot' && wetAt(u.x, u.y)) { u.alive = false; waterSplash(u.x, u.y, false); return; }
   const c = cellOfPos(Math.max(0, Math.min(WORLD - 1, u.x)), Math.max(0, Math.min(WORLD - 1, u.y)));
   if (!freeCell(c)) {
     const n = nearestFreeCell(c, 8);
-    if (n < 0 && wetAt(u.x, u.y)) { u.alive = false; splash(u.x, u.y, false); return; }   // too far out to swim
+    if (n < 0 && wetAt(u.x, u.y)) { u.alive = false; waterSplash(u.x, u.y, false); return; }   // too far out to swim
     if (n >= 0) { const p = cellCenter(n); u.x = p.x; u.y = p.y; }
   }
   if (u.homeward) pilotHome(u);
