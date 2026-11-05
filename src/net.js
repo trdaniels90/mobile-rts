@@ -605,6 +605,13 @@ const Net = (() => {
     if (s.fog) { const fog = G.fog[G.me]; for (const i of s.fog) fog[i] = 1; G.shroudDirty = true; }
     if (s.ore) for (let i = 0; i < s.ore.length; i += 3) { G.ore[s.ore[i]] = s.ore[i + 1]; G.gem[s.ore[i]] = s.ore[i + 2]; }
     if (s.ev) for (const ev of s.ev) playEvent(ev);
+    if (s.log) {   // the host's debrief log, as it grows
+      const L = G.log, [a, b, c] = s.log.at;
+      L.samples.length = Math.min(L.samples.length, a); L.samples.push(...s.log.s);
+      L.events.length = Math.min(L.events.length, b); L.events.push(...s.log.e);
+      L.fallen.length = Math.min(L.fallen.length, c); L.fallen.push(...s.log.f.map(unpack));
+      if (s.log.w) L.waves = s.log.w;
+    }
   }
   function playEvent(ev) {
     try {

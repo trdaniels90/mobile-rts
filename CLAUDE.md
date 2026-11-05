@@ -285,6 +285,8 @@ share globals. Read this file first; the commit history explains every change in
   (online `Net.surrender('out')`, the server's `handOver(.., 'out')`).
 - The server sends a player it hands over (surrender or beaten) an `end` with the battle's log, so their debrief and
   match report have graphs (before, match a858b156 had none).
+- Snapshots also carry the debrief log as it grows (`s.log` in netcore.js `snapshot`, applied in net.js `applySnapshot`),
+  so a phone that ends a battle on its own (it could not reconnect) still has its graphs.
 
 ## Supabase
 

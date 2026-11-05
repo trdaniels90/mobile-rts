@@ -121,6 +121,13 @@ const NetCore = (() => {
       for (let i = 0; i < NCELLS; i++) if ((G.ore[i] !== P.oreSent[i] || G.gem[i] !== P.gemSent[i]) && view[i]) { P.oreSent[i] = G.ore[i]; P.gemSent[i] = G.gem[i]; o.push(i, G.ore[i], G.gem[i]); }
       if (o.length) s.ore = o;
     }
+    // The debrief's log as it grows (a sample every 15 s), so a phone that has to end the battle on its own
+    // (it could not reconnect) still has its graphs. Each list goes from where this player's copy is.
+    const L = G.log, ls = P.logSent || (P.logSent = [0, 0, 0]);
+    if (L.samples.length > ls[0] || L.events.length > ls[1] || L.fallen.length > ls[2]) {
+      s.log = { at: ls.slice(), s: L.samples.slice(ls[0]), e: L.events.slice(ls[1]), f: L.fallen.slice(ls[2]).map(pack), w: L.waves };
+      P.logSent = [L.samples.length, L.events.length, L.fallen.length];
+    }
     if (G.over) s.over = { winner: G.over.winner, t: round(G.over.t) };
     return s;
   }
