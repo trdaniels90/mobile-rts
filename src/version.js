@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.05.2', date: '5 November 2026', title: 'Stats after a lost connection', groups: [
+    ['Fixes', [
+      'If you lose connection in an online battle and cannot get back in, your debrief and stats now still show the graphs.',
+    ]],
+  ] },
   { v: '2026.11.05.1', date: '5 November 2026', title: 'Beaten, not stuck; smarter Ore Trucks', groups: [
     ['New', [
       'Team battles: if your side is beaten while your ally fights on, choose Keep watching (the whole map is shown, and if your ally wins, you win too) or Debrief to end your game now as a loss. Before, the battle just carried on with nothing to command.',
