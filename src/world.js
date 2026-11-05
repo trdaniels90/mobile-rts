@@ -2544,7 +2544,7 @@ function padFor(u) {
 // and hangar (offsets from its corner). Jets cannot be built while every Airfield is full.
 // A Helicopter Base has four landing pads, one in each quarter (offsets from its centre).
 const HELIBASE_SPOTS = [[-24, -24], [24, -24], [-24, 24], [24, 24]], HELIBASE_SLOTS = 4;   // one helicopter a pad: more needs another base
-const AIRFIELD_SLOTS = 4, AIRFIELD_SPOTS = [[30, 12], [53, 12], [30, 36], [53, 36]];
+const AIRFIELD_SLOTS = 4, AIRFIELD_SPOTS = [[40, 16], [74, 16], [40, 52], [74, 52]];   // a 4 x 3 Airfield: tower and hangar on the west side
 // Free parking for new aircraft from this producer: slots on its usable pads, less the aircraft
 // based there or anywhere else (in the air too) and those already in a queue. Infinity if uncapped.
 function padRoom(team, producer) {
@@ -2634,7 +2634,7 @@ function padSpot(pad, u) {
   const k = Math.max(0, mates.indexOf(u));
   let s;
   if (pad.type === 'airfield') s = k < AIRFIELD_SLOTS ? { x: pad.cx * CELL + AIRFIELD_SPOTS[k][0], y: pad.cy * CELL + AIRFIELD_SPOTS[k][1] }
-    : { x: pad.cx * CELL + 14 + ((k - AIRFIELD_SLOTS) % 3) * 22, y: pad.cy * CELL + 62 + Math.floor((k - AIRFIELD_SLOTS) / 3) * 29 };
+    : { x: pad.cx * CELL + 14 + ((k - AIRFIELD_SLOTS) % 3) * 22, y: pad.cy * CELL + 86 + Math.floor((k - AIRFIELD_SLOTS) / 3) * 29 };
   else if (k < 4) s = { x: pad.x + HELIBASE_SPOTS[k][0], y: pad.y + HELIBASE_SPOTS[k][1] };   // the Helicopter Base's four pads
   else { const a = (k - 4) * 0.9 - 1.6, r = 80 + Math.floor((k - 4) / 7) * 34; s = { x: pad.x + Math.cos(a) * r, y: pad.y + Math.sin(a) * r }; }   // the rest park on the ground round it
   s.x = Math.max(8, Math.min(WORLD - 8, s.x)); s.y = Math.max(8, Math.min(WORLD - 8, s.y));
@@ -2828,7 +2828,7 @@ const LAND_GLIDE = 170, LAND_ROLL = 50, LAND_SPEED = 100;
 function runwayDir(pad, spot) {
   if (pad.type !== 'airfield') return 1;
   const dx = spot.x - pad.cx * CELL;
-  const dir = dx > 40 && dx < 70 ? -1 : 1;
+  const dir = dx > 57 ? -1 : 1;
   // Near a map edge there may be no room for the approach on that side: land the other way.
   const room = LAND_ROLL + LAND_GLIDE + 150, fits = (d) => spot.x - d * room >= 8 && spot.x - d * room <= WORLD - 8;
   return fits(dir) || !fits(-dir) ? dir : -dir;

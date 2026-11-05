@@ -161,7 +161,7 @@ const BUILD_DEFS = {
   // Repairs ground vehicles one at a time on its pad, the open cell in front of it, for credits.
   depot:    { name: 'Service Depot', w: 3, h: 2, hp: 800, power: -30, cost: 1200, req: ['factory'], factions: ['allies', 'soviets'], exit: true, depot: true },
   dome:     { name: 'Radar Dome',   w: 2, h: 2, hp: 1000, power: -40, cost: 1000, req: ['refinery'], factions: ['allies', 'soviets'], sight: 10 },
-  airfield: { name: 'Airfield',     w: 3, h: 2, hp: 500,  power: -30, cost: 1000, req: ['dome'],     factions: ['allies', 'soviets'] },
+  airfield: { name: 'Airfield',     w: 4, h: 3, hp: 500,  power: -30, cost: 1000, req: ['dome'],     factions: ['allies', 'soviets'] },
   turret:   { name: 'Gun Turret',   w: 1, h: 1, hp: 450,  power: -40, cost: 600,  req: ['barracks'], factions: ['allies'], defense: true,
               weapon: { dmg: 40, rof: 1.4, range: 165, wh: 'AP', proj: 'shell' } },
   aagun:    { name: 'AA Gun',       w: 1, h: 1, hp: 400,  power: -50, cost: 800,  req: ['barracks'], factions: ['allies'], defense: true, antiAir: true,

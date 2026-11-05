@@ -624,6 +624,18 @@ function infKit(pal, faction) {
 // ---------------------------------------------------------------------------
 // Structures (origin = top-left corner of the footprint)
 // ---------------------------------------------------------------------------
+// Airfield apron markings: taxi lines along the two rows of stands, a dashed centre line between
+// them, stand boxes and threshold bars at the east end. soviet: concrete slabs instead of asphalt.
+function airfieldMarks(x, y, soviet) {
+  if (x < 26) return soviet && (x % 8 === 0 || y % 8 === 0) ? '#4c4c47' : undefined;
+  for (const sy of [16, 52]) {
+    if (y === sy && x > 26) return C.yellow;                             // taxi line through the stands
+    for (const sx of [40, 74]) if ((Math.abs(x + 0.5 - sx) === 11.5 && Math.abs(y + 0.5 - sy) < 10) || (Math.abs(y + 0.5 - sy) === 9.5 && Math.abs(x + 0.5 - sx) < 12)) return C.white;   // stand boxes
+  }
+  if (y >= 33 && y < 35 && x > 30 && x < 90 && x % 10 < 5) return C.white;   // centre line
+  if (x >= 91 && x < 95 && y > 4 && y < 68 && y % 3 === 0 && (y < 26 || y > 44)) return C.white;   // thresholds
+  if (soviet && (x % 8 === 0 || y % 8 === 0)) return '#4c4c47';
+}
 const STRUCTURES = {
   cy(pal) {
     const m = new VModel(-2, -2, 76, 76, 48);
@@ -902,20 +914,20 @@ const STRUCTURES = {
     }
     return m;
   },
+  // Airfield (4 x 3): the control tower and an arched hangar on the west side, and an apron of four
+  // parking stands (AIRFIELD_SPOTS in world.js) with taxi lines and a runway centre line.
   airfield(pal) {
-    const m = new VModel(-2, -2, 74, 50, 30);
-    m.box(0, 0, 0, 72, 48, 1, C.asphalt, M_ROUGH);
-    m.paintTop(0, 0, 72, 48, (x, y) => {
-      if (y >= 29 && y < 31 && x > 22 && (x % 8) < 4) return C.white;
-      if (x >= 68 && x < 71 && y >= 21 && y < 40 && y % 3 === 0) return C.white;
-      if (y === 12 && x > 20) return C.yellow;
-    });
-    m.box(2, 2, 1, 16, 18, 14, C.wall, M_MATTE);
-    m.box(3, 3, 14, 15, 17, 19, C.glass, M_GLASS);
-    m.box(2, 2, 19, 16, 18, 20, pal.main, M_METAL);
-    m.line(9, 9, 20, 9, 9, 27, C.black); m.set(9, 9, 27, '#ff4a30', M_GLOW);
-    m.box(2, 24, 1, 18, 46, 9, C.wallD, M_MATTE);
-    for (let y = 24; y < 46; y++) { const h = Math.round(Math.sqrt(Math.max(0, 121 - (y + 0.5 - 35) ** 2)) * 0.45); if (h) m.box(2, y, 9, 18, y + 1, 9 + h, pal.main, M_METAL); }
+    const m = new VModel(-2, -2, 98, 74, 34);
+    m.box(0, 0, 0, 96, 72, 1, C.asphalt, M_ROUGH);
+    m.paintTop(0, 0, 96, 72, (x, y) => airfieldMarks(x, y, false));
+    m.box(2, 2, 1, 20, 22, 16, C.wall, M_MATTE);                         // control tower
+    m.box(3, 3, 16, 19, 21, 21, C.glass, M_GLASS);
+    m.box(2, 2, 21, 20, 22, 22, pal.main, M_METAL);
+    m.line(10, 10, 22, 10, 10, 30, C.black); m.set(10, 10, 30, '#ff4a30', M_GLOW);
+    m.box(2, 28, 1, 24, 68, 10, C.wallD, M_MATTE);                       // hangar
+    for (let y = 28; y < 68; y++) { const h = Math.round(Math.sqrt(Math.max(0, 400 - (y + 0.5 - 48) ** 2)) * 0.5); if (h) m.box(2, y, 10, 24, y + 1, 10 + h, pal.main, M_METAL); }
+    m.paint(2, 28, 10, 24, 68, 22, (x, y) => ((y - 28) % 6 === 0 ? pal.dark : undefined));
+    m.box(23, 34, 1, 24, 62, 9, '#2c2c28', M_METAL);                     // hangar doors
     return m;
   },
   turret() {
@@ -1316,29 +1328,27 @@ const SOVIET = {
     m.set(66, 33, 12, '#ff4a30', M_GLOW);
     return m;
   },
-  // Airfield: a concrete control tower with a star, and a hardened shelter with a camouflaged roof.
+  // Airfield: a concrete control tower with a star, and a hardened aircraft shelter with a camouflaged
+  // roof, on a concrete apron.
   airfield(pal) {
-    const m = new VModel(-2, -2, 74, 50, 32);
-    m.box(0, 0, 0, 72, 48, 1, '#5a5a54', M_ROUGH);
-    m.paintTop(0, 0, 72, 48, (x, y) => {
-      if ((x % 8 === 0 || y % 8 === 0) && x > 19) return '#4c4c47';        // concrete slabs, not asphalt
-      if (y >= 29 && y < 31 && x > 22 && (x % 8) < 4) return C.white;
-      if (x >= 68 && x < 71 && y >= 21 && y < 40 && y % 3 === 0) return C.white;
-      if (y === 12 && x > 20) return C.yellow;
-    });
-    panelBox(m, 2, 2, 1, 16, 18, 16);
-    m.box(3, 3, 16, 15, 17, 20, SV.win, M_GLASS);
-    m.paint(3, 3, 16, 15, 17, 20, (x, y, z) => (z === 19 ? SV.winL : (x + y) % 4 === 0 ? SV.seam : undefined));
-    flatRoof(m, 2, 2, 16, 18, 20, pal);
-    starFront(m, 9, 17, 10, 3, pal.main);
-    m.line(5, 5, 21, 5, 5, 29, C.black); m.set(5, 5, 29, '#ff4a30', M_GLOW);
-    for (let y = 24; y < 46; y++) {                                      // hardened aircraft shelter
-      const h = Math.round(Math.sqrt(Math.max(0, 121 - (y + 0.5 - 35) ** 2)) * 1.05);
-      if (h) m.box(2, y, 1, 18, y + 1, 1 + h, SV.conc, M_ROUGH);
+    const m = new VModel(-2, -2, 98, 74, 36);
+    m.box(0, 0, 0, 96, 72, 1, '#5a5a54', M_ROUGH);
+    m.paintTop(0, 0, 96, 72, (x, y) => airfieldMarks(x, y, true));
+    panelBox(m, 2, 2, 1, 20, 22, 18);
+    m.box(3, 3, 18, 19, 21, 23, SV.win, M_GLASS);
+    m.paint(3, 3, 18, 19, 21, 23, (x, y, z) => (z === 22 ? SV.winL : (x + y) % 4 === 0 ? SV.seam : undefined));
+    flatRoof(m, 2, 2, 20, 22, 23, pal);
+    starTop(m, 11, 12, 6, pal.main);
+    starFront(m, 11, 21, 11, 3.2, pal.main);
+    m.line(5, 5, 24, 5, 5, 32, C.black); m.set(5, 5, 32, '#ff4a30', M_GLOW);
+    for (let y = 28; y < 68; y++) {                                       // hardened aircraft shelter
+      const h = Math.round(Math.sqrt(Math.max(0, 400 - (y + 0.5 - 48) ** 2)) * 0.8);
+      if (h) m.box(2, y, 1, 24, y + 1, 1 + h, SV.conc, M_ROUGH);
     }
-    m.paintTop(2, 24, 18, 46, (x, y) => (hash3(x >> 1, y >> 1, 3) > 0.55 ? SV.olive : hash3(x >> 1, y >> 1, 4) > 0.6 ? SV.oliveD : undefined));
-    m.paint(17, 24, 1, 18, 46, 13, () => SV.seam);
-    m.box(17, 28, 1, 18, 42, 8, '#262624', M_METAL);                    // shelter doors
+    m.paintTop(2, 28, 24, 68, (x, y) => (hash3(x >> 1, y >> 1, 3) > 0.55 ? SV.olive : hash3(x >> 1, y >> 1, 4) > 0.6 ? SV.oliveD : undefined));
+    m.paint(23, 28, 1, 24, 68, 18, () => SV.seam);
+    m.box(23, 34, 1, 24, 62, 11, '#262624', M_METAL);                   // shelter doors
+    m.box(23, 46, 11, 24, 50, 15, pal.main, M_MATTE);
     return m;
   },
   // Tesla Coil: on a concrete plinth with a star.
