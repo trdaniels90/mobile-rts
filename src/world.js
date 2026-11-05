@@ -979,7 +979,8 @@ function defendAllies(team) {
     return;
   }
   team.allyCalm = 0;
-  const near = (u) => Math.min(...threats.map((t) => Math.hypot(u.x - t.x, u.y - t.y)));
+  const nearC = new Map();   // each unit's distance to the nearest threat, worked out once (it is used in sorts)
+  const near = (u) => { let d = nearC.get(u); if (d === undefined) { d = Infinity; for (const t of threats) d = Math.min(d, Math.hypot(u.x - t.x, u.y - t.y)); nearC.set(u, d); } return d; };
   let army = unitsOf(team.id).filter((u) => u.assisting).concat(idleGround(team).filter((u) => (team.isAI ? near(u) < CELL * 70 : u.garrison)))
     .filter((u) => threats.some((t) => canTarget(u, t)));
   army.sort((a, b) => (!!b.assisting - !!a.assisting) || near(a) - near(b));
@@ -1144,7 +1145,8 @@ function defendBase(team) {
   // Aircraft count at a quarter of their price: one helicopter is no match for a squad of infantry.
   const worth = (u) => (u.def.cost || 300) * (u.cls === 'air' && u.team === team.id ? 0.25 : 1);
   const need = threats.reduce((a, t) => a + worth(t), 0) * 1.5;
-  const near = (u) => Math.min(...threats.map((t) => Math.hypot(u.x - t.x, u.y - t.y)));
+  const nearC = new Map();   // each unit's distance to the nearest threat, worked out once (it is used in sorts)
+  const near = (u) => { let d = nearC.get(u); if (d === undefined) { d = Infinity; for (const t of threats) d = Math.min(d, Math.hypot(u.x - t.x, u.y - t.y)); nearC.set(u, d); } return d; };
   army = army.filter((u) => threats.some((t) => canTarget(u, t)));
   army.sort((a, b) => (b.defending - a.defending) || ((b.cls === 'air') - (a.cls === 'air')) || near(a) - near(b));
   let got = 0, picked = [];
