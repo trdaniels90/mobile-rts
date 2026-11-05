@@ -65,7 +65,8 @@ const { chromium, devices } = require('playwright');
     const s1 = await P[1].evaluate(() => G.me);
     await P[1].evaluate(() => Net.surrender());
     await P[0].waitForTimeout(1500);
-    out.afterQuit = { over: !!S.over, side1AI: S.teams[s1].isAI, p0eva: await P[0].evaluate(() => document.getElementById('eva') && document.getElementById('eva').textContent) };
+    out.afterQuit = { over: !!S.over, side1AI: S.teams[s1].isAI, p0eva: await P[0].evaluate(() => document.getElementById('eva') && document.getElementById('eva').textContent),
+      quitterOver: await P[1].evaluate(() => !!G.over), quitterSamples: await P[1].evaluate(() => G.log.samples.length), serverSamples: S.log.samples.length };
     // Alliance 1's sides lose everything: alliance 0 wins.
     R.run(`for (const e of G.entities) if (e.alive && G.teams[e.team].ally === 1 && (PRODUCTION.includes(e.type) || e.def.deploys === 'cy')) damage(e, 1e7, 'HE', null);`);
     await P[0].waitForTimeout(4500);

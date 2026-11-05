@@ -240,6 +240,8 @@ function handOver(R, s, how) {
   const t = G.teams[s.side];
   t.isAI = true; t.auto = true;
   for (const o of R.seats) if (o !== s) send(o.ws, { k: 'left', name: s.name, side: s.side });
+  // Their battle is over (a loss): send them the battle's log, or their debrief and stats would have no graphs.
+  send(s.ws, { k: 'end', over: { winner: otherAlly(s.side), t: G.t, how }, log: R.NetCore.pack(G.log) });
   log(R.code, s.name, how === 'quit' ? 'surrendered' : 'left', ': the computer takes side', s.side);
   const stay = R.seats.some((o) => !o.left && G.teams[o.side].ally === t.ally);
   if (!stay) R.run(`endBattle(${otherAlly(s.side)}, '${how}')`);
