@@ -1286,7 +1286,8 @@ function barrelSmoke(src, m) {
 // A side fired on from ground it has never uncovered gets a glimpse of the shooter: SHOT_REVEAL cells round
 // it are uncovered (a V2 or artillery out of sight no longer fires unseen).
 const SHOT_REVEAL = 2;
-function fireWeapon(src, w, t) {
+// follow: the second barrel of a staggered twin gun (w.stagger), fired from the unit's update.
+function fireWeapon(src, w, t, follow) {
   if (t && !G.remote && t.team !== undefined && hostile(src.team, t.team)) {
     const fog = G.fog[t.team];
     if (fog && !fog[cellOfPos(src.x, src.y)]) revealCircle(src.x / CELL, src.y / CELL, SHOT_REVEAL, fog);
@@ -1346,9 +1347,15 @@ function fireWeapon(src, w, t) {
         G.effects.push({ type: 'smoke', x: m.x - bx * 8, y: m.y - by * 8, r: 4 + Math.random() * 3, t: -i * 0.03, life: 1.8 + Math.random() * 1, alpha: 0.7, color: '#9a968c', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.7 - 4, drag: 1.5 });
       }
     }
-    const shots = w.twin ? 2 : 1;
+    // A twin gun fires both shells together, unless it staggers them: one barrel now, the other
+    // w.stagger seconds later, each with its own flash, sound and recoil.
+    const shots = w.twin && !w.stagger ? 2 : 1;
+    if (w.stagger) {
+      src.barrel = follow ? 1 : -1;
+      if (!follow) { src.twinNext = G.t + w.stagger; src.twinTarget = t; }
+    }
     for (let i = 0; i < shots; i++) {
-      const off = shots > 1 ? (i ? 2 : -2) : 0;
+      const off = shots > 1 ? (i ? 2 : -2) : w.stagger ? src.barrel * 2 : 0;
       G.projectiles.push({ x: m.x + off * Math.sin(src.tface || 0), y: m.y - off * Math.cos(src.tface || 0), target: t, w, from: src, team: src.team,
         speed: PROJ_SPEED[w.proj] || 400, kind: w.proj, trail: 0, delay: i * 0.1, thick: src.kind === 'bld' && src.type === 'sam',
         // A missile fired at an aircraft only has fuel for a little past its weapon's range, and
@@ -2059,6 +2066,11 @@ function recoverPilot(u) {
 // ---------------------------------------------------------------------------
 function updateUnit(u, dt) {
   u.cd = Math.max(0, u.cd - dt); u.cd2 = Math.max(0, u.cd2 - dt); u.fireT = Math.max(0, u.fireT - dt);
+  if (u.twinNext && G.t >= u.twinNext) {   // the second barrel of a staggered twin gun
+    const t = u.twinTarget;
+    u.twinNext = 0; u.twinTarget = null;
+    if (t && t.alive) fireWeapon(u, u.def.weapon, t, true);
+  }
   if (u.stance && G.t > u.stanceUntil) u.stance = null;   // quiet for a while: back on their feet
   u.moving = false;
   tickBurst(u, dt);

@@ -592,7 +592,8 @@ function drawUnit(g, u, t) {
     blit(g, ts, tx, ty, false);
     if (u.fireT > 0) {
       const len = u.def.size.tur ? u.def.size.tur + u.def.size.barrel : 8;
-      flash(g, tx + Math.cos(u.tface) * len, ty + Math.sin(u.tface) * len - 1.5, u.def.draw === 'jeep' ? 1 : 2);
+      const side = u.def.weapon && u.def.weapon.stagger && u.barrel ? u.barrel * 1.6 : 0;   // a staggered twin gun: at the barrel that fired
+      flash(g, tx + Math.cos(u.tface) * len + Math.sin(u.tface) * side, ty + Math.sin(u.tface) * len - Math.cos(u.tface) * side - 1.5, u.def.draw === 'jeep' ? 1 : 2);
     }
   }
   // On a Service Depot's pad: the blinking green cross, and sparks from the work.
