@@ -1468,9 +1468,11 @@ function lobBlast(p) {
   for (const e of G.entities) {
     if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.65), w.wh, from, { x, y });
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * (v2 ? V2_FALLOFF : 0.65)), w.wh, from, { x, y });
   }
 }
+// How much of a V2's damage is lost at the edge of its blast (artillery: 0.65). A direct hit is full damage.
+const V2_FALLOFF = 0.85;   // 2026.11.05.3: was 0.65 (35% at the edge, now 15%)
 function bombBlast(p) {
   const { tx: x, ty: y, w } = p;
   hooks.sfx('explodeVeh', x, y);
