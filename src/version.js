@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.05.4', date: '5 November 2026', title: 'Co-op leaderboard', groups: [
+    ['New', [
+      'Co-op leaderboard: win an online co-op battle and enter your name in the debrief. The new Co-op tab on the leaderboard shows the five best teams at each difficulty, with both teammates\' names.',
+      'A co-op team scores together: both players\' kills, buildings destroyed and ore add up, plus the speed bonus, times the difficulty. If only one of you enters a name, your teammate\'s name is added for you.',
+    ]],
+  ] },
   { v: '2026.11.05.3', date: '5 November 2026', title: 'Richer team battles, smoother server', groups: [
     ['Changes', [
       '2 v 2 and co-op: ore fields start 50% richer and grow back twice as fast, so long team battles no longer run dry by minute 15 to 20.',
