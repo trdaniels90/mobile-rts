@@ -337,35 +337,72 @@ function harvModel(pal, loaded) {
 // ---------------------------------------------------------------------------
 // Aircraft (bodies only; rotors are animated separately)
 // ---------------------------------------------------------------------------
+// Attack helicopter, after the AH-64D Longbow Apache: a slim body with a stepped two-seat cockpit,
+// the chin cannon, engine pods either side of the mast, stub wings carrying Hellfire racks and
+// rocket pods, a long tail boom with a low stabilator, and the fin with its tail rotor. The
+// Longbow radar dome on top of the mast is drawn over the rotor (art.js).
 function heliModel(pal) {
-  const m = new VModel(-18, -9, 13, 9, 11);
-  m.ellipsoid(2, 0, 4.5, 9, 2.8, 3.2, pal.main, M_METAL);
-  m.cylX(-16, -4, 0, 5, 1.3, pal.main, M_METAL);
-  m.box(-17, 0, 4, -15, 1, 10, pal.dark, M_METAL);
-  m.box(-15, -4, 5, -13, 4, 6, pal.dark, M_METAL);
-  m.ellipsoid(6.5, 0, 6, 3, 1.7, 1.8, C.glass, M_GLASS);
-  m.ellipsoid(2.5, 0, 7, 2.5, 1.6, 1.6, C.glass, M_GLASS);
-  m.box(-1, -7, 4, 2, 7, 5, pal.dark, M_METAL);
-  for (const y of [-6.5, 6.5]) { m.cylX(-2, 4, y, 3.5, 1.3, C.gun, M_METAL); m.box(3, y - 0.5, 3, 4, y + 0.5, 4, C.red); }
-  m.cylX(9, 13, 0, 2.5, 0.7, C.gun, M_METAL);
-  for (const y of [-4, 3]) m.box(-5, y, 0, 7, y + 1, 1, C.gun, M_METAL);
-  m.cylZ(0, 0, 7, 9, 1.3, C.gun, M_METAL);
+  const m = new VModel(-19, -9, 13, 9, 11);
+  const body = pal.main, dark = pal.dark, gun = C.gun;
+  m.ellipsoid(1.5, 0, 4, 7.5, 1.9, 2.4, body, M_METAL);                   // fuselage
+  for (let x = 8; x < 12; x++) m.cylX(x, x + 1, 0, 3.6, Math.max(0.6, 1.8 - (x - 8) * 0.35), body, M_METAL);   // nose
+  m.box(6, -1, 4.5, 10, 1, 6, '#5d8fb0', M_GLASS);                        // gunner's canopy, low at the front
+  m.box(2, -1, 6, 6, 1, 7.5, '#5d8fb0', M_GLASS);                         // pilot's canopy, raised behind
+  m.paint(2, -1, 4.5, 10, 1, 7.5, (x) => (x === 6 || x === 2 ? dark : undefined));   // canopy frames
+  m.cylX(7, 8, 0, 1.3, 0.9, gun, M_METAL); m.cylX(8, 12, 0, 1.3, 0.4, gun, M_METAL);   // chin cannon
+  for (const y of [-2.6, 2.6]) {
+    m.cylX(-4, 2, y, 6, 1.25, body, M_METAL);                             // engine pods
+    m.cylX(-5, -4, y, 6, 0.9, '#262624', M_METAL);
+    m.box(-1, y < 0 ? -8 : 2, 3.5, 2, y < 0 ? -2 : 8, 4.5, dark, M_METAL);   // stub wings
+    m.cylX(-2, 3, y * 1.5, 2.8, 0.95, '#3b3d36', M_METAL);               // rocket pods
+    m.set(3, Math.floor(y * 1.5), 2, '#c9c6b8');
+    for (const k of [0, 1]) for (const z of [2.4, 3.3]) m.cylX(-1, 3, (y < 0 ? -6 : 6) + (y < 0 ? -k : k), z, 0.42, '#55584f', M_METAL);   // Hellfires, two by two
+    m.box(2, y < 0 ? -2.8 : 2, 0, 3, y < 0 ? -2 : 2.8, 2, gun);           // main wheels
+  }
+  m.cylZ(0, 0, 7, 9, 1.0, gun, M_METAL);                                   // mast
+  for (let x = -17; x < -4; x++) m.cylX(x, x + 1, 0, 4.4, 1.15 - (-4 - x) * 0.03, body, M_METAL);   // tail boom, tapering
+  m.box(-17, -4, 3.5, -15, 4, 4.5, dark, M_METAL);                         // stabilator
+  for (let z = 4; z < 10; z++) m.box(Math.round(-18 - (z - 4) * 0.25), 0, z, Math.round(-15.5 - (z - 4) * 0.25), 1, z + 1, dark, M_METAL);   // fin
+  m.box(-19, -1, 6, -17, 0, 10, gun, M_METAL);                             // tail rotor, on the left
+  m.box(-16, 0, 2, -15, 1, 4, gun);                                        // tail wheel
   return m;
 }
+// Hind-D: a big armoured body with the "double bubble" cockpit (gunner low in front, pilot raised
+// behind), a chin gun turret, twin engines on top with their intakes forward, drooping stub wings
+// with rocket pods and missile rails at the tips, cabin windows, and a camouflage of the side's
+// colours. A five-blade rotor (art.js).
 function hindModel(pal) {
-  const m = new VModel(-20, -10, 15, 10, 12);
-  m.ellipsoid(2, 0, 5, 11, 3.6, 3.8, pal.main, M_METAL);
-  m.cylX(-18, -6, 0, 5.5, 1.5, pal.main, M_METAL);
-  m.box(-19, 0, 4, -17, 1, 11, pal.dark, M_METAL);
-  m.box(-17, -4, 6, -15, 4, 7, pal.dark, M_METAL);
-  m.ellipsoid(10, 0, 5.5, 2.5, 2, 2, C.glass, M_GLASS);
-  m.ellipsoid(7, 0, 7.2, 2.4, 2, 1.8, C.glass, M_GLASS);
-  m.box(-3, -9, 5, 2, 9, 6, pal.dark, M_METAL);
-  for (const y of [-8.5, -6, 6, 8.5]) m.cylX(-3, 2, y, 4.5, 1.1, C.gun, M_METAL);
-  m.cylX(12, 15, 0, 3, 0.8, C.gun, M_METAL);
-  m.paint(-12, -4, 2, 12, 4, 9, (x, y, z) => (x % 7 === 0 && z > 4) ? pal.dark : undefined);
-  for (const [x, y] of [[8, 0], [-3, -3], [-3, 3]]) m.box(x, y, 0, x + 1, y + 1, 2, C.gun);
-  m.cylZ(0, 0, 8, 10, 1.5, C.gun, M_METAL);
+  const m = new VModel(-20, -11, 16, 11, 12);
+  const body = pal.main, dark = pal.dark, gun = C.gun;
+  m.ellipsoid(0, 0, 4.8, 10.5, 2.7, 3.3, body, M_METAL);                   // fuselage and cabin
+  m.box(-6, -2, 2, 5, 3, 7, body, M_METAL);
+  for (let x = 9; x < 13; x++) m.cylX(x, x + 1, 0, 4, Math.max(1.0, 2.6 - (x - 9) * 0.4), body, M_METAL);   // nose
+  const GL = '#5d8fb0';
+  m.ellipsoid(11.8, 0, 4.8, 2.5, 1.9, 1.9, GL, M_GLASS);                   // gunner's bubble
+  m.ellipsoid(8, 0, 7.2, 2.5, 1.9, 1.9, GL, M_GLASS);                      // pilot's bubble, raised behind
+  m.paint(5, -2, 3, 15, 2, 10, (x, y, z, c) => (c === rgbInt(GL) && (x === 11 || x === 8) && y === 0 ? dark : undefined));   // canopy frames
+  m.ellipsoid(12, 0, 2, 1.3, 1.3, 1.1, gun, M_METAL); m.cylX(12, 16, 0, 2, 0.45, gun, M_METAL);   // chin turret
+  for (const y of [-1.7, 1.7]) {
+    m.cylX(-5, 6, y, 8.2, 1.45, body, M_METAL);                             // engines on top
+    m.cylX(6, 7, y, 8.2, 1.1, '#1b1b1a');                                   // intakes
+    m.cylX(-7, -5, y * 1.6, 7.8, 1.0, '#262624', M_METAL);                 // exhausts, angled out
+  }
+  m.cylZ(0, 0, 9, 11, 1.2, gun, M_METAL);                                   // mast
+  for (const s of [-1, 1]) {
+    for (let k = 3; k <= 9; k++) {                                          // stub wings, drooping toward the tips
+      const z = Math.round(5.5 - (k - 3) * 0.3);
+      m.box(-3, s < 0 ? -k - 1 : k, z, 2, s < 0 ? -k : k + 1, z + 1, dark, M_METAL);
+    }
+    for (const k of [5, 7.5]) { m.cylX(-3, 2, s * k, 3, 0.95, '#3b3d36', M_METAL); m.set(2, Math.floor(s * k), 3, '#c9c6b8'); }   // rocket pods
+    m.cylX(-2, 3, s * 9.6, 3.6, 0.45, '#55584f', M_METAL);                 // missile rail at the tip
+    for (const x of [-5, -3, -1, 1]) m.box(x, s < 0 ? -2.4 : 2.8, 5, x + 1, s < 0 ? -2 : 3.2, 6, '#1d2226');   // cabin windows
+    m.box(4, s < 0 ? -3.4 : 2.6, 0, 5, s < 0 ? -2.6 : 3.4, 2, gun);       // wheels
+  }
+  m.paint(-10, -4, 2, 10, 4, 10, (x, y, z, c) => (c === rgbInt(body) && hash3(x >> 2, (y + 8) >> 2, z >> 2) > 0.68 ? shadeInt(body, 0.72) : undefined));   // camouflage
+  for (let x = -18; x < -6; x++) m.cylX(x, x + 1, 0, 5.6, 1.5 - (-6 - x) * 0.05, body, M_METAL);   // tail boom
+  m.box(-17, -4, 5, -15, 4, 6, dark, M_METAL);                              // stabiliser
+  for (let z = 5; z < 12; z++) m.box(Math.round(-19.5 - (z - 5) * 0.2), 0, z, Math.round(-16.5 - (z - 5) * 0.35), 1, z + 1, dark, M_METAL);   // fin
+  m.box(-20, 1, 6, -18, 2, 11, gun, M_METAL);                               // tail rotor, on the right
   return m;
 }
 function jetModel(pal, mig) {

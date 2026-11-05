@@ -558,6 +558,10 @@ function drawUnit(g, u, t) {
         }
         g.stroke();
       }
+      if (u.type === 'heli') {   // the Longbow radar dome on top of the mast
+        g.fillStyle = '#4c5149'; g.beginPath(); g.ellipse(rx, ry - 1.5, 2.6, 1.9, 0, 0, 7); g.fill();
+        g.fillStyle = '#6b7166'; g.beginPath(); g.ellipse(rx - 0.5, ry - 2.1, 1.4, 0.9, 0, 0, 7); g.fill();
+      }
     } else if (u.moving) {
       const bx = u.x - Math.cos(u.face) * 15, by = u.y - alt - 2 + -Math.sin(u.face) * 15;
       g.fillStyle = Math.random() < 0.5 ? 'rgba(255,210,110,0.9)' : 'rgba(255,140,50,0.9)';
