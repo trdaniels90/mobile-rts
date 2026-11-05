@@ -586,7 +586,7 @@ const Net = (() => {
         const v = unpack(d[k]);
         // A new shot: the muzzle flash, timed here (fireT itself is not sent: a 0.1 s flash often
         // ended between two snapshots and was never seen).
-        if (k === 'shots' && v !== x.shots && !fresh.has(x)) x.fireT = x.type === 'grenadier' ? 0.35 : 0.1;
+        if (k === 'shots' && v !== x.shots && !fresh.has(x)) { x.fireT = x.type === 'grenadier' ? 0.35 : 0.1; x.shotAt = G.t; }
         if (glide && LERP.includes(k) && typeof v === 'number' && typeof x[k] === 'number') x._to[k] = v;
         else x[k] = v;
       }

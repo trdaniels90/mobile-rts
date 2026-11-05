@@ -1295,7 +1295,8 @@ function fireWeapon(src, w, t) {
   hooks.sfx(weaponSound(src, w), src.x, src.y);
   if (src.kind === 'bld' && (src.type === 'turret' || src.type === 'pillbox')) barrelSmoke(src, m);
   src.fireT = w.proj === 'grenade' ? 0.35 : 0.1;
-  src.shots = (src.shots || 0) + 1;   // online copies light their own muzzle flash when this changes (net.js)
+  src.shots = (src.shots || 0) + 1;
+  src.shotAt = G.t;   // the gun's recoil (art.js recoil)   // online copies light their own muzzle flash when this changes (net.js)
   if (w.sound === 'redeye' && src.cls === 'inf') src.aaUntil = G.t + 1.1;   // shows the shoulder-fired RedEye launcher a moment
   const ty = aimY(t);
   if (w.proj === 'grenade') {
