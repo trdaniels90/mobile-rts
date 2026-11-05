@@ -66,8 +66,8 @@
       G.paused = true;
       Debrief.open(won, {
         difficulty: vs ? 'Online vs ' + vs.opponent + ending : DIFFICULTY[diffKey].label,
-        // a win against the computer goes on the leaderboard: a 1 v 1 skirmish, or online co-op (its own board)
-        extra: won && (vs ? vs.coop : !teamGame()) ? Leaderboard.nameBox(Report.score(G.teams[G.me].stats, G.over.t, vs ? vs.diff : diffKey)) : null,
+        // a win against the computer goes on the leaderboard: a 1 v 1 skirmish, or online co-op (its own board, scored as a team)
+        extra: won && (vs ? vs.coop : !teamGame()) ? Leaderboard.nameBox(Report.score(vs ? Report.teamStats() : G.teams[G.me].stats, G.over.t, vs ? vs.diff : diffKey)) : null,
         // same side and difficulty; online, back to the lobby page
         onRematch: vs ? () => { Net.rematch(); startGame(); showMenu('start'); Online.open(faction); } : () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },
         onNew: () => { if (vs) { Net.leave(); startGame(); } showMenu('start'); },

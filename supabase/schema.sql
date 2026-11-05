@@ -86,25 +86,53 @@ returns integer language sql immutable set search_path = '' as $$
   from (select p_stats->'teams'->coalesce((p_stats->>'player')::int, 0)->'stats' as s) x;
 $$;
 
+-- A co-op team's score: match_score's sum over every player's side together (the stats keep all
+-- sides; the players are the ones that are not the computer). Report.teamStats in the game: change both.
+create or replace function public.team_score(p_stats jsonb, p_duration integer, p_difficulty text)
+returns integer language sql immutable set search_path = '' as $$
+  select round((
+      coalesce(sum((t->'stats'->>'killed')::numeric), 0) * 10 + coalesce(sum((t->'stats'->>'bldKilled')::numeric), 0) * 50
+      + coalesce(sum((t->'stats'->>'harvested')::numeric), 0) / 100
+      + 5000 * exp(-greatest(coalesce(p_duration, 0), 0) / 900.0)
+    ) * case p_difficulty when 'hard' then 1.5 when 'easy' then 0.5 else 1 end)::integer
+  from jsonb_array_elements(case when jsonb_typeof(p_stats->'teams') = 'array' then p_stats->'teams' else '[]'::jsonb end) t
+  where not coalesce((t->>'ai')::boolean, false);
+$$;
+
 -- The leaderboard: the five best scores at each difficulty, hardest first, each commander's best only
--- (names match ignoring case and spaces at the ends). p_limit (at most 5) is the places per difficulty; p_mode is 'skirmish' or
--- 'pve' (online co-op, where opponent holds the teammate's name and comes back as partner).
-drop function if exists public.get_leaderboard(text, integer);
-create function public.get_leaderboard(p_mode text default 'skirmish', p_limit integer default 5)
-returns table (rank bigint, player_name text, side text, difficulty text, duration_s integer, ended_at timestamptz, score integer, partner text)
+-- (names match ignoring case and spaces at the ends). p_limit (at most 5) is the places per difficulty.
+-- p_mode 'skirmish': one row per match. 'pve' (online co-op): one row per battle (stats.battle, the same
+-- on both phones), player_name is the teammates' names joined with ' & ' (a teammate who gave no name is
+-- taken from the named player's opponent column, which holds the teammate), side likewise, and the score
+-- is the team's; each team's best counts.
+create or replace function public.get_leaderboard(p_mode text default 'skirmish', p_limit integer default 5)
+returns table (rank bigint, player_name text, side text, difficulty text, duration_s integer, ended_at timestamptz, score integer)
 language sql stable security definer set search_path = '' as $$
-  with scored as (
-    select m.player_name, m.side, m.difficulty, m.duration_s, m.ended_at, public.match_score(m.stats, m.duration_s, m.difficulty) as score,
-           case when m.mode = 'pve' then m.opponent end as partner   -- co-op: the teammate
+  with wins as (
+    select m.player_name, m.opponent, m.side, m.difficulty, m.duration_s, m.ended_at,
+           case when m.mode = 'pve' then coalesce(m.stats->>'battle', m.id::text) else m.id::text end as grp,
+           case when m.mode = 'pve' then public.team_score(m.stats, m.duration_s, m.difficulty)
+                else public.match_score(m.stats, m.duration_s, m.difficulty) end as score
     from public.matches m
-    where m.mode = p_mode and m.result = 'win' and m.player_name is not null and m.duration_s is not null
+    where m.mode = p_mode and m.result = 'win' and m.duration_s is not null
+  ), games as (
+    select w.grp, max(w.difficulty) as difficulty, max(w.duration_s) as duration_s, max(w.ended_at) as ended_at, max(w.score) as score,
+           string_agg(distinct w.side, ' & ') as side,
+           array_agg(btrim(w.player_name)) filter (where w.player_name is not null) as named,
+           max(w.opponent) filter (where p_mode = 'pve' and w.player_name is not null and w.opponent not like 'Computer%') as opp
+    from wins w group by w.grp
+  ), scored as (
+    select g.side, g.difficulty, g.duration_s, g.ended_at, g.score,
+           (select string_agg(n, ' & ' order by lower(n)) from (select distinct n from unnest(
+              case when cardinality(g.named) = 1 and g.opp is not null and lower(btrim(g.opp)) <> lower(g.named[1]) then g.named || btrim(g.opp) else g.named end) n) x) as player_name
+    from games g where g.named is not null
   ), best as (
-    select s.*, row_number() over (partition by s.difficulty, lower(btrim(s.player_name)) order by s.score desc, s.duration_s, s.ended_at) as mine
+    select s.*, row_number() over (partition by s.difficulty, lower(s.player_name) order by s.score desc, s.duration_s, s.ended_at) as mine
     from scored s
   ), ranked as (
     select b.*, row_number() over (partition by b.difficulty order by b.score desc, b.duration_s, b.ended_at) as rk from best b where b.mine = 1
   )
-  select r.rk, r.player_name, r.side, r.difficulty, r.duration_s, r.ended_at, r.score, r.partner
+  select r.rk, r.player_name, r.side, r.difficulty, r.duration_s, r.ended_at, r.score
   from ranked r
   where r.rk <= least(greatest(p_limit, 1), 5)
   order by case r.difficulty when 'hard' then 0 when 'normal' then 1 when 'easy' then 2 else 3 end, r.rk;
@@ -120,3 +148,4 @@ grant execute on function public.match_progress(uuid, uuid, integer, jsonb) to a
 grant execute on function public.match_end(uuid, uuid, text, integer, jsonb) to anon, authenticated;
 grant execute on function public.match_name(uuid, uuid, text) to anon, authenticated;
 grant execute on function public.get_leaderboard(text, integer) to anon, authenticated;
+revoke all on function public.team_score(jsonb, integer, text) from public, anon, authenticated;

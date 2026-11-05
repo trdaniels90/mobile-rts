@@ -119,6 +119,8 @@ const Report = (() => {
     const out = { player: G.me, teams: G.teams.map((t) => ({ faction: t.faction, ai: t.isAI, stats: t.stats })),
       log: { samples: G.log.samples, events: G.log.events, fallen, alive, waves: G.log.waves }, names };
     if (errs.length) out.errors = errs;
+    // Online: the battle's id, the same on every phone in it, so the co-op board shows a team's win once.
+    try { const b = typeof Net !== 'undefined' && Net.lobby && Net.role && Net.lobby.match; if (b) out.battle = String(b).slice(0, 64); } catch (_) {}
     try { const n = typeof Net !== 'undefined' && Net.netStats(); if (n) out.net = n; } catch (_) {}
     while (JSON.stringify(out).length > 90000 && out.log.samples.length > 40) out.log.samples = out.log.samples.filter((_, i) => i % 2 === 0);   // a very long game: a coarser graph
     if (JSON.stringify(out).length > 90000) delete out.log.samples;
@@ -170,6 +172,12 @@ const Report = (() => {
     const base = (stats.killed || 0) * 10 + (stats.bldKilled || 0) * 50 + (stats.harvested || 0) / 100 + 5000 * Math.exp(-Math.max(0, Math.round(seconds || 0)) / 900);
     return Math.round(base * (difficulty === 'hard' ? 1.5 : difficulty === 'easy' ? 0.5 : 1));
   }
+  // Co-op: the team's numbers, every player's side added up (the same sum as team_score in schema.sql).
+  function teamStats() {
+    const t = { killed: 0, bldKilled: 0, harvested: 0 };
+    for (const x of G.teams) if (!x.isAI) for (const k in t) t[k] += x.stats[k] || 0;
+    return t;
+  }
   // Leaderboard rows for a mode ('skirmish', or 'pve' for online co-op), or null when offline.
   function board(mode) {
     return post('rpc/get_leaderboard', { p_mode: mode || 'skirmish', p_limit: 5 }, true).then((v) => (Array.isArray(v) ? v : null));
@@ -178,14 +186,14 @@ const Report = (() => {
   function claim() { return local ? Promise.resolve(null) : post('rpc/claim_device', { p_device: device }, true); }
   // The name for the leaderboard: the commander name of a signed-in player, else the last one typed here.
   const name = () => (typeof Account !== 'undefined' && Account.name) || store('ps-name') || '';
-  return { start, resume, end, quit, oops, get errors() { return errs; }, submitName, board, claim, score, get name() { return name(); }, get matchId() { return match && match.id; } };
+  return { start, resume, end, quit, oops, get errors() { return errs; }, submitName, board, claim, score, teamStats, get name() { return name(); }, get matchId() { return match && match.id; } };
 })();
 
 // The leaderboard page, on the same paper as What's New, and the name box in the debrief.
 const Leaderboard = (() => {
   // One tab per kind of match (a PvP board can slot in here later).
   const MODES = [{ key: 'skirmish', label: 'Vs computer', intro: 'The five best scores against the computer at each difficulty, hardest first. A win scores 10 points a kill, 50 a building destroyed and 1 per 100 ore, plus a speed bonus of up to 5,000 that shrinks the longer the battle runs, times 1.5 on Hard and 0.5 on Easy. Each commander\'s best score at each difficulty counts.' },
-    { key: 'pve', label: 'Co-op', partner: true, intro: 'Online co-op, two players against two computers: the five best scores at each difficulty, hardest first. Each player scores their own side the same way as against the computer (10 a kill, 50 a building, 1 per 100 ore, the speed bonus, times the difficulty), so both partners can enter their names after a win. Each commander\'s best score at each difficulty counts.' }];
+    { key: 'pve', label: 'Co-op', team: true, intro: 'Online co-op, two players against two computers: the five best teams at each difficulty, hardest first. The team scores together, the same way as against the computer (10 a kill, 50 a building, 1 per 100 ore, the speed bonus, times the difficulty). Either teammate can enter a name after a win, and both names appear. Each team\'s best score at each difficulty counts.' }];
   const DIFF = { hard: 'Hard', normal: 'Normal', easy: 'Easy' }, SIDE = { allies: 'Allies', soviets: 'Soviets' };
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
@@ -218,12 +226,12 @@ const Leaderboard = (() => {
     Report.board(mode).then((rows) => {
       if (n !== req) return;
       if (!rows) { body.innerHTML = '<p class="lb-note">The leaderboard needs a connection. <button type="button" class="lb-retry">Try again</button></p>'; return; }
-      if (!rows.length) { body.innerHTML = `<p class="lb-note">No names yet. Win ${m.partner ? 'a co-op battle' : 'a mission'} and enter your name in the debrief to be the first.</p>`; return; }
+      if (!rows.length) { body.innerHTML = `<p class="lb-note">No names yet. Win ${m.team ? 'a co-op battle' : 'a mission'} and enter your name in the debrief to be the first.</p>`; return; }
       // Ranks restart at each difficulty, so each gets its own short table.
-      const row = (r) => `<tr${my && String(r.player_name).toLowerCase() === my ? ' class="lb-me"' : ''}><td>${Number(r.rank)}</td><td>${esc(r.player_name)}</td><td>${SIDE[r.side] || esc(r.side)}</td>${m.partner ? `<td>${esc(r.partner || '')}</td>` : ''}<td class="lb-score">${r.score == null ? '' : Number(r.score).toLocaleString('en-US')}</td><td class="lb-time">${fmt(Number(r.duration_s))}</td><td>${esc(new Date(r.ended_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))}</td></tr>`;
+      const row = (r) => `<tr${my && String(r.player_name).toLowerCase().split(' & ').includes(my) ? ' class="lb-me"' : ''}><td>${Number(r.rank)}</td><td>${esc(r.player_name)}</td><td>${String(r.side || '').split(' & ').map((x) => SIDE[x] || esc(x)).join(' & ')}</td><td class="lb-score">${r.score == null ? '' : Number(r.score).toLocaleString('en-US')}</td><td class="lb-time">${fmt(Number(r.duration_s))}</td><td>${esc(new Date(r.ended_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))}</td></tr>`;
       const groups = [];
       for (const r of rows) { const g = groups[groups.length - 1]; if (g && g.d === r.difficulty) g.rows.push(r); else groups.push({ d: r.difficulty, rows: [r] }); }
-      body.innerHTML = groups.map((g) => `<h4>${DIFF[g.d] || esc(g.d || '')}</h4><div class="lb-scroll"><table class="fm-table lb-table"><thead><tr><th>#</th><th>Commander</th><th>Side</th>${m.partner ? '<th>Partner</th>' : ''}<th>Score</th><th>Time</th><th>Date</th></tr></thead><tbody>${g.rows.map(row).join('')}</tbody></table></div>`).join('');
+      body.innerHTML = groups.map((g) => `<h4>${DIFF[g.d] || esc(g.d || '')}</h4><div class="lb-scroll"><table class="fm-table lb-table"><thead><tr><th>#</th><th>${m.team ? 'Team' : 'Commander'}</th><th>Side</th><th>Score</th><th>Time</th><th>Date</th></tr></thead><tbody>${g.rows.map(row).join('')}</tbody></table></div>`).join('');
     });
   }
   function open() { if (!root) build(); root.hidden = false; root.querySelector('.fm-page').scrollTop = 0; root.querySelector('.fm-close').focus(); load(); }
