@@ -1121,10 +1121,12 @@ function defendBase(team) {
     team.defending = false;
     // Everyone pulled into a defence (aircraft that turned on a shooter too) goes back once its fight is over.
     for (const u of unitsOf(team.id)) {
-      if (!u.defending || !u.post || (u.target && u.target.alive)) continue;
+      if (!u.defending || !u.post || (u.cls !== 'air' && u.target && u.target.alive)) continue;
       u.defending = false;
       const h = u.post;
       setGuard(u, h.x, h.y); u.staged = h.staged; u.order.pad = h.pad;
+      // Aircraft do not wait in the air where the fight ended: they fly home, land, rearm and repair.
+      if (u.cls === 'air' && padFor(u)) { u.order.pad = true; u.rearming = true; }
       if (u.cls !== 'air') goTo(u, h.x, h.y);
     }
     return;
@@ -2721,7 +2723,7 @@ function updateAir(u, dt) {
         }
         landJet(u, spot, runwayDir(pad, spot), dt);
       } else {
-        if (d < 3) { u.alt = Math.max(0, u.alt - 20 * dt); if (u.alt <= 0) { u.as = 'landed'; u.rt = 0; if (u.retreat) u.repairHold = true; u.retreat = false; strikeOver(u); } return; }
+        if (d < 3) { u.alt = Math.max(0, u.alt - 20 * dt); if (u.alt <= 0) { u.as = 'landed'; u.rt = 0; if (u.retreat || u.rearming) u.repairHold = u.hp < u.maxHp; u.retreat = false; strikeOver(u); } return; }
         flyHeli(u, spot.x, spot.y, dt);
       }
       return;
@@ -2855,7 +2857,7 @@ function landJet(u, spot, dir, dt) {
   if (along <= 4) {   // wheels down
     u.as = 'landed'; u.alt = 0; u.speedCur = LAND_SPEED;
     u.roll = LAND_ROLL; u.rollTo = { x: spot.x, y: spot.y }; u.final = false; u.rt = 0;
-    if (u.retreat) u.repairHold = true; u.retreat = false; strikeOver(u);
+    if (u.retreat || u.rearming) u.repairHold = u.hp < u.maxHp; u.retreat = false; strikeOver(u);
   }
 }
 function rollOut(u, dt) {
@@ -3009,7 +3011,25 @@ function canPlace(team, type, cx, cy, gap) {
     const reach = b.def.buildRadius || BUILD_RANGE;
     if (b.team === team.id && cx <= b.cx + b.w + reach && cx + d.w >= b.cx - reach && cy <= b.cy + b.h + reach && cy + d.h >= b.cy - reach) near = true;
   }
+  // The computer never builds where the exit is walled in (trees, rocks, water, buildings): Ore Trucks would be stuck.
+  if (near && d.exit && team.isAI && !exitOpens(idx(cx + Math.floor(d.w / 2), cy + d.h), cx, cy, d.w, d.h)) return false;
   return near;
+}
+// Does the cell below a new building open onto real ground? Fills outward from it (not through the new
+// footprint, other buildings or blocked cells) and succeeds once it has found plenty of open cells.
+function exitOpens(start, fx, fy, fw, fh) {
+  const seen = new Set([start]), q = [start];
+  for (let i = 0; i < q.length; i++) {
+    if (q.length >= 150) return true;
+    const c = q[i], x = cellX(c), y = cellY(c);
+    for (let k = 0; k < 4; k++) {
+      const nx = x + DIRS8[k][0], ny = y + DIRS8[k][1];
+      if (!inMap(nx, ny) || (nx >= fx && nx < fx + fw && ny >= fy && ny < fy + fh)) continue;
+      const n = idx(nx, ny);
+      if (!seen.has(n) && !G.block[n] && !G.bld[n]) { seen.add(n); q.push(n); }
+    }
+  }
+  return q.length >= 150;
 }
 
 function placeStructure(team, type, cx, cy) {
