@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.06', date: '6 November 2026', title: 'A tougher Normal', groups: [
+    ['Changes', [
+      'Normal is tougher: the computer can now field up to 100 units (was 80) worth up to 45,000 credits (was 28,000), so its army keeps growing through the middle of the game. Single player and online co-op. Easy and Hard are unchanged.',
+    ]],
+  ] },
   { v: '2026.11.05.5', date: '5 November 2026', title: 'New looks for Soviet bases, aircraft and power plants', groups: [
     ['New', [
       'Soviet buildings have a Cold War look: concrete panel blocks, flat roofs with big red stars, banners and striped smokestacks.',
