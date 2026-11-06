@@ -223,7 +223,7 @@ function aiPowerTarget(team, cluster) {
   return { x: best.x, y: best.y };
 }
 
-const ARMY_UNITS = 80, ARMY_WORTH = 28000;
+const ARMY_UNITS = 80, ARMY_WORTH = 28000;   // worth: the default; DIFFICULTY ai.armyWorth sets it per difficulty (Normal 45000)
 function aiThink(team) {
   const c = aiCount(team);
   aiCounter(team);
@@ -288,7 +288,7 @@ function aiThink(team) {
   // more (Soviet Heavy Tanks and Mammoths) does not field a stronger army of the same size.
   const armyUnits = G.entities.filter((e) => e.alive && e.team === team.id && e.kind === 'unit' && !e.def.harvester);
   // At the cap only army production stops (infantry, vehicles, aircraft, surplus tanks); the support powers and repairs carry on.
-  const capped = armyUnits.length > ARMY_UNITS || armyUnits.reduce((a, e) => a + e.def.cost, 0) > ARMY_WORTH;
+  const capped = armyUnits.length > ARMY_UNITS || armyUnits.reduce((a, e) => a + e.def.cost, 0) > (G.diff.ai.armyWorth || ARMY_WORTH);
   // Once the enemy flies aircraft (Normal and Hard), lean on units that can shoot them down:
   // rocket soldiers, Mammoths or Rangers, and fighters rather than helicopters.
   const A = G.diff.ai, anti = A.adapt && team.sawAir;
