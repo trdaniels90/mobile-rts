@@ -843,6 +843,7 @@
     const team = G.teams[G.me];
     recallAlly(team);
     ui.allyBtn.setAttribute('aria-pressed', 'false');
+    ui.autoBtn.setAttribute('aria-pressed', 'false');
     eva('Returning to base');
   });
   ui.menuBtn.addEventListener('click', togglePause);

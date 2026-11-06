@@ -947,20 +947,23 @@ function setAssist(team, on) {
   team.auto = false;
   sendToAlly(team, idleGround(team).filter((u) => !u.garrison));
 }
-// The Return button: everything sent to an ally goes home and waits there again.
-function recallAlly(team) {
-  team.assist = false;
+// The Return button: everything sent to an ally, and every ground unit out attacking (hunt or attack
+// orders), goes home and waits there again. Auto attack and Ally support are turned off so they stay.
+function recallAlly(team, garrisonOnly) {
+  team.assist = false; if (!garrisonOnly) team.auto = false;
   for (const u of unitsOf(team.id)) {
-    if (!u.garrison) continue;
+    const attacking = !garrisonOnly && u.cls !== 'air' && u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward &&
+      (u.order.type === 'hunt' || u.order.type === 'attack');
+    if (!u.garrison && !attacking) continue;
     u.garrison = false;
-    if (u.order.type !== 'guard' || u.order.hold) continue;
+    if (!attacking && (u.order.type !== 'guard' || u.order.hold)) continue;
     const s = scatterSpot(team);
-    setGuard(u, s.x, s.y); u.staged = true; u.assisting = false; goTo(u, s.x, s.y);
+    setGuard(u, s.x, s.y); u.staged = true; u.assisting = false; u.defending = false; u.focus = null; u.huntTarget = null; goTo(u, s.x, s.y);
   }
 }
 function defendAllies(team) {
   if (!teamGame()) return;
-  if (!alliesOf(team).length && unitsOf(team.id).some((u) => u.garrison)) recallAlly(team);   // nobody left to help
+  if (!alliesOf(team).length && unitsOf(team.id).some((u) => u.garrison)) recallAlly(team, true);   // nobody left to help
   const helping = team.isAI ? G.diff.ai.adapt : unitsOf(team.id).some((u) => u.garrison);
   if (!helping && !unitsOf(team.id).some((u) => u.assisting)) return;
   const allies = alliesOf(team);
