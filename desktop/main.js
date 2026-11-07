@@ -4,6 +4,7 @@
 // works). Updates come from GitHub Releases through electron-updater.
 const { app, BrowserWindow, protocol, net, dialog, Menu, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { pathToFileURL } = require('url');
 
 protocol.registerSchemesAsPrivileged([
@@ -13,6 +14,14 @@ protocol.registerSchemesAsPrivileged([
 if (!app.requestSingleInstanceLock()) app.quit();
 
 let win = null;
+// Interface zoom (Ctrl +, Ctrl -, Ctrl 0), remembered between runs. The game redraws at the new size.
+const zoomFile = () => path.join(app.getPath('userData'), 'zoom.json');
+function loadZoom() { try { return Math.min(2.5, Math.max(0.5, JSON.parse(fs.readFileSync(zoomFile(), 'utf8')).z || 1)); } catch (_) { return 1; } }
+function setZoom(z) {
+  z = Math.round(Math.min(2.5, Math.max(0.5, z)) * 100) / 100;
+  win.webContents.setZoomFactor(z);
+  try { fs.writeFileSync(zoomFile(), JSON.stringify({ z })); } catch (_) {}
+}
 function createWindow() {
   win = new BrowserWindow({
     width: 1280, height: 800, minWidth: 800, minHeight: 500,
@@ -21,12 +30,16 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required' },
   });
   Menu.setApplicationMenu(null);
+  win.webContents.on('did-finish-load', () => win.webContents.setZoomFactor(loadZoom()));
   win.loadURL('app://game/index.html');
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('before-input-event', (e, i) => {
     if (i.type !== 'keyDown') return;
     if (i.key === 'F11') { win.setFullScreen(!win.isFullScreen()); e.preventDefault(); }
     else if (i.key === 'Escape' && win.isFullScreen() && i.shift) { win.setFullScreen(false); e.preventDefault(); }
+    else if (i.control && (i.key === '=' || i.key === '+')) { setZoom(win.webContents.getZoomFactor() + 0.1); e.preventDefault(); }
+    else if (i.control && i.key === '-') { setZoom(win.webContents.getZoomFactor() - 0.1); e.preventDefault(); }
+    else if (i.control && i.key === '0') { setZoom(1); e.preventDefault(); }
     else if (i.key === 'F12' && !app.isPackaged) win.webContents.toggleDevTools();
   });
 }
