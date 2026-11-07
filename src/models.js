@@ -579,6 +579,63 @@ function c130Model(pal) {
   return m;
 }
 
+// The Soviet paratrooper transport, after the Il-76: a long fuselage under a swept, drooping high wing,
+// four jet engines in pods on pylons, a glazed navigator's nose with a radar chin below the cockpit,
+// big gear fairings on the lower sides, an upswept tail over the ramp with a tail gunner's glazing,
+// and a T-tail with the fin in the side's colour.
+function il76Model(pal) {
+  const m = new VModel(-25, -26, 22, 26, 17);
+  const body = mixHex(pal.main, '#8e918b', 0.82), hull = shadeInt(body, 0.88), dark = shadeInt(body, 0.62), pod = shadeInt(body, 1.08);
+  m.cylX(-10, 15, 0, 4.4, 3.3, body, M_METAL);                                    // fuselage
+  m.box(-10, -2.5, 1, 15, 2.5, 2, hull, M_METAL);
+  for (let x = -23; x < -10; x++) {                                               // the tail cone sweeping up over the ramp
+    const t = (-10 - x) / 13, bot = 1 + t * 5.4, top = 7.7 - t * 0.6, ry = 3.3 * (1 - t * 0.7), cz = (bot + top) / 2, rz = (top - bot) / 2;
+    for (let y = Math.floor(-ry); y < ry; y++) for (let z = Math.floor(bot); z < top; z++) {
+      if (((y + 0.5) / ry) ** 2 + ((z + 0.5 - cz) / rz) ** 2 <= 1) m.set(x, y, z, z < cz - rz * 0.5 && x > -18 ? hull : body, M_METAL);
+    }
+  }
+  m.box(-17, -1, 1.6, -11, 1, 2.4, dark, M_METAL);                                // ramp hinge line
+  m.box(-24, -1, 6, -22, 1, 8, C.glass, M_GLASS);                                 // tail gunner's glazing
+  // Nose: a tapering cone, the navigator's glazing low at the tip, the radar chin under it, cockpit glazing on top.
+  m.ellipsoid(15, 0, 4.2, 5.5, 3.3, 3.2, body, M_METAL);
+  m.ellipsoid(19, 0, 3.6, 2.2, 1.9, 1.6, C.glass, M_GLASS);
+  m.ellipsoid(16, 0, 1.4, 3, 2.2, 1.3, dark, M_METAL);
+  m.paint(14, -4, 5, 19, 4, 8, (x, y, z) => (x >= 15 && x <= 17 && (z === 6 || (z === 5 && x === 17)) && Math.abs(y + 0.5) < 3 - (x - 15) * 0.5) ? C.glass : undefined);
+  // Main gear fairings, a row of windows and the paratroop doors.
+  for (const y of [-3.4, 3.4]) m.ellipsoid(0, y, 2.3, 7, 1.4, 1.7, hull, M_METAL);
+  for (let x = -6; x < 13; x += 3) { m.set(x, -4, 5, C.glass, M_GLASS); m.set(x, 3, 5, C.glass, M_GLASS); }
+  m.box(-15, -3, 3, -13, -2, 6, dark, M_METAL); m.box(-15, 2, 3, -13, 3, 6, dark, M_METAL);
+  // Swept, tapered high wing with anhedral (the tips droop), the side's colour at the tips.
+  const lead = (a) => 5 - Math.round(a * 0.42), wz = (a) => 8 - Math.floor(a / 9);
+  for (let y = -25; y <= 25; y++) {
+    const a = Math.abs(y), trail = -3 - Math.round(a * 0.3);
+    for (let x = trail; x <= lead(a); x++) {
+      m.set(x, y, wz(a), a >= 23 ? pal.main : x === trail ? hull : body, M_METAL);
+      if (a < 4) m.set(x, y, 7, body, M_METAL);                                   // thick wing root on the fuselage top
+    }
+  }
+  // Four jet engines in pods slung forward of the wing on pylons: a dark intake in front, the exhaust behind.
+  for (const y of [-15, -8, 8, 15]) {
+    const a = Math.abs(y), x1 = lead(a) + 7, x0 = x1 - 9, cz = wz(a) - 2;
+    m.box(x0 + 2, y, cz + 1, x1 - 2, y + 1, wz(a), dark, M_METAL);                // pylon
+    m.cylX(x0, x1, y + 0.5, cz, 1.8, pod, M_METAL);
+    m.cylX(x1 - 1, x1, y + 0.5, cz, 1.3, C.black);
+    m.box(x1 - 2, y, Math.ceil(cz + 1.2), x1 - 1, y + 1, Math.ceil(cz + 1.8), pal.main, M_METAL);   // a band of side colour on each cowling                                // intake
+    m.cylX(x0 - 1, x0, y + 0.5, cz, 1, '#3a3632', M_METAL);                       // exhaust cone
+  }
+  // T-tail: a tall swept fin in the side's colour with the tailplane across its top.
+  for (let z = 7; z < 15; z++) {
+    const ld = z < 8 ? -10 : -13 - Math.round((z - 8) * 1.1), tr = -23 + Math.floor((z - 7) * 0.2);
+    m.box(tr, 0, z, ld + 1, 1, z + 1, z > 13 ? pal.dark : pal.main, M_METAL);
+  }
+  for (let y = -10; y <= 10; y++) {
+    const a = Math.abs(y), ld = -20 - Math.round(a * 0.35), tr = -24 + Math.round(a * 0.1);
+    for (let x = tr; x <= ld; x++) m.set(x, y, 15, a > 8 ? pal.main : body, M_METAL);
+  }
+  m.box(-22, 0, 15, -19, 1, 16, pal.dark, M_METAL);                               // the bullet fairing where they meet
+  return m;
+}
+
 // ---------------------------------------------------------------------------
 // Infantry: 16 facings x 3 frames (standing, two walking poses)
 // ---------------------------------------------------------------------------
@@ -1766,7 +1823,7 @@ function hullSprite(u, pal) {
   if (d.draw === 'harv') { const full = (u.load || 0) > d.capacity * 0.3; return facingSprite('V' + key + full, () => harvModel(pal, full), u.face); }
   if (d.fly === 'heli') return facingSprite('A' + key, () => d.type === 'hind' ? hindModel(pal) : heliModel(pal), u.face);
   if (d.draw === 'cargo') {
-    if (d.type === 'transport' && u.faction === 'allies') return facingSprite('H' + key, () => c130Model(pal), u.face);
+    if (d.type === 'transport') return u.faction === 'allies' ? facingSprite('H' + key, () => c130Model(pal), u.face) : facingSprite('I' + key, () => il76Model(pal), u.face);
     return facingSprite('C' + key, () => cargoModel(pal, d.type === 'bomber'), u.face);
   }
   const mig = d.type === 'mig' || (d.type === 'spyplane' && u.faction === 'soviets');
