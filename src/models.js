@@ -306,31 +306,48 @@ function mcvModel(pal) {
   m.box(-hl + 2, -1, 14, -hl + 3, 1, 15, C.black);
   return m;
 }
+// Ore Truck: an armoured four-wheeler with big knobbly tyres, a boxy cab behind a short hood, and a domed
+// ore bin on the bed that is filled with ore when the truck carries a load. Same footprint as before.
 function harvModel(pal, loaded) {
   const hl = 12, hw = 7;
-  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 13);
-  for (const side of [-1, 1]) {
-    const y0 = side < 0 ? -hw : hw - 3;
-    m.box(-hl, y0, 0, hl, y0 + 3, 3, C.track, M_ROUGH);
-    for (let x = -hl; x < hl; x += 2) m.box(x, y0, 2, x + 1, y0 + 3, 3, C.trackHi);
+  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 14);
+  // Wheels: two axles, tyres with a lighter hub and a mudguard over each
+  for (const x of [-6.5, 6.5]) for (const y0 of [-hw, hw - 2.5]) {
+    m.cylY(y0, y0 + 2.5, x, 3.4, 3.4, C.track, M_ROUGH);
+    m.cylY(y0 < 0 ? y0 : y0 + 1.5, y0 < 0 ? y0 + 1 : y0 + 2.5, x, 3.4, 1.7, C.wheel, M_METAL);
+    m.box(x - 4.5, y0, 6.6, x + 4.5, y0 + 2.5, 7.4, pal.dark, M_METAL);
   }
-  m.box(-hl + 1, -hw + 1, 2, hl - 1, hw - 1, 4, C.metal, M_METAL);
-  // Cab
-  m.box(4, -hw, 4, hl, hw, 11, pal.main, M_METAL);
-  m.box(hl - 1, -hw + 1, 7, hl, hw - 1, 10, C.glass, M_GLASS);
-  m.box(4, -hw, 10, hl, hw, 11, pal.dark, M_METAL);
-  m.box(hl - 1, -hw + 1, 5, hl, -hw + 2, 6, C.glow, M_GLASS); m.box(hl - 1, hw - 2, 5, hl, hw - 1, 6, C.glow, M_GLASS);
-  hazardV(m, hl - 1, -hw, 4, hl, hw, 5);
-  // Ore bin
-  m.box(-hl, -hw, 4, 3, hw, 10, '#6f716b', M_METAL);
-  m.clear(-hl + 1, -hw + 1, 6, 2, hw - 1, 10);
-  m.paint(-hl, -hw, 4, 3, hw, 10, (x, y, z) => z === 9 ? '#858780' : (x % 4 === 0 ? '#5d5f59' : undefined));
+  m.box(-hl, -hw + 2.5, 3, hl, hw - 2.5, 5, C.metal, M_METAL);                      // chassis
+  m.box(-hl, -hw + 1, 4, hl, hw - 1, 6, pal.dark, M_METAL);                          // running board
+  // Hood and bumper
+  m.box(8, -hw + 1, 5, hl - 1, hw - 1, 9, pal.main, M_METAL);
+  m.box(hl - 1, -hw + 1, 4, hl, hw - 1, 8, pal.dark, M_METAL);                       // grille
+  m.paint(hl - 1, -hw + 1, 4, hl, hw - 1, 8, (x, y, z) => y % 2 === 0 ? C.black : undefined);
+  hazardV(m, hl - 1, -hw, 3, hl, hw, 5);                                             // bumper stripes
+  m.box(hl - 1, -hw + 1, 6, hl, -hw + 2, 7, C.glow, M_GLASS); m.box(hl - 1, hw - 2, 6, hl, hw - 1, 7, C.glow, M_GLASS);
+  // Armoured cab
+  m.box(1, -hw, 5, 8, hw, 12, pal.main, M_METAL);
+  m.box(7, -hw + 1, 8, 8, hw - 1, 11, C.glass, M_GLASS);                             // windscreen
+  m.box(2, -hw, 8, 6, -hw + 1, 11, C.glass, M_GLASS);                                // side windows
+  m.box(2, hw - 1, 8, 6, hw, 11, C.glass, M_GLASS);
+  m.box(1, -hw, 11, 8, hw, 12, pal.dark, M_METAL);                                   // roof plate
+  m.box(2, -hw + 1, 12, 7, hw - 1, 13, pal.dark, M_METAL);                           // raised roof armour
+  m.paint(1, -hw, 5, 8, hw, 8, (x, y, z) => (x === 4 || z === 5) ? pal.dark : undefined);   // door seams
+  // Bed and domed ore bin
+  m.box(-hl, -hw + 1, 6, 1, hw - 1, 7, pal.dark, M_METAL);
+  m.ellipsoid(-5.5, 0, 7, 6.5, hw - 1, 5.5, '#6f716b', M_METAL);
+  m.clear(-9, -3, 11, -2, 3, 14);                                                    // the loading hatch
+  m.box(-9, -3, 10, -2, 3, 11, '#3d3f38', M_METAL);
+  m.paint(-hl, -hw, 7, 1, hw, 14, (x, y, z) => z >= 11 ? '#858780' : (x % 4 === 0 ? '#5d5f59' : undefined));
   if (loaded) {
-    for (let y = -hw + 1; y < hw - 1; y++) for (let x = -hl + 1; x < 2; x++) {
-      const h = 9 + Math.round(2.2 - Math.hypot((x + 5) / 6, y / 4) * 1.6 + hash3(x, y, 1) * 1.2);
-      m.box(x, y, 6, x + 1, y + 1, Math.max(7, h), C.ore[Math.floor(hash3(x, y, 2) * 4)], M_METAL);
+    for (let y = -3; y < 3; y++) for (let x = -9; x < -2; x++) {
+      const h = 11 + Math.round(1.6 - Math.hypot((x + 5.5) / 3.5, y / 3) * 1.4 + hash3(x, y, 1) * 1.4);
+      m.box(x, y, 10, x + 1, y + 1, Math.max(11, h), C.ore[Math.floor(hash3(x, y, 2) * 4)], M_METAL);
     }
   }
+  // Tail lights and rear stripes
+  m.box(-hl, -hw + 1, 4, -hl + 1, hw - 1, 6, pal.dark, M_METAL);
+  hazardV(m, -hl, -hw + 1, 3, -hl + 1, hw - 1, 4);
   return m;
 }
 
