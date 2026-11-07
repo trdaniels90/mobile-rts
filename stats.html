@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Red Horizon stats</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<style>
+  body{margin:0;background:#111;color:#e8e8e8;font:15px/1.4 system-ui,sans-serif;padding:16px;max-width:900px;margin:auto}
+  h1{font-family:Georgia,serif;font-weight:normal;margin:8px 0}
+  h2{font-size:16px;margin:0 0 8px}
+  .sub{color:#999;font-size:13px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+  .card{background:#1c1c1c;border-radius:10px;padding:14px;margin-bottom:14px}
+  .tiles .card{margin:0}
+  .big{font:28px Georgia,serif}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:5px 6px;white-space:nowrap}
+  th{color:#999;font-weight:normal;font-size:13px}
+  tr+tr td{border-top:1px solid #262626}
+  .scroll{overflow-x:auto}
+  .bars{display:flex;align-items:flex-end;gap:2px;height:120px}
+  .bars div{flex:1;background:#2f80ed;min-height:1px;border-radius:2px 2px 0 0}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3c3;margin-right:6px}
+  #err{color:#f66}
+</style>
+</head>
+<body>
+<h1>Red Horizon stats</h1>
+<div class="sub" id="line">Loading…</div>
+<div id="err"></div>
+<div class="tiles" id="tiles"></div>
+<div class="card"><h2>Wins and losses by side and difficulty</h2><div class="sub">Against the computer, all time. Win rate counts wins and losses only.</div>
+  <div class="scroll"><table id="results"></table></div></div>
+<div class="card"><h2>Matches per day</h2><div class="sub">Last 30 days (Central time)</div><div class="bars" id="bars"></div>
+  <div class="sub" id="barlabels" style="display:flex;justify-content:space-between"></div></div>
+<div class="card"><h2>Latest matches</h2><div class="scroll"><table id="latest"></table></div></div>
+<script>
+const URL_ = 'https://yorrgemlhoxbxvyvzcwe.supabase.co/rest/v1/rpc/public_stats';
+const ANON = 'sb_publishable_FkCzdcgsEyqNy_UwmajBiQ_kp8V2Vi6';
+const key = new URLSearchParams(location.hash.slice(1)).get('k') || '';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const clock = (s) => s == null ? '' : Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+const rows = (head, body) => '<tr>' + head.map((h) => '<th>' + h + '</th>').join('') + '</tr>' +
+  body.map((r) => '<tr>' + r.map((c) => '<td>' + esc(c) + '</td>').join('') + '</tr>').join('');
+
+async function load() {
+  try {
+    if (!key) throw new Error('This link is missing its key (the part after #k=).');
+    const res = await fetch(URL_, { method: 'POST', headers: { apikey: ANON, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_key: key }) });
+    if (!res.ok) throw new Error(res.status === 400 || res.status === 401 || res.status === 403 ? 'The key in this link was refused.' : 'Could not load (' + res.status + ').');
+    const d = await res.json(), h = d.headline;
+    $('err').textContent = '';
+    $('line').textContent = h.playing_now + ' playing right now, and ' + h.matches_this_week + ' matches from ' + h.players_this_week + ' devices this week. Updated ' + new Date().toLocaleTimeString() + '.';
+    $('tiles').innerHTML = [
+      ['<span class="dot"></span>Playing right now', h.playing_now],
+      ['Matches today', h.matches_today],
+      ['Matches this week', h.matches_this_week],
+      ['Average match length', clock(h.avg_length_s)],
+    ].map(([t, v]) => '<div class="card"><div class="sub">' + t + '</div><div class="big">' + esc(v) + '</div></div>').join('');
+    $('results').innerHTML = rows(['Side · difficulty', 'Wins', 'Losses', 'Quits', 'Win rate %', 'Avg length'],
+      d.results.map((r) => [r.side + ' · ' + r.difficulty, r.wins, r.losses, r.quits,
+        r.wins + r.losses ? Math.round(100 * r.wins / (r.wins + r.losses)) : '', clock(r.avg_s)]));
+    const max = Math.max(1, ...d.perday.map((x) => x.matches));
+    $('bars').innerHTML = d.perday.map((x) => '<div title="' + x.day + ': ' + x.matches + '" style="height:' + (100 * x.matches / max) + '%"></div>').join('');
+    $('barlabels').innerHTML = '<span>' + d.perday[0].day.slice(5) + '</span><span>max ' + max + '/day</span><span>' + d.perday[d.perday.length - 1].day.slice(5) + '</span>';
+    $('latest').innerHTML = rows(['Match', 'Started (Central)', 'Side', 'Difficulty', 'Outcome', 'Length', 'Name', 'Version'],
+      d.latest.map((r) => [r.match, r.started, r.side, r.difficulty, r.outcome, clock(r.duration_s), r.name, r.version]));
+  } catch (e) { $('line').textContent = ''; $('err').textContent = e.message; }
+}
+load(); setInterval(load, 30000);
+</script>
+</body>
+</html>
