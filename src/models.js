@@ -526,6 +526,59 @@ function cargoModel(pal, bomber) {
   return m;
 }
 
+// The Allied paratrooper transport, after the C-130 Hercules: a fat fuselage under a straight high wing,
+// four turboprops with four-bladed propellers, a blunt nose with a stepped cockpit, gear sponsons on the
+// lower sides, an upswept tail over the loading ramp and one tall fin in the side's colour.
+function c130Model(pal) {
+  const m = new VModel(-23, -25, 21, 25, 15);
+  const body = mixHex(pal.main, '#7c8378', 0.5), hull = shadeInt(body, 0.88), dark = shadeInt(body, 0.68), prop = '#2b2c29';
+  // Fuselage: a round section with a flat floor, the same width all the way to the wing.
+  m.cylX(-9, 15, 0, 4.4, 3.4, body, M_METAL);
+  m.box(-9, -2.5, 1, 15, 2.5, 2, hull, M_METAL);
+  // The tail cone sweeps up from the floor to the fin, narrowing, with the ramp underneath.
+  for (let x = -21; x < -9; x++) {
+    const t = (-9 - x) / 12, bot = 1 + t * 5.2, top = 7.8 - t * 0.9, ry = 3.4 * (1 - t * 0.68), cz = (bot + top) / 2, rz = (top - bot) / 2;
+    for (let y = Math.floor(-ry); y < ry; y++) for (let z = Math.floor(bot); z < top; z++) {
+      if (((y + 0.5) / ry) ** 2 + ((z + 0.5 - cz) / rz) ** 2 <= 1) m.set(x, y, z, z < cz - rz * 0.5 && x > -17 ? hull : body, M_METAL);
+    }
+  }
+  m.box(-16, -1, 1.6, -10, 1, 2.4, dark, M_METAL);                                // the ramp's hinge line
+  // Blunt nose with a dark radome, and the stepped cockpit glazing wrapped round it.
+  m.ellipsoid(15, 0, 4.2, 4.6, 3.4, 3.3, body, M_METAL);
+  m.ellipsoid(18.4, 0, 3.4, 1.9, 2.2, 2.1, dark, M_METAL);
+  m.paint(14, -4, 5, 20, 4, 7, (x, y, z) => (x >= 15 && x <= 17 && (z === 5 || (z === 6 && x <= 16)) && Math.abs(y + 0.5) < 3.4 - (x - 15) * 0.6) ? C.glass : undefined);
+  m.ellipsoid(15.5, 0, 6.6, 2, 1.8, 0.9, C.glass, M_GLASS);
+  // Main gear sponsons bulging from the lower sides, and a row of small windows above them.
+  for (const y of [-3.2, 3.2]) m.ellipsoid(1, y, 2.4, 5, 1.3, 1.5, hull, M_METAL);
+  for (let x = -7; x < 12; x += 3) { m.set(x, -4, 5, C.glass, M_GLASS); m.set(x, 3, 5, C.glass, M_GLASS); }
+  m.box(-14, -3, 3, -12, -2, 6, dark, M_METAL); m.box(-14, 2, 3, -12, 3, 6, dark, M_METAL);   // paratroop doors either side
+  // Straight high wing on the fuselage top, tapering a little towards the tips, side colour at the tips.
+  for (let y = -24; y <= 24; y++) {
+    const a = Math.abs(y), lead = 4 - Math.floor(a / 14), trail = -2 + Math.floor(a / 11);
+    for (let x = trail; x <= lead; x++) {
+      const tip = a >= 22;
+      m.set(x, y, 8, tip ? pal.main : x === trail ? hull : body, M_METAL);
+      if (a < 4) m.set(x, y, 7, body, M_METAL);                                   // the thick wing root
+    }
+  }
+  // Four turboprops slung under the wing, each with a spinner and four blades.
+  for (const y of [-15, -7.5, 7.5, 15]) {
+    m.cylX(-4, 8, y, 7, 1.5, hull, M_METAL);
+    m.box(-4, Math.floor(y) - 1, 5, 4, Math.floor(y) + 1, 6, dark, M_METAL);       // exhaust and the lower cowling
+    m.ellipsoid(8.8, y, 7, 1.2, 1, 1, dark, M_METAL);
+    for (let k = -2; k <= 2; k++) { if (k) { m.set(9, Math.floor(y) + k, 7, prop, M_METAL); m.set(9, Math.floor(y), 7 + k, prop, M_METAL); } }
+  }
+  // Tailplane low on the cone, swept at the front, and one tall fin with a broad dorsal fillet.
+  for (let y = -9; y <= 9; y++) { const a = Math.abs(y), lead = -15 - Math.floor(a / 3); for (let x = -21; x <= lead; x++) m.set(x, y, 7, a > 7 ? pal.main : body, M_METAL); }
+  for (let z = 8; z < 15; z++) {
+    const lead = z < 9 ? -9 : -13 - Math.round((z - 9) * 0.7), trail = -22 + Math.floor((z - 8) * 0.15);
+    m.box(trail, 0, z, lead + 1, 1, z + 1, z > 12 ? pal.dark : pal.main, M_METAL);
+  }
+  // A walkway line along the spine.
+  m.paintTop(-9, 0, 14, 1, (x, y) => (x % 4 === 0 ? dark : undefined));
+  return m;
+}
+
 // ---------------------------------------------------------------------------
 // Infantry: 16 facings x 3 frames (standing, two walking poses)
 // ---------------------------------------------------------------------------
@@ -1712,7 +1765,10 @@ function hullSprite(u, pal) {
   if (d.draw === 'v2') { const loaded = !(u.cd > 1.2); return facingSprite('W' + key + loaded, () => v2Model(pal, loaded), u.face); }
   if (d.draw === 'harv') { const full = (u.load || 0) > d.capacity * 0.3; return facingSprite('V' + key + full, () => harvModel(pal, full), u.face); }
   if (d.fly === 'heli') return facingSprite('A' + key, () => d.type === 'hind' ? hindModel(pal) : heliModel(pal), u.face);
-  if (d.draw === 'cargo') return facingSprite('C' + key, () => cargoModel(pal, d.type === 'bomber'), u.face);
+  if (d.draw === 'cargo') {
+    if (d.type === 'transport' && u.faction === 'allies') return facingSprite('H' + key, () => c130Model(pal), u.face);
+    return facingSprite('C' + key, () => cargoModel(pal, d.type === 'bomber'), u.face);
+  }
   const mig = d.type === 'mig' || (d.type === 'spyplane' && u.faction === 'soviets');
   return facingSprite('A' + key + mig, () => jetModel(pal, mig), u.face);
 }
