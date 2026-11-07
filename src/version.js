@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.07.1', date: '7 November 2026', title: 'Red Horizon for Windows', groups: [
+    ['New', [
+      'Red Horizon is now a Windows app. Download the installer from the GitHub Releases page; it updates itself when a new version comes out. Phones keep playing in the browser or from the Home Screen as before.',
+      'On PC, F11 switches full screen and Ctrl + / Ctrl - / Ctrl 0 change the size of the interface (handy on a 4K monitor).',
+    ]],
+  ] },
   { v: '2026.11.07', date: '7 November 2026', title: 'New support planes, smarter aircraft', groups: [
     ['New', [
       'New support planes: Allied Paratroopers arrive in a C-130 Hercules and Soviet ones in an Il-76. The Allied bombing run is a B-1 Lancer and the Soviet one a Tu-22M Backfire.',
