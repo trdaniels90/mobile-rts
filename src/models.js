@@ -636,9 +636,8 @@ function il76Model(pal) {
   return m;
 }
 
-// The Allied bomber, after the B-1 Lancer: a long, slender blended body with a sharp nose and small
-// nose vanes, swing wings at mid sweep from wide wing gloves, two paired engine nacelles under the
-// body, and a tall swept fin with the tailplanes low on it. Dark grey, the fin in the side's colour.
+// The Allied bomber, after the B-1 Lancer: a long, slender blended body with a sharp nose, swing
+// wings at mid sweep from wide wing gloves, two paired engine nacelles under the body, and a tall swept fin with the tailplanes low on it. Dark grey, the fin in the side's colour.
 function b1Model(pal) {
   const m = new VModel(-23, -18, 24, 18, 13);
   const body = mixHex(pal.main, '#55595c', 0.78), hull = shadeInt(body, 0.85), dark = shadeInt(body, 0.6), lite = shadeInt(body, 1.12);
@@ -649,9 +648,8 @@ function b1Model(pal) {
       if (((y + 0.5) / ry) ** 2 + ((z + 0.5 - cz) / rz) ** 2 <= 1) m.set(x, y, z, z > cz + rz * 0.4 ? lite : body, M_METAL);
     }
   }
-  // Cockpit windows and the small vanes either side of the nose.
+  // Cockpit windows.
   m.paint(12, -3, 5, 17, 3, 8, (x, y, z) => (x >= 13 && x <= 14 && z >= 6 && Math.abs(y + 0.5) <= 1.2) ? '#1d2830' : undefined);
-  for (const y of [-4, 3]) m.box(16, y, 4, 18, y + 1, 5, hull, M_METAL);
   // Blended wing gloves: a broad, thin fairing widening towards the back.
   for (let x = -10; x <= 9; x++) {
     const w = 2.6 + Math.min(4.6, (9 - x) * 0.42);
