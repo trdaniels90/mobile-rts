@@ -4,6 +4,19 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.07', date: '7 November 2026', title: 'New support planes, smarter aircraft', groups: [
+    ['New', [
+      'New support planes: Allied Paratroopers arrive in a C-130 Hercules and Soviet ones in an Il-76. The Allied bombing run is a B-1 Lancer and the Soviet one a Tu-22M Backfire.',
+    ]],
+    ['Changes', [
+      'Team battles: the Return button now also brings back units that are out attacking, not only those sent to an ally, and turns Auto attack off so they stay home.',
+      'Defending jets make one pass, then fly home, rearm and repair fully before going out again. Damaged defenders no longer go back out half repaired.',
+    ]],
+    ['Fixes', [
+      'Helicopters and jets no longer hover or circle where a base defence ended: they fly home to their pads.',
+      'The computer (enemy or ally) no longer builds a Refinery whose exit is walled in by trees, rocks or buildings, which left its Ore Trucks stuck.',
+    ]],
+  ] },
   { v: '2026.11.06', date: '6 November 2026', title: 'A tougher Normal', groups: [
     ['Changes', [
       'Normal is tougher: the computer can now field up to 100 units (was 80) worth up to 45,000 credits (was 28,000), so its army keeps growing through the middle of the game. Single player and online co-op. Easy and Hard are unchanged.',
