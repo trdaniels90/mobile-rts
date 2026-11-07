@@ -700,15 +700,16 @@ function tu22Model(pal) {
     }
   }
   m.paint(10, -3, 5, 15, 3, 8, (x, y, z) => (x >= 11 && x <= 13 && z >= 6 && Math.abs(y + 0.5) <= 1.2) ? '#1d2830' : undefined);   // cockpit
-  // Behind the cockpit the body swells into two big, deep intakes and stays that wide back to the engine
-  // bay, then narrows a little to the two big exhausts. A rounded section, so it reads as one body.
+  // Behind the cockpit the body swells into two deep intakes on its flanks, lower than the spine, and
+  // tapers smoothly from there to the two exhausts. Same colour as the wings, so it all reads as one airframe.
+  const bw = (x) => x > 4 ? 3.3 + (8 - x) * 0.17 : x > -6 ? 4 : 4 - (-6 - x) * 0.12;
   for (let x = -20; x <= 8; x++) {
-    const w = x > -14 ? 4.3 : 4.3 - (-14 - x) * 0.22, z0 = 2.4, z1 = 6.9;
+    const w = bw(x), z0 = 2.6, z1 = 6.2;
     for (let y = Math.floor(-w); y < w; y++) for (let z = Math.floor(z0); z < z1; z++) {
-      const ey = Math.abs(y + 0.5) - (w - 1.3), ez = Math.max(z0 + 1.2 - (z + 0.5), z + 0.5 - (z1 - 1.2));
-      if (ey > 0 && ez > 0 && ey * ey + ez * ez > 1.7) continue;                 // rounded corners
-      const inlet = x >= 7 && Math.abs(y + 0.5) > 2.2 && z >= 3 && z < 6;        // the raked intake mouths
-      m.set(x, y, z, inlet ? C.black : x === 8 || (x === 7 && Math.abs(y + 0.5) > 3) ? hull : z >= 6 ? lite : body, inlet ? 0 : M_METAL);
+      const ey = Math.abs(y + 0.5) - (w - 1.4), ez = Math.max(z0 + 1.2 - (z + 0.5), z + 0.5 - (z1 - 1.4));
+      if (ey > 0 && ez > 0 && ey * ey + ez * ez > 1.8) continue;                 // well-rounded edges
+      const inlet = x >= 7 && Math.abs(y + 0.5) > 2.2 && z >= 3 && z < 6;        // the intake mouths
+      m.set(x, y, z, inlet ? C.black : body, inlet ? 0 : M_METAL);
     }
   }
   for (const y of [-2, 2]) { m.cylX(-22, -20, y, 4.5, 1.8, '#3a3632', M_METAL); m.cylX(-22, -21, y, 4.5, 1.2, C.black); }
@@ -716,7 +717,7 @@ function tu22Model(pal) {
   // Long fixed gloves out from the intakes, and the swing wings at mid sweep (side colour at the tips).
   for (let x = -12; x <= 6; x++) {
     const w = 5 + Math.min(3.5, (6 - x) * 0.3);
-    for (let y = Math.floor(-w); y < w; y++) if (Math.abs(y + 0.5) > 4) m.set(x, y, 5, body, M_METAL);
+    for (let y = Math.floor(-w); y < w; y++) if (Math.abs(y + 0.5) > bw(x) - 0.5) m.set(x, y, 5, body, M_METAL);
   }
   for (let a = 8; a <= 17; a++) {
     const lead = -1 - Math.round((a - 8) * 1.05), trail = lead - 5 + Math.round((a - 8) * 0.22);
@@ -735,7 +736,6 @@ function tu22Model(pal) {
     if (a < 3) continue;
     for (let x = trail; x <= lead; x++) m.set(x, y, 5, a > 9 ? pal.main : x === trail ? hull : body, M_METAL);
   }
-  m.paintTop(-12, 0, 9, 1, (x) => (x % 5 === 0 ? dark : undefined));             // panel lines on the spine
   return m;
 }
 
