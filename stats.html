@@ -23,6 +23,11 @@
   .bars div{flex:1;background:#2f80ed;min-height:1px;border-radius:2px 2px 0 0}
   .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3c3;margin-right:6px}
   #err{color:#f66}
+  #latest tr+tr{cursor:pointer}#latest tr+tr:hover td{background:#242424}
+  .pick td{background:#2a2a2a}
+  svg{width:100%;height:150px;display:block;margin:4px 0 10px}
+  .key{font-size:13px;margin-bottom:12px}.key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 10px}
+  .ahead{color:#6c6}.behind{color:#e66}
 </style>
 </head>
 <body>
@@ -35,13 +40,46 @@
 <div class="card"><h2>Matches per day</h2><div class="sub">Last 30 days (Central time)</div><div class="bars" id="bars"></div>
   <div class="sub" id="barlabels" style="display:flex;justify-content:space-between"></div></div>
 <div class="card"><h2>Latest matches</h2><div class="scroll"><table id="latest"></table></div></div>
+<div class="card" id="debrief"><h2>Match debrief</h2><div class="sub">Tap a row in Latest matches to open its debrief.</div><div id="dbody"></div></div>
 <script>
 const URL_ = 'https://yorrgemlhoxbxvyvzcwe.supabase.co/rest/v1/rpc/public_stats';
+const URL_M = 'https://yorrgemlhoxbxvyvzcwe.supabase.co/rest/v1/rpc/public_match';
 const ANON = 'sb_publishable_FkCzdcgsEyqNy_UwmajBiQ_kp8V2Vi6';
 const key = new URLSearchParams(location.hash.slice(1)).get('k') || '';
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const clock = (s) => s == null ? '' : Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+const money = (n) => '$' + Number(n).toLocaleString();
+function chart(samples, a, b, label) {
+  const W = 600, H = 150, mx = Math.max(1, ...samples.flatMap((x) => [x[a] || 0, x[b] || 0])), tm = Math.max(1, samples[samples.length - 1].t);
+  const line = (k, c) => '<polyline fill="none" stroke="' + c + '" stroke-width="2" points="' + samples.map((x) => (x.t / tm * W).toFixed(1) + ',' + (H - 4 - (x[k] || 0) / mx * (H - 8)).toFixed(1)).join(' ') + '"/>';
+  return '<div class="sub">' + label + ' (peak ' + mx.toLocaleString() + ', ' + clock(tm) + ')</div><svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' + line(a, '#2f80ed') + line(b, '#e5484d') + '</svg>';
+}
+let picked = null, last = null;
+async function openMatch(id) {
+  picked = id;
+  document.querySelectorAll('#latest tr[data-m]').forEach((tr) => tr.classList.toggle('pick', tr.dataset.m === id));
+  const res = await fetch(URL_M, { method: 'POST', headers: { apikey: ANON, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_key: key, p_id: id }) });
+  const m = res.ok ? await res.json() : null;
+  if (!m) { $('dbody').innerHTML = '<div class="sub">No debrief for this match (the app was closed, or it is an older version).</div>'; return; }
+  const out = m.result === 'win' ? 'Mission accomplished' : m.result === 'loss' ? 'Mission failed' : m.result === 'quit' ? 'Quit' : 'Unfinished';
+  let h = '<div style="margin:6px 0 10px"><b>' + esc(out) + '</b> · ' + esc(m.side) + ' vs ' + esc(m.enemy_side) + ' · ' + esc(m.difficulty) + ' · ' + clock(m.duration_s) +
+    '<div class="sub">' + esc(m.match) + ' · ' + esc(m.started) + ' · ' + esc(m.name) + ' · ' + esc(m.version) + '</div></div>';
+  h += '<div class="scroll"><table><tr><th></th><th>You</th><th>Enemy</th></tr>' + m.score.map((r) => {
+    const f = (n) => r.money ? money(n) : Number(n).toLocaleString(), c = r.you === r.enemy ? '' : (r.you < r.enemy) === r.low ? 'ahead' : 'behind';
+    return '<tr><td>' + esc(r.measure) + '</td><td class="' + c + '">' + f(r.you) + '</td><td>' + f(r.enemy) + '</td></tr>';
+  }).join('') + '</table></div>';
+  if (m.samples.length > 1) {
+    h += '<h2 style="margin-top:14px">Strength over the match</h2><div class="key"><i style="background:#2f80ed"></i>You<i style="background:#e5484d"></i>Enemy</div>' +
+      chart(m.samples, 'army_you', 'army_enemy', 'Army value') + chart(m.samples, 'inc_you', 'inc_enemy', 'Income per minute') + chart(m.samples, 'blds_you', 'blds_enemy', 'Buildings');
+  }
+  if (m.mvp && m.mvp.kills > 0) h += '<h2>MVP</h2><div style="margin-bottom:12px">' + esc(m.mvp.unit) + ': ' + m.mvp.kills + ' kills (' + money(m.mvp.worth) + ' of enemy value) · ' +
+    (m.mvp.died == null ? 'survived' : 'fell at ' + clock(Math.round(m.mvp.died))) + '</div>';
+  if (m.kills.length) h += '<h2>Kills by unit</h2><div class="scroll" style="margin-bottom:12px"><table>' + m.kills.map((k) => '<tr><td>' + esc(k.unit) + '</td><td>' + k.kills + '</td></tr>').join('') + '</table></div>';
+  if (m.moments.length) h += '<h2>Key moments</h2><div class="scroll"><table>' + m.moments.map((k) => '<tr><td>' + clock(k.t) + '</td><td>' + esc(k.moment) + '</td></tr>').join('') + '</table></div>';
+  $('dbody').innerHTML = h;
+}
+$('latest').addEventListener('click', (e) => { const tr = e.target.closest('tr[data-m]'); if (tr) openMatch(tr.dataset.m); });
 const rows = (head, body) => '<tr>' + head.map((h) => '<th>' + h + '</th>').join('') + '</tr>' +
   body.map((r) => '<tr>' + r.map((c) => '<td>' + esc(c) + '</td>').join('') + '</tr>').join('');
 
@@ -67,6 +105,9 @@ async function load() {
     $('barlabels').innerHTML = '<span>' + d.perday[0].day.slice(5) + '</span><span>max ' + max + '/day</span><span>' + d.perday[d.perday.length - 1].day.slice(5) + '</span>';
     $('latest').innerHTML = rows(['Match', 'Started (Central)', 'Side', 'Difficulty', 'Outcome', 'Length', 'Name', 'Version'],
       d.latest.map((r) => [r.match, r.started, r.side, r.difficulty, r.outcome, clock(r.duration_s), r.name, r.version]));
+    document.querySelectorAll('#latest tr').forEach((tr, i) => { if (i) tr.dataset.m = d.latest[i - 1].match; });
+    if (!picked) { const f = d.latest.find((r) => r.outcome === 'Win' || r.outcome === 'Loss') || d.latest[0]; if (f) openMatch(f.match); }
+    else document.querySelectorAll('#latest tr[data-m]').forEach((tr) => tr.classList.toggle('pick', tr.dataset.m === picked));
   } catch (e) { $('line').textContent = ''; $('err').textContent = e.message; }
 }
 load(); setInterval(load, 30000);

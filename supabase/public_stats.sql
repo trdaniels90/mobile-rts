@@ -46,3 +46,50 @@ begin
 end $$;
 revoke all on function public.public_stats(text) from public;
 grant execute on function public.public_stats(text) to anon, authenticated;
+
+-- Debrief of one match for stats.html: p_id is the first 8 characters of its id (null: the latest match with a debrief).
+create or replace function public.public_match(p_key text, p_id text default null) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare m public.matches; pl int; r jsonb;
+begin
+  if not exists (select 1 from public.stats_secret where key_sha256 = encode(extensions.digest(coalesce(p_key, ''), 'sha256'), 'hex')) then
+    raise exception 'bad key' using errcode = '28000';
+  end if;
+  select * into m from public.matches
+    where stats is not null and (p_id is null or p_id !~ '^[0-9a-f]{8}$' or id::text like p_id || '%')
+    order by (p_id is not null and p_id ~ '^[0-9a-f]{8}$' and id::text like p_id || '%') desc, started_at desc limit 1;
+  if m.id is null then return null; end if;
+  pl := coalesce((m.stats->>'player')::int, 0);
+  select jsonb_build_object(
+    'match', left(m.id::text, 8), 'side', initcap(m.side), 'difficulty', initcap(coalesce(m.difficulty, '')),
+    'enemy_side', initcap(coalesce(m.stats->'teams'->(1 - pl)->>'faction', case m.side when 'allies' then 'soviets' else 'allies' end)),
+    'result', m.result, 'duration_s', m.duration_s, 'name', coalesce(m.player_name, ''), 'version', coalesce(m.version, ''),
+    'started', to_char(m.started_at at time zone 'America/Chicago', 'YYYY-MM-DD HH24:MI'),
+    'score', (select coalesce(jsonb_agg(jsonb_build_object('measure', x.measure, 'you', coalesce((m.stats->'teams'->pl->'stats'->>x.k)::bigint, 0),
+        'enemy', coalesce((m.stats->'teams'->(1 - pl)->'stats'->>x.k)::bigint, 0), 'low', x.low, 'money', x.money) order by x.ord), '[]')
+      from (values (1, 'Units built', 'units', false, false), (2, 'Units lost', 'lost', true, false), (3, 'Enemies destroyed', 'killed', false, false),
+        (4, 'Buildings destroyed', 'bldKilled', false, false), (5, 'Buildings lost', 'bldLost', true, false), (6, 'Ore harvested', 'harvested', false, true)) as x(ord, measure, k, low, money)),
+    'samples', (select coalesce(jsonb_agg(jsonb_build_object('t', (v->>'t')::int,
+        'army_you', (v->'army'->>pl)::int, 'army_enemy', (v->'army'->>(1 - pl))::int,
+        'inc_you', (v->'income'->>pl)::int, 'inc_enemy', (v->'income'->>(1 - pl))::int,
+        'blds_you', (v->'blds'->>pl)::int, 'blds_enemy', (v->'blds'->>(1 - pl))::int) order by n), '[]')
+      from jsonb_array_elements(coalesce(m.stats->'log'->'samples', '[]'::jsonb)) with ordinality as x(v, n)),
+    'moments', (select coalesce(jsonb_agg(jsonb_build_object('t', (v->>'t')::int,
+        'who', case when (v->>'team')::int = pl then 'You' else 'Enemy' end,
+        'moment', case when (v->>'team')::int = pl then 'Your ' else 'Enemy ' end ||
+          case v->>'kind' when 'cy lost' then 'Construction Yard destroyed' when 'outpost lost' then 'Outpost lost' else v->>'kind' end) order by n), '[]')
+      from jsonb_array_elements(coalesce(m.stats->'log'->'events', '[]'::jsonb)) with ordinality as x(v, n)),
+    'kills', (select coalesce(jsonb_agg(jsonb_build_object('unit', unit, 'kills', k) order by k desc, unit), '[]') from (
+      select coalesce(m.stats->'names'->>(v->>'type'), initcap(v->>'type')) as unit, sum(coalesce((v->>'kills')::int, 0))::int as k
+      from jsonb_array_elements(coalesce(m.stats->'log'->'fallen', '[]'::jsonb) || coalesce(m.stats->'log'->'alive', '[]'::jsonb)) as x(v)
+      group by 1 having sum(coalesce((v->>'kills')::int, 0)) > 0) q),
+    'mvp', (select to_jsonb(q) from (
+      select coalesce(m.stats->'names'->>(v->>'type'), initcap(v->>'type')) as unit, coalesce((v->>'kills')::int, 0) as kills,
+        coalesce((v->>'worth')::int, 0) as worth, (v->>'born')::numeric as born, (v->>'died')::numeric as died
+      from jsonb_array_elements(coalesce(m.stats->'log'->'fallen', '[]'::jsonb) || coalesce(m.stats->'log'->'alive', '[]'::jsonb)) as x(v)
+      order by 2 desc, 3 desc limit 1) q)
+  ) into r;
+  return r;
+end $$;
+revoke all on function public.public_match(text, text) from public;
+grant execute on function public.public_match(text, text) to anon, authenticated;
