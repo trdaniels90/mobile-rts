@@ -636,6 +636,55 @@ function il76Model(pal) {
   return m;
 }
 
+// The Allied bomber, after the B-1 Lancer: a long, slender blended body with a sharp nose and small
+// nose vanes, swing wings at mid sweep from wide wing gloves, two paired engine nacelles under the
+// body, and a tall swept fin with the tailplanes low on it. Dark grey, the fin in the side's colour.
+function b1Model(pal) {
+  const m = new VModel(-23, -18, 24, 18, 13);
+  const body = mixHex(pal.main, '#55595c', 0.78), hull = shadeInt(body, 0.85), dark = shadeInt(body, 0.6), lite = shadeInt(body, 1.12);
+  // Fuselage: a long body tapering to a needle nose and to the tail.
+  for (let x = -22; x < 24; x++) {
+    const ry = x > 11 ? 2.6 * (1 - (x - 11) / 13) + 0.4 : x < -14 ? 2.6 - (-14 - x) * 0.18 : 2.6, rz = ry * 0.85, cz = 4.6 - (x > 15 ? (x - 15) * 0.12 : 0);
+    for (let y = Math.floor(-ry); y < ry; y++) for (let z = Math.max(0, Math.floor(cz - rz)); z < cz + rz; z++) {
+      if (((y + 0.5) / ry) ** 2 + ((z + 0.5 - cz) / rz) ** 2 <= 1) m.set(x, y, z, z > cz + rz * 0.4 ? lite : body, M_METAL);
+    }
+  }
+  // Cockpit windows and the small vanes either side of the nose.
+  m.paint(12, -3, 5, 17, 3, 8, (x, y, z) => (x >= 13 && x <= 14 && z >= 6 && Math.abs(y + 0.5) <= 1.2) ? '#1d2830' : undefined);
+  for (const y of [-4, 3]) m.box(16, y, 4, 18, y + 1, 5, hull, M_METAL);
+  // Blended wing gloves: a broad, thin fairing widening towards the back.
+  for (let x = -10; x <= 9; x++) {
+    const w = 2.6 + Math.min(4.6, (9 - x) * 0.42);
+    for (let y = Math.floor(-w); y < w; y++) m.set(x, y, 4, body, M_METAL);
+  }
+  // Swing wings at mid sweep, from the glove pivots out to the tips (the side's colour at the tips).
+  for (let a = 6; a <= 17; a++) {
+    const lead = 1 - Math.round((a - 6) * 1.15), trail = lead - 5 + Math.round((a - 6) * 0.2);
+    for (const sgn of [-1, 1]) {
+      const y = sgn < 0 ? -a - 1 : a;
+      for (let x = trail; x <= lead; x++) m.set(x, y, 4, a >= 16 ? pal.main : x === trail ? hull : body, M_METAL);
+    }
+  }
+  // Two nacelles under the body, each holding a pair of engines: intakes in front, four exhausts behind.
+  for (const y of [-5, 3]) {
+    m.box(-13, y, 1, -2, y + 2, 4, hull, M_METAL);
+    m.box(-2, y, 1, -1, y + 2, 3, C.black);
+    m.box(-14, y, 1.5, -13, y + 2, 3, '#2a2724', M_METAL);
+  }
+  // Tall swept fin in the side's colour, with the tailplanes low on it.
+  for (let z = 6; z < 13; z++) {
+    const lead = -13 - Math.round((z - 6) * 0.9), trail = -22 + Math.round((z - 6) * 0.3);
+    m.box(trail, 0, z, lead + 1, 1, z + 1, z > 11 ? pal.dark : pal.main, M_METAL);
+  }
+  for (let y = -8; y <= 8; y++) {
+    const a = Math.abs(y), lead = -16 - Math.round(a * 0.6), trail = -22 + Math.round(a * 0.15);
+    for (let x = trail; x <= lead; x++) m.set(x, y, 6, a > 6 ? pal.main : body, M_METAL);
+  }
+  // Panel lines along the spine.
+  m.paintTop(-12, 0, 10, 1, (x) => (x % 5 === 0 ? dark : undefined));
+  return m;
+}
+
 // ---------------------------------------------------------------------------
 // Infantry: 16 facings x 3 frames (standing, two walking poses)
 // ---------------------------------------------------------------------------
@@ -1824,6 +1873,7 @@ function hullSprite(u, pal) {
   if (d.fly === 'heli') return facingSprite('A' + key, () => d.type === 'hind' ? hindModel(pal) : heliModel(pal), u.face);
   if (d.draw === 'cargo') {
     if (d.type === 'transport') return u.faction === 'allies' ? facingSprite('H' + key, () => c130Model(pal), u.face) : facingSprite('I' + key, () => il76Model(pal), u.face);
+    if (d.type === 'bomber' && u.faction === 'allies') return facingSprite('B' + key, () => b1Model(pal), u.face);
     return facingSprite('C' + key, () => cargoModel(pal, d.type === 'bomber'), u.face);
   }
   const mig = d.type === 'mig' || (d.type === 'spyplane' && u.faction === 'soviets');
