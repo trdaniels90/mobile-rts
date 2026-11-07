@@ -52,6 +52,10 @@ share globals. Read this file first; the commit history explains every change in
 6. **Test build:** check `git merge-base --is-ancestor origin/main HEAD`, then run
    `git push origin HEAD:main`. Poll `https://trdaniels90.github.io/mobile-rts/src/version.js`
    until it shows the new version.
+6a. **Windows app:** pushing a new `src/version.js` to `main` runs `.github/workflows/desktop.yml`, which builds
+   the installer from `desktop/` (Electron, `electron-updater`) and publishes it as a GitHub Release
+   (`RedHorizon-Setup-<ver>.exe`). Installed copies check Releases every 30 minutes and offer a restart. See
+   "Windows app" below.
 7. **New scripts:** add any new script to `index.html` and to `FILES` in `sw.js`, the offline
    cache. Installed copies notice the new version and offer a restart.
 
@@ -287,6 +291,15 @@ share globals. Read this file first; the commit history explains every change in
   match report have graphs (before, match a858b156 had none).
 - Snapshots also carry the debrief log as it grows (`s.log` in netcore.js `snapshot`, applied in net.js `applySnapshot`),
   so a phone that ends a battle on its own (it could not reconnect) still has its graphs.
+
+## Windows app (`desktop/`)
+
+- `main.js` serves the game from `app://game/` (not `file://`, so match reports work and `fetch` of the music works;
+  no service worker, since `ui.js` only registers it on http). `scripts/prep.js` copies the game into `desktop/game`
+  (gitignored) and sets the app version from `src/version.js` as `YEAR.MMDD.N` (semver cannot hold `2026.11.07`).
+- Local test: `cd desktop && npm install && npm start`. Installer: `npm run dist` (Windows). CI does the release.
+- The installer is unsigned, so Windows SmartScreen warns on first run until a code-signing certificate is added.
+- The app's game version equals the web version, so it matches the game server.
 
 ## Supabase
 

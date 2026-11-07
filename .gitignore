@@ -1,1 +1,4 @@
 dist/
+desktop/node_modules/
+desktop/game/
+desktop/dist/
