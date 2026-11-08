@@ -247,24 +247,77 @@ function tankTurret(pal, s) {
   m.line(-r + 1, r - 2, 4, -r + 1, r - 2, 7, C.black);
   return m;
 }
+// Allied Ranger: hull and pintle gun modelled in Blender, voxelized by tools/blender/ranger.py.
 function jeepModel(pal) {
   const m = new VModel(-9, -7, 9, 7, 9);
-  for (const x of [-4.5, 4.5]) for (const [y0, y1] of [[-5, -3], [3, 5]]) m.cylY(y0, y1, x, 2, 2, C.track, M_ROUGH);
-  m.box(-7, -4, 2, 7, 4, 4, pal.dark, M_METAL);
-  m.box(-7, -4, 4, 7, 4, 5, pal.main, M_METAL);
-  m.box(2, -4, 5, 7, 4, 6, pal.main, M_METAL);
-  m.box(1, -4, 5, 2, 4, 8, C.glass, M_GLASS);
-  m.clear(-6, -3, 5, 1, 3, 6);
-  m.box(-6, -3, 4, 1, 3, 5, '#3a3a33');
-  m.box(-3, -3, 5, -1, 3, 6, C.oliveD); // seats
-  m.box(6, -3, 4, 7, -2, 5, C.glow, M_GLASS); m.box(6, 2, 4, 7, 3, 5, C.glow, M_GLASS);
+  m.box(-6, -6, 0, -4, -4, 1, '#2a2925', M_ROUGH);
+  m.box(4, -6, 0, 6, -4, 1, '#2a2925', M_ROUGH);
+  m.box(-6, 4, 0, -4, 6, 1, '#2a2925', M_ROUGH);
+  m.box(4, 4, 0, 6, 6, 1, '#2a2925', M_ROUGH);
+  m.box(-7, -6, 1, -6, -4, 4, '#2a2925', M_ROUGH);
+  m.box(-6, -6, 1, -4, -5, 3, '#55554d', M_METAL);
+  m.box(-4, -6, 1, -3, -4, 4, '#2a2925', M_ROUGH);
+  m.box(3, -6, 1, 4, -4, 4, '#2a2925', M_ROUGH);
+  m.box(4, -6, 1, 6, -5, 3, '#55554d', M_METAL);
+  m.box(6, -6, 1, 7, -4, 4, '#2a2925', M_ROUGH);
+  m.box(-6, -5, 1, -4, -4, 4, '#2a2925', M_ROUGH);
+  m.box(4, -5, 1, 6, -4, 4, '#2a2925', M_ROUGH);
+  m.box(-7, 4, 1, -3, 5, 4, '#2a2925', M_ROUGH);
+  m.box(3, 4, 1, 7, 5, 4, '#2a2925', M_ROUGH);
+  m.box(-7, 5, 1, -6, 6, 4, '#2a2925', M_ROUGH);
+  m.box(-6, 5, 1, -4, 6, 3, '#55554d', M_METAL);
+  m.box(-4, 5, 1, -3, 6, 4, '#2a2925', M_ROUGH);
+  m.box(3, 5, 1, 4, 6, 4, '#2a2925', M_ROUGH);
+  m.box(4, 5, 1, 6, 6, 3, '#55554d', M_METAL);
+  m.box(6, 5, 1, 7, 6, 4, '#2a2925', M_ROUGH);
+  m.box(-8, -4, 2, 7, 4, 3, pal.dark, M_METAL);
+  m.box(7, -4, 2, 8, 4, 3, '#3b3a34', M_METAL);
+  m.box(-6, -6, 3, -4, -5, 4, '#2a2925', M_ROUGH);
+  m.box(4, -6, 3, 6, -5, 4, '#2a2925', M_ROUGH);
+  m.box(-8, -4, 3, 7, -2, 4, pal.dark, M_METAL);
+  m.box(7, -3, 3, 8, 3, 5, '#34362f', M_METAL);
+  m.box(-8, -2, 3, -7, 2, 6, '#2a2925', M_ROUGH);
+  m.box(-7, -2, 3, 7, 4, 4, pal.dark, M_METAL);
+  m.box(-8, 2, 3, -7, 4, 4, pal.dark, M_METAL);
+  m.box(-6, 5, 3, -4, 6, 4, '#2a2925', M_ROUGH);
+  m.box(4, 5, 3, 6, 6, 4, '#2a2925', M_ROUGH);
+  m.box(-8, -4, 4, 7, -3, 6, pal.main, M_METAL);
+  m.box(-8, -3, 4, -7, -2, 5, pal.main, M_METAL);
+  m.box(-7, -3, 4, 4, 3, 5, '#7a7660', M_ROUGH);
+  m.box(4, -3, 4, 7, 4, 6, pal.main, M_METAL);
+  m.box(-8, 2, 4, -7, 4, 5, pal.main, M_METAL);
+  m.box(-7, 3, 4, 4, 4, 5, pal.main, M_METAL);
+  m.box(-8, -5, 5, -2, -4, 6, pal.main, M_METAL);
+  m.box(2, -5, 5, 8, -4, 6, pal.main, M_METAL);
+  m.box(7, -4, 5, 8, -3, 6, pal.main, M_METAL);
+  m.box(-1, -3, 5, 0, -1, 7, '#464b2b', M_MATTE);
+  m.box(0, -3, 5, 2, -1, 6, '#5a6238', M_MATTE);
+  m.box(2, -3, 5, 4, 5, 6, pal.main, M_METAL);
+  m.box(7, -3, 5, 8, -2, 6, '#ffe9a0', M_GLOW);
+  m.box(7, -2, 5, 8, 2, 6, pal.main, M_METAL);
+  m.box(-1, 1, 5, 0, 3, 7, '#464b2b', M_MATTE);
+  m.box(0, 1, 5, 2, 3, 6, '#5a6238', M_MATTE);
+  m.box(-7, 2, 5, -5, 4, 7, '#5a6238', M_MATTE);
+  m.box(7, 2, 5, 8, 3, 6, '#ffe9a0', M_GLOW);
+  m.box(-8, 3, 5, -7, 5, 6, pal.main, M_METAL);
+  m.box(-5, 3, 5, 2, 4, 6, pal.main, M_METAL);
+  m.box(7, 3, 5, 8, 5, 6, pal.main, M_METAL);
+  m.box(-7, 4, 5, -2, 5, 6, pal.main, M_METAL);
+  m.box(4, 4, 5, 7, 5, 6, pal.main, M_METAL);
+  m.box(2, -3, 6, 3, 3, 8, '#35505f', M_GLASS);
+  m.box(-8, -1, 6, -7, 1, 7, '#2a2925', M_ROUGH);
+  m.box(3, -1, 6, 7, 1, 7, pal.light, M_MATTE);
   return m;
 }
-function mgModel() {
+function mgModel(pal) {
   const m = new VModel(-3, -3, 9, 3, 4);
-  m.box(-1, -1, 0, 1, 1, 2, C.gun, M_METAL);
-  m.cylX(0, 8, 0, 2.5, 0.8, C.gun, M_METAL);
-  m.box(-2, -2, 1, 1, 2, 3, C.gun, M_METAL);
+  m.box(-1, -1, 0, 1, 1, 1, '#34362f', M_METAL);
+  m.box(2, -3, 1, 3, 3, 4, pal.main, M_MATTE);
+  m.box(-2, -1, 1, 2, 1, 3, '#55574e', M_METAL);
+  m.box(3, -1, 1, 5, 1, 4, '#9ba1a3', M_METAL);
+  m.box(-1, 1, 1, 1, 3, 2, '#5a6238', M_MATTE);
+  m.box(5, -1, 2, 8, 1, 3, '#55574e', M_METAL);
+  m.box(8, -1, 2, 9, 1, 3, '#25261f', M_METAL);
   return m;
 }
 // Mobile Outpost: a six-wheeled truck carrying a command shelter, mast and folded radar dish.
@@ -2168,7 +2221,7 @@ function hullSprite(u, pal) {
 function turretSprite(u, pal) {
   const d = u.def;
   if (d.draw === 'tank') return facingSprite('t' + d.type + pal.key, () => tankTurret(pal, d.size), u.tface, FACINGS, { shadow: false });
-  if (d.draw === 'jeep') return facingSprite('m' + pal.key, () => mgModel(), u.tface, FACINGS, { shadow: false });
+  if (d.draw === 'jeep') return facingSprite('m' + pal.key, () => mgModel(pal), u.tface, FACINGS, { shadow: false });
   return null;
 }
 // Crouching: the standing figure with the thighs folded away, so the body sits lower.

@@ -1073,7 +1073,7 @@ function makeCameo(type, faction, key) {
   // Tanks get their turret in the cameo too.
   const d = !power && UNIT_DEFS[type];
   if (d && (d.draw === 'tank' || d.draw === 'jeep')) {
-    const tm = d.draw === 'tank' ? tankTurret(pal, d.size) : mgModel();
+    const tm = d.draw === 'tank' ? tankTurret(pal, d.size) : mgModel(pal);
     const ts = renderVox(tm, angle, { scale, shadow: false });
     const z = turretZ(d) * VK * scale, off = (d.draw === 'jeep' ? -3 : -1) * scale;
     const ox = dx - s.ox * scale, oy = dy - s.oy * scale;
