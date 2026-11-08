@@ -66,7 +66,7 @@ const UNIT_DEFS = {
   },
   ltank: {
     name: 'Light Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'tank',
-    cost: 700, hp: 300, armor: 'heavy', speed: 56, turn: 3.2, sight: 5, r: 8, size: { len: 17, wid: 13, tur: 4.5, barrel: 10, light: true },
+    cost: 700, hp: 300, armor: 'heavy', speed: 56, turn: 3.2, sight: 5, r: 8, size: { len: 17, wid: 13, tur: 4.5, barrel: 10, light: true, tz: 5 },
     weapon: { dmg: 30, rof: 1.3, range: 108, wh: 'AP', proj: 'shell' },
   },
   mtank: {

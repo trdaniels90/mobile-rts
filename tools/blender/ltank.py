@@ -16,39 +16,36 @@ for s in (-1, 1):
     h.cube((0, yc, 2.0), (12.0, 3.0, 4.0), TRACK, 'rough', name='track')                 # track run with rounded ends
     for x in (-6.0, 6.0):
         h.tube((x, yc - 1.5, 2.0), (x, yc + 1.5, 2.0), 2.0, TRACK, 'rough', name='track_end')
-    for x in range(-6, 7, 3):
-        h.tube((x, s * 5.4, 1.9), (x, s * 6.1, 1.9), 1.0, WHEEL, 'metal', name='roadwheel', verts=12)
-    h.cube((0.2, s * 5.5, 3.0), (15.0, 1.0, 1.6), 'dark', 'metal', name='skirt_low')
-    h.cube((0.2, s * 5.5, 4.4), (15.0, 1.0, 1.4), 'main', 'metal', name='skirt')
-    for x in range(-6, 8, 4):
-        h.cube((x, s * 5.5, 4.7), (2.0, 1.0, 0.8), 'light', 'metal', name='skirt_stripe')
+    h.cube((0.2, s * 5.5, 2.8), (16.0, 1.0, 1.4), 'dark', 'metal', name='skirt_low')
+    h.cube((0.2, s * 5.5, 4.2), (16.0, 1.0, 1.6), 'light', 'metal', name='skirt')        # pale skirt panel, ridged
+    for x in range(-7, 9, 2):
+        h.cube((x + 0.5, s * 5.5, 4.2), (0.8, 1.0, 1.6), 'main', 'metal', name='skirt_ridge')
+    for x in (-7.5, 7.5):
+        h.cube((x, s * 5.0, 3.0), (1.2, 2.0, 2.4), TRACK, 'rough', name='track_cap')      # dark track ends show past the skirt
 h.cube((0, 0, 3.0), (14.0, 8.0, 3.0), 'dark', 'metal', name='lower_hull')
-h.cube((-0.5, 0, 5.2), (14.0, 10.0, 1.6), 'main', 'metal', name='deck')
-h.cube((7.4, 0, 5.0), (3.4, 10.0, 1.4), 'light', 'metal', rot=(0, 28, 0), name='glacis')   # sloped nose
-h.cube((8.4, 0, 3.0), (0.9, 8.0, 2.2), 'dark', 'metal', name='nose_plate')
-h.cube((-5.4, 0, 6.2), (4.6, 7.0, 0.8), 'main', 'metal', name='engine_deck')
-for x in (-7.0, -5.8, -4.6, -3.6):
-    h.cube((x, 0, 6.4), (0.7, 5.0, 0.6), 'deep', 'matte', name='vent')
+h.cube((-0.5, 0, 5.0), (14.5, 10.0, 1.6), 'light', 'metal', name='deck')
+h.cube((7.6, 0, 4.9), (3.4, 10.0, 1.4), 'light', 'metal', rot=(0, 28, 0), name='glacis')   # sloped nose
+h.cube((8.5, 0, 3.0), (0.9, 8.0, 2.2), 'dark', 'metal', name='nose_plate')
+h.cube((-5.6, 0, 5.9), (4.2, 7.0, 0.6), 'main', 'metal', name='engine_deck')
+for x in (-7.0, -5.8, -4.6):
+    h.cube((x, 0, 6.1), (0.7, 5.0, 0.6), 'deep', 'matte', name='vent')
 for s in (-1, 1):
     h.cube((7.9, s * 4.0, 4.6), (0.6, 1.0, 0.8), '#b9a860', 'metal', name='headlight')
-    h.cube((-4.4, s * 4.5, 6.4), (3.6, 1.0, 1.0), OLIVE, 'matte', name='tool_box')
 hb = greedy_boxes(h.voxelize(-10, -8, 11, 9, 10))
 h.save_blend(os.path.join(out, 'ltank_hull.blend'))
 
-# ------------------------------------------------------------------ turret (domed, long thin gun)
+# ------------------------------------------------------------------ turret: a wide flat dome, long thin gun
 t = Scene()
-t.tube((0, 0, 0), (0, 0, 1.6), 4.7, 'dark', 'metal', name='turret_ring')
-t.sphere((0, 0, 1.0), (4.6, 4.2, 3.0), 'main', 'metal', name='dome')
-t.sphere((-0.4, 0, 2.7), (3.0, 2.7, 1.3), 'light', 'metal', name='dome_roof')
-t.sphere((4.0, 0, 1.8), (1.7, 2.6, 1.6), 'dark', 'metal', name='mantlet')
-t.tube((4.5, 0, 1.8), (6.6, 0, 1.8), 1.15, GUN, 'metal', name='gun_base')
-t.tube((4.5, 0, 1.8), (14.5, 0, 1.8), 0.95, GUN, 'metal', name='barrel')
-t.tube((13.2, 0, 1.8), (14.5, 0, 1.8), 1.25, '#25261f', 'metal', name='muzzle')
-t.tube((-1.4, -1.5, 3.4), (-1.4, -1.5, 4.4), 1.5, 'dark', 'metal', name='commander_hatch')
-t.tube((-1.4, -1.5, 4.3), (-1.4, -1.5, 4.6), 1.0, '#14172a', 'matte', name='commander_lid')
-t.tube((-1.2, 2.0, 3.0), (-1.2, 2.0, 3.9), 1.2, 'dark', 'metal', name='loader_hatch')
-t.tube((-1.2, 2.0, 3.8), (-1.2, 2.0, 4.1), 0.8, '#14172a', 'matte', name='loader_lid')
-t.tube((-3.6, -3.3, 2.0), (-3.6, -3.3, 6.6), 0.55, GUN, 'metal', name='aerial', verts=8)
+t.tube((0, 0, 0), (0, 0, 1.2), 5.2, 'dark', 'metal', name='turret_ring')
+t.sphere((-0.3, 0, 0.6), (5.7, 5.4, 3.3), 'main', 'metal', name='dome')
+t.sphere((-0.6, 0, 2.5), (3.6, 3.4, 1.2), 'light', 'metal', name='dome_roof')
+t.sphere((4.7, 0, 1.8), (1.5, 2.4, 1.5), 'dark', 'metal', name='mantlet')
+t.tube((5.0, 0, 1.8), (6.8, 0, 1.8), 1.2, GUN, 'metal', name='gun_base')
+t.tube((5.0, 0, 1.8), (14.8, 0, 1.8), 0.95, '#2a241f', 'metal', name='barrel')
+t.tube((13.4, 0, 1.8), (14.8, 0, 1.8), 1.25, '#1f1a16', 'metal', name='muzzle')
+t.tube((-1.8, -2.0, 3.0), (-1.8, -2.0, 4.2), 1.7, '#14172a', 'matte', name='commander_hatch')
+t.tube((-1.8, -2.0, 4.0), (-1.8, -2.0, 4.4), 1.0, 'dark', 'metal', name='commander_cap')
+t.tube((-1.4, 2.2, 3.0), (-1.4, 2.2, 3.8), 1.4, '#14172a', 'matte', name='loader_hatch')
 tb = greedy_boxes(t.voxelize(-7, -7, 18, 7, 7))
 t.save_blend(os.path.join(out, 'ltank_turret.blend'))
 
