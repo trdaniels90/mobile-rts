@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.08', date: '8 November 2026', title: 'New Ore Truck and Rifle Infantry', groups: [
+    ['New', [
+      'New look for the Ore Truck: an armoured four-wheeler with a hood, a boxy cab and a domed ore bin that shows the ore it carries.',
+      'New look for Rifle Infantry: a long coat, high collar, shoulder plates, knee pads, a hip satchel and a rifle with a wooden handguard. Art by a friend of the game; other infantry are unchanged.',
+    ]],
+  ] },
   { v: '2026.11.07.1', date: '7 November 2026', title: 'Red Horizon for Windows', groups: [
     ['New', [
       'Red Horizon is now a Windows app. Download the installer from the GitHub Releases page; it updates itself when a new version comes out. Phones keep playing in the browser or from the Home Screen as before.',
