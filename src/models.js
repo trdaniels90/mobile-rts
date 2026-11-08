@@ -247,66 +247,60 @@ function tankTurret(pal, s) {
   m.line(-r + 1, r - 2, 4, -r + 1, r - 2, 7, C.black);
   return m;
 }
-// Allied Ranger: hull and pintle gun modelled in Blender, voxelized by tools/blender/ranger.py.
+// Allied Ranger, drawn as a Humvee: hull and roof-mounted machine gun modelled in Blender, voxelized by tools/blender/ranger.py.
 function jeepModel(pal) {
   const m = new VModel(-9, -7, 9, 7, 9);
-  m.box(-6, -6, 0, -4, -4, 1, '#2a2925', M_ROUGH);
-  m.box(4, -6, 0, 6, -4, 1, '#2a2925', M_ROUGH);
-  m.box(-6, 4, 0, -4, 6, 1, '#2a2925', M_ROUGH);
-  m.box(4, 4, 0, 6, 6, 1, '#2a2925', M_ROUGH);
-  m.box(-7, -6, 1, -6, -4, 4, '#2a2925', M_ROUGH);
-  m.box(-6, -6, 1, -4, -5, 3, '#55554d', M_METAL);
-  m.box(-4, -6, 1, -3, -4, 4, '#2a2925', M_ROUGH);
-  m.box(3, -6, 1, 4, -4, 4, '#2a2925', M_ROUGH);
-  m.box(4, -6, 1, 6, -5, 3, '#55554d', M_METAL);
-  m.box(6, -6, 1, 7, -4, 4, '#2a2925', M_ROUGH);
-  m.box(-6, -5, 1, -4, -4, 4, '#2a2925', M_ROUGH);
-  m.box(4, -5, 1, 6, -4, 4, '#2a2925', M_ROUGH);
-  m.box(-7, 4, 1, -3, 5, 4, '#2a2925', M_ROUGH);
-  m.box(3, 4, 1, 7, 5, 4, '#2a2925', M_ROUGH);
-  m.box(-7, 5, 1, -6, 6, 4, '#2a2925', M_ROUGH);
-  m.box(-6, 5, 1, -4, 6, 3, '#55554d', M_METAL);
-  m.box(-4, 5, 1, -3, 6, 4, '#2a2925', M_ROUGH);
-  m.box(3, 5, 1, 4, 6, 4, '#2a2925', M_ROUGH);
-  m.box(4, 5, 1, 6, 6, 3, '#55554d', M_METAL);
-  m.box(6, 5, 1, 7, 6, 4, '#2a2925', M_ROUGH);
-  m.box(-8, -4, 2, 7, 4, 3, pal.dark, M_METAL);
-  m.box(7, -4, 2, 8, 4, 3, '#3b3a34', M_METAL);
-  m.box(-6, -6, 3, -4, -5, 4, '#2a2925', M_ROUGH);
-  m.box(4, -6, 3, 6, -5, 4, '#2a2925', M_ROUGH);
-  m.box(-8, -4, 3, 7, -2, 4, pal.dark, M_METAL);
-  m.box(7, -3, 3, 8, 3, 5, '#34362f', M_METAL);
-  m.box(-8, -2, 3, -7, 2, 6, '#2a2925', M_ROUGH);
-  m.box(-7, -2, 3, 7, 4, 4, pal.dark, M_METAL);
-  m.box(-8, 2, 3, -7, 4, 4, pal.dark, M_METAL);
-  m.box(-6, 5, 3, -4, 6, 4, '#2a2925', M_ROUGH);
-  m.box(4, 5, 3, 6, 6, 4, '#2a2925', M_ROUGH);
-  m.box(-8, -4, 4, 7, -3, 6, pal.main, M_METAL);
-  m.box(-8, -3, 4, -7, -2, 5, pal.main, M_METAL);
-  m.box(-7, -3, 4, 4, 3, 5, '#7a7660', M_ROUGH);
-  m.box(4, -3, 4, 7, 4, 6, pal.main, M_METAL);
-  m.box(-8, 2, 4, -7, 4, 5, pal.main, M_METAL);
-  m.box(-7, 3, 4, 4, 4, 5, pal.main, M_METAL);
-  m.box(-8, -5, 5, -2, -4, 6, pal.main, M_METAL);
-  m.box(2, -5, 5, 8, -4, 6, pal.main, M_METAL);
-  m.box(7, -4, 5, 8, -3, 6, pal.main, M_METAL);
-  m.box(-1, -3, 5, 0, -1, 7, '#464b2b', M_MATTE);
-  m.box(0, -3, 5, 2, -1, 6, '#5a6238', M_MATTE);
-  m.box(2, -3, 5, 4, 5, 6, pal.main, M_METAL);
-  m.box(7, -3, 5, 8, -2, 6, '#ffe9a0', M_GLOW);
-  m.box(7, -2, 5, 8, 2, 6, pal.main, M_METAL);
-  m.box(-1, 1, 5, 0, 3, 7, '#464b2b', M_MATTE);
-  m.box(0, 1, 5, 2, 3, 6, '#5a6238', M_MATTE);
-  m.box(-7, 2, 5, -5, 4, 7, '#5a6238', M_MATTE);
-  m.box(7, 2, 5, 8, 3, 6, '#ffe9a0', M_GLOW);
-  m.box(-8, 3, 5, -7, 5, 6, pal.main, M_METAL);
-  m.box(-5, 3, 5, 2, 4, 6, pal.main, M_METAL);
-  m.box(7, 3, 5, 8, 5, 6, pal.main, M_METAL);
-  m.box(-7, 4, 5, -2, 5, 6, pal.main, M_METAL);
-  m.box(4, 4, 5, 7, 5, 6, pal.main, M_METAL);
-  m.box(2, -3, 6, 3, 3, 8, '#35505f', M_GLASS);
-  m.box(-8, -1, 6, -7, 1, 7, '#2a2925', M_ROUGH);
-  m.box(3, -1, 6, 7, 1, 7, pal.light, M_MATTE);
+  m.box(-7, -6, 0, -4, -4, 2, '#2a2925', M_ROUGH);
+  m.box(4, -6, 0, 7, -4, 2, '#2a2925', M_ROUGH);
+  m.box(-7, 4, 0, -4, 6, 2, '#2a2925', M_ROUGH);
+  m.box(4, 4, 0, 7, 6, 2, '#2a2925', M_ROUGH);
+  m.box(-8, -6, 1, -7, -4, 2, '#2a2925', M_ROUGH);
+  m.box(-4, -6, 1, -3, -4, 2, '#2a2925', M_ROUGH);
+  m.box(3, -6, 1, 4, -4, 2, '#2a2925', M_ROUGH);
+  m.box(7, -6, 1, 8, -4, 2, '#2a2925', M_ROUGH);
+  m.box(-8, 4, 1, -7, 6, 2, '#2a2925', M_ROUGH);
+  m.box(-4, 4, 1, -3, 6, 2, '#2a2925', M_ROUGH);
+  m.box(3, 4, 1, 4, 6, 2, '#2a2925', M_ROUGH);
+  m.box(7, 4, 1, 8, 6, 2, '#2a2925', M_ROUGH);
+  m.box(-8, -6, 2, -3, -5, 4, '#2a2925', M_ROUGH);
+  m.box(3, -6, 2, 8, -5, 4, '#2a2925', M_ROUGH);
+  m.box(-9, -5, 2, 8, 5, 3, pal.dark, M_METAL);
+  m.box(-8, 5, 2, -3, 6, 4, '#2a2925', M_ROUGH);
+  m.box(3, 5, 2, 8, 6, 4, '#2a2925', M_ROUGH);
+  m.box(-9, -5, 3, 8, -2, 4, pal.dark, M_METAL);
+  m.box(8, -4, 3, 9, 4, 5, '#34362f', M_METAL);
+  m.box(-9, -2, 3, -8, 2, 6, '#2a2925', M_ROUGH);
+  m.box(-8, -2, 3, 8, 5, 4, pal.dark, M_METAL);
+  m.box(-9, 2, 3, -8, 5, 4, pal.dark, M_METAL);
+  m.box(-7, -6, 4, -4, -5, 5, '#2a2925', M_ROUGH);
+  m.box(4, -6, 4, 7, -5, 5, '#2a2925', M_ROUGH);
+  m.box(-7, -5, 4, -1, 5, 5, pal.dark, M_METAL);
+  m.box(-1, -5, 4, 0, -4, 5, '#34362f', M_METAL);
+  m.box(0, -5, 4, 3, 5, 5, pal.dark, M_METAL);
+  m.box(3, -5, 4, 9, -4, 6, pal.light, M_MATTE);
+  m.box(-1, -4, 4, 0, 4, 5, pal.dark, M_METAL);
+  m.box(3, -4, 4, 8, 4, 5, pal.light, M_MATTE);
+  m.box(-1, 4, 4, 0, 5, 5, '#34362f', M_METAL);
+  m.box(4, 4, 4, 7, 6, 5, '#2a2925', M_ROUGH);
+  m.box(-7, 5, 4, -4, 6, 5, '#2a2925', M_ROUGH);
+  m.box(-7, -5, 5, -5, -4, 6, '#141e27', M_GLASS);
+  m.box(-5, -5, 5, -3, 5, 7, pal.main, M_METAL);
+  m.box(-3, -5, 5, 3, -4, 7, '#141e27', M_GLASS);
+  m.box(-7, -4, 5, -5, 4, 7, pal.main, M_METAL);
+  m.box(-3, -4, 5, 3, 4, 7, pal.main, M_METAL);
+  m.box(3, -4, 5, 4, 4, 7, '#141e27', M_GLASS);
+  m.box(4, -4, 5, 9, -1, 6, pal.light, M_MATTE);
+  m.box(4, -1, 5, 5, 4, 6, pal.light, M_MATTE);
+  m.box(5, -1, 5, 8, 1, 6, pal.dark, M_MATTE);
+  m.box(8, -1, 5, 9, 4, 6, pal.light, M_MATTE);
+  m.box(5, 1, 5, 8, 4, 6, pal.light, M_MATTE);
+  m.box(-7, 4, 5, -5, 5, 6, '#141e27', M_GLASS);
+  m.box(-3, 4, 5, 3, 5, 7, '#141e27', M_GLASS);
+  m.box(-7, -5, 6, -5, -4, 7, pal.main, M_METAL);
+  m.box(-9, -1, 6, -8, 1, 7, '#2a2925', M_ROUGH);
+  m.box(-7, 4, 6, -5, 5, 7, pal.main, M_METAL);
+  m.box(-5, -2, 7, -1, 2, 8, '#34362f', M_METAL);
+  m.box(-7, 3, 7, -6, 4, 9, '#34362f', M_METAL);
   return m;
 }
 function mgModel(pal) {
@@ -2276,7 +2270,7 @@ function pushupModel(pal, faction, type, up) {
 function infSprite(u, pal, frame) {
   return facingSprite(`I${u.type}${pal.key}${frame}`, () => infModel(pal, u.faction, u.type, frame), u.face, 16, { crisp: true });
 }
-const TURRET_Z = { tank: 7, jeep: 5, arty: 9, v2: 12 };
+const TURRET_Z = { tank: 7, jeep: 7, arty: 9, v2: 12 };
 function turretZ(d) { return d.size && d.size.tz !== undefined ? d.size.tz : TURRET_Z[d.draw]; }   // a def can sit its turret lower (Heavy Tank)
 
 // Scenery: trees, boulders, ore, all rendered once.

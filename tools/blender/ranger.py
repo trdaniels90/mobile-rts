@@ -1,4 +1,4 @@
-"""Allied Ranger (the jeep), modelled in Blender and voxelized for the game.
+"""Allied Ranger (drawn as a Humvee), modelled in Blender and voxelized for the game.
 python3 -I tools/blender/ranger.py <out_dir>  ->  ranger.js (paste into models.js), ranger.preview.js, ranger_*.blend
 Hull box: x -9..9, y -7..7, z 0..9, front is +x. Gun box: x -3..9, y -3..3, z 0..4 (sits on the hull at z 5, 3 behind the middle)."""
 import math, os, sys
@@ -11,31 +11,33 @@ os.makedirs(out, exist_ok=True)
 
 # ------------------------------------------------------------------ hull
 h = Scene()
-for x in (-4.9, 4.9):                                   # four wheels
+for x in (-5.4, 5.4):                                   # big, wide-set tyres
     for s in (-1, 1):
-        h.tube((x, s * 3.8, 2.2), (x, s * 5.6, 2.2), 2.2, TYRE, 'rough', name='tyre')
-        h.tube((x, s * 5.3, 2.2), (x, s * 5.8, 2.2), 1.1, HUB, 'metal', name='hub')
-h.cube((0, 0, 3.4), (15.0, 7.6, 3.2), 'dark', 'metal', name='tub')                 # lower body
-h.cube((0, 0, 4.6), (15.0, 7.6, 0.8), 'main', 'metal', name='belt')                # painted belt line
-h.cube((-1.5, 0, 4.9), (11.0, 6.0, 0.8), '#7a7660', 'rough', name='bed_floor')     # floor the gun stands on
+        h.tube((x, s * 3.6, 2.4), (x, s * 6.0, 2.4), 2.5, TYRE, 'rough', name='tyre')
+        h.tube((x, s * 5.7, 2.4), (x, s * 6.3, 2.4), 1.2, HUB, 'metal', name='hub')
+h.cube((0, 0, 3.0), (17.0, 10.0, 2.6), 'dark', 'metal', name='chassis')
+for x in (-5.4, 5.4):
+    for s in (-1, 1):
+        h.cube((x, s * 4.9, 5.0), (6.4, 2.6, 0.8), 'main', 'metal', name='fender_flare')
+h.cube((6.0, 0, 4.7), (5.6, 9.0, 1.8), 'light', 'matte', name='hood')                 # long flat hood
+h.cube((6.4, 0, 5.62), (3.2, 1.2, 0.4), 'dark', 'matte', name='hood_vent')
+h.cube((8.8, 0, 4.2), (0.7, 8.0, 2.2), GUN, 'metal', name='grille')
+h.cube((9.0, 0, 3.0), (0.8, 10.0, 1.0), '#3b3a34', 'metal', name='bumper')
 for s in (-1, 1):
-    h.cube((-2.0, s * 3.5, 5.7), (10.0, 0.8, 1.0), 'main', 'metal', name='side_rail')
-    h.cube((4.9, s * 4.3, 5.2), (5.6, 2.2, 0.7), 'main', 'metal', name='fender')    # over the front wheels
-    h.cube((-4.9, s * 4.3, 5.2), (5.6, 2.2, 0.7), 'main', 'metal', name='fender_r')
-h.cube((5.0, 0, 5.8), (5.2, 7.2, 1.4), 'main', 'metal', name='hood')
-h.cube((4.9, 0, 6.5), (3.4, 1.6, 0.4), 'light', 'matte', name='hood_stripe')
-h.cube((7.7, 0, 4.0), (0.8, 6.4, 1.8), GUN, 'metal', name='grille')
-h.cube((7.9, 0, 2.7), (0.9, 7.6, 0.9), '#3b3a34', 'metal', name='bumper')
+    h.cube((8.9, s * 3.0, 5.0), (0.7, 1.4, 1.0), '#ffe9a0', 'glow', name='headlight')
+h.cube((-2.2, 0, 5.7), (9.6, 10.0, 2.8), 'main', 'metal', name='cab')
+h.cube((-2.2, 0, 4.4), (9.6, 10.0, 0.8), 'dark', 'metal', name='sill')                 # boxy cab and rear body
+h.cube((-2.2, 0, 7.15), (9.6, 10.0, 0.5), 'dark', 'metal', name='roof')
+h.cube((3.3, 0, 6.4), (0.6, 8.0, 2.4), '#141e27', 'glass', rot=(0, -22, 0), name='windscreen')
 for s in (-1, 1):
-    h.cube((7.9, s * 2.6, 5.6), (0.8, 1.4, 1.2), '#ffe9a0', 'glow', name='headlight')
-    h.cube((-0.2, s * 1.9, 5.9), (1.2, 2.5, 1.8), OLIVE_D, 'matte', name='seat_back')   # two seats
-    h.cube((0.9, s * 1.9, 5.5), (1.8, 2.5, 0.9), OLIVE, 'matte', name='seat')
-h.cube((2.3, 0, 7.6), (0.5, 6.8, 2.6), '#35505f', 'glass', rot=(0, -18, 0), name='windscreen')
-h.cube((1.9, 0, 8.9), (0.7, 7.2, 0.5), 'dark', 'metal', rot=(0, -18, 0), name='windscreen_top')
-h.cube((-5.8, 3.0, 6.0), (1.4, 1.2, 2.2), OLIVE, 'matte', name='jerrycan')
-h.tube((-8.0, 0, 4.6), (-7.0, 0, 4.6), 2.1, TYRE, 'rough', name='spare')           # spare wheel on the tail
-h.tube((-8.2, 0, 4.6), (-7.9, 0, 4.6), 1.0, HUB, 'metal', name='spare_hub')
-h.cube((-7.4, 0, 3.0), (0.6, 5.0, 1.0), 'dark', 'metal', name='tail_beam')
+    h.cube((-0.4, s * 4.5, 6.1), (6.0, 1.0, 1.3), '#141e27', 'glass', name='side_window')
+    h.cube((-6.0, s * 4.5, 5.9), (2.4, 1.0, 1.0), '#141e27', 'glass', name='rear_window')
+    h.cube((-0.4, s * 4.5, 4.9), (0.5, 1.0, 1.2), GUN, 'metal', name='door_seam')
+h.tube((-3.0, 0, 7.2), (-3.0, 0, 7.8), 2.3, GUN, 'metal', name='gun_ring')            # roof hatch the gun sits in
+h.cube((-8.0, 0, 5.2), (0.9, 9.0, 3.2), 'main', 'metal', name='tailgate')
+h.tube((-8.9, 0, 4.8), (-8.0, 0, 4.8), 2.2, TYRE, 'rough', name='spare')              # spare wheel on the tail
+h.tube((-8.95, 0, 4.8), (-8.6, 0, 4.8), 1.0, HUB, 'metal', name='spare_hub')
+h.tube((-6.8, 3.7, 7.3), (-6.8, 3.7, 9.0), 0.55, GUN, 'metal', name='aerial', verts=8)
 hb = greedy_boxes(h.voxelize(-9, -7, 9, 7, 9))
 h.save_blend(os.path.join(out, 'ranger_hull.blend'))
 
