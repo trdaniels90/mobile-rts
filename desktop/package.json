@@ -1,0 +1,60 @@
+{
+  "name": "red-horizon",
+  "productName": "Red Horizon",
+  "version": "2026.1107.0",
+  "description": "Red Horizon: an RTS homage to Red Alert 1 for PC",
+  "author": "trdaniels90",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "prep": "node scripts/prep.js",
+    "start": "npm run prep && electron .",
+    "dist": "npm run prep && electron-builder --win --publish never",
+    "release": "npm run prep && electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "io.github.trdaniels90.redhorizon",
+    "productName": "Red Horizon",
+    "files": [
+      "main.js",
+      "preload.js",
+      "game/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "game/icons/icon-512.png",
+      "artifactName": "RedHorizon-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "trdaniels90",
+        "repo": "mobile-rts",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

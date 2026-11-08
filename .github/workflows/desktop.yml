@@ -1,0 +1,25 @@
+name: Windows app
+# Builds the Windows installer and publishes it as a GitHub Release. The installed app checks
+# these releases and updates itself. Runs when a new game version reaches main.
+on:
+  push:
+    branches: [main]
+    paths: ['src/version.js', 'desktop/**']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Install
+        working-directory: desktop
+        run: npm install
+      - name: Build and publish
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release
