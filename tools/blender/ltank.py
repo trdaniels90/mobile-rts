@@ -45,7 +45,7 @@ t.tube((5.0, 0, 1.8), (14.8, 0, 1.8), 0.95, '#2a241f', 'metal', name='barrel')
 t.tube((13.4, 0, 1.8), (14.8, 0, 1.8), 1.25, '#1f1a16', 'metal', name='muzzle')
 for (x, y, r) in ((-1.8, -2.0, 1.6), (-1.4, 2.2, 1.4)):                              # commander and loader hatches
     t.tube((x, y, 3.0), (x, y, 4.3), r, 'light', 'metal', name='hatch_rim')               # raised rim, pale
-    t.tube((x, y, 3.9), (x, y, 4.7), r - 0.6, '#2f3652', 'metal', name='hatch_lid')       # dark navy lid, not black
+    t.tube((x, y, 3.9), (x, y, 4.7), r - 0.6, '#15182a', 'matte', name='hatch_lid')       # dark navy lid, not black
 tb = greedy_boxes(t.voxelize(-7, -7, 18, 7, 7))
 t.save_blend(os.path.join(out, 'ltank_turret.blend'))
 

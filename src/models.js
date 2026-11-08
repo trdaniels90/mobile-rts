@@ -315,8 +315,8 @@ function lightTankTurret(pal) {
   m.box(-3, 1, 3, -2, 2, 4, pal.light, M_METAL);
   m.box(0, 1, 3, 1, 2, 4, pal.main, M_METAL);
   m.box(-2, 3, 3, -1, 4, 4, pal.light, M_METAL);
-  m.box(-3, -3, 4, -1, -1, 5, '#2f3652', M_METAL);
-  m.box(-2, 1, 4, -1, 3, 5, '#2f3652', M_METAL);
+  m.box(-3, -3, 4, -1, -1, 5, '#15182a', M_MATTE);
+  m.box(-2, 1, 4, -1, 3, 5, '#15182a', M_MATTE);
   return m;
 }
 // BLENDER:ltank end
