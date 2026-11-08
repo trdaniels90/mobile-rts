@@ -306,31 +306,48 @@ function mcvModel(pal) {
   m.box(-hl + 2, -1, 14, -hl + 3, 1, 15, C.black);
   return m;
 }
+// Ore Truck: an armoured four-wheeler with big knobbly tyres, a boxy cab behind a short hood, and a domed
+// ore bin on the bed that is filled with ore when the truck carries a load. Same footprint as before.
 function harvModel(pal, loaded) {
   const hl = 12, hw = 7;
-  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 13);
-  for (const side of [-1, 1]) {
-    const y0 = side < 0 ? -hw : hw - 3;
-    m.box(-hl, y0, 0, hl, y0 + 3, 3, C.track, M_ROUGH);
-    for (let x = -hl; x < hl; x += 2) m.box(x, y0, 2, x + 1, y0 + 3, 3, C.trackHi);
+  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 14);
+  // Wheels: two axles, tyres with a lighter hub and a mudguard over each
+  for (const x of [-6.5, 6.5]) for (const y0 of [-hw, hw - 2.5]) {
+    m.cylY(y0, y0 + 2.5, x, 3.4, 3.4, C.track, M_ROUGH);
+    m.cylY(y0 < 0 ? y0 : y0 + 1.5, y0 < 0 ? y0 + 1 : y0 + 2.5, x, 3.4, 1.7, C.wheel, M_METAL);
+    m.box(x - 4.5, y0, 6.6, x + 4.5, y0 + 2.5, 7.4, pal.dark, M_METAL);
   }
-  m.box(-hl + 1, -hw + 1, 2, hl - 1, hw - 1, 4, C.metal, M_METAL);
-  // Cab
-  m.box(4, -hw, 4, hl, hw, 11, pal.main, M_METAL);
-  m.box(hl - 1, -hw + 1, 7, hl, hw - 1, 10, C.glass, M_GLASS);
-  m.box(4, -hw, 10, hl, hw, 11, pal.dark, M_METAL);
-  m.box(hl - 1, -hw + 1, 5, hl, -hw + 2, 6, C.glow, M_GLASS); m.box(hl - 1, hw - 2, 5, hl, hw - 1, 6, C.glow, M_GLASS);
-  hazardV(m, hl - 1, -hw, 4, hl, hw, 5);
-  // Ore bin
-  m.box(-hl, -hw, 4, 3, hw, 10, '#6f716b', M_METAL);
-  m.clear(-hl + 1, -hw + 1, 6, 2, hw - 1, 10);
-  m.paint(-hl, -hw, 4, 3, hw, 10, (x, y, z) => z === 9 ? '#858780' : (x % 4 === 0 ? '#5d5f59' : undefined));
+  m.box(-hl, -hw + 2.5, 3, hl, hw - 2.5, 5, C.metal, M_METAL);                      // chassis
+  m.box(-hl, -hw + 1, 4, hl, hw - 1, 6, pal.dark, M_METAL);                          // running board
+  // Hood and bumper
+  m.box(8, -hw + 1, 5, hl - 1, hw - 1, 9, pal.main, M_METAL);
+  m.box(hl - 1, -hw + 1, 4, hl, hw - 1, 8, pal.dark, M_METAL);                       // grille
+  m.paint(hl - 1, -hw + 1, 4, hl, hw - 1, 8, (x, y, z) => y % 2 === 0 ? C.black : undefined);
+  hazardV(m, hl - 1, -hw, 3, hl, hw, 5);                                             // bumper stripes
+  m.box(hl - 1, -hw + 1, 6, hl, -hw + 2, 7, C.glow, M_GLASS); m.box(hl - 1, hw - 2, 6, hl, hw - 1, 7, C.glow, M_GLASS);
+  // Armoured cab
+  m.box(1, -hw, 5, 8, hw, 12, pal.main, M_METAL);
+  m.box(7, -hw + 1, 8, 8, hw - 1, 11, C.glass, M_GLASS);                             // windscreen
+  m.box(2, -hw, 8, 6, -hw + 1, 11, C.glass, M_GLASS);                                // side windows
+  m.box(2, hw - 1, 8, 6, hw, 11, C.glass, M_GLASS);
+  m.box(1, -hw, 11, 8, hw, 12, pal.dark, M_METAL);                                   // roof plate
+  m.box(2, -hw + 1, 12, 7, hw - 1, 13, pal.dark, M_METAL);                           // raised roof armour
+  m.paint(1, -hw, 5, 8, hw, 8, (x, y, z) => (x === 4 || z === 5) ? pal.dark : undefined);   // door seams
+  // Bed and domed ore bin
+  m.box(-hl, -hw + 1, 6, 1, hw - 1, 7, pal.dark, M_METAL);
+  m.ellipsoid(-5.5, 0, 7, 6.5, hw - 1, 5.5, '#6f716b', M_METAL);
+  m.clear(-9, -3, 11, -2, 3, 14);                                                    // the loading hatch
+  m.box(-9, -3, 10, -2, 3, 11, '#3d3f38', M_METAL);
+  m.paint(-hl, -hw, 7, 1, hw, 14, (x, y, z) => z >= 11 ? '#858780' : (x % 4 === 0 ? '#5d5f59' : undefined));
   if (loaded) {
-    for (let y = -hw + 1; y < hw - 1; y++) for (let x = -hl + 1; x < 2; x++) {
-      const h = 9 + Math.round(2.2 - Math.hypot((x + 5) / 6, y / 4) * 1.6 + hash3(x, y, 1) * 1.2);
-      m.box(x, y, 6, x + 1, y + 1, Math.max(7, h), C.ore[Math.floor(hash3(x, y, 2) * 4)], M_METAL);
+    for (let y = -3; y < 3; y++) for (let x = -9; x < -2; x++) {
+      const h = 11 + Math.round(1.6 - Math.hypot((x + 5.5) / 3.5, y / 3) * 1.4 + hash3(x, y, 1) * 1.4);
+      m.box(x, y, 10, x + 1, y + 1, Math.max(11, h), C.ore[Math.floor(hash3(x, y, 2) * 4)], M_METAL);
     }
   }
+  // Tail lights and rear stripes
+  m.box(-hl, -hw + 1, 4, -hl + 1, hw - 1, 6, pal.dark, M_METAL);
+  hazardV(m, -hl, -hw + 1, 3, -hl + 1, hw - 1, 4);
   return m;
 }
 
@@ -754,24 +771,35 @@ function infModel(pal, faction, type, frame) {
   const step = frame === 1 ? 1.5 : frame === 2 ? -1.5 : 0, throwing = frame === 3;
   const pose = frame === 6 ? 'rest' : frame === 7 ? 'aim' : frame === 10 ? 'stretch' : frame === 11 ? 'sam' : null;
   const K = infKit(pal, faction), tunic = pal.main, sleeve = shadeInt(pal.main, 0.84), hi = shadeInt(pal.main, 1.12);
+  const R = type === 'rifle', wood = '#6a4426';   // Rifle Infantry: long coat, shoulder plates, knee pads, hip satchel, wooden-furniture rifle
   // Boots and trousers, legs apart with a gap between them, swinging when walking.
   for (const [y0, s] of [[-3, step], [1, -step]]) {
     m.box(s - 1, y0, 0, s + 2, y0 + 2, 2, C.black);
     m.box(s + 1, y0, 0, s + 3, y0 + 2, 1, C.black);                               // toe caps
     m.box(s - 1, y0, 2, s + 2, y0 + 2, 8, K.pants);
     m.box(s + 1, y0, 5, s + 2, y0 + 2, 6, shadeInt(K.pants, 0.82));                // knee crease
+    if (R) { m.box(s + 2, y0, 4, s + 3, y0 + 2, 7, shadeInt(K.pants, 1.3), M_METAL); m.box(s - 1, y0, 2, s + 2, y0 + 2, 3, shadeInt(K.pants, 0.7)); }   // knee pad, boot tops
   }
   m.box(-1, -1, 6, 2, 1, 8, K.pants);                                               // seat
   // Belt with pouches and buckle.
   m.box(-2, -3, 8, 2, 3, 9, K.web);
   for (const y of [-3, 2]) m.box(1, y, 8, 3, y + 1, 10, K.pouch);
   m.set(2, 0, 8, '#c9a227', M_METAL);
+  if (R) {
+    m.box(-2, -3, 6, 2, 3, 8, shadeInt(tunic, 0.88));                              // coat skirt over the hips
+    m.box(-1, 4, 6, 2, 5, 9, K.pouch); m.box(-1, 4, 8, 2, 5, 9, shadeInt(K.pouch, 1.25));   // satchel on the right hip
+  }
   // Tunic: broad chest and shoulders, a lit front panel, the collar.
   m.box(-2, -3, 9, 2, 3, 14, tunic);
   m.box(1, -2, 9, 2, 2, 13, hi);
   m.box(-2, -4, 12, 2, 4, 14, tunic);                                               // shoulders
   m.paint(-2, -3, 9, 2, 3, 14, (x, y, z) => (x === 1 && y === z - 12) ? K.web : undefined);   // strap across the chest
   m.box(-1, -1, 14, 2, 2, 14.5, shadeInt(tunic, 0.72));                             // collar
+  if (R) {
+    m.box(-2, -2, 14, 3, 3, 15, shadeInt(tunic, 0.8));                              // high turned-up collar
+    for (const y of [-5, 4]) { m.box(-2, y, 13, 2, y + 1, 15, shadeInt(tunic, 1.25), M_METAL); m.box(-1, y, 15, 1, y + 1, 16, shadeInt(tunic, 1.1), M_METAL); }   // shoulder plates
+    m.box(2, -2, 10, 3, 0, 12, K.pouch); m.box(2, 1, 10, 3, 2, 12, K.pouch);        // chest ammo pouches
+  }
   // Arms, by pose.
   const hand = (x, y, z) => m.set(x, y, z, K.skin);
   if (pose === 'stretch') {
@@ -850,7 +878,8 @@ function infModel(pal, faction, type, frame) {
     if (type === 'rocket') { m.box(2, 4, 0, 4, 6, 13, tube); m.box(2, 4, 12, 4, 6, 14, tubeD); }   // launcher stood on the ground
     else if (RIF) { m.box(1, 4, 10, 2, 5, 21, C.gun, M_METAL); m.box(1, 4, 8, 2, 5, 12, '#6a4426'); }   // rifle on the shoulder
   } else if (pose === 'aim' && RIF) {
-    m.box(2, -1, 13, 11, 0, 14, C.gun, M_METAL); m.box(-1, -1, 12, 3, 0, 14, '#6a4426'); m.box(5, -1, 11, 6, 0, 13, C.gun, M_METAL);
+    m.box(2, -1, 13, R ? 13 : 11, 0, 14, C.gun, M_METAL); m.box(-1, -1, 12, 3, 0, 14, wood); m.box(5, -1, 11, 6, 0, 13, C.gun, M_METAL);
+    if (R) m.box(5, -1, 13, 9, 0, 14, wood);                                  // wooden handguard
   } else if (pose === 'sam') {
     // RedEye: a long, slim tube on the shoulder pointed up at the sky, with a boxy gripstock and
     // battery under it, a seeker head at the front and a flip-up sight. Pale with an orange band
@@ -876,10 +905,11 @@ function infModel(pal, faction, type, frame) {
       m.paint(-7, 2, 14, 7, 5, 17, (x, y, z) => (x === -3 || x === 2) ? '#3a3f26' : undefined);               // steel bands
     }
   } else if (RIF) {
-    m.line(0, 2.5, 9.5, 9, -1.5, 11.5, C.gun, M_METAL);                     // barrel, rising forward across the body
-    m.line(0, 2.5, 10.5, 9, -1.5, 12.5, C.gun, M_METAL);
-    m.box(-1, 2, 9, 2, 4, 11, '#6a4426');                                    // stock at the hip
-    m.box(4, 0, 9, 5, 1, 10.5, C.gun, M_METAL);                             // magazine
+    m.line(0, 2.5, 9.5, R ? 11 : 9, -1.5, R ? 11.9 : 11.5, C.gun, M_METAL);   // barrel, rising forward across the body
+    m.line(0, 2.5, 10.5, R ? 11 : 9, -1.5, R ? 12.9 : 12.5, C.gun, M_METAL);
+    m.box(-1, 2, 9, 2, 4, 11, wood);                                         // stock at the hip
+    if (R) { m.line(3, 1.2, 10, 7, -0.6, 11.4, wood); m.line(3, 1.2, 11, 7, -0.6, 12.4, wood); m.box(4, 0, 8, 5, 1, 10.5, C.gun, M_METAL); m.box(5, 0, 8, 6, 1, 9, C.gun, M_METAL); }   // wooden handguard, curved magazine
+    else m.box(4, 0, 9, 5, 1, 10.5, C.gun, M_METAL);                        // magazine
   }
   return m;
 }
