@@ -2,7 +2,7 @@
 python3 -I tools/blender/refinery.py <out_dir>
   ->  refinery_allies.js, refinery_soviets.js (builders for the BLENDER:refinery_* blocks in src/models.js, spliced with
       splice.py), the two .preview.js files for preview-structure.js, and refinery_*.blend.
-Same 3 x 2 cell footprint as before (72 x 48 voxels, box -2..74 x -2..50, z 0..40). Trucks dock at the cell south of
+Same 3 x 2 cell footprint as before (72 x 48 voxels, box -2..74 x -2..50, z 0..56). Trucks dock at the cell south of
 the middle, so both models open their bay and hazard apron to the south (y = 48)."""
 import math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -12,7 +12,7 @@ CONC, SEAM, ROOF, ROOFD, STEEL, IRON, GUN, BIB = '#a39e91', '#878275', '#77746a'
 WALL, WALLD, ORE, ORED, OLIVE, GLASS, YEL, BLK = '#d6d3c9', '#b9b6ac', '#d2a62a', '#9a7414', '#56603b', '#35505f', '#d0a426', '#1c1c1a'
 out = sys.argv[1]
 os.makedirs(out, exist_ok=True)
-BOX = (-2, -2, 74, 50, 40)
+BOX = (-2, -2, 74, 50, 56)
 
 
 def silo(s, x, y, r, h, band_lo, tag):
@@ -68,117 +68,162 @@ def lamp(s, x, y, tag):
     s.cube((x, y, 10.9), (2.0, 1.0, 0.3), '#ffe9a0', 'glow', name=tag + '_bulb')
 
 
+
+def column(s, x, y, r, h, tag, bands=(10, 20, 30)):
+    """A distillation column: slim tower, platform rings with rails, a side-coloured band, a domed top and a ladder cage."""
+    s.tube((x, y, 1), (x, y, h), r, '#8c8f8b', 'metal', name=tag, verts=24)
+    for z in bands:
+        if z < h - 4:
+            s.tube((x, y, z), (x, y, z + 0.7), r + 2.2, IRON, 'metal', name=tag + '_deck', verts=24)
+            s.tube((x, y, z + 1.6), (x, y, z + 2.0), r + 2.2, STEEL, 'metal', name=tag + '_rail', verts=24)
+    for z in range(5, h - 3, 7):
+        s.tube((x, y, z), (x, y, z + 0.8), r + 0.5, SEAM, 'rough', name=tag + '_ring', verts=24)
+    s.tube((x, y, h - 9), (x, y, h - 5.5), r + 0.7, 'main', 'matte', name=tag + '_band', verts=24)
+    s.sphere((x, y, h), (r, r, r * 0.8), STEEL, 'metal', name=tag + '_dome')
+    s.cube((x, y + r + 0.9, h / 2), (1.6, 1.0, h - 4), IRON, 'metal', name=tag + '_ladder')
+    s.tube((x, y, 1), (x, y, 3), r + 1.5, SEAM, 'rough', name=tag + '_foot', verts=24)
+
+
 # ======================================================================== Soviet
+# Back (north): three distillation columns tied by a pipe bridge, a flare stack. Middle: a low hall carrying the ore
+# hopper. East: a big spherical tank on legs, a bullet tank and a banded smokestack. South: the dock bay.
 v = Scene()
 v.cube((36, 24, 0.5), (72, 48, 1), CONC, 'rough', name='slab')
 v.cube((36, 24, 0.3), (74, 50, 0.6), BIB, 'rough', name='bib')
-# the hall: a concrete block with a stepped plinth, pilasters, a tar roof and a main-colour parapet
-v.cube((22, 24, 8.5), (40, 40, 15), CONC, 'rough', name='hall')
-v.cube((22, 24, 2.0), (41, 41, 2), SEAM, 'rough', name='plinth')
+v.cube((22, 33, 6.5), (40, 22, 11), CONC, 'rough', name='hall')
+v.cube((22, 33, 2.0), (41, 23, 2), SEAM, 'rough', name='plinth')
 for x in range(2, 43, 8):
-    for y in (4, 44):
-        v.cube((x, y, 8.5), (2.2, 1.4, 14), SEAM, 'rough', name='pilaster')
-for y in range(4, 45, 8):
-    for x in (2, 42):
-        v.cube((x, y, 8.5), (1.4, 2.2, 14), SEAM, 'rough', name='pilaster_side')
-v.cube((22, 24, 16.5), (40, 40, 1), ROOF, 'rough', name='roof')
-for (cx, cy, sx, sy) in ((22, 4.5, 40, 1), (22, 43.5, 40, 1), (2.5, 24, 1, 40), (41.5, 24, 1, 40)):
-    v.cube((cx, cy, 17.5), (sx, sy, 1), 'main', 'matte', name='parapet')
-v.cube((22, 43.9, 15.8), (40, 1.2, 1.0), 'dark', 'matte', name='cornice')
-# roof clutter: ventilators, a hatch and a transformer box
-for x in (8, 15):
-    v.cube((x, 38, 19), (4, 4, 3), STEEL, 'metal', name='vent')
-    v.tube((x, 38, 20.5), (x, 38, 22), 2.4, IRON, 'metal', name='vent_cap', verts=12)
-v.cube((10, 12, 19), (6, 8, 3), IRON, 'metal', name='hatch')
-hopper(v, 31, 16, 17.5, OLIVE, 'hopper')
-# front: roll-up bay door, window band, hazard apron
-v.cube((36, 44.4, 6), (13, 1.0, 9.5), BLK, 'matte', name='bay_door')
+    v.cube((x, 44, 6.5), (2.2, 1.4, 10), SEAM, 'rough', name='pilaster')
+v.cube((22, 33, 12.5), (40, 22, 1), ROOF, 'rough', name='roof')
+for (cx, cy, sx, sy) in ((22, 22.5, 40, 1), (22, 43.5, 40, 1), (2.5, 33, 1, 22), (41.5, 33, 1, 22)):
+    v.cube((cx, cy, 13.5), (sx, sy, 1.2), 'main', 'matte', name='parapet')
+v.cube((22, 43.9, 11.8), (40, 1.2, 1.0), 'dark', 'matte', name='cornice')
+hopper(v, 13, 32, 13.4, OLIVE, 'hopper')
+conveyor(v, (13, 27, 18), (10, 14, 24), 'conveyor')
+for x in (30, 36):
+    v.cube((x, 38, 15), (3.6, 3.6, 3.4), STEEL, 'metal', name='vent')
+# front: bay, windows
+v.cube((36, 44.4, 5.6), (13, 1.0, 9), BLK, 'matte', name='bay_door')
 for i in range(5):
-    v.cube((36, 44.9, 2.6 + i * 1.9), (13, 0.4, 0.5), '#2c2c28', 'metal', name='bay_slat')
-v.cube((36, 44.9, 11.8), (16, 1.6, 1.2), 'dark', 'matte', name='bay_lintel')
-for i in range(5):
-    v.cube((6 + i * 4.6, 44.5, 11), (3.6, 1.0, 3.4), GLASS, 'glass', name='window')
-v.cube((36, 46.4, 12.6), (18, 3.4, 1.0), GUN, 'metal', name='canopy')
+    v.cube((36, 44.9, 2.4 + i * 1.8), (13, 0.4, 0.5), '#2c2c28', 'metal', name='bay_slat')
+v.cube((36, 44.9, 10.8), (16, 1.6, 1.2), 'dark', 'matte', name='bay_lintel')
+for i in range(4):
+    v.cube((20 + i * 3.8, 44.5, 8), (3.0, 1.0, 3.0), GLASS, 'glass', name='window')
+v.cube((36, 46.4, 12), (18, 3.4, 1.0), GUN, 'metal', name='canopy')
 for x in (27.4, 44.6):
-    v.cube((x, 47.6, 6.5), (1.2, 1.2, 11), IRON, 'metal', name='canopy_post')
+    v.cube((x, 47.6, 6), (1.2, 1.2, 10), IRON, 'metal', name='canopy_post')
 apron(v, 28, 44, 'apron')
 lamp(v, 3, 46, 'lamp_a')
 lamp(v, 58, 46, 'lamp_b')
-# the silos and their feed
-silo(v, 52, 12, 7, 32, 25, 'silo1')
-silo(v, 65, 22, 6, 26, 19, 'silo2')
-conveyor(v, (36, 13.5, 20), (49, 13.5, 31), 'conveyor')
-pipes(v, 42, 61, 30, 7, 'pipe')
-v.tube((61, 30, 7), (61, 27.2, 7), 1.7, IRON, 'metal', name='pipe_flange', verts=12)
-pipes(v, 4, 42, 2.4, 11.5, 'wallpipe')
-vb = greedy_boxes(v.voxelize(*(BOX[:2] + BOX[2:4] + (BOX[4],))))
+# the columns, the pipe bridge between them and the flare
+column(v, 10, 9, 4.5, 46, 'col1', (12, 24, 36))
+column(v, 24, 9, 4.0, 40, 'col2', (12, 24, 32))
+column(v, 37, 9, 3.5, 33, 'col3', (14, 26))
+for z, y in ((29, 9), (21, 9.8), (16, 8.2)):
+    v.tube((10, y, z), (37, y, z), 1.1, STEEL, 'metal', name='bridge', verts=12)
+for x in (17, 30):
+    v.cube((x, 9, 10), (1.2, 1.2, 18), IRON, 'metal', name='bridge_leg')
+v.tube((4, 22, 1), (4, 22, 51), 0.9, IRON, 'metal', name='flare', verts=8)
+v.tube((4, 22, 40), (4, 9, 40), 0.5, IRON, 'metal', name='flare_stay', verts=6)
+v.tube((4, 22, 47), (4, 22, 51.2), 1.7, '#3a3a36', 'metal', name='flare_tip', verts=10)
+v.sphere((4, 22, 53.4), (2.2, 2.2, 3.4), '#ff8a2a', 'glow', name='flare_flame')
+v.sphere((4, 22, 55.0), (1.1, 1.1, 1.8), '#ffe08a', 'glow', name='flare_core')
+# east: a big spherical tank on legs, a bullet tank, a banded smokestack
+v.sphere((60, 14, 19), (10, 10, 10), '#9aa09c', 'metal', name='sphere_tank')
+v.tube((60, 14, 19), (60, 14, 19.8), 10.4, 'main', 'matte', name='sphere_band', verts=32)
+for k in range(6):
+    a = k / 6 * math.tau + 0.3
+    v.tube((60 + 7.4 * math.cos(a), 14 + 7.4 * math.sin(a), 1), (60 + 6.6 * math.cos(a), 14 + 6.6 * math.sin(a), 15), 0.9, IRON, 'metal', name='sphere_leg', verts=8)
+v.tube((60, 14, 28.5), (60, 14, 32), 1.0, STEEL, 'metal', name='sphere_vent', verts=8)
+v.tube((50, 36, 6.5), (68, 36, 6.5), 5.2, '#8c8f8b', 'metal', name='bullet', verts=20)
+v.sphere((50, 36, 6.5), (3.2, 5.2, 5.2), '#8c8f8b', 'metal', name='bullet_end_a')
+v.sphere((68, 36, 6.5), (3.2, 5.2, 5.2), '#8c8f8b', 'metal', name='bullet_end_b')
+v.tube((58, 36, 6.5), (60, 36, 6.5), 5.6, 'main', 'matte', name='bullet_band', verts=20)
+for x in (53, 65):
+    v.cube((x, 36, 2.2), (2.4, 9, 2.4), IRON, 'metal', name='saddle')
+v.tube((48, 27, 1), (48, 27, 38), 3.0, '#4a4743', 'rough', name='smokestack', verts=20)
+for z in (26, 30, 34):
+    v.tube((48, 27, z), (48, 27, z + 2.2), 3.25, 'main', 'matte', name='stack_band', verts=20)
+v.tube((48, 27, 37.6), (48, 27, 38.8), 3.5, BLK, 'metal', name='stack_lip', verts=20)
+pipes(v, 41, 55, 27, 8, 'pipe')
+pipes(v, 4, 42, 21, 10.5, 'rackpipe')
+v.tube((42, 27, 8), (60, 24, 8), 1.2, STEEL, 'metal', name='pipe_to_sphere', verts=12)
+vb = greedy_boxes(v.voxelize(*BOX))
 v.save_blend(os.path.join(out, 'refinery_soviets.blend'))
-# decorations that follow the side's colours stay procedural (the same helpers as the other Soviet buildings)
 soviet_extra = [
-    "starTop(m, 13, 28, 7, pal.main);",
-    "starFront(m, 15, 44, 4.5, 2.6, pal.main);",
-    "bannerV(m, 4, 8, 44, 15, 7, pal);",
+    "starTop(m, 30, 33, 5, pal.main);",
+    "starFront(m, 12, 44, 5, 2.6, pal.main);",
 ]
 
 # ======================================================================== Allied
+# A bright white campus: a tall control tower with a big dish, a blue sloped-roof hall, a glass-banded processing
+# dome, a cluster of domed tanks. South: the dock bay.
 a = Scene()
 a.cube((36, 24, 0.5), (72, 48, 1), '#b2ada1', 'rough', name='slab')
 a.cube((36, 24, 0.3), (74, 50, 0.6), BIB, 'rough', name='bib')
-# the hall: pale walls, a long glass band, flat roof with a deep team-colour fascia and a raised skylight monitor
-a.cube((22, 24, 8.5), (40, 40, 15), WALL, 'matte', name='hall')
-a.cube((22, 24, 1.8), (41, 41, 1.6), WALLD, 'matte', name='plinth')
-for x in range(10, 41, 10):
-    a.cube((x, 44.3, 8.5), (1.6, 0.9, 14), WALLD, 'matte', name='column')
-for i in range(3):
-    a.cube((8 + i * 10, 44.5, 10.4), (8, 0.8, 4.4), GLASS, 'glass', name='window')
-a.cube((22, 24, 16.2), (41.4, 41.4, 0.9), 'dark', 'matte', name='fascia_low')
-a.cube((22, 24, 17.1), (40.6, 40.6, 1.0), 'main', 'matte', name='fascia')
-a.cube((22, 24, 17.5), (37.6, 37.6, 0.8), ROOF, 'rough', name='roof')
-a.cube((12, 24, 19.0), (14, 20, 2.6), '#e9e6dc', 'matte', name='monitor')
-a.cube((12, 24, 20.5), (15, 21, 0.6), 'main', 'matte', name='monitor_cap')
+a.cube((24, 33, 6.5), (44, 22, 11), WALL, 'matte', name='hall')
+a.cube((24, 33, 1.8), (45, 23, 1.6), WALLD, 'matte', name='plinth')
+a.prism([(1, 21.5), (47, 21.5), (47, 44.5), (1, 44.5)], [(7, 27), (41, 27), (41, 38), (7, 38)], 12, 19, 'main', 'metal', name='roof')
+a.cube((24, 32.5, 19.4), (34, 2.0, 1.0), 'light', 'metal', name='ridge')
+for x in range(8, 42, 8):
+    a.cube((x, 44.3, 6), (1.6, 0.9, 10), WALLD, 'matte', name='column')
 for i in range(4):
-    a.cube((7 + i * 3.4, 14.0, 19.2), (2.4, 0.8, 1.6), GLASS, 'glass', name='monitor_glass')
-# a roof dish
-a.tube((14, 36, 17.8), (14, 36, 21.5), 0.9, STEEL, 'metal', name='dish_mast')
-a.sphere((14, 36, 24.0), (3.6, 3.6, 1.6), '#e4e2d8', 'metal', rot=(0, -35, 0), name='dish')
-a.tube((14, 36, 24.0), (16.6, 36, 27.2), 0.35, IRON, 'metal', name='dish_feed')
-hopper(a, 31, 17, 17.9, STEEL, 'hopper')
-# bay door and hazard apron
-a.cube((36, 44.4, 6), (13, 1.0, 9.5), '#46484a', 'metal', name='bay_door')
+    a.cube((8 + i * 8, 44.5, 8), (5.6, 0.8, 3.6), GLASS, 'glass', name='window')
+hopper(a, 14, 33, 15, STEEL, 'hopper')
+a.cube((36, 44.4, 5.6), (13, 1.0, 9), '#46484a', 'metal', name='bay_door')
 for i in range(5):
-    a.cube((36, 44.9, 2.6 + i * 1.9), (13, 0.4, 0.5), '#5b5d58', 'metal', name='bay_slat')
-a.cube((36, 44.9, 11.6), (16, 1.6, 1.2), 'main', 'matte', name='bay_lintel')
-a.cube((36, 46.4, 12.6), (18, 3.4, 1.0), WALL, 'matte', name='canopy')
+    a.cube((36, 44.9, 2.4 + i * 1.8), (13, 0.4, 0.5), '#5b5d58', 'metal', name='bay_slat')
+a.cube((36, 44.9, 10.8), (16, 1.6, 1.2), 'main', 'matte', name='bay_lintel')
+a.cube((36, 46.4, 12), (18, 3.4, 1.0), WALL, 'matte', name='canopy')
 for x in (27.4, 44.6):
-    a.cube((x, 47.6, 6.5), (1.2, 1.2, 11), WALLD, 'matte', name='canopy_post')
+    a.cube((x, 47.6, 6), (1.2, 1.2, 10), WALLD, 'matte', name='canopy_post')
 apron(a, 28, 44, 'apron')
 lamp(a, 3, 46, 'lamp_a')
-lamp(a, 58, 46, 'lamp_b')
-# two domed white storage tanks on a round pad, joined by pipes to the hall
-a.tube((57, 24, 1), (57, 24, 1.8), 16, '#b2ada1', 'rough', name='tank_pad', verts=36)
+lamp(a, 60, 46, 'lamp_b')
+# control tower with a blue glass band and a big dish
+a.cube((11, 11, 17), (13, 13, 34), WALL, 'matte', name='tower')
+a.cube((11, 11, 1.6), (14.5, 14.5, 1.6), WALLD, 'matte', name='tower_plinth')
+for z in (10, 18, 26):
+    a.cube((11, 11, z), (13.8, 13.8, 4.0), GLASS, 'glass', name='tower_glass')
+    a.cube((11, 11, z + 2.6), (14.6, 14.6, 1.0), 'main', 'matte', name='tower_slab')
+a.cube((11, 11, 34.4), (15.4, 15.4, 1.6), 'main', 'matte', name='tower_cap')
+a.cube((11, 11, 36), (9, 9, 2), WALL, 'matte', name='tower_top')
+a.tube((11, 11, 36), (11, 11, 42), 0.8, STEEL, 'metal', name='dish_mast', verts=8)
+a.sphere((11, 11, 44.4), (7.2, 7.2, 3.0), '#eceae0', 'metal', rot=(0, -30, 0), name='dish')
+a.tube((11, 11, 44.4), (16, 11, 50.5), 0.5, IRON, 'metal', name='dish_feed', verts=6)
+a.sphere((16.4, 11, 50.9), (1.0, 1.0, 1.0), '#ffe9a0', 'glow', name='dish_tip')
+a.tube((17.5, 11, 24), (36, 11, 24), 1.2, STEEL, 'metal', name='skybridge', verts=12)
+# a glass-banded dome over the processing floor, and domed tanks behind
+a.tube((58, 32, 1), (58, 32, 2.2), 14.5, '#b2ada1', 'rough', name='dome_pad', verts=36)
+a.sphere((58, 32, 2.2), (12, 12, 15), '#dfe3df', 'metal', name='dome')
+a.tube((58, 32, 4), (58, 32, 6.4), 12.4, 'main', 'matte', name='dome_band_lo', verts=36)
+a.tube((58, 32, 11), (58, 32, 12.4), 12.0, 'dark', 'matte', name='dome_band_mid', verts=36)
+a.sphere((58, 32, 17.4), (3.6, 3.6, 3.0), '#eceae0', 'metal', name='dome_cap')
+a.tube((58, 32, 19), (58, 32, 25), 0.7, STEEL, 'metal', name='dome_mast', verts=8)
+a.cube((58, 19.8, 5), (5, 1.2, 7), '#46484a', 'metal', name='dome_door')
 
 
 def tank(s, x, y, r, h, tag):
-    s.tube((x, y, 1.8), (x, y, h), r, '#e4e2d8', 'metal', name=tag, verts=28)
-    s.tube((x, y, h - 7), (x, y, h - 3.8), r + 0.6, 'main', 'matte', name=tag + '_band', verts=28)
-    for z in (6, 12):
-        s.tube((x, y, z), (x, y, z + 0.7), r + 0.4, '#b9b6ac', 'rough', name=tag + '_ring', verts=28)
-    s.sphere((x, y, h), (r, r, r * 0.55), '#cfd2cf', 'metal', name=tag + '_dome')
-    s.tube((x, y, h + r * 0.45), (x, y, h + r * 0.45 + 2.4), 1.0, STEEL, 'metal', name=tag + '_vent')
-    s.cube((x - r - 0.5, y, h / 2), (1.2, 1.6, h - 3), STEEL, 'metal', name=tag + '_ladder')
+    s.tube((x, y, 1.8), (x, y, h), r, '#e4e2d8', 'metal', name=tag, verts=24)
+    s.tube((x, y, h - 8), (x, y, h - 4.4), r + 0.7, 'main', 'matte', name=tag + '_band', verts=24)
+    for z in (7, 14):
+        s.tube((x, y, z), (x, y, z + 0.7), r + 0.4, '#b9b6ac', 'rough', name=tag + '_ring', verts=24)
+    s.sphere((x, y, h), (r, r, r * 0.6), '#cfd2cf', 'metal', name=tag + '_dome')
+    s.tube((x, y, h + r * 0.5), (x, y, h + r * 0.5 + 2.4), 0.9, STEEL, 'metal', name=tag + '_vent', verts=8)
+    s.cube((x, y + r + 0.5, h / 2), (1.4, 1.0, h - 4), STEEL, 'metal', name=tag + '_ladder')
 
 
-tank(a, 52, 15, 7, 28, 'tank1')
-tank(a, 62, 33, 6.5, 22, 'tank2')
-conveyor(a, (38, 16, 21), (47, 15, 29), 'conveyor')
-pipes(a, 42, 56, 30, 7, 'pipe')
-a.tube((56, 30, 7), (58, 31.6, 7), 1.6, IRON, 'metal', name='pipe_flange', verts=12)
-pipes(a, 4, 42, 2.4, 11.5, 'wallpipe')
-ab = greedy_boxes(a.voxelize(*(BOX[:2] + BOX[2:4] + (BOX[4],))))
+tank(a, 32, 9, 5.5, 34, 'tank1')
+tank(a, 45, 9, 5.0, 28, 'tank2')
+tank(a, 58, 9, 4.6, 22, 'tank3')
+for x in (32, 45):
+    a.tube((x + 3, 9, 21), (x + 10, 9, 21), 0.9, STEEL, 'metal', name='tank_link', verts=8)
+conveyor(a, (14, 28, 20), (30, 12, 27), 'conveyor')
+pipes(a, 4, 22, 21, 10.5, 'rackpipe')
+ab = greedy_boxes(a.voxelize(*BOX))
 a.save_blend(os.path.join(out, 'refinery_allies.blend'))
 allied_extra = [
-    "starFront(m, 16, 44, 4.5, 2.6, pal.main);",
-    "bannerV(m, 4, 8, 44, 15, 7, pal);",
+    "starFront(m, 12, 44, 5, 2.6, pal.main);",
 ]
 
 
