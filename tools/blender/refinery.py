@@ -145,7 +145,7 @@ a.cube((24, 44.6, 13.4), (44, 1.4, 1.2), 'dark', 'matte', name='cornice')
 a.prism([(1, 19), (47, 19), (47, 45), (1, 45)], [(1, 31), (47, 31), (47, 33), (1, 33)], 13, 21.5, 'main', 'metal', name='gable')
 a.cube((24, 32, 22.2), (46, 2.4, 0.8), 'dark', 'matte', name='ridge_cap')
 ang = math.degrees(math.atan2(8.5, 12))
-for k in range(0, 47, 5):                       # corrugation seams down both slopes
+for k in range(0, 47, 8):                       # corrugation seams down both slopes
     a.cube((1.8 + k, 38.6, 17.4), (0.7, 0.7, 14.8), 'dark', 'matte', rot=(ang, 0, 0), name='seam_s')
     a.cube((1.8 + k, 25.4, 17.4), (0.7, 0.7, 14.8), 'dark', 'matte', rot=(-ang, 0, 0), name='seam_n')
 a.cube((24, 32, 24.6), (30, 6, 3.4), SAND_W, 'rough', name='lantern')
@@ -183,12 +183,12 @@ for z in (7, 14):
         a0, a1 = math.radians(45 + 90 * k), math.radians(135 + 90 * k)
         a.tube((13 + 5.5 * math.cos(a0), 10 + 5.5 * math.sin(a0), z), (13 + 5.3 * math.cos(a1), 10 + 5.3 * math.sin(a1), z + 7), 0.45, IRON, 'metal', name='wt_brace', verts=6)
 a.tube((13, 10, 21), (13, 10, 22.2), 6.8, IRON, 'metal', name='wt_floor', verts=24)
-a.tube((13, 10, 22), (13, 10, 31), 6.4, '#aab4b1', 'metal', name='wt_tank', verts=24)
-for z in (24.5, 28.5):
+a.tube((13, 10, 22), (13, 10, 28.5), 6.4, '#bcc4c0', 'metal', name='wt_tank', verts=24)
+for z in (24, 27.6):
     a.tube((13, 10, z), (13, 10, z + 0.5), 6.7, IRON, 'metal', name='wt_hoop', verts=24)
-a.tube((13, 10, 26), (13, 10, 28.4), 6.7, 'main', 'matte', name='wt_band', verts=24)
-a.prism([(13 + 6.8 * math.cos(i * math.pi / 6), 10 + 6.8 * math.sin(i * math.pi / 6)) for i in range(12)], [(13 + 0.8 * math.cos(i * math.pi / 6), 10 + 0.8 * math.sin(i * math.pi / 6)) for i in range(12)], 31, 36.5, '#5b5d58', 'metal', name='wt_roof')
-a.tube((13, 10, 36), (13, 10, 39), 0.4, STEEL, 'metal', name='wt_finial', verts=6)
+a.tube((13, 10, 25), (13, 10, 27), 6.7, 'main', 'matte', name='wt_band', verts=24)
+a.prism([(13 + 6.8 * math.cos(i * math.pi / 6), 10 + 6.8 * math.sin(i * math.pi / 6)) for i in range(12)], [(13 + 0.8 * math.cos(i * math.pi / 6), 10 + 0.8 * math.sin(i * math.pi / 6)) for i in range(12)], 28.5, 33, '#9ba1a3', 'metal', name='wt_roof')
+a.tube((13, 10, 33), (13, 10, 36), 0.4, STEEL, 'metal', name='wt_finial', verts=6)
 a.cube((13, 16.3, 12), (1.3, 0.9, 22), IRON, 'metal', name='wt_ladder')
 # concrete silo block with a headhouse, and its conveyor gallery to the hall
 for (x, y) in ((54, 31), (63, 31), (54, 40), (63, 40)):
@@ -196,10 +196,12 @@ for (x, y) in ((54, 31), (63, 31), (54, 40), (63, 40)):
     for z in (6, 12, 18):
         a.tube((x, y, z), (x, y, z + 0.7), 4.9, SEAM, 'rough', name='silo_hoop', verts=24)
     a.tube((x, y, 19), (x, y, 22), 4.9, 'main', 'matte', name='silo_band', verts=24)
-a.cube((58.5, 35.5, 26.6), (17, 18, 5.4), SAND_W, 'rough', name='headhouse')
-a.prism([(49.5, 26.5), (67.5, 26.5), (67.5, 44.5), (49.5, 44.5)], [(52, 33), (65, 33), (65, 38), (52, 38)], 29.2, 32.4, 'dark', 'metal', name='headhouse_roof')
+for (x, y) in ((54, 40), (63, 40)):
+    a.sphere((x, y, 24), (4.5, 4.5, 2.6), '#cfc9b8', 'rough', name='silo_dome')
+a.cube((58.5, 31, 26.6), (19, 6.4, 3.8), SAND_W, 'rough', name='headhouse')
+a.prism([(48.5, 27.2), (68.5, 27.2), (68.5, 34.8), (48.5, 34.8)], [(50, 30), (67, 30), (67, 32), (50, 32)], 28.4, 30.6, 'dark', 'metal', name='headhouse_roof')
 for x in (54, 63):
-    a.cube((x, 26.4, 26.8), (3.4, 0.6, 2.4), GLASS, 'glass', name='head_window')
+    a.cube((x, 27.7, 26.8), (3.4, 0.6, 2.0), GLASS, 'glass', name='head_window')
 a.tube((49, 33, 27), (46, 32, 19.5), 2.2, STEEL, 'metal', name='gallery', verts=4, spin=45)
 for t_ in (0.35, 0.7):
     px, pz = 49 - 3 * t_, 27 - 7.5 * t_
