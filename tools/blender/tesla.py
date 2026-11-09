@@ -11,12 +11,28 @@ out = sys.argv[1]
 os.makedirs(out, exist_ok=True)
 
 s = Scene()
-s.tube((CX, CY, 0.0), (CX, CY, 2.2), 10.8, '#8f8d84', 'rough', name='platform', verts=48)            # raised round concrete platform
-s.tube((CX, CY, 2.0), (CX, CY, 3.0), 9.8, '#a09e95', 'rough', name='platform_bevel', verts=48)       # bevelled top edge
-s.tube((CX, CY, 2.8), (CX, CY, 3.4), 7.4, '#15130f', 'rough', name='well', verts=40)               # dark recessed well
-s.torus((CX, CY, 3.5), 8.3, 0.7, 'main', 'metal', name='team_ring')                                 # the side's colour round the well
-s.tube((CX, CY, 3.0), (CX, CY, 5.0), 3.6, '#2a2926', 'metal', name='foot', verts=16)
-s.tube((CX, CY, 4.0), (CX, CY, 18.0), 2.1, '#3a3b3e', 'metal', name='stem', verts=12)              # the cone stands up off the platform on a short stem
+CONC, CONC2, STEELB, COPPER, YEL, BLK = '#8f8d84', '#a3a198', '#9ba1a3', '#b4692a', '#d0a426', '#1c1c1a'
+s.tube((CX, CY, 0.0), (CX, CY, 2.2), 11.4, CONC, 'rough', name='foundation', verts=8, spin=22.5)       # octagonal concrete foundation
+s.tube((CX, CY, 2.0), (CX, CY, 4.4), 8.4, CONC2, 'rough', name='tier', verts=8, spin=22.5)            # raised tier
+for k in range(16):                                                                                    # hazard stripes round the foundation edge
+    a_ = k / 16 * 2 * math.pi
+    s.cube((CX + 10.2 * math.cos(a_), CY + 10.2 * math.sin(a_), 2.5), (2.9, 1.3, 0.8), YEL if k % 2 else BLK, 'matte',
+           rot=(0, 0, math.degrees(a_) + 90), name='hazard')
+for sx in (-1, 1):                                                                                     # four red capacitor drums
+    for sy in (-1, 1):
+        x, y = CX + sx * 5.3, CY + sy * 5.3
+        s.tube((x, y, 4.2), (x, y, 10.0), 2.2, 'light', 'metal', name='drum', verts=16)
+        s.tube((x, y, 9.8), (x, y, 10.7), 2.4, STEELB, 'metal', name='drum_cap', verts=16)
+        s.tube((x, y, 6.6), (x, y, 7.4), 2.4, 'main', 'metal', name='drum_band', verts=16)
+        s.tube((x, y, 10.4), (CX + sx * 1.2, CY + sy * 1.2, 7.8), 0.6, '#222426', 'metal', name='cable', verts=8)   # cable to the hub
+s.tube((CX, CY, 4.0), (CX, CY, 8.0), 3.4, STEELB, 'metal', name='hub', verts=20)                       # steel hub the pole rises from
+s.torus((CX, CY, 8.0), 3.3, 0.8, COPPER, 'metal', name='hub_collar')
+s.cube((CX, CY + 8.1, 3.2), (4.4, 0.7, 1.8), '#15130f', 'matte', name='vent_panel')                    # vent on the front of the tier
+s.cube((CX, CY + 8.1, 4.3), (4.4, 0.8, 0.5), 'main', 'metal', name='vent_hood')
+for sx in (-1, 1):                                                                                     # warning lamps on the front corners
+    s.cube((CX + sx * 8.0, CY + 8.0, 3.2), (0.9, 0.9, 2.2), '#2a2926', 'metal', name='lamp_post')
+    s.cube((CX + sx * 8.0, CY + 8.0, 4.7), (1.3, 1.3, 1.0), '#ff3a28', 'glow', name='lamp')
+s.tube((CX, CY, 7.5), (CX, CY, 18.0), 2.1, '#3a3b3e', 'metal', name='stem', verts=12)                  # the cone stands up on this pole
 s.tube((CX, CY, 3.0), (CX, CY, 49.0), 1.5, '#2c2e30', 'metal', name='core', verts=12)
 RINGS = 5
 for i in range(RINGS):                                                                              # a cone of thin white rings

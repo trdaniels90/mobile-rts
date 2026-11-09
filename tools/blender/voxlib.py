@@ -62,13 +62,15 @@ class Scene:
         bpy.ops.mesh.primitive_torus_add(major_radius=major, minor_radius=minor, major_segments=32, minor_segments=12, location=c)
         return self._add(bpy.context.object, col, mat, name)
 
-    def tube(self, a, b, r, col, mat='metal', name=None, verts=20):
+    def tube(self, a, b, r, col, mat='metal', name=None, verts=20, spin=0):
         """A cylinder from point a to point b."""
         a, b = Vector(a), Vector(b)
         d = b - a
         bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=d.length, location=(a + b) / 2)
         o = bpy.context.object
         o.rotation_euler = d.to_track_quat('Z', 'Y').to_euler()
+        if spin:
+            o.rotation_euler.rotate_axis('Z', math.radians(spin))   # turn about its own axis (an 8-sided prism with its flats square)
         return self._add(o, col, mat, name)
 
     def save_blend(self, path):
