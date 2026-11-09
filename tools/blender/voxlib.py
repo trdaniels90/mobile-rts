@@ -98,11 +98,13 @@ class Scene:
 
     # ---- voxelizing -------------------------------------------------------------------------
     def voxelize(self, x0, y0, x1, y1, d):
-        bvhs = []
+        bvhs, boxes = [], []
         for o, col, mat in self.parts:
             bm = bmesh.new()
             bm.from_mesh(o.data)
             bm.transform(o.matrix_world)
+            vs = [v.co for v in bm.verts]
+            boxes.append((min(v.x for v in vs), min(v.y for v in vs), min(v.z for v in vs), max(v.x for v in vs), max(v.y for v in vs), max(v.z for v in vs)))
             bmesh.ops.triangulate(bm, faces=bm.faces[:])
             bm.normal_update()
             bvhs.append(BVHTree.FromBMesh(bm))
@@ -115,6 +117,9 @@ class Scene:
                     p = Vector((x + 0.5003, y + 0.5002, z + 0.5001))   # off the exact face planes
                     hit = None
                     for i, t in enumerate(bvhs):
+                        b = boxes[i]
+                        if p.x < b[0] or p.y < b[1] or p.z < b[2] or p.x > b[3] or p.y > b[4] or p.z > b[5]:
+                            continue     # outside the part's bounding box: skip the ray casts
                         if inside(t, p):
                             hit = i      # the last part that contains the point wins
                     if hit is not None:
