@@ -58,6 +58,21 @@ class Scene:
         o.scale = radii
         return self._add(o, col, mat, name)
 
+    def prism(self, bottom, top, z0, z1, col, mat='metal', name=None):
+        """A convex faceted solid: the outline `bottom` [(x, y)...] at z0 and the outline `top` at z1 (convex hull of both)."""
+        bm = bmesh.new()
+        for x, y in bottom:
+            bm.verts.new((x, y, z0))
+        for x, y in top:
+            bm.verts.new((x, y, z1))
+        bmesh.ops.convex_hull(bm, input=bm.verts[:])
+        mesh = bpy.data.meshes.new(name or 'prism')
+        bm.to_mesh(mesh)
+        bm.free()
+        obj = bpy.data.objects.new(name or 'prism', mesh)
+        bpy.context.collection.objects.link(obj)
+        return self._add(obj, col, mat, name)
+
     def torus(self, c, major, minor, col, mat='metal', name=None):
         bpy.ops.mesh.primitive_torus_add(major_radius=major, minor_radius=minor, major_segments=32, minor_segments=12, location=c)
         return self._add(bpy.context.object, col, mat, name)
