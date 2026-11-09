@@ -9,4 +9,4 @@ Saved on request so it can be restored if the pre-rendered sprite pilot does not
 - `htank.js`: the generated `heavyHull` / `heavyTurret` builders (these sit between the `BLENDER:htank` markers in `src/models.js`)
 - `htank_hull.blend`, `htank_turret.blend`: the Blender scenes (flat colours)
 - Needs `size: { ..., barrel: 8, tz: 6 }` for the Heavy Tank in `src/data.js` (muzzles at x 14).
-- Git tag `heavy-tank-voxel-v1` marks the commit with this model in the game.
+- See ../README.md for the commit where this model is in the game.
