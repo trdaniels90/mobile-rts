@@ -1,4 +1,5 @@
-"""Soviet Heavy Tank, modelled in Blender and voxelized for the game.
+"""Soviet Heavy Tank, modelled in Blender and voxelized for the game: the classic bright-red slab hull with a pale nose,
+a low wide turret with two dark hatches, two thick black guns and a white aerial.
 python3 -I tools/blender/htank.py <out_dir>  ->  htank.js (heavyHull / heavyTurret for models.js), *.blend
 Hull box: x -13..14, y -10..11, z 0..8 (front +x). Turret box: x -9..21, y -9..9, z 0..9, pivot 0,0 (sits on the hull at z 6);
 guns at y +-3.6 reaching x 20 (the muzzle flash and shell origin assume it). Colours 'main'/'light'/'dark'/'deep' are the
@@ -7,55 +8,47 @@ import math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from voxlib import Scene, greedy_boxes, emit
 
-RUBBER, STEEL, BLACK, SLEEVE, OLIVE, WHITE = '#1f0f0c', '#6b6e6a', '#16120f', '#2a2420', '#5a5d3a', '#e8e6dc'
+BLACK, UNDER, WHITE = '#16120f', '#1f0f0c', '#e8e6dc'
 out = sys.argv[1]
 os.makedirs(out, exist_ok=True)
 
-# ------------------------------------------------------------------ hull
+def box(sc, x0, y0, z0, x1, y1, z1, col, mat='metal', name='box'):
+    """A cube from two corners, so parts line up with the voxel grid."""
+    return sc.cube(((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), (x1 - x0, y1 - y0, z1 - z0), col, mat, name=name)
+
+# ------------------------------------------------------------------ hull (hl 11, hw 8)
 h = Scene()
-for s in (-1, 1):
-    h.cube((0.0, s * 6.0, 2.0), (20.0, 4.0, 4.0), RUBBER, 'rough', name='track')                      # track run
-    for x in (-10.2, 10.2):                                                                          # big wheels at both ends
-        h.tube((x, s * 6.0 - 2.0, 2.4), (x, s * 6.0 + 2.0, 2.4), 2.5, RUBBER, 'rough', name='end_wheel')
-        h.tube((x, s * 7.0, 2.4), (x, s * 7.5, 2.4), 1.2, STEEL, 'metal', name='hub')
-    h.cube((-0.5, s * 7.5, 3.8), (19.0, 1.0, 2.6), 'main', 'metal', name='side_armour')              # thick side skirt
-    h.cube((-0.5, s * 7.5, 2.4), (19.0, 1.0, 0.8), 'dark', 'metal', name='side_armour_foot')
-    for x in range(-8, 9, 3):
-        h.cube((x, s * 7.5, 4.0), (0.8, 1.0, 2.2), 'dark', 'metal', name='armour_rib')                # bolted ribs
-    h.cube((9.4, s * 7.5, 4.0), (1.6, 1.0, 2.4), 'light', 'metal', name='skirt_front')
-h.cube((0, 0, 1.0), (21.0, 12.0, 2.0), 'deep', 'rough', name='underside')
-h.cube((-0.5, 0, 3.5), (20.0, 12.0, 3.0), 'main', 'metal', name='hull')
-h.cube((-1.0, 0, 5.1), (18.0, 13.0, 1.2), 'main', 'metal', name='deck')
-h.cube((10.0, 0, 4.7), (4.6, 13.0, 1.5), 'light', 'metal', rot=(0, 28, 0), name='glacis')            # sloped front plate
-h.cube((11.6, 0, 2.4), (1.2, 12.0, 3.2), 'dark', 'metal', name='nose')
-h.cube((-8.4, 0, 5.9), (4.6, 10.0, 0.7), 'dark', 'metal', name='engine_deck')
-for x in (-10.0, -8.8, -7.6, -6.4):
-    h.cube((x, 0, 6.15), (0.6, 8.0, 0.5), 'deep', 'matte', name='louvre')
-for y in (-1.4, 1.4):
-    h.tube((-11.4, y, 3.8), (-11.4, y, 7.0), 0.85, '#3a3836', 'metal', name='exhaust', verts=10)
-for y in (-5.0, 5.0):
-    h.tube((-8.0, y - 1.8, 6.9), (-8.0, y + 1.8, 6.9), 1.2, OLIVE, 'matte', name='fuel_drum', verts=12)
-for s in (-1, 1):
-    h.cube((12.5, s * 5.0, 3.9), (0.7, 1.4, 1.0), '#d9c374', 'metal', name='headlight')
+box(h, -10, -8, 0, 10, 8, 2, UNDER, 'rough', 'underside')                       # dark underside and track edge
+box(h, -11, -7, 2, 11, 7, 4, 'main', 'metal', 'slab_a')                          # low hull slab; two boxes so the rear corners are rounded off
+box(h, -10, -8, 2, 11, 8, 4, 'main', 'metal', 'slab_b')
+box(h, -10, -7, 4, 9, 7, 5, 'main', 'metal', 'deck')                             # top deck, inset
+box(h, 8, -8, 2, 11, 8, 3, 'light', 'metal', 'nose_low')                         # pale sloped nose
+box(h, 8, -7, 3, 10, 7, 4, 'light', 'metal', 'nose_mid')
+box(h, 9, -7, 4, 10, 7, 5, 'light', 'metal', 'nose_top')
+for y0 in (-8, 7):
+    box(h, -10, y0, 3, 11, y0 + 1, 4, 'light', 'metal', 'upper_edge')            # lit upper edges
+    box(h, -10, y0, 2, 11, y0 + 1, 3, 'dark', 'metal', 'lower_edge')             # shadowed lower edges
+for x in range(-9, -3, 2):
+    box(h, x, -5, 4, x + 1, 5, 5, 'dark', 'metal', 'louvre')                     # rear deck louvres
 hb = greedy_boxes(h.voxelize(-13, -10, 14, 11, 8))
 h.save_blend(os.path.join(out, 'htank_hull.blend'))
 
-# ------------------------------------------------------------------ turret
+# ------------------------------------------------------------------ turret (r 6, f -2: the box sits 2 behind the pivot)
 t = Scene()
-t.tube((-2.0, 0, 0.0), (-2.0, 0, 1.4), 6.3, 'dark', 'metal', name='ring', verts=28)
-t.cube((-2.2, 0, 2.2), (11.0, 9.8, 3.6), 'main', 'metal', name='body_a')                         # two overlapping boxes: a cross, so the corners are notched
-t.cube((-2.2, 0, 2.2), (8.8, 12.8, 3.6), 'main', 'metal', name='body_b')
-t.cube((3.0, 0, 2.3), (3.0, 10.0, 3.4), 'light', 'metal', rot=(0, -18, 0), name='front_slope')    # one clean sloped front plate
-t.cube((-2.2, 0, 4.1), (9.0, 9.0, 0.5), 'main', 'metal', name='roof')
-t.cube((4.6, 0, 2.2), (2.2, 8.0, 3.0), 'dark', 'metal', name='mantlet')
-for y in (-3.0, 3.0):                                                                              # two round hatches: pale rim, near-black lid
-    t.tube((-3.5, y, 4.0), (-3.5, y, 4.9), 2.3, 'dark', 'matte', name='hatch_rim', verts=16)
-    t.tube((-3.5, y, 4.7), (-3.5, y, 5.4), 1.6, '#1a0402', 'matte', name='hatch_lid', verts=12)
-for y in (-3.6, 3.6):                                                                              # two plain thick guns
-    t.tube((3.0, y, 2.2), (20.0, y, 2.2), 1.5, BLACK, 'matte', name='barrel')
-    t.tube((3.5, y, 2.2), (6.8, y, 2.2), 1.85, BLACK, 'matte', name='barrel_base')
-    t.tube((17.4, y, 2.2), (20.0, y, 2.2), 1.9, '#0d0a08', 'matte', name='muzzle_brake')
-t.tube((-6.8, 5.0, 3.0), (-6.8, 5.0, 8.5), 0.55, WHITE, 'metal', name='aerial', verts=8)
+box(t, -7, -7, 0, 4, 7, 3, 'main', 'metal', 'body_a')                            # wide low turret box; two boxes so the corners are chamfered
+box(t, -8, -6, 0, 4, 6, 3, 'main', 'metal', 'body_b')
+box(t, -7, -6, 3, 3, 6, 4, 'main', 'metal', 'roof')
+box(t, 2, -6, 0, 5, 6, 3, 'light', 'metal', 'mantlet')                           # pale mantlet
+for y0 in (-7, 6):
+    box(t, -7, y0, 2, 4, y0 + 1, 3, 'light', 'metal', 'upper_edge')
+    box(t, -7, y0, 0, 4, y0 + 1, 1, 'dark', 'metal', 'lower_edge')
+for y in (-2.8, 2.8):
+    t.tube((-3.0, y, 3.0), (-3.0, y, 4.0), 1.9, 'deep', 'matte', name='hatch', verts=16)   # two dark hatches
+box(t, -6, -1, 3, -4, 1, 4, 'light', 'metal', 'panel')                           # small panel
+for y in (-3.6, 3.6):                                                            # thick black guns
+    t.tube((0.0, y, 2.0), (20.0, y, 2.0), 1.5, BLACK, 'metal', name='barrel')
+    t.tube((17.0, y, 2.0), (20.0, y, 2.0), 1.8, BLACK, 'metal', name='muzzle')
+t.tube((-7.0, 5.0, 3.0), (-7.0, 5.0, 9.0), 0.55, WHITE, 'metal', name='aerial', verts=8)   # white aerial, rear right
 tb = greedy_boxes(t.voxelize(-9, -9, 21, 9, 9))
 t.save_blend(os.path.join(out, 'htank_turret.blend'))
 
