@@ -148,6 +148,8 @@ function heavyTurret(pal, s) {
   m.box(-2, 4, 3, -1, 6, 4, P.main, M_METAL);
   m.box(-4, 5, 3, -2, 6, 4, P.main, M_METAL);
   m.box(-1, 5, 3, 0, 6, 4, P.main, M_METAL);
+  m.box(-7, 5, 4, -6, 6, 8, '#e8e6dc', M_METAL);
+  m.box(-7, 5, 8, -6, 6, 9, '#ffffff', M_METAL);
   return m;
 }
 // BLENDER:htank end

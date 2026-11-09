@@ -48,7 +48,8 @@ box(t, -6, -1, 3, -4, 1, 4, 'light', 'metal', 'panel')                          
 for y in (-3.6, 3.6):                                                            # thick black guns
     t.tube((0.0, y, 2.0), (20.0, y, 2.0), 1.5, BLACK, 'metal', name='barrel')
     t.tube((17.0, y, 2.0), (20.0, y, 2.0), 1.8, BLACK, 'metal', name='muzzle')
-t.tube((-7.0, 5.0, 3.0), (-7.0, 5.0, 9.0), 0.55, WHITE, 'metal', name='aerial', verts=8)   # white aerial, rear right
+box(t, -7, 5, 4, -6, 6, 8, WHITE, 'metal', 'aerial')                          # the white aerial fin on top, rear right (one voxel thick, as it was)
+box(t, -7, 5, 8, -6, 6, 9, '#ffffff', 'metal', 'aerial_tip')
 tb = greedy_boxes(t.voxelize(-9, -9, 21, 9, 9))
 t.save_blend(os.path.join(out, 'htank_turret.blend'))
 
