@@ -131,73 +131,88 @@ soviet_extra = [
 ]
 
 # ======================================================================== Allied
-# A modern wedge: a white base under a big sloping blue-glass front rising to a flat back roof, a horizontal white
-# centrifuge drum on cradles, an ore funnel on legs, a tall spire carrying a glowing ring.
+# 1950s-60s Western industry: a sandstone hall under a corrugated gabled roof with a glazed lantern, a riveted steel
+# water tower on braced legs, a block of concrete grain-elevator silos with a conveyor gallery, drums, a flagpole.
+SAND_W, BRK, TIN = '#cbbf9c', '#8a5a40', '#7b7e78'
 a = Scene()
-a.cube((36, 24, 0.5), (72, 48, 1), '#b2ada1', 'rough', name='slab')
+a.cube((36, 24, 0.5), (72, 48, 1), '#a8a396', 'rough', name='slab')
 a.cube((36, 24, 0.3), (74, 50, 0.6), BIB, 'rough', name='bib')
-a.cube((24, 32, 4), (44, 24, 6), WALL, 'matte', name='base')
-a.cube((24, 32, 1.8), (45, 25, 1.6), WALLD, 'matte', name='plinth')
-a.prism([(2, 20), (46, 20), (46, 44), (2, 44)], [(2, 20), (46, 20), (46, 28), (2, 28)], 7, 22, WALL, 'matte', name='wedge')
-th = math.degrees(math.atan2(16, 15))
-ln = math.hypot(16, 15)
-nrm = (0, math.sin(math.radians(th)) * 0 + math.cos(math.radians(90 - th)) * 0, 0)
-cy_, cz_ = 36, 14.5
-ox, oy, oz = 0, 0.6 * math.cos(math.radians(th)), 0.6 * math.sin(math.radians(th))
-a.cube((24, cy_ + oy, cz_ + oz), (41, 0.9, ln), '#5f8fb0', 'glass', rot=(th, 0, 0), name='glass_front')
-for x in range(5, 46, 6):
-    a.cube((x, cy_ + oy * 1.6, cz_ + oz * 1.6), (0.9, 0.8, ln + 0.4), 'main', 'matte', rot=(th, 0, 0), name='mullion')
-for k in (0.2, 0.55, 0.9):
-    yy, zz = 44 - 16 * k, 7 + 15 * k
-    a.cube((24, yy + oy * 1.8, zz + oz * 1.8), (42, 0.9, 0.7), 'light', 'metal', rot=(th, 0, 0), name='transom')
-a.cube((24, 20.6, 22.4), (46, 1.6, 0.9), 'main', 'matte', name='roof_back')
-a.cube((24, 25.5, 22.4), (46, 5, 0.6), '#e9e6dc', 'matte', name='roof_top')
-a.cube((36, 44.4, 4.2), (12.5, 1.0, 6), '#46484a', 'metal', name='bay_door')
-for i in range(3):
-    a.cube((36, 44.9, 2.2 + i * 1.8), (12.5, 0.4, 0.5), '#5b5d58', 'metal', name='bay_slat')
-a.cube((36, 44.9, 7.6), (15, 1.6, 1.0), 'main', 'matte', name='bay_lintel')
-a.cube((36, 46.5, 9), (17, 3.4, 1.0), WALL, 'matte', name='canopy')
-for x in (27.8, 44.2):
-    a.cube((x, 47.6, 5), (1.2, 1.2, 8), WALLD, 'matte', name='canopy_post')
-for i in range(3):
-    a.cube((8 + i * 6.5, 44.4, 4), (4.2, 0.8, 2.8), GLASS, 'glass', name='window')
+a.cube((24, 32, 7.5), (43, 24, 13), SAND_W, 'rough', name='hall')
+a.cube((24, 32, 3.0), (44, 25, 4), BRK, 'rough', name='brick_plinth')
+for x in range(2, 46, 7):
+    a.cube((x, 44.2, 7.5), (1.8, 1.1, 12.5), WALLD, 'rough', name='pilaster')
+a.cube((24, 44.6, 13.4), (44, 1.4, 1.2), 'dark', 'matte', name='cornice')
+a.prism([(1, 19), (47, 19), (47, 45), (1, 45)], [(1, 31), (47, 31), (47, 33), (1, 33)], 13, 21.5, 'main', 'metal', name='gable')
+a.cube((24, 32, 22.2), (46, 2.4, 0.8), 'dark', 'matte', name='ridge_cap')
+ang = math.degrees(math.atan2(8.5, 12))
+for k in range(0, 47, 5):                       # corrugation seams down both slopes
+    a.cube((1.8 + k, 38.6, 17.4), (0.7, 0.7, 14.8), 'dark', 'matte', rot=(ang, 0, 0), name='seam_s')
+    a.cube((1.8 + k, 25.4, 17.4), (0.7, 0.7, 14.8), 'dark', 'matte', rot=(-ang, 0, 0), name='seam_n')
+a.cube((24, 32, 24.6), (30, 6, 3.4), SAND_W, 'rough', name='lantern')
+a.prism([(8, 28.6), (40, 28.6), (40, 35.4), (8, 35.4)], [(8, 31), (40, 31), (40, 33), (8, 33)], 26.2, 28.4, 'dark', 'metal', name='lantern_roof')
+for i in range(6):
+    a.cube((11 + i * 5.2, 28.8, 24.8), (3.6, 0.6, 2.2), GLASS, 'glass', name='lantern_glass')
+    a.cube((11 + i * 5.2, 35.2, 24.8), (3.6, 0.6, 2.2), GLASS, 'glass', name='lantern_glass_n')
+for x in (10, 38):
+    a.tube((x, 24, 18), (x, 24, 22.6), 1.6, STEEL, 'metal', name='cowl', verts=12)
+    a.sphere((x, 24, 23.0), (2.4, 2.4, 1.4), TIN, 'metal', name='cowl_cap')
+# front: tall multi-pane windows, the bay door, a loading canopy on posts
+for i in range(4):
+    a.cube((7 + i * 5.2, 44.6, 8), (3.6, 0.8, 5.4), GLASS, 'glass', name='window')
+    a.cube((7 + i * 5.2, 44.8, 8), (0.5, 0.6, 5.4), WALLD, 'matte', name='mullion')
+    a.cube((7 + i * 5.2, 44.8, 8), (3.6, 0.6, 0.5), WALLD, 'matte', name='transom')
+a.cube((36, 44.4, 5.2), (13, 1.0, 8.4), '#4a4a44', 'metal', name='bay_door')
+for i in range(5):
+    a.cube((36, 44.9, 2.0 + i * 1.7), (13, 0.4, 0.5), '#5b5d58', 'metal', name='bay_slat')
+a.cube((36, 44.9, 9.8), (15.4, 1.6, 1.2), 'dark', 'matte', name='bay_lintel')
+a.cube((36, 46.6, 11), (18, 3.6, 0.9), 'main', 'metal', name='canopy')
+for x in (27.4, 44.6):
+    a.cube((x, 47.6, 6), (1.2, 1.2, 10), IRON, 'metal', name='canopy_post')
 apron(a, 28, 44, 'apron')
-lamp(a, 3, 46, 'lamp_a')
-lamp(a, 62, 46, 'lamp_b')
-# centrifuge drum on cradles
-a.tube((49, 12, 10), (71, 12, 10), 7.2, '#eceae0', 'metal', name='drum', verts=28)
-a.sphere((49, 12, 10), (3.4, 7.2, 7.2), '#eceae0', 'metal', name='drum_end_w')
-a.sphere((71, 12, 10), (3.0, 7.2, 7.2), '#eceae0', 'metal', name='drum_end_e')
-for x in (53, 60, 67):
-    a.tube((x, 12, 10), (x + 1.6, 12, 10), 7.6, 'main', 'matte', name='drum_band', verts=28)
-for x in (52, 66):
-    a.cube((x, 12, 2.6), (2.6, 11, 3.2), WALLD, 'matte', name='cradle')
-a.cube((60, 12, 17.6), (7, 4, 1.4), STEEL, 'metal', name='drum_hatch')
-a.tube((60, 12, 17.6), (60, 12, 22), 0.8, STEEL, 'metal', name='drum_vent', verts=8)
-a.tube((41, 22, 15), (49, 12, 10), 1.0, STEEL, 'metal', name='drum_feed', verts=10)
-# ore funnel on legs, feeding the wedge
-for ang in (45, 135, 225, 315):
-    c, s_ = math.cos(math.radians(ang)), math.sin(math.radians(ang))
-    a.tube((59 + 6 * c, 36 + 6 * s_, 1), (59 + 3.5 * c, 36 + 3.5 * s_, 11), 0.9, IRON, 'metal', name='funnel_leg', verts=8)
-a.tube((59, 36, 10), (59, 36, 11.6), 7.2, IRON, 'metal', name='funnel_ring', verts=16)
-hopper(a, 59, 36, 11.2, STEEL, 'funnel')
-a.tube((59, 36, 10.6), (59, 36, 16.8), 9.1, 'main', 'matte', name='funnel_band', verts=16)
-conveyor(a, (52, 35, 13), (46, 32, 19), 'conveyor')
-# spire with a glowing ring, back left
-a.cube((9, 10, 2.4), (9, 9, 3), WALL, 'matte', name='spire_base')
-a.tube((9, 10, 2), (9, 10, 46), 1.5, '#eceae0', 'metal', name='spire', verts=14)
-a.tube((9, 10, 12), (9, 10, 15), 2.6, 'main', 'matte', name='spire_band', verts=14)
-a.torus((9, 10, 32), 6.0, 0.9, '#7fc8ff', 'glow', name='spire_ring')
-a.tube((9, 10, 31), (9, 10, 33), 2.6, 'main', 'matte', name='spire_collar', verts=14)
-for ang in (0, 90, 180, 270):
-    a.tube((9, 10, 32), (9 + 5.6 * math.cos(math.radians(ang)), 10 + 5.6 * math.sin(math.radians(ang)), 32), 0.4, STEEL, 'metal', name='spire_spoke', verts=6)
-a.sphere((9, 10, 47.4), (1.4, 1.4, 1.4), '#ffe9a0', 'glow', name='spire_light')
-pipes(a, 12, 49, 17, 8, 'rackpipe')
+lamp(a, 60, 46, 'lamp_b')
+# flagpole, front left
+a.tube((4, 46.5, 1), (4, 46.5, 26), 0.5, STEEL, 'metal', name='flagpole', verts=8)
+a.cube((7.6, 46.5, 23.6), (6.4, 0.5, 4), 'main', 'matte', name='flag')
+a.sphere((4, 46.5, 26.4), (0.8, 0.8, 0.8), '#d0a426', 'metal', name='flag_finial')
+# steel water tower on braced legs, back right
+for ang_ in (45, 135, 225, 315):
+    c, s_ = math.cos(math.radians(ang_)), math.sin(math.radians(ang_))
+    a.tube((13 + 5.6 * c, 10 + 5.6 * s_, 1), (13 + 5.2 * c, 10 + 5.2 * s_, 22), 0.9, IRON, 'metal', name='wt_leg', verts=8)
+for z in (7, 14):
+    for k in range(4):
+        a0, a1 = math.radians(45 + 90 * k), math.radians(135 + 90 * k)
+        a.tube((13 + 5.5 * math.cos(a0), 10 + 5.5 * math.sin(a0), z), (13 + 5.3 * math.cos(a1), 10 + 5.3 * math.sin(a1), z + 7), 0.45, IRON, 'metal', name='wt_brace', verts=6)
+a.tube((13, 10, 21), (13, 10, 22.2), 6.8, IRON, 'metal', name='wt_floor', verts=24)
+a.tube((13, 10, 22), (13, 10, 31), 6.4, '#aab4b1', 'metal', name='wt_tank', verts=24)
+for z in (24.5, 28.5):
+    a.tube((13, 10, z), (13, 10, z + 0.5), 6.7, IRON, 'metal', name='wt_hoop', verts=24)
+a.tube((13, 10, 26), (13, 10, 28.4), 6.7, 'main', 'matte', name='wt_band', verts=24)
+a.prism([(13 + 6.8 * math.cos(i * math.pi / 6), 10 + 6.8 * math.sin(i * math.pi / 6)) for i in range(12)], [(13 + 0.8 * math.cos(i * math.pi / 6), 10 + 0.8 * math.sin(i * math.pi / 6)) for i in range(12)], 31, 36.5, '#5b5d58', 'metal', name='wt_roof')
+a.tube((13, 10, 36), (13, 10, 39), 0.4, STEEL, 'metal', name='wt_finial', verts=6)
+a.cube((13, 16.3, 12), (1.3, 0.9, 22), IRON, 'metal', name='wt_ladder')
+# concrete silo block with a headhouse, and its conveyor gallery to the hall
+for (x, y) in ((54, 31), (63, 31), (54, 40), (63, 40)):
+    a.tube((x, y, 1), (x, y, 24), 4.5, '#b3ada0', 'rough', name='silo', verts=24)
+    for z in (6, 12, 18):
+        a.tube((x, y, z), (x, y, z + 0.7), 4.9, SEAM, 'rough', name='silo_hoop', verts=24)
+    a.tube((x, y, 19), (x, y, 22), 4.9, 'main', 'matte', name='silo_band', verts=24)
+a.cube((58.5, 35.5, 26.6), (17, 18, 5.4), SAND_W, 'rough', name='headhouse')
+a.prism([(49.5, 26.5), (67.5, 26.5), (67.5, 44.5), (49.5, 44.5)], [(52, 33), (65, 33), (65, 38), (52, 38)], 29.2, 32.4, 'dark', 'metal', name='headhouse_roof')
+for x in (54, 63):
+    a.cube((x, 26.4, 26.8), (3.4, 0.6, 2.4), GLASS, 'glass', name='head_window')
+a.tube((49, 33, 27), (46, 32, 19.5), 2.2, STEEL, 'metal', name='gallery', verts=4, spin=45)
+for t_ in (0.35, 0.7):
+    px, pz = 49 - 3 * t_, 27 - 7.5 * t_
+    a.cube((px, 33, (pz - 1) / 2 + 0.5), (1.2, 3.4, pz - 1), IRON, 'metal', name='gallery_leg')
+# oil drums and a rail wagon load of ore by the dock
+for (x, y) in ((67, 21), (69.5, 22.5), (67.5, 24.5), (70, 25)):
+    a.tube((x, y, 1), (x, y, 4.6), 1.5, '#8b4535' if (x + y) % 2 else '#4a5a3a', 'metal', name='drum', verts=12)
+a.cube((20, 47.2, 1.6), (22, 1.2, 1.2), IRON, 'metal', name='rail_a')
+a.cube((20, 49.0, 1.6), (22, 1.2, 1.2), IRON, 'metal', name='rail_b')
 ab = greedy_boxes(a.voxelize(*BOX))
 a.save_blend(os.path.join(out, 'refinery_allies.blend'))
 allied_extra = [
-    "starTop(m, 24, 25.5, 2.6, pal.main);",
-    "starFront(m, 28, 44, 4, 1.8, pal.main);",
+    "starFront(m, 20, 44, 5, 2.4, pal.main);",
 ]
 
 
