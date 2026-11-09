@@ -131,21 +131,27 @@ soviet_extra = [
 ]
 
 # ======================================================================== Allied
-# A clean modern plant: a long barrel-vaulted hall in team blue with white ribs, a white hyperbolic cooling tower
-# breathing steam, an ore funnel on legs, a radio mast. Curved and bright against the Soviet's boxy grime.
+# A modern wedge: a white base under a big sloping blue-glass front rising to a flat back roof, a horizontal white
+# centrifuge drum on cradles, an ore funnel on legs, a tall spire carrying a glowing ring.
 a = Scene()
 a.cube((36, 24, 0.5), (72, 48, 1), '#b2ada1', 'rough', name='slab')
 a.cube((36, 24, 0.3), (74, 50, 0.6), BIB, 'rough', name='bib')
-a.cube((24, 32, 4), (43, 24, 6), WALL, 'matte', name='hall')
-a.cube((24, 32, 1.8), (44, 25, 1.6), WALLD, 'matte', name='plinth')
-a.tube((2.5, 32, 7), (45.5, 32, 7), 12.2, 'main', 'metal', name='vault', verts=36, spin=0)
-for x in range(4, 45, 7):
-    a.tube((x, 32, 7), (x + 1.0, 32, 7), 12.9, 'light', 'metal', name='rib', verts=36)
-a.cube((24, 32, 7), (43, 24.6, 0.6), WALLD, 'matte', name='eave_line')
-a.tube((2, 32, 7), (3.2, 32, 7), 12.6, WALL, 'matte', name='endcap_w', verts=36)
-a.tube((45, 32, 7), (46.2, 32, 7), 12.6, WALL, 'matte', name='endcap_e', verts=36)
-for i in range(3):
-    a.cube((8 + i * 7, 44.4, 4.4), (5.2, 0.8, 3.0), GLASS, 'glass', name='window')
+a.cube((24, 32, 4), (44, 24, 6), WALL, 'matte', name='base')
+a.cube((24, 32, 1.8), (45, 25, 1.6), WALLD, 'matte', name='plinth')
+a.prism([(2, 20), (46, 20), (46, 44), (2, 44)], [(2, 20), (46, 20), (46, 28), (2, 28)], 7, 22, WALL, 'matte', name='wedge')
+th = math.degrees(math.atan2(16, 15))
+ln = math.hypot(16, 15)
+nrm = (0, math.sin(math.radians(th)) * 0 + math.cos(math.radians(90 - th)) * 0, 0)
+cy_, cz_ = 36, 14.5
+ox, oy, oz = 0, 0.6 * math.cos(math.radians(th)), 0.6 * math.sin(math.radians(th))
+a.cube((24, cy_ + oy, cz_ + oz), (41, 0.9, ln), '#5f8fb0', 'glass', rot=(th, 0, 0), name='glass_front')
+for x in range(5, 46, 6):
+    a.cube((x, cy_ + oy * 1.6, cz_ + oz * 1.6), (0.9, 0.8, ln + 0.4), 'main', 'matte', rot=(th, 0, 0), name='mullion')
+for k in (0.2, 0.55, 0.9):
+    yy, zz = 44 - 16 * k, 7 + 15 * k
+    a.cube((24, yy + oy * 1.8, zz + oz * 1.8), (42, 0.9, 0.7), 'light', 'metal', rot=(th, 0, 0), name='transom')
+a.cube((24, 20.6, 22.4), (46, 1.6, 0.9), 'main', 'matte', name='roof_back')
+a.cube((24, 25.5, 22.4), (46, 5, 0.6), '#e9e6dc', 'matte', name='roof_top')
 a.cube((36, 44.4, 4.2), (12.5, 1.0, 6), '#46484a', 'metal', name='bay_door')
 for i in range(3):
     a.cube((36, 44.9, 2.2 + i * 1.8), (12.5, 0.4, 0.5), '#5b5d58', 'metal', name='bay_slat')
@@ -153,39 +159,44 @@ a.cube((36, 44.9, 7.6), (15, 1.6, 1.0), 'main', 'matte', name='bay_lintel')
 a.cube((36, 46.5, 9), (17, 3.4, 1.0), WALL, 'matte', name='canopy')
 for x in (27.8, 44.2):
     a.cube((x, 47.6, 5), (1.2, 1.2, 8), WALLD, 'matte', name='canopy_post')
+for i in range(3):
+    a.cube((8 + i * 6.5, 44.4, 4), (4.2, 0.8, 2.8), GLASS, 'glass', name='window')
 apron(a, 28, 44, 'apron')
 lamp(a, 3, 46, 'lamp_a')
 lamp(a, 62, 46, 'lamp_b')
-# cooling tower: a hyperbolic shell built from stacked rings, steam above
-for z in range(1, 32, 2):
-    r = 5.2 + 4.6 * ((z - 15) / 15.0) ** 2
-    a.tube((61, 13, z), (61, 13, z + 2.1), r, '#ecebe3', 'matte', name='shell', verts=32)
-a.tube((61, 13, 29), (61, 13, 32), 9.9, 'main', 'matte', name='shell_band', verts=32)
-a.tube((61, 13, 1), (61, 13, 2.6), 10.4, WALLD, 'matte', name='shell_foot', verts=32)
-for (dx, dz, rr, col) in ((0, 34.5, 5.2, '#e9eef2'), (1, 40, 4.6, '#f2f5f7'), (2, 45, 3.8, '#f6f8fa')):
-    a.sphere((61 + dx, 13, dz), (rr, rr, rr * 0.75), col, 'matte', name='steam')
-# ore funnel on legs, feeding the hall by a conveyor
+# centrifuge drum on cradles
+a.tube((49, 12, 10), (71, 12, 10), 7.2, '#eceae0', 'metal', name='drum', verts=28)
+a.sphere((49, 12, 10), (3.4, 7.2, 7.2), '#eceae0', 'metal', name='drum_end_w')
+a.sphere((71, 12, 10), (3.0, 7.2, 7.2), '#eceae0', 'metal', name='drum_end_e')
+for x in (53, 60, 67):
+    a.tube((x, 12, 10), (x + 1.6, 12, 10), 7.6, 'main', 'matte', name='drum_band', verts=28)
+for x in (52, 66):
+    a.cube((x, 12, 2.6), (2.6, 11, 3.2), WALLD, 'matte', name='cradle')
+a.cube((60, 12, 17.6), (7, 4, 1.4), STEEL, 'metal', name='drum_hatch')
+a.tube((60, 12, 17.6), (60, 12, 22), 0.8, STEEL, 'metal', name='drum_vent', verts=8)
+a.tube((41, 22, 15), (49, 12, 10), 1.0, STEEL, 'metal', name='drum_feed', verts=10)
+# ore funnel on legs, feeding the wedge
 for ang in (45, 135, 225, 315):
     c, s_ = math.cos(math.radians(ang)), math.sin(math.radians(ang))
-    a.tube((57 + 6 * c, 39 + 6 * s_, 1), (57 + 3.5 * c, 39 + 3.5 * s_, 15), 0.9, IRON, 'metal', name='funnel_leg', verts=8)
-a.tube((57, 39, 14), (57, 39, 15.6), 7.2, IRON, 'metal', name='funnel_ring', verts=16)
-hopper(a, 57, 39, 15.2, STEEL, 'funnel')
-a.tube((57, 39, 14.6), (57, 39, 20.8), 9.1, 'main', 'matte', name='funnel_band', verts=16)
-conveyor(a, (50, 38, 17), (44, 34, 14), 'conveyor')
-# radio mast with a hut, and the back pipe run to the cooling tower
-a.cube((9, 10, 3), (8, 7, 4), WALL, 'matte', name='hut')
-a.cube((9, 10, 5.4), (8.8, 7.8, 0.9), 'main', 'matte', name='hut_roof')
-a.tube((9, 10, 5), (9, 10, 46), 0.9, STEEL, 'metal', name='mast', verts=8)
-for z, w in ((18, 5), (28, 4), (38, 3)):
-    a.cube((9, 10, z), (w * 2, 0.7, 0.7), STEEL, 'metal', name='mast_arm')
-a.sphere((9, 10, 47.4), (1.1, 1.1, 1.1), '#5ab0ff', 'glow', name='mast_light')
-a.sphere((9, 10, 24), (3.4, 1.0, 3.4), '#eceae0', 'metal', rot=(0, 0, 30), name='mast_dish')
-pipes(a, 10, 56, 17, 8, 'rackpipe')
-a.tube((56, 17, 8), (56, 13, 8), 1.2, STEEL, 'metal', name='rack_turn', verts=12)
+    a.tube((59 + 6 * c, 36 + 6 * s_, 1), (59 + 3.5 * c, 36 + 3.5 * s_, 11), 0.9, IRON, 'metal', name='funnel_leg', verts=8)
+a.tube((59, 36, 10), (59, 36, 11.6), 7.2, IRON, 'metal', name='funnel_ring', verts=16)
+hopper(a, 59, 36, 11.2, STEEL, 'funnel')
+a.tube((59, 36, 10.6), (59, 36, 16.8), 9.1, 'main', 'matte', name='funnel_band', verts=16)
+conveyor(a, (52, 35, 13), (46, 32, 19), 'conveyor')
+# spire with a glowing ring, back left
+a.cube((9, 10, 2.4), (9, 9, 3), WALL, 'matte', name='spire_base')
+a.tube((9, 10, 2), (9, 10, 46), 1.5, '#eceae0', 'metal', name='spire', verts=14)
+a.tube((9, 10, 12), (9, 10, 15), 2.6, 'main', 'matte', name='spire_band', verts=14)
+a.torus((9, 10, 32), 6.0, 0.9, '#7fc8ff', 'glow', name='spire_ring')
+a.tube((9, 10, 31), (9, 10, 33), 2.6, 'main', 'matte', name='spire_collar', verts=14)
+for ang in (0, 90, 180, 270):
+    a.tube((9, 10, 32), (9 + 5.6 * math.cos(math.radians(ang)), 10 + 5.6 * math.sin(math.radians(ang)), 32), 0.4, STEEL, 'metal', name='spire_spoke', verts=6)
+a.sphere((9, 10, 47.4), (1.4, 1.4, 1.4), '#ffe9a0', 'glow', name='spire_light')
+pipes(a, 12, 49, 17, 8, 'rackpipe')
 ab = greedy_boxes(a.voxelize(*BOX))
 a.save_blend(os.path.join(out, 'refinery_allies.blend'))
 allied_extra = [
-    "starTop(m, 22, 32, 5.5, C.white);",
+    "starTop(m, 24, 25.5, 2.6, pal.main);",
     "starFront(m, 28, 44, 4, 1.8, pal.main);",
 ]
 
