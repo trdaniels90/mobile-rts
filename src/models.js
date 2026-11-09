@@ -70,43 +70,132 @@ function sandbagsV(m, x0, y0, x1, y1, h) {
 // tracks barely showing, a wide low turret with two dark hatches, a white aerial at the rear right and
 // two thick black guns side by side.
 const HEAVY_RED = { key: 'soviets', main: '#c9170d', light: '#f0604a', dark: '#8c0d08', deep: '#2b0604' };
+// BLENDER:htank begin
 function heavyHull(pal, s) {
   const P = pal.key === 'soviets' ? HEAVY_RED : pal;
-  const L = s.len, W = s.wid, hl = Math.floor(L / 2), hw = Math.floor(W / 2);
-  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 8);
-  m.box(-hl + 1, -hw, 0, hl - 1, hw, 2, '#1f0f0c', M_ROUGH);                       // dark underside and track edge
-  m.box(-hl, -hw, 2, hl, hw, 4, P.main, M_METAL);                                   // low hull slab
-  m.box(-hl + 1, -hw + 1, 4, hl - 2, hw - 1, 5, P.main, M_METAL);                   // top deck, inset
-  m.box(hl - 3, -hw, 2, hl, hw, 3, P.light, M_METAL);                               // pale sloped nose
-  m.box(hl - 3, -hw + 1, 3, hl - 1, hw - 1, 4, P.light, M_METAL);
-  m.box(hl - 2, -hw + 1, 4, hl - 1, hw - 1, 5, P.light, M_METAL);
-  m.box(-hl, -hw, 3, hl, -hw + 1, 4, P.light, M_METAL); m.box(-hl, hw - 1, 3, hl, hw, 4, P.light, M_METAL);       // lit upper edges
-  m.box(-hl, -hw, 2, hl, -hw + 1, 3, P.dark, M_METAL); m.box(-hl, hw - 1, 2, hl, hw, 3, P.dark, M_METAL);        // shadowed lower edges
-  for (let x = -hl + 2; x < -hl + 8; x += 2) m.box(x, -hw + 3, 4, x + 1, hw - 3, 5, P.dark, M_METAL);            // rear deck louvres
-  m.clear(-hl, -hw, 0, -hl + 1, -hw + 1, 4); m.clear(-hl, hw - 1, 0, -hl + 1, hw, 4);                            // rounded rear corners
-  m.paint(-hl, -hw, 2, hl, hw, 5, (x, y, z, c) => (hash3(x, y, z) > 0.94 && c === rgbInt(P.main)) ? P.dark : undefined);
+  const m = new VModel(-13, -10, 14, 11, 8);
+  m.box(-12, -8, 0, 12, -6, 1, '#1f0f0c', M_ROUGH);
+  m.box(-12, -6, 0, -11, -4, 5, '#1f0f0c', M_ROUGH);
+  m.box(-11, -6, 0, 10, 6, 2, P.deep, M_ROUGH);
+  m.box(10, -6, 0, 12, -4, 1, '#1f0f0c', M_ROUGH);
+  m.box(-12, 4, 0, -11, 8, 5, '#1f0f0c', M_ROUGH);
+  m.box(10, 4, 0, 12, 8, 1, '#1f0f0c', M_ROUGH);
+  m.box(-11, 6, 0, 10, 8, 2, '#1f0f0c', M_ROUGH);
+  m.box(-13, -8, 1, -11, -6, 3, '#1f0f0c', M_ROUGH);
+  m.box(-11, -8, 1, -9, -7, 2, '#6b6e6a', M_METAL);
+  m.box(-9, -8, 1, 9, -6, 2, '#1f0f0c', M_ROUGH);
+  m.box(9, -8, 1, 11, -7, 3, '#6b6e6a', M_METAL);
+  m.box(11, -8, 1, 13, -6, 3, '#1f0f0c', M_ROUGH);
+  m.box(-11, -7, 1, -9, -6, 4, '#1f0f0c', M_ROUGH);
+  m.box(9, -7, 1, 11, -6, 4, '#1f0f0c', M_ROUGH);
+  m.box(-13, -6, 1, -12, -4, 3, '#1f0f0c', M_ROUGH);
+  m.box(10, -6, 1, 11, -4, 4, '#1f0f0c', M_ROUGH);
+  m.box(11, -6, 1, 12, 6, 4, P.dark, M_METAL);
+  m.box(12, -6, 1, 13, -4, 3, '#1f0f0c', M_ROUGH);
+  m.box(-13, 4, 1, -12, 8, 3, '#1f0f0c', M_ROUGH);
+  m.box(10, 4, 1, 11, 8, 4, '#1f0f0c', M_ROUGH);
+  m.box(12, 4, 1, 13, 8, 3, '#1f0f0c', M_ROUGH);
+  m.box(11, 6, 1, 12, 8, 5, '#1f0f0c', M_ROUGH);
+  m.box(-11, -8, 2, -10, -7, 4, '#6b6e6a', M_METAL);
+  m.box(-10, -8, 2, 9, -7, 3, P.dark, M_METAL);
+  m.box(-9, -7, 2, 9, -6, 4, '#1f0f0c', M_ROUGH);
+  m.box(-11, -6, 2, 9, 6, 5, P.main, M_METAL);
+  m.box(9, -6, 2, 10, -4, 4, '#1f0f0c', M_ROUGH);
+  m.box(9, 4, 2, 10, 8, 3, '#1f0f0c', M_ROUGH);
+  m.box(-11, 6, 2, 9, 7, 4, '#1f0f0c', M_ROUGH);
+  m.box(-11, 7, 2, -10, 8, 5, '#1f0f0c', M_ROUGH);
+  m.box(-10, 7, 2, 9, 8, 3, P.dark, M_METAL);
+  m.box(-12, -8, 3, -11, -6, 5, '#1f0f0c', M_ROUGH);
+  m.box(-10, -8, 3, 9, -7, 5, P.main, M_METAL);
+  m.box(9, -8, 3, 10, -7, 5, P.light, M_METAL);
+  m.box(10, -8, 3, 11, -7, 4, '#6b6e6a', M_METAL);
+  m.box(11, -8, 3, 12, -7, 5, '#1f0f0c', M_ROUGH);
+  m.box(11, -7, 3, 12, -6, 5, P.light, M_METAL);
+  m.box(12, -6, 3, 13, -4, 4, '#d9c374', M_METAL);
+  m.box(9, 4, 3, 10, 7, 4, '#1f0f0c', M_ROUGH);
+  m.box(12, 4, 3, 13, 6, 4, '#d9c374', M_METAL);
+  m.box(-10, 7, 3, 9, 8, 5, P.main, M_METAL);
+  m.box(9, 7, 3, 10, 8, 5, P.light, M_METAL);
+  m.box(-11, -8, 4, -10, -6, 5, '#1f0f0c', M_ROUGH);
+  m.box(10, -8, 4, 11, -7, 5, '#1f0f0c', M_ROUGH);
+  m.box(-10, -7, 4, 8, -6, 6, P.main, M_METAL);
+  m.box(9, -7, 4, 11, 6, 5, P.light, M_METAL);
+  m.box(11, -6, 4, 12, 6, 5, P.light, M_METAL);
+  m.box(-12, -2, 4, -11, -1, 7, '#3a3836', M_METAL);
+  m.box(-12, 1, 4, -11, 2, 7, '#3a3836', M_METAL);
+  m.box(-11, 6, 4, -9, 7, 5, '#1f0f0c', M_ROUGH);
+  m.box(9, 6, 4, 11, 7, 5, '#1f0f0c', M_ROUGH);
+  m.box(10, 7, 4, 11, 8, 5, '#1f0f0c', M_ROUGH);
+  m.box(8, -7, 5, 10, 6, 6, P.light, M_METAL);
+  m.box(-10, -6, 5, 8, 6, 6, P.main, M_METAL);
+  m.box(-9, -7, 6, -7, -3, 8, '#5a5d3a', M_MATTE);
+  m.box(-9, 3, 6, -7, 7, 8, '#5a5d3a', M_MATTE);
   return m;
 }
 function heavyTurret(pal, s) {
   const P = pal.key === 'soviets' ? HEAVY_RED : pal;
-  const r = s.tur, bl = s.barrel, w = 7, f = -2;                                  // f: the turret sits this far forward of the hull's middle
-  const m = new VModel(-r - 3, -w - 2, r + bl + 3 + f, w + 2, 9);
-  m.box(-r + f, -w, 0, r + f, w, 3, P.main, M_METAL);                                       // wide low turret box, centred on the hull
-  m.box(-r + 1 + f, -w + 1, 3, r - 1 + f, w - 1, 4, P.main, M_METAL);                       // roof
-  m.clear(r - 1 + f, -w, 0, r + f, -w + 1, 3); m.clear(r - 1 + f, w - 1, 0, r + f, w, 3);           // chamfered front corners
-  m.clear(-r + f, -w, 0, -r + 1 + f, -w + 1, 3); m.clear(-r + f, w - 1, 0, -r + 1 + f, w, 3);       // and rear corners
-  m.box(r - 2 + f, -w + 1, 0, r + 1 + f, w - 1, 3, P.light, M_METAL);                       // pale mantlet
-  m.box(-r + f, -w, 2, r + f, -w + 1, 3, P.light, M_METAL); m.box(-r + f, w - 1, 2, r + f, w, 3, P.light, M_METAL);
-  m.box(-r + f, -w, 0, r + f, -w + 1, 1, P.dark, M_METAL); m.box(-r + f, w - 1, 0, r + f, w, 1, P.dark, M_METAL);
-  for (const y of [-2.8, 2.8]) m.cylZ(-1 + f, y, 3, 4, 1.9, P.deep, M_MATTE);           // two dark hatches
-  m.box(-4 + f, -1, 3, -2 + f, 1, 4, P.light, M_METAL);                                     // small panel
-  for (const y of [-3.6, 3.6]) {                                                        // thick black guns, as wide as the reference
-    m.cylX(0, r + bl, y, 2, 1.5, '#16120f', M_METAL);
-    m.cylX(r + bl - 3, r + bl, y, 2, 1.8, '#16120f', M_METAL);
-  }
-  m.line(-r + 1 + f, w - 2, 4, -r + 1 + f, w - 2, 8, '#e8e6dc'); m.set(-r + 1 + f, w - 2, 8, '#ffffff');   // white aerial, rear right
+  const m = new VModel(-9, -9, 21, 9, 9);
+  m.box(-8, -6, 0, 2, 6, 2, P.main, M_METAL);
+  m.box(2, -6, 0, 3, 6, 1, P.light, M_METAL);
+  m.box(3, -4, 0, 9, -3, 4, '#2a2420', M_METAL);
+  m.box(12, -4, 0, 15, -3, 4, '#2a2420', M_METAL);
+  m.box(17, -4, 0, 20, -3, 4, '#0d0a08', M_METAL);
+  m.box(3, -3, 0, 4, 3, 1, P.dark, M_METAL);
+  m.box(3, 3, 0, 9, 4, 4, '#2a2420', M_METAL);
+  m.box(12, 3, 0, 15, 4, 4, '#2a2420', M_METAL);
+  m.box(17, 3, 0, 20, 4, 4, '#0d0a08', M_METAL);
+  m.box(2, -7, 1, 4, -5, 4, P.main, M_METAL);
+  m.box(4, -6, 1, 5, -5, 4, P.main, M_METAL);
+  m.box(-9, -5, 1, -8, 5, 4, P.main, M_METAL);
+  m.box(2, -5, 1, 3, -4, 4, P.main, M_METAL);
+  m.box(3, -5, 1, 9, -4, 4, '#2a2420', M_METAL);
+  m.box(9, -5, 1, 12, -2, 3, '#16120f', M_METAL);
+  m.box(12, -5, 1, 15, -4, 4, '#2a2420', M_METAL);
+  m.box(15, -5, 1, 17, -2, 3, '#16120f', M_METAL);
+  m.box(17, -5, 1, 20, -4, 4, '#0d0a08', M_METAL);
+  m.box(2, -4, 1, 3, 4, 4, P.light, M_METAL);
+  m.box(3, -3, 1, 9, -2, 4, '#2a2420', M_METAL);
+  m.box(12, -3, 1, 15, -2, 4, '#2a2420', M_METAL);
+  m.box(17, -3, 1, 20, -2, 4, '#0d0a08', M_METAL);
+  m.box(3, -2, 1, 5, 2, 4, P.dark, M_METAL);
+  m.box(3, 2, 1, 9, 3, 4, '#2a2420', M_METAL);
+  m.box(9, 2, 1, 12, 5, 3, '#16120f', M_METAL);
+  m.box(12, 2, 1, 15, 3, 4, '#2a2420', M_METAL);
+  m.box(15, 2, 1, 17, 5, 3, '#16120f', M_METAL);
+  m.box(17, 2, 1, 20, 3, 4, '#0d0a08', M_METAL);
+  m.box(2, 4, 1, 3, 7, 4, P.main, M_METAL);
+  m.box(3, 4, 1, 9, 5, 4, '#2a2420', M_METAL);
+  m.box(12, 4, 1, 15, 5, 4, '#2a2420', M_METAL);
+  m.box(17, 4, 1, 20, 5, 4, '#0d0a08', M_METAL);
+  m.box(3, 5, 1, 5, 6, 4, P.main, M_METAL);
+  m.box(3, 6, 1, 4, 7, 4, P.main, M_METAL);
+  m.box(-8, -6, 2, 2, -5, 4, P.main, M_METAL);
+  m.box(-8, -5, 2, 1, 6, 4, P.main, M_METAL);
+  m.box(1, -5, 2, 2, 5, 4, P.light, M_METAL);
+  m.box(1, 5, 2, 2, 6, 4, P.main, M_METAL);
+  m.box(9, -4, 3, 12, -3, 4, '#16120f', M_METAL);
+  m.box(15, -4, 3, 17, -3, 4, '#16120f', M_METAL);
+  m.box(9, 3, 3, 12, 4, 4, '#16120f', M_METAL);
+  m.box(15, 3, 3, 17, 4, 4, '#16120f', M_METAL);
+  m.box(-5, -5, 4, -2, -2, 5, P.dark, M_METAL);
+  m.box(-4, -2, 4, -3, -1, 5, P.dark, M_METAL);
+  m.box(-4, 1, 4, -3, 2, 5, P.dark, M_METAL);
+  m.box(-5, 2, 4, -2, 4, 5, P.dark, M_MATTE);
+  m.box(-5, 4, 4, -4, 5, 5, P.dark, M_METAL);
+  m.box(-4, 4, 4, -3, 5, 5, P.dark, M_MATTE);
+  m.box(-3, 4, 4, -2, 5, 5, P.dark, M_METAL);
+  m.box(-5, -5, 5, -4, -4, 6, P.light, M_METAL);
+  m.box(-4, -5, 5, -3, -2, 6, P.dark, M_MATTE);
+  m.box(-3, -5, 5, -2, -4, 6, P.light, M_METAL);
+  m.box(-6, -4, 5, -5, -2, 6, P.light, M_METAL);
+  m.box(-5, -4, 5, -4, -2, 6, P.dark, M_MATTE);
+  m.box(-3, -4, 5, -2, -2, 6, P.dark, M_MATTE);
+  m.box(-2, -4, 5, -1, -2, 6, P.light, M_METAL);
+  m.box(-5, -2, 5, -2, -1, 6, P.light, M_METAL);
+  m.box(-3, -4, 6, 0, -3, 7, '#16120f', M_METAL);
   return m;
 }
+// BLENDER:htank end
 // Soviet Mammoth Tank, copied from the reference: two big rounded red track pods either side of a
 // central hull with orange panels, a turret with a round grey emblem hatch, dark missile boxes at its
 // sides, two white aerials at the rear and a pair of slim grey guns.
