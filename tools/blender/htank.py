@@ -43,25 +43,18 @@ h.save_blend(os.path.join(out, 'htank_hull.blend'))
 # ------------------------------------------------------------------ turret
 t = Scene()
 t.tube((-2.0, 0, 0.0), (-2.0, 0, 1.4), 6.3, 'dark', 'metal', name='ring', verts=28)
-t.cube((-2.2, 0, 2.2), (11.0, 12.6, 3.6), 'main', 'metal', name='body')
-t.cube((-8.2, 0, 2.2), (3.0, 10.6, 3.2), 'main', 'metal', name='bustle')
-t.cube((3.1, 0, 2.3), (3.4, 11.6, 3.4), 'light', 'metal', rot=(0, -20, 0), name='front_slope')
-for s in (-1, 1):
-    t.cube((3.2, s * 5.5, 2.3), (3.2, 3.2, 3.4), 'main', 'metal', rot=(0, 0, 45), name='chamfer')   # chamfered front corners
-t.cube((-2.2, 0, 4.1), (10.0, 11.4, 0.6), 'main', 'metal', name='roof')
-t.cube((4.4, 0, 2.2), (2.0, 8.6, 3.0), 'dark', 'metal', name='mantlet')
-t.cube((-8.2, 0, 3.2), (3.2, 8.0, 0.6), OLIVE, 'matte', name='stowage')
-t.tube((-3.5, -3.2, 4.0), (-3.5, -3.2, 5.3), 1.95, 'dark', 'metal', name='cupola', verts=16)       # commander's cupola
-t.tube((-3.5, -3.2, 5.0), (-3.5, -3.2, 5.6), 2.15, 'light', 'metal', name='cupola_ring', verts=16)
-t.tube((-3.5, -3.2, 5.4), (-3.5, -3.2, 5.9), 1.3, 'dark', 'matte', name='cupola_lid', verts=12)
-t.tube((-3.0, -3.2, 6.1), (0.2, -3.2, 6.1), 0.55, BLACK, 'metal', name='mg', verts=8)             # machine gun on the cupola
-t.tube((-3.5, 3.2, 4.0), (-3.5, 3.2, 4.7), 1.85, 'dark', 'metal', name='loader_rim', verts=16)    # loader's hatch
-t.tube((-3.5, 3.2, 4.5), (-3.5, 3.2, 5.0), 1.35, 'dark', 'matte', name='loader_lid', verts=12)
-for y in (-3.6, 3.6):
-    t.tube((3.0, y, 2.2), (20.0, y, 2.2), 1.45, BLACK, 'metal', name='barrel')
-    t.tube((3.5, y, 2.2), (9.0, y, 2.2), 1.85, SLEEVE, 'metal', name='sleeve')
-    t.tube((12.0, y, 2.2), (14.6, y, 2.2), 1.75, SLEEVE, 'metal', name='extractor')
-    t.tube((17.4, y, 2.2), (20.0, y, 2.2), 1.9, '#0d0a08', 'metal', name='muzzle_brake')
+t.cube((-2.2, 0, 2.2), (11.0, 9.8, 3.6), 'main', 'metal', name='body_a')                         # two overlapping boxes: a cross, so the corners are notched
+t.cube((-2.2, 0, 2.2), (8.8, 12.8, 3.6), 'main', 'metal', name='body_b')
+t.cube((3.0, 0, 2.3), (3.0, 10.0, 3.4), 'light', 'metal', rot=(0, -18, 0), name='front_slope')    # one clean sloped front plate
+t.cube((-2.2, 0, 4.1), (9.0, 9.0, 0.5), 'main', 'metal', name='roof')
+t.cube((4.6, 0, 2.2), (2.2, 8.0, 3.0), 'dark', 'metal', name='mantlet')
+for y in (-3.0, 3.0):                                                                              # two round hatches: pale rim, near-black lid
+    t.tube((-3.5, y, 4.0), (-3.5, y, 4.9), 2.3, 'dark', 'matte', name='hatch_rim', verts=16)
+    t.tube((-3.5, y, 4.7), (-3.5, y, 5.4), 1.6, '#1a0402', 'matte', name='hatch_lid', verts=12)
+for y in (-3.6, 3.6):                                                                              # two plain thick guns
+    t.tube((3.0, y, 2.2), (20.0, y, 2.2), 1.5, BLACK, 'matte', name='barrel')
+    t.tube((3.5, y, 2.2), (6.8, y, 2.2), 1.85, BLACK, 'matte', name='barrel_base')
+    t.tube((17.4, y, 2.2), (20.0, y, 2.2), 1.9, '#0d0a08', 'matte', name='muzzle_brake')
 t.tube((-6.8, 5.0, 3.0), (-6.8, 5.0, 8.5), 0.55, WHITE, 'metal', name='aerial', verts=8)
 tb = greedy_boxes(t.voxelize(-9, -9, 21, 9, 9))
 t.save_blend(os.path.join(out, 'htank_turret.blend'))
