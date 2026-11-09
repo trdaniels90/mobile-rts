@@ -9,48 +9,7 @@ function rng(seed) {
 }
 
 // Draws a pre-rendered sprite (and its cast shadow) with its origin at world (x, y).
-// Pre-rendered Blender sprites (art/<name>/hull.png, turret.png, shadow.png): 32 facings in 8 columns of HI_CELL pixel cells,
-// HI_R sprite pixels to a game pixel, the unit's ground position at the middle of the cell (tools/blender/htank_sprite.py).
-// They are drawn smaller than they are, so a screen with room to spare (see draw() in ui.js) shows all their detail. Until the
-// pictures have loaded, or with ?smooth=off, units use their voxel sprites.
-const HI_CELL = 126, HI_R = 3, HI_N = 32, HI_COLS = 8, HI = {};
-function hiSheets(name) {
-  let h = HI[name];
-  if (h === undefined) {
-    h = HI[name] = null;
-    if (typeof Image !== 'undefined' && !/[?&]smooth=off/.test(location.search)) {
-      const sh = { hull: new Image(), turret: new Image(), shadow: new Image(), cells: new Map(), ready: 0 };
-      for (const k of ['hull', 'turret', 'shadow']) { sh[k].onload = () => { if (++sh.ready === 3) HI[name] = sh; }; sh[k].src = 'art/' + name + '/' + k + '.png'; }
-    }
-  }
-  return h;
-}
-function hiSprite(name, kind, angle) {   // kind: 'hull' or 'turret'; null until the sheets are in
-  const s = hiSheets(name);
-  if (!s) return null;
-  const f = facingIndex(angle, HI_N), key = kind + f;
-  let c = s.cells.get(key);
-  if (!c) {
-    const cut = (img) => { const cv = mkCanvas(HI_CELL, HI_CELL); cv.getContext('2d').drawImage(img, (f % HI_COLS) * HI_CELL, Math.floor(f / HI_COLS) * HI_CELL, HI_CELL, HI_CELL, 0, 0, HI_CELL, HI_CELL); return cv; };
-    const o = -HI_CELL / 2 / HI_R;
-    c = { img: cut(s[kind]), ox: o, oy: o, k: 1 / HI_R };
-    if (kind === 'hull') { c.sh = cut(s.shadow); c.sox = o; c.soy = o; }
-    s.cells.set(key, c);
-  }
-  return c;
-}
 function blit(g, s, x, y, shadow) {
-  if (s.k) {   // a pre-rendered sprite: drawn at 1/HI_R of its size, smoothed
-    g.imageSmoothingEnabled = true;
-    if (shadow !== false && s.sh) {
-      g.globalAlpha = 0.45;
-      g.drawImage(s.sh, Math.round(x + s.sox), Math.round(y + s.soy), s.sh.width * s.k, s.sh.height * s.k);
-      g.globalAlpha = 1;
-    }
-    g.drawImage(s.img, Math.round(x + s.ox), Math.round(y + s.oy), s.img.width * s.k, s.img.height * s.k);
-    g.imageSmoothingEnabled = false;
-    return;
-  }
   if (shadow !== false && s.sh) {
     g.globalAlpha = 0.45;
     g.drawImage(s.sh, Math.round(x + s.sox), Math.round(y + s.soy));

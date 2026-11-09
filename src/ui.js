@@ -259,12 +259,9 @@
     const z = cam.z;
     const ox = Math.floor(cam.x), oy = Math.floor(cam.y);
     const bw = Math.ceil(W / z) + 2, bh = Math.ceil(H / z) + 2;
-    // The world is drawn into `view`, S pixels to a game pixel, where the screen has room for it (z * DPR screen pixels to a game
-    // pixel). Everything made of game pixels looks exactly as before; pre-rendered sprites (art.js hiSprite) keep their detail.
-    const S = /[?&]smooth=off/.test(location.search) ? 1 : Math.max(1, Math.min(3, Math.floor(z * DPR)));
-    if (view.width < bw * S || view.height < bh * S) { view.width = (bw + 64) * S; view.height = (bh + 64) * S; }
+    if (view.width < bw || view.height < bh) { view.width = bw + 64; view.height = bh + 64; }
     const v = vctx;
-    v.setTransform(S, 0, 0, S, 0, 0);
+    v.setTransform(1, 0, 0, 1, 0, 0);
     v.imageSmoothingEnabled = false;
     v.fillStyle = '#000'; v.fillRect(0, 0, bw, bh);
     if (!G) return;
@@ -376,7 +373,7 @@
     const k = z * DPR;
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
-    ctx.drawImage(view, 0, 0, bw * S, bh * S, Math.round(-(cam.x - ox) * k + sx2), Math.round(-(cam.y - oy) * k + sy2), Math.round(bw * k), Math.round(bh * k));
+    ctx.drawImage(view, 0, 0, bw, bh, Math.round(-(cam.x - ox) * k + sx2), Math.round(-(cam.y - oy) * k + sy2), Math.round(bw * k), Math.round(bh * k));
     if (gesture && gesture.type === 'box' && gesture.moved) {
       const bx = Math.min(gesture.sx, gesture.ex) * DPR, by = Math.min(gesture.sy, gesture.ey) * DPR;
       ctx.strokeStyle = '#f2f2ea'; ctx.lineWidth = DPR;
