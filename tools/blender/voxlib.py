@@ -15,19 +15,23 @@ MATS = {'matte': 'M_MATTE', 'metal': 'M_METAL', 'glass': 'M_GLASS', 'glow': 'M_G
 TEAM = ('main', 'light', 'dark', 'deep')
 
 
-RAY = Vector((0.9231, 0.3517, 0.1573)).normalized()   # odd direction: never grazes an edge
+RAYS = [Vector(v).normalized() for v in ((0.9231, 0.3517, 0.1573), (-0.2713, 0.8429, -0.4631), (0.1157, -0.4021, 0.9082))]   # odd directions: never graze an edge
 
 
-def inside(tree, p):
-    """Ray parity: a point is inside a closed mesh when a ray from it crosses the surface an odd number of times."""
+def _parity(tree, p, ray):
     n, o = 0, p
-    while True:
-        loc, _, _, _ = tree.ray_cast(o, RAY)
+    while n < 64:
+        loc, _, _, _ = tree.ray_cast(o, ray)
         if loc is None:
             break
         n += 1
-        o = loc + RAY * 1e-4
+        o = loc + ray * 1e-4
     return n % 2 == 1
+
+
+def inside(tree, p):
+    """A point is inside a closed mesh when a ray from it crosses the surface an odd number of times; three rays vote."""
+    return sum(_parity(tree, p, r) for r in RAYS) >= 2
 
 
 class Scene:
@@ -53,6 +57,10 @@ class Scene:
         o = bpy.context.object
         o.scale = radii
         return self._add(o, col, mat, name)
+
+    def torus(self, c, major, minor, col, mat='metal', name=None):
+        bpy.ops.mesh.primitive_torus_add(major_radius=major, minor_radius=minor, major_segments=32, minor_segments=12, location=c)
+        return self._add(bpy.context.object, col, mat, name)
 
     def tube(self, a, b, r, col, mat='metal', name=None, verts=20):
         """A cylinder from point a to point b."""
