@@ -4,6 +4,19 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.09', date: '9 November 2026', title: 'New looks for the AA Gun, Ranger, tanks and Tesla Coil, and real grass', groups: [
+    ['New', [
+      'New look for the Allied AA Gun: a twin-barrel gun on a swivel inside a ring of sandbags, with ammo crates beside it.',
+      'The Ranger is now a Humvee: a wide, boxy 4x4 with big tyres, a spare wheel and a machine gun on the roof hatch.',
+      'New look for the Allied Light Tank: a low, skirted hull with a sloped nose and a wide domed turret with a long thin gun.',
+      'New look for the Soviet Heavy Tank: a long, low red hull with dark treads, a big faceted turret with two black oval hatches, twin thick guns and a white aerial with a red tip.',
+      'New look for the Soviet Tesla Coil: a cone of white rings on a pole, topped with a blue-silver ball, standing on an industrial base with red capacitor drums and warning lamps.',
+      'The grass is now drawn blade by blade, so open ground reads as grass instead of smooth green patches.',
+    ]],
+    ['Changes', [
+      'These are all new art only: costs, health, speed, damage and range are unchanged, in single player and online. Gun muzzles on the Heavy Tank sit a little closer to the turret.',
+    ]],
+  ] },
   { v: '2026.11.08', date: '8 November 2026', title: 'New Ore Truck and Rifle Infantry', groups: [
     ['New', [
       'New look for the Ore Truck: an armoured four-wheeler with a hood, a boxy cab and a domed ore bin that shows the ore it carries.',
