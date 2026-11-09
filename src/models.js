@@ -2606,6 +2606,7 @@ function pumpDamaged() {
 function hullSprite(u, pal) {
   const d = u.def;
   const key = d.type + pal.key;
+  if (d.type === 'htank' && pal.key === 'soviets') { const hs = hiSprite('htank', 'hull', u.face); if (hs) return hs; }
   if (d.draw === 'tank') return facingSprite('T' + key, () => tankHull(pal, d.size), u.face);
   if (d.draw === 'jeep') return facingSprite('J' + key, () => jeepModel(pal), u.face);
   if (d.draw === 'fob') return facingSprite('F' + key, () => fobModel(pal), u.face);
@@ -2624,6 +2625,7 @@ function hullSprite(u, pal) {
 }
 function turretSprite(u, pal) {
   const d = u.def;
+  if (d.type === 'htank' && pal.key === 'soviets') { const ts = hiSprite('htank', 'turret', u.tface); if (ts) return ts; }
   if (d.draw === 'tank') return facingSprite('t' + d.type + pal.key, () => tankTurret(pal, d.size), u.tface, FACINGS, { shadow: false });
   if (d.draw === 'jeep') return facingSprite('m' + pal.key, () => mgModel(pal), u.tface, FACINGS, { shadow: false });
   return null;
