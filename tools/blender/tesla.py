@@ -13,11 +13,12 @@ os.makedirs(out, exist_ok=True)
 s = Scene()
 s.tube((CX, CY, 0.0), (CX, CY, 1.2), 10.5, '#0f0e0b', 'rough', name='pit', verts=40)               # dark round base
 s.torus((CX, CY, 1.4), 9.7, 0.75, 'main', 'metal', name='team_ring')                                # the side's colour round the base
-s.tube((CX, CY, 1.0), (CX, CY, 3.0), 3.4, '#2a2926', 'metal', name='foot', verts=16)
+s.tube((CX, CY, 1.0), (CX, CY, 3.5), 3.6, '#2a2926', 'metal', name='foot', verts=16)
+s.tube((CX, CY, 3.0), (CX, CY, 11.0), 2.1, '#3a3b3e', 'metal', name='stem', verts=12)          # the cone stands up off the ground on a short stem
 s.tube((CX, CY, 3.0), (CX, CY, 49.0), 1.5, '#2c2e30', 'metal', name='core', verts=12)
 RINGS = 7
 for i in range(RINGS):                                                                              # a cone of thin white rings
-    z = 6.0 + i * 6.3
+    z = 12.0 + i * 5.6
     r = 7.6 - (7.6 - 2.6) * i / (RINGS - 1)
     s.torus((CX, CY, z), r, 0.85, '#eceef0', 'metal', name='ring')
 s.sphere((CX, CY, 50.0), (3.1, 3.1, 3.1), '#a7b5d6', 'metal', name='ball')                          # blue-silver ball, tip at z 50
