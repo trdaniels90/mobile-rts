@@ -9,7 +9,7 @@ const Sound = (() => {
   try { Object.assign(settings, JSON.parse(localStorage.getItem('ps-audio') || '{}')); } catch (_) {}
   // Slider position to gain: squared, so the lower half of the slider is not all loud.
   const volOf = (k) => { const v = Math.min(1, Math.max(0, +settings[k])); return v * v; };
-  const musicLevel = () => settings.music ? 0.42 * volOf('musicVol') : 0;
+  const musicLevel = () => settings.music ? 0.26 * volOf('musicVol') : 0;
   const sfxLevel = () => settings.sfx ? 0.85 * volOf('sfxVol') : 0;
   const save = () => { try { localStorage.setItem('ps-audio', JSON.stringify(settings)); } catch (_) {} };
 
