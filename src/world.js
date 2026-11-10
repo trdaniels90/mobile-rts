@@ -3487,14 +3487,24 @@ function updateEffects(dt) {
 function plantSmoke(dt) {
   if (G.me < 0 || !G.seen) return;   // the game server draws nothing
   for (const b of G.entities) {
-    if (!b.alive || b.kind !== 'bld' || (b.type !== 'power' && b.type !== 'apower') || !(b.buildT >= 1) || !G.seen[idx(b.cx, b.cy)]) continue;
-    const coal = b.faction !== 'soviets', big = b.type === 'apower';
+    if (!b.alive || b.kind !== 'bld' || (b.type !== 'power' && b.type !== 'apower' && b.type !== 'refinery') || !(b.buildT >= 1) || !G.seen[idx(b.cx, b.cy)]) continue;
+    const sov = b.faction === 'soviets', big = b.type === 'apower', ref = b.type === 'refinery';
+    // kind of plume: Allied power plants a dark coal plume (old look), Soviet power plants white steam from the
+    // cooling towers, Soviet refineries grey smoke from the chimneys, Allied refineries a faint vapour from the roof vents
+    const style = ref ? (sov ? 'grey' : 'vapour') : (sov ? 'steam' : 'coal');
     if ((b.plumeT = (b.plumeT || 0) - dt) > 0) continue;
-    b.plumeT = coal ? 0.14 + Math.random() * 0.05 : 0.3 + Math.random() * 0.2;
+    b.plumeT = style === 'coal' ? 0.14 + Math.random() * 0.05 : style === 'steam' ? 0.16 + Math.random() * 0.06 : style === 'grey' ? 0.22 + Math.random() * 0.06 : 0.4 + Math.random() * 0.2;
     for (const [tx, ty, h] of plantStacks(b.type, b.faction)) {
       const x = b.cx * CELL + tx + (Math.random() - 0.5) * 1.5, y = b.cy * CELL + ty - h * VK;
-      if (coal) G.effects.push({ type: 'smoke', x, y, r: big ? 5 : 4.2, t: 0, life: 4.2 + Math.random() * 1, alpha: 0.85, color: '#2a2724', vy: -17 - Math.random() * 4, vx: (Math.random() - 0.5) * 3, drag: 0.45 });
-      else if (Math.random() < 0.6) G.effects.push({ type: 'smoke', x, y, r: big ? 3 : 2.5, t: 0, life: 1.8, alpha: 0.35, color: '#c9c7c0', vy: -16, vx: 6 });
+      if (style === 'coal') G.effects.push({ type: 'smoke', x, y, r: big ? 5 : 4.2, t: 0, life: 4.2 + Math.random() * 1, alpha: 0.85, color: '#2a2724', vy: -17 - Math.random() * 4, vx: (Math.random() - 0.5) * 3, drag: 0.45 });
+      else if (style === 'steam') G.effects.push({ type: 'smoke', x: x + (Math.random() - 0.5) * 6, y, r: big ? 6 : 5.4, t: 0, life: 3.4 + Math.random() * 0.8, alpha: 0.7, color: '#eceeee', vy: -14 - Math.random() * 4, vx: 4 + Math.random() * 3, drag: 0.4 });
+      else if (style === 'grey') G.effects.push({ type: 'smoke', x, y, r: 3.6 + Math.random() * 1.2, t: 0, life: 3.8 + Math.random() * 0.8, alpha: 0.75, color: '#5a5856', vy: -15 - Math.random() * 4, vx: 5 + Math.random() * 3, drag: 0.4 });
+      else if (Math.random() < 0.6) G.effects.push({ type: 'smoke', x, y, r: 2.4, t: 0, life: 1.8, alpha: 0.3, color: '#dcdcd8', vy: -12, vx: 5 });
+    }
+    // the Soviet refinery's flare stack burns
+    if (ref && sov && (b.flareT = (b.flareT || 0) - 0.15) < 0) {
+      b.flareT = 0;
+      G.effects.push({ type: 'fire', x: b.cx * CELL + 5 + (Math.random() - 0.5), y: b.cy * CELL + 6 - 54 * VK, t: 0, life: 0.5 + Math.random() * 0.3, s: 1.1, vy: -6 });
     }
   }
 }

@@ -57,8 +57,6 @@ for z in range(1, 38, 2):
     s.tube((14, 14, z), (14, 14, z + 2.1), r, '#b9b6ac', 'rough', name='shell', verts=32)
 s.tube((14, 14, 36), (14, 14, 38.4), 8.6, 'main', 'matte', name='shell_band', verts=32)
 s.tube((14, 14, 1), (14, 14, 3), 12.2, SEAM, 'rough', name='shell_foot', verts=32)
-for (dx, dy, dz, rr, col) in ((0, 0, 42.5, 6.0, '#dcdcd8'), (1.5, 0, 47.0, 5.2, '#e8e8e5'), (3.5, 0, 50.0, 3.6, '#f1f1ee')):
-    s.sphere((14 + dx, 14 + dy, dz), (rr, rr, rr * 0.7), col, 'matte', name='steam')
 s.tube((14, 25.5, 4), (14, 28.5, 4), 2.2, STEEL, 'metal', name='cw_pipe', verts=14)
 s.tube((27, 14, 4), (14 + 11, 14, 4), 2.2, STEEL, 'metal', name='cw_pipe_b', verts=14)
 

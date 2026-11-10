@@ -70,8 +70,6 @@ def cooling_tower(cx, cy, tag):
         s.tube((cx, cy, z), (cx, cy, z + 2.1), r, '#b9b6ac', 'rough', name=tag + '_shell', verts=32)
     s.tube((cx, cy, 36), (cx, cy, 38.4), 8.6, 'main', 'matte', name=tag + '_band', verts=32)
     s.tube((cx, cy, 1), (cx, cy, 3), 12.2, SEAM, 'rough', name=tag + '_foot', verts=32)
-    for (dx, dz, rr, col) in ((0, 42.5, 6.0, '#dcdcd8'), (1.5, 47.0, 5.2, '#e8e8e5'), (3.5, 50.5, 3.8, '#f1f1ee')):
-        s.sphere((cx + dx, cy, dz), (rr, rr, rr * 0.7), col, 'matte', name=tag + '_steam')
 
 
 cooling_tower(16, 18, 'ct1')
