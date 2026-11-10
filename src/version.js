@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.10', date: '10 November 2026', title: 'Quieter music', groups: [
+    ['Changes', [
+      'The soundtrack is about 4 dB quieter, so effects and voices stand out more. The music volume slider still works as before.',
+    ]],
+  ] },
   { v: '2026.11.09', date: '9 November 2026', title: 'New looks for the AA Gun, Ranger, tanks and Tesla Coil, and real grass', groups: [
     ['New', [
       'New look for the Allied AA Gun: a twin-barrel gun on a swivel inside a ring of sandbags, with ammo crates beside it.',
