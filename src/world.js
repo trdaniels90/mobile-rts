@@ -1137,9 +1137,9 @@ function defendBase(team) {
   const homeHalf = (u) => !ecy || !own || dist(u, own) < dist(u, ecy);
   let army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward &&
     (u.cls !== 'air' || (!airEmpty(u) && !u.rearming && u.order.type === 'guard' && !u.order.hold)) &&
-    (u.defending || idle(u) || (team.isAI && u.cls !== 'air' && !truckOnly && homeHalf(u))));
+    (u.defending || idle(u) || (team.isAI && !G.diff.ai.planner && u.cls !== 'air' && !truckOnly && homeHalf(u))));
   if (!threats.length) {
-    team.raiders = [];
+    team.raiders = []; team.defShort = 0;
     if (++team.calm < DEFEND_CALM) return;
     team.defending = false;
     // Everyone pulled into a defence (aircraft that turned on a shooter too) goes back once its fight is over.
@@ -1180,6 +1180,7 @@ function defendBase(team) {
     picked.push(u); got += worth(u);
   }
   army = picked;
+  team.defShort = Math.max(0, need - got);   // worth still missing: the computer's planner (aiSquads) sends squads to cover it
   for (const u of army) {
     let best = null, bd = CELL * 32;
     // Jets spread out: each takes a raider the others have not, and keeps it until it is dead.

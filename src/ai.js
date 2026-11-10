@@ -228,6 +228,7 @@ function aiThink(team) {
   const c = aiCount(team);
   aiCounter(team);
   aiPincer(team);
+  aiSquads(team);
   if (enemyUnitsOf(team.id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
   const q = team.queues.structure;
   if (q && q.ready) {
@@ -345,9 +346,8 @@ function aiThink(team) {
 // The computer does not wait for groups of ten like the player's Auto Attack. Each wave is
 // planned in advance: an ordinary wave or a big push (sizes by difficulty) and a target. Like the
 // player's, its units head out at their own top speed; any that pass near an enemy Outpost or
-// outlying refinery turn aside to destroy it first (detourToSite). Between waves, small raids of
-// its fastest units go after Ore Trucks and outlying sites. Runs once a second with the units
-// waiting at the rally point.
+// outlying refinery turn aside to destroy it first (detourToSite). Runs once a second with the units waiting
+// at the rally point.
 function aiPlanWave(team) {
   const A = G.diff.ai, r = Math.random, big = !!A.big && G.t >= A.bigFrom && r() < A.bigChance;
   const [lo, hi] = big ? A.big : A.wave;
@@ -360,27 +360,65 @@ function aiLaunch(team, ready) {
   // No attacks until it has found the enemy base: once the first-wave timer is up, it scouts.
   if (!enemyBaseKnown(team.id)) { if (G.t >= Math.max(A.firstWave, 60)) aiScout(team, ready); return; }
   aiScoutDone(team);
-  if (team.raidAt === undefined) team.raidAt = A.raidFrom + r() * 30;
-  if (G.t >= team.raidAt && ready.length >= 3) {
-    team.raidAt = G.t + A.raidGap[0] + r() * (A.raidGap[1] - A.raidGap[0]);
-    const target = aiRaidTarget(team);
-    if (target) {
-      const fast = ready.slice().sort((a, b) => b.def.speed - a.def.speed).slice(0, Math.min(ready.length, 3 + Math.floor(r() * 3)));
-      aiSend(team, fast, target, {});
-      ready = ready.filter((u) => !fast.includes(u));
-    }
-  }
+  // Planner: the clock starts once the base is found and the first-wave wait is over, then each attack
+  // comes after a random wait (AI_GAP: never under a minute, never over ten).
+  if (A.planner && team.attackAt === undefined && G.t >= A.firstWave) { team.attackAt = G.t + aiGap(); }
   // The first wave waits a while (on Easy and Normal), waves keep a gap between them, and each
   // takes only its planned number of units: the rest wait for the next one.
-  if (ready.length < team.plan.size || G.t < A.firstWave || G.t - (team.lastWave || -1e9) < A.waveGap) return;
-  ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, team.plan.size);   // first come, first sent
+  if (A.planner) { if (team.attackAt === undefined || G.t < team.attackAt || ready.length < team.plan.size) return; }
+  else if (ready.length < team.plan.size || G.t < A.firstWave || G.t - (team.lastWave || -1e9) < A.waveGap) return;
+  // The planner's wave takes what has gathered while it waited, up to twice the planned size.
+  ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, A.planner ? team.plan.size * 2 : team.plan.size);   // first come, first sent
   const target = aiWaveTarget(team, ready[0]);
   if (!target) return;
   const strike = team.plan.big && A.strike.length ? A.strike : null;
-  if (!(ready.length >= 6 && r() < (A.pincer || 0) && aiPincerStart(team, ready, target, strike))) aiSend(team, ready, target, { strike });
+  const how = team.flk = team.flk || { pincer: 0, flank: 0, direct: 0 };
+  if (ready.length >= 6 && r() < (A.pincer || 0) && aiPincerStart(team, ready, target, strike)) how.pincer++;
+  else if (A.planner && r() < (A.approach || 0) && aiApproachStart(team, ready, target, strike)) how.flank++;
+  else { aiSend(team, ready, target, { strike }); how.direct++; }
   team.waves = (team.waves || 0) + 1;
   team.lastWave = G.t;
+  if (A.planner) team.attackAt = G.t + aiGap();
   team.plan = aiPlanWave(team);
+}
+// --- Squad planner (Normal and Hard, A.planner) ----------------------------------------
+const AI_GAP = [60, 600];   // seconds: the random wait before each attack (never under a minute, never over ten)
+function aiGap() { return AI_GAP[0] + Math.random() * (AI_GAP[1] - AI_GAP[0]); }
+// Once a second: tracks the squads that have gone out, pulls a clearly losing one back to the rally
+// point, and sends squads home to a defence that is short-handed (defendBase works out the shortfall).
+function aiSquads(team) {
+  const sq = team.squads;
+  if (!sq || !sq.length) return;
+  const rally = rallyPoint(team), seen = inViewOf(team.id), foes = enemyUnitsOf(team.id).filter((e) => e.def.weapon && !e.def.harvester && !e.def.scripted && e.cls !== 'air' && seen(e));
+  const guns = enemyBuildingsOf(team.id).filter((b) => b.def.defense && !b.def.antiAir && targetable(team.id, b));
+  const live = (s) => s.units.filter((u) => u.alive && !u.defending && !u.homeward && u.order.type !== 'repair' && !u.repairHold);
+  const worth = (l) => l.reduce((a, u) => a + (u.def.cost || 300), 0);
+  const cy = buildingsOf(team.id).find((b) => b.type === 'cy');
+  team.squads = sq.filter((s) => {
+    const l = live(s);
+    if (l.length < 2) return false;
+    const mine = worth(l), cx = l.reduce((a, u) => a + u.x, 0) / l.length, cyy = l.reduce((a, u) => a + u.y, 0) / l.length;
+    // Home defence short of units: the nearest squads still on the home side of the map turn back.
+    if (team.defShort > 0 && cy && team.raiders && team.raiders.length && Math.hypot(cx - cy.x, cyy - cy.y) < CELL * 50) {
+      const t = G.byId.get(team.raiders[0]);
+      if (t && t.alive) {
+        for (const u of l) { u.post = { x: rally.x, y: rally.y, staged: true }; u.defending = true; u.staged = false; setGuard(u, t.x, t.y); u.target = t; goTo(u, t.x, t.y); }
+        team.defShort -= mine; team.sqn = team.sqn || { home: 0, back: 0 }; team.sqn.home++;
+        return false;
+      }
+    }
+    // Clearly losing: a squad that started with 8 units or more, under 35% of its starting worth left,
+    // with a force at least twice as strong on top of it.
+    let theirs = 0;
+    for (const e of foes) if (Math.hypot(e.x - cx, e.y - cyy) < CELL * 14) theirs += e.def.cost || 300;
+    for (const b of guns) if (Math.hypot(b.x - cx, b.y - cyy) < CELL * 12) theirs += 500;
+    if (s.n0 >= 8 && mine < s.value0 * 0.35 && theirs > mine * 2) {
+      for (const u of l) { setGuard(u, rally.x, rally.y); u.staged = true; goTo(u, rally.x, rally.y); }
+      team.sqn = team.sqn || { home: 0, back: 0 }; team.sqn.back++;
+      return false;
+    }
+    return true;
+  });
 }
 // Scouting: like the player, the computer only knows the enemy buildings it has uncovered. Once its
 // first-wave timer is up (a minute in on Hard) it sends a scout to the map's other starting spots
@@ -427,6 +465,7 @@ function aiScoutDone(team) {
 // fighting what it meets. A big push calls in its held Airfield powers once the first of it closes in.
 function aiSend(team, units, target, o) {
   for (const u of units) { setHunt(u); u.staged = false; u.focus = target; }
+  if (G.diff.ai.planner && units.length >= 3) (team.squads = team.squads || []).push({ units, n0: units.length, value0: units.reduce((a, u) => a + (u.def.cost || 300), 0) });
   if (o.strike) team.strike = { keys: o.strike, target, units };
   if (units.length >= 3) logWave(team.id, !!o.strike);
   return units;
@@ -445,35 +484,104 @@ function aiStrike(team) {
 // guards its gathering point on the way, so it fights back if attacked.
 function aiPincerStart(team, units, target, strike) {
   if (team.pincer) return false;
-  const r = rallyPoint(team), base = Math.atan2(r.y - target.y, r.x - target.x), spots = [];
-  for (const side of [-1, 1]) {
-    const a = base + side * 1.2, d = CELL * 13;
-    const cx = Math.max(3, Math.min(MAP - 4, Math.floor((target.x + Math.cos(a) * d) / CELL)));
-    const cy = Math.max(3, Math.min(MAP - 4, Math.floor((target.y + Math.sin(a) * d) / CELL)));
-    const c = nearestFreeCell(idx(cx, cy), 6);
-    if (c < 0) return false;
-    spots.push({ x: (cellX(c) + 0.5) * CELL, y: (cellY(c) + 0.5) * CELL });
+  let spots = A_PLANNER() ? aiApproachSpots(team, units[0], target, 2) : null;
+  if (!spots || spots.length < 2) {
+    const r = rallyPoint(team), base = Math.atan2(r.y - target.y, r.x - target.x);
+    spots = [];
+    for (const side of [-1, 1]) {
+      const a = base + side * 1.2, d = CELL * 13;
+      const cx = Math.max(3, Math.min(MAP - 4, Math.floor((target.x + Math.cos(a) * d) / CELL)));
+      const cy = Math.max(3, Math.min(MAP - 4, Math.floor((target.y + Math.sin(a) * d) / CELL)));
+      const c = nearestFreeCell(idx(cx, cy), 6);
+      if (c < 0) return false;
+      spots.push({ x: (cellX(c) + 0.5) * CELL, y: (cellY(c) + 0.5) * CELL });
+    }
   }
-  // Split the wave by which side each unit is on, so neither half crosses the other's path.
-  const side = (u) => Math.sin(Math.atan2(u.y - target.y, u.x - target.x) - base) * dist(u, target);
-  const sorted = units.slice().sort((a, b) => side(a) - side(b));
-  const half = Math.ceil(sorted.length / 2), groups = [sorted.slice(0, half), sorted.slice(half)];
+  // Split the wave between the two points: the units nearer the first go there, the rest to the second.
+  const sorted = units.slice().sort((a, b) => (Math.hypot(a.x - spots[0].x, a.y - spots[0].y) - Math.hypot(a.x - spots[1].x, a.y - spots[1].y)));
+  const half = Math.ceil(sorted.length / 2);
+  return aiGather(team, [sorted.slice(0, half), sorted.slice(half)], spots, target, strike, units.length);
+}
+const A_PLANNER = () => !!G.diff.ai.planner;
+// The wave goes round to one gathering point first, then in on the target (planner waves, A.approach).
+function aiApproachStart(team, units, target, strike) {
+  if (team.pincer) return false;
+  const spots = aiApproachSpots(team, units[0], target, 1);
+  if (!spots || !spots.length) return false;
+  return aiGather(team, [units], spots, target, strike, units.length);
+}
+// Sends each group to its gathering point (guarding it on the way) and starts the wait in aiPincer.
+function aiGather(team, groups, spots, target, strike, n) {
   groups.forEach((g, i) => {
     const p = spots[i];
     for (const u of g) { setGuard(u, p.x + (Math.random() - 0.5) * CELL * 3, p.y + (Math.random() - 0.5) * CELL * 3); u.staged = false; goTo(u, u.order.x, u.order.y); }
   });
-  team.pincer = { groups, spots, target, strike, since: G.t, n: units.length };
+  // Long marches get longer: give up waiting only well after the slowest unit could have arrived.
+  const slow = Math.min(...groups.flat().map((u) => u.def.speed * (u.paceMul || 1)));
+  const far = Math.max(...groups.map((g, i) => Math.hypot(g[0].x - spots[i].x, g[0].y - spots[i].y)));
+  const limit = Math.max(150, Math.min(480, far * 1.4 / slow + 60));
+  team.pincer = { groups, spots, target, strike, since: G.t, n, limit };
   return true;
+}
+// Gathering points for an attack on `target`: about 13 to 17 cells out from it on randomly chosen sides.
+// Candidates all round the target are kept only if the units can walk there without a huge detour, then
+// picked at random, favouring short routes and sides the computer has not used lately (measured round
+// the enemy's Construction Yard, where a player builds defences), so a base cannot count on one direction.
+function aiApproachSpots(team, from, target, count) {
+  const foe = enemyOf(team), cy = buildingsOf(foe.id).find((b) => b.type === 'cy') || target;
+  const guns = enemyBuildingsOf(team.id).filter((b) => b.def.defense && !b.def.antiAir && targetable(team.id, b));
+  const direct = pathLen(findPath(from.x, from.y, target.x, target.y, 8), from);
+  if (!direct) return null;
+  const hist = team.apHist || [], r = Math.random;
+  const diff = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  const cands = [];
+  for (let i = 0; i < 12; i++) {
+    const a = (i + (r() - 0.5) * 0.8) * Math.PI / 6, d = CELL * (13 + r() * 4);
+    const cx = Math.max(3, Math.min(MAP - 4, Math.floor((target.x + Math.cos(a) * d) / CELL)));
+    const cyy = Math.max(3, Math.min(MAP - 4, Math.floor((target.y + Math.sin(a) * d) / CELL)));
+    const c = nearestFreeCell(idx(cx, cyy), 6);
+    if (c < 0) continue;
+    const spot = { x: (cellX(c) + 0.5) * CELL, y: (cellY(c) + 0.5) * CELL };
+    if (guns.some((b) => Math.hypot(b.x - spot.x, b.y - spot.y) < CELL * 11)) continue;   // out of range of their guns
+    const path = findPath(from.x, from.y, spot.x, spot.y, 8);
+    const there = path && path[path.length - 1];
+    if (!there || Math.hypot(there.x - spot.x, there.y - spot.y) > CELL * 4) continue;   // cannot get there
+    const ratio = (pathLen(path, from) + Math.hypot(spot.x - target.x, spot.y - target.y)) / direct;
+    if (ratio > 2.6) continue;
+    const bearing = Math.atan2(spot.y - cy.y, spot.x - cy.x);
+    let w = 1 / (1 + Math.max(0, ratio - 1) * 2.5);
+    for (const h of hist) if (diff(h, bearing) < 0.7) w *= 0.3;
+    if (diff(a, Math.atan2(from.y - target.y, from.x - target.x)) < 0.9) w *= 0.2;   // a point straight ahead is no flank: rarely chosen
+    cands.push({ spot, bearing, w });
+  }
+  const out = [];
+  while (out.length < count && cands.length) {
+    const tot = cands.reduce((a, c) => a + c.w, 0);
+    let roll = r() * tot, k = 0;
+    while (k < cands.length - 1 && (roll -= cands[k].w) > 0) k++;
+    const pick = cands.splice(k, 1)[0];
+    out.push(pick);
+    for (let m = cands.length - 1; m >= 0; m--) if (diff(cands[m].bearing, pick.bearing) < 0.9) cands.splice(m, 1);   // a second point is on another side
+  }
+  if (out.length < count) return null;
+  team.apHist = hist.concat(out.map((o) => o.bearing)).slice(-4);
+  return out.map((o) => o.spot);
+}
+function pathLen(path, from) {
+  if (!path || !path.length) return 0;
+  let n = 0, x = from.x, y = from.y;
+  for (const p of path) { n += Math.hypot(p.x - x, p.y - y); x = p.x; y = p.y; }
+  return n;
 }
 function aiPincer(team) {
   const p = team.pincer;
   if (!p) return;
   const alive = p.groups.map((g) => g.filter((u) => u.alive && u.order.type === 'guard' && !u.defending));
-  const all = alive[0].concat(alive[1]);
+  const all = [].concat(...alive);
   const there = alive.map((g, i) => !g.length || g.filter((u) => Math.hypot(u.x - p.spots[i].x, u.y - p.spots[i].y) < CELL * 5).length >= g.length * 0.6);
   if (!all.length) { team.pincer = null; return; }
   if (p.firstIn === undefined && there.some((x, i) => x && alive[i].length)) p.firstIn = G.t;
-  const waited = p.firstIn !== undefined ? G.t - p.firstIn > 30 : G.t - p.since > 150;
+  const waited = p.firstIn !== undefined ? G.t - p.firstIn > 30 : G.t - p.since > (p.limit || 150);
   if (!there.every((x) => x) && p.target.alive && !waited && all.length >= p.n * 0.75) return;
   team.pincer = null;
   const target = p.target.alive ? p.target : aiWaveTarget(team, all[0]);
@@ -524,13 +632,4 @@ function aiWaveTarget(team, from) {
   best = best || cy || theirs[0];
   team.lastTarget = best; team.lastType = best.type;
   return best;
-}
-// A raid goes for an outlying site or the most exposed Ore Truck.
-function aiRaidTarget(team) {
-  const foe = enemyOf(team), cy = buildingsOf(foe.id).find((b) => b.type === 'cy');
-  const trucks = unitsOf(foe.id).filter((u) => u.def.harvester && G.fog[team.id][cellOfPos(u.x, u.y)]);   // only where it has looked
-  const exp = expansionsOf(foe, rallyPoint(team));
-  if (exp.length && (Math.random() < 0.4 || !trucks.length)) return exp[0];
-  if (!trucks.length) return null;
-  return cy ? trucks.reduce((a, b) => (dist(b, cy) > dist(a, cy) ? b : a)) : trucks[0];
 }
