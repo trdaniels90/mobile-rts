@@ -15,8 +15,8 @@ OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(__file_
 
 # key: list of (source file, length in seconds, pitch factor, extra ffmpeg filters)
 CLIPS = {
-    'rifle': [('kurt_22magnum.wav', 0.32, 0.92, ''), ('kurt_22pistol.wav', 0.3, 0.88, ''),
-              ('hingy_gunshot.wav', 0.38, 1.0, ''), ('rubberduck_bangs_shot_01.wav', 0.3, 0.95, '')],
+    # Three shots cut from mosin.wav of Vincent Sevedge's pack (at 6.04, 8.91 and 12.24 s), each as its own file.
+    'rifle': [('sevedge_mosin_1.wav', 0.5, 1.0, ''), ('sevedge_mosin_2.wav', 0.5, 1.0, ''), ('sevedge_mosin_3.wav', 0.5, 1.0, '')],
     'mg': [('dklon_gunshots_gunshot_11.wav', 0.3, 1.0, ''), ('dklon_gunshots_gunshot_12.wav', 0.3, 1.05, ''),
            ('dklon_gunshots_gunshot_16.wav', 0.28, 1.0, '')],
     'cannon': [('thimras_cannon_fire.wav', 0.7, 1.25, ''), ('rubberduck_bangs_cannon_01.wav', 0.6, 1.0, ''),

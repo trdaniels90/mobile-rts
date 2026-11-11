@@ -3,7 +3,7 @@
 
 The freely licensed recordings (see CREDITS.md) stay as the attack of each shot; around them this
 adds a synthesised body, crack and low thump, then cuts the tail short so bursts stay distinct.
-  rifle: the two fullest recordings pitched up, cut short, with a little added crack, about 0.2 s.
+  rifle: the recorded shots as they are, the tail faded over about 0.13 s.
   mg:    pitched down, a deeper thud on every round, about 0.2 s (Ranger, Hind).
   pillbox: after the MG42, from the mg recordings: two deep, sharp rounds 40 ms apart in each clip, so a burst
          rips at about 25 rounds a second.
@@ -19,10 +19,8 @@ PATH = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file
 # pitch: resampling factor (below 1 is lower). cut: decay (s) forced on the recording.
 # Layers are (level, decay s, low Hz, high Hz) of filtered noise; thump is (level, decay s, from Hz, to Hz).
 SHAPES = {
-    # takes: (recording, pitch) per clip. Only the two full gunshots are used (hingydunyas, rubberduck),
-    # pitched up; the two .22 recordings are bare clicks.
-    'rifle': dict(length=0.2, cut=0.035, rec=1.0, drive=1.6, layers=[(0.5, 0.004, 3500, 9000)], thump=(0.12, 0.02, 400, 200),
-                  takes=[(2, 1.15), (2, 1.22), (3, 1.1), (3, 1.18)]),
+    # Real rifle shots (a Mosin, recorded outdoors) with most of their own tail: nothing added.
+    'rifle': dict(length=0.32, cut=0.075, rec=1.0, drive=1.5, thump=(0.0, 0.02, 300, 150)),
     # The Pillbox gun, after the MG42: made from the mg recordings (`source`), pitched down.
     'pillbox': dict(source='mg', length=0.24, pitch=0.8, cut=0.02, rec=0.9, drive=2.0, double=0.04,
                     layers=[(0.6, 0.004, 2000, 8000), (0.9, 0.016, 450, 3000), (0.07, 0.11, 200, 1500)],
