@@ -4,6 +4,10 @@ Red Horizon is a plain-JavaScript RTS homage to Red Alert 1 (Allies vs Soviets) 
 web. No build step and no framework: `index.html` loads the scripts in `src/` in order, and they
 share globals. Read this file first; the commit history explains every change in detail.
 
+**Not the owner?** If this is a fork, or the person you are working with is not `trdaniels90`, read
+`CONTRIBUTING.md` before anything else. Its rules override "Working with the owner" and "Releasing" below
+(branches, no releases or deploys, owner sign-off for gameplay changes).
+
 ## Working with the owner
 
 - **BRANCH RULE (the owner has had to repeat this): use only `claude/cross-platform-game-k2d9lb`.**
