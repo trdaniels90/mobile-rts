@@ -1252,7 +1252,7 @@ function aimY(t) {
 
 function weaponSound(src, w) {
   if (w.sound) return w.sound;   // a weapon with a sound of its own (the RedEye)
-  if (w.proj === 'bullet') return src.cls === 'inf' ? 'rifle' : 'mg';
+  if (w.proj === 'bullet') return src.cls !== 'inf' ? 'mg' : src.faction === 'allies' ? 'm16' : 'rifle';   // each side's own rifle
   if (w.proj === 'grenade') return 'throw';
   if (w.proj === 'fireball') return 'flame';
   if (w.proj === 'shell') return src.kind === 'bld' ? 'turretGun' : w.twin ? 'cannonHeavy' : 'cannon';

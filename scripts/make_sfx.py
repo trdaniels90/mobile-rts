@@ -17,6 +17,10 @@ OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(__file_
 CLIPS = {
     # Three shots cut from mosin.wav of Vincent Sevedge's pack (at 6.04, 8.91 and 12.24 s), each as its own file.
     'rifle': [('sevedge_mosin_1.wav', 0.5, 1.0, ''), ('sevedge_mosin_2.wav', 0.5, 1.0, ''), ('sevedge_mosin_3.wav', 0.5, 1.0, '')],
+    # The Allied rifle: four rounds cut from SoundBible's "M16 Assault Rifle" (at 3.999, 2.281, 1.733 and 1.066 s, each
+    # up to the next round, with a 15 ms fade out), each as its own file.
+    'm16': [('snottyboi_m16_1.wav', 0.33, 1.0, ''), ('snottyboi_m16_2.wav', 0.25, 1.0, ''), ('snottyboi_m16_3.wav', 0.24, 1.0, ''),
+            ('snottyboi_m16_4.wav', 0.17, 1.0, '')],
     'mg': [('dklon_gunshots_gunshot_11.wav', 0.3, 1.0, ''), ('dklon_gunshots_gunshot_12.wav', 0.3, 1.05, ''),
            ('dklon_gunshots_gunshot_16.wav', 0.28, 1.0, '')],
     'cannon': [('thimras_cannon_fire.wav', 0.7, 1.25, ''), ('rubberduck_bangs_cannon_01.wav', 0.6, 1.0, ''),
