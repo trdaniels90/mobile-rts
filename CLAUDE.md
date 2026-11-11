@@ -300,7 +300,12 @@ share globals. Read this file first; the commit history explains every change in
   Tune `same` (colour match threshold) and `cut` in the fragment shader.
 - **Water** is pale slate blue with a soft chop (`WATER`, `chop` in `paintTerrain`), no sparkle dots.
 - **Fords** are churned mud with puddles (`MUD`), no stones or boulders (`fordStone` removed).
-- Made after the owner's reference screenshot; a full xBR-quality filter or higher-resolution sprites would go further.
+- **Sprites at twice the resolution** (`SPR` = 2 in voxel.js): `renderVox` without an explicit `scale` renders SPR
+  pixels per world pixel and softens the voxel steps (`soften` in `downsample`); the canvas carries `img.k`, and
+  `dimg` / `blit` (art.js) draw it at world size. Icons and scenery pass a `scale` and are pixel for pixel as before.
+  The view canvas (ui.js `draw`) holds SPR pixels per world pixel; ground, decals and effects are enlarged softly.
+  Any new `drawImage` of a sprite must go through `dimg`. Sprite caches use 4 times the memory: not yet checked on a
+  real phone (iOS limits total canvas memory). Made after the owner's reference screenshot.
 
 ## Windows app (`desktop/`)
 

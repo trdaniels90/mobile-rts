@@ -319,10 +319,11 @@
     const z = cam.z;
     const ox = Math.floor(cam.x), oy = Math.floor(cam.y);
     const bw = Math.ceil(W / z) + 2, bh = Math.ceil(H / z) + 2;
-    if (view.width < bw || view.height < bh) { view.width = bw + 64; view.height = bh + 64; }
+    const R = SPR;   // the view holds SPR pixels per world pixel, so sprites keep their full detail
+    if (view.width < bw * R || view.height < bh * R) { view.width = (bw + 64) * R; view.height = (bh + 64) * R; }
     const v = vctx;
-    v.setTransform(1, 0, 0, 1, 0, 0);
-    v.imageSmoothingEnabled = false;
+    v.setTransform(R, 0, 0, R, 0, 0);
+    v.imageSmoothingEnabled = true;   // the ground and effects are world-resolution pictures: enlarge them softly
     v.fillStyle = '#000'; v.fillRect(0, 0, bw, bh);
     if (!G) return;
     const sx = Math.max(0, ox), sy = Math.max(0, oy);
@@ -421,20 +422,18 @@
       for (let i = 0; i < NCELLS; i++) { d[i * 4 + 3] = G.seen[i] ? 0 : 255; }
       sctx.putImageData(shroudImg, 0, 0);
     }
-    v.imageSmoothingEnabled = true;
     v.drawImage(shroudCanvas, ox / CELL, oy / CELL, bw / CELL, bh / CELL, ox, oy, bw, bh);
-    v.imageSmoothingEnabled = false;
 
     drawPlacement(v);
     v.setTransform(1, 0, 0, 1, 0, 0);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.imageSmoothingEnabled = z < 1;
+    ctx.imageSmoothingEnabled = true;
     const k = z * DPR;
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
-    const sm = Smooth && k >= 1.75 ? Smooth.run(view, bw, bh, k) : null;   // (little to round off when zoomed far out)
-    ctx.drawImage(sm || view, 0, 0, sm ? sm.width : bw, sm ? sm.height : bh, Math.round(-(cam.x - ox) * k + sx2), Math.round(-(cam.y - oy) * k + sy2), Math.round(bw * k), Math.round(bh * k));
+    const sm = Smooth && k / R >= 1.4 ? Smooth.run(view, bw * R, bh * R, k / R) : null;   // (little to round off when zoomed far out)
+    ctx.drawImage(sm || view, 0, 0, sm ? sm.width : bw * R, sm ? sm.height : bh * R, Math.round(-(cam.x - ox) * k + sx2), Math.round(-(cam.y - oy) * k + sy2), Math.round(bw * k), Math.round(bh * k));
     if (gesture && gesture.type === 'box' && gesture.moved) {
       const bx = Math.min(gesture.sx, gesture.ex) * DPR, by = Math.min(gesture.sy, gesture.ey) * DPR;
       ctx.strokeStyle = '#f2f2ea'; ctx.lineWidth = DPR;

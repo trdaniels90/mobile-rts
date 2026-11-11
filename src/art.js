@@ -9,13 +9,20 @@ function rng(seed) {
 }
 
 // Draws a pre-rendered sprite (and its cast shadow) with its origin at world (x, y).
+// Sprites are rendered SPR times finer than the world (voxel.js); `img.k` is that factor, and dimg draws the
+// image at its world size. rs() snaps a position to the sprite grid.
+function dimg(g, img, x, y) {
+  const k = img.k || 1;
+  if (k === 1) g.drawImage(img, x, y); else g.drawImage(img, x, y, img.width / k, img.height / k);
+}
+const rs = (v) => Math.round(v * SPR) / SPR;
 function blit(g, s, x, y, shadow) {
   if (shadow !== false && s.sh) {
     g.globalAlpha = 0.45;
-    g.drawImage(s.sh, Math.round(x + s.sox), Math.round(y + s.soy));
+    dimg(g, s.sh, rs(x + s.sox), rs(y + s.soy));
     g.globalAlpha = 1;
   }
-  g.drawImage(s.img, Math.round(x + s.ox), Math.round(y + s.oy));
+  dimg(g, s.img, rs(x + s.ox), rs(y + s.oy));
 }
 
 // ---------------------------------------------------------------------------
@@ -290,10 +297,10 @@ function crater(tg, x, y, rad, seed) {
 function bakeWreck(tg, x, y, def, face, tface, noTurret) {
   const fake = { def, face, tface, load: 0 }, seed = (Math.random() * 1e6) | 0;
   const hs = hullSprite(fake, BURNT);
-  if (hs.sh) { tg.globalAlpha = 0.45; tg.drawImage(hs.sh, Math.round(x + hs.sox), Math.round(y + hs.soy)); tg.globalAlpha = 1; }
-  tg.drawImage(charred(hs.img, seed), Math.round(x + hs.ox), Math.round(y + hs.oy));
+  if (hs.sh) { tg.globalAlpha = 0.45; dimg(tg, hs.sh, Math.round(x + hs.sox), Math.round(y + hs.soy)); tg.globalAlpha = 1; }
+  dimg(tg, charred(hs.img, seed), Math.round(x + hs.ox), Math.round(y + hs.oy));
   const ts = !noTurret && turretSprite(fake, BURNT);
-  if (ts) tg.drawImage(charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - turretZ(def) * VK + ts.oy));
+  if (ts) dimg(tg, charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - turretZ(def) * VK + ts.oy));
 }
 // A turret blown off by a cook-off, charred, at its height above the ground and turned by rot.
 function turretImg(fx) {
@@ -303,7 +310,7 @@ function turretImg(fx) {
 function drawTurretAt(g, fx, z) {
   const img = turretImg(fx);
   g.save(); g.translate(Math.round(fx.x), Math.round(fx.y - z - 3)); g.rotate(fx.rot);
-  g.drawImage(img, -Math.round(img.width / 2), -Math.round(img.height / 2));
+  dimg(g, img, -Math.round(img.width / (img.k || 1) / 2), -Math.round(img.height / (img.k || 1) / 2));
   g.restore();
 }
 function bakeTurret(tg, fx) {
@@ -323,7 +330,7 @@ function bakeCorpse(tg, u, seed, angle) {
   tg.save();
   tg.translate(x, y + 1); tg.rotate(a);
   const img = dimmed(s.img);
-  tg.drawImage(img, Math.round(s.ox), Math.round(s.oy));
+  dimg(tg, img, Math.round(s.ox), Math.round(s.oy));
   tg.restore();
 }
 // A ragdoll's body, drawn limb by limb from its joints in the uniform's colours (and its
@@ -403,6 +410,7 @@ function dimmed(img) {
   g.drawImage(img, 0, 0);
   g.globalCompositeOperation = 'source-atop';
   g.fillStyle = 'rgba(20,16,12,0.28)'; g.fillRect(0, 0, c.width, c.height);
+  c.k = img.k;
   return c;
 }
 
@@ -417,6 +425,7 @@ function charred(img, seed) {
     g.fillStyle = v < 0.5 ? 'rgba(8,6,4,0.55)' : v < 0.8 ? 'rgba(96,52,26,0.45)' : 'rgba(120,112,100,0.3)';
     g.fillRect((r() * c.width) | 0, (r() * c.height) | 0, 1 + (r() * 2 | 0), 1);
   }
+  c.k = img.k;
   return c;
 }
 
@@ -534,7 +543,7 @@ function drawUnit(g, u, t) {
   }
   if (u.cls === 'air') {
     const alt = u.alt || 0, hgt = alt / VK, s = hullSprite(u, pal);
-    if (s.sh) { g.globalAlpha = 0.38; g.drawImage(s.sh, Math.round(u.x + hgt * SHADOW_DX + s.sox), Math.round(u.y + hgt * SHADOW_DY + s.soy)); g.globalAlpha = 1; }
+    if (s.sh) { g.globalAlpha = 0.38; dimg(g, s.sh, rs(u.x + hgt * SHADOW_DX + s.sox), rs(u.y + hgt * SHADOW_DY + s.soy)); g.globalAlpha = 1; }
     blit(g, s, u.x, u.y - alt, false);
     if (u.def.fly === 'heli') {
       // The rotor turns faster than any screen can show, so each frame it advances as far as it
@@ -665,9 +674,9 @@ function drawStructure(g, b, t) {
   if (b.sellT > 0) k = Math.min(k, b.sellT / 1.2);
   if (k < 1) {
     // Build-up: the structure rises out of its foundation behind a scaffold line.
-    const H = s.img.height, hh = Math.max(1, Math.round(H * k));
+    const q = s.img.k || 1, H = s.img.height / q, hh = Math.max(1, Math.round(H * k));
     g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x, y, b.w * CELL, b.h * CELL);
-    g.drawImage(s.img, 0, H - hh, s.img.width, hh, Math.round(x + s.ox), Math.round(y + s.oy + H - hh), s.img.width, hh);
+    g.drawImage(s.img, 0, (H - hh) * q, s.img.width, hh * q, Math.round(x + s.ox), Math.round(y + s.oy + H - hh), s.img.width / q, hh);
     g.fillStyle = '#d8b13a'; g.fillRect(x, Math.round(y + s.oy + H - hh), b.w * CELL, 1);
     return;
   }
@@ -727,7 +736,7 @@ function drawSamHead(g, b, x, y, stage) {
 function drawGhost(g, type, faction, cx, cy) {
   const s = structureSprite(type, faction);
   g.globalAlpha = 0.55;
-  g.drawImage(s.img, Math.round(cx * CELL + s.ox), Math.round(cy * CELL + s.oy));
+  dimg(g, s.img, Math.round(cx * CELL + s.ox), Math.round(cy * CELL + s.oy));
   g.globalAlpha = 1;
 }
 
@@ -960,11 +969,11 @@ function drawEffect(g, fx) {
       const squash = (x, y) => { g.translate(x, y); g.rotate(fx.face); g.scale(1, sq); g.rotate(-fx.face); };
       if (s.sh) {
         g.save(); squash(fx.x + hgt * SHADOW_DX, fx.y + hgt * SHADOW_DY);
-        g.globalAlpha = 0.3; g.drawImage(s.sh, Math.round(s.sox), Math.round(s.soy)); g.restore();
+        g.globalAlpha = 0.3; dimg(g, s.sh, Math.round(s.sox), Math.round(s.soy)); g.restore();
       }
       g.save(); squash(fx.x, fx.y - fx.alt);
       if (inv) g.filter = 'brightness(0.55)';
-      g.drawImage(s.img, Math.round(s.ox), Math.round(s.oy)); g.restore();
+      dimg(g, s.img, Math.round(s.ox), Math.round(s.oy)); g.restore();
       if (!fx.jet && !fx.ground) {   // the rotor still turning, losing speed
         const rz = 9 * VK, ra = fx.t * 25;
         g.strokeStyle = 'rgba(28,28,24,0.75)'; g.lineWidth = 1.2; g.beginPath();
