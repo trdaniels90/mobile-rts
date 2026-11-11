@@ -169,7 +169,7 @@ const BUILD_DEFS = {
   tesla:    { name: 'Tesla Coil',   w: 1, h: 2, hp: 450,  power: -100, cost: 1200, req: ['barracks'], factions: ['soviets'], defense: true,
               weapon: { dmg: 100, rof: 2.6, range: 190, wh: 'TESLA', proj: 'tesla', needsPower: true } },
   pillbox:  { name: 'Pillbox',      w: 1, h: 1, hp: 400,  power: -15, cost: 400,  req: ['barracks'], factions: ['allies'], defense: true, camo: true,
-              weapon: { dmg: 9, rof: 1.2, range: 145, wh: 'SA', proj: 'bullet', burst: 5, gap: 0.08 } },
+              weapon: { dmg: 9, rof: 1.2, range: 145, wh: 'SA', proj: 'bullet', burst: 5, gap: 0.08, sound: 'pillbox' } },   // its own gun sound
   ftur:     { name: 'Flame Tower',  w: 1, h: 1, hp: 400,  power: -20, cost: 600,  req: ['barracks'], factions: ['soviets'], defense: true,
               weapon: { dmg: 40, rof: 2.0, range: 130, wh: 'FIRE', proj: 'fireball', burst: 2, gap: 0.3, splash: 18 } },
   sam:      { name: 'SAM Site',     w: 2, h: 1, hp: 400,  power: -20, cost: 750,  req: ['barracks'], factions: ['soviets'], defense: true, antiAir: true,

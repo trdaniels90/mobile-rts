@@ -4,7 +4,9 @@
 The freely licensed recordings (see CREDITS.md) stay as the attack of each shot; around them this
 adds a synthesised body, crack and low thump, then cuts the tail short so bursts stay distinct.
   rifle: a dry, bright crack with a low-mid punch, about 0.2 s.
-  mg:    after the MG42: two sharp rounds 40 ms apart in each clip, so a burst rips at about 25 rounds a second.
+  mg:    pitched down, a deeper thud on every round, about 0.2 s (Ranger, Hind).
+  pillbox: after the MG42, from the mg recordings: two deep, sharp rounds 40 ms apart in each clip, so a burst
+         rips at about 25 rounds a second.
 
 scripts/make_sfx.py runs this on its output. Run it once only on fresh clips: shaping twice
 shortens and thickens them again.  Usage: python3 scripts/shape_guns.py [src/sfx.js]
@@ -20,9 +22,13 @@ SHAPES = {
     'rifle': dict(length=0.2, pitch=1.0, cut=0.03, rec=0.8, drive=1.6,
                   layers=[(1.0, 0.008, 3000, 9000), (1.0, 0.028, 500, 4500), (0.12, 0.09, 200, 1500)],
                   thump=(0.22, 0.03, 420, 200)),
-    'mg': dict(length=0.22, pitch=1.0, cut=0.016, rec=0.9, drive=2.0, double=0.04,
-               layers=[(0.7, 0.004, 2500, 9000), (0.9, 0.014, 700, 3800), (0.07, 0.11, 250, 1800)],
-               thump=(0.2, 0.02, 420, 180)),
+    # The Pillbox gun, after the MG42: made from the mg recordings (`source`), pitched down.
+    'pillbox': dict(source='mg', length=0.24, pitch=0.8, cut=0.02, rec=0.9, drive=2.0, double=0.04,
+                    layers=[(0.6, 0.004, 2000, 8000), (0.9, 0.016, 450, 3000), (0.07, 0.11, 200, 1500)],
+                    thump=(0.32, 0.024, 320, 130)),
+    'mg': dict(length=0.2, pitch=0.88, cut=0.035, rec=0.9, drive=1.8,
+               layers=[(0.5, 0.006, 2500, 8000), (0.8, 0.03, 250, 2500)],
+               thump=(0.24, 0.04, 300, 120)),
 }
 
 def decode(b64):
@@ -71,13 +77,16 @@ def shape(x, s, seed, pitch=None):
 
 def main():
     src = open(PATH).read()
+    line = lambda key: re.search(r'^  "%s": (\[.*\]),$' % key, src, re.M)
+    fresh = {k: [decode(b) for b in json.loads(line(k).group(1))] for k in {s.get('source', k) for k, s in SHAPES.items()}}
     for key, s in SHAPES.items():
-        m = re.search(r'^  "%s": (\[.*\]),$' % key, src, re.M)
-        raw = [decode(b) for b in json.loads(m.group(1))]
+        raw = fresh[s.get('source', key)]
         takes = s.get('takes') or [(i, None) for i in range(len(raw))]   # (recording, pitch) per finished clip
-        clips = [encode(shape(raw[i], s, 1000 + k, p)) for k, (i, p) in enumerate(takes)]
-        src = src[:m.start(1)] + '[' + ', '.join(json.dumps(c) for c in clips) + ']' + src[m.end(1):]
-        print(key, len(clips), 'clips')
+        clips = '[' + ', '.join(json.dumps(encode(shape(raw[i], s, 1000 + k, p))) for k, (i, p) in enumerate(takes)) + ']'
+        m = line(key)
+        if m: src = src[:m.start(1)] + clips + src[m.end(1):]
+        else: e = line(s['source']).end(); src = src[:e] + '\n  "%s": %s,' % (key, clips) + src[e:]   # a sound of its own
+        print(key, len(takes), 'clips')
     open(PATH, 'w').write(src)
 
 if __name__ == '__main__':
