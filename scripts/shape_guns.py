@@ -4,7 +4,7 @@
 The freely licensed recordings (see CREDITS.md) stay as the attack of each shot; around them this
 adds a synthesised body, crack and low thump, then cuts the tail short so bursts stay distinct.
   rifle: a dry, bright crack with a low-mid punch, about 0.2 s.
-  mg:    pitched down, a deeper thud on every round, about 0.2 s.
+  mg:    after the MG42: two sharp rounds 40 ms apart in each clip, so a burst rips at about 25 rounds a second.
 
 scripts/make_sfx.py runs this on its output. Run it once only on fresh clips: shaping twice
 shortens and thickens them again.  Usage: python3 scripts/shape_guns.py [src/sfx.js]
@@ -20,9 +20,9 @@ SHAPES = {
     'rifle': dict(length=0.2, pitch=1.0, cut=0.03, rec=0.8, drive=1.6,
                   layers=[(1.0, 0.008, 3000, 9000), (1.0, 0.028, 500, 4500), (0.12, 0.09, 200, 1500)],
                   thump=(0.22, 0.03, 420, 200)),
-    'mg': dict(length=0.2, pitch=0.88, cut=0.035, rec=0.9, drive=1.8,
-               layers=[(0.5, 0.006, 2500, 8000), (0.8, 0.03, 250, 2500)],
-               thump=(0.24, 0.04, 300, 120)),
+    'mg': dict(length=0.22, pitch=1.0, cut=0.016, rec=0.9, drive=2.0, double=0.04,
+               layers=[(0.7, 0.004, 2500, 9000), (0.9, 0.014, 700, 3800), (0.07, 0.11, 250, 1800)],
+               thump=(0.2, 0.02, 420, 180)),
 }
 
 def decode(b64):
@@ -45,27 +45,40 @@ def band_noise(rng, n, lo, hi):
     y = np.fft.irfft(spec, n)
     return y / (np.abs(y).max() or 1)
 
-def shape(x, s, seed):
-    rng = np.random.default_rng(seed)
+def one_round(x, s, rng, pitch):
     n = int(s['length'] * SR); t = np.arange(n) / SR
     x = x / (np.abs(x).max() or 1)
     start = max(0, int(np.argmax(np.abs(x) > 0.1)) - 20)          # from just before the onset
     x = x[start:]
-    if s['pitch'] != 1: x = np.interp(np.arange(0, len(x), s['pitch']), np.arange(len(x)), x)
+    if pitch != 1: x = np.interp(np.arange(0, len(x), pitch), np.arange(len(x)), x)
     rec = np.zeros(n); m = min(n, len(x)); rec[:m] = x[:m]
     out = s['rec'] * rec * np.exp(-t / s['cut'])
-    for level, decay, lo, hi in s['layers']: out += level * band_noise(rng, n, lo, hi) * np.exp(-t / decay)
+    for level, decay, lo, hi in s.get('layers', []): out += level * band_noise(rng, n, lo, hi) * np.exp(-t / decay)
     level, decay, f0, f1 = s['thump']
     out += level * np.sin(2 * np.pi * np.cumsum(f1 + (f0 - f1) * np.exp(-t / (decay * 0.6))) / SR) * np.exp(-t / decay)
-    out[:44] *= np.linspace(0, 1, 44)                              # 2 ms in, 20 ms out
-    out[-441:] *= np.linspace(1, 0, 441)
+    out[:44] *= np.linspace(0, 1, 44)                              # 2 ms in
+    return out
+
+def shape(x, s, seed, pitch=None):
+    rng = np.random.default_rng(seed)
+    out = one_round(x, s, rng, pitch or s.get('pitch', 1))
+    if s.get('double'):                                            # a second round close behind the first
+        d = int(s['double'] * SR); second = one_round(x, s, rng, (pitch or s.get('pitch', 1)) * 1.03)
+        out[d:] += 0.92 * second[:-d]
+    out[-441:] *= np.linspace(1, 0, 441)                          # 20 ms out
     out = np.tanh(out / np.abs(out).max() * s['drive'])           # gritty, tight peaks
     return out / np.abs(out).max() * 0.9
 
-src = open(PATH).read()
-for key, s in SHAPES.items():
-    m = re.search(r'^  "%s": (\[.*\]),$' % key, src, re.M)
-    clips = [encode(shape(decode(b), s, 1000 + i)) for i, b in enumerate(json.loads(m.group(1)))]
-    src = src[:m.start(1)] + '[' + ', '.join(json.dumps(c) for c in clips) + ']' + src[m.end(1):]
-    print(key, len(clips), 'clips')
-open(PATH, 'w').write(src)
+def main():
+    src = open(PATH).read()
+    for key, s in SHAPES.items():
+        m = re.search(r'^  "%s": (\[.*\]),$' % key, src, re.M)
+        raw = [decode(b) for b in json.loads(m.group(1))]
+        takes = s.get('takes') or [(i, None) for i in range(len(raw))]   # (recording, pitch) per finished clip
+        clips = [encode(shape(raw[i], s, 1000 + k, p)) for k, (i, p) in enumerate(takes)]
+        src = src[:m.start(1)] + '[' + ', '.join(json.dumps(c) for c in clips) + ']' + src[m.end(1):]
+        print(key, len(clips), 'clips')
+    open(PATH, 'w').write(src)
+
+if __name__ == '__main__':
+    main()
