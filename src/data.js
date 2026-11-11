@@ -13,7 +13,7 @@ const FACTIONS = {
     name: 'Allies',
     pal: { main: '#5b7fb0', light: '#97b4da', dark: '#36547c', deep: '#1d2f48' },
     alt: { main: '#4f9a5a', light: '#8fd09a', dark: '#2f6a3a', deep: '#173a20' },   // a teammate of the same faction: green
-    alt2: { main: '#a9adb3', light: '#e2e5e8', dark: '#6f747b', deep: '#3a3d42' },  // a third (3 v 3): white-grey
+    alt2: { main: '#2f9e9a', light: '#72d2cc', dark: '#1d6b68', deep: '#0e3b39' },  // a third (3 v 3): teal
   },
   soviets: {
     name: 'Soviets',

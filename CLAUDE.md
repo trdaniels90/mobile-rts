@@ -305,7 +305,7 @@ share globals. Read this file first; the commit history explains every change in
   `ANY_BATTLE=1`. `node tools/sim/teams.js <repo> 1 12 river 3v3` runs a computer-only 3 v 3 headless (on the dev
   container about 680 units and 16 s of CPU per game minute by minute 6, double a 2 v 2: watch the server's `cpu_pct`).
 - **Skirmish 3 v 3:** you and two computer allies against three computers (`teamSides(f, size)` in ui.js).
-- **Colours:** a third same-faction teammate is `variant` 2 with `FACTIONS[f].alt2` (Allies white-grey, Soviets purple).
+- **Colours:** a third same-faction teammate is `variant` 2 with `FACTIONS[f].alt2` (Allies teal, Soviets purple).
 - **Reports:** 3 v AI is `pve` like co-op, and team battles record `stats.size` (sides per alliance). Only 2-player co-op
   offers the co-op leaderboard (`online.coop === 'board'`); a 3-player board needs `get_leaderboard` to split by size.
 - Not done yet: a map made for 3 v 3, the leaderboard split, and phones with six players for real (server load and the
