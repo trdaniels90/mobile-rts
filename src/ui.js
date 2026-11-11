@@ -169,7 +169,7 @@
     radarWas = null;
     mapPictures();
     for (let i = 0; i < NCELLS; i++) {
-      mtctx.fillStyle = TERRAIN_MINI[G.terr[i]];
+      mtctx.fillStyle = terrainMini()[G.terr[i]];
       mtctx.fillRect(cellX(i), cellY(i), 1, 1);
     }
     ui.sidebar.dataset.faction = faction;

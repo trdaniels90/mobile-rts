@@ -81,7 +81,7 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
     }
   }
   genMap(seed);
-  G.terrainCanvas = paintTerrain(G.terr, seed, G.road, G.bridges, G.cliff, G.ford);
+  G.terrainCanvas = paintTerrain(G.terr, seed, G.road, G.bridges, G.cliff, G.ford, mapTheme(mapId));
   G.tctx = G.terrainCanvas.getContext('2d');
   // Bodies and wrecks get their own layer above the ground, so later craters and scorch
   // marks never paint over them.

@@ -176,19 +176,20 @@ const MAPS = {
       '78.,7~,44.13o',
     ],
   },
-  lakes: {
-    name: 'Lake Country',
-    img: 'maps/lakes.png',
-    blurb: 'A big map for big battles. The north fights the south: a long lake with three bridges and a line of creeks lie between them, old roads wind through the middle, and lakes sit in the corners. Ore and gems lie all over.',
+  snowbound: {
+    name: 'Snowbound',
+    img: 'maps/snowbound.png',
+    blurb: 'A big winter map for big battles. The north fights the south across the snow: a long lake with three bridges and a line of creeks lie between them, old roads wind through the middle, and lakes sit in the corners. Ore and gems lie all over.',
     info: '168 × 168 cells · 8 start positions · made for 3 v 3',
+    theme: 'snow',   // painted as winter (paintTerrain, the minimap, map pictures, base pads, camouflage)
     size: 168,   // cells a side (setMapSize); bigger than the 144 of the others. At most 170 (the ground picture's limit on iPhones)
     // The north (start positions 0-3) against the south (4-7), each alliance on its own half (newWorld): a 1 v 1
     // starts one player on each. The lake's bridges and the eastern creeks lie between them. Nearly symmetric by a
     // half turn, so each north start has a south twin. (The tool lists starts west first; they are reordered here.)
     teams: [[0, 1, 2, 3], [4, 5, 6, 7]],
     teamSize: 3,
-    // A fixed layout, traced from the owner's design (maps/designs/lakes.png) by
-    // python3 tools/map-from-image.py maps/designs/lakes.png 126 168 --bridge 26,46,28,51 --bridge 38,57,40,61 --bridge 31,69,33,74
+    // A fixed layout, traced from the owner's design (maps/designs/snowbound.png) by
+    // python3 tools/map-from-image.py maps/designs/snowbound.png 126 168 --bridge 26,46,28,51 --bridge 38,57,40,61 --bridge 31,69,33,74
     // The design's grey roads are dirt tracks. Gem fields [x, y, radius]: one behind each start position (same order
     // as spawns), then pairs out on the map, one on each side (twins by the half turn): north and south middle, the
     // lake's east end and its eastern twin, the far west and east, and either side of the middle.
@@ -372,6 +373,8 @@ const MAP_LIST = Object.keys(MAPS);
 const validMap = (id) => (MAPS[id] ? id : DEFAULT_MAP);
 // A map's size in cells (MAP while it is played, see setMapSize).
 const mapSize = (id) => MAPS[validMap(id)].size || 144;
+// A map's look: 'snow', or undefined for the green summer one.
+const mapTheme = (id) => MAPS[validMap(id)].theme;
 
 // The battles. size: sides in each of the two alliances. coop: the second alliance is the computer's
 // (online, players against the computer). Skirmish fills every side but yours with the computer.

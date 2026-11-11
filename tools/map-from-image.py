@@ -6,7 +6,7 @@
 The design is read one colour per design cell (the picture may be scaled up by a whole number):
 dark green grass, blue water, brown shore (walkable dirt), light green woods, grey lines rock or
 cliffs, yellow ore (with its darker specks), red dots start positions. Designs on a lavender ground
-(maps/designs/lakes.png) use their own browns and specks, and light grey lines are roads (dirt tracks). Each --bridge box (design
+(maps/designs/snowbound.png) use their own browns and specks, and light grey lines are roads (dirt tracks). Each --bridge box (design
 cells, inclusive) marks the grey bar there as a bridge; each --ford box makes it a shallow ford. The layout is scaled to the game's map
 size and printed as run-length rows ('.' grass, ',' dirt, 'T' woods, '#' rock, '~' water,
 '=' bridge, 'f' ford, 'o' ore) plus the start positions in game cells, west of the map's middle first.

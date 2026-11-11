@@ -7,7 +7,7 @@ const C = {
   conc: '#8f8d84', concD: '#6e6c64', wall: '#d6d3c9', wallD: '#b9b6ac', bib: '#6e6352', bibD: '#584e40', asphalt: '#4b4b46', glass: '#35505f', glow: '#ffe9a0',
   sand: '#ad9466', sandD: '#8a744c', olive: '#5a6238', oliveD: '#454b2b', skin: '#c38d66', brick: '#8b4535',
   yellow: '#d0a426', black: '#1c1c1a', copper: '#b4692a', white: '#e4e2d8', red: '#b8302a', tan: '#b5a26c',
-  leaf: ['#1d2c13', '#26391a', '#304822', '#3c592a'], pine: ['#18291a', '#1f3420', '#294228'], bark: '#4a3420',
+  leaf: ['#1d2c13', '#26391a', '#304822', '#3c592a'], pine: ['#18291a', '#1f3420', '#294228'], snow: ['#dfe6ef', '#f4f7fb'], bark: '#4a3420',
   rock: ['#6d685e', '#7d786c', '#5c584f'], ore: ['#b48a1c', '#d2a62a', '#e8c24a', '#9a7414'],
 };
 const BURNT = { key: 'burnt', main: '#3b3631', light: '#4b453d', dark: '#26231f', deep: '#171512' };
@@ -4776,7 +4776,8 @@ const TURRET_Z = { tank: 7, jeep: 7, arty: 9, v2: 12 };
 function turretZ(d) { return d.size && d.size.tz !== undefined ? d.size.tz : TURRET_Z[d.draw]; }   // a def can sit its turret lower (Heavy Tank)
 
 // Scenery: trees, boulders, ore, all rendered once.
-function treeModel(seed, pine) {
+// snow: a pine with snow lying on the edge of each tier of boughs and on its tip.
+function treeModel(seed, pine, snow) {
   const r = rng(seed);
   const m = new VModel(-12, -12, 12, 12, 30);
   if (pine) {
@@ -4786,7 +4787,9 @@ function treeModel(seed, pine) {
       const rad = (top - z) * 0.36 + (z % 4 === 0 ? 0.8 : 0);
       for (let y = -9; y <= 9; y++) for (let x = -9; x <= 9; x++) {
         const d = Math.hypot(x + 0.5, y + 0.5);
-        if (d <= rad && (d < rad - 1 || r() < 0.6)) m.set(x, y, z, C.pine[Math.floor(r() * 3)], M_ROUGH);
+        if (!(d <= rad && (d < rad - 1 || r() < 0.6))) continue;
+        const white = snow && ((z % 4 === 0 && d > rad - 2.2) || z >= top - 2 || (z % 4 === 1 && d > rad - 1.2 && r() < 0.5) || r() < 0.08);
+        m.set(x, y, z, white ? C.snow[Math.floor(r() * 2)] : C.pine[Math.floor(r() * 3)], M_ROUGH);
       }
     }
   } else {
@@ -4848,11 +4851,12 @@ function gemModel(level, variant) {
   }
   return m;
 }
-const scenery = { trees: [], pines: [], rocks: [], ore: [], gem: [] };
+const scenery = { trees: [], pines: [], snowPines: [], rocks: [], ore: [], gem: [] };
 function buildScenery() {
   if (scenery.trees.length) return;
   for (let i = 0; i < 6; i++) scenery.trees.push(renderVox(treeModel(i * 97 + 3, false), 0));
   for (let i = 0; i < 5; i++) scenery.pines.push(renderVox(treeModel(i * 71 + 11, true), 0));
+  for (let i = 0; i < 6; i++) scenery.snowPines.push(renderVox(treeModel(i * 71 + 11, true, true), 0));
   for (let i = 0; i < 5; i++) scenery.rocks.push(renderVox(rockModel(i * 53 + 7), 0));
   for (let lv = 0; lv < 4; lv++) { scenery.ore[lv] = []; for (let v = 0; v < 4; v++) scenery.ore[lv].push(renderVox(oreModel(lv, v), 0)); }
   for (let lv = 0; lv < 4; lv++) { scenery.gem[lv] = []; for (let v = 0; v < 4; v++) scenery.gem[lv].push(renderVox(gemModel(lv, v), 0)); }

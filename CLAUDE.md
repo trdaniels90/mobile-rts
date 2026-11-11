@@ -296,11 +296,14 @@ share globals. Read this file first; the commit history explains every change in
 - Snapshots also carry the debrief log as it grows (`s.log` in netcore.js `snapshot`, applied in net.js `applySnapshot`),
   so a phone that ends a battle on its own (it could not reconnect) still has its graphs.
 
-## Map "Lake Country", the first 3 v 3 map, and per-map sizes (after 2026.11.11.1, not released)
+## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (after 2026.11.11.1, not released)
 
-- `MAPS.lakes` in maps.js: traced from the owner's design `maps/designs/lakes.png` (126 cells, a lavender-ground palette:
+- `MAPS.snowbound` in maps.js: traced from the owner's design `maps/designs/snowbound.png` (126 cells, a lavender-ground palette:
   `tools/map-from-image.py` detects it; its light grey roads become dirt tracks) at **168 x 168** cells, `teamSize: 3`,
   three timber bridges over the long lake (`--bridge` boxes in the comment), 16 gem fields placed in twins by the half turn.
+  **Winter look:** `theme: 'snow'` in MAPS (`mapTheme`, `snowy()` in art.js): paintTerrain's snow, slush, ice and cold water
+  palettes, snowy rock in `paintCliffs`, snowy pines only (`scenery.snowPines`, `treeModel(.., snow)`), and the minimap
+  (`terrainMini`), base pads (`bibDecal`) and Pillbox camouflage (`groundColour`). Saves repaint with the theme.
   North (starts 0-3) against south (4-7): the starts are listed north first, not in the tool's west-first order.
 - **Each map has its own size:** `size` in `MAPS` (default 144, `mapSize(id)`). `MAP`, `WORLD`, `NCELLS` are `let` now and
   `setMapSize(n)` (world.js) sets them, the pathfinder's arrays and `GRID_N`; `newWorld` calls it, and `SaveGame.load`
@@ -309,7 +312,7 @@ share globals. Read this file first; the commit history explains every change in
 - **Largest possible map: 170 cells.** The ground and decals are each one WORLD x WORLD canvas (24 px a cell) and iOS
   refuses canvases over 4096 px a side (16.7 M pixels). Bigger needs a tiled ground picture. A 168 map's two canvases are
   about 130 MB together (96 MB at 144): check on a real iPhone.
-- `node tools/sim/teams.js <repo> 1 8 lakes 3v3`: about 660 units by minute 4, 91 s of CPU for 8 game minutes here.
+- `node tools/sim/teams.js <repo> 1 8 snowbound 3v3`: about 660 units by minute 4, 91 s of CPU for 8 game minutes here.
 
 ## 3 v 3 and 3 v AI: the foundation (after 2026.11.11, not released)
 
@@ -319,7 +322,7 @@ share globals. Read this file first; the commit history explains every change in
 - **Maps say what they are made for:** `teamSize` in `MAPS` (largest alliance; both maps are 2). `battleFits(map, mode)`
   gates the skirmish map screen's battles, the online lobby's battles and maps (cards that do not fit are disabled), and
   the server's `setup`. An alliance can never be larger than half the map's start positions. **To enable 3 v 3 on a map,
-  give it `teamSize: 3`** (and at least 3 start positions per half). Lake Country is the first.
+  give it `teamSize: 3`** (and at least 3 start positions per half). Snowbound is the first.
 - **Testing on today's maps:** `?battles=all` in the address offers every battle that physically fits; the server takes
   `ANY_BATTLE=1`. `node tools/sim/teams.js <repo> 1 12 river 3v3` runs a computer-only 3 v 3 headless (on the dev
   container about 680 units and 16 s of CPU per game minute by minute 6, double a 2 v 2: watch the server's `cpu_pct`).
