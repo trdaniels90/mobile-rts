@@ -66,8 +66,9 @@
       G.paused = true;
       Debrief.open(won, {
         difficulty: vs ? 'Online vs ' + vs.opponent + ending : DIFFICULTY[diffKey].label,
-        // a win against the computer goes on the leaderboard: a 1 v 1 skirmish, or online co-op (its own board, scored as a team)
-        extra: won && (vs ? vs.coop : !teamGame()) ? Leaderboard.nameBox(Report.score(vs ? Report.teamStats() : G.teams[G.me].stats, G.over.t, vs ? vs.diff : diffKey)) : null,
+        // a win against the computer goes on the leaderboard: a 1 v 1 skirmish, or two-player online co-op (its own
+        // board, scored as a team; three-player co-op has none yet)
+        extra: won && (vs ? vs.coop === 'board' : !teamGame()) ? Leaderboard.nameBox(Report.score(vs ? Report.teamStats() : G.teams[G.me].stats, G.over.t, vs ? vs.diff : diffKey)) : null,
         // same side and difficulty; online, back to the lobby page
         onRematch: vs ? () => { Net.rematch(); startGame(); showMenu('start'); Online.open(faction); } : () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },
         onNew: () => { if (vs) { Net.leave(); startGame(); } showMenu('start'); },
@@ -143,14 +144,17 @@
   let online = null;   // { opponent } during an online battle
   let mission = false; // a skirmish the player started or continued (not the battle behind the menu): saved as it goes
   let mapId = DEFAULT_MAP;   // the skirmish map chosen on the map screen
-  let battleMode = '1v1';    // and the battle: '1v1', or '2v2' (you and a computer ally against two)
-  // A 2 v 2 skirmish: you (side 0) and a computer ally of your side against two of the other.
-  function teamSides(f) {
-    const foe = f === 'allies' ? 'soviets' : 'allies';
-    return [{ faction: f, ally: 0, ai: false }, { faction: foe, ally: 1, ai: true }, { faction: f, ally: 0, ai: true }, { faction: foe, ally: 1, ai: true }];
+  let battleMode = '1v1';    // and the battle: '1v1', '2v2' or '3v3' (BATTLES in maps.js; you and computer allies against computers)
+  // A team skirmish: you (side 0) and computer allies of your side against as many of the other, the
+  // alliances alternating (sides 0, 2, 4 are yours).
+  function teamSides(f, size) {
+    const foe = f === 'allies' ? 'soviets' : 'allies', sides = [];
+    for (let i = 0; i < size * 2; i++) sides.push({ faction: i % 2 ? foe : f, ally: i % 2, ai: i !== 0 });
+    return sides;
   }
   function startGame(seed, mode = '1v1') {
-    if (mode === '2v2') newWorld(faction, diffKey, seed, 0, false, mapId, teamSides(faction));
+    const size = battleOf(mode).size;
+    if (size > 1 && !battleOf(mode).coop) newWorld(faction, diffKey, seed, 0, false, mapId, teamSides(faction, size));
     else newWorld(faction, diffKey, seed, mySide, false, mapId);
     online = null; mission = false;
     afterNewWorld(faction);
@@ -183,12 +187,14 @@
     endPlace();
     Net.hookHost();
     newWorld(o.faction, o.diff || 'normal', o.seed, o.me, true, o.map, o.sides);
-    online = { opponent: o.opponent, coop: o.mode === 'coop', diff: o.diff || 'normal' };
+    const coop = !battleOf(o.mode).coop ? null : o.mode === 'coop' ? 'board' : 'unranked';
+    online = { opponent: o.opponent, coop, diff: o.diff || 'normal' };
     Sound.newMatch();
     afterNewWorld(o.faction);
     // Co-op against the computer is 'pve', with its difficulty; the rest 'pvp'.
     // In co-op the match row's opponent column holds the teammate's name, for the co-op leaderboard.
-    if (o.mode === 'coop') Report.start(o.faction, o.diff || 'normal', 'pve', o.partner || 'Commander'); else Report.start(o.faction, null, 'pvp', o.opponent);
+    // (3 v AI is reported as 'pve' too, with stats.size 3, but has no leaderboard of its own yet: see Report.stats)
+    if (coop) Report.start(o.faction, o.diff || 'normal', 'pve', o.partner || 'Commander'); else Report.start(o.faction, null, 'pvp', o.opponent);
     hideMenu();
     eva('Select a structure to build');
   };

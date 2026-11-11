@@ -3,9 +3,11 @@
 // here instead of on a phone: every phone is a guest that sends its orders and draws the snapshots it
 // is sent (src/netcore.js). Each room has its own copy of the game scripts (headless.js).
 //
-// Battles: '1v1' (two players), '2v2' (four players, two a side) and 'coop' (two players together
-// against two computer sides). A room has up to four slots (sides); players sit in slots, and in co-op
-// the other two are the computer's. Slots 0 and 2 are one alliance (ally 0), 1 and 3 the other.
+// Battles (BATTLES in src/maps.js): '1v1' (two players), '2v2' (four players, two a side), 'coop' (two
+// players together against two computer sides), '3v3' (six players) and 'coop3' (three players against
+// three computer sides). A room has up to six slots (sides); players sit in slots, and in co-op the other
+// alliance is the computer's. Even slots (0, 2, 4) are one alliance (ally 0), odd slots the other.
+// A battle is only offered on maps made for it (battleFits); ANY_BATTLE=1 lifts that, for tests.
 //
 // Messages are the same JSON the phones send each other phone to phone (net.js), plus the room ones:
 //   phone -> server: { k: 'create', name, v, gid, faction, map } | { k: 'join', code, name, v, gid }
@@ -31,10 +33,13 @@ const WAIT_LIMIT = +process.env.WAIT_LIMIT || 120;   // seconds to wait for a dr
 const IDLE_LIMIT = 30 * 60;     // a room nobody is in closes after this long (seconds)
 const MAX_ROOMS = +process.env.MAX_ROOMS || 40;
 const SPEED = +process.env.SPEED || 1;   // tests only: run battles faster than real time
-const MODES = ['1v1', '2v2', 'coop'];
+const ANY_BATTLE = !!process.env.ANY_BATTLE;   // tests: any battle on any map with room for it
 const DIFFS = ['easy', 'normal', 'hard'];
 
-const VERSION = headless.load().get('VERSION');   // the game version this server runs
+const base = headless.load();
+const VERSION = base.get('VERSION');   // the game version this server runs
+const BATTLES = base.get('BATTLES'), MODES = Object.keys(BATTLES);
+const fits = (R, mode, map = R.map) => R.ctx.get('battleFits')(map, mode, ANY_BATTLE);
 const rooms = new Map();
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
@@ -167,11 +172,11 @@ function closeRoom(R, why) {
 // The slots of a battle. f: alliance 0's faction (alliance 1 gets the other).
 function setMode(R, mode, f) {
   f = faction(f || (R.slots && R.slots[0].faction));
-  const n = mode === '1v1' ? 2 : 4;
+  const B = BATTLES[mode], n = B.size * 2;
   const old = R.slots || [];
   R.slots = [];
   for (let i = 0; i < n; i++) {
-    const ally = i % 2, ai = mode === 'coop' && ally === 1;
+    const ally = i % 2, ai = !!B.coop && ally === 1;
     R.slots.push({ ally, faction: old[i] && mode !== '1v1' ? old[i].faction : ally ? other(f) : f, ai });
   }
   R.mode = mode;
@@ -202,7 +207,7 @@ function start(R) {
   const { ctx, NetCore } = R;
   const name = (i) => { const s = R.seats.find((x) => x.slot === i); return s ? s.name : null; };
   const sides = R.slots.map((x, i) => ({ faction: x.faction, ally: x.ally, ai: x.ai, name: name(i) }));
-  const diff = R.mode === 'coop' ? R.diff : 'normal';
+  const diff = BATTLES[R.mode].coop ? R.diff : 'normal';
   // Nobody on this copy is "me": every side is a remote player or the computer.
   ctx.get('newWorld')(sides[0].faction, diff, seed, 0, true, R.map, sides);
   R.G.me = -1;   // so every side's announcer lines go out to its player (hooks.evaFor)
@@ -383,15 +388,15 @@ function onMessage(ws, m, st) {
   if (m.k === 'lobby' && lead && lobby) {
     // (1 v 1, as phone to phone: side 0's faction and the map)
     R.slots[0].faction = faction(m.faction); R.slots[1].faction = other(R.slots[0].faction);
-    if (R.mode !== '1v1') { R.slots[2].faction = R.slots[0].faction; R.slots[3].faction = R.slots[1].faction; }
-    R.map = R.ctx.get('validMap')(m.map);
+    for (let i = 2; i < R.slots.length; i++) R.slots[i].faction = R.slots[i % 2].faction;
+    const map = R.ctx.get('validMap')(m.map);
+    if (fits(R, R.mode, map)) R.map = map;
     sendLobby(R);
   } else if (m.k === 'setup' && lead && lobby) {
-    if (MODES.includes(m.mode) && m.mode !== R.mode) {
-      const room = m.mode === '1v1' || m.mode === 'coop' ? 2 : 4;
-      if (R.seats.length <= room) setMode(R, m.mode);
-    }
-    if (m.map) R.map = R.ctx.get('validMap')(m.map);
+    // A new map and battle together are checked together; a map the battle does not fit is refused.
+    const map = m.map ? R.ctx.get('validMap')(m.map) : R.map;
+    if (MODES.includes(m.mode) && m.mode !== R.mode && R.seats.length <= BATTLES[m.mode].players && fits(R, m.mode, map)) setMode(R, m.mode);
+    if (m.map && fits(R, R.mode, map)) R.map = map;
     if (DIFFS.includes(m.diff)) R.diff = m.diff;
     sendLobby(R);
   } else if (m.k === 'faction' && lobby) {
@@ -401,7 +406,7 @@ function onMessage(ws, m, st) {
       if (R.mode === '1v1') R.slots[1 - i].faction = other(x.faction);
       sendLobby(R);
     }
-  } else if (m.k === 'team' && lobby && R.mode === '2v2') {
+  } else if (m.k === 'team' && lobby && BATTLES[R.mode].size > 1 && !BATTLES[R.mode].coop) {
     const to = freeSlot(R, R.slots[s.slot].ally === 0 ? 1 : 0);
     if (to !== undefined) { s.slot = to; sendLobby(R); }
   } else if (m.k === 'go' && lead) start(R);

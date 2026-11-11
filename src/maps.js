@@ -1,6 +1,7 @@
 'use strict';
 // The maps, and the map picker used by the skirmish screen and the online lobby.
 // To add a map: give it an entry here, then make `genMap` (world.js) lay it out when `G.mapId` is its id.
+// `teamSize` says which battles it is made for (BATTLES, battleFits): 2 for 2 v 2 and co-op, 3 for 3 v 3 too.
 // A map with `rows` is a fixed layout (`genLayoutMap`); make one from a picture with tools/map-from-image.py.
 
 const MAPS = {
@@ -9,6 +10,7 @@ const MAPS = {
     img: 'maps/bridge.png',   // from tools/make-map-previews.js
     blurb: 'An island split by two long lakes. Fight over the central road, the timber bridges or round the lake ends.',
     info: '144 × 144 cells · 8 start positions',
+    teamSize: 2,   // the largest alliance it is made for (see BATTLES): 1 v 1, 2 v 2 and co-op
   },
   river: {
     name: 'Three Crossings',
@@ -18,6 +20,7 @@ const MAPS = {
     // Built for 2 v 2 (not playable as teams yet): the west bank (start positions 0-3) against the east (4-7).
     // A 1 v 1 starts one player on each bank. Not mirrored, so the banks differ a little.
     teams: [[0, 1, 2, 3], [4, 5, 6, 7]],
+    teamSize: 2,
     // A fixed layout, traced from the owner's design (maps/designs/river.png) by
     // python3 tools/map-from-image.py maps/designs/river.png 126 144 --ford 50,0,60,2 --bridge 65,50,78,52 --ford 72,111,83,113
     // Start positions in cells; rows run-length coded: '.' grass, ',' dirt, 'T' woods, '#' rock, '~' water, '=' bridge, 'f' ford (shallow water you can drive through), 'o' ore.
@@ -178,19 +181,46 @@ const DEFAULT_MAP = 'bridge';
 const MAP_LIST = Object.keys(MAPS);
 const validMap = (id) => (MAPS[id] ? id : DEFAULT_MAP);
 
+// The battles. size: sides in each of the two alliances. coop: the second alliance is the computer's
+// (online, players against the computer). Skirmish fills every side but yours with the computer.
+// players: how many people an online battle needs. Sides alternate between the alliances: side i is
+// in alliance i % 2, so a 3 v 3 is sides 0, 2, 4 against 1, 3, 5.
+const BATTLES = {
+  '1v1': { size: 1, label: '1 v 1', online: '1 v 1', skirmish: '1 v 1' },
+  '2v2': { size: 2, label: '2 v 2', online: '2 v 2', skirmish: '2 v 2 · you and a computer ally' },
+  'coop': { size: 2, coop: true, label: '2 v AI', online: '2 v AI' },
+  '3v3': { size: 3, label: '3 v 3', online: '3 v 3', skirmish: '3 v 3 · you and two computer allies' },
+  'coop3': { size: 3, coop: true, label: '3 v AI', online: '3 v AI' },
+};
+for (const k in BATTLES) BATTLES[k].players = BATTLES[k].coop ? BATTLES[k].size : BATTLES[k].size * 2;
+const battleOf = (mode) => BATTLES[mode] || BATTLES['1v1'];
+// Testing a battle on a map not made for it: ?battles=all in the address (the server: ANY_BATTLE=1).
+const ANY_BATTLE = (() => { try { return /[?&]battles=all\b/.test(location.search); } catch (_) { return false; } })();
+// Whether a map is made for a battle: its alliances fit the map's `teamSize` (1 when not given).
+// Start positions are split in two halves, one per alliance, so a team can never be larger than half of them.
+function battleFits(mapId, mode, any = ANY_BATTLE) {
+  const m = MAPS[validMap(mapId)], size = battleOf(mode).size;
+  const half = m.spawns ? m.spawns.length / 2 : 4;
+  return size <= half && (any || size <= (m.teamSize || 1));
+}
+
 // Buttons for every map, the chosen one pressed (data-map holds the id). `cls` styles the group.
-function mapCardsHtml(selected, cls = '') {
+// mode (optional): maps not made for that battle are shown but cannot be picked.
+function mapCardsHtml(selected, cls = '', mode = null) {
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
   return `<div class="pick maps ${cls}" role="group" aria-label="Map">${MAP_LIST.map((id) =>
-    `<button type="button" data-map="${id}" aria-pressed="${id === selected}">${MAPS[id].img ? `<img class="map-img" src="${MAPS[id].img}" alt="" width="224" height="224">` : ''}<span>${esc(MAPS[id].name)}</span><small>${esc(MAPS[id].info)}. ${esc(MAPS[id].blurb)}</small></button>`).join('')}</div>`;
+    `<button type="button" data-map="${id}" aria-pressed="${id === selected}"${mode && !battleFits(id, mode) ? ' disabled' : ''}>${MAPS[id].img ? `<img class="map-img" src="${MAPS[id].img}" alt="" width="224" height="224">` : ''}<span>${esc(MAPS[id].name)}</span><small>${esc(MAPS[id].info)}. ${esc(MAPS[id].blurb)}</small></button>`).join('')}</div>`;
 }
 
 // The skirmish map screen: MapSelect.open(selectedId, (id) => start the game).
 const MapSelect = (() => {
   let root = null, chosen = DEFAULT_MAP, go = null, mode = '1v1';
-  // The battle: 1 v 1 against the computer, or 2 v 2 (you and a computer ally against two).
-  const MODES = [['1v1', '1 v 1'], ['2v2', '2 v 2 · you and a computer ally']];
+  // The battle: 1 v 1 against the computer, or a team battle (you and computer allies against computers),
+  // only those the chosen map is made for.
+  const modes = () => Object.keys(BATTLES).filter((k) => BATTLES[k].skirmish && battleFits(chosen, k)).map((k) => [k, BATTLES[k].skirmish]);
   function render() {
+    if (!battleFits(chosen, mode)) mode = '1v1';
+    const MODES = modes();
     root.querySelector('.map-body').innerHTML = mapCardsHtml(chosen) +
       `<div class="on-modes" role="radiogroup" aria-label="Battle">${MODES.map(([k, l]) => `<button type="button" class="pf-btn${k === mode ? ' on-go' : ''}" role="radio" aria-checked="${k === mode}" data-mode="${k}">${l}</button>`).join('')}</div>` +
       '<div class="on-btns"><button type="button" class="pf-btn on-go" data-map-go>Start skirmish</button></div>';

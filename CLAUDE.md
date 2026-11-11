@@ -292,6 +292,25 @@ share globals. Read this file first; the commit history explains every change in
 - Snapshots also carry the debrief log as it grows (`s.log` in netcore.js `snapshot`, applied in net.js `applySnapshot`),
   so a phone that ends a battle on its own (it could not reconnect) still has its graphs.
 
+## 3 v 3 and 3 v AI: the foundation (after 2026.11.11, not released; no map is made for them yet)
+
+- **Battles** are one table, `BATTLES` in maps.js (`size` = sides per alliance, `coop` = the other alliance is the
+  computer's, `players` online): `1v1`, `2v2`, `coop` (2 v AI), `3v3`, `coop3` (3 v AI). The server reads it too
+  (`MODES`, slots, room size, Switch team). Sides alternate between alliances: side i is in alliance i % 2.
+- **Maps say what they are made for:** `teamSize` in `MAPS` (largest alliance; both maps are 2). `battleFits(map, mode)`
+  gates the skirmish map screen's battles, the online lobby's battles and maps (cards that do not fit are disabled), and
+  the server's `setup`. An alliance can never be larger than half the map's start positions. **To enable 3 v 3 on a map,
+  give it `teamSize: 3`** (and at least 3 start positions per half; both current maps have 4).
+- **Testing on today's maps:** `?battles=all` in the address offers every battle that physically fits; the server takes
+  `ANY_BATTLE=1`. `node tools/sim/teams.js <repo> 1 12 river 3v3` runs a computer-only 3 v 3 headless (on the dev
+  container about 680 units and 16 s of CPU per game minute by minute 6, double a 2 v 2: watch the server's `cpu_pct`).
+- **Skirmish 3 v 3:** you and two computer allies against three computers (`teamSides(f, size)` in ui.js).
+- **Colours:** a third same-faction teammate is `variant` 2 with `FACTIONS[f].alt2` (Allies white-grey, Soviets purple).
+- **Reports:** 3 v AI is `pve` like co-op, and team battles record `stats.size` (sides per alliance). Only 2-player co-op
+  offers the co-op leaderboard (`online.coop === 'board'`); a 3-player board needs `get_leaderboard` to split by size.
+- Not done yet: a map made for 3 v 3, the leaderboard split, and phones with six players for real (server load and the
+  lobby on a small screen).
+
 ## Windows app (`desktop/`)
 
 - `main.js` serves the game from `app://game/` (not `file://`, so match reports work and `fetch` of the music works;
@@ -340,6 +359,7 @@ Supabase.
 | `server-teams.js` | Four pages play a 2 v 2 through the server (own side, shared sight, a surrender handed to the computer, the right winners), then two pages play co-op |
 | `teams.js` | Headless (no browser): the computer plays every side of a 2 v 2 (`<repo> <games> <minutes> <map> [1v1]`), with CPU time per game minute |
 | `team-beaten.js` | A beaten side in a team game: the defeat card, Keep watching and Debrief, in a 2 v 2 skirmish and online co-op |
+| `server-3v3.js` | Raw WebSocket players on the server: 3 v AI refused on a 2 v 2 map; with `ANY_BATTLE=1`, 3 v AI and 3 v 3 start with six sides. Needs `npm install` in `server/` |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP

@@ -401,7 +401,7 @@ const Net = (() => {
     send({ k: 'lobby', faction: lobby.host.faction, map: lobby.host.map });
     listener();
   }
-  // On the server: the battle (mode '1v1', '2v2' or 'coop'), the computer's difficulty in co-op, a
+  // On the server: the battle (a mode in BATTLES: '1v1', '2v2', 'coop', '3v3', 'coop3'), the computer's difficulty in co-op, a
   // side's faction (your own; the leader also the computer's), and moving to the other team.
   const onServer = () => lobby && lobby.via === 'server' && lobby.connected;
   function setMode(mode) { if (onServer() && lobby.me === 'host') send({ k: 'setup', mode }); }
@@ -773,9 +773,10 @@ const Online = (() => {
       <div class="on-btns">${me ? '<button type="button" class="pf-btn" data-on="swap">Swap sides</button><button type="button" class="pf-btn on-go" data-on="start">Start battle</button>' : '<p class="pf-small">Waiting for the host…</p>'}
         <button type="button" class="pf-btn" data-on="cancel">Leave</button></div>`;
   }
-  // A room on the game server: the battle (1 v 1, 2 v 2, or two of you against the computer), its
-  // sides and who sits where, the map, and Start once every player's place is taken.
-  const MODES = [['1v1', '1 v 1'], ['2v2', '2 v 2'], ['coop', '2 v AI']];
+  // A room on the game server: the battle (1 v 1, 2 v 2 or 3 v 3, or two or three of you against the
+  // computer), its sides and who sits where, the map, and Start once every player's place is taken.
+  // Only the battles the room's map is made for are offered (battleFits), and the current one always.
+  const modes = (map, cur) => Object.keys(BATTLES).filter((k) => k === cur || battleFits(map, k)).map((k) => [k, BATTLES[k].online]);
   const DIFFS = [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']];
   function serverLobby(L) {
     const lead = L.me === 'host', mode = L.mode || '1v1';
@@ -788,14 +789,15 @@ const Online = (() => {
     };
     const team = (a) => `<table class="on-lobby"><caption>${mode === '1v1' ? (a === 0 ? 'Side 1' : 'Side 2') : 'Team ' + (a + 1)}</caption><tbody>${L.slots.map((x, i) => (x.ally === a ? slot(x, i) : '')).join('')}</tbody></table>`;
     const mineAlly = L.slots[L.mine] && L.slots[L.mine].ally;
-    const canMove = mode === '2v2' && L.slots.some((x, i) => x.ally !== mineAlly && !x.ai && !x.name);
+    const B = battleOf(mode), map = validMap(L.host && L.host.map);
+    const canMove = B.size > 1 && !B.coop && L.slots.some((x, i) => x.ally !== mineAlly && !x.ai && !x.name);
     body.innerHTML = `<p class="on-code" aria-label="Room code">${esc(L.code)}</p>
       <p class="lb-intro">${have < need ? `Friends join with this code (${have} of ${need} players here).` : lead ? 'Everyone is here. Start when ready.' : 'Everyone is here. The leader starts the battle.'}</p>
-      ${pick(MODES, mode, 'mode', lead)}
-      ${mode === 'coop' ? pick(DIFFS, L.diff || 'normal', 'diff', lead) : ''}
+      ${pick(modes(map, mode), mode, 'mode', lead)}
+      ${B.coop ? pick(DIFFS, L.diff || 'normal', 'diff', lead) : ''}
       <div class="on-teams">${team(0)}${team(1)}</div>
       ${canMove ? '<div class="on-btns"><button type="button" class="pf-btn" data-on="team">Switch team</button></div>' : ''}
-      ${lead ? mapCardsHtml(validMap(L.host && L.host.map)) : `<p class="lb-intro">Map: <b>${esc(MAPS[validMap(L.host && L.host.map)].name)}</b></p>`}
+      ${lead ? mapCardsHtml(map, '', mode) : `<p class="lb-intro">Map: <b>${esc(MAPS[map].name)}</b></p>`}
       <div class="on-btns">${lead ? `<button type="button" class="pf-btn on-go" data-on="start"${L.ready ? '' : ' disabled'}>Start battle</button>` : '<p class="pf-small">Waiting for the leader…</p>'}
         <button type="button" class="pf-btn" data-on="cancel">Leave</button></div>`;
   }

@@ -12,11 +12,11 @@ const C = {
 };
 const BURNT = { key: 'burnt', main: '#3b3631', light: '#4b453d', dark: '#26231f', deep: '#171512' };
 // `drawVar` is 1 while drawing a teammate that shares a faction with an earlier teammate: it gets the faction's
-// alternate colours (and its own sprite caches, through the palette's key).
+// alternate colours (and its own sprite caches, through the palette's key); 2 for a third such teammate (3 v 3).
 let drawVar = 0;
 function palFor(faction) {
-  const f = FACTIONS[faction], alt = drawVar && f.alt, p = alt || f.pal;
-  p.key = p.key || (alt ? faction + '2' : faction);
+  const f = FACTIONS[faction], alt = drawVar === 2 ? f.alt2 : drawVar ? f.alt : null, p = alt || f.pal;
+  p.key = p.key || (alt ? faction + (drawVar + 1) : faction);
   return p;
 }
 

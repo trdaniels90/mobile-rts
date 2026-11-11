@@ -36,8 +36,12 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
     sides = [0, 1].map((i) => (i === me ? { faction: playerFaction, ally: i, ai: false } : { faction: enemyFaction, ally: i, ai: !pvp }));
   }
   const teams = sides.map((d, i) => Object.assign(makeTeam(i, d.faction, !!d.ai), { ally: d.ally, name: d.name || null }));
-  // A teammate of the same faction as an earlier teammate gets the faction's alternate colours.
-  teams.forEach((t, i) => { if (teams.slice(0, i).some((o) => o.ally === t.ally && o.faction === t.faction && !o.variant)) { t.variant = 1; t.pal = FACTIONS[t.faction].alt; } });
+  // A teammate of the same faction as an earlier teammate gets the faction's alternate colours (a third, in
+  // 3 v 3, the second alternate).
+  teams.forEach((t, i) => {
+    const n = teams.slice(0, i).filter((o) => o.ally === t.ally && o.faction === t.faction).length;
+    if (n) { t.variant = Math.min(2, n); t.pal = FACTIONS[t.faction][n > 1 ? 'alt2' : 'alt']; }
+  });
   const fogFor = new Map();
   const fog = teams.map((t) => fogFor.get(t.ally) || fogFor.set(t.ally, new Uint8Array(NCELLS)).get(t.ally));
   G = {
@@ -53,7 +57,7 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
   for (const t of teams) if (t.isAI) t.credits = G.diff.credits;
   // Start positions: a random one for side 0, and for the enemy a random one from the other half of
   // the list (across the lakes or the river), so the two bases never start on the same side. In a
-  // team game each alliance gets its own half, one position each, none shared.
+  // team game (2 v 2, 3 v 3, co-op) each alliance gets its own half, one position each, none shared.
   const sr = rng(Math.imul(seed ^ 0x2545f491, 0x9e3779b1) ^ (seed >>> 7)); sr(); sr();
   G.spawns = spawnPoints(mapId);
   const nh = G.spawns.length / 2;
@@ -65,8 +69,11 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
     const flip = sr() < 0.5, used = new Set();
     for (const t of teams) {
       const half = (t.ally % 2 === 0) !== flip ? 0 : nh;
-      const free = [];
+      let free = [];
       for (let i = half; i < half + nh; i++) if (!used.has(i)) free.push(i);
+      // (more sides in an alliance than its half has start positions: any free one; battleFits keeps
+      // the menus from offering such a battle)
+      if (!free.length) free = G.spawns.map((_, k) => k).filter((k) => !used.has(k));
       const i = free[Math.floor(sr() * free.length)];
       used.add(i);
       t.start = { ...G.spawns[i] };

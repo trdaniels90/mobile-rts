@@ -1,5 +1,5 @@
 // Team games headless (no browser): the computer plays every side of a 2 v 2 (or a 1 v 1 with
-// "1v1"), fast, and reports how it went. node tools/sim/teams.js <repo> [games] [minutes] [map] [1v1]
+// "1v1", a 3 v 3 with "3v3"), fast, and reports how it went. node tools/sim/teams.js <repo> [games] [minutes] [map] [1v1|3v3]
 const vm = require('vm');
 const [root, games = '2', mins = '25', map = 'bridge', mode = '2v2'] = process.argv.slice(2);
 const headless = require(root + '/server/headless.js');
@@ -7,6 +7,7 @@ for (let g = 0; g < +games; g++) {
   const ctx = headless.load(), run = (s) => vm.runInContext(s, ctx);
   const seed = 1000 + g * 7919;
   const sides = mode === '1v1' ? `[{ faction: 'allies', ally: 0, ai: true }, { faction: 'soviets', ally: 1, ai: true }]`
+    : mode === '3v3' ? `[0, 1, 2, 3, 4, 5].map((i) => ({ faction: i === 2 || i === 3 ? (i % 2 ? 'allies' : 'soviets') : i % 2 ? 'soviets' : 'allies', ally: i % 2, ai: true }))`
     : `[{ faction: 'allies', ally: 0, ai: true }, { faction: 'soviets', ally: 1, ai: true }, { faction: 'soviets', ally: 0, ai: true }, { faction: 'allies', ally: 1, ai: true }]`;
   run(`newWorld('allies', 'hard', ${seed}, 0, false, '${map}', ${sides}); for (const t of G.teams) t.auto = true; G.me = -1; 0`);
   const t0 = Date.now();

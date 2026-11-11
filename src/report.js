@@ -119,6 +119,8 @@ const Report = (() => {
     const out = { player: G.me, teams: G.teams.map((t) => ({ faction: t.faction, ai: t.isAI, stats: t.stats })),
       log: { samples: G.log.samples, events: G.log.events, fallen, alive, waves: G.log.waves }, names };
     if (errs.length) out.errors = errs;
+    // Team battles: sides per alliance (2 for 2 v 2 and co-op, 3 for 3 v 3 and 3 v AI), so boards can tell them apart.
+    if (G.teams.length > 2) out.size = G.teams.filter((t) => t.ally === G.teams[G.me].ally).length;
     // Online: the battle's id, the same on every phone in it, so the co-op board shows a team's win once.
     try { const b = typeof Net !== 'undefined' && Net.lobby && Net.role && Net.lobby.match; if (b) out.battle = String(b).slice(0, 64); } catch (_) {}
     try { const n = typeof Net !== 'undefined' && Net.netStats(); if (n) out.net = n; } catch (_) {}
