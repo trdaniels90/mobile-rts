@@ -101,6 +101,66 @@
   const unlockAudio = () => Sound.unlock();
   for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) document.addEventListener(ev, unlockAudio, { capture: true, passive: true });
 
+
+  // Smooth upscale: the battlefield is drawn at world resolution (`view`) and enlarged to the screen. Instead of
+  // square pixels, a small WebGL pass rounds the stair-steps: where the two neighbours beside a pixel's corner
+  // match each other but not the pixel, that corner takes their colour along an anti-aliased diagonal. Falls back
+  // to plain enlarging without WebGL (and with ?smooth=off).
+  const Smooth = (() => {
+    if (/[?&]smooth=off/.test(location.search)) return null;
+    let c, gl, prog, tex, uTs, uUsed, uAa;
+    try {
+      c = mkCanvas(4, 4);
+      gl = c.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false });
+      if (!gl) return null;
+      const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
+      prog = gl.createProgram();
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, 'attribute vec2 p; varying vec2 uv; void main() { uv = vec2(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5); gl_Position = vec4(p, 0.0, 1.0); }'));
+      gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, `
+        precision highp float;
+        uniform sampler2D t; uniform vec2 ts, used; uniform float aa; varying vec2 uv;
+        vec3 px(vec2 c) { return texture2D(t, (c + 0.5) / ts).rgb; }
+        bool same(vec3 a, vec3 b) { vec3 d = abs(a - b); return d.r * 0.3 + d.g * 0.59 + d.b * 0.11 < 0.14; }
+        void main() {
+          vec2 p = uv * used, c = floor(p), f = p - c - 0.5;
+          vec2 s = vec2(f.x < 0.0 ? -1.0 : 1.0, f.y < 0.0 ? -1.0 : 1.0);
+          vec3 E = px(c), Hn = px(c + vec2(s.x, 0.0)), Vn = px(c + vec2(0.0, s.y));
+          vec3 col = E;
+          if (same(Hn, Vn) && !same(E, Hn)) {
+            vec3 Ho = px(c - vec2(s.x, 0.0)), Vo = px(c - vec2(0.0, s.y)), Dg = px(c + s);
+            if ((!same(Hn, Vo) && !same(Vn, Ho)) || same(Dg, Hn)) {
+              float cut = same(Dg, Hn) ? 0.45 : 0.55;
+              col = mix(E, (Hn + Vn) * 0.5, smoothstep(cut - aa, cut + aa, abs(f.x) + abs(f.y)));
+            }
+          }
+          gl_FragColor = vec4(col, 1.0);
+        }`));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
+      gl.useProgram(prog);
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+      for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+      uTs = gl.getUniformLocation(prog, 'ts'); uUsed = gl.getUniformLocation(prog, 'used'); uAa = gl.getUniformLocation(prog, 'aa');
+      let lost = false;
+      c.addEventListener('webglcontextlost', (e) => { e.preventDefault(); lost = true; });
+      // run(src, bw, bh, k): the top-left bw x bh of `src` enlarged k times; returns the canvas to copy from, or null.
+      return { run(src, bw, bh, k) {
+        if (lost || gl.isContextLost()) return null;
+        const ow = Math.round(bw * k), oh = Math.round(bh * k);
+        if (ow > gl.getParameter(gl.MAX_TEXTURE_SIZE) || oh > gl.getParameter(gl.MAX_TEXTURE_SIZE)) return null;
+        if (c.width !== ow || c.height !== oh) { c.width = ow; c.height = oh; }
+        gl.viewport(0, 0, ow, oh);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, src);
+        gl.uniform2f(uTs, src.width, src.height); gl.uniform2f(uUsed, bw, bh); gl.uniform1f(uAa, Math.min(0.25, 0.75 / k));
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        return c;
+      } };
+    } catch (e) { return null; }
+  })();
+
   // ---------------------------------------------------------------------------
   // Layout & camera
   // ---------------------------------------------------------------------------
@@ -373,7 +433,8 @@
     const k = z * DPR;
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
-    ctx.drawImage(view, 0, 0, bw, bh, Math.round(-(cam.x - ox) * k + sx2), Math.round(-(cam.y - oy) * k + sy2), Math.round(bw * k), Math.round(bh * k));
+    const sm = Smooth && k >= 1.75 ? Smooth.run(view, bw, bh, k) : null;   // (little to round off when zoomed far out)
+    ctx.drawImage(sm || view, 0, 0, sm ? sm.width : bw, sm ? sm.height : bh, Math.round(-(cam.x - ox) * k + sx2), Math.round(-(cam.y - oy) * k + sy2), Math.round(bw * k), Math.round(bh * k));
     if (gesture && gesture.type === 'box' && gesture.moved) {
       const bx = Math.min(gesture.sx, gesture.ex) * DPR, by = Math.min(gesture.sy, gesture.ey) * DPR;
       ctx.strokeStyle = '#f2f2ea'; ctx.lineWidth = DPR;

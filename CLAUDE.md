@@ -292,6 +292,16 @@ share globals. Read this file first; the commit history explains every change in
 - Snapshots also carry the debrief log as it grows (`s.log` in netcore.js `snapshot`, applied in net.js `applySnapshot`),
   so a phone that ends a battle on its own (it could not reconnect) still has its graphs.
 
+## Smoother look (after 2026.11.07, not released yet; drawing only, both modes)
+
+- **Smooth upscale** (`Smooth` in ui.js): the battlefield is still drawn at world resolution (`view`), then a small
+  WebGL pass enlarges it, rounding pixel stair-steps into anti-aliased diagonals (sprites, terrain, bars alike).
+  Skipped when zoomed far out (`k < 1.75`), without WebGL, on a lost context, or with `?smooth=off`.
+  Tune `same` (colour match threshold) and `cut` in the fragment shader.
+- **Water** is pale slate blue with a soft chop (`WATER`, `chop` in `paintTerrain`), no sparkle dots.
+- **Fords** are churned mud with puddles (`MUD`), no stones or boulders (`fordStone` removed).
+- Made after the owner's reference screenshot; a full xBR-quality filter or higher-resolution sprites would go further.
+
 ## Windows app (`desktop/`)
 
 - `main.js` serves the game from `app://game/` (not `file://`, so match reports work and `fetch` of the music works;
