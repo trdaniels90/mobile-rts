@@ -88,3 +88,5 @@ with open(OUT, 'w') as f:
         f.write('  %s: [%s],\n' % (json.dumps(key), ', '.join(json.dumps(x) for x in v)))
     f.write('};\n')
 print('clips', sum(len(v) for v in out.values()), 'KB', total // 1024)
+# The rifle and machine gun get their short, punchy shape from shape_guns.py.
+run([sys.executable, os.path.join(os.path.dirname(__file__), 'shape_guns.py'), OUT])
