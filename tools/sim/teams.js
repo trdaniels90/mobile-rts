@@ -21,6 +21,6 @@ for (let g = 0; g < +games; g++) {
   } catch (e) { err = e.stack.split('\n').slice(0, 4).join(' | '); }
   const r = run(`({ t: Math.round(G.t / 6) / 10, over: G.over && { winner: G.over.winner, t: Math.round(G.over.t / 6) / 10 },
     starts: G.teams.map((t) => [t.start.cx, t.start.cy]),
-    sides: G.teams.map((t) => ({ id: t.id, ally: t.ally, f: t.faction[0], out: !!t.out, units: unitsOf(t.id).length, blds: buildingsOf(t.id).length, killed: t.stats.killed, bk: t.stats.bldKilled, lost: t.stats.lost, waves: G.log.waves[t.id], foe: t.foe })) })`);
+    sides: G.teams.map((t) => ({ id: t.id, ally: t.ally, f: t.faction[0], out: !!t.out, units: unitsOf(t.id).length, blds: buildingsOf(t.id).length, killed: t.stats.killed, bk: t.stats.bldKilled, lost: t.stats.lost, waves: G.log.waves[t.id], how: t.flk, foe: t.foe })) })`);
   console.log(JSON.stringify({ game: g, seed, cpuSec: Math.round((Date.now() - t0) / 1000), ...r, outAt, err }));
 }

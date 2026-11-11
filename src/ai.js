@@ -367,13 +367,17 @@ function aiLaunch(team, ready) {
   // takes only its planned number of units: the rest wait for the next one.
   if (A.planner) { if (team.attackAt === undefined || G.t < team.attackAt || ready.length < team.plan.size) return; }
   else if (ready.length < team.plan.size || G.t < A.firstWave || G.t - (team.lastWave || -1e9) < A.waveGap) return;
-  // The planner's wave takes what has gathered while it waited, up to twice the planned size.
-  ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, A.planner ? team.plan.size * 2 : team.plan.size);   // first come, first sent
+  // The planner's wave takes three quarters of what has gathered while it waited (at least the planned size);
+  // the rest stay to guard the base.
+  const take = A.planner ? Math.min(ready.length, Math.max(team.plan.size, Math.ceil(ready.length * 0.75))) : team.plan.size;
+  ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, take);   // first come, first sent
   const target = aiWaveTarget(team, ready[0]);
   if (!target) return;
   const strike = team.plan.big && A.strike.length ? A.strike : null;
   const how = team.flk = team.flk || { pincer: 0, flank: 0, direct: 0 };
-  if (ready.length >= 6 && r() < (A.pincer || 0) && aiPincerStart(team, ready, target, strike)) how.pincer++;
+  // Planner: a big wave splits into two or three squads that come from different sides at once.
+  const parts = !A.planner ? 2 : ready.length >= 20 && r() < 0.5 ? 3 : ready.length >= 12 ? 2 : 0;
+  if (A.planner ? parts >= 2 && aiPincerStart(team, ready, target, strike, parts) : ready.length >= 6 && r() < (A.pincer || 0) && aiPincerStart(team, ready, target, strike)) how.pincer++;
   else if (A.planner && r() < (A.approach || 0) && aiApproachStart(team, ready, target, strike)) how.flank++;
   else { aiSend(team, ready, target, { strike }); how.direct++; }
   team.waves = (team.waves || 0) + 1;
@@ -482,9 +486,10 @@ function aiStrike(team) {
 // point on either flank of the target, out of range of its guns, and once both are in place (or
 // 30 seconds after the first half gets there, or at once if a quarter of the wave is lost) they close in together, so the attack comes from two sides at once. Each half
 // guards its gathering point on the way, so it fights back if attacked.
-function aiPincerStart(team, units, target, strike) {
+function aiPincerStart(team, units, target, strike, n = 2) {
   if (team.pincer) return false;
-  let spots = A_PLANNER() ? aiApproachSpots(team, units[0], target, 2) : null;
+  let spots = null;
+  if (A_PLANNER()) for (let k = n; k >= 2 && !spots; k--) spots = aiApproachSpots(team, units[0], target, k);
   if (!spots || spots.length < 2) {
     const r = rallyPoint(team), base = Math.atan2(r.y - target.y, r.x - target.x);
     spots = [];
@@ -497,10 +502,10 @@ function aiPincerStart(team, units, target, strike) {
       spots.push({ x: (cellX(c) + 0.5) * CELL, y: (cellY(c) + 0.5) * CELL });
     }
   }
-  // Split the wave between the two points: the units nearer the first go there, the rest to the second.
-  const sorted = units.slice().sort((a, b) => (Math.hypot(a.x - spots[0].x, a.y - spots[0].y) - Math.hypot(a.x - spots[1].x, a.y - spots[1].y)));
-  const half = Math.ceil(sorted.length / 2);
-  return aiGather(team, [sorted.slice(0, half), sorted.slice(half)], spots, target, strike, units.length);
+  // Split the wave evenly between the points (the units wait in one place, so nearest-point would send them all to one).
+  const mix = units.slice().sort(() => Math.random() - 0.5), groups = spots.map(() => []);
+  mix.forEach((u, i) => groups[i % spots.length].push(u));
+  return aiGather(team, groups, spots, target, strike, units.length);
 }
 const A_PLANNER = () => !!G.diff.ai.planner;
 // The wave goes round to one gathering point first, then in on the target (planner waves, A.approach).
@@ -528,7 +533,7 @@ function aiGather(team, groups, spots, target, strike, n) {
 // picked at random, favouring short routes and sides the computer has not used lately (measured round
 // the enemy's Construction Yard, where a player builds defences), so a base cannot count on one direction.
 function aiApproachSpots(team, from, target, count) {
-  const foe = enemyOf(team), cy = buildingsOf(foe.id).find((b) => b.type === 'cy') || target;
+  const foe = G.teams[target.team] || enemyOf(team), cy = buildingsOf(foe.id).find((b) => b.type === 'cy') || target;
   const guns = enemyBuildingsOf(team.id).filter((b) => b.def.defense && !b.def.antiAir && targetable(team.id, b));
   const direct = pathLen(findPath(from.x, from.y, target.x, target.y, 8), from);
   if (!direct) return null;
@@ -608,7 +613,18 @@ function aiCounter(team) {
 // Normal: a mix of the Construction Yard, refineries, power and outlying sites. Hard: whatever
 // valuable building is least defended.
 function aiWaveTarget(team, from) {
-  const A = G.diff.ai, r = Math.random, foe = enemyOf(team), theirs = buildingsOf(foe.id).filter((b) => targetable(team.id, b));
+  const A = G.diff.ai, r = Math.random;
+  let foe = enemyOf(team), theirs = buildingsOf(foe.id).filter((b) => targetable(team.id, b));
+  // Its chosen enemy's base is not found yet but another enemy's is (team games): attack that one meanwhile.
+  if (!theirs.length) {
+    let bd = Infinity;
+    for (const f of foesOf(team.id)) {
+      const t = G.teams[f], bl = buildingsOf(f).filter((b) => targetable(team.id, b));
+      if (!bl.length) continue;
+      const d = Math.hypot(t.start.cx - team.start.cx, t.start.cy - team.start.cy);
+      if (d < bd) { bd = d; foe = t; theirs = bl; }
+    }
+  }
   if (!theirs.length) return lastStand({ team: team.id, x: from.x, y: from.y });
   const cy = theirs.find((b) => b.type === 'cy');
   if (A.targets === 'cy') {
