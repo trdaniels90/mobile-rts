@@ -301,6 +301,7 @@ share globals. Read this file first; the commit history explains every change in
 - `MAPS.lakes` in maps.js: traced from the owner's design `maps/designs/lakes.png` (126 cells, a lavender-ground palette:
   `tools/map-from-image.py` detects it; its light grey roads become dirt tracks) at **168 x 168** cells, `teamSize: 3`,
   three timber bridges over the long lake (`--bridge` boxes in the comment), 16 gem fields placed in twins by the half turn.
+  North (starts 0-3) against south (4-7): the starts are listed north first, not in the tool's west-first order.
 - **Each map has its own size:** `size` in `MAPS` (default 144, `mapSize(id)`). `MAP`, `WORLD`, `NCELLS` are `let` now and
   `setMapSize(n)` (world.js) sets them, the pathfinder's arrays and `GRID_N`; `newWorld` calls it, and `SaveGame.load`
   (saves record `map` and `size`). ui.js remakes its one-pixel-per-cell pictures (`mapPictures`). Anything new sized by the

@@ -179,11 +179,12 @@ const MAPS = {
   lakes: {
     name: 'Lake Country',
     img: 'maps/lakes.png',
-    blurb: 'A big map for big battles. A long lake with three bridges cuts through the west, creeks and old roads wind through the east, and lakes sit in the corners. Ore and gems lie all over.',
+    blurb: 'A big map for big battles. The north fights the south: a long lake with three bridges and a line of creeks lie between them, old roads wind through the middle, and lakes sit in the corners. Ore and gems lie all over.',
     info: '168 × 168 cells · 8 start positions · made for 3 v 3',
     size: 168,   // cells a side (setMapSize); bigger than the 144 of the others. At most 170 (the ground picture's limit on iPhones)
-    // The west (start positions 0-3) against the east (4-7); a 1 v 1 starts one player on each side. Nearly
-    // symmetric by a half turn, so each west start has an east twin.
+    // The north (start positions 0-3) against the south (4-7), each alliance on its own half (newWorld): a 1 v 1
+    // starts one player on each. The lake's bridges and the eastern creeks lie between them. Nearly symmetric by a
+    // half turn, so each north start has a south twin. (The tool lists starts west first; they are reordered here.)
     teams: [[0, 1, 2, 3], [4, 5, 6, 7]],
     teamSize: 3,
     // A fixed layout, traced from the owner's design (maps/designs/lakes.png) by
@@ -191,9 +192,9 @@ const MAPS = {
     // The design's grey roads are dirt tracks. Gem fields [x, y, radius]: one behind each start position (same order
     // as spawns), then pairs out on the map, one on each side (twins by the half turn): north and south middle, the
     // lake's east end and its eastern twin, the far west and east, and either side of the middle.
-    gems: [[3, 14, 2.4], [79, 45, 2.4], [3, 95, 2.4], [18, 145, 2.4], [120, 15, 2.4], [162, 69, 2.4], [96, 128, 2.4], [141, 155, 2.4],
+    gems: [[3, 14, 2.4], [79, 45, 2.4], [120, 15, 2.4], [162, 69, 2.4], [3, 95, 2.4], [18, 145, 2.4], [96, 128, 2.4], [141, 155, 2.4],
       [59, 25, 2.6], [102, 137, 2.6], [48, 87, 2.6], [121, 75, 2.6], [28, 130, 2.6], [140, 43, 2.6], [75, 82, 2.6], [91, 86, 2.6]],
-    spawns: [[10,20],[79,54],[12,94],[22,139],[116,20],[156,68],[94,119],[135,148]],
+    spawns: [[10,20],[79,54],[116,20],[156,68],[12,94],[22,139],[94,119],[135,148]],
     rows: [
       '36.15o21.3#25.20o29.2,17~',
       '35.17o.2T17.3#4.#.2#16.21o28.,19~',
