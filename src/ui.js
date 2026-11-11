@@ -138,7 +138,14 @@
     cam.z = snapZ(cam.z);
     const vw = W / cam.z, vh = H / cam.z;
     cam.x = vw >= WORLD ? (WORLD - vw) / 2 : Math.max(0, Math.min(WORLD - vw, cam.x));
-    cam.y = vh >= WORLD ? (WORLD - vh) / 2 : Math.max(0, Math.min(WORLD - vh, cam.y));
+    // While placing, the camera may go past the top edge by the placement bar's height, so a base by the
+    // top of the map (Three Crossings' north-west start) is not stuck under the bar, which takes the taps.
+    const top = placeMargin() / cam.z;
+    cam.y = vh >= WORLD ? (WORLD - vh) / 2 : Math.max(-top, Math.min(WORLD - vh, cam.y));
+  }
+  function placeMargin() {
+    if (!ui.placebar || ui.placebar.hidden) return 0;
+    return Math.max(0, ui.placebar.getBoundingClientRect().bottom - canvas.getBoundingClientRect().top + 8);
   }
   function centerOn(x, y) { cam.x = x - W / cam.z / 2; cam.y = y - H / cam.z / 2; clampCam(); }
   const s2w = (sx, sy) => ({ x: cam.x + sx / cam.z, y: cam.y + sy / cam.z });
@@ -573,7 +580,7 @@
     ui.placeOk.hidden = true;
     ui.placebar.hidden = false;
   }
-  function endPlace() { if (G) G.place = null; ui.placebar.hidden = true; ui.placeOk.textContent = 'PLACE'; }
+  function endPlace() { if (G) G.place = null; ui.placebar.hidden = true; ui.placeOk.textContent = 'PLACE'; clampCam(); }
   function ghostAt(w) {
     if (G.place.power || G.place.guard) { G.place.x = w.x; G.place.y = w.y; G.place.ok = true; refreshPlaceBtn(); return; }
     const d = BUILD_DEFS[G.place.type];
