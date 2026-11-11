@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.11.1', date: '11 November 2026', title: 'Groundwork for 3 v 3', groups: [
+    ['New', [
+      'Groundwork for bigger team battles: 3 v 3 (skirmish and online) and three friends against the computer online. They will be playable once a map made for them arrives.',
+      'A third teammate of the same faction gets its own colours: teal for the Allies, purple for the Soviets.',
+    ]],
+  ] },
   { v: '2026.11.11', date: '11 November 2026', title: 'Infantry that fight like Red Alert, and new gunfire', groups: [
     ['New', [
       'Infantry under fire drop prone, shoot from the ground and crawl, then get back up a few seconds after the shooting stops.',
