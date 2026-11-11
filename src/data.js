@@ -3,8 +3,8 @@
 
 const CELL = 24;            // world pixels per map cell
 // The map is MAP x MAP cells. Each map sets its own size (`size` in MAPS, 144 when not given) with
-// setMapSize (world.js) when a battle starts; these are the default. The ground is one picture of
-// WORLD x WORLD pixels and iPhones refuse pictures over 4096 a side, so a map can be at most 170 cells.
+// setMapSize (world.js) when a battle starts; these are the default. The ground is painted in tiles
+// (art.js makeGround), so the size is not limited by what a phone can hold in one picture.
 let MAP = 144;
 let WORLD = MAP * CELL;
 let NCELLS = MAP * MAP;

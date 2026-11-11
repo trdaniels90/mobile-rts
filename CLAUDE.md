@@ -78,7 +78,7 @@ share globals. Read this file first; the commit history explains every change in
 | `src/debrief.js` | The end-of-mission debrief |
 | `src/report.js` | Match reporting to Supabase and the leaderboard |
 | `src/profile.js` | Accounts (email plus a 6-digit code), commander names and the service record |
-| `src/save.js` | Save and continue a skirmish: one slot in IndexedDB, the whole of `G` as a graph (references kept, data.js tables by name), the ground as pictures |
+| `src/save.js` | Save and continue a skirmish: one slot in IndexedDB, the whole of `G` as a graph (references kept, data.js tables by name), the marks of battle in `G.marks` |
 | `src/netcore.js` | The host's snapshot engine (per remote player: only what their side sees), event and decal relays, carrying out remote orders. Used by a hosting phone and by the server |
 | `src/net.js` | Online play: the game server first, else room codes over Supabase Realtime and WebRTC; the guest's copy and orders; the online page and lobby |
 | `server/` | The dedicated game server (Node, `ws`): `headless.js` loads the game scripts without a browser, `server.js` runs rooms and battles. `Dockerfile` and `fly.toml` at the root deploy it to Fly.io |
@@ -309,10 +309,31 @@ share globals. Read this file first; the commit history explains every change in
   `setMapSize(n)` (world.js) sets them, the pathfinder's arrays and `GRID_N`; `newWorld` calls it, and `SaveGame.load`
   (saves record `map` and `size`). ui.js remakes its one-pixel-per-cell pictures (`mapPictures`). Anything new sized by the
   map must be made after `setMapSize`, never once at load. genMap's constants (`K`, `MID`, `FR`...) are for 144 only.
-- **Largest possible map: 170 cells.** The ground and decals are each one WORLD x WORLD canvas (24 px a cell) and iOS
-  refuses canvases over 4096 px a side (16.7 M pixels). Bigger needs a tiled ground picture. A 168 map's two canvases are
-  about 130 MB together (96 MB at 144): check on a real iPhone.
+- **No size limit from the ground** since it is painted in tiles (below). Bigger maps cost CPU (paths, the server) and
+  game length, not memory. A 240-cell test map started and scrolled like Snowbound.
 - `node tools/sim/teams.js <repo> 1 8 snowbound 3v3`: about 660 units by minute 4, 91 s of CPU for 8 game minutes here.
+
+## The ground in tiles, and the marks of battle (branch `claude/tiled-ground`, not released)
+
+- Before: the ground and the wrecks layer were each one WORLD x WORLD canvas (130 MB at 168 cells; iOS refuses canvases
+  over 4096 px a side, so maps stopped at 170 cells), painted whole at battle start (21 s on Snowbound at 4x CPU throttle).
+- Now (`makeGround`, `groundPainter` in art.js): `G.ground` paints `GROUND_TILE` (256 px) tiles as they come into view,
+  32 rows at a time (`update(view, 6 ms, 3 ms ahead)` from ui.js `draw`; the ring round the view is painted ahead, so
+  scrolling finds tiles ready; a tile not ready shows the minimap colours). Up to `max(140, 3 x on screen)` tiles are kept,
+  least recently seen let go. Battle start: about 1.5 s at 4x throttle.
+- **Marks:** `scorch`, `crater`, `rubble`, `bibDecal`, `padDecal`, `bakeWreck`, `bakeTurret`, `bakeRagdoll` (`MARK_FNS`)
+  given `G.tctx` / `G.dctx` (now layer tokens, not canvases) record `[layer, name, args, box]` in `G.marks` and are drawn on
+  the tiles there are; a tile painted later draws its marks again, in order. Each mark is drawn once into a scratch picture
+  and copied onto tiles, so it is the same on either side of a tile edge. A wreck keeps its char seed; effects are copied
+  (`markArgs`). Every pixel of the painter depends only on its position (`speck` hash, not a running random), so tiles
+  match; bridges are drawn once each into their own picture; road ruts are worked out per pixel (`paintRuts`).
+- **Anything new drawn onto the ground** must be a function in `MARK_FNS` (deterministic from its arguments, with a box in
+  `markBox`), never a draw on a canvas kept in G. The game server records no marks (`HEADLESS`).
+- **Saves** keep `G.marks` (no pictures). An old save's two pictures are used as the ground (`legacy`, `G.legacyGround`,
+  kept while that game goes on).
+- `node tools/sim/ground-tiles.js <repo> [maps] [old checkout]`: a staged battle; live tiles = repainted tiles and 256 =
+  512 px tiles (pixel for pixel), the whole map in one picture differs by blending rounding only (at most 3/255 on the
+  ground); save and continue identical; an old save continues with the same scars.
 
 ## 3 v 3 and 3 v AI: the foundation (after 2026.11.11, not released)
 
@@ -382,6 +403,7 @@ Supabase.
 | `teams.js` | Headless (no browser): the computer plays every side of a 2 v 2 (`<repo> <games> <minutes> <map> [1v1]`), with CPU time per game minute |
 | `team-beaten.js` | A beaten side in a team game: the defeat card, Keep watching and Debrief, in a 2 v 2 skirmish and online co-op |
 | `server-3v3.js` | Raw WebSocket players on the server: 3 v AI refused on a 2 v 2 map; with `ANY_BATTLE=1`, 3 v AI and 3 v 3 start with six sides. Needs `npm install` in `server/` |
+| `ground-tiles.js` | The ground in tiles: every kind of mark in a staged battle, live vs repainted tiles and tile sizes pixel for pixel, save and continue, an old save's scars. `<repo> [maps] [old checkout]` |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP

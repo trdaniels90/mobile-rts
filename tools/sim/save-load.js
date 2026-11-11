@@ -11,7 +11,8 @@ const { chromium, devices } = require('playwright');
   await p.route(/fonts|supabase/, (r) => r.abort());
   await p.goto('file://' + root + '/index.html'); await p.tap('#startBtn'); if (process.argv[4] === '2v2') await p.tap('#maps [data-mode="2v2"]'); await p.tap('#maps [data-map-go]'); await p.waitForTimeout(800);
   const summary = () => p.evaluate(() => {
-    let decal = 0; const d = G.dctx.getImageData(0, 0, G.decals.width, G.decals.height).data; for (let i = 3; i < d.length; i += 64) if (d[i]) decal++;
+    // the marks of battle, and a checksum of the wrecks and bodies layer as drawn
+    let decal = G.marks.length + ':'; { const d = G.ground.whole('d').getContext('2d').getImageData(0, 0, WORLD, WORLD).data; let h = 0; for (let i = 3; i < d.length; i += 16) h = (h * 31 + d[i]) | 0; decal += h; }
     const refsOk = G.entities.every((e) => (!e.target || !e.target.id || G.byId.get(e.target.id) === e.target || !e.target.alive)) && G.entities.every((e) => G.byId.get(e.id) === e);
     return { t: Math.round(G.t * 10) / 10, ents: G.entities.length, nextId: G.nextId, credits: G.teams.map((t) => Math.round(t.credits)), stats: G.teams.map((t) => t.stats.killed + '/' + t.stats.lost + '/' + Math.round(t.stats.harvested)),
       pos: G.entities.slice(0, 40).map((e) => Math.round(e.x) + ',' + Math.round(e.y)).join(' '), groups: G.groups.length, fogSeen: G.fog[G.me].reduce((a, x) => a + x, 0), sides: G.teams.length + ' sides, fog shared ' + (G.teams.length > 2 && G.fog[0] === G.fog[2]), ore: G.ore.reduce((a, x) => a + x, 0), decal, refsOk, auto: G.teams[G.me].auto };

@@ -182,7 +182,7 @@ const MAPS = {
     blurb: 'A big winter map for big battles. The north fights the south across the snow: a long lake with three bridges and a line of creeks lie between them, old roads wind through the middle, and lakes sit in the corners. Ore and gems lie all over.',
     info: '168 × 168 cells · 8 start positions · made for 3 v 3',
     theme: 'snow',   // painted as winter (paintTerrain, the minimap, map pictures, base pads, camouflage)
-    size: 168,   // cells a side (setMapSize); bigger than the 144 of the others. At most 170 (the ground picture's limit on iPhones)
+    size: 168,   // cells a side (setMapSize); bigger than the 144 of the others
     // The north (start positions 0-3) against the south (4-7), each alliance on its own half (newWorld): a 1 v 1
     // starts one player on each. The lake's bridges and the eastern creeks lie between them. Nearly symmetric by a
     // half turn, so each north start has a south twin. (The tool lists starts west first; they are reordered here.)
