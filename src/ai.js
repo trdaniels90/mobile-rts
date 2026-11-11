@@ -363,9 +363,12 @@ function aiLaunch(team, ready) {
   // Planner: the clock starts once the base is found and the first-wave wait is over, then each attack
   // comes after a random wait (AI_GAP: never under a minute, never over ten).
   if (A.planner && team.attackAt === undefined && G.t >= A.firstWave) { team.attackAt = G.t + aiGap(); }
+  // A big army waiting at home does not sit out the timer: from ARMY_FULL of its army cap it attacks now
+  // (still at least AI_GAP_MIN after the last wave).
+  const full = A.planner && team.attackAt !== undefined && ready.length >= (A.armyUnits || ARMY_UNITS) * ARMY_FULL && G.t - (team.lastWave || -1e9) >= AI_GAP_MIN;
   // The first wave waits a while (on Easy and Normal), waves keep a gap between them, and each
   // takes only its planned number of units: the rest wait for the next one.
-  if (A.planner) { if (team.attackAt === undefined || G.t < team.attackAt || ready.length < team.plan.size) return; }
+  if (A.planner) { if (!full && (team.attackAt === undefined || G.t < team.attackAt || ready.length < team.plan.size)) return; }
   else if (ready.length < team.plan.size || G.t < A.firstWave || G.t - (team.lastWave || -1e9) < A.waveGap) return;
   // The planner's wave takes three quarters of what has gathered while it waited (at least the planned size);
   // the rest stay to guard the base.
@@ -386,8 +389,14 @@ function aiLaunch(team, ready) {
   team.plan = aiPlanWave(team);
 }
 // --- Squad planner (Normal and Hard, A.planner) ----------------------------------------
-const AI_GAP = [60, 600];   // seconds: the random wait before each attack (never under a minute, never over ten)
-function aiGap() { return AI_GAP[0] + Math.random() * (AI_GAP[1] - AI_GAP[0]); }
+// The random wait before each attack, per difficulty (DIFFICULTY ai.gap): mostly `short`, now and then (`long`
+// chance) a longer lull; never over ten minutes. ARMY_FULL: share of the army cap waiting at home that
+// launches an attack early; AI_GAP_MIN: the least time between such waves.
+const ARMY_FULL = 0.6, AI_GAP_MIN = 45;
+function aiGap() {
+  const g = G.diff.ai.gap || { short: [60, 300], long: [300, 600], chance: 0.2 }, [a, b] = Math.random() < g.chance ? g.long : g.short;
+  return Math.min(600, a + Math.random() * (b - a));
+}
 // Once a second: tracks the squads that have gone out, pulls a clearly losing one back to the rally
 // point, and sends squads home to a defence that is short-handed (defendBase works out the shortfall).
 function aiSquads(team) {
