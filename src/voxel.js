@@ -4,7 +4,6 @@
 // highlights and a cast shadow: the "rendered in 3D Studio" look of 90s RTS sprites.
 
 const VK = 1.0;                    // screen pixels a voxel rises per unit of height (steep three-quarter view)
-const SPR = 2;                     // sprite pixels per world pixel: battlefield sprites are rendered this much finer than the ground
 const SUPER = 2;                   // supersampling for soft, anti-aliased edges
 const LIGHT = (() => { const v = [-0.62, 0.22, 0.75], l = Math.hypot(...v); return v.map((x) => x / l); })();
 const HALF = (() => { const v = [LIGHT[0], LIGHT[1] + 0.6, LIGHT[2] + 0.8], l = Math.hypot(...v); return v.map((x) => x / l); })();
@@ -119,8 +118,7 @@ function surfaceOf(m) {
 function renderVox(m, angle, opts) {
   opts = opts || {};
   const s = m.surf || (m.surf = surfaceOf(m));
-  const scale = opts.scale || SPR, S = SUPER * scale;   // an explicit scale (icons, scenery) is drawn pixel for pixel; the default is SPR, drawn at 1 / SPR (see dimg)
-  const kk = opts.scale ? 1 : SPR;
+  const scale = opts.scale || 1, S = SUPER * scale;
   const ca = Math.cos(angle), sa = Math.sin(angle);
   const ext = 0.5 * (Math.abs(ca) + Math.abs(sa));
   const n = s.n;
@@ -177,8 +175,7 @@ function renderVox(m, angle, opts) {
       for (let xx = Math.max(0, x0); xx < Math.min(BW, x1); xx++) buf[row + xx] = pix;
     }
   }
-  const img = downsample(buf, BW, BH, W, H, false, opts.crisp && kk === 1, kk > 1);   // (tiny sprites need hard edges only at world resolution)
-  img.k = kk;
+  const img = downsample(buf, BW, BH, W, H, false, opts.crisp);
   const out = { img, ox: minX, oy: minY };
   if (opts.shadow !== false) {
     const SW = Math.max(1, Math.ceil((smaxX - sminX) * scale) + 1), SH = Math.max(1, Math.ceil((smaxY - sminY) * scale) + 1);
@@ -192,13 +189,13 @@ function renderVox(m, angle, opts) {
       for (let yy = Math.max(0, y0); yy < Math.min(SBH, y1); yy++) for (let xx = Math.max(0, x0); xx < Math.min(SBW, x1); xx++) sb[yy * SBW + xx] = 0xff000000;
     }
     out.sh = downsample(sb, SBW, SBH, SW, SH, true);
-    out.sh.k = kk; out.sox = sminX; out.soy = sminY;
+    out.sox = sminX; out.soy = sminY;
   }
   return out;
 }
 
 // `crisp` keeps hard pixel edges (for tiny sprites such as infantry) instead of soft coverage.
-function downsample(buf, BW, BH, W, H, shadow, crisp, soften) {
+function downsample(buf, BW, BH, W, H, shadow, crisp) {
   const c = mkCanvas(W, H), g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
   const SS = SUPER * SUPER;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -220,24 +217,6 @@ function downsample(buf, BW, BH, W, H, shadow, crisp, soften) {
       continue;
     }
     d[o] = r / a; d[o + 1] = gg / a; d[o + 2] = b / a; d[o + 3] = Math.round(a / SS * 255);
-  }
-  if (!shadow && soften) {
-    // Finer sprites: melt the voxel steps into smooth shading (a small blur among the solid pixels; the outline stays).
-    const src = new Uint8ClampedArray(d);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const o = (y * W + x) * 4;
-      if (!src[o + 3]) continue;
-      let r = 0, gg = 0, b = 0, n = 0;
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        const xx = x + dx, yy = y + dy;
-        if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
-        const q = (yy * W + xx) * 4;
-        if (src[q + 3] < 128) continue;
-        const w = (dx ? 1 : 2) * (dy ? 1 : 2);
-        r += src[q] * w; gg += src[q + 1] * w; b += src[q + 2] * w; n += w;
-      }
-      if (n) { d[o] = r / n; d[o + 1] = gg / n; d[o + 2] = b / n; }
-    }
   }
   if (!shadow) {
     const k = crisp ? 0.42 : 0.62;
