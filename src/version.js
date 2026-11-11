@@ -4,6 +4,15 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.11.2', date: '11 November 2026', title: 'Snowbound: the first 3 v 3 map', groups: [
+    ['New', [
+      'New map: Snowbound, a big winter map (168 × 168 cells) made for 3 v 3. The north fights the south across the snow: a long lake with three bridges and a line of creeks lie between them.',
+      '3 v 3 is now playable on Snowbound: in skirmish (you and two computer allies against three computers) and online, plus three friends against the computer online.',
+    ]],
+    ['Fixes', [
+      'Three Crossings: from the top-left start you could not place buildings near your base, because the placement bar at the top of the screen covered the ground. While placing, you can now scroll the view past the top edge of the map.',
+    ]],
+  ] },
   { v: '2026.11.11.1', date: '11 November 2026', title: 'Groundwork for 3 v 3', groups: [
     ['New', [
       'Groundwork for bigger team battles: 3 v 3 (skirmish and online) and three friends against the computer online. They will be playable once a map made for them arrives.',
