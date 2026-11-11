@@ -304,6 +304,7 @@ share globals. Read this file first; the commit history explains every change in
   **Winter look:** `theme: 'snow'` in MAPS (`mapTheme`, `snowy()` in art.js): paintTerrain's snow, slush, ice and cold water
   palettes, snowy rock in `paintCliffs`, snowy pines only (`scenery.snowPines`, `treeModel(.., snow)`), and the minimap
   (`terrainMini`), base pads (`bibDecal`) and Pillbox camouflage (`groundColour`). Saves repaint with the theme.
+  **Concrete bridges:** `bridge: 'concrete'` in MAPS (`concreteBridge` in art.js; timber when not given).
   North (starts 0-3) against south (4-7): the starts are listed north first, not in the tool's west-first order.
 - **Each map has its own size:** `size` in `MAPS` (default 144, `mapSize(id)`). `MAP`, `WORLD`, `NCELLS` are `let` now and
   `setMapSize(n)` (world.js) sets them, the pathfinder's arrays and `GRID_N`; `newWorld` calls it, and `SaveGame.load`

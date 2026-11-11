@@ -22,7 +22,7 @@ function blit(g, s, x, y, shadow) {
 // Terrain
 // ---------------------------------------------------------------------------
 const TERRAIN_MINI = ['#2f3d23', '#5a4c37', '#1c2a14', '#5e5a52', '#4a6a8a', '#6b5a3e'];
-const TERRAIN_MINI_SNOW = ['#c9d1dd', '#8c8782', '#2a3d30', '#62646c', '#34506c', '#6b5a3e'];
+const TERRAIN_MINI_SNOW = ['#c9d1dd', '#8c8782', '#2a3d30', '#62646c', '#34506c', '#9a9ca0'];   // (bridges: concrete grey)
 // The minimap colours of the map being played; snowy() is true on a winter map.
 const snowy = () => !!(G && mapTheme(G.mapId) === 'snow');
 const terrainMini = () => (snowy() ? TERRAIN_MINI_SNOW : TERRAIN_MINI);
@@ -35,7 +35,8 @@ const GRASS_TILE_N = 128;
 // g at (ox, oy). Every pixel depends only on where it is, so parts painted one by one fit together exactly (the ground
 // tiles, makeGround). The whole-map preparation (noise, scenery, cliff cells) is done once, at the first paint.
 // theme: 'snow' paints winter: snow for grass, slush for dirt, icy shores, cold water, snowy ridges and pines.
-function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme) {
+// bridgeKind: 'concrete', or timber when not given (`bridge` in MAPS).
+function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind) {
   const snow = theme === 'snow';
   // A 256-colour era look: a handful of tones per surface, picked with dithered noise.
   // Winter: snow in cold blue shades, the tracks trodden to grey slush, frosted stony shores, dark icy water.
@@ -102,7 +103,7 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme) {
       }
     }
     stamps.sort((a, b) => a.y - b.y);
-    // Timber bridges over the lakes: stone abutments, plank deck, rails on posts. Each is drawn once into its own
+    // Bridges over the lakes (timber: stone abutments, plank deck, rails on posts; or concrete). Each is drawn once into its own
     // picture: drawn turned on every tile, its smoothed edges would differ a little from tile to tile.
     const bridgePics = (bridges || []).map((b) => {
       const dx = b.b.x - b.a.x, dy = b.b.y - b.a.y, L = Math.hypot(dx, dy), bw = b.w, ang = Math.atan2(dy, dx);
@@ -111,16 +112,19 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme) {
       const x1 = Math.ceil(Math.max(...corners.map((c) => c[0]))) + 2, y1 = Math.ceil(Math.max(...corners.map((c) => c[1]))) + 2;
       const c = mkCanvas(x1 - x0, y1 - y0), g = c.getContext('2d');
       g.translate(b.a.x - x0, b.a.y - y0); g.rotate(ang);
-      g.fillStyle = 'rgba(10,20,30,0.45)'; g.fillRect(4, -bw / 2 + 6, L - 8, bw);              // shadow on the water
-      for (const u0 of [-6, L - 10]) { g.fillStyle = '#6f6a5e'; g.fillRect(u0, -bw / 2 - 3, 16, bw + 6); g.fillStyle = '#56524a'; g.fillRect(u0, bw / 2 + 1, 16, 2); }
-      for (let x = 6; x < L - 6; x += 22) { g.fillStyle = '#2e2418'; g.fillRect(x, -bw / 2 + 1, 3, bw + 6); }   // piles
-      g.fillStyle = '#6b5638'; g.fillRect(0, -bw / 2, L, bw);
-      for (let x = 0, i = 0; x < L; x += 3, i++) {
-        g.fillStyle = ['#7a6342', '#634f33', '#705a3b', '#5a4730'][(i * 7 + (i >> 2)) % 4];
-        g.fillRect(x, -bw / 2 + 2, 2, bw - 4);
+      if (bridgeKind === 'concrete') concreteBridge(g, L, bw, seed, snow);
+      else {   // timber
+        g.fillStyle = 'rgba(10,20,30,0.45)'; g.fillRect(4, -bw / 2 + 6, L - 8, bw);              // shadow on the water
+        for (const u0 of [-6, L - 10]) { g.fillStyle = '#6f6a5e'; g.fillRect(u0, -bw / 2 - 3, 16, bw + 6); g.fillStyle = '#56524a'; g.fillRect(u0, bw / 2 + 1, 16, 2); }
+        for (let x = 6; x < L - 6; x += 22) { g.fillStyle = '#2e2418'; g.fillRect(x, -bw / 2 + 1, 3, bw + 6); }   // piles
+        g.fillStyle = '#6b5638'; g.fillRect(0, -bw / 2, L, bw);
+        for (let x = 0, i = 0; x < L; x += 3, i++) {
+          g.fillStyle = ['#7a6342', '#634f33', '#705a3b', '#5a4730'][(i * 7 + (i >> 2)) % 4];
+          g.fillRect(x, -bw / 2 + 2, 2, bw - 4);
+        }
+        g.fillStyle = '#3a2d1d'; g.fillRect(0, -bw / 2, L, 2); g.fillRect(0, bw / 2 - 2, L, 2);
+        for (let x = 2; x < L; x += 10) { g.fillStyle = '#2a2015'; g.fillRect(x, -bw / 2 - 1, 2, 3); g.fillRect(x, bw / 2 - 2, 2, 3); }
       }
-      g.fillStyle = '#3a2d1d'; g.fillRect(0, -bw / 2, L, 2); g.fillRect(0, bw / 2 - 2, L, 2);
-      for (let x = 2; x < L; x += 10) { g.fillStyle = '#2a2015'; g.fillRect(x, -bw / 2 - 1, 2, 3); g.fillRect(x, bw / 2 - 2, 2, 3); }
       return { c, x: x0, y: y0 };
     });
     P = { bridges: bridgePics, dirt, water, ford, nearFlag, N1, N2, N3, stamps, cliff: cliffs ? cliffCells(terr, cliffs) : null,
@@ -245,10 +249,51 @@ function paintRuts(d, roads, X0, Y0, w, h) {
     }
   }
 }
+// A concrete road bridge, drawn along +x from 0 to L, bw wide: square piers and abutments, a pale speckled deck with
+// expansion joints and worn wheel tracks, kerbs and parapets with their posts. In winter, snow banked against the
+// parapets and slush in the tracks.
+function concreteBridge(g, L, bw, seed, snow) {
+  const r = rng(seed ^ 0x6c1e2b), h = bw / 2;
+  g.fillStyle = 'rgba(10,20,30,0.5)'; g.fillRect(4, -h + 7, L - 8, bw);                      // shadow on the water
+  for (let x = 30; x < L - 24; x += 46) {                                                   // piers, showing past the deck
+    g.fillStyle = '#4c4e52'; g.fillRect(x, -h - 3, 10, bw + 7);
+    g.fillStyle = '#6e7074'; g.fillRect(x, -h - 3, 10, 2);
+  }
+  for (const u0 of [-8, L - 10]) {                                                          // abutments
+    g.fillStyle = '#7c7e82'; g.fillRect(u0, -h - 4, 18, bw + 8);
+    g.fillStyle = '#5a5c60'; g.fillRect(u0, h + 2, 18, 2);
+    g.fillStyle = '#9a9ca0'; g.fillRect(u0, -h - 4, 18, 1);
+  }
+  const deck = [[132, 134, 138], [142, 144, 148], [150, 152, 156], [124, 126, 130]];
+  for (let y = -h; y < h; y++) for (let x = 0; x < L; x++) {
+    const v = r(), t = deck[v < 0.55 ? 1 : v < 0.8 ? 2 : v < 0.95 ? 0 : 3];
+    g.fillStyle = `rgb(${t[0]},${t[1]},${t[2]})`; g.fillRect(x, y, 1, 1);
+  }
+  for (const v of [-h * 0.42, h * 0.42]) {                                                  // worn wheel tracks (slush in winter)
+    for (let x = 0; x < L; x++) if (r() < 0.85) { g.fillStyle = snow ? (r() < 0.5 ? '#8a8784' : '#7c7976') : (r() < 0.5 ? '#7a7c80' : '#828488'); g.fillRect(x, Math.round(v - 2 + r() * 1.2), 1, 4); }
+  }
+  for (let x = 24; x < L - 8; x += 32) { g.fillStyle = '#5e6064'; g.fillRect(x, -h + 4, 1, bw - 8); g.fillStyle = '#a4a6aa'; g.fillRect(x + 1, -h + 4, 1, bw - 8); }   // expansion joints
+  // Parapets: a pale top, a dark outer face, posts along them.
+  for (const [y0, out] of [[-h, -1], [h - 4, 1]]) {
+    g.fillStyle = '#b6b8bc'; g.fillRect(0, y0, L, 4);
+    g.fillStyle = '#d2d4d8'; g.fillRect(0, y0 + 1, L, 1);
+    g.fillStyle = '#3e4044'; g.fillRect(0, out < 0 ? y0 - 1 : y0 + 4, L, 1);
+    g.fillStyle = '#7a7c80'; g.fillRect(0, out < 0 ? y0 + 4 : y0 - 1, L, 1);              // the kerb's shadow on the deck
+    for (let x = 4; x < L - 2; x += 12) { g.fillStyle = '#5a5c60'; g.fillRect(x, y0, 2, 4); }
+  }
+  if (snow) {   // snow banked against the parapets and on their tops
+    for (const [y0, dir] of [[-h + 4, 1], [h - 5, -1]]) for (let x = 0; x < L; x++) {
+      const deep = 1 + Math.floor(r() * 3);
+      for (let k = 0; k < deep; k++) { g.fillStyle = k === deep - 1 ? '#c9d1dd' : '#e6ecf3'; g.fillRect(x, y0 + dir * k, 1, 1); }
+      if (r() < 0.5) { g.fillStyle = '#f1f5fa'; g.fillRect(x, dir > 0 ? -h + 1 : h - 3, 1, 1); }
+    }
+  }
+}
+
 // The whole ground in one picture (tests and tools; the game paints it in tiles, makeGround).
-function paintTerrain(terr, seed, roads, bridges, cliffs, fords, theme) {
+function paintTerrain(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind) {
   const c = mkCanvas(WORLD, WORLD);
-  groundPainter(terr, seed, roads, bridges, cliffs, fords, theme).paint(c.getContext('2d'), 0, 0, WORLD, WORLD);
+  groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind).paint(c.getContext('2d'), 0, 0, WORLD, WORLD);
   return c;
 }
 
@@ -744,7 +789,7 @@ const GROUND_LAYER = { layer: 't' }, DECAL_LAYER = { layer: 'd' };
 function newGround(g, legacy) {
   g.marks = g.marks || [];
   g.tctx = GROUND_LAYER; g.dctx = DECAL_LAYER;
-  g.ground = makeGround(groundPainter(g.terr, g.seed, g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId)), legacy);
+  g.ground = makeGround(groundPainter(g.terr, g.seed, g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[validMap(g.mapId)].bridge), legacy);
   const G0 = G; G = g;   // (add reads G.marks)
   try { for (let i = 0; i < g.marks.length; i++) g.ground.add(i); } finally { G = G0; }
 }
