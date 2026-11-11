@@ -25,7 +25,7 @@ const Manual = (() => {
     tesla: ['Long-range lightning: one strike kills a soldier outright and each one tears into armour. Needs plenty of power: on low power it goes dark.', 'Infantry, vehicles', 'Artillery, V2 rockets, power cuts'],
     sam: ['Launches guided missiles at aircraft, with a roar of backblast. Cannot fire at ground targets.', 'Helicopters, jets', 'Anything on the ground'],
     // Infantry
-    rifle: ['The backbone of every army: cheap, quick to train and useful in numbers. Under fire they drop into cover, crouching or going prone.', 'Infantry', 'Tanks, flame, Tesla'],
+    rifle: ['The backbone of every army: cheap, quick to train and useful in numbers. Under fire they drop prone, which halves the damage they take.', 'Infantry', 'Tanks, flame, Tesla'],
     grenadier: ['Lobs grenades in an arc over cover, with a blast that hurts groups. Carries spare grenades in bags on his hips.', 'Infantry groups, light vehicles', 'Tanks at range'],
     rocket: ['Anti-armour and anti-aircraft infantry for both sides (the Soviet one carries an olive RPG-style launcher): Dragon rockets punch through tank armour, and RedEye missiles reach further to bring down aircraft. One launcher, so it fires one or the other.', 'Tanks, aircraft', 'Infantry, light vehicles'],
     pilot: ['Bails out of a downed aircraft, parachutes down and runs for the nearest friendly structure. Reaching it, the pilot is recovered and you get $100. Cannot be trained.', '', ''],
@@ -159,7 +159,7 @@ const Manual = (() => {
       <h4>Aircraft</h4>
       <p>New helicopters and jets wait on their pad; with Auto Attack on they take off as soon as they are built, attack on their own and fly home to rearm. An aircraft that is shot at turns on the shooter, and one parked on its pad takes off to fight. Badly damaged aircraft come home and wait on their pad until repaired. Jets drop flares when a missile closes in, which can pull it off course. Fighters waiting on the Airfield scramble on their own when enemy aircraft come over your base, and jets with nothing left to hit fly home. A pilot shot down bails out and runs home; get them back to any of your structures for a $100 bonus.</p>
       <h4>Infantry under fire</h4>
-      <p>Soldiers take cover when shot at: some stay up, some crouch (harder to hit) and some go prone (harder still).</p>
+      <p>Soldiers go prone when shot at: they take half damage, shoot from the ground and crawl (slower than walking) if they have to move. A few seconds after the shooting stops they get back up.</p>
       <h4>Expansions</h4>
       <p>Outposts and outlying refineries are fair game: one auto-attack wave in three raids the ones you have found, and the computer raids yours.</p>` },
     { ch: 'Structures', title: 'Base and Economy', html: () => entries(['cy', 'power', 'apower', 'refinery', 'outpost', 'dome']) },

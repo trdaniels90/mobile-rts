@@ -679,6 +679,7 @@ function followPath(u, dt) {
   let speed = u.def.speed, mx, my;
   // Infantry in a loose wave, and vehicles, each keep their own pace (paceMul).
   if (u.paceMul && u.paceMul !== 1 && (u.order.type === 'hunt' || u.order.type === 'attack')) speed *= u.paceMul;
+  if (u.cls === 'inf' && u.stance === 'prone') speed *= CRAWL_SPEED;   // under fire: crawling
   if (u.cls === 'veh') {
     const diff = angDiff(want, u.face);
     u.face = turnToward(u.face, want, u.def.turn * dt);
@@ -1232,15 +1233,20 @@ function muzzle(src) {
     return { x: hx + Math.cos(src.tface) * 13, y: hy + Math.sin(src.tface) * 13 };
   }
   if (src.cls === 'air') return { x: src.x + Math.cos(src.face) * 9, y: src.y - (src.alt || 0) + Math.sin(src.face) * 9 };
-  if (src.cls === 'inf') return { x: src.x + Math.cos(src.face) * 10, y: src.y + Math.sin(src.face) * 10 - 11 };
+  if (src.cls === 'inf') {
+    const r = src.stance === 'prone' ? 12 : 10;
+    return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - (src.stance === 'prone' ? 2 : 11) };
+  }
   const s = src.def.size, len = s.tur ? s.tur + s.barrel : 8, z = (turretZ(src.def) + 1.5) * VK;
   return { x: src.x + Math.cos(src.tface) * len, y: src.y + Math.sin(src.tface) * len - z };
 }
+// Infantry under fire: seconds they stay prone after the last hit, the share of damage they take
+// while prone, and how fast they crawl (a share of walking speed).
+const PRONE_TIME = 6, PRONE_COVER = 0.5, CRAWL_SPEED = 0.6;
 // Where shots should land on a target (its body, not its feet).
 function aimY(t) {
   if (t.kind === 'bld') return t.y - 6;
-  if (t.cls === 'inf' && !t.moving && t.stance === 'prone') return t.y - 2;
-  if (t.cls === 'inf' && !t.moving && t.stance === 'crouch') return t.y - 5;
+  if (t.cls === 'inf' && t.stance === 'prone') return t.y - 2;
   return t.y - (t.alt || 0) - (t.cls === 'inf' ? 8 : 4);
 }
 
@@ -1584,13 +1590,13 @@ function damage(t, amount, wh, attacker, from) {
   const armor = t.kind === 'bld' ? 'bld' : isAirborne(t) ? 'air' : t.def.armor === 'air' ? 'light' : t.def.armor;
   const mult = WARHEADS[wh][armor];
   if (!mult) return;
-  // Infantry under fire drop into cover: a mix of staying up, crouching and going prone, held
-  // until they move or have not been hit for a while. Lower is harder to hit.
+  // As in Red Alert: infantry under fire go prone and stay down (crawling if they have to move)
+  // until they have not been hit for a while. Prone, they take PRONE_COVER of the damage.
   let cover = 1;
   if (t.kind === 'unit' && t.cls === 'inf' && !t.chute) {
-    if (!t.stance || G.t > t.stanceUntil) { const r = Math.random(); t.stance = r < 0.34 ? 'stand' : r < 0.67 ? 'crouch' : 'prone'; }
-    t.stanceUntil = G.t + 6;
-    if (!t.moving) cover = t.stance === 'prone' ? 0.65 : t.stance === 'crouch' ? 0.85 : 1;
+    t.stance = 'prone';
+    t.stanceUntil = G.t + PRONE_TIME;
+    cover = PRONE_COVER;
   }
   t.hp -= amount * mult * cover * (0.9 + Math.random() * 0.2);
   t.hitT = G.t;

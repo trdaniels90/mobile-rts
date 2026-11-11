@@ -960,9 +960,10 @@ function tu22Model(pal) {
 // ---------------------------------------------------------------------------
 // Frames: 0 standing, 1-2 walking, 3 throwing, 4 crouching, 5 prone, then the idle poses:
 // 6 at rest (weapon shouldered or grounded), 7 aiming down the sights, 8-9 push-ups (up, down),
-// 10 stretching.
+// 10 stretching, 11 RedEye at the shoulder, 12-13 the passing poses of the walk (one foot off the
+// ground), 14-15 crawling.
 function infModel(pal, faction, type, frame) {
-  if (frame === 5) return proneModel(pal, faction, type);
+  if (frame === 5 || frame === 14 || frame === 15) return proneModel(pal, faction, type, frame === 5 ? 0 : frame - 13);
   if (frame === 4) return crouched(infModel(pal, faction, type, 0));
   if (frame === 8 || frame === 9) return pushupModel(pal, faction, type, frame === 8);
   // A stocky figure in the side's colour from boots to collar, so a squad reads as one colour
@@ -974,10 +975,10 @@ function infModel(pal, faction, type, frame) {
   const K = infKit(pal, faction), tunic = pal.main, sleeve = shadeInt(pal.main, 0.84), hi = shadeInt(pal.main, 1.12);
   const R = type === 'rifle', wood = '#6a4426';   // Rifle Infantry: long coat, shoulder plates, knee pads, hip satchel, wooden-furniture rifle
   // Boots and trousers, legs apart with a gap between them, swinging when walking.
-  for (const [y0, s] of [[-3, step], [1, -step]]) {
-    m.box(s - 1, y0, 0, s + 2, y0 + 2, 2, C.black);
-    m.box(s + 1, y0, 0, s + 3, y0 + 2, 1, C.black);                               // toe caps
-    m.box(s - 1, y0, 2, s + 2, y0 + 2, 8, K.pants);
+  for (const [y0, s, up] of [[-3, step, frame === 12 ? 1 : 0], [1, -step, frame === 13 ? 1 : 0]]) {
+    m.box(s - 1, y0, up, s + 2, y0 + 2, 2 + up, C.black);
+    m.box(s + 1, y0, up, s + 3, y0 + 2, 1 + up, C.black);                         // toe caps
+    m.box(s - 1, y0, 2 + up, s + 2, y0 + 2, 8, K.pants);
     m.box(s + 1, y0, 5, s + 2, y0 + 2, 6, shadeInt(K.pants, 0.82));                // knee crease
     if (R) { m.box(s + 2, y0, 4, s + 3, y0 + 2, 7, shadeInt(K.pants, 1.3), M_METAL); m.box(s - 1, y0, 2, s + 2, y0 + 2, 3, shadeInt(K.pants, 0.7)); }   // knee pad, boot tops
   }
@@ -4722,16 +4723,24 @@ function crouched(m) {
   return m;
 }
 // Prone: lying on the stomach, legs back, weapon forward.
-function proneModel(pal, faction, type) {
-  const m = new VModel(-15, -5, 13, 5, 7);
-  const K = infKit(pal, faction);
-  for (const y0 of [-2, 0]) { m.box(-14, y0, 0, -13, y0 + 2, 2, C.black); m.box(-13, y0, 0, -6, y0 + 2, 2, K.pants); }
+// crawl 1 or 2: the two poses of the crawl (opposite arm and leg forward).
+function proneModel(pal, faction, type, crawl) {
+  const m = new VModel(-16, -5, 13, 5, 7);
+  const K = infKit(pal, faction), cs = crawl === 1 ? 1 : crawl === 2 ? -1 : 0;
+  for (const y0 of [-2, 0]) {
+    const d = cs * (y0 < -1 ? 1 : -1);
+    m.box(-14 + d, y0, 0, -13 + d, y0 + 2, 2, C.black); m.box(-13 + d, y0, 0, -6, y0 + 2, 2, K.pants);
+    if (d > 0) m.box(-9, y0 + (y0 < -1 ? -1 : 1), 0, -7, y0 + (y0 < -1 ? 0 : 2) + 1, 2, K.pants);   // the knee drawn up, out to the side
+  }
   m.box(-6, -2, 0, 2, 2, 3, pal.main); m.box(-6, -3, 2, 2, 3, 3, shadeInt(pal.main, 0.9));
   m.box(-6, -2, 0, -5, 2, 3, K.web);
   if (type !== 'pilot') m.box(-5, -2, 3, -1, 2, 4, C.oliveD);
   m.box(2, -1, 0, 5, 2, 3, K.skin);
   m.box(1, -2, 2, 5, 3, 4, type === 'pilot' ? '#cfcab8' : type === 'grenadier' ? '#5d6236' : K.helm);
-  for (const y of [-3, 2]) { m.box(1, y, 0, 5, y + 1, 1.5, shadeInt(pal.main, 0.86)); m.set(5, y, 0, K.skin); }
+  for (const y of [-3, 2]) {
+    const d = cs * (y < 0 ? -2 : 2);                                            // the arm opposite the forward leg reaches out
+    m.box(1, y, 0, 5 + d, y + 1, 1.5, shadeInt(pal.main, 0.86)); m.set(5 + d, y, 0, K.skin);
+  }
   if (type === 'rocket') {
     m.cylX(-4, 8, -2.5, 3.5, 1.3, '#56603a'); m.box(8, -4, 2, 10, -1, 5, '#2a2a24');
     if (faction === 'soviets') { m.ellipsoid(9, -2.5, 3.5, 2.4, 1.9, 1.9, '#4a4f3a', M_METAL); m.set(11, -3, 3, '#c8281e'); }   // rocket head

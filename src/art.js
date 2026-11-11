@@ -526,18 +526,32 @@ function idlePose(u, t) {
   }
   return null;
 }
+const INF_ANIM = new WeakMap(), WALK = [1, 12, 2, 13];   // per soldier: when they last changed stance and last fired (drawing only)
 function drawUnit(g, u, t) {
   drawVar = G.teams[u.team].variant | 0;
   const pal = palFor(u.faction);
   if (u.cls === 'inf') {
-    const stance = !u.moving && u.stance;
-    let frame = stance === 'prone' ? 5 : stance === 'crouch' ? 4 : u.type === 'grenadier' && u.fireT > 0.12 ? 3 : u.moving ? 1 + (Math.floor(u.anim / 4) % 2) : 0;
     if (u.chute > 0) { drawChute(g, u, pal, t); return; }
+    // As in Red Alert: a four-pose walk, the weapon brought up to the shoulder to shoot (and held
+    // there a moment), dropping prone under fire through a crouch, crawling, and getting up again.
+    const prone = u.stance === 'prone', gun = u.type !== 'rocket' && u.type !== 'grenadier' && u.type !== 'pilot';
+    let a = INF_ANIM.get(u);
+    if (!a) INF_ANIM.set(u, a = { prone, at: -9, aim: -9 });
+    if (a.prone !== prone) { a.prone = prone; a.at = t; }
+    if (u.fireT > 0) a.aim = t;
+    const change = t - a.at < 0.16 && t >= a.at;
+    let frame = change ? 4 : prone ? (u.moving ? 14 + (Math.floor(u.anim / 3) % 2) : 5)
+      : u.type === 'grenadier' && u.fireT > 0.12 ? 3
+      : u.moving ? WALK[Math.floor(u.anim / 2.5) % 4]
+      : gun && t - a.aim < 0.7 && t >= a.aim ? 7 : 0;
+    const stance = change ? 'crouch' : prone && 'prone';
     const idle = idlePose(u, t);
     if (idle) { frame = idle.frame; if (idle.turn) u = { type: u.type, faction: u.faction, face: u.face + idle.turn, x: u.x, y: u.y }; }
     if (u.aaUntil > G.t && frame === 0 && u.type === 'rocket') frame = 11;   // firing the RedEye at an aircraft
-    blit(g, infSprite(u, pal, frame), u.x, u.y);
-    const mh = frame === 11 ? 20 : stance === 'prone' ? 2 : stance === 'crouch' ? 6 : 11, mr = frame === 11 ? 13 : stance === 'prone' ? 12 : 10;
+    // The kick of the shot, and the bob of the walk as one foot passes the other.
+    const rk = u.fireT > 0 && (frame === 7 || frame === 5 || (frame === 0 && u.type === 'rocket')) ? Math.min(1, u.fireT / 0.1) * 1.5 : 0;
+    blit(g, infSprite(u, pal, frame), u.x - Math.cos(u.face) * rk, u.y - Math.sin(u.face) * rk - (frame === 12 || frame === 13 ? 1 : 0));
+    const mh = frame === 11 ? 20 : frame === 7 ? 13 : stance === 'prone' ? 2 : stance === 'crouch' ? 6 : 11, mr = frame === 11 || frame === 7 ? 13 : stance === 'prone' ? 12 : 10;
     if (u.fireT > 0) flash(g, u.x + Math.cos(u.face) * mr, u.y + Math.sin(u.face) * mr - mh, 1);
     return;
   }
