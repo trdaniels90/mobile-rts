@@ -16,7 +16,7 @@ Sounds are trimmed, pitched, mixed, filtered and level-matched for the game by
 | Infantry deaths | [11 male human pain/death sounds](https://opengameart.org/content/11-male-human-paindeath-sounds) | Michel Baradari | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 | Tesla Coil | [Tesla coil powered death ray sound](https://opengameart.org/content/tesla-coil-powered-death-ray-sound) | Varkalandar | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 | Allied rifles | [M16 Assault Rifle](https://soundbible.com/1376-M16-Assault-Rifle.html) (SoundBible) | snottyboi | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
-| Soviet rifles | [Gunshot Sounds](https://opengameart.org/content/gunshot-sounds) (Mosin) | Vincent Sevedge (Tabasco) | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
+| Soviet rifles | [Gunshot Sounds](https://opengameart.org/content/gunshot-sounds) (SKS) | Vincent Sevedge (Tabasco) | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 | Tank guns, shell hits, AA guns | [25 CC0 bang / firework SFX](https://opengameart.org/content/25-cc0-bang-firework-sfx) | rubberduck | CC0 |
 | Shell hits, construction clanks, collapsing buildings | [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) | rubberduck | CC0 |
 | Tank guns, turret, hits, building explosions | [Cannon fire](https://opengameart.org/content/cannon-fire), [Cannon hit](https://opengameart.org/content/cannon-hit), [Battle at sea](https://opengameart.org/content/battle-at-sea) | thimras | CC0 |

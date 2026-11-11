@@ -15,8 +15,9 @@ OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(os.path.dirname(__file_
 
 # key: list of (source file, length in seconds, pitch factor, extra ffmpeg filters)
 CLIPS = {
-    # Three shots cut from mosin.wav of Vincent Sevedge's pack (at 6.04, 8.91 and 12.24 s), each as its own file.
-    'rifle': [('sevedge_mosin_1.wav', 0.5, 1.0, ''), ('sevedge_mosin_2.wav', 0.5, 1.0, ''), ('sevedge_mosin_3.wav', 0.5, 1.0, '')],
+    # The Soviet rifle: four shots cut from sks.wav of Vincent Sevedge's pack (at 0.41, 2.35, 6.06 and 13.82 s), each as its own file.
+    'rifle': [('sevedge_sks_1.wav', 0.5, 1.0, ''), ('sevedge_sks_2.wav', 0.5, 1.0, ''), ('sevedge_sks_3.wav', 0.5, 1.0, ''),
+              ('sevedge_sks_4.wav', 0.5, 1.0, '')],
     # The Allied rifle: four rounds cut from SoundBible's "M16 Assault Rifle" (at 3.999, 2.281, 1.733 and 1.066 s, each
     # up to the next round, with a 15 ms fade out), each as its own file.
     'm16': [('snottyboi_m16_1.wav', 0.33, 1.0, ''), ('snottyboi_m16_2.wav', 0.25, 1.0, ''), ('snottyboi_m16_3.wav', 0.24, 1.0, ''),

@@ -3,7 +3,7 @@
 
 The freely licensed recordings (see CREDITS.md) stay as the attack of each shot; around them this
 adds a synthesised body, crack and low thump, then cuts the tail short so bursts stay distinct.
-  rifle: the recorded shots as they are, the tail faded over about 0.13 s (Soviet riflemen).
+  rifle: the recorded shots as they are, pitched down, the tail faded over about 0.13 s (Soviet riflemen).
   m16:   the same for the Allied riflemen, from an M16 recording.
   mg:    pitched down, a deeper thud on every round, about 0.2 s (Ranger, Hind).
   pillbox: after the MG42, from the mg recordings: two deep, sharp rounds 40 ms apart in each clip, so a burst
@@ -20,8 +20,8 @@ PATH = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file
 # pitch: resampling factor (below 1 is lower). cut: decay (s) forced on the recording.
 # Layers are (level, decay s, low Hz, high Hz) of filtered noise; thump is (level, decay s, from Hz, to Hz).
 SHAPES = {
-    # Real rifle shots (a Mosin, recorded outdoors) with most of their own tail: nothing added.
-    'rifle': dict(length=0.32, cut=0.075, rec=1.0, drive=1.5, thump=(0.0, 0.02, 300, 150)),
+    # The Soviet rifle: real shots from an SKS (the AK-47's cartridge) recorded outdoors, pitched down, nothing added.
+    'rifle': dict(length=0.36, pitch=0.85, cut=0.085, rec=1.0, drive=1.5, thump=(0.0, 0.02, 300, 150)),
     # The Allied rifle: single rounds cut from a recording of M16 bursts, as recorded.
     'm16': dict(length=0.33, cut=0.09, rec=1.0, drive=1.5, thump=(0.0, 0.02, 300, 150)),
     # The Pillbox gun, after the MG42: made from the mg recordings (`source`), pitched down.
