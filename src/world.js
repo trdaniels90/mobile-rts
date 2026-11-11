@@ -31,6 +31,7 @@ let hooks = { eva() {}, evaFor() {}, gameOver() {}, sfx() {}, shake() {} };
 function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId = DEFAULT_MAP, sides = null) {
   seed = seed || (Math.random() * 1e9) | 0;
   mapId = validMap(mapId);
+  setMapSize(mapSize(mapId));
   const enemyFaction = playerFaction === 'allies' ? 'soviets' : 'allies';
   if (!sides) {
     sides = [0, 1].map((i) => (i === me ? { faction: playerFaction, ally: i, ai: false } : { faction: enemyFaction, ally: i, ai: !pvp }));
@@ -139,7 +140,8 @@ function makeTeam(id, faction, isAI) {
 // the lower-left side, d < 0 the upper-right).
 const LT = (x, y) => (x + y) / 2, LD = (x, y) => (y - x) / Math.SQRT2;
 const LX = (t, d) => t - d / Math.SQRT2, LY = (t, d) => t + d / Math.SQRT2;
-// The layout was designed on an 88-cell map; K scales it to the current map size.
+// The layout was designed on an 88-cell map; K scales it to the default map size (144: genMap's map,
+// A Bridge Too Far, has no `size` of its own, so these are worked out once, at that size).
 const MID = (MAP - 1) / 2, K = MAP / 88, S96 = MAP / 96;
 // Ore fields grow with the map (FR is 1 at 112 cells), but each keeps its inner edge where it was, so the
 // ground around a start position stays as open for building as before. Gem fields stay small: they are rare.
@@ -473,6 +475,15 @@ function connected(a, b) {
 // Pathfinding (A* over cells, 8-way, no corner cutting)
 // ---------------------------------------------------------------------------
 const PF = { g: new Float32Array(NCELLS), from: new Int32Array(NCELLS), open: new Uint32Array(NCELLS), closed: new Uint32Array(NCELLS), stamp: 0 };
+
+// Each map has its own size (`size` in MAPS): set it before a battle is made or loaded. Everything sized by the
+// map (G's arrays, the ground pictures) is made after this; the pathfinder's arrays and the target buckets here.
+function setMapSize(n) {
+  if (n === MAP) return;
+  MAP = n; WORLD = MAP * CELL; NCELLS = MAP * MAP;
+  GRID_N = Math.ceil(MAP / GRID_CELLS);
+  Object.assign(PF, { g: new Float32Array(NCELLS), from: new Int32Array(NCELLS), open: new Uint32Array(NCELLS), closed: new Uint32Array(NCELLS), stamp: 0 });
+}
 const freeCell = (c) => !G.block[c] && !G.bld[c];
 function passableAt(x, y) {
   if (x < 2 || y < 2 || x > WORLD - 2 || y > WORLD - 2) return false;
@@ -775,7 +786,8 @@ function canTarget(u, t) { return canHit(u.def.weapon, t) || canHit(u.def.weapon
 // Who is where, in buckets of GRID_CELLS cells, rebuilt at the start of every step (update): target
 // searches look only at the buckets within reach instead of at every entity on the map. Not saved or
 // sent (save.js and net.js leave G.grid out); without one (between steps), searches look at everything.
-const GRID_CELLS = 8, GRID_N = Math.ceil(MAP / GRID_CELLS), GRID_PX = GRID_CELLS * CELL;
+const GRID_CELLS = 8, GRID_PX = GRID_CELLS * CELL;
+let GRID_N = Math.ceil(MAP / GRID_CELLS);
 function buildGrid() {
   const g = G.grid && G.grid.length === GRID_N * GRID_N ? G.grid : (G.grid = Array.from({ length: GRID_N * GRID_N }, () => []));
   for (const b of g) b.length = 0;

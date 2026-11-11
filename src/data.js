@@ -2,9 +2,12 @@
 // Game data: map size, factions, units, structures and damage tables.
 
 const CELL = 24;            // world pixels per map cell
-const MAP = 144;            // map is MAP x MAP cells (the layout scales from an 88-cell design, see genMap)
-const WORLD = MAP * CELL;
-const NCELLS = MAP * MAP;
+// The map is MAP x MAP cells. Each map sets its own size (`size` in MAPS, 144 when not given) with
+// setMapSize (world.js) when a battle starts; these are the default. The ground is one picture of
+// WORLD x WORLD pixels and iPhones refuse pictures over 4096 a side, so a map can be at most 170 cells.
+let MAP = 144;
+let WORLD = MAP * CELL;
+let NCELLS = MAP * MAP;
 const ORE_MAX = 250;        // credits a single ore cell grows back to, at most
 const ORE_START = 1.5;      // fields start this much richer than they ever grow back
 

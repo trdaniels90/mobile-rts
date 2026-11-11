@@ -5,7 +5,8 @@
 
 The design is read one colour per design cell (the picture may be scaled up by a whole number):
 dark green grass, blue water, brown shore (walkable dirt), light green woods, grey lines rock or
-cliffs, yellow ore (with its darker specks), red dots start positions. Each --bridge box (design
+cliffs, yellow ore (with its darker specks), red dots start positions. Designs on a lavender ground
+(maps/designs/lakes.png) use their own browns and specks, and light grey lines are roads (dirt tracks). Each --bridge box (design
 cells, inclusive) marks the grey bar there as a bridge; each --ford box makes it a shallow ford. The layout is scaled to the game's map
 size and printed as run-length rows ('.' grass, ',' dirt, 'T' woods, '#' rock, '~' water,
 '=' bridge, 'f' ford, 'o' ore) plus the start positions in game cells, west of the map's middle first.
@@ -17,6 +18,9 @@ GRASS, SHORE, WATER, WOODS, RED = (44, 64, 56), (136, 112, 88), (92, 120, 164), 
 ROCK = {(84, 84, 84), (100, 88, 84)}
 ORE = (244, 208, 120)
 SPECK = {(136, 104, 80), (84, 72, 72), (100, 80, 56), (108, 100, 56)}   # dark flecks inside ore fields
+# The lavender palette: its ground, shore, roads and the pale flecks in its ore fields.
+LAV_GRASS, LAV_SHORE, LAV_ROAD = (228, 216, 228), (136, 104, 80), (124, 124, 124)
+LAV_SPECK = {(196, 176, 140), (208, 192, 160), (220, 204, 196)}
 
 
 def main():
@@ -31,13 +35,17 @@ def main():
     im = Image.open(path).convert('RGB')
     px, k = im.load(), im.size[0] / n
     col = [[px[int((x + 0.5) * k), int((y + 0.5) * k)] for x in range(n)] for y in range(n)]
+    global GRASS, SHORE, SPECK
+    road = None
+    if any(LAV_GRASS in r for r in col):
+        GRASS, SHORE, SPECK, road = LAV_GRASS, LAV_SHORE, LAV_SPECK, LAV_ROAD
 
     grid, spawns = [['.'] * n for _ in range(n)], []
     for y in range(n):
         for x in range(n):
             c = col[y][x]
             if c == WATER: grid[y][x] = '~'
-            elif c == SHORE: grid[y][x] = ','
+            elif c == SHORE or c == road: grid[y][x] = ','
             elif c == WOODS: grid[y][x] = 'T'
             elif c in ROCK:
                 inside = lambda boxes: any(x0 <= x <= x1 and y0 <= y <= y1 for x0, y0, x1, y1 in boxes)

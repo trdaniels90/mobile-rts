@@ -5,9 +5,14 @@
   const canvas = $('game'), ctx = canvas.getContext('2d');
   const radar = $('radar'), rctx = radar.getContext('2d');
   const view = mkCanvas(64, 64), vctx = view.getContext('2d');
-  const shroudCanvas = mkCanvas(MAP, MAP), sctx = shroudCanvas.getContext('2d');
-  const shroudImg = sctx.createImageData(MAP, MAP);
-  const miniTerrain = mkCanvas(MAP, MAP), mtctx = miniTerrain.getContext('2d');
+  // One pixel per cell: remade when a battle is on a map of another size (afterNewWorld).
+  let shroudCanvas, sctx, shroudImg, miniTerrain, mtctx;
+  const mapPictures = () => {
+    if (shroudCanvas && shroudCanvas.width === MAP) return;
+    shroudCanvas = mkCanvas(MAP, MAP); sctx = shroudCanvas.getContext('2d'); shroudImg = sctx.createImageData(MAP, MAP);
+    miniTerrain = mkCanvas(MAP, MAP); mtctx = miniTerrain.getContext('2d');
+  };
+  mapPictures();
   const ui = {
     sidebar: $('sidebar'), credits: $('credits'), powerBar: $('powerBar'), topstrip: $('topstrip'),
     stripL: $('stripL'), stripR: $('stripR'), strips: document.querySelector('.sb-strips'),
@@ -162,6 +167,7 @@
   // resumed: a saved game, which keeps its auto attack and camera.
   function afterNewWorld(faction, resumed) {
     radarWas = null;
+    mapPictures();
     for (let i = 0; i < NCELLS; i++) {
       mtctx.fillStyle = TERRAIN_MINI[G.terr[i]];
       mtctx.fillRect(cellX(i), cellY(i), 1, 1);

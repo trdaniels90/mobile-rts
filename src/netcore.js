@@ -74,7 +74,7 @@ const NetCore = (() => {
   // snapshot that takes it out of sight.) Nothing is lost: what was held back goes out once uncovered.
   function snapshot(P, fx, ev) {
     const fog = fogOf(P.side);
-    const view = P.watch ? (ALL || (ALL = new Uint8Array(NCELLS).fill(1))) : fog;   // a beaten player watching sees everything
+    const view = P.watch ? (ALL && ALL.length === NCELLS ? ALL : (ALL = new Uint8Array(NCELLS).fill(1))) : fog;   // a beaten player watching sees everything
     const seen = (x, y) => !!view[cellOfPos(x, y)];
     function shown(x, last) {
       if (friendly(x.team, P.side)) return true;
