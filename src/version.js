@@ -4,6 +4,18 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.11', date: '11 November 2026', title: 'Infantry that fight like Red Alert, new gunfire, and a smoother look', groups: [
+    ['New', [
+      'Infantry under fire drop prone, shoot from the ground and crawl, then get back up a few seconds after the shooting stops.',
+      'Soldiers walk with a four-pose stride, bring the rifle to the shoulder to shoot, and kick back with each shot.',
+      'New gunfire: Allied riflemen fire an M16, Soviet riflemen an AK-style rifle, and the Pillbox has a deep, fast MG42-style rip. The Ranger and Hind have a punchier machine gun.',
+      'New look for the Soviet Power Plant and Advanced Power Plant, with cooling tower steam, refinery chimney smoke and Allied refinery vapour.',
+      'A smoother picture: sprites are drawn at twice the resolution and the battlefield is smoothed, with paler water and muddy fords. If it runs badly on your phone, tell us.',
+    ]],
+    ['Changes', [
+      'Balance, single player and online: prone infantry take half damage whether still or moving (before, 35% less and only while still), crawl at 60% of walking speed, and the random crouch is gone. Infantry are tougher in a firefight.',
+    ]],
+  ] },
   { v: '2026.11.10', date: '10 November 2026', title: 'Quieter music', groups: [
     ['Changes', [
       'The soundtrack is about 4 dB quieter, so effects and voices stand out more. The music volume slider still works as before.',
