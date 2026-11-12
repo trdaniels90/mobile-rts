@@ -133,21 +133,37 @@ const Report = (() => {
   // (stutters), the worst frame, the average time a frame spent in the simulation and in drawing, camera jumps
   // (more than half a screen in one frame, as from a minimap tap), frames with ground still painting on screen
   // (art.js makeGround, the stand-in colours), and units alive. Kept in G.perf, so a saved game keeps its minutes.
-  let frameAt = 0;
+  let frameAt = 0, prev = null;
   function noteFrame(now, upd, drw, camJump, other) {
     try {
       const gap = (now - frameAt) / 1000;
       frameAt = now;
+      // This frame's parts. A long gap before this frame was spent in the previous frame's work (or outside the
+      // game's code after it), so long frames are put down to `prev`.
+      const gm = G && G.ground ? G.ground.ms || 0 : 0;
+      const cur = { upd, drw, gnd: gm, spr: typeof spriteMs === 'number' ? spriteMs : 0, sprN: typeof spriteN === 'number' ? spriteN : 0,
+        oth: other || 0, tiles: G && G.ground ? G.ground.made || 0 : 0 };
+      const p = prev; prev = cur;
       if (!G || G.over || G.paused || G.hold || gap > 1 || document.hidden) return;   // a gap over a second is a pause
       const P = G.perf || (G.perf = { min: [] }), i = Math.min(180, Math.floor(G.t / 60));
       const m = P.min[i] || (P.min[i] = { m: i, f: 0, ft: 0, slow: 0, long: 0, worst: 0, upd: 0, drw: 0, jumps: 0, wait: 0, units: 0 });
       m.f++; m.ft += gap; m.upd += upd; m.drw += drw;
       // The worst of each part, the ground's share of drawing and the tiles it finished: a stutter none of these
       // explains happened outside the game's own code (the browser collecting memory, or putting the frame on screen).
-      const gm = G.ground ? G.ground.ms || 0 : 0;
       m.wu = Math.max(m.wu || 0, upd); m.wd = Math.max(m.wd || 0, drw); m.wg = Math.max(m.wg || 0, gm); m.wo = Math.max(m.wo || 0, other || 0);
-      m.gnd = (m.gnd || 0) + gm; m.tiles = (m.tiles || 0) + (G.ground ? G.ground.made || 0 : 0);
-      if (gap > 0.1) m.lx = (m.lx || 0) + (gap * 1000 - upd - drw - (other || 0) > 50 ? 1 : 0);   // long frames mostly outside the game's code
+      m.gnd = (m.gnd || 0) + gm; m.tiles = (m.tiles || 0) + cur.tiles;
+      if (gap > 0.1 && p) {
+        const mine = p.upd + p.drw + p.oth;
+        if (gap * 1000 - mine > 50) m.lx = (m.lx || 0) + 1;   // long frames mostly outside the game's code
+        // The first few long frames of each minute, part by part (ms): gap, simulation, draw (of which the ground,
+        // and new sprites made and how many), sidebar and radar, tiles finished, units alive.
+        if (!m.lf) m.lf = [];
+        if (m.lf.length < 4) {
+          const r = (v) => Math.round(v);
+          m.lf.push({ t: r(G.t), gap: r(gap * 1000), upd: r(p.upd), drw: r(p.drw), gnd: r(p.gnd), spr: r(p.spr), sprN: p.sprN, oth: r(p.oth), tiles: p.tiles,
+            units: G.entities.filter((e) => e.alive && e.kind === 'unit').length });
+        }
+      }
       if (gap > 0.05) m.slow++;
       if (gap > 0.1) m.long++;
       m.worst = Math.max(m.worst, gap * 1000);
@@ -162,7 +178,7 @@ const Report = (() => {
     try { sc = { cores: navigator.hardwareConcurrency || null, w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1 }; } catch (_) {}
     return { ...sc, minutes: G.perf.min.filter(Boolean).map((m) => ({ m: m.m, fps: m.ft ? Math.round(m.f / m.ft) : null, slow: m.slow, long: m.long,
       worst: Math.round(m.worst), upd: +(m.upd / m.f).toFixed(1), drw: +(m.drw / m.f).toFixed(1), jumps: m.jumps, wait: m.wait, units: m.units,
-      wu: Math.round(m.wu || 0), wd: Math.round(m.wd || 0), wg: Math.round(m.wg || 0), wo: Math.round(m.wo || 0), gnd: +((m.gnd || 0) / m.f).toFixed(1), tiles: m.tiles || 0, lx: m.lx || 0 })) };
+      wu: Math.round(m.wu || 0), wd: Math.round(m.wd || 0), wg: Math.round(m.wg || 0), wo: Math.round(m.wo || 0), gnd: +((m.gnd || 0) / m.f).toFixed(1), tiles: m.tiles || 0, lx: m.lx || 0, lf: m.lf || [] })) };
   }
   function end(won) {
     try { return finish(won ? 'win' : 'loss', G.over ? G.over.t : G.t, stats()); } catch (_) { return Promise.resolve(null); }

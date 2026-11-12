@@ -4,6 +4,14 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.12.4', date: '12 November 2026', title: 'Smoother big battles, and a calmer opening', groups: [
+    ['Changes', [
+      'The computer waits 2 minutes longer before its first attack: 8 minutes on Easy and Normal, 6 on Hard.',
+      'Smoother scrolling in big battles, on phones most of all: units and the sidebar no longer freeze the game for a moment when they first come into view.',
+      'A building you finished stays ready to place if you lose a building it needs (an Ore Refinery after its Power Plant, say). One still being built waits, marked ON HOLD, until you rebuild it, and units queued at a lost factory wait the same way; hold to cancel. Before, it vanished and blocked all building.',
+      'Match reports now record what the game was doing during any stutter, so slowdowns can be tracked down.',
+    ]],
+  ] },
   { v: '2026.11.12.3', date: '12 November 2026', title: 'Return calls your aircraft home', groups: [
     ['Changes', [
       'Team battles: RETURN now also calls home every jet and helicopter out attacking. They land and wait on their pad (Auto Attack goes off, as before). Aircraft defending your base keep fighting.',

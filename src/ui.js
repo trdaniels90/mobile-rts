@@ -1136,6 +1136,7 @@
   let last = performance.now(), updMs = 0;
   const camWas = { x: 0, y: 0 };
   function frame(now) {
+    spriteMs = 0; spriteN = 0;   // (models.js: sprites made in this frame, for the match report)
     let dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     shakeAmp *= Math.exp(-dt * 6);
