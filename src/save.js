@@ -6,7 +6,8 @@
 // The whole of G is saved as a graph: every object once, with references between them kept
 // ({ $r: n }), so a unit's target is the same unit again after loading. Unit and structure stats
 // and the other tables in data.js are saved by name ({ $s: path }); number grids as base64. The
-// ground (scorch marks, craters, wrecks) and the decals layer are saved as pictures.
+// ground is painted again from the seed, and the marks of battle on it (scorch marks, craters, wrecks,
+// bodies) are in G.marks. Saves from before 2026.11.12 kept the ground as two pictures: they still load.
 const SaveGame = (() => {
   const DB = 'red-horizon', STORE = 'save', KEY = 'skirmish';
   const ROOTS = { FACTIONS, WARHEADS, UNIT_DEFS, BUILD_DEFS, POWERS, DIFFICULTY };
@@ -18,7 +19,7 @@ const SaveGame = (() => {
   })(ROOTS, []);
   const fromPath = (path) => path.reduce((o, k) => o[k], ROOTS);
   // Not saved: rebuilt on loading (byId, the canvases, what is drawn) or for this session only.
-  const SKIP = new Set(['grid', 'byId', 'terrainCanvas', 'tctx', 'decals', 'dctx', 'seen', 'selection', 'place', 'paused', 'inFx', 'shroudDirty']);
+  const SKIP = new Set(['grid', 'byId', 'ground', 'terrainCanvas', 'tctx', 'decals', 'dctx', 'seen', 'selection', 'place', 'paused', 'inFx', 'shroudDirty']);
   const TYPED = { Uint8Array, Uint16Array, Int32Array, Float32Array, Float64Array, Int16Array, Uint32Array, Int8Array };
 
   function b64(a) {
@@ -108,13 +109,8 @@ const SaveGame = (() => {
       const state = freeze(G);
       const meta = { at: Date.now(), t: G.t, faction: view.faction, foe: G.teams[foeOf(G.me)].faction, diffKey: view.diffKey, version: VERSION, map: G.mapId, size: MAP, hbase: 1, match: view.match || null };
       const done = put(KEY, { meta, state, cam: view.cam, ms: Math.round(performance.now() - t0) }).then(() => put(KEY + '-meta', meta));
-      // The ground pictures take longer: one at a time, and an older pair is fine meanwhile.
-      if (!pictures && G.terrainCanvas.toBlob) {
-        const shot = (c) => new Promise((res) => { try { c.toBlob(res, 'image/png'); } catch (_) { res(null); } });
-        pictures = Promise.all([shot(G.terrainCanvas), shot(G.decals)])
-          .then(([ground, decals]) => (ground && decals ? put(KEY + '-pictures', { ground, decals, at: meta.at }) : null))
-          .then(() => { pictures = null; }, () => { pictures = null; });
-      }
+      // An old save's ground pictures stay while the game it was continued as needs them; otherwise they go.
+      if (!G.legacyGround && !pictures) pictures = tx('readwrite', (s) => s.delete(KEY + '-pictures')).then(() => { pictures = null; });
       return done;
     } catch (_) { return Promise.resolve(null); }
   }
@@ -138,20 +134,20 @@ const SaveGame = (() => {
       g.fog = g.teams.map((t, i) => fogs.get(t.ally) || fogs.set(t.ally, g.fog[i]).get(t.ally));
       if (!g.log.waves || g.log.waves.length < g.teams.length) { g.log.waves = g.teams.map((t, i) => (g.log.waves && g.log.waves[i]) || 0); g.log.lastH = g.teams.map((t, i) => (g.log.lastH && g.log.lastH[i]) || 0); }
       g.seen = g.fog[g.me]; g.selection = []; g.place = null; g.paused = false; g.inFx = false; g.shroudDirty = true;
-      // The ground from its saved picture; without one, painted afresh (without the marks of battle).
-      g.decals = mkCanvas(WORLD, WORLD);
-      g.dctx = g.decals.getContext('2d');
-      let ground = null;
-      const pic = await get(KEY + '-pictures');
-      if (pic && typeof createImageBitmap === 'function') {
-        try {
-          const [a, b] = await Promise.all([createImageBitmap(pic.ground), createImageBitmap(pic.decals)]);
-          ground = mkCanvas(WORLD, WORLD);
-          ground.getContext('2d').drawImage(a, 0, 0); g.dctx.drawImage(b, 0, 0);
-        } catch (_) { ground = null; }
+      // The ground, painted again with its marks of battle (G.marks). A save from before there were marks kept the
+      // ground as two pictures: those are drawn instead of painting (and kept, legacyGround, while this game goes on).
+      let legacy = null;
+      if (!g.marks || g.legacyGround) {
+        const pic = await get(KEY + '-pictures');
+        if (pic && typeof createImageBitmap === 'function') {
+          try {
+            const [a, b] = await Promise.all([createImageBitmap(pic.ground), createImageBitmap(pic.decals)]);
+            legacy = { g: a, d: b };
+          } catch (_) { legacy = null; }
+        }
+        g.legacyGround = !!legacy;
       }
-      g.terrainCanvas = ground || paintTerrain(g.terr, g.seed, g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId));
-      g.tctx = g.terrainCanvas.getContext('2d');
+      newGround(g, legacy);
       G = g;
       return { faction: rec.meta.faction, diffKey: rec.meta.diffKey, cam: rec.cam, match: rec.meta.match };
     } catch (_) { return null; }

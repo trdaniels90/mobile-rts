@@ -15,7 +15,8 @@ const MAPS = {
   river: {
     name: 'Three Crossings',
     img: 'maps/river.png',
-    blurb: 'A winding river splits west from east. A bridge crosses it in the middle, and shallow fords in the far north and the south. Creeks and cliffs make chokepoints. Ore lies on both banks, with gems beside every base and out by the crossings.',
+    blurb: 'A winding river splits west from east. A bridge crosses it in the middle, and shallow fords in the far north and the south. Creeks and cliffs make chokepoints. Ore lies on both banks, with gems beside every base and out by the crossings. Some battles are fought in the rain.',
+    weather: { kind: 'rain', chance: 0.5 },   // rolled per battle (rollWeather in art.js); looks only
     info: '144 × 144 cells · 8 start positions · made for 2 v 2',
     // Built for 2 v 2 (not playable as teams yet): the west bank (start positions 0-3) against the east (4-7).
     // A 1 v 1 starts one player on each bank. Not mirrored, so the banks differ a little.
@@ -179,10 +180,12 @@ const MAPS = {
   snowbound: {
     name: 'Snowbound',
     img: 'maps/snowbound.png',
-    blurb: 'A big winter map for big battles. The north fights the south across the snow: a long lake with three bridges and a line of creeks lie between them, old roads wind through the middle, and lakes sit in the corners. Ore and gems lie all over.',
+    blurb: 'A big winter map for big battles. The north fights the south across the snow: a long lake with three bridges and a line of creeks lie between them, old roads wind through the middle, and lakes sit in the corners. Ore and gems lie all over. Snow falls in some battles.',
     info: '168 × 168 cells · 8 start positions · made for 3 v 3',
     theme: 'snow',   // painted as winter (paintTerrain, the minimap, map pictures, base pads, camouflage)
-    size: 168,   // cells a side (setMapSize); bigger than the 144 of the others. At most 170 (the ground picture's limit on iPhones)
+    bridge: 'concrete',   // concrete bridges (art.js concreteBridge) instead of timber
+    weather: { kind: 'snow', chance: 0.5 },   // rolled per battle (rollWeather in art.js); looks only
+    size: 168,   // cells a side (setMapSize); bigger than the 144 of the others
     // The north (start positions 0-3) against the south (4-7), each alliance on its own half (newWorld): a 1 v 1
     // starts one player on each. The lake's bridges and the eastern creeks lie between them. Nearly symmetric by a
     // half turn, so each north start has a south twin. (The tool lists starts west first; they are reordered here.)

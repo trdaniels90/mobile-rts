@@ -286,7 +286,10 @@
     if (!G) return;
     const sx = Math.max(0, ox), sy = Math.max(0, oy);
     const sw = Math.min(WORLD, ox + bw) - sx, sh = Math.min(WORLD, oy + bh) - sy;
-    if (sw > 0 && sh > 0) v.drawImage(G.terrainCanvas, sx, sy, sw, sh, sx - ox, sy - oy, sw, sh);
+    // The ground is painted in tiles as it comes into view (art.js makeGround): up to 6 ms a frame for what is on
+    // screen, then 3 ms for the tiles round it.
+    G.ground.update(sx, sy, sw, sh, 6, 3);
+    G.ground.draw(v, 't', sx, sy, sw, sh, sx - ox, sy - oy);
     v.translate(-ox, -oy);
 
     // Ore
@@ -297,7 +300,7 @@
       if (o) drawOre(v, cx, cy, o, G.gem[c]);
     }
 
-    if (sw > 0 && sh > 0) v.drawImage(G.decals, sx, sy, sw, sh, sx, sy, sw, sh);
+    G.ground.draw(v, 'd', sx, sy, sw, sh, sx, sy);
     const x0 = ox - 80, y0 = oy - 80, x1 = ox + bw + 80, y1 = oy + bh + 80;
     const inView = (e) => e.x > x0 && e.x < x1 && e.y > y0 && e.y < y1;
     for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0) drawEffect(v, fx);
@@ -393,6 +396,7 @@
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
     ctx.drawImage(view, 0, 0, bw, bh, Math.round(-(cam.x - ox) * k + sx2), Math.round(-(cam.y - oy) * k + sy2), Math.round(bw * k), Math.round(bh * k));
+    if (G.weather) drawWeather(ctx, G.weather, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, G.paused || !!G.over);
     if (gesture && gesture.type === 'box' && gesture.moved) {
       const bx = Math.min(gesture.sx, gesture.ex) * DPR, by = Math.min(gesture.sy, gesture.ey) * DPR;
       ctx.strokeStyle = '#f2f2ea'; ctx.lineWidth = DPR;

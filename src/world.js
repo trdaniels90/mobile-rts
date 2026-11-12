@@ -81,12 +81,11 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
     }
   }
   genMap(seed);
-  G.terrainCanvas = paintTerrain(G.terr, seed, G.road, G.bridges, G.cliff, G.ford, mapTheme(mapId));
-  G.tctx = G.terrainCanvas.getContext('2d');
-  // Bodies and wrecks get their own layer above the ground, so later craters and scorch
-  // marks never paint over them.
-  G.decals = mkCanvas(WORLD, WORLD);
-  G.dctx = G.decals.getContext('2d');
+  // The ground, painted in tiles as it is looked at, and the marks of battle (art.js makeGround): G.tctx is
+  // the ground's layer, G.dctx the layer of bodies and wrecks above it, so later craters and scorch marks
+  // never paint over them.
+  newGround(G);
+  G.weather = rollWeather(mapId, seed);   // rain or snow for this battle, or none (looks only; art.js drawWeather)
 
   for (const team of G.teams) {
     const b = addBuilding('cy', team, team.start.cx - 1, team.start.cy - 1);

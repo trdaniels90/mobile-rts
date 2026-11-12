@@ -48,10 +48,8 @@ function load(opts = {}) {
   ctx.window = ctx; ctx.self = ctx; ctx.globalThis = ctx;
   vm.createContext(ctx);
   for (const f of SCRIPTS) vm.runInContext(fs.readFileSync(path.join(SRC, f), 'utf8'), ctx, { filename: f });
-  // Drawing the ground and the voxel sprites is all the server would waste time on: skip it.
-  vm.runInContext(`
-    paintTerrain = function () { return mkCanvas(WORLD, WORLD); };
-  `, ctx);
+  // The ground is only painted when drawn (art.js makeGround) and marks are not kept (HEADLESS), so the server
+  // never paints it.
   // The scripts' const and let names (G, VERSION, NetCore...) are not properties of the context:
   // ctx.get('G') reads one.
   Object.defineProperty(ctx, 'get', { value: (name) => vm.runInContext(name, ctx), enumerable: false });
