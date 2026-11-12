@@ -198,6 +198,9 @@ const MAPS = {
     // lake's east end and its eastern twin, the far west and east, and either side of the middle.
     gems: [[3, 14, 2.4], [79, 45, 2.4], [120, 15, 2.4], [162, 69, 2.4], [3, 95, 2.4], [18, 145, 2.4], [96, 128, 2.4], [141, 155, 2.4],
       [59, 25, 2.6], [102, 137, 2.6], [48, 87, 2.6], [121, 75, 2.6], [28, 130, 2.6], [140, 43, 2.6], [75, 82, 2.6], [91, 86, 2.6]],
+    // Ore fields added in code, not in the design: the north-west start (10,20) had no field of its own (the nearest
+    // was 30 cells away, on the front line), so its computer starved. [x, y, radius], on open ground only.
+    ore: [[29, 14, 7.5]],
     spawns: [[10,20],[79,54],[116,20],[156,68],[12,94],[22,139],[94,119],[135,148]],
     rows: [
       '36.15o21.3#25.20o29.2,17~',
