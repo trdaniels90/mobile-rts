@@ -372,6 +372,17 @@ share globals. Read this file first; the commit history explains every change in
   287 to 37 ms; 12 game minutes of a 3 v 3 cost 111 s of CPU (was 150 s for 8). Unit sprites are also made ahead
   (`warmSprites` in art.js, 2 ms a frame from ui.js: every facing of the hull and turret, and soldiers' common poses
   `WARM_POSES`, for the kind of unit nearest the view not done yet).
+- **Zooming round a 3 v 3 (match 532b38f5, iPhone, 2026.11.12.5):** fine for 11 minutes, then 20 radar jumps zoomed out:
+  642 tiles finished in a minute, single ground updates of 110 to 287 ms, 136 frames of stand-in. Not reproducible in
+  Chromium here (worst ground step 17 ms; no WebKit in the container), so likely Safari canvas costs. Changes: `charred`
+  (a wreck's char) is kept per sprite, `CHAR_LOOKS` (4) looks chosen by seed (it made a canvas and hundreds of
+  source-atop fills for every wreck at every repaint); the burnt hull and turret of each vehicle type are warmed
+  (`warmSprites`); the **preview**: the workers paint the whole ground at a quarter size when idle (`pv` jobs, tiles
+  nearest the view first, finished tiles are copied in too), drawn smoothed as the stand-in instead of the minimap
+  colours (`pvDone`; `blocky` counts tiles still on flat colours). Reports add `gp` / `gd` / `gm` / `gmk` (worst
+  pixels put, scenery, single mark and its kind, ms) and `blk` (frames with flat stand-ins).
+- **ground-tiles.js save and continue** saves the battle paused: the page's own loop ran the battle on between loading
+  and looking (a computer side placed a building, +1 mark) once sides took turns thinking.
 - **Anything new drawn onto the ground** must be a function in `MARK_FNS` (deterministic from its arguments, with a box in
   `markBox`), never a draw on a canvas kept in G. The game server records no marks (`HEADLESS`).
 - **Saves** keep `G.marks` (no pictures). An old save's two pictures are used as the ground (`legacy`, `G.legacyGround`,

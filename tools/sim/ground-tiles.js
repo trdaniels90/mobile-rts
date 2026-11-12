@@ -58,7 +58,8 @@ const os = require('os'), fs = require('fs'), path = require('path');
   }
   // Save and continue (the map that came last, through the menu as a player would).
   await p.evaluate(() => { Report.quit && 0; });
-  const before = await p.evaluate(() => { stage('snowbound', 1); return { marks: G.marks.length, t: sum(G.ground.whole('t')), d: sum(G.ground.whole('d')) }; });
+  const before = await p.evaluate(() => { stage('snowbound', 1); G.paused = true;   // (saved paused: the game must not run on between loading and looking)
+    return { marks: G.marks.length, t: sum(G.ground.whole('t')), d: sum(G.ground.whole('d')) }; });
   await p.evaluate(() => SaveGame.save({ faction: 'allies', diffKey: 'hard', cam: { x: 0, y: 0, z: 1 }, match: null }));
   await p.reload(); await p.waitForTimeout(1500); await p.evaluate(HELPERS);
   const after = await p.evaluate(async () => { const r = await SaveGame.load(); return r && { marks: G.marks.length, t: sum(G.ground.whole('t')), d: sum(G.ground.whole('d')), MAP }; });

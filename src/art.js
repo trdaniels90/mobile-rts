@@ -561,7 +561,16 @@ function dimmed(img) {
 }
 
 // Blackened, soot-streaked copy of a sprite, with a few rust patches.
+// The charred look of a wreck's sprite: one of CHAR_LOOKS per sprite, kept (it was a new canvas and hundreds of
+// small fills for every wreck, each time a tile with wrecks was painted again: a stall on iPhones).
+const CHAR_LOOKS = 4, charMemo = new WeakMap();
 function charred(img, seed) {
+  let looks = charMemo.get(img);
+  if (!looks) charMemo.set(img, looks = []);
+  const v = ((seed % CHAR_LOOKS) + CHAR_LOOKS) % CHAR_LOOKS;
+  return looks[v] || (looks[v] = charredLook(img, v * 7919 + 13));
+}
+function charredLook(img, seed) {
   const r = rng(seed), c = mkCanvas(img.width, img.height), g = c.getContext('2d');
   g.drawImage(img, 0, 0);
   g.globalCompositeOperation = 'source-atop';
@@ -773,7 +782,15 @@ function groundWorkers() {
         if (m.init) { gen = m.gen; MAP = m.MAP; WORLD = MAP * CELL; NCELLS = MAP * MAP; px = groundPixels(...m.args); return; }
         const d = new Uint8ClampedArray(m.w * m.h * 4);
         if (m.gen === gen) px.pixels(d, m.x, m.y, m.w, m.h);
-        postMessage({ gen: m.gen, k: m.k, w: m.w, h: m.h, d, ok: m.gen === gen }, [d.buffer]);
+        if (!m.pv) { postMessage({ gen: m.gen, k: m.k, w: m.w, h: m.h, d, ok: m.gen === gen }, [d.buffer]); return; }
+        // A preview: the same pixels averaged down s times each way (the stand-in for a tile not painted yet).
+        const s = m.pv, w2 = Math.ceil(m.w / s), h2 = Math.ceil(m.h / s), o = new Uint8ClampedArray(w2 * h2 * 4);
+        for (let y = 0; y < h2; y++) for (let x = 0; x < w2; x++) {
+          let r = 0, g = 0, b = 0, c = 0;
+          for (let j = y * s; j < Math.min(m.h, y * s + s); j++) for (let i = x * s; i < Math.min(m.w, x * s + s); i++) { const q = (j * m.w + i) * 4; r += d[q]; g += d[q + 1]; b += d[q + 2]; c++; }
+          const q = (y * w2 + x) * 4; o[q] = r / c; o[q + 1] = g / c; o[q + 2] = b / c; o[q + 3] = 255;
+        }
+        postMessage({ pv: true, gen: m.gen, k: m.k, w: w2, h: h2, d: o, ok: m.gen === gen }, [o.buffer]);
       };`].join('\n');
     const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
     const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 2) - 1));
@@ -807,6 +824,13 @@ function makeGround(painter, legacy) {
   // With workers: the tiles wanted, in order (on screen nearest the middle first, then the ring round it), those
   // being worked out, and those whose pixels are back and wait to be finished on the main thread.
   const pool = legacy ? null : groundWorkers(), gen = ++groundGen;
+  // The preview: the whole ground at a quarter size, worked out by the workers when they have nothing else to do
+  // (and taken from every finished tile), shown blurred where a tile is not painted yet, instead of flat blocks.
+  const PV = 4, pvDone = new Uint8Array(n * n), pvBusy = new Set();
+  let preview = null, pvCenter = 0;
+  const pvCtx = () => { if (!preview) preview = mkCanvas(Math.ceil(WORLD / PV), Math.ceil(WORLD / PV)); return preview.getContext('2d'); };
+  // The worst single steps of the last update (Report: stats.frames gp, gd, gm, gmk).
+  const peak = { put: 0, dec: 0, mark: 0, mk: '' };
   let queue = [];
   const inflight = new Set(), ready = new Map();
   // Tiles painted but for the marks of battle, drawn a few at a time (a tile on a busy battlefield can have
@@ -815,19 +839,28 @@ function makeGround(painter, legacy) {
   function finishSome(k, until) {
     const f = finishing.get(k), list = index[k];
     while (f.i < list.length) {
-      drawOn(f.t, k, G.marks[list[f.i++]]);
+      const a = performance.now(), m = G.marks[list[f.i++]];
+      drawOn(f.t, k, m);
+      const dt = performance.now() - a;
+      if (dt > peak.mark) { peak.mark = dt; peak.mk = m[1]; }
       if (until && performance.now() >= until) break;
     }
     if (f.i < list.length) return false;
     finishing.delete(k);
     f.t.used = frameNo;
     tiles.set(k, f.t); finished++;
+    if (!pvDone[k] && pool) { const [x0, y0] = at(k), g = pvCtx(); g.imageSmoothingEnabled = true; g.drawImage(f.t.g, 0, 0, Math.min(T, WORLD - x0), Math.min(T, WORLD - y0), x0 / PV, y0 / PV, Math.min(T, WORLD - x0) / PV, Math.min(T, WORLD - y0) / PV); pvDone[k] = 1; }
     return true;
   }
   if (pool) {
     for (const w of pool.workers) w.postMessage({ init: true, gen, MAP, args: painter.args });
     pool.onTile = (m) => {
       if (m.gen !== gen) return;
+      if (m.pv) {
+        pvBusy.delete(m.k);
+        if (m.ok && !pvDone[m.k]) { const [x0, y0] = at(m.k); pvCtx().putImageData(new ImageData(m.d, m.w, m.h), x0 / PV, y0 / PV); pvDone[m.k] = 1; }
+        feed(); return;
+      }
       inflight.delete(m.k);
       if (m.ok && !tiles.has(m.k)) ready.set(m.k, m);
       feed();
@@ -841,7 +874,21 @@ function makeGround(painter, legacy) {
       if (w.job !== null) continue;
       let k;
       while (queue.length) { const c = queue.shift(); if (!tiles.has(c) && !ready.has(c) && !inflight.has(c) && !pending.has(c) && !finishing.has(c)) { k = c; break; } }
-      if (k === undefined) return;
+      if (k === undefined) {
+        // Nothing on or round the screen to paint: the preview's tile nearest the view not done yet.
+        let best = -1, bd = Infinity;
+        const cx = pvCenter % n, cy = Math.floor(pvCenter / n);
+        for (let c = 0; c < n * n; c++) {
+          if (pvDone[c] || pvBusy.has(c)) continue;
+          const d = Math.abs(c % n - cx) + Math.abs(Math.floor(c / n) - cy);
+          if (d < bd) { bd = d; best = c; }
+        }
+        if (best < 0) return;
+        const [x0, y0] = at(best);
+        w.job = best; pvBusy.add(best);
+        w.postMessage({ gen, k: best, x: x0, y: y0, w: Math.min(T, WORLD - x0), h: Math.min(T, WORLD - y0), pv: PV });
+        continue;
+      }
       const [x0, y0] = at(k);
       w.job = k; inflight.add(k);
       w.postMessage({ gen, k, x: x0, y: y0, w: Math.min(T, WORLD - x0), h: Math.min(T, WORLD - y0) });
@@ -850,8 +897,11 @@ function makeGround(painter, legacy) {
   // A tile whose pixels came back from a worker: into a canvas, bridges and scenery on top, then the marks (finishSome).
   function finish(k, m) {
     const [x0, y0] = at(k), t = { g: tileCanvas(), d: null, used: frameNo }, g = t.g.getContext('2d');
+    const a = performance.now();
     g.putImageData(new ImageData(m.d, m.w, m.h), 0, 0);
+    const b = performance.now();
     painter.decorate(g, x0, y0, m.w, m.h, 0, 0);
+    peak.put = Math.max(peak.put, b - a); peak.dec = Math.max(peak.dec, performance.now() - b);
     finishing.set(k, { t, i: 0 });
   }
   function add(i) {
@@ -937,10 +987,12 @@ function makeGround(painter, legacy) {
     // given the tiles on screen, then the ring.
     update(sx, sy, sw, sh, ms, ahead) {
       frameNo++;
+      peak.put = peak.dec = peak.mark = 0; peak.mk = '';
+      pvCenter = tileOf(Math.max(0, Math.min(n - 1, Math.floor((sx + sw / 2) / T))), Math.max(0, Math.min(n - 1, Math.floor((sy + sh / 2) / T))));
       const tIn = performance.now(), had = finished;
       try { this.upd(sx, sy, sw, sh, ms, ahead); } finally { this.ms = performance.now() - tIn; this.made = finished - had; }
     },
-    ms: 0, made: 0,   // the last update's time and tiles finished (Report: stats.frames)
+    ms: 0, made: 0, peak, blocky: 0,   // the last update's time, tiles finished and worst steps (Report: stats.frames)
     upd(sx, sy, sw, sh, ms, ahead) {
       const t0 = performance.now(), seen = tilesIn(sx, sy, sw, sh);
       if (drawn && useWorkers()) {
@@ -963,9 +1015,10 @@ function makeGround(painter, legacy) {
         const until = performance.now() + ahead;
         for (const k of ring) if (!paintSome(k, until) || performance.now() >= until) break;
       }
-      let missing = 0;
-      for (const k of seen) { const t = tiles.get(k); if (t) t.used = frameNo; else missing++; }
-      this.missing = missing;   // tiles on screen still showing the stand-in (tests)
+      let missing = 0, blocky = 0;
+      for (const k of seen) { const t = tiles.get(k); if (t) t.used = frameNo; else { missing++; if (!pvDone[k]) blocky++; } }
+      this.missing = missing;   // tiles on screen still showing a stand-in (tests)
+      this.blocky = blocky;     // of those, with no preview yet: the flat minimap colours
       trim(Math.max(140, seen.length * 3));
     },
     // Draws one layer ('t' the ground, 'd' the wrecks and bodies) of world rect (sx, sy, sw, sh) into g at (dx, dy).
@@ -976,7 +1029,12 @@ function makeGround(painter, legacy) {
         const ix = Math.max(sx, x0), iy = Math.max(sy, y0), iw = Math.min(sx + sw, x0 + T, WORLD) - ix, ih = Math.min(sy + sh, y0 + T, WORLD) - iy;
         if (iw <= 0 || ih <= 0) continue;
         if (!t) {
-          if (layer === 't') g.drawImage(lowRes(), ix / CELL, iy / CELL, iw / CELL, ih / CELL, dx + ix - sx, dy + iy - sy, iw, ih);
+          if (layer !== 't') continue;
+          if (pvDone[k]) {   // the preview, blurred up
+            const sm = g.imageSmoothingEnabled; g.imageSmoothingEnabled = true;
+            g.drawImage(preview, ix / PV, iy / PV, iw / PV, ih / PV, dx + ix - sx, dy + iy - sy, iw, ih);
+            g.imageSmoothingEnabled = sm;
+          } else g.drawImage(lowRes(), ix / CELL, iy / CELL, iw / CELL, ih / CELL, dx + ix - sx, dy + iy - sy, iw, ih);
           continue;
         }
         const c = layer === 't' ? t.g : t.d;
@@ -994,6 +1052,7 @@ function makeGround(painter, legacy) {
       return c;
     },
     forget() { tiles.clear(); pending.clear(); ready.clear(); finishing.clear(); },
+    previewDone: () => pvDone.reduce((a, v) => a + v, 0) / (n * n),   // (tests)
   };
 }
 // The two layers marks are drawn on (G.tctx, G.dctx), and a new battle's ground.
@@ -1075,10 +1134,13 @@ function warmSprites(budgetMs, cx, cy) {
         }
       } else {
         const looks = def.draw === 'v2' ? [{ cd: 0 }, { cd: 2 }] : def.draw === 'harv' ? [{ load: 0 }, { load: def.capacity }] : [{}];
+        const wreck = !warmDone.has('burnt' + best.type) && def.cls !== 'air';   // its wreck too (bakeWreck), once per type
+        if (wreck) warmDone.add('burnt' + best.type);
         for (let i = 0; i < FACINGS; i++) {
           const a = i * Math.PI * 2 / FACINGS;
           for (const l of looks) warmJobs.push({ v, run: () => hullSprite({ def, faction: f, face: a, ...l }, palFor(f)) });
           warmJobs.push({ v, run: () => turretSprite({ def, faction: f, tface: a }, palFor(f)) });
+          if (wreck) warmJobs.push({ v, run: () => { hullSprite({ def, face: a, tface: a, load: 0 }, BURNT); turretSprite({ def, tface: a }, BURNT); } });
         }
       }
     }
