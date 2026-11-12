@@ -108,6 +108,25 @@ function aiGuardSite(team) {
     guns.filter((d) => dist(d, b) < CELL * 6).length < (b.type === 'outpost' ? A.outpostGuns || 1 : 1)) || null;
 }
 
+// Little ore left within reach of its refineries (and Outposts): under STARVED credits' worth (not counting gems)
+// within 14 cells of any of them. Worked out every 10 seconds.
+const STARVED = 2500;
+function aiStarved(team) {
+  if (team.starvedT !== undefined && G.t - team.starvedT < 10 && G.t >= team.starvedT) return !!team.starved;
+  team.starvedT = G.t;
+  const sites = buildingsOf(team.id).filter((b) => b.type === 'refinery' || b.type === 'outpost');
+  let ore = 0;
+  for (const b of sites) {
+    for (let y = b.cy - 14; y <= b.cy + 14; y++) for (let x = b.cx - 14; x <= b.cx + 14; x++) {
+      if (!inMap(x, y)) continue;
+      const c = idx(x, y);
+      if (G.ore[c] && !G.gem[c] && Math.hypot(x - b.cx, y - b.cy) <= 14) ore += G.ore[c];
+    }
+    if (ore >= STARVED) break;
+  }
+  team.starved = sites.length > 0 && ore < STARVED;
+  return team.starved;
+}
 // Forward mining: an ore field on its own half of the map that its refineries are far from.
 // On Normal and Hard (expand) only fields well past its own base fields count, and a field is taken
 // only when a refinery or Outpost stands right beside it.
@@ -254,8 +273,15 @@ function aiThink(team) {
   // Forward outposts: send a Mobile Outpost to a rich field far from its refineries.
   const fobs = unitsOf(team.id).filter((u) => u.type === 'fob');
   for (const u of fobs) aiDriveFob(team, u);
-  if (c.factory && !fobs.length && !team.queues.vehicle.some((i) => i.type === 'fob') && (c.outpost || 0) < 2 &&
-      (c.refinery || 0) >= 1 && team.credits > 1200 && aiRemoteField(team)) startProduction(team, 'fob');
+  // Starved (little ore left near any refinery): an Outpost (a third if need be) is bought first, at the front of the queue, with
+  // whatever money there is, and army production waits for it (unless the base is under attack).
+  const starved = aiStarved(team);
+  const fobOn = fobs.length > 0 || team.queues.vehicle.some((i) => i.type === 'fob');
+  if (c.factory && !fobOn && (c.outpost || 0) < (starved ? 3 : 2) && (c.refinery || 0) >= 1 && team.credits > (starved ? 250 : 1200) && aiRemoteField(team)) {
+    startProduction(team, 'fob');
+    if (starved) { const q = team.queues.vehicle, i = q.findIndex((x) => x.type === 'fob'); if (i > 0) q.unshift(q.splice(i, 1)[0]); }
+  }
+  const saving = starved && (fobOn || team.queues.vehicle.some((i) => i.type === 'fob')) && !team.defending;
 
   // Damaged vehicles go to the Service Depot: ones waiting at home when hurt, Ore Trucks when badly
   // hurt, and attackers that are nearly done for (which pulls them out of the fight). At most four
@@ -289,7 +315,7 @@ function aiThink(team) {
   // more (Soviet Heavy Tanks and Mammoths) does not field a stronger army of the same size.
   const armyUnits = G.entities.filter((e) => e.alive && e.team === team.id && e.kind === 'unit' && !e.def.harvester);
   // At the cap only army production stops (infantry, vehicles, aircraft, surplus tanks); the support powers and repairs carry on.
-  const capped = armyUnits.length > (G.diff.ai.armyUnits || ARMY_UNITS) || armyUnits.reduce((a, e) => a + e.def.cost, 0) > (G.diff.ai.armyWorth || ARMY_WORTH);
+  const capped = saving || armyUnits.length > (G.diff.ai.armyUnits || ARMY_UNITS) || armyUnits.reduce((a, e) => a + e.def.cost, 0) > (G.diff.ai.armyWorth || ARMY_WORTH);
   // Once the enemy flies aircraft (Normal and Hard), lean on units that can shoot them down:
   // rocket soldiers, Mammoths or Rangers, and fighters rather than helicopters.
   const A = G.diff.ai, anti = A.adapt && team.sawAir;

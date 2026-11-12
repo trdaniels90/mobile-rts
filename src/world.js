@@ -427,6 +427,15 @@ function genLayoutMap(m) {
     for (const c of cells) G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - Math.hypot(cellX(c) - cx, cellY(c) - cy) / far) * 190) * ORE_START) * G.oreRich);
     G.oreFields.push({ cx, cy, r: Math.sqrt(cells.length / Math.PI) * 1.15, rich: 1, gem: false });
   }
+  // Extra ore fields placed in code (MAPS ore: [x, y, radius]), on open ground only, like any traced field.
+  for (const [ox, oy, orr] of m.ore || []) {
+    for (let y = Math.floor(oy - orr); y <= oy + orr; y++) for (let x = Math.floor(ox - orr); x <= ox + orr; x++) {
+      const d = Math.hypot(x - ox, y - oy), c = inMap(x, y) && idx(x, y);
+      if (c === false || d > orr || T[c] > 1 || G.cliff[c] || G.ore[c]) continue;
+      G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - d / (orr + 1)) * 190) * ORE_START) * G.oreRich);
+    }
+    G.oreFields.push({ cx: ox, cy: oy, r: orr, rich: 1, gem: false });
+  }
   // Gem fields (rare ore, worth twice as much and never growing back) on open ground.
   for (const [gx, gy, gr] of m.gems || []) {
     for (let y = Math.floor(gy - gr); y <= gy + gr; y++) for (let x = Math.floor(gx - gr); x <= gx + gr; x++) {
