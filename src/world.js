@@ -117,7 +117,7 @@ const teamGame = () => G.teams.length > 2;
 function makeTeam(id, faction, isAI) {
   return {
     id, faction, isAI, pal: FACTIONS[faction].pal, credits: 10000, shown: 10000, start: null,
-    power: { prod: 0, use: 0 }, low: false, auto: !!isAI,
+    power: { prod: 0, use: 0 }, low: false, auto: !!isAI, focusSide: null,
     queues: { structure: null, infantry: [], vehicle: [], heli: [], jet: [] },
     stats: { built: 0, units: 0, lost: 0, killed: 0, bldKilled: 0, bldLost: 0, harvested: 0 },
     cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, defending: false, calm: 0, allyCalm: 0, assist: false, harvHit: null,
@@ -425,6 +425,15 @@ function genLayoutMap(m) {
     const far = Math.max(...cells.map((c) => Math.hypot(cellX(c) - cx, cellY(c) - cy))) + 1;
     for (const c of cells) G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - Math.hypot(cellX(c) - cx, cellY(c) - cy) / far) * 190) * ORE_START) * G.oreRich);
     G.oreFields.push({ cx, cy, r: Math.sqrt(cells.length / Math.PI) * 1.15, rich: 1, gem: false });
+  }
+  // Extra ore fields placed in code (MAPS ore: [x, y, radius]), on open ground only, like any traced field.
+  for (const [ox, oy, orr] of m.ore || []) {
+    for (let y = Math.floor(oy - orr); y <= oy + orr; y++) for (let x = Math.floor(ox - orr); x <= ox + orr; x++) {
+      const d = Math.hypot(x - ox, y - oy), c = inMap(x, y) && idx(x, y);
+      if (c === false || d > orr || T[c] > 1 || G.cliff[c] || G.ore[c]) continue;
+      G.ore[c] = Math.round(Math.min(ORE_MAX * ORE_START, (60 + (1 - d / (orr + 1)) * 190) * ORE_START) * G.oreRich);
+    }
+    G.oreFields.push({ cx: ox, cy: oy, r: orr, rich: 1, gem: false });
   }
   // Gem fields (rare ore, worth twice as much and never growing back) on open ground.
   for (const [gx, gy, gr] of m.gems || []) {
@@ -751,6 +760,8 @@ const teamOf = (e) => G.teams[e.team];
 function enemyOf(team) {
   const foes = G.teams.filter((t) => hostile(team.id, t.id));
   if (foes.length === 1) return foes[0];
+  const chosen = chosenFoe(team);
+  if (chosen) return chosen;
   let f = G.teams[team.foe];
   if (f && hostile(team.id, f.id) && G.t < (team.foeT || 0) && !f.out) return f;
   const live = foes.filter((t) => !t.out && inTheFight(t.id));
@@ -804,7 +815,15 @@ function nearBuckets(x, y, r) {
   for (let by = y0; by <= y1; by++) for (let bx = x0; bx <= x1; bx++) { const b = g[by * GRID_N + bx]; if (b.length) nearOut.push(b); }
   return nearOut;
 }
-function acquire(src, range, weapons, visible) {
+// Helicopters favour what their weapon is made for: the Hind's chain gun goes for infantry, the
+// Hellfires for tanks and vehicles. A favoured target is one the warhead hits at least 80% as hard as
+// its best kind of ground unit; anything else is only picked when nothing favoured is in sight.
+const armorOf = (e) => e.kind === 'bld' ? 'bld' : isAirborne(e) ? 'air' : e.def.armor === 'air' ? 'light' : e.def.armor;
+function favoured(w, e) {
+  const t = WARHEADS[w.wh];
+  return isAirborne(e) || t[armorOf(e)] >= 0.8 * Math.max(t.inf, t.light, t.heavy);
+}
+function acquire(src, range, weapons, visible, favour) {
   let best = null, bs = Infinity;
   const buckets = nearBuckets(src.x, src.y, range + CELL * 3);
   for (let bi = 0; bi < buckets.length; bi++) for (const e of buckets[bi]) {
@@ -819,6 +838,7 @@ function acquire(src, range, weapons, visible) {
     if (e.kind === 'bld') score += e.def.weapon ? 15 : 60;   // defences before harmless structures
     else if (!e.def.weapon && !e.def.harvester) score += 20;
     if (e.cls === 'inf' && weapons.every((w) => w.prefersArmor)) score += CELL * 4;   // tank killers look for vehicles first
+    if (favour && !weapons.some((w) => favoured(w, e))) score += range + CELL * 4;   // behind every favoured target in reach
     if (score < bs) { bs = score; best = e; }
   }
   return best;
@@ -854,7 +874,17 @@ function lastStand(u) {
   }
   return best;
 }
-function enemyBaseKnown(tid = G.me) { return foesOf(tid).some((f) => buildingsOf(f).some((b) => targetable(tid, b)) || (!hasProduction(f) && mcvsOf(f).length > 0)); }
+// side: only that enemy side (the Auto Attack picker asks it of each one).
+function enemyBaseKnown(tid = G.me, side = null) {
+  return foesOf(tid).some((f) => (side == null || f === side) && (buildingsOf(f).some((b) => targetable(tid, b)) || (!hasProduction(f) && mcvsOf(f).length > 0)));
+}
+// The enemy side a side has picked to attack (team.focusSide: the Auto Attack picker, or the
+// computer's own choice in aiPickFoe), while it is still in the fight and its base is known.
+// Null: no choice, so attackers go for whatever enemy base is nearest (and enemyOf picks the nearest side).
+function chosenFoe(team) {
+  const f = team.focusSide == null ? null : G.teams[team.focusSide];
+  return f && hostile(team.id, f.id) && !f.out && inTheFight(f.id) && enemyBaseKnown(team.id, f.id) ? f : null;
+}
 
 // The computer's attackers: one passing within 10 cells of a known enemy Outpost, or of a refinery
 // well away from every enemy Construction Yard, turns aside to destroy it (and what stands beside
@@ -892,15 +922,56 @@ function nearestEnemyBuilding(u) {
   }
   // A detour is over: back to what it was sent for.
   if (u.resume) { const r = u.resume; u.resume = null; if (r !== true && r.alive) { u.focus = r; return r; } }
+  // Aircraft on the attack steer round anti-air the side has found (see airPick).
+  if (u.cls === 'air') { const aa = knownAA(u.team, u.def.fly === 'jet'); if (aa.length) { const b = airPick(u, aa); if (b) return b; } }
   let best = null, bd = Infinity, cy = null, cd = Infinity;
+  const only = chosenFoe(G.teams[u.team]);   // a picked enemy side: its base alone (others are still fought on the way)
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || !hostile(e.team, u.team) || !targetable(u.team, e)) continue;
+    if (only && e.team !== only.id) continue;
     const d = dist(u, e);
     if (d < bd) { bd = d; best = e; }
     if (e.type === 'cy' && d < cd) { cd = d; cy = e; }
   }
   if (u.raider) return u.huntTarget && u.huntTarget.alive ? u.huntTarget : best || lastStand(u);
   return cy || best || lastStand(u);
+}
+
+// Anti-air a side knows about: SAM Sites and AA Guns on ground it has uncovered (finished ones), and anti-air
+// soldiers and vehicles on that ground. Anti-air it has not found yet is not counted, so it can still catch
+// aircraft out. Each entry is where it is and how far it reaches (plus a margin). `jet`: Rangers' guns
+// (heliOnly) cannot touch jets. Worked out once a second per side.
+const AA_CACHE = {};
+function knownAA(tid, jet) {
+  const key = tid * 2 + (jet ? 1 : 0), c = AA_CACHE[key];
+  if (c && G.t >= c.t && G.t - c.t < 1) return c.list;
+  const list = [], seen = inViewOf(tid);
+  const add = (e, w) => { if (w && w.air && !(jet && w.heliOnly)) list.push({ x: e.x, y: e.y, r: (w.range || 150) + CELL * 2 }); };
+  for (const e of G.entities) {
+    if (!e.alive || !hostile(tid, e.team)) continue;
+    if (e.kind === 'bld') { if (e.def.antiAir && (e.buildT === undefined || e.buildT >= 1) && targetable(tid, e)) add(e, e.def.weapon); }
+    else if (e.cls !== 'air' && !e.def.scripted && seen(e)) { add(e, e.def.weapon); add(e, e.def.weapon2); }
+  }
+  AA_CACHE[key] = { t: G.t, list };
+  return list;
+}
+const aaCover = (aa, t) => { let n = 0; for (const a of aa) if (Math.hypot(a.x - t.x, a.y - t.y) < a.r) n++; return n; };
+// An aircraft sent to attack goes for a known building no detected anti-air covers: the Construction Yard
+// first if it is open, else the nearest. If every one is covered it goes for the least covered (Construction
+// Yard first, then the nearest) so it still attacks. u.aaClear says whether it found an open target: if so
+// it also ignores covered targets met on the way (airTarget). Re-chosen once a second.
+function airPick(u, aa) {
+  if (u.aaPick && u.aaPick.alive && G.t - u.aaPickT < 1) return u.aaPick;
+  let best = null, bs = Infinity, bc = 0;
+  const only = chosenFoe(G.teams[u.team]);   // a picked enemy side (Auto Attack picker, aiPickFoe): its buildings alone
+  for (const e of G.entities) {
+    if (!e.alive || e.kind !== 'bld' || !hostile(e.team, u.team) || !targetable(u.team, e)) continue;
+    if (only && e.team !== only.id) continue;
+    const c = aaCover(aa, e), sc = c * 1e5 + dist(u, e) - (e.type === 'cy' ? CELL * 60 : 0);
+    if (sc < bs) { bs = sc; best = e; bc = c; }
+  }
+  u.aaPick = best; u.aaPickT = G.t; u.aaClear = !!best && bc === 0;
+  return best;
 }
 
 // New units spread out to random open spots around their base. Auto attack sends them out
@@ -937,7 +1008,7 @@ function rallyPoint(team) {
 // busy defending, or on a move or attack order, carry on); after that new units go out in batches.
 function launchAll(team) {
   const idle = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.defending && !u.homeward &&
-    u.cls !== 'air' && u.order.type === 'guard' && !u.order.hold && !u.assisting);
+    u.cls !== 'air' && u.order.type === 'guard' && !u.order.hold && !u.assisting && !u.manual);
   for (const u of idle) { setHunt(u); u.staged = false; }
   if (idle.length) logWave(team.id, idle.length >= 15);
   return idle.length;
@@ -951,7 +1022,7 @@ function launchAll(team) {
 // base's call, only as many as it takes. Aircraft stay out of it. Runs once a second.
 // ---------------------------------------------------------------------------
 const alliesOf = (team) => G.teams.filter((o) => o !== team && o.ally === team.ally && !o.out && buildingsOf(o.id).length);
-const idleGround = (team) => unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.defending && !u.assisting && !u.homeward &&
+const idleGround = (team) => unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.defending && !u.assisting && !u.homeward && !u.manual &&
   u.cls !== 'air' && u.order.type === 'guard' && !u.order.hold);
 function sendToAlly(team, units) {
   const ally = alliesOf(team)[0];
@@ -985,11 +1056,18 @@ function sendCredits(team, toSide, amount) {
   say(to.id, `Received ${amount} credits from ${allyLabel(team)}`);
   return amount;
 }
-// The Return button: everything sent to an ally, and every ground unit out attacking (hunt or attack
-// orders), goes home and waits there again. Auto attack and Ally support are turned off so they stay.
+// The Return button: everything sent to an ally, every ground unit out attacking (hunt or attack
+// orders) and every aircraft out attacking goes home and waits there again. Auto attack and Ally support are turned off so they stay.
 function recallAlly(team, garrisonOnly) {
   team.assist = false; if (!garrisonOnly) team.auto = false;
   for (const u of unitsOf(team.id)) {
+    // Aircraft out attacking (or waiting away from their pad) fly home and stay on their pad.
+    if (!garrisonOnly && u.cls === 'air' && !u.def.scripted && !u.leaving && !u.defending && !u.scrambled &&
+      (u.order.type === 'hunt' || u.order.type === 'attack' || (u.order.type === 'guard' && !u.order.pad && !u.order.hold))) {
+      u.target = null; u.focus = null; u.huntTarget = null; u.oneStrike = false; u.manual = false;
+      setGuard(u); u.order.pad = true; u.staged = false;
+      continue;
+    }
     const attacking = !garrisonOnly && u.cls !== 'air' && u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward &&
       (u.order.type === 'hunt' || u.order.type === 'attack');
     if (!u.garrison && !attacking) continue;
@@ -1042,19 +1120,20 @@ function defendAllies(team) {
 }
 function launchGroups() {
   for (const team of G.teams) {
+    releaseIdle(team);
     defendBase(team);
     defendAllies(team);
     // New units follow the others to an ally's base while the Ally button is on.
     if (team.assist) sendToAlly(team, idleGround(team).filter((u) => !u.garrison && u.staged && inBase(team, u) && !u.dest));
     const rally = rallyPoint(team);
-    const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.assisting && !u.def.harvester && (u.def.weapon || u.cls === 'air') && u.order.type === 'guard');
+    const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.assisting && !u.manual && !u.def.harvester && (u.def.weapon || u.cls === 'air') && u.order.type === 'guard');
     // The player's aircraft do not wait for a group: each one heads out on its own.
     // (A jet that came home early waits on its pad until it is fully rearmed.)
     // The computer sends helicopters together and jets together: two or more at once, and a lone
     // one only after waiting AIR_GROUP_WAIT seconds for company.
     if (team.auto && enemyBaseKnown(team.id)) {
       const flyers = waiting.filter((u) => u.cls === 'air' && !u.interceptor), ok = (u) => u.as !== 'landed' || airFull(u);
-      if (!team.isAI) for (const u of flyers) { if (ok(u)) launchAircraft(u); }
+      if (!team.isAI) for (const u of flyers) { if (ok(u)) { launchAircraft(u); if (oneWave(u)) u.oneStrike = true; } }
       else for (const kind of ['heli', 'jet']) {
         const mine = flyers.filter((u) => u.def.fly === kind), ready = mine.filter(ok);
         for (const u of mine) if (!ok(u)) u.airReadyT = undefined;
@@ -1098,7 +1177,7 @@ function scramble(team) {
   const mine = buildingsOf(team.id);
   const intruders = enemyUnitsOf(team.id).filter((u) => u.cls === 'air' && !u.def.scripted && isAirborne(u) && mine.some((b) => distTo(u, b) < CELL * 20));
   for (const u of unitsOf(team.id)) {
-    if (u.def.fly !== 'jet' || !(u.aam > 0) || u.repairHold || u.retreat) continue;
+    if (u.def.fly !== 'jet' || !(u.aam > 0) || u.repairHold || u.retreat || u.manual) continue;
     const waiting = u.as === 'landed' && u.order.type === 'guard' && !u.order.hold;
     if (!u.scrambled && !waiting && !u.interceptor) continue;
     if (intruders.length) {
@@ -1114,6 +1193,9 @@ function scramble(team) {
   }
 }
 
+// The player's jets fly one wave per Auto Attack: out once, home, and they wait on the pad until
+// Auto Attack is switched on (or a target side picked) again. Helicopters and the computer's jets keep going out.
+const oneWave = (u) => u.def.fly === 'jet' && !G.teams[u.team].isAI;
 const AIR_GROUP_WAIT = 150;   // seconds a lone computer aircraft waits for others before going out alone
 // `focus`: where a group of aircraft all go (null: the main base); left out, one in three picks an outlying site.
 function launchAircraft(u, focus) {
@@ -1153,11 +1235,11 @@ function defendBase(team) {
   // The computer also recalls attack waves still on its own half of the map; past halfway they press on.
   const ecy = buildingsOf(enemyOf(team).id).find((b) => b.type === 'cy'), own = mine.find((b) => b.type === 'cy');
   const homeHalf = (u) => !ecy || !own || dist(u, own) < dist(u, ecy);
-  let army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward &&
+  let army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward && !u.manual &&
     (u.cls !== 'air' || (!airEmpty(u) && !u.rearming && u.order.type === 'guard' && !u.order.hold)) &&
-    (u.defending || idle(u) || (team.isAI && u.cls !== 'air' && !truckOnly && homeHalf(u))));
+    (u.defending || idle(u) || (team.isAI && !G.diff.ai.planner && u.cls !== 'air' && !truckOnly && homeHalf(u))));
   if (!threats.length) {
-    team.raiders = [];
+    team.raiders = []; team.defShort = 0;
     if (++team.calm < DEFEND_CALM) return;
     team.defending = false;
     // Everyone pulled into a defence (aircraft that turned on a shooter too) goes back once its fight is over.
@@ -1198,6 +1280,7 @@ function defendBase(team) {
     picked.push(u); got += worth(u);
   }
   army = picked;
+  team.defShort = Math.max(0, need - got);   // worth still missing: the computer's planner (aiSquads) sends squads to cover it
   for (const u of army) {
     let best = null, bd = CELL * 32;
     // Jets spread out: each takes a raider the others have not, and keeps it until it is dead.
@@ -1624,7 +1707,7 @@ function damage(t, amount, wh, attacker, from) {
   // As in Red Alert: whoever fires at a support plane (Spy Plane, Paratroopers transport, bomber)
   // gives away where it stands, to either side.
   if (t.def && t.def.scripted && attacker && hostile(attacker.team, t.team)) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5, G.fog[t.team]);
-  const armor = t.kind === 'bld' ? 'bld' : isAirborne(t) ? 'air' : t.def.armor === 'air' ? 'light' : t.def.armor;
+  const armor = armorOf(t);
   const mult = WARHEADS[wh][armor];
   if (!mult) return;
   // As in Red Alert: infantry under fire go prone and stay down (crawling if they have to move)
@@ -2696,9 +2779,19 @@ function airTarget(u) {
   const ws = airWeapons(u);
   // A defender keeps the raider base defence gave it, however far away: each jet has its own.
   if (u.defending && u.target && u.target.alive && ws.some((w) => canHit(w, u.target))) return u.target;
-  if (u.target && u.target.alive && ws.some((w) => canHit(w, u.target)) && distTo(u, u.target) < sight * 1.4) return u.target;
+  const heli = u.def.fly === 'heli';
+  // (A helicopter on something it is not made for keeps looking, and switches when a favoured target turns up.)
+  if (u.target && u.target.alive && ws.some((w) => canHit(w, u.target)) && distTo(u, u.target) < sight * 1.4 &&
+    !(heli && !ws.some((w) => favoured(w, u.target)))) return u.target;
   const src = o.type === 'guard' ? { x: o.x, y: o.y, team: u.team } : u;
-  return ws.length ? acquire(src, sight, ws) : null;
+  // On the attack with an open target to go for (airPick), it leaves targets covered by detected anti-air alone.
+  let open = null;
+  if (o.type === 'hunt' && u.aaClear) { const aa = knownAA(u.team, u.def.fly === 'jet'); if (aa.length) open = (e) => isAirborne(e) || !aaCover(aa, e); }
+  if (!ws.length) return null;
+  const pick = acquire(src, sight, ws, open, heli);
+  // Nothing new in sight: carry on with the unfavoured target it had.
+  if (heli && !pick && u.target && u.target.alive && ws.some((w) => canHit(w, u.target)) && distTo(u, u.target) < sight * 1.4) return u.target;
+  return pick;
 }
 
 function updateAir(u, dt) {
@@ -2709,7 +2802,7 @@ function updateAir(u, dt) {
   if (u.order.type === 'attack' && !u.order.target.alive) setGuard(u);   // its target is gone: hold here
   // A jet out of air-to-air missiles cannot fight an aircraft: it gives up the chase and flies home.
   if (jet && u.order.type === 'attack' && isAirborne(u.order.target) && !(u.aam > 0) && padFor(u)) {
-    setGuard(u); u.order.pad = true; u.staged = u.scrambled ? !!u.wasStaged : G.teams[u.team].auto; u.scrambled = false;
+    setGuard(u); u.order.pad = true; u.staged = u.scrambled ? !!u.wasStaged : G.teams[u.team].auto && !oneWave(u); u.scrambled = false;
   }
 
   if (u.as === 'landed') {
@@ -2818,7 +2911,7 @@ function updateAir(u, dt) {
       if (b) flyJet(u, b.x, b.y, dt); else { nothingKnown(u); orbit(u, u.x, u.y, dt); }
     } else {
       // A jet cannot hover: with nothing to hit near where it was told to wait, it soon flies home.
-      if (!o.hold && (u.idleT = (u.idleT || 0) + dt) > 3 && padFor(u)) { setGuard(u); u.order.pad = true; u.staged = G.teams[u.team].auto; u.idleT = 0; }
+      if (!o.hold && (u.idleT = (u.idleT || 0) + dt) > 3 && padFor(u)) { setGuard(u); u.order.pad = true; u.staged = G.teams[u.team].auto && !oneWave(u); u.idleT = 0; }
       orbit(u, o.x, o.y, dt);
     }
     if (t) u.idleT = 0;
@@ -3111,8 +3204,11 @@ function available(team, type) {
 }
 
 function startProduction(team, type) {
-  if (!available(team, type)) return 'Not available';
   const cat = catOf(type);
+  // The structure already queued answers first: one that is finished can still be placed after a building it
+  // needed is lost (it is paid for), and one being built waits (updateProduction) until that is rebuilt.
+  if (cat === 'structure' && team.queues.structure && team.queues.structure.type === type) return team.queues.structure.ready ? 'place' : 'busy-same';
+  if (!available(team, type)) return 'Not available';
   if (cat === 'structure') {
     const q = team.queues.structure;
     if (q) return q.type === type ? (q.ready ? 'place' : 'busy-same') : 'busy';
@@ -3186,9 +3282,9 @@ function spawnUnit(team, type) {
     const spot = padSpot(p, u);
     u.x = spot.x; u.y = spot.y; u.face = p.type === 'airfield' ? 0 : (team.id === PLAYER ? -0.8 : 2.35);
     u.as = 'landed'; u.alt = 0;
-    setGuard(u); u.order.pad = true; u.staged = true;
+    setGuard(u); u.order.pad = true; u.staged = !oneWave(u);
     if (team.isAI && aiKeepInterceptor(team, u)) return u;
-    if (team.auto) launchAircraft(u);
+    if (team.auto && !oneWave(u)) launchAircraft(u);
     return u;
   } else {
     let c = p.exitCell;
@@ -3260,21 +3356,24 @@ function spreadOre(f) {
   G.ore[c] = 15;
   f.ext = Math.max(f.ext || 0, d - f.r - 0.8);
 }
-// Four-sided games (2 v 2 and co-op) have richer fields: TEAM_ORE_RICH times the ore, growing back
-// TEAM_ORE_REGROW times as fast (G.oreRich; 1 in a 1 v 1, and in saves from before 2026.11.05.3).
-const TEAM_ORE_RICH = 1.5, TEAM_ORE_REGROW = 2;
+// Team games (2 v 2, 3 v 3, co-op) have richer fields: TEAM_ORE_RICH times the ore (G.oreRich; 1 in a 1 v 1, and
+// in saves from before 2026.11.05.3). Every side's Ore Trucks work the same fields, so they also grow back faster:
+// ORE_REGROW_PER_SIDE cells a field per tick for each side in the battle (4 in a 2 v 2, 6 in a 3 v 3; one in a
+// 1 v 1), and a nearly bare cell (under a third of what it can hold) grows back twice as fast, so a scraped-out
+// field recovers in a couple of minutes instead of several.
+const TEAM_ORE_RICH = 1.5, ORE_REGROW_PER_SIDE = 1;
 function growOre() {
-  const r = Math.random, rich = G.oreRich || 1, grows = rich > 1 ? TEAM_ORE_REGROW : 1;
+  const r = Math.random, rich = G.oreRich || 1, team = rich > 1, grows = team ? G.teams.length * ORE_REGROW_PER_SIDE : 1;
   for (const f of G.oreFields) {
     updateFieldRest(f);
     if (f.gem) continue;   // gems never grow back
     if (r() < 0.05) spreadOre(f);   // about once every 40 seconds
-    for (let k = 0; k < grows; k++) {   // one cell a field every couple of seconds: a scraped-out field takes several minutes to recover
+    for (let k = 0; k < grows; k++) {   // in a 1 v 1, one cell a field every couple of seconds: a scraped-out field takes several minutes to recover
       const a = r() * Math.PI * 2, d = Math.sqrt(r()) * fieldReach(f);
       const x = Math.floor(f.cx + Math.cos(a) * d), y = Math.floor(f.cy + Math.sin(a) * d);
       const c = inMap(x, y) ? idx(x, y) : -1;
       const cap = Math.round(Math.min(ORE_MAX, (60 + (1 - Math.min(1, d / f.r)) * 190) * f.rich) * rich);
-      if (c >= 0 && !G.block[c] && !G.bld[c] && G.ore[c] < cap) G.ore[c] = Math.min(cap, G.ore[c] + 15);
+      if (c >= 0 && !G.block[c] && !G.bld[c] && G.ore[c] < cap) G.ore[c] = Math.min(cap, G.ore[c] + (team && G.ore[c] < cap / 3 ? 30 : 15));
     }
   }
 }
@@ -3341,12 +3440,30 @@ function formationSpots(n, x, y) {
   }
   return out;
 }
+// A direct order from the player takes a unit out of the auto logic (Auto Attack launches, base defence,
+// scrambles, the Ally button) until Stop is pressed on it. The computer's own orders never set it.
+// An attack order is different from a move or guard: once its target is dead and the unit has stood idle for
+// MANUAL_IDLE seconds, it goes home and rejoins the auto logic (releaseIdle, once a second).
+const MANUAL_IDLE = 180;
+function takeOver(u, from) { if (!G.teams[u.team].isAI) { u.manual = true; u.manualFrom = from; u.idleSince = undefined; } }
+function releaseIdle(team) {
+  for (const u of unitsOf(team.id)) {
+    if (!u.manual || u.manualFrom !== 'attack') continue;
+    if (u.order.type !== 'guard' || u.order.hold) { u.idleSince = undefined; continue; }
+    if (u.idleSince === undefined) { u.idleSince = G.t; continue; }
+    if (G.t - u.idleSince < MANUAL_IDLE) continue;
+    u.manual = false; u.manualFrom = undefined; u.idleSince = undefined;
+    if (u.cls === 'air') { setGuard(u); u.order.pad = true; u.staged = true; continue; }
+    const sp = scatterSpot(team);
+    setGuard(u, sp.x, sp.y); u.staged = true; goTo(u, sp.x, sp.y);
+  }
+}
 function commandMove(units, x, y) {
   const spots = formationSpots(units.length, x, y);
   const sorted = units.slice().sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
   sorted.forEach((u, i) => {
     const s = spots[i];
-    u.target = null; u.staged = false; u.defending = false; u.homeward = false;
+    u.target = null; u.staged = false; u.defending = false; u.homeward = false; takeOver(u, 'move');
     if (u.def.harvester) {
       const c = cellOfPos(x, y);
       if (G.ore[c] > 0) { u.hcell = c; u.hs = 'seek'; u.field = fieldAt(c) || u.field; goTo(u, x, y); }   // sent to a field: it keeps coming back until the field is bare
@@ -3365,7 +3482,7 @@ function commandMove(units, x, y) {
 function commandAttack(units, target) {
   for (const u of units) {
     if (u.def.harvester || !canTarget(u, target)) continue;
-    u.order = { type: 'attack', target }; u.staged = false; u.homeward = false; u.defending = false; u.repairHold = false; u.retreat = false;
+    u.order = { type: 'attack', target }; u.staged = false; u.homeward = false; u.defending = false; u.repairHold = false; u.retreat = false; takeOver(u, 'attack');
     u.target = target; assignLane(u);
     if (u.cls === 'air' && u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff';
   }
@@ -3375,7 +3492,7 @@ function commandAttack(units, target) {
 function commandHunt(units) {
   for (const u of units) {
     if (u.def.harvester) continue;
-    setHunt(u); u.staged = false; u.defending = false;
+    setHunt(u); u.staged = false; u.defending = false; takeOver(u, 'attack');
     if (u.cls === 'air') { u.oneStrike = true; if (u.as === 'landed' && !airEmpty(u)) u.as = 'takeoff'; }
   }
 }
@@ -3387,7 +3504,7 @@ function commandGuard(units, x, y) {
     if (u.def.harvester) return;
     const s = u.cls === 'air' ? { x, y } : spots[i];
     setGuard(u, s.x, s.y); u.order.hold = true;
-    u.staged = false; u.defending = false; u.homeward = false; u.focus = null; u.oneStrike = false; u.scrambled = false;
+    u.staged = false; u.defending = false; u.homeward = false; u.focus = null; u.oneStrike = false; u.scrambled = false; takeOver(u, 'guard');
     if (u.cls === 'air') { if (u.as === 'landed' && !airEmpty(u) && !u.repairHold) u.as = 'takeoff'; }
     else goTo(u, s.x, s.y);
   });
@@ -3395,19 +3512,26 @@ function commandGuard(units, x, y) {
 // Stop: every order dropped, back to what a new unit does: ground units wait around the base,
 // aircraft on their pad, both ready for auto attack; Ore Trucks go back to harvesting.
 // Sidebar buttons, as functions so a PvP guest's taps can be sent to the host.
-function setAuto(team, on) {
+// side: in a team game, the enemy side to attack (the picker by the AUTO button); null for whichever is nearest.
+// Units already out hunting turn towards the new choice.
+function setAuto(team, on, side = null) {
   team.auto = !!on;
   if (!on) return;
+  const was = team.focusSide;
+  team.focusSide = side == null || !G.teams[side] || !hostile(team.id, side) ? null : side;
+  if (team.focusSide !== was && team.focusSide != null) {
+    for (const u of unitsOf(team.id)) if (u.order.type === 'hunt' && u.focus && u.focus.team !== team.focusSide) { u.focus = null; u.resume = null; u.huntTarget = null; }
+  }
   if (team.assist) { team.assist = false; for (const u of unitsOf(team.id)) u.garrison = false; }
   // Every idle ground unit attacks now; aircraft waiting on their pads take off.
   launchAll(team);
-  for (const u of unitsOf(team.id)) if (u.cls === 'air' && !u.def.scripted && u.order.type === 'guard') u.staged = true;
+  for (const u of unitsOf(team.id)) if (u.cls === 'air' && !u.def.scripted && u.order.type === 'guard' && !u.manual) u.staged = true;
 }
 function setRepair(b, on) { b.repairing = !!on; }
 function sellStructure(b) { if (b.sellT <= 0) { b.sellT = 1.2; b.buildT = 1; } }
 function commandStop(units) {
   for (const u of units) {
-    u.target = null; u.focus = null; u.huntTarget = null; u.defending = false; u.homeward = false; u.oneStrike = false;
+    u.target = null; u.focus = null; u.huntTarget = null; u.defending = false; u.homeward = false; u.oneStrike = false; u.manual = false;
     if (u.def.harvester) { u.hs = 'seek'; u.hcell = -1; u.dest = null; u.path = null; continue; }
     if (u.cls === 'air') { setGuard(u); u.order.pad = true; u.staged = true; u.scrambled = false; continue; }
     const s = scatterSpot(G.teams[u.team]);

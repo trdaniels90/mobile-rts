@@ -15,12 +15,12 @@ for (let g = 0; g < +games; g++) {
   try {
     for (let i = 0; i < +mins * 60 * 30 && !run('G.over'); i++) {
       ctx.get('update')(1 / 30);
-      if (i % 3600 === 0 && i) console.log('  min', i / 1800, 'cpu', Math.round((Date.now() - t0) / 1000), 's,', run('G.entities.filter((e) => e.alive).length'), 'alive, kills', run('G.teams.map((t) => t.stats.killed).join()'));
+      if (i % 3600 === 0 && i) console.log('  min', i / 1800, 'cpu', Math.round((Date.now() - t0) / 1000), 's,', run('G.entities.filter((e) => e.alive).length'), 'alive, kills', run('G.teams.map((t) => t.stats.killed).join()'), 'focus', run('G.teams.map((t) => t.focusSide).join()'));
       if (i % 300 === 0) for (const t of run('G.teams')) if (t.out && outAt[t.id] === undefined) outAt[t.id] = Math.round(run('G.t') / 6) / 10;
     }
   } catch (e) { err = e.stack.split('\n').slice(0, 4).join(' | '); }
   const r = run(`({ t: Math.round(G.t / 6) / 10, over: G.over && { winner: G.over.winner, t: Math.round(G.over.t / 6) / 10 },
     starts: G.teams.map((t) => [t.start.cx, t.start.cy]),
-    sides: G.teams.map((t) => ({ id: t.id, ally: t.ally, f: t.faction[0], out: !!t.out, units: unitsOf(t.id).length, blds: buildingsOf(t.id).length, killed: t.stats.killed, bk: t.stats.bldKilled, lost: t.stats.lost, waves: G.log.waves[t.id], foe: t.foe })) })`);
+    sides: G.teams.map((t) => ({ id: t.id, ally: t.ally, f: t.faction[0], out: !!t.out, units: unitsOf(t.id).length, blds: buildingsOf(t.id).length, killed: t.stats.killed, bk: t.stats.bldKilled, lost: t.stats.lost, waves: G.log.waves[t.id], how: t.flk, foe: t.foe, focus: t.focusSide })) })`);
   console.log(JSON.stringify({ game: g, seed, cpuSec: Math.round((Date.now() - t0) / 1000), ...r, outAt, err }));
 }

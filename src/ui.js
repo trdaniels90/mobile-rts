@@ -276,6 +276,7 @@
   const visibleToPlayer = (e) => alliedSides(e.team, G.me) || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y));
 
   function draw() {
+    spriteSpend = 0;   // (models.js: sprites made this frame)
     const z = cam.z;
     const ox = Math.floor(cam.x), oy = Math.floor(cam.y);
     const bw = Math.ceil(W / z) + 2, bh = Math.ceil(H / z) + 2;
@@ -758,9 +759,13 @@
   function stripTypes(team, side) {
     if (side === 'L') {
       const powers = hasBuilt(team, 'airfield') ? Object.keys(POWERS).map((k) => 'pw:' + k) : [];
-      return powers.concat(Object.keys(BUILD_DEFS).filter((k) => available(team, k)));
+      // (a queued structure stays on the list after a building it needs is lost, so it can be placed or cancelled)
+      const q = team.queues.structure;
+      return powers.concat(Object.keys(BUILD_DEFS).filter((k) => available(team, k) || (q && q.type === k)));
     }
-    return Object.keys(UNIT_DEFS).filter((k) => available(team, k))
+    // (so do queued units whose producer is lost: they wait, and can be cancelled)
+    const queued = new Set(UNIT_ORDER.flatMap((c) => (team.queues[c] || []).map((i) => i.type)));
+    return Object.keys(UNIT_DEFS).filter((k) => available(team, k) || queued.has(k))
       .sort((a, b) => UNIT_ORDER.indexOf(UNIT_DEFS[a].cat) - UNIT_ORDER.indexOf(UNIT_DEFS[b].cat));
   }
 
@@ -846,6 +851,8 @@
   ui.autoBtn.addEventListener('click', () => {
     if (!G) return;
     const team = G.teams[G.me];
+    // A team game with more than one enemy side: a picker says whom to attack.
+    if (G.teams.filter((t) => hostile(team.id, t.id)).length > 1) { autoPicker(team); return; }
     if (!team.auto && !enemyBaseKnown()) { evaCalm('Enemy base not located', 4); return; }   // scout it first
     setAuto(team, !team.auto);
     ui.autoBtn.setAttribute('aria-pressed', String(team.auto));
@@ -853,6 +860,47 @@
       eva('Auto attack on');
     } else eva('Auto attack off. New units guard the base');
   });
+  // The Auto Attack picker (team games): each enemy side by colour and name, only those whose base this
+  // side has found (scouted) can be picked; "Nearest" leaves the choice to the units, as before.
+  const sideColour = (t) => FACTIONS[t.faction][t.variant === 2 ? 'alt2' : t.variant ? 'alt' : 'pal'].main;
+  const COLOUR_NAMES = { allies: ['blue', 'green', 'teal'], soviets: ['red', 'amber', 'purple'] };
+  const sideLabel = (t) => `${t.name || (t.isAI ? 'Computer' : 'Commander')} · ${FACTIONS[t.faction].name} (${COLOUR_NAMES[t.faction][t.variant | 0]})`;
+  const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  let pickerEl = null, aimWas = '';
+  function autoPicker(team) {
+    if (!pickerEl) {
+      pickerEl = document.createElement('div'); pickerEl.id = 'autoPick'; pickerEl.className = 'nw-wrap';
+      pickerEl.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-pick]');
+        if (!b) { if (!ev.target.closest('.nw-card')) pickerEl.hidden = true; return; }
+        if (b.disabled) return;
+        pickerEl.hidden = true;
+        if (!G || G.over) return;
+        const me = G.teams[G.me], v = b.dataset.pick;
+        if (v === 'off') { setAuto(me, false); eva('Auto attack off. New units guard the base'); }
+        else if (v === 'near') { setAuto(me, true, null); eva('Auto attack on'); }
+        else if (v !== 'cancel') { const t = G.teams[+v]; setAuto(me, true, t.id); eva(`Auto attack on: ${sideLabel(t)}`); }
+        ui.autoBtn.setAttribute('aria-pressed', String(!!me.auto));
+      });
+      document.body.append(pickerEl);
+    }
+    const foes = G.teams.filter((t) => hostile(team.id, t.id));
+    const cur = team.auto ? (team.focusSide == null ? 'near' : String(team.focusSide)) : null;
+    const row = (t) => {
+      const out = t.out || !inTheFight(t.id), known = !out && enemyBaseKnown(team.id, t.id);
+      const note = out ? 'Defeated' : known ? '' : 'Not scouted';
+      return `<button type="button" class="pf-btn ap-row${cur === String(t.id) ? ' on' : ''}" data-pick="${t.id}"${known ? '' : ' disabled'}>`
+        + `<i style="background:${sideColour(t)}"></i>${esc(sideLabel(t))}${note ? `<small>${note}</small>` : ''}</button>`;
+    };
+    const any = enemyBaseKnown(team.id);
+    pickerEl.innerHTML = '<div class="nw-card" role="dialog" aria-label="Auto attack"><p class="nw-title">Auto attack</p>'
+      + `<p class="nw-sub">${any ? 'Choose the enemy to attack.' : 'No enemy base located yet: scout first.'}</p><div class="ap-list">`
+      + foes.map(row).join('')
+      + `<button type="button" class="pf-btn ap-row${cur === 'near' ? ' on' : ''}" data-pick="near"${any ? '' : ' disabled'}><i class="ap-any"></i>Nearest enemy</button>`
+      + (team.auto ? '<button type="button" class="pf-btn ap-row" data-pick="off">Auto attack off</button>' : '')
+      + '<button type="button" class="pf-btn ap-row ap-cancel" data-pick="cancel">Cancel</button></div></div>';
+    pickerEl.hidden = false;
+  }
   ui.allyBtn.addEventListener('click', () => {
     if (!G) return;
     const team = G.teams[G.me];
@@ -916,6 +964,9 @@
     if (giveEl && !giveEl.hidden && (G.over || team.out)) giveEl.hidden = true;
     if (ui.allyBtn.getAttribute('aria-pressed') !== String(!!team.assist)) ui.allyBtn.setAttribute('aria-pressed', String(!!team.assist));
     if (ui.autoBtn.getAttribute('aria-pressed') !== String(!!team.auto)) ui.autoBtn.setAttribute('aria-pressed', String(!!team.auto));
+    // The picked enemy's colour along the button's edge.
+    const aimT = team.auto ? chosenFoe(team) : null, aimC = aimT ? sideColour(aimT) : '';
+    if (aimC !== aimWas) { aimWas = aimC; ui.autoBtn.style.setProperty('--aim', aimC || 'transparent'); ui.autoBtn.classList.toggle('aimed', !!aimC); }
     // Vertical power bar: green fill is output, the red tick is demand.
     const { prod, use } = team.power;
     const top = Math.max(100, prod, use) * 1.15;
@@ -937,14 +988,14 @@
         p = team.powers[key] / POWERS[key].charge;
         st = p >= 1 ? 'READY' : '';
       } else if (cat === 'structure') {
-        if (sq && sq.type === type) { p = sq.progress; st = sq.ready ? 'READY' : sq.stalled ? 'ON HOLD' : ''; }
+        if (sq && sq.type === type) { p = sq.progress; st = sq.ready ? 'READY' : sq.stalled || !available(team, type) ? 'ON HOLD' : ''; }
         else if (sq) dim = true;
       } else {
         const list = team.queues[cat];
         count = list.filter((i) => i.type === type).length;
         const cur = activeItem(team, cat);
         if (cur && cur.type === type) { p = cur.progress; st = cur.stalled ? 'ON HOLD' : ''; }
-        else if (count) st = 'QUEUED';
+        else if (count) st = available(team, type) ? 'QUEUED' : 'ON HOLD';   // (its producer is lost)
         else if (list.length) dim = true;
       }
       el.clock.style.setProperty('--p', p);
@@ -1112,8 +1163,10 @@
   // ---------------------------------------------------------------------------
   // Main loop
   // ---------------------------------------------------------------------------
-  let last = performance.now();
+  let last = performance.now(), updMs = 0;
+  const camWas = { x: 0, y: 0 };
   function frame(now) {
+    spriteMs = 0; spriteN = 0;   // (models.js: sprites made in this frame, for the match report)
     let dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     shakeAmp *= Math.exp(-dt * 6);
@@ -1127,14 +1180,24 @@
       const total = dt;
       // Each part of a frame is guarded: an error is recorded with the match (Report.oops) and the
       // game carries on, instead of the loop stopping and the battle freezing on both phones.
+      const u0 = performance.now();
       if (Net.role === 'guest') guard('guest', () => Net.guestStep(dt));
       else guard('update', () => { while (dt > 0) { const step = Math.min(dt, 1 / 30); dt -= step; update(step); } });
       guard('net', () => Net.hostTick(total));
+      updMs = performance.now() - u0;
     }
     guard('beaten', beaten);
+    const d0 = performance.now();
     guard('draw', draw);
+    const d1 = performance.now();
     guard('sidebar', () => updateSidebar(1 / 60));
     guard('radar', () => drawRadar(1 / 60));
+    guard('cameos', warmCameos);
+    if (G && !G.paused) {   // how smoothly this device runs the battle (Report: stats.frames)
+      const jump = Math.abs(cam.x - camWas.x) > W / cam.z / 2 || Math.abs(cam.y - camWas.y) > H / cam.z / 2;
+      Report.noteFrame(now, updMs, d1 - d0, jump, performance.now() - d1);
+    }
+    camWas.x = cam.x; camWas.y = cam.y; updMs = 0;
   }
   // A team game where this side is beaten (no production left) but an ally fights on: a card offers
   // the debrief now (a loss) or staying to watch with the whole map shown (then the alliance's result).
@@ -1161,6 +1224,21 @@
       document.body.append(beatenEl);
     }
     beatenEl.hidden = !on || !!G.watching;
+  }
+  // The sidebar's pictures of everything this side could build are drawn a few at a time in the first seconds of
+  // a battle (art.js cameoURL keeps them): drawn only when they first appear, a new building that unlocks several
+  // items at once stalled a frame for a third of a second on a phone.
+  let warmAt = 0;
+  function warmCameos() {
+    if (!G || G.paused || performance.now() < warmAt) return;
+    warmAt = performance.now() + 200;
+    const team = G.teams[G.me];
+    if (!team) return;
+    const types = Object.keys(POWERS).map((k) => 'pw:' + k).concat(Object.keys(BUILD_DEFS), Object.keys(UNIT_DEFS))
+      .filter((k) => k.startsWith('pw:') || defOf(k).factions.includes(team.faction));
+    const k = types.find((t) => !cameoCache.has(t + team.faction + (team.variant | 0)));
+    if (k) cameoURL(k, team.faction, team.variant);
+    else warmAt = performance.now() + 5000;
   }
   function guard(where, fn) { try { fn(); } catch (e) { Report.oops(where, e); } }
   // The next frame is asked for first, so nothing that goes wrong in this one can stop the loop.

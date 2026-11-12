@@ -597,3 +597,16 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 #give .gv-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 0 0 12px; }
 #give .gv-name { margin: 0 0 6px; font-weight: 700; overflow-wrap: anywhere; }
 #give .pf-btn[disabled] { opacity: 0.45; }
+/* The Auto Attack picker (team games) and the picked enemy's colour on the AUTO button. */
+#autoPick { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,0.55); }
+#autoPick[hidden] { display: none; }
+#autoPick .nw-card { width: min(340px, 100%); max-height: 100%; overflow-y: auto; }
+.ap-list { display: flex; flex-direction: column; gap: 6px; }
+.ap-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; }
+.ap-row i { flex: none; width: 16px; height: 16px; border: 1px solid #22201a; }
+.ap-row i.ap-any { background: repeating-linear-gradient(45deg, #888 0 3px, #ccc 3px 6px); }
+.ap-row small { margin-left: auto; font-size: 11px; opacity: 0.8; }
+.ap-row.on { outline: 3px solid #5a3b18; }
+.ap-row:disabled { opacity: 0.45; cursor: default; }
+.ap-cancel { justify-content: center; }
+.icon.aimed { box-shadow: inset 0 -4px 0 var(--aim); }

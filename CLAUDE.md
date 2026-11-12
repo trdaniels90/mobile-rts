@@ -69,7 +69,7 @@ share globals. Read this file first; the commit history explains every change in
 |---|---|
 | `src/data.js` | Unit and building stats, `WARHEADS`, `POWERS`, `DIFFICULTY` (AI behaviour per difficulty), `CATEGORIES` (build queues: structure, infantry, vehicle, heli, jet) |
 | `src/world.js` | The simulation: `G` (game state), `update(dt)`, production, combat, aircraft (`updateAir`), fog, powers, win check |
-| `src/ai.js` | The computer opponent: build order, army mix, attack waves, raids, scouting |
+| `src/ai.js` | The computer opponent: build order, army mix, attack waves (planner), scouting |
 | `src/ui.js` | Input (touch and mouse), camera, sidebar, menus |
 | `src/maps.js` | The `MAPS` list, `mapCardsHtml` and the skirmish map screen (`MapSelect`). `newWorld(..., mapId)` stores `G.mapId`; the online host picks the map in the lobby and sends it with `start`. A new map needs an entry here and a layout in `genMap` |
 | `src/art.js`, `src/models.js`, `src/voxel.js` | Drawing |
@@ -229,6 +229,16 @@ share globals. Read this file first; the commit history explains every change in
   (average, worst, share over 250 and 500 ms) and per minute of battle (ping, worst, this phone's real
   frames per second, frames over 100 ms, units alive) in `stats.net`. High ping with low host fps in big
   fights means the host phone is overloaded; high ping at any battle size means the route between phones.
+- **Frame rate in every battle** (after 2026.11.12.1, skirmish and online): `Report.noteFrame` (called from ui.js `frame`)
+  keeps per-minute figures in `G.perf` (saved with the game), sent as `stats.frames`: `cores`, `w`, `h`, `dpr`, and per
+  minute `fps`, `slow` (frames over 50 ms), `long` (over 100 ms), `worst` (ms), `upd` / `drw` (average ms a frame spends in
+  the simulation and in `draw`), `jumps` (camera moved over half a screen in one frame, e.g. a minimap tap), `wait` (frames
+  with ground tiles still painting on screen) and `units`; since 2026.11.12.4 also the worst of each part (`wu` simulation,
+  `wd` draw, `wg` the ground's update, `wo` sidebar and radar, ms), `gnd` (average ms in the ground), `tiles` (finished)
+  and `lx` (frames over 100 ms mostly spent outside the game's code: the browser collecting memory or compositing), and
+  `lf`: the first 4 frames over 100 ms each minute, part by part, put down to the frame before the gap (`t`, `gap`, `upd`,
+  `drw`, `gnd`, `spr` / `sprN` new sprites made and how many, `oth` sidebar and radar, `tiles`, `units`). Query:
+  `select m->>'m' min, m->>'fps' fps, m->>'long' long, m->>'worst' worst, m->>'upd' upd, m->>'drw' drw, m->>'jumps' jumps, m->>'wait' wait, m->>'units' units from matches, jsonb_array_elements(stats->'frames'->'minutes') m where id::text like '<id>%'`.
 - **Joining** (net.js `listen`, `knock`, `dropAttempt`, `retryable`; 2026.11.04.2):
   a connection attempt that fails before the lobby connects no longer kills the host's room. The host drops
   it and keeps listening, and a new hello replaces a stale attempt (before, the retry got "already has two
@@ -299,8 +309,11 @@ share globals. Read this file first; the commit history explains every change in
 ## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (2026.11.11.2; bridges, weather 2026.11.12)
 
 - `MAPS.snowbound` in maps.js: traced from the owner's design `maps/designs/snowbound.png` (126 cells, a lavender-ground palette:
-  `tools/map-from-image.py` detects it; its light grey roads become dirt tracks) at **168 x 168** cells, `teamSize: 3`,
-  three timber bridges over the long lake (`--bridge` boxes in the comment), 16 gem fields placed in twins by the half turn.
+  `tools/map-from-image.py` detects it; its light grey roads become dirt tracks) at **210 x 210** cells (5/3 of the design;
+  168 until 2026.11.12, so older Snowbound saves no longer continue), `teamSize: 3`,
+  three bridges over the long lake (`--bridge` boxes in the comment), 16 gem fields placed in twins by the half turn, and an
+  ore field added in code for the north-west start (`ore` in MAPS, from `claude/ai-squads`). After a re-trace, rescale the
+  `gems` and `ore` positions (x 210/168 last time) and snap them to open ground.
   **Winter look:** `theme: 'snow'` in MAPS (`mapTheme`, `snowy()` in art.js): paintTerrain's snow, slush, ice and cold water
   palettes, snowy rock in `paintCliffs`, snowy pines only (`scenery.snowPines`, `treeModel(.., snow)`), and the minimap
   (`terrainMini`), base pads (`bibDecal`) and Pillbox camouflage (`groundColour`). Saves repaint with the theme.
@@ -316,7 +329,8 @@ share globals. Read this file first; the commit history explains every change in
   map must be made after `setMapSize`, never once at load. genMap's constants (`K`, `MID`, `FR`...) are for 144 only.
 - **No size limit from the ground** since it is painted in tiles (below). Bigger maps cost CPU (paths, the server) and
   game length, not memory. A 240-cell test map started and scrolled like Snowbound.
-- `node tools/sim/teams.js <repo> 1 8 snowbound 3v3`: about 660 units by minute 4, 91 s of CPU for 8 game minutes here.
+- `node tools/sim/teams.js <repo> 1 8 snowbound 3v3`: at 210 cells (with the ai-squads computer) about 750 units by minute 6
+  and 150 s of CPU for 8 game minutes here (111 s on the 168 map with the same computer): watch the server's `cpu_pct`.
 
 ## The ground in tiles, and the marks of battle (2026.11.12)
 
@@ -332,6 +346,21 @@ share globals. Read this file first; the commit history explains every change in
   and copied onto tiles, so it is the same on either side of a tile edge. A wreck keeps its char seed; effects are copied
   (`markArgs`). Every pixel of the painter depends only on its position (`speck` hash, not a running random), so tiles
   match; bridges are drawn once each into their own picture; road ruts are worked out per pixel (`paintRuts`).
+- **Ground workers** (after 2026.11.12.1, both modes): a tile's pixels (`groundPixels`, about 90% of the cost) are worked
+  out in Web Workers (`groundWorkers`, 1 to 3, made from the functions' own source as a Blob, so no extra file); the main
+  thread only puts them in a canvas, draws bridges and scenery (`decorate`) and then the marks a few at a time
+  (`finishing`, `finishSome`; a busy battlefield tile can hold hundreds). A tile is shown only once all its marks are on.
+  Anything `groundPixels` uses must be listed in `groundWorkers`. Without workers (game server, old browsers) the old
+  main-thread strips are used. Jumping the camera on a 3 v 3 Snowbound at 1920 x 1080 and 4x CPU throttle: worst frame
+  238 ms before, about 15 ms after. `bibDecal` now builds its pixels in one picture (it was a fillRect per pixel).
+- **Stutters while scrolling a big battle (2026.11.12.4, match 8f2b3d32 on a phone):** unit sprites are made the first time
+  each model and facing is drawn (`sprite` in models.js), and a 3 v 3 has six colours, so scrolling into a big fight made
+  dozens in one frame. Now held to `SPRITE_BUDGET` (5 ms) a frame (`spriteSpend`, reset in ui.js `draw`); past it the same
+  model at another facing stands in (`spriteAny`), or nothing for a frame or two (`spriteBlank`) for a model never drawn
+  (a 4x-throttled test had 26 new sprites, 327 ms, in one frame). `pumpDamaged` is exempt. Marks are exempt (`drawMark`), or a stand-in would be baked into the
+  ground. Sidebar cameos are drawn a few at a time early in the battle (`warmCameos` in ui.js; a new building unlocking
+  several items stalled a frame by 0.4 s). Tile canvases are reused (`spare`), `bibDecal` keeps one picture (`bibPic`).
+  Phone-sized 3 v 3 at 4x throttle while tapping the radar: worst frame 317 to 133 ms, worst draw 230 to 75 ms.
 - **Anything new drawn onto the ground** must be a function in `MARK_FNS` (deterministic from its arguments, with a box in
   `markBox`), never a draw on a canvas kept in G. The game server records no marks (`HEADLESS`).
 - **Saves** keep `G.marks` (no pictures). An old save's two pictures are used as the ground (`legacy`, `G.legacyGround`,
@@ -358,6 +387,45 @@ share globals. Read this file first; the commit history explains every change in
   offers the co-op leaderboard (`online.coop === 'board'`); a 3-player board needs `get_leaderboard` to split by size.
 - Not done yet: the leaderboard split, and phones with six players for real (server load and the
   lobby on a small screen).
+
+## Computer attacks, direct orders, team economy (2026.11.12.1, both modes)
+
+- **Planner** (`planner: true` in `DIFFICULTY` Normal and Hard; Easy keeps fixed waves): after the base is found and
+  `firstWave` has passed (480 s on Easy and Normal, 360 on Hard since 2026.11.12.4, 2 min later than before at the owner's
+  request: harder on a phone; all devices, skirmish and co-op), each attack comes after `aiGap()` (`ai.gap`: mostly `short`, a `long` lull with `chance`, never over
+  600 s), or at once when the units waiting reach `ARMY_FULL` (60%) of the army cap (at least `AI_GAP_MIN` after the last). A
+  wave takes three quarters of what waits; from 12 units it splits into 2 squads, from 20 into 3 half the time.
+- **Flanking** (`aiApproachSpots`, `aiGather`, `aiPincer`): each squad gathers 13-17 cells off the target on a side that is
+  reachable, out of range of known guns, rarely straight ahead and not one of the last 4 used (`team.apHist`, bearings round the
+  target's side's Construction Yard), then all close in together. `ai.approach` is the share that flank first (1 on both).
+- **aiSquads:** a squad that started with 8+ units and is down to 35% of its worth against twice its strength pulls back; squads
+  near home answer a defence `defendBase` reports as short (`team.defShort`). `defendBase` no longer recalls planner waves itself.
+- **Raids were removed** on every difficulty (they almost never destroyed their target). `aiWaveTarget` attacks another found
+  enemy when its chosen one (`enemyOf`) has not been found (team games).
+- **Starved economy** (`aiStarved`: under `STARVED` 2,500 ore within 14 cells of its refineries and Outposts): the computer buys a
+  Mobile Outpost with 250 credits (a third if need be) at the front of the queue and holds army production until it is out.
+- **Aircraft avoid known anti-air** (`knownAA`, `aaCover`, `airPick` in world.js): hunting aircraft pick a building no detected AA
+  covers (finished SAM/AA Gun on explored ground, AA units there; Rangers only count against helicopters), else the least
+  covered; with an open target they also skip covered targets on the way (`airTarget`).
+- **Direct orders** (`takeOver`, `u.manual`, `u.manualFrom`): move, guard, attack and the Attack button keep a player's unit out of
+  Auto Attack, base defence, scrambles and the Ally button until Stop (`commandStop`). After an attack order, `releaseIdle` sends
+  it home to rejoin once it has stood idle `MANUAL_IDLE` (180 s). Never set for the computer.
+- **Team-game ore** (`growOre`): `ORE_REGROW_PER_SIDE` cells per field per tick for each side, and cells under a third full grow
+  twice as fast. Maps can add ore fields in code: `ore: [[x, y, r]]` in `MAPS` (Snowbound has one by the north-west start).
+- Sims: `ai-timing.js` (wave times, how waves went in), `teams.js` (prints `how`), `ore-econ.js` (ore and income every 5 min),
+  `aa-avoid.js`, `manual-override.js`, `ai-starved.js`. 2 v 2 of Hard computers: no winner in 35 min, as with the old AI.
+
+## Auto Attack target picker (2026.11.12.1, both modes)
+
+- In a battle with more than one enemy side, AUTO opens a picker (`autoPicker` in ui.js): each enemy side by name, faction
+  and colour name, disabled until its base is scouted (`enemyBaseKnown(tid, side)`) or once beaten; plus Nearest enemy, Auto
+  attack off and Cancel. A 1 v 1 keeps the plain toggle. The picked side's colour shows as a stripe on the button (`.aimed`).
+- `setAuto(team, on, side)` sets `team.focusSide` (synced in netcore `TEAM`; the guest's order passes the number). `chosenFoe(team)`
+  is that side while it is in the fight and known; `enemyOf` returns it first, and `nearestEnemyBuilding` keeps hunters to its
+  buildings (others are still fought on the way). Units already hunting another side drop their raid focus.
+- Computer (`aiPickFoe` in ai.js, every 30 s): Easy nearest (`focusSide = null`); Normal and Hard score each scouted foe by
+  distance, seen strength (army plus known guns) against its own, allies already on it (+0.5 each, so allies gang up) and
+  stickiness. A 3 v 3 of Hard computers on Snowbound: each alliance on one foe, the first side out at 9.7 min, then all moved on.
 
 ## Giving credits to an ally (branch `friend/credit-transfer`, not released yet, team games in both modes)
 

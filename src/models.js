@@ -27,10 +27,24 @@ function model(key, build) {
   return m;
 }
 const spriteCache2 = new Map();
+// Sprites are made the first time they are drawn. Scrolling into a big battle (six colours in a 3 v 3, every
+// type and facing) could ask for dozens in one frame and stall it, so making them is held to SPRITE_BUDGET ms
+// a frame (ui.js resets spriteSpend each frame): past it, a sprite of the same model at another facing stands
+// in for a frame or two until its own is made.
+const SPRITE_BUDGET = 5, spriteAny = new Map();
+let spriteSpend = 0;
+let spriteMs = 0, spriteN = 0, blankSprite = null;
+const spriteBlank = () => blankSprite || (blankSprite = { img: mkCanvas(1, 1), ox: 0, oy: 0 });   // sprites made this frame, marks' included: time and number (ui.js resets; Report: stats.frames)
 function sprite(mkey, build, angle, fkey, opts) {
   const k = mkey + '|' + fkey;
   let s = spriteCache2.get(k);
-  if (!s) { s = renderVox(model(mkey, build), angle, opts); spriteCache2.set(k, s); }
+  if (s) return s;
+  if (spriteSpend > SPRITE_BUDGET) return spriteAny.get(mkey) || spriteBlank();   // (never seen at all: drawn a frame or two later)
+  const t0 = performance.now();
+  s = renderVox(model(mkey, build), angle, opts);
+  spriteCache2.set(k, s); spriteAny.set(mkey, s);
+  const dt = performance.now() - t0;
+  spriteSpend += dt; spriteMs += dt; spriteN++;
   return s;
 }
 function facingSprite(mkey, build, angle, n, opts) {
@@ -4678,6 +4692,7 @@ function damagedSprite(type, faction, stage, camo) {
   return stage > 1 ? damagedSprite(type, faction, stage - 1, camo) : structureSprite(type, faction, camo);
 }
 function pumpDamaged() {
+  spriteSpend = -1e9;   // (made between frames, never a stand-in; ui.js draw resets it)
   const q = dmgQueue[0];
   if (!q) return;
   const keep = drawVar; drawVar = q.v;

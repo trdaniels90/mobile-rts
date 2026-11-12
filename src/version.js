@@ -4,6 +4,43 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.12.4', date: '12 November 2026', title: 'Smoother big battles, and a calmer opening', groups: [
+    ['Changes', [
+      'The computer waits 2 minutes longer before its first attack: 8 minutes on Easy and Normal, 6 on Hard.',
+      'Smoother scrolling in big battles, on phones most of all: units and the sidebar no longer freeze the game for a moment when they first come into view.',
+      'A building you finished stays ready to place if you lose a building it needs (an Ore Refinery after its Power Plant, say). One still being built waits, marked ON HOLD, until you rebuild it, and units queued at a lost factory wait the same way; hold to cancel. Before, it vanished and blocked all building.',
+      'Match reports now record what the game was doing during any stutter, so slowdowns can be tracked down.',
+    ]],
+  ] },
+  { v: '2026.11.12.3', date: '12 November 2026', title: 'Return calls your aircraft home', groups: [
+    ['Changes', [
+      'Team battles: RETURN now also calls home every jet and helicopter out attacking. They land and wait on their pad (Auto Attack goes off, as before). Aircraft defending your base keep fighting.',
+    ]],
+  ] },
+  { v: '2026.11.12.2', date: '12 November 2026', title: 'Smoother scrolling, and helicopters that pick their targets', groups: [
+    ['Changes', [
+      'Jumping around the map (a tap on the radar, or scrolling fast) no longer makes the game stutter while the ground comes into view: the ground is now painted in the background, and big battlefields full of craters and wrecks fill in smoothly.',
+      'Helicopters go for the targets their weapon is made for: Hind Gunships for infantry, Allied Attack Helicopters for tanks and vehicles. They only hit other targets, buildings included, when none of those is in reach, and switch as soon as one turns up.',
+      'Jets on Auto Attack fly one strike, then wait on their pad until you switch Auto Attack on again (or pick a new enemy side). Jets built meanwhile wait too. The computer\'s jets are unchanged.',
+      'The game now notes how smoothly each battle runs on your device (frames per second, stutters), so slowdowns you report can be tracked down.',
+    ]],
+  ] },
+  { v: '2026.11.12.1', date: '12 November 2026', title: 'Smarter enemy attacks, and orders that stick', groups: [
+    ['New', [
+      'Normal and Hard: the computer attacks at random times instead of on a steady rhythm, and attacks at once when its army at home grows big. Hard attacks more often than Normal.',
+      'Normal and Hard: attack waves flank. A wave gathers just out of range of your guns on a side it has not used lately, then charges in; big waves split into two or three groups that hit from different sides at once.',
+      'Normal and Hard: a big attack that is clearly losing pulls back instead of dying to the last unit, and the computer brings attackers home only when its own base needs them.',
+      'Team battles: Auto Attack asks which enemy side to go after (any side whose base you have found, or simply the nearest), and its colour shows on the button. Computer teams pick a target too and gang up on it.',
+      'Units you give an order (move, guard, attack) stay out of Auto Attack and base defence until you press Stop. Units you sent to attack rejoin by themselves after 3 minutes standing idle once their target is gone.',
+      'Aircraft on Auto Attack steer round anti-air you have found (SAM Sites, AA Guns, and anti-air soldiers and vehicles on ground you have uncovered) and go for a building it does not cover. Anti-air you have not found can still catch them.',
+    ]],
+    ['Changes', [
+      'Team battles (2 v 2, 3 v 3, co-op): ore grows back faster, more so the more sides there are, and a stripped field recovers in a couple of minutes, so the economy no longer dries up for everyone mid-game.',
+      'Snowbound: a new ore field near the north-west start position, which had none of its own.',
+      'The computer no longer sends small raids at Ore Trucks and outlying sites. When the ore near its refineries runs out, it buys a Mobile Outpost before more tanks.',
+      'In team battles, a computer that has not found its chosen enemy yet attacks another enemy it has found instead of waiting.',
+    ]],
+  ] },
   { v: '2026.11.12', date: '12 November 2026', title: 'Rain and snow, concrete bridges, faster battle starts', groups: [
     ['New', [
       'Weather: some battles on Three Crossings are fought in the rain, and on Snowbound it sometimes snows. It comes and goes during the battle, from a drizzle to a downpour. It only changes the look: sight, movement and combat are the same, in single player and online.',

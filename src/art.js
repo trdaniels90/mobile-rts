@@ -31,12 +31,12 @@ const terrainMini = () => (snowy() ? TERRAIN_MINI_SNOW : TERRAIN_MINI);
 const GRASS_TILE = '3604566691156946956972323324955082125125930058373887603784047320550081557326588436896233766804042876101636203587889744310775003216454276855425452494735231114527853610127226687427476045573514013703615754945999897416207964362386588349997346968462042322485450023673259400113436222524301116941117011532575742065380255256320063126877655287998474831165067210863024652227477269301303426588511485611594320397411115204506140111251117245856205686432814677200151012134208856321602785547266117350024532247576883315627597268244572775856001153020441370226221051271082304640255570158453742120663156452675196303217733354440597500115747566424840039528977585885363497461111666356017775688410486263744066452756630152768755007165377378920596011115775634605974120462483940086320178647986697233777544200127648664013453497799435664074374434952441516669942392754678869026452111124812005269241535006947631665104572013145959998741343563881447788769445747420153954653876569215240743977777885584871772592202011519762023195534400186842642954662563400074362426602412115414158516796068411101667560356244868550124542505468977066678867701240552158778875964455104746440366667014757317652726438667003047325625569440445204596534359763219774930043023198637554725692668202315210028159888100423156040553414622369452038337965995692326224277755441423555028512169941113889636600430011268568977838706467330043511280059557141208874455698630111398500285868976874634457413888574112102795634421780430599747899215310044672333061487784678520164543402139638472586777321789504123854144489963038864593389459763523567834265250579012605343566183024735453602641103671451537430654062040378667452762321015598810424441374727652584102827897572395131024655860630661538862446979641438723346303602216585122569565400455030257515476700421437644101221554695887449606300062823146599500136044731732084219667757701336384252872957000052644404267666531163426772240238022866881630025406706388896579639631355017501717403437434158963131372379482414353461268655247242598765648675078717899921111503295595233598504318868850603344538990220634343198741123465438995896573542298436241475416895536655007728013013441685334111011741866998594564885001267298361532231174635505656840464011248751188270333497720783175032943124947267154436664001978361878763243165385654764741018965610888626666230011146570233864516435402249716552140055333301867832637007984470476365525673432084005370284545102791025663760084964025379997533300310214713655083226980053475569344501397102210635824157455676688560350356811277750584612846043014886437954374643441352487476543244000138516404870310664689816473540147850068646423496687842462445747331059210327874056347800351377466356500899408045105629633656799886786211028651031665529548855005678443336043154504554364445039863100449786977111048188446847029524576763474380454466377356030205122753401359789824327078791146545862863554165544092276602474776540110581356743335268422354665633307426414467673401468247852465140016251464366628627284540997001353515124721461633837847336563575677739622336594214770355736643642353266600866431115754668435486501176525476205764461394305275455415460506400251322363797533602441177280414247711159762735225568456062757345799201546001577487675212345687854489951474662400777431247434616129975504045002756755364819321537025589985013814013559807646474179387242447100681199587460116493015979700598886011725115563474351149747653555550337533645481302226423446877745833242790411352675595554324167205777940499742445303444029530492184045362007369511311688787614413468832005623151355875054767625336940015611200635877772667553630230295656802412545257542042237338766206286061157511471384245460029893601115645726641663172767155799801129657425466552670110177100620332512113543560835564247860185677550084501565413303461158321622960011161325713436622255914579511355361357777768967500126486456467677424521472302325898386777642238710155027203264225453764694014620101962374269956764477489496346624661664857872643234663840050526697842965851043025685726524640564124237683225565374595328699797403105956386623759588938752706677320888734588601005602768251448654564666959610560001443121854466257340457912487789466366641139966182043801626532138361068544146854131825532687555181132284004276164043232647547541034720532686651003213488566899282702845100008321840922679437115344151964265847574038264787973035124663891153556801674101436682045052665318821395454869532413343536071235762376326748155778964147510763867200052700134573656000512734687628730398405767210146863460457314555220521124771064605604457687545221572049576478968237359326469666345736303255987679316013506362295116954635652301363487230201202697425832697536624741630650101123564329590046505756520265347664012554464403861774249572543461025790627032664854046474446953533456524987977754136777464208500012333474778674505568324675452274212204620375496337494012873267201389941460285005381514387703726268999649583841289793346576272530022653368893345237663242302139895035157775446227747774115274224100448730246782078679674669037475373604055116173229936574661703351457413568376289633530123224464232078779345820398414750577502454311413794691720566331867428234626921069636644085478769999686230114484362136195572689001156013114221979981065018852352455956567733147352566315313346768061772245877899864866202397462189379843300233834512083393243382014834777742445775977085401970000278684782114763633652772204244874566577899858405416665315770479999624994202549757241530640245603786259762610527849540761005663111774348200659855546009966357157325869656887555063134040295413479486305963016182042357432611665027773455124103145388027541151133173841229362396953775748132364854208544567787736854081254449965995783027311577702531271055142931899005703053142141393255442424346439877138974669944633534194578936470487970527047460376874146888750412253490977565015312805117422649464625654603023850313788510278561815273745999876735061389677993679767695733885351471126173515778334498402374240156553142478543002501417757310304504505999679988446064325632497305553241455468776877975872559257367635173464051384480056651514221620111143348930032010139675385434160066247338267740332267017153342225557315930335359635721265357520172543336524378673820004426621013220111886151274301153069703544405576221260464456702554801123153283692039505114166735310245873342706841336555825259521045166100169333259131254396150077873646805147437336136233165536410010353130789361588756513457297201278994177446564855238989844360250363110272033628400251485385599504799659766720256841166406634201157511359940656966578462447797412799520739795269303476176435601401527220550515623311575311516464440059727888201158434784074223015951401388577846165670334059911111997335535544890037616585577554214781772115435310014165457064152231025437061011167655866767352057470141799885414388401432733301179558622214487705965557128385454556952385518553573431344860731717500001640520112551176896360254855400361798445454742052313014120657401115324654582253617254260001119620254478611070041122883843169821316216405041037950773414626554012874966838588611736034145663047502417999956996684448213455201264513213590633712731273352455569753350264160341648358166655678998775776446662443637950465534431541863366046885663445268693336556645521526812862038779976968262165524512552775129883614835564465895365624072430144393703754011541439351754339997510517873251253366519003745277122735974733071455250141816125001560141490301770667643995433563750150283202523215301115609856049814646789166626584112787115340165225377997356325014557445273250017055036443017874156124774624227457202465536001530013276437650079887554779866984951007980176500550313776826724420468677217457101465521202803379557146432658360035493477562636017101421944698542174652146022142389784455531288011930011697871583173676453185640379778435239537957175301354736532166623465609543823110133055599752559865474221330476986753130844305943357247539327656999963577995960687368962598031164003502685257782328588867556015201713523556539987133542646205233223963404772137214436892481181430188204111372107265357105940211486753012971016653269644668510226016308003520067553253546340270336642616426733112561249203266138201436500114534883571530157610223616410038830345421677200427301550754099887113631699003154502443101027434427061232601473310294647568385321015579636215231687844266271424798685765476672002180048667945939975535739875545964313533311445303474422477211876550697284471335211156323958863342184653520836477521810138557630416303796464588734862413714648842366123000006555422451220033138578795752475732661334420232673106766785148004433374437556564554415250033163351046626385200555587133628864211154779103777500131157771596621699710931172233334817301474455922154610163636694363688550673400631531252491254303711545255343101115567573241247731810395747687970025518533885423256336417424349198985000239973111413457604775026237989755944554276143461705531012256943437452064046524317751853453140046678945622124673265642462965731123388001523730556586461256561135986401746344676654323840141446123360674355658620114668076465710065772775454347863241335628942010602672175897000536253461423465364751208351157312444231836155696531514800544678600235685621006766784676498401394101375762368245642236899779716525354232421658461122264476311484342128156548440514832136454261134554589952245993026233552124103920047404945661898649599857954133950655453105863116111853350012384364833382770402001211455479201166863085620397464512600600251176111227037645254275561138345974793122430230142102270352926511148963464407557718873140647201680311245730740148131602439763405411112443476357546289656101246897964801331795433321254645217630560167656266663437333369515994722735765832507357791302134747114963500019356656604678762370116678987566263302343501169964432449464600397678852286986451499235916046052232712063554564204731386101956311470125794343267913300161275446246463132657543339585204464417596564463252465800423227554641675110151821604213554511455463746789687633033352472218354001910365305693402168755734484855778856596455455260483285011410174405565782204204527002326764528411547744677996128602521434565345479644682678468331533542666749104312136967105798777335902553632074051646692062013564435565640620231196501426584416454530201414573484797405873273501503447695657651343468860678556046164681445873454954868220412123477373404613221466653553000174556436900583621789840294069406659958134386755533867657149983122572271387503043654219716462434101405378893018564302725303872001495758639204478546073710756960026477534851976815545342260139820464454413018623533874234896300430016033957551125754656473106831026643201175425551550529746466443243433213656344066734279735398305657996573172452431658304173027325773357885600026345033755105730418041012649610367313258832553540125241139634245795562469674437862469643687312145149106043701466357556133248521164564101878637600382457677737215534556425675725511360011188573388934816419955263736642445722310654743332489620341115683542118170477248532016693246611203654454454612634467074981546421048349564666357441294576319362343146123537692555444793301353385833600255522455252769957827564560428246710031744997879574543291021450476182472977312686413574806311771377229300323359567753735704384024588867677123112574461726207343366630245864179997225644530340676574565605652431467538331743235864374585300541580261238588989753273343886984210377774169950353011769702947621766685238777643533561543576101620023896787338346548745534931013300421201661897615179851015823732571341953683320050129076569161300452433821874445589841645225177638776579864474131144477544601132030794056701783641212520212750012897236224255131210460465799835145402359431735574588954792215256378367654743336765788770055006763554004648768036002140134401810174665430432015053433245328594142585205937117147849925404836546768301011393817235189743550535111699541127267163430498621283213740349966206233142698985575354652255465625356535447139803073568789758414131475742234895061404031118680003321688652336425106403303701481042072040669988993875076245652675755513151454798330559557684696337259532376466877257433440263557554124277260279987291362209006899993773514533036905769273378676467223230433113939125995677885987435950302202425534423594586787644041597989753311725607237162076387999513303041359232824756045753761144002500127466189483608989564586688112517000540129852242059750535417735634677323297676460169823372125111446996601796231222644167682007011122557694904174694426401751345737468221492685410395355524035630013150051560284737763420321152532641654319569652466636787421681001125197108501659643670046321584065656249766985109730357700114101442300435643558773124110433217303156556618763241825064002338967157230522069523485723644142059872689645974468456154014566210175172285314761233470143151043292695558476156182647007221644443316664458654172049865585415247612695063655098411154743833007045142542896874224111365613435710854489996444851686756710043044844577773010339973583174539375042183682783043674851111445239576778777140615894558443405811840657576022996656306765699545602822445163279551162089770183636683495142401418585453653111132526560410364400555287853457843056127329799749274515696225863561043002654131152195739745833130076252650254761222055338455102322346532623637496415035501254348662367643732686779763542976221211653731112765025651489974095481451423664688534788535553273542145008768046435876552998593100044496444610266522238648612439085401147236520105462106465764677838711370005754397742601227522364421171453647934346256751250752612745861667610167440254339642480642012162067411045541700167635657810203654343019472455227498836058410632316125564672077943504780137447814044563463620133298511508520220230534510445674543322899379304165444174661603761575116240152868320022151312569668776385151388626406253667237305410370603269833200242434435432318530435680769223866430678849835567565687738862788510011444065250178753200425174575656676516498783315937586622976370376134647412297441378771544757467414638695433013783736503316205700314464340300566963141526796517009526217625451395205989549678983451378146248430102434836407749310341279576312797667970021070451042166997768124465145687620562675170474026117926964531776962648542610778598999811033174286124484623435930122499212598876478505154224630102460575830032785633014314837130186046267211332678401395105117536235968376736744464297120343269300021525654111451678570553423444355737736301137990462425265532102667434030300214493015764211474384159246747763332073498422975482044313111876411463384405767104028177718221011499902575385245434554253733106051121750548774105467765553191175620026747775479997553885113578766328976178468860130998732265211333799997735771040247456008142466025962854578634546826427895533323676575619027875446623346434034668267753243677302555164445564263226241469357667705578200071332721269569746554977644943060699699400131930342258687726743036414899992359412159997831305974698613445641551733794688886578101668743564677895578517874536126237769553214538664023393595999762376453324500547353745735336337996603360244373118375497762551558204797630615665957820123634560152265863101124672283143959699694156797680065521797684425840046784674251187842323720386604586769982034103826672386315433474156316470522740001244887864257864662903577831751779754421465355500513976152510468650661049886598257563664452542827557764026234240781458997346810111147504972425153629027665530601276965013766716799557834336059765016720465412501783346742654246995125820284644525598106986548530000546265550142536167543338554304556802417423787955459463630397537622201770012114466551634474652354202827501145456856244500597381003365698501305332386134896455254575079659324681165667215522496557202125863012233523477932527123041476642023263894145254025538984772775651331052316602264793278954098995565536540483562365201715578233159864213466683326437754420036304801341595441065203617896915559251240410558647710816621063430179552225464556206712740055576555448775573032593544516868407102276234124361495970782052760689862984203544028728057028103720589455292324635554740267758301548235320231763765534793882089568862433966732256748677426999212734486716501145589757735603195544302671279866557574434997847971641492227934281102735323999547731127647411708534729934539536624442540374531000679975999054420907767101767535254166353601377499787264596745885461177443353148631134';
 const GRASS_TILE_N = 128;
 // BLENDER:grass end
-// The ground painter for one map: paint(g, x0, y0, w, h, ox, oy) paints that part of the ground (world pixels) into
-// g at (ox, oy). Every pixel depends only on where it is, so parts painted one by one fit together exactly (the ground
-// tiles, makeGround). The whole-map preparation (noise, scenery, cliff cells) is done once, at the first paint.
-// theme: 'snow' paints winter: snow for grass, slush for dirt, icy shores, cold water, snowy ridges and pines.
-// bridgeKind: 'concrete', or timber when not given (`bridge` in MAPS).
-function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind) {
+// The pixels of the ground for one map, before bridges and scenery: pixels(d, x0, y0, w, h) works out that part of
+// the ground (world pixels) into d (RGBA). Plain arithmetic on the map's arrays, no canvas, so it also runs in the
+// ground workers (groundWorkers); everything it uses must be listed there. Every pixel depends only on where it is.
+// The whole-map preparation (noise, cliff cells) is done once, at the first call.
+// theme: 'snow' paints winter: snow for grass, slush for dirt, icy shores, cold water, snowy ridges.
+function groundPixels(terr, seed, roads, cliffs, fords, theme) {
   const snow = theme === 'snow';
   // A 256-colour era look: a handful of tones per surface, picked with dithered noise.
   // Winter: snow in cold blue shades, the tracks trodden to grey slush, frosted stony shores, dark icy water.
@@ -51,7 +51,6 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
   const speck = (x, y) => { let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ seedH; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
   let P = null;   // the whole-map preparation
   function prepare() {
-    buildScenery();
     const r = rng(seed);
     // Cell-centre fields, sampled bilinearly so dirt and shorelines blend across cells.
     const dirt = new Float32Array(NCELLS), water = new Float32Array(NCELLS);
@@ -71,6 +70,87 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
     }
     const grid = (s) => { const w = Math.ceil(WORLD / s) + 2, a = new Float32Array(w * w); for (let i = 0; i < a.length; i++) a[i] = r(); return { a, w, s }; };
     const N1 = grid(10), N2 = grid(40), N3 = grid(160);
+    P = { dirt, water, ford, nearFlag, N1, N2, N3, cliff: cliffs ? cliffCells(terr, cliffs) : null,
+      tile: Uint8Array.from(GRASS_TILE, (c) => c.charCodeAt(0) - 48) };   // grass tone values 0-9; the size is a power of two
+  }
+  function noise(N, x, y) {
+    const fx = x / N.s, fy = y / N.s, x0 = fx | 0, y0 = fy | 0, w = N.w, a = N.a;
+    const tx = sm(fx - x0), ty = sm(fy - y0);
+    const p = a[y0 * w + x0], q = a[y0 * w + x0 + 1], s = a[(y0 + 1) * w + x0], t = a[(y0 + 1) * w + x0 + 1];
+    return (p + (q - p) * tx) * (1 - ty) + (s + (t - s) * tx) * ty;
+  }
+  function bil(arr, fx, fy) {
+    const x0 = Math.max(0, Math.min(MAP - 2, Math.floor(fx))), y0 = Math.max(0, Math.min(MAP - 2, Math.floor(fy)));
+    const tx = Math.max(0, Math.min(1, fx - x0)), ty = Math.max(0, Math.min(1, fy - y0));
+    const a = arr[y0 * MAP + x0], b = arr[y0 * MAP + x0 + 1], cc = arr[(y0 + 1) * MAP + x0], dd = arr[(y0 + 1) * MAP + x0 + 1];
+    return (a + (b - a) * tx) * (1 - ty) + (cc + (dd - cc) * tx) * ty;
+  }
+  // Paints world pixels (X0, Y0, w x h) into d, RGBA w x h.
+  function pixels(d, X0, Y0, w, h) {
+    if (!P) prepare();
+    const { dirt, water, ford, nearFlag, N1, N2, N3, tile } = P, TM = GRASS_TILE_N - 1;
+    let p = 0;
+    for (let y = Y0; y < Y0 + h; y++) {
+      const fy = y / CELL - 0.5;
+      for (let x = X0; x < X0 + w; x++, p += 4) {
+        const fx = x / CELL - 0.5;
+        const n3 = noise(N3, x, y), hh = noise(N1, x, y) * 0.35 + noise(N2, x, y) * 0.45 + n3 * 0.2;
+        const sp = speck(x, y);
+        // Grass: the Blender blade tile gives the strokes. Two lookups (the second turned on its side and shifted)
+        // are mixed by slow noise, so the 128-pixel repeat does not show.
+        const tA = tile[(y & TM) * GRASS_TILE_N + (x & TM)], tB = tile[((x + 53) & TM) * GRASS_TILE_N + ((y + 29) & TM)];
+        const ms = Math.max(0, Math.min(1, (n3 - 0.4) / 0.2)), gt = (tA + (tB - tA) * ms) / 9;
+        let col = pickTone(GRASS, hh * 1.1 - 0.12 + (gt - 0.5) * STROKE + (sp - 0.5) * 0.1);
+        if (sp > 0.992) col = GRASS[4];
+        const near = nearFlag[Math.min(MAP - 1, Math.max(0, Math.round(fy))) * MAP + Math.min(MAP - 1, Math.max(0, Math.round(fx)))];
+        const dv = near & 1 ? bil(dirt, fx, fy) + (hh - 0.5) * 0.3 + (sp - 0.5) * 0.12 : 0;
+        if (dv > 0.42) col = pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6);
+        const wv = near & 2 ? bil(water, fx, fy) + (hh - 0.5) * 0.22 : 0;
+        if (wv > 0.5) {
+          const crest = ((x * 3 + y * 7 + Math.floor(noise(N1, (x * 3) % WORLD, y) * 30)) % 23 === 0) && sp > 0.4;
+          col = crest ? (snow ? [70, 94, 118] : [150, 172, 190]) : pickTone(WATER, 0.9 - (wv - 0.5) * 1.6 + (hh - 0.5) * 0.5 + (sp - 0.5) * 0.4);
+          if (wv < 0.545) col = sp > 0.35 ? [178, 192, 198] : [120, 140, 156];   // surf
+          if (snow && wv < 0.6 + (hh - 0.5) * 0.25) col = sp > 0.25 ? [206, 222, 234] : [168, 190, 208];   // shelf ice along the shore
+          const fv = near & 4 ? bil(ford, fx, fy) + (noise(N1, x, y) - 0.5) * 1.6 + (noise(N2, x, y) - 0.5) * 1.0 : 0;   // a ragged edge
+          if (fv > 0.3) {   // the ford: a bed of rounded stones and sand under shallow water, with ripples
+            const k = Math.min(1, (fv - 0.3) / 0.12), st = fordStone(x, y, seed);
+            let sh;
+            if (st) {   // a stone breaking the surface, lit from the upper left, wet and dark at its rim
+              const [dx, dy, tone] = st, lit = -(dx + dy) * 0.5, rim = dx * dx + dy * dy > 0.62;
+              const base = [[86, 80, 70], [104, 96, 84], [122, 114, 98], [96, 92, 86]][Math.floor(tone * 4)];
+              const m = rim ? 0.62 : 1 + lit * 0.45;
+              sh = [base[0] * m, base[1] * m, base[2] * m];
+              if (!rim && lit > 0.35 && sp > 0.4) sh = [168, 160, 142];   // a dry, sunlit top
+            } else {
+              const bed = sp > 0.85 ? [70, 66, 58] : pickTone(SANDS, hh * 1.2 - 0.45 + (sp - 0.5) * 0.5);
+              const shade = fordStone(x - 2, y - 2, seed) ? 0.6 : 1;   // stones shade the bed below-right of them
+              sh = [(bed[0] + (80 - bed[0]) * 0.42) * shade, (bed[1] + (116 - bed[1]) * 0.42) * shade, (bed[2] + (138 - bed[2]) * 0.42) * shade];
+              if (((x * 2 + Math.floor(noise(N1, x, (y * 4) % WORLD) * 24)) % 13 === 0) && sp > 0.25) sh = [176, 196, 204];   // white water between the stones
+            }
+            col = [col[0] + (sh[0] - col[0]) * k, col[1] + (sh[1] - col[1]) * k, col[2] + (sh[2] - col[2]) * k];
+          }
+        } else if (wv > 0.36) {
+          col = pickTone(SANDS, (wv - 0.36) * 4 + (sp - 0.5) * 0.7);
+          if (sp > 0.93) col = snow ? [96, 98, 104] : [92, 86, 74];            // pebbles
+        }
+        d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2]; d[p + 3] = 255;
+      }
+    }
+    if (P.cliff) paintCliffs(d, P.cliff, seed, snow, X0, Y0, w, h);
+    if (roads && roads.length) paintRuts(d, roads, X0, Y0, w, h);
+  }
+  return { pixels };
+}
+// The ground painter for one map: paint(g, x0, y0, w, h, ox, oy) paints that part of the ground (world pixels) into
+// g at (ox, oy): the pixels (groundPixels), then bridges and scenery on top (decorate). Every pixel depends only on
+// where it is, so parts painted one by one fit together exactly (the ground tiles, makeGround). The scenery and
+// bridges are prepared once, at the first paint. args: groundPixels' arguments (for the workers).
+// bridgeKind: 'concrete', or timber when not given (`bridge` in MAPS).
+function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind) {
+  const snow = theme === 'snow', px = groundPixels(terr, seed, roads, cliffs, fords, theme);
+  let P = null;   // scenery stamps and bridge pictures
+  function prepare() {
+    buildScenery();
     // Scenery stamps, back to front, each with the box it covers (shadow included).
     const rs = rng(seed ^ 0x2c1b3c6d), stamps = [];
     const sprite = (s, x, y) => {
@@ -127,75 +207,11 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
       }
       return { c, x: x0, y: y0 };
     });
-    P = { bridges: bridgePics, dirt, water, ford, nearFlag, N1, N2, N3, stamps, cliff: cliffs ? cliffCells(terr, cliffs) : null,
-      tile: Uint8Array.from(GRASS_TILE, (c) => c.charCodeAt(0) - 48) };   // grass tone values 0-9; the size is a power of two
+    P = { bridges: bridgePics, stamps };
   }
-  function noise(N, x, y) {
-    const fx = x / N.s, fy = y / N.s, x0 = fx | 0, y0 = fy | 0, w = N.w, a = N.a;
-    const tx = sm(fx - x0), ty = sm(fy - y0);
-    const p = a[y0 * w + x0], q = a[y0 * w + x0 + 1], s = a[(y0 + 1) * w + x0], t = a[(y0 + 1) * w + x0 + 1];
-    return (p + (q - p) * tx) * (1 - ty) + (s + (t - s) * tx) * ty;
-  }
-  function bil(arr, fx, fy) {
-    const x0 = Math.max(0, Math.min(MAP - 2, Math.floor(fx))), y0 = Math.max(0, Math.min(MAP - 2, Math.floor(fy)));
-    const tx = Math.max(0, Math.min(1, fx - x0)), ty = Math.max(0, Math.min(1, fy - y0));
-    const a = arr[y0 * MAP + x0], b = arr[y0 * MAP + x0 + 1], cc = arr[(y0 + 1) * MAP + x0], dd = arr[(y0 + 1) * MAP + x0 + 1];
-    return (a + (b - a) * tx) * (1 - ty) + (cc + (dd - cc) * tx) * ty;
-  }
-  function paint(g, X0, Y0, w, h, ox = 0, oy = 0) {
+  // Bridges and scenery over that part of the ground, already in g at (ox, oy).
+  function decorate(g, X0, Y0, w, h, ox = 0, oy = 0) {
     if (!P) prepare();
-    const { dirt, water, ford, nearFlag, N1, N2, N3, tile } = P, TM = GRASS_TILE_N - 1;
-    const img = g.createImageData(w, h), d = img.data;
-    let p = 0;
-    for (let y = Y0; y < Y0 + h; y++) {
-      const fy = y / CELL - 0.5;
-      for (let x = X0; x < X0 + w; x++, p += 4) {
-        const fx = x / CELL - 0.5;
-        const n3 = noise(N3, x, y), hh = noise(N1, x, y) * 0.35 + noise(N2, x, y) * 0.45 + n3 * 0.2;
-        const sp = speck(x, y);
-        // Grass: the Blender blade tile gives the strokes. Two lookups (the second turned on its side and shifted)
-        // are mixed by slow noise, so the 128-pixel repeat does not show.
-        const tA = tile[(y & TM) * GRASS_TILE_N + (x & TM)], tB = tile[((x + 53) & TM) * GRASS_TILE_N + ((y + 29) & TM)];
-        const ms = Math.max(0, Math.min(1, (n3 - 0.4) / 0.2)), gt = (tA + (tB - tA) * ms) / 9;
-        let col = pickTone(GRASS, hh * 1.1 - 0.12 + (gt - 0.5) * STROKE + (sp - 0.5) * 0.1);
-        if (sp > 0.992) col = GRASS[4];
-        const near = nearFlag[Math.min(MAP - 1, Math.max(0, Math.round(fy))) * MAP + Math.min(MAP - 1, Math.max(0, Math.round(fx)))];
-        const dv = near & 1 ? bil(dirt, fx, fy) + (hh - 0.5) * 0.3 + (sp - 0.5) * 0.12 : 0;
-        if (dv > 0.42) col = pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6);
-        const wv = near & 2 ? bil(water, fx, fy) + (hh - 0.5) * 0.22 : 0;
-        if (wv > 0.5) {
-          const crest = ((x * 3 + y * 7 + Math.floor(noise(N1, (x * 3) % WORLD, y) * 30)) % 23 === 0) && sp > 0.4;
-          col = crest ? (snow ? [70, 94, 118] : [150, 172, 190]) : pickTone(WATER, 0.9 - (wv - 0.5) * 1.6 + (hh - 0.5) * 0.5 + (sp - 0.5) * 0.4);
-          if (wv < 0.545) col = sp > 0.35 ? [178, 192, 198] : [120, 140, 156];   // surf
-          if (snow && wv < 0.6 + (hh - 0.5) * 0.25) col = sp > 0.25 ? [206, 222, 234] : [168, 190, 208];   // shelf ice along the shore
-          const fv = near & 4 ? bil(ford, fx, fy) + (noise(N1, x, y) - 0.5) * 1.6 + (noise(N2, x, y) - 0.5) * 1.0 : 0;   // a ragged edge
-          if (fv > 0.3) {   // the ford: a bed of rounded stones and sand under shallow water, with ripples
-            const k = Math.min(1, (fv - 0.3) / 0.12), st = fordStone(x, y, seed);
-            let sh;
-            if (st) {   // a stone breaking the surface, lit from the upper left, wet and dark at its rim
-              const [dx, dy, tone] = st, lit = -(dx + dy) * 0.5, rim = dx * dx + dy * dy > 0.62;
-              const base = [[86, 80, 70], [104, 96, 84], [122, 114, 98], [96, 92, 86]][Math.floor(tone * 4)];
-              const m = rim ? 0.62 : 1 + lit * 0.45;
-              sh = [base[0] * m, base[1] * m, base[2] * m];
-              if (!rim && lit > 0.35 && sp > 0.4) sh = [168, 160, 142];   // a dry, sunlit top
-            } else {
-              const bed = sp > 0.85 ? [70, 66, 58] : pickTone(SANDS, hh * 1.2 - 0.45 + (sp - 0.5) * 0.5);
-              const shade = fordStone(x - 2, y - 2, seed) ? 0.6 : 1;   // stones shade the bed below-right of them
-              sh = [(bed[0] + (80 - bed[0]) * 0.42) * shade, (bed[1] + (116 - bed[1]) * 0.42) * shade, (bed[2] + (138 - bed[2]) * 0.42) * shade];
-              if (((x * 2 + Math.floor(noise(N1, x, (y * 4) % WORLD) * 24)) % 13 === 0) && sp > 0.25) sh = [176, 196, 204];   // white water between the stones
-            }
-            col = [col[0] + (sh[0] - col[0]) * k, col[1] + (sh[1] - col[1]) * k, col[2] + (sh[2] - col[2]) * k];
-          }
-        } else if (wv > 0.36) {
-          col = pickTone(SANDS, (wv - 0.36) * 4 + (sp - 0.5) * 0.7);
-          if (sp > 0.93) col = snow ? [96, 98, 104] : [92, 86, 74];            // pebbles
-        }
-        d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2]; d[p + 3] = 255;
-      }
-    }
-    if (P.cliff) paintCliffs(d, P.cliff, seed, snow, X0, Y0, w, h);
-    if (roads && roads.length) paintRuts(d, roads, X0, Y0, w, h);
-    g.putImageData(img, ox, oy);
     g.save();
     g.beginPath(); g.rect(ox, oy, w, h); g.clip();
     g.translate(ox - X0, oy - Y0);
@@ -216,7 +232,13 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
     }
     g.restore();
   }
-  return { paint };
+  function paint(g, X0, Y0, w, h, ox = 0, oy = 0) {
+    const img = g.createImageData(w, h);
+    px.pixels(img.data, X0, Y0, w, h);
+    g.putImageData(img, ox, oy);
+    decorate(g, X0, Y0, w, h, ox, oy);
+  }
+  return { paint, decorate, args: [terr, seed, roads, cliffs, fords, theme] };
 }
 // Wheel ruts along the roads, worked out pixel by pixel (not stroked on the canvas, whose smoothing differs with
 // where a picture's edge falls) so they run on unbroken across the ground's tiles. Each rut darkens or lightens a
@@ -555,13 +577,20 @@ function charred(img, seed) {
 // Worn earth around a structure, like the dirt aprons of classic bases.
 function bibDecal(tg, x, y, w, h, seed) {
   const r = rng(seed), M = 9;
-  const tones = snowy() ? ['#5c5a58', '#6c6966', '#7c7a77', '#8e8c8a'] : ['#42382a', '#4f4331', '#5c4e39', '#695a42'];   // winter: trodden slush
-  for (let py = y - M; py < y + h + M; py++) for (let px = x - M; px < x + w + M; px++) {
+  const tones = snowy() ? [[92, 90, 88], [108, 105, 102], [124, 122, 119], [142, 140, 138]] : [[66, 56, 42], [79, 67, 49], [92, 78, 57], [105, 90, 66]];   // winter: trodden slush
+  // Worked out as pixels and drawn in one go (a pixel at a time, a large pad took 15 ms on a slow phone).
+  const W = w + 2 * M, H = h + 2 * M;
+  if (!bibPic || bibPic.width < W || bibPic.height < H) bibPic = mkCanvas(Math.max(W, bibPic ? bibPic.width : 0), Math.max(H, bibPic ? bibPic.height : 0));   // one picture, kept
+  const c = bibPic, g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
+  for (let py = y - M, q = 0; py < y + h + M; py++) for (let px = x - M; px < x + w + M; px++, q += 4) {
     const dx = Math.max(x - px, 0, px - (x + w - 1)), dy = Math.max(y - py, 0, py - (y + h - 1));
     const dd = Math.hypot(dx, dy) / M;
-    if (r() < 1.05 - dd * 1.1) { tg.fillStyle = tones[Math.floor(r() * 4)]; tg.fillRect(px, py, 1, 1); }
+    if (r() < 1.05 - dd * 1.1) { const t = tones[Math.floor(r() * 4)]; d[q] = t[0]; d[q + 1] = t[1]; d[q + 2] = t[2]; d[q + 3] = 255; }
   }
+  g.putImageData(img, 0, 0);
+  tg.drawImage(c, 0, 0, W, H, x - M, y - M, W, H);
 }
+let bibPic = null;
 // A Service Depot's repair pad, painted on the ground in front of it: concrete inside a yellow and
 // black border, with a white cross.
 function padDecal(tg, x, y) {
@@ -708,9 +737,10 @@ function markArgs(n, a) {
   return a;
 }
 function drawMark(g, m) {
-  const keep = drawVar;
+  const keep = drawVar, spend = spriteSpend;
+  spriteSpend = -1e9;   // marks are drawn for good: always with their own sprites, never a stand-in (models.js sprite)
   // (a turret keeps its charred picture on the effect it is given: give it a copy, so none is kept in G.marks)
-  try { MARK_DRAW[m[1]](g, ...(m[1] === 'bakeTurret' ? [{ ...m[2][0] }] : m[2])); } finally { drawVar = keep; }
+  try { MARK_DRAW[m[1]](g, ...(m[1] === 'bakeTurret' ? [{ ...m[2][0] }] : m[2])); } finally { drawVar = keep; spriteSpend = spend; }
 }
 for (const n of MARK_FNS) {
   const f = MARK_DRAW[n] = globalThis[n];
@@ -722,6 +752,43 @@ for (const n of MARK_FNS) {
     if (G.ground) G.ground.add(G.marks.length - 1);
   };
 }
+// Ground workers: the pixels of a tile (groundPixels, about nine tenths of the cost of painting one) are worked out
+// off the main thread, so scrolling or jumping across the map never stalls a frame; the main thread only puts them
+// in a canvas and draws the scenery and marks on top. Made from the functions' own source (no extra file, so the
+// single-file build and the offline cache are unchanged). null where there are no workers (the game server, a
+// browser without them): makeGround then paints on the main thread a little at a time, as before.
+let groundPool = null, groundGen = 0;
+function groundWorkers() {
+  if (groundPool !== null) return groundPool || null;
+  groundPool = false;
+  if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined' || (typeof HEADLESS !== 'undefined' && HEADLESS)) return null;
+  try {
+    const src = ["'use strict';",
+      `const CELL = ${CELL}, CLIFF_H = ${CLIFF_H}, GRASS_TILE = ${JSON.stringify(GRASS_TILE)}, GRASS_TILE_N = ${GRASS_TILE_N};`,
+      'let MAP = 0, WORLD = 0, NCELLS = 0;',
+      ...[rng, groundPixels, cliffCells, paintCliffs, paintRuts, fordStone].map(String),
+      `let px = null, gen = -1;
+      onmessage = (e) => {
+        const m = e.data;
+        if (m.init) { gen = m.gen; MAP = m.MAP; WORLD = MAP * CELL; NCELLS = MAP * MAP; px = groundPixels(...m.args); return; }
+        const d = new Uint8ClampedArray(m.w * m.h * 4);
+        if (m.gen === gen) px.pixels(d, m.x, m.y, m.w, m.h);
+        postMessage({ gen: m.gen, k: m.k, w: m.w, h: m.h, d, ok: m.gen === gen }, [d.buffer]);
+      };`].join('\n');
+    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 2) - 1));
+    const pool = { workers: [], onTile: null, failed: false };
+    for (let i = 0; i < n; i++) {
+      const w = new Worker(url);
+      w.job = null;
+      w.onmessage = (e) => { w.job = null; if (pool.onTile) pool.onTile(e.data); };
+      w.onerror = (e) => { pool.failed = true; if (typeof Report !== 'undefined' && Report.oops) Report.oops('groundWorker', e.message || e); };
+      pool.workers.push(w);
+    }
+    groundPool = pool;
+  } catch (e) { groundPool = false; }
+  return groundPool || null;
+}
 // The ground of the battle in G: newWorld and SaveGame.load make it (after setMapSize). legacy (old saves): the
 // pictures the save kept, { g, d } bitmaps, in place of painting.
 function makeGround(painter, legacy) {
@@ -730,8 +797,63 @@ function makeGround(painter, legacy) {
   const pending = new Map();          // tile number -> { t, row }: being painted, STRIP rows at a time
   const index = Array.from({ length: n * n }, () => []);   // tile number -> the marks that reach it, in order
   let frameNo = 0, low = null, drawn = false;
+  // Canvases of tiles let go are used again (cleared) rather than made afresh: on a phone, making and dropping
+  // canvases while scrolling costs memory churn and pauses.
+  const spare = [];
+  let finished = 0;   // tiles finished so far
+  const tileCanvas = () => { const c = spare.pop(); if (!c) return mkCanvas(T, T); c.getContext('2d').clearRect(0, 0, T, T); return c; };
   const tileOf = (tx, ty) => ty * n + tx;
   const at = (k) => [(k % n) * T, Math.floor(k / n) * T];
+  // With workers: the tiles wanted, in order (on screen nearest the middle first, then the ring round it), those
+  // being worked out, and those whose pixels are back and wait to be finished on the main thread.
+  const pool = legacy ? null : groundWorkers(), gen = ++groundGen;
+  let queue = [];
+  const inflight = new Set(), ready = new Map();
+  // Tiles painted but for the marks of battle, drawn a few at a time (a tile on a busy battlefield can have
+  // hundreds, too many for one frame): tile number -> { t, i: the next of index[k] to draw }. Shown once all are on.
+  const finishing = new Map();
+  function finishSome(k, until) {
+    const f = finishing.get(k), list = index[k];
+    while (f.i < list.length) {
+      drawOn(f.t, k, G.marks[list[f.i++]]);
+      if (until && performance.now() >= until) break;
+    }
+    if (f.i < list.length) return false;
+    finishing.delete(k);
+    f.t.used = frameNo;
+    tiles.set(k, f.t); finished++;
+    return true;
+  }
+  if (pool) {
+    for (const w of pool.workers) w.postMessage({ init: true, gen, MAP, args: painter.args });
+    pool.onTile = (m) => {
+      if (m.gen !== gen) return;
+      inflight.delete(m.k);
+      if (m.ok && !tiles.has(m.k)) ready.set(m.k, m);
+      feed();
+    };
+  }
+  const useWorkers = () => pool && !pool.failed;
+  // Gives each idle worker the next wanted tile.
+  function feed() {
+    if (!useWorkers()) return;
+    for (const w of pool.workers) {
+      if (w.job !== null) continue;
+      let k;
+      while (queue.length) { const c = queue.shift(); if (!tiles.has(c) && !ready.has(c) && !inflight.has(c) && !pending.has(c) && !finishing.has(c)) { k = c; break; } }
+      if (k === undefined) return;
+      const [x0, y0] = at(k);
+      w.job = k; inflight.add(k);
+      w.postMessage({ gen, k, x: x0, y: y0, w: Math.min(T, WORLD - x0), h: Math.min(T, WORLD - y0) });
+    }
+  }
+  // A tile whose pixels came back from a worker: into a canvas, bridges and scenery on top, then the marks (finishSome).
+  function finish(k, m) {
+    const [x0, y0] = at(k), t = { g: tileCanvas(), d: null, used: frameNo }, g = t.g.getContext('2d');
+    g.putImageData(new ImageData(m.d, m.w, m.h), 0, 0);
+    painter.decorate(g, x0, y0, m.w, m.h, 0, 0);
+    finishing.set(k, { t, i: 0 });
+  }
   function add(i) {
     const m = G.marks[i];
     const tx0 = Math.max(0, Math.floor(m[3] / T)), ty0 = Math.max(0, Math.floor(m[4] / T));
@@ -755,20 +877,21 @@ function makeGround(painter, legacy) {
     g.save(); g.translate(-bx, -by); drawMark(g, m); g.restore();
   }
   function copyOn(t, k, m) {
-    if (m[0] === 'd' && !t.d) t.d = mkCanvas(T, T);
+    if (m[0] === 'd' && !t.d) t.d = tileCanvas();
     const [x0, y0] = at(k), bx = Math.floor(m[3]), by = Math.floor(m[4]), w = Math.ceil(m[5]) - bx + 1, h = Math.ceil(m[6]) - by + 1;
     (m[0] === 't' ? t.g : t.d).getContext('2d').drawImage(scratch, 0, 0, w, h, bx - x0, by - y0, w, h);
   }
   function drawOn(t, k, m) { markPic(m); copyOn(t, k, m); }
   // Paints some more of tile k (rows STRIP at a time until `until`, or all of it); true once it is done.
   function paintSome(k, until) {
+    if (finishing.has(k)) return finishSome(k, until);
     const [x0, y0] = at(k), w = Math.min(T, WORLD - x0), h = Math.min(T, WORLD - y0);
     let p = pending.get(k);
-    if (!p) pending.set(k, p = { t: { g: mkCanvas(T, T), d: null, used: frameNo }, row: 0 });
+    if (!p) pending.set(k, p = { t: { g: tileCanvas(), d: null, used: frameNo }, row: 0 });
     const g = p.t.g.getContext('2d');
     if (legacy) {
       g.drawImage(legacy.g, x0, y0, w, h, 0, 0, w, h);
-      p.t.d = mkCanvas(T, T); p.t.d.getContext('2d').drawImage(legacy.d, x0, y0, w, h, 0, 0, w, h);
+      p.t.d = tileCanvas(); p.t.d.getContext('2d').drawImage(legacy.d, x0, y0, w, h, 0, 0, w, h);
       p.row = h;
     }
     while (p.row < h) {
@@ -779,16 +902,15 @@ function makeGround(painter, legacy) {
     }
     if (p.row < h) return false;
     pending.delete(k);
-    for (const i of index[k]) drawOn(p.t, k, G.marks[i]);
-    p.t.used = frameNo;
-    tiles.set(k, p.t);
-    return true;
+    finishing.set(k, { t: p.t, i: 0 });
+    return finishSome(k, until);
   }
   // Keeps at most `keep` tiles: the least recently seen go first (never one seen this frame).
   function trim(keep) {
     if (tiles.size <= keep) return;
     const old = [...tiles].filter(([, t]) => t.used < frameNo - 1).sort((a, b) => a[1].used - b[1].used);
-    for (let i = 0; i < old.length && tiles.size > keep; i++) tiles.delete(old[i][0]);
+    for (let i = 0; i < old.length && tiles.size > keep; i++) { const t = old[i][1]; spare.push(t.g); if (t.d) spare.push(t.d); tiles.delete(old[i][0]); }
+    if (spare.length > 48) spare.length = 48;
   }
   // A stand-in for a tile not painted yet: the minimap's colours, one pixel a cell.
   function lowRes() {
@@ -811,12 +933,32 @@ function makeGround(painter, legacy) {
     // Before drawing a frame of view rect (sx, sy, sw, sh): paints what is missing on screen for up to `ms`
     // milliseconds, then (`ahead` ms) the tiles in a ring round it, so scrolling finds them ready. The first frame
     // paints all it shows, however long that takes.
+    // With workers, `ms` is the time for finishing tiles whose pixels are back, on screen first, and the workers are
+    // given the tiles on screen, then the ring.
     update(sx, sy, sw, sh, ms, ahead) {
       frameNo++;
+      const tIn = performance.now(), had = finished;
+      try { this.upd(sx, sy, sw, sh, ms, ahead); } finally { this.ms = performance.now() - tIn; this.made = finished - had; }
+    },
+    ms: 0, made: 0,   // the last update's time and tiles finished (Report: stats.frames)
+    upd(sx, sy, sw, sh, ms, ahead) {
       const t0 = performance.now(), seen = tilesIn(sx, sy, sw, sh);
-      for (const k of seen) if (!tiles.has(k) && !paintSome(k, drawn ? t0 + ms : 0) && drawn) break;
+      if (drawn && useWorkers()) {
+        const want = seen.filter((k) => !tiles.has(k));
+        for (const k of tilesIn(sx - T, sy - T, sw + 2 * T, sh + 2 * T)) if (!tiles.has(k) && !want.includes(k)) want.push(k);
+        for (const k of want) {
+          if (performance.now() >= t0 + ms) break;
+          if (!finishing.has(k)) { const m = ready.get(k); if (!m) continue; ready.delete(k); finish(k, m); }
+          finishSome(k, t0 + ms);
+        }
+        if (ready.size > 16) for (const k of [...ready.keys()]) if (!want.includes(k)) ready.delete(k);   // scrolled away before finished
+        queue = want;
+        feed();
+      } else {
+        for (const k of seen) if (!tiles.has(k) && !paintSome(k, drawn ? t0 + ms : 0) && drawn) break;
+      }
       drawn = true;
-      if (performance.now() < t0 + ms) {
+      if (!useWorkers() && performance.now() < t0 + ms) {
         const ring = tilesIn(sx - T, sy - T, sw + 2 * T, sh + 2 * T).filter((k) => !tiles.has(k));
         const until = performance.now() + ahead;
         for (const k of ring) if (!paintSome(k, until) || performance.now() >= until) break;
@@ -851,7 +993,7 @@ function makeGround(painter, legacy) {
       }
       return c;
     },
-    forget() { tiles.clear(); pending.clear(); },
+    forget() { tiles.clear(); pending.clear(); ready.clear(); finishing.clear(); },
   };
 }
 // The two layers marks are drawn on (G.tctx, G.dctx), and a new battle's ground.
