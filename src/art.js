@@ -776,11 +776,13 @@ function groundWorkers() {
       `const CELL = ${CELL}, CLIFF_H = ${CLIFF_H}, GRASS_TILE = ${JSON.stringify(GRASS_TILE)}, GRASS_TILE_N = ${GRASS_TILE_N};`,
       'let MAP = 0, WORLD = 0, NCELLS = 0;',
       ...[rng, groundPixels, cliffCells, paintCliffs, paintRuts, fordStone].map(String),
-      `let px = null, gen = -1;
+      `let px = null, gen = -1, pvBuf = null;
       onmessage = (e) => {
         const m = e.data;
         if (m.init) { gen = m.gen; MAP = m.MAP; WORLD = MAP * CELL; NCELLS = MAP * MAP; px = groundPixels(...m.args); return; }
-        const d = new Uint8ClampedArray(m.w * m.h * 4);
+        // (the buffer comes back from the main thread to be used again: no new 256 KB block for every tile)
+        const size = m.w * m.h * 4, d = m.buf && m.buf.byteLength === size ? new Uint8ClampedArray(m.buf) : pvBuf && pvBuf.byteLength === size && m.pv ? new Uint8ClampedArray(pvBuf) : new Uint8ClampedArray(size);
+        if (m.pv) pvBuf = d.buffer;
         if (m.gen === gen) px.pixels(d, m.x, m.y, m.w, m.h);
         if (!m.pv) { postMessage({ gen: m.gen, k: m.k, w: m.w, h: m.h, d, ok: m.gen === gen }, [d.buffer]); return; }
         // A preview: the same pixels averaged down s times each way (the stand-in for a tile not painted yet).
@@ -832,7 +834,7 @@ function makeGround(painter, legacy) {
   // The worst single steps of the last update (Report: stats.frames gp, gd, gm, gmk).
   const peak = { put: 0, dec: 0, mark: 0, mk: '' };
   let queue = [];
-  const inflight = new Set(), ready = new Map();
+  const inflight = new Set(), ready = new Map(), bufs = [];   // bufs: pixel buffers back from tiles put in, sent out again
   // Tiles painted but for the marks of battle, drawn a few at a time (a tile on a busy battlefield can have
   // hundreds, too many for one frame): tile number -> { t, i: the next of index[k] to draw }. Shown once all are on.
   const finishing = new Map();
@@ -889,9 +891,9 @@ function makeGround(painter, legacy) {
         w.postMessage({ gen, k: best, x: x0, y: y0, w: Math.min(T, WORLD - x0), h: Math.min(T, WORLD - y0), pv: PV });
         continue;
       }
-      const [x0, y0] = at(k);
+      const [x0, y0] = at(k), buf = bufs.pop();
       w.job = k; inflight.add(k);
-      w.postMessage({ gen, k, x: x0, y: y0, w: Math.min(T, WORLD - x0), h: Math.min(T, WORLD - y0) });
+      w.postMessage({ gen, k, x: x0, y: y0, w: Math.min(T, WORLD - x0), h: Math.min(T, WORLD - y0), buf }, buf ? [buf] : []);
     }
   }
   // A tile whose pixels came back from a worker: into a canvas, bridges and scenery on top, then the marks (finishSome).
@@ -899,6 +901,7 @@ function makeGround(painter, legacy) {
     const [x0, y0] = at(k), t = { g: tileCanvas(), d: null, used: frameNo }, g = t.g.getContext('2d');
     const a = performance.now();
     g.putImageData(new ImageData(m.d, m.w, m.h), 0, 0);
+    if (bufs.length < 8) bufs.push(m.d.buffer);
     const b = performance.now();
     painter.decorate(g, x0, y0, m.w, m.h, 0, 0);
     peak.put = Math.max(peak.put, b - a); peak.dec = Math.max(peak.dec, performance.now() - b);

@@ -381,6 +381,11 @@ share globals. Read this file first; the commit history explains every change in
   nearest the view first, finished tiles are copied in too), drawn smoothed as the stand-in instead of the minimap
   colours (`pvDone`; `blocky` counts tiles still on flat colours). Reports add `gp` / `gd` / `gm` / `gmk` (worst
   pixels put, scenery, single mark and its kind, ms) and `blk` (frames with flat stand-ins).
+- **Match c49f975f (another tester's iPhone, Hard 3 v 3, 2026.11.12.5):** every long frame was in the ground update:
+  one sprite made inside a mark taking 95-185 ms (`sprN` 1; the same sprites take under 20 ms in Chromium at 4x), or 2-3
+  tiles finished at 100-160 ms with no sprites. Likely Safari pausing to collect memory where the game allocates. The
+  workers' 256 KB pixel buffers now go back and forth (`bufs`, `buf` in the job, `pvBuf` in the worker) instead of a new one
+  per tile. The `gp`/`gd`/`gm` figures of the next report will say which step is slow.
 - **ground-tiles.js save and continue** saves the battle paused: the page's own loop ran the battle on between loading
   and looking (a computer side placed a building, +1 mark) once sides took turns thinking.
 - **Anything new drawn onto the ground** must be a function in `MARK_FNS` (deterministic from its arguments, with a box in
