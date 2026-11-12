@@ -596,6 +596,76 @@ function rubble(tg, x, y, w, h, seed) {
 }
 
 // ---------------------------------------------------------------------------
+// Weather (looks only: it changes nothing in the battle, so single player and online play the same)
+// ---------------------------------------------------------------------------
+// A map with `weather` in MAPS ({ kind: 'rain' | 'snow', chance }) rolls once per battle, from the battle's seed, so
+// both phones of an online battle get the same. It comes and goes in spells, light to heavy (weatherLevel).
+function rollWeather(mapId, seed) {
+  const w = MAPS[validMap(mapId)].weather;
+  if (!w) return null;
+  const r = rng(Math.imul((seed | 0) ^ 0x3c6ef372, 0x85ebca6b) ^ 0x1b873593); r(); r();
+  return r() < w.chance ? { kind: w.kind, seed: (r() * 1e9) | 0 } : null;
+}
+// How hard it is raining or snowing at battle time t: 0.2 (a drizzle, a few flakes) to 1, changing over a minute or two.
+function weatherLevel(w, t) {
+  const h = (i) => { let x = Math.imul(i, 374761393) ^ Math.imul(w.seed, 668265263); x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
+  const f = t / 70, i = Math.floor(f), u = f - i, s = u * u * (3 - 2 * u);
+  return 0.2 + 0.8 * (h(i) + (h(i + 1) - h(i)) * s);
+}
+// Draws the weather over the battle on the screen canvas g: the view's top left at world (vx, vy), vw x vh world
+// pixels, k screen pixels a world pixel. Drops and flakes live in the world (they stay put as the camera moves) and
+// wrap round the view.
+const weatherFx = { parts: [], splash: [], last: 0, kind: null };
+function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {
+  const F = weatherFx, now = performance.now(), dt = paused ? 0 : Math.min(0.05, (now - F.last) / 1000 || 0);
+  F.last = now;
+  if (F.kind !== w.kind) { F.kind = w.kind; F.parts = []; F.splash = []; }
+  const L = weatherLevel(w, t), rain = w.kind === 'rain';
+  const want = Math.round((rain ? 330 : 300) * L * Math.min(3, (vw * vh) / (800 * 450)));
+  const P = F.parts, rnd = Math.random;
+  while (P.length < want) P.push({ x: vx + rnd() * vw, y: vy + rnd() * vh, s: 0.6 + rnd() * 0.8, ph: rnd() * 7 });
+  if (P.length > want) P.length = want;
+  const wrap = (v, a, n) => a + ((((v - a) % n) + n) % n);
+  // A haze over everything: grey-blue overcast in rain, a pale veil in snow.
+  g.fillStyle = rain ? `rgba(14,22,34,${(0.1 + 0.16 * L).toFixed(3)})` : `rgba(214,222,236,${(0.04 + 0.08 * L).toFixed(3)})`;
+  g.fillRect(0, 0, g.canvas.width, g.canvas.height);
+  if (rain) {
+    const wind = 70;
+    g.strokeStyle = 'rgba(180,200,220,0.5)'; g.lineWidth = Math.max(1, Math.round(k * 0.6));
+    g.beginPath();
+    for (const p of P) {
+      p.y += 760 * p.s * dt; p.x -= wind * p.s * dt;
+      p.x = wrap(p.x, vx - 20, vw + 40); p.y = wrap(p.y, vy - 20, vh + 40);
+      const len = 9 + 7 * p.s, sx = (p.x - vx) * k, sy = (p.y - vy) * k;
+      g.moveTo(Math.round(sx), Math.round(sy)); g.lineTo(Math.round(sx + wind / 760 * len * k), Math.round(sy - len * k));
+    }
+    g.stroke();
+    // Splashes on the ground: a short-lived ring of dots.
+    if (dt) for (let n = Math.round(90 * L * dt * (vw * vh) / (800 * 450) * 4); n > 0; n--) F.splash.push({ x: vx + rnd() * vw, y: vy + rnd() * vh, t: 0 });
+    g.fillStyle = 'rgba(196,212,228,0.55)';
+    const q = Math.max(1, Math.round(k));
+    F.splash = F.splash.filter((s) => {
+      s.t += dt;
+      if (s.t > 0.16) return false;
+      const r = (1 + s.t * 18) * k, sx = (s.x - vx) * k, sy = (s.y - vy) * k;
+      g.fillRect(Math.round(sx - r), Math.round(sy), q, q); g.fillRect(Math.round(sx + r), Math.round(sy), q, q); g.fillRect(Math.round(sx), Math.round(sy - r * 0.6), q, q);
+      return true;
+    });
+  } else {
+    for (const p of P) {
+      p.y += (26 + 44 * p.s) * dt; p.ph += dt * (0.8 + p.s);
+      p.x += Math.sin(p.ph) * 14 * dt - 8 * dt;
+      p.x = wrap(p.x, vx - 10, vw + 20); p.y = wrap(p.y, vy - 10, vh + 20);
+      // Big near flakes and small far ones, each with a faint shadow so they show against snow on the ground.
+      const size = Math.max(1, Math.round((p.s > 1.15 ? 2.5 : p.s > 0.85 ? 1.6 : 1) * k)), sx = Math.round((p.x - vx) * k), sy = Math.round((p.y - vy) * k);
+      g.fillStyle = 'rgba(52,62,84,0.32)'; g.fillRect(sx + Math.max(1, Math.round(k * 0.7)), sy + Math.max(1, Math.round(k * 0.7)), size, size);
+      g.fillStyle = p.s > 1.15 ? 'rgba(252,253,255,0.95)' : 'rgba(240,245,252,0.8)';
+      g.fillRect(sx, sy, size, size);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The ground in tiles, and the marks of battle
 // ---------------------------------------------------------------------------
 // One picture of the whole ground would be WORLD x WORLD pixels (twice: the ground and the layer of wrecks and

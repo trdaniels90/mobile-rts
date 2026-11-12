@@ -85,6 +85,7 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
   // the ground's layer, G.dctx the layer of bodies and wrecks above it, so later craters and scorch marks
   // never paint over them.
   newGround(G);
+  G.weather = rollWeather(mapId, seed);   // rain or snow for this battle, or none (looks only; art.js drawWeather)
 
   for (const team of G.teams) {
     const b = addBuilding('cy', team, team.start.cx - 1, team.start.cy - 1);

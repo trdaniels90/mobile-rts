@@ -305,6 +305,10 @@ share globals. Read this file first; the commit history explains every change in
   palettes, snowy rock in `paintCliffs`, snowy pines only (`scenery.snowPines`, `treeModel(.., snow)`), and the minimap
   (`terrainMini`), base pads (`bibDecal`) and Pillbox camouflage (`groundColour`). Saves repaint with the theme.
   **Concrete bridges:** `bridge: 'concrete'` in MAPS (`concreteBridge` in art.js; timber when not given).
+  **Weather (looks only, both modes):** `weather: { kind, chance }` in MAPS (Snowbound snow, Three Crossings rain, each
+  0.5). `rollWeather` in newWorld sets `G.weather` from the seed (both online phones agree; saved); `weatherLevel(w, G.t)`
+  comes and goes in spells, 0.2 to 1; `drawWeather` (art.js) draws drops, splashes or flakes and a haze over the screen
+  canvas after the view (ui.js `draw`). Nothing in the simulation reads it.
   North (starts 0-3) against south (4-7): the starts are listed north first, not in the tool's west-first order.
 - **Each map has its own size:** `size` in `MAPS` (default 144, `mapSize(id)`). `MAP`, `WORLD`, `NCELLS` are `let` now and
   `setMapSize(n)` (world.js) sets them, the pathfinder's arrays and `GRID_N`; `newWorld` calls it, and `SaveGame.load`
