@@ -192,7 +192,6 @@ const POWERS = {
 
 // `ai`: how the computer attacks and defends.
 //   wave / big: size ranges of a normal wave and of a big push, bigChance: share of big pushes
-//   raidFrom / raidGap: seconds before the first raid on Ore Trucks or outlying sites, and between raids
 //   firstWave / bigFrom / waveGap: seconds before the first attack wave and the first big push, and the
 //   least time between waves
 //   targets: 'cy' (the Construction Yard), 'mixed' or 'weak' (least-defended valuable buildings)
@@ -202,6 +201,13 @@ const POWERS = {
 //   adapt: answers enemy aircraft (more anti-air units, fighters, AA beside its economy), with
 //   homeGuard anti-air soldiers kept at home and interceptors (fighters kept back to defend)
 //   queue: units it keeps queued per Barracks / War Factory
+//   approach: share of planner waves that first gather at a point off the target on a randomly chosen side
+//   (aiApproachSpots: reachable, out of gun range, avoiding the sides used lately), then close in
+//   gap: the planner's random wait between attacks (seconds): mostly `short`, a `long` lull with `chance`
+//   planner: squad planner (Normal and Hard): after it has found the enemy base (and firstWave has passed)
+//   each attack comes at a random time, AI_GAP seconds from the last; squads that are clearly losing pull
+//   back, and squads on the home half no longer get recalled by defendBase but join a defence the planner
+//   judges short-handed (aiSquads)
 //   pincer: share of waves (6 units or more) that split in two, gather on either side of the target
 //   and close in together (aiPincer); counter: builds against what it has seen of the enemy army and
 //   defences (aiCounter: anti-armour, anti-infantry, more artillery against a fortified base)
@@ -213,18 +219,18 @@ const POWERS = {
 const DIFFICULTY = {
   easy:   { label: 'Easy',   income: 0.7,  speed: 0.8,  credits: 10000,
     ai: { wave: [4, 7], big: null, bigChance: 0,
-      raidFrom: 420, raidGap: [200, 320], firstWave: 360, bigFrom: 0, waveGap: 60, targets: 'cy', strike: [], defMax: 4, aa: 1, aaMax: 1, guard: [], expand: 0, armyWorth: 28000,
-      pincer: 0, counter: false, adapt: false, homeGuard: 0, interceptors: 0, queue: 2,
+      firstWave: 360, bigFrom: 0, waveGap: 60, targets: 'cy', strike: [], defMax: 4, aa: 1, aaMax: 1, guard: [], expand: 0, armyWorth: 28000,
+      pincer: 0, counter: false, adapt: false, homeGuard: 0, interceptors: 0, queue: 2, planner: false,
       econ: { fast: false, refineries: 3, trucks: 5, truckFirst: false } } },
   normal: { label: 'Normal', income: 1.0,  speed: 1.0,  credits: 10000,
     ai: { wave: [10, 16], big: [16, 22], bigChance: 0.3,
-      raidFrom: 390, raidGap: [120, 200], firstWave: 360, bigFrom: 360, waveGap: 180, targets: 'weak', strike: ['para', 'bomb'], defMax: 11, aa: 1, aaMax: 3, guard: ['outpost'], outpostGuns: 2, expand: 24, armyWorth: 45000, armyUnits: 100,
-      pincer: 0.5, counter: true, adapt: true, homeGuard: 3, interceptors: 1, queue: 3,
+      firstWave: 360, bigFrom: 360, waveGap: 180, targets: 'weak', strike: ['para', 'bomb'], defMax: 11, aa: 1, aaMax: 3, guard: ['outpost'], outpostGuns: 2, expand: 24, armyWorth: 45000, armyUnits: 100,
+      pincer: 0.5, counter: true, adapt: true, homeGuard: 3, interceptors: 1, queue: 3, planner: true, approach: 1, gap: { short: [60, 300], long: [300, 600], chance: 0.2 },
       econ: { fast: true, refineries: 3, trucks: 6, truckFirst: true } } },
   hard:   { label: 'Hard',   income: 1.35, speed: 1.25, credits: 12000,
     ai: { wave: [6, 12], big: [12, 16], bigChance: 0.35,
-      raidFrom: 180, raidGap: [75, 130], firstWave: 240, bigFrom: 0, waveGap: 0, targets: 'weak', strike: ['para', 'bomb'], defMax: 15, aa: 2, aaMax: 5, guard: ['outpost', 'refinery'], outpostGuns: 3, expand: 24, armyWorth: 28000,
-      pincer: 0.6, counter: true, adapt: true, homeGuard: 5, interceptors: 2, queue: 3,
+      firstWave: 240, bigFrom: 0, waveGap: 0, targets: 'weak', strike: ['para', 'bomb'], defMax: 15, aa: 2, aaMax: 5, guard: ['outpost', 'refinery'], outpostGuns: 3, expand: 24, armyWorth: 28000,
+      pincer: 0.6, counter: true, adapt: true, homeGuard: 5, interceptors: 2, queue: 3, planner: true, approach: 1, gap: { short: [45, 180], long: [180, 360], chance: 0.2 },
       econ: { fast: true, refineries: 5, trucks: 10, truckFirst: true } } },
 };
 
