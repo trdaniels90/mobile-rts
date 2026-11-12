@@ -388,7 +388,8 @@ share globals. Read this file first; the commit history explains every change in
 ## Computer attacks, direct orders, team economy (2026.11.12.1, both modes)
 
 - **Planner** (`planner: true` in `DIFFICULTY` Normal and Hard; Easy keeps fixed waves): after the base is found and
-  `firstWave` has passed, each attack comes after `aiGap()` (`ai.gap`: mostly `short`, a `long` lull with `chance`, never over
+  `firstWave` has passed (480 s on Easy and Normal, 360 on Hard since 2026.11.12.4, 2 min later than before at the owner's
+  request: harder on a phone; all devices, skirmish and co-op), each attack comes after `aiGap()` (`ai.gap`: mostly `short`, a `long` lull with `chance`, never over
   600 s), or at once when the units waiting reach `ARMY_FULL` (60%) of the army cap (at least `AI_GAP_MIN` after the last). A
   wave takes three quarters of what waits; from 12 units it splits into 2 squads, from 20 into 3 half the time.
 - **Flanking** (`aiApproachSpots`, `aiGather`, `aiPincer`): each squad gathers 13-17 cells off the target on a side that is

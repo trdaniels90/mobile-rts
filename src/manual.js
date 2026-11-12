@@ -176,7 +176,7 @@ const Manual = (() => {
       <table class="fm-table">
         <tr><th></th><th>Easy</th><th>Normal</th><th>Hard</th></tr>
         <tr><td>Finding you</td><td colspan="3">It knows only what it has seen, like you: when its first-attack time comes it scouts for your base with a Spy Plane, a helicopter or its fastest unit, and attacks once it has found you</td></tr>
-        <tr><td>First attack</td><td>After 6 minutes</td><td>After 6 minutes; big pushes can come from the start</td><td>After 4 minutes</td></tr>
+        <tr><td>First attack</td><td>After 8 minutes</td><td>After 8 minutes</td><td>After 6 minutes</td></tr>
         <tr><td>Attack waves</td><td>4 to 7 units</td><td>6 to 11, big pushes of 11 to 14</td><td>6 to 12, big pushes of 12 to 16</td></tr>
         <tr><td>Targets</td><td>Your Construction Yard</td><td colspan="2">Your weakest valuable buildings</td></tr>
         <tr><td>Raids</td><td>Rare, from about 7 minutes</td><td>From about 6½ minutes</td><td>Once it has found you</td></tr>
