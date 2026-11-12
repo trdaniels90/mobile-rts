@@ -27,10 +27,21 @@ function model(key, build) {
   return m;
 }
 const spriteCache2 = new Map();
+// Sprites are made the first time they are drawn. Scrolling into a big battle (six colours in a 3 v 3, every
+// type and facing) could ask for dozens in one frame and stall it, so making them is held to SPRITE_BUDGET ms
+// a frame (ui.js resets spriteSpend each frame): past it, a sprite of the same model at another facing stands
+// in for a frame or two until its own is made.
+const SPRITE_BUDGET = 5, spriteAny = new Map();
+let spriteSpend = 0;
 function sprite(mkey, build, angle, fkey, opts) {
   const k = mkey + '|' + fkey;
   let s = spriteCache2.get(k);
-  if (!s) { s = renderVox(model(mkey, build), angle, opts); spriteCache2.set(k, s); }
+  if (s) return s;
+  if (spriteSpend > SPRITE_BUDGET) { const o = spriteAny.get(mkey); if (o) return o; }
+  const t0 = performance.now();
+  s = renderVox(model(mkey, build), angle, opts);
+  spriteCache2.set(k, s); spriteAny.set(mkey, s);
+  spriteSpend += performance.now() - t0;
   return s;
 }
 function facingSprite(mkey, build, angle, n, opts) {

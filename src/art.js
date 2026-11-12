@@ -579,15 +579,18 @@ function bibDecal(tg, x, y, w, h, seed) {
   const r = rng(seed), M = 9;
   const tones = snowy() ? [[92, 90, 88], [108, 105, 102], [124, 122, 119], [142, 140, 138]] : [[66, 56, 42], [79, 67, 49], [92, 78, 57], [105, 90, 66]];   // winter: trodden slush
   // Worked out as pixels and drawn in one go (a pixel at a time, a large pad took 15 ms on a slow phone).
-  const W = w + 2 * M, H = h + 2 * M, c = mkCanvas(W, H), g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
+  const W = w + 2 * M, H = h + 2 * M;
+  if (!bibPic || bibPic.width < W || bibPic.height < H) bibPic = mkCanvas(Math.max(W, bibPic ? bibPic.width : 0), Math.max(H, bibPic ? bibPic.height : 0));   // one picture, kept
+  const c = bibPic, g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
   for (let py = y - M, q = 0; py < y + h + M; py++) for (let px = x - M; px < x + w + M; px++, q += 4) {
     const dx = Math.max(x - px, 0, px - (x + w - 1)), dy = Math.max(y - py, 0, py - (y + h - 1));
     const dd = Math.hypot(dx, dy) / M;
     if (r() < 1.05 - dd * 1.1) { const t = tones[Math.floor(r() * 4)]; d[q] = t[0]; d[q + 1] = t[1]; d[q + 2] = t[2]; d[q + 3] = 255; }
   }
   g.putImageData(img, 0, 0);
-  tg.drawImage(c, x - M, y - M);
+  tg.drawImage(c, 0, 0, W, H, x - M, y - M, W, H);
 }
+let bibPic = null;
 // A Service Depot's repair pad, painted on the ground in front of it: concrete inside a yellow and
 // black border, with a white cross.
 function padDecal(tg, x, y) {
@@ -734,9 +737,10 @@ function markArgs(n, a) {
   return a;
 }
 function drawMark(g, m) {
-  const keep = drawVar;
+  const keep = drawVar, spend = spriteSpend;
+  spriteSpend = -1e9;   // marks are drawn for good: always with their own sprites, never a stand-in (models.js sprite)
   // (a turret keeps its charred picture on the effect it is given: give it a copy, so none is kept in G.marks)
-  try { MARK_DRAW[m[1]](g, ...(m[1] === 'bakeTurret' ? [{ ...m[2][0] }] : m[2])); } finally { drawVar = keep; }
+  try { MARK_DRAW[m[1]](g, ...(m[1] === 'bakeTurret' ? [{ ...m[2][0] }] : m[2])); } finally { drawVar = keep; spriteSpend = spend; }
 }
 for (const n of MARK_FNS) {
   const f = MARK_DRAW[n] = globalThis[n];
@@ -793,6 +797,11 @@ function makeGround(painter, legacy) {
   const pending = new Map();          // tile number -> { t, row }: being painted, STRIP rows at a time
   const index = Array.from({ length: n * n }, () => []);   // tile number -> the marks that reach it, in order
   let frameNo = 0, low = null, drawn = false;
+  // Canvases of tiles let go are used again (cleared) rather than made afresh: on a phone, making and dropping
+  // canvases while scrolling costs memory churn and pauses.
+  const spare = [];
+  let finished = 0;   // tiles finished so far
+  const tileCanvas = () => { const c = spare.pop(); if (!c) return mkCanvas(T, T); c.getContext('2d').clearRect(0, 0, T, T); return c; };
   const tileOf = (tx, ty) => ty * n + tx;
   const at = (k) => [(k % n) * T, Math.floor(k / n) * T];
   // With workers: the tiles wanted, in order (on screen nearest the middle first, then the ring round it), those
@@ -812,7 +821,7 @@ function makeGround(painter, legacy) {
     if (f.i < list.length) return false;
     finishing.delete(k);
     f.t.used = frameNo;
-    tiles.set(k, f.t);
+    tiles.set(k, f.t); finished++;
     return true;
   }
   if (pool) {
@@ -840,7 +849,7 @@ function makeGround(painter, legacy) {
   }
   // A tile whose pixels came back from a worker: into a canvas, bridges and scenery on top, then the marks (finishSome).
   function finish(k, m) {
-    const [x0, y0] = at(k), t = { g: mkCanvas(T, T), d: null, used: frameNo }, g = t.g.getContext('2d');
+    const [x0, y0] = at(k), t = { g: tileCanvas(), d: null, used: frameNo }, g = t.g.getContext('2d');
     g.putImageData(new ImageData(m.d, m.w, m.h), 0, 0);
     painter.decorate(g, x0, y0, m.w, m.h, 0, 0);
     finishing.set(k, { t, i: 0 });
@@ -868,7 +877,7 @@ function makeGround(painter, legacy) {
     g.save(); g.translate(-bx, -by); drawMark(g, m); g.restore();
   }
   function copyOn(t, k, m) {
-    if (m[0] === 'd' && !t.d) t.d = mkCanvas(T, T);
+    if (m[0] === 'd' && !t.d) t.d = tileCanvas();
     const [x0, y0] = at(k), bx = Math.floor(m[3]), by = Math.floor(m[4]), w = Math.ceil(m[5]) - bx + 1, h = Math.ceil(m[6]) - by + 1;
     (m[0] === 't' ? t.g : t.d).getContext('2d').drawImage(scratch, 0, 0, w, h, bx - x0, by - y0, w, h);
   }
@@ -878,11 +887,11 @@ function makeGround(painter, legacy) {
     if (finishing.has(k)) return finishSome(k, until);
     const [x0, y0] = at(k), w = Math.min(T, WORLD - x0), h = Math.min(T, WORLD - y0);
     let p = pending.get(k);
-    if (!p) pending.set(k, p = { t: { g: mkCanvas(T, T), d: null, used: frameNo }, row: 0 });
+    if (!p) pending.set(k, p = { t: { g: tileCanvas(), d: null, used: frameNo }, row: 0 });
     const g = p.t.g.getContext('2d');
     if (legacy) {
       g.drawImage(legacy.g, x0, y0, w, h, 0, 0, w, h);
-      p.t.d = mkCanvas(T, T); p.t.d.getContext('2d').drawImage(legacy.d, x0, y0, w, h, 0, 0, w, h);
+      p.t.d = tileCanvas(); p.t.d.getContext('2d').drawImage(legacy.d, x0, y0, w, h, 0, 0, w, h);
       p.row = h;
     }
     while (p.row < h) {
@@ -900,7 +909,8 @@ function makeGround(painter, legacy) {
   function trim(keep) {
     if (tiles.size <= keep) return;
     const old = [...tiles].filter(([, t]) => t.used < frameNo - 1).sort((a, b) => a[1].used - b[1].used);
-    for (let i = 0; i < old.length && tiles.size > keep; i++) tiles.delete(old[i][0]);
+    for (let i = 0; i < old.length && tiles.size > keep; i++) { const t = old[i][1]; spare.push(t.g); if (t.d) spare.push(t.d); tiles.delete(old[i][0]); }
+    if (spare.length > 48) spare.length = 48;
   }
   // A stand-in for a tile not painted yet: the minimap's colours, one pixel a cell.
   function lowRes() {
@@ -927,6 +937,11 @@ function makeGround(painter, legacy) {
     // given the tiles on screen, then the ring.
     update(sx, sy, sw, sh, ms, ahead) {
       frameNo++;
+      const tIn = performance.now(), had = finished;
+      try { this.upd(sx, sy, sw, sh, ms, ahead); } finally { this.ms = performance.now() - tIn; this.made = finished - had; }
+    },
+    ms: 0, made: 0,   // the last update's time and tiles finished (Report: stats.frames)
+    upd(sx, sy, sw, sh, ms, ahead) {
       const t0 = performance.now(), seen = tilesIn(sx, sy, sw, sh);
       if (drawn && useWorkers()) {
         const want = seen.filter((k) => !tiles.has(k));

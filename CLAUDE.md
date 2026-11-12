@@ -233,7 +233,9 @@ share globals. Read this file first; the commit history explains every change in
   keeps per-minute figures in `G.perf` (saved with the game), sent as `stats.frames`: `cores`, `w`, `h`, `dpr`, and per
   minute `fps`, `slow` (frames over 50 ms), `long` (over 100 ms), `worst` (ms), `upd` / `drw` (average ms a frame spends in
   the simulation and in `draw`), `jumps` (camera moved over half a screen in one frame, e.g. a minimap tap), `wait` (frames
-  with ground tiles still painting on screen) and `units`. Query:
+  with ground tiles still painting on screen) and `units`; since 2026.11.12.4 also the worst of each part (`wu` simulation,
+  `wd` draw, `wg` the ground's update, `wo` sidebar and radar, ms), `gnd` (average ms in the ground), `tiles` (finished)
+  and `lx` (frames over 100 ms mostly spent outside the game's code: the browser collecting memory or compositing). Query:
   `select m->>'m' min, m->>'fps' fps, m->>'long' long, m->>'worst' worst, m->>'upd' upd, m->>'drw' drw, m->>'jumps' jumps, m->>'wait' wait, m->>'units' units from matches, jsonb_array_elements(stats->'frames'->'minutes') m where id::text like '<id>%'`.
 - **Joining** (net.js `listen`, `knock`, `dropAttempt`, `retryable`; 2026.11.04.2):
   a connection attempt that fails before the lobby connects no longer kills the host's room. The host drops
@@ -349,6 +351,13 @@ share globals. Read this file first; the commit history explains every change in
   Anything `groundPixels` uses must be listed in `groundWorkers`. Without workers (game server, old browsers) the old
   main-thread strips are used. Jumping the camera on a 3 v 3 Snowbound at 1920 x 1080 and 4x CPU throttle: worst frame
   238 ms before, about 15 ms after. `bibDecal` now builds its pixels in one picture (it was a fillRect per pixel).
+- **Stutters while scrolling a big battle (2026.11.12.4, match 8f2b3d32 on a phone):** unit sprites are made the first time
+  each model and facing is drawn (`sprite` in models.js), and a 3 v 3 has six colours, so scrolling into a big fight made
+  dozens in one frame. Now held to `SPRITE_BUDGET` (5 ms) a frame (`spriteSpend`, reset in ui.js `draw`); past it the same
+  model at another facing stands in (`spriteAny`). Marks are exempt (`drawMark`), or a stand-in would be baked into the
+  ground. Sidebar cameos are drawn a few at a time early in the battle (`warmCameos` in ui.js; a new building unlocking
+  several items stalled a frame by 0.4 s). Tile canvases are reused (`spare`), `bibDecal` keeps one picture (`bibPic`).
+  Phone-sized 3 v 3 at 4x throttle while tapping the radar: worst frame 317 to 133 ms, worst draw 230 to 75 ms.
 - **Anything new drawn onto the ground** must be a function in `MARK_FNS` (deterministic from its arguments, with a box in
   `markBox`), never a draw on a canvas kept in G. The game server records no marks (`HEADLESS`).
 - **Saves** keep `G.marks` (no pictures). An old save's two pictures are used as the ground (`legacy`, `G.legacyGround`,

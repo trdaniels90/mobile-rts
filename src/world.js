@@ -3185,8 +3185,11 @@ function available(team, type) {
 }
 
 function startProduction(team, type) {
-  if (!available(team, type)) return 'Not available';
   const cat = catOf(type);
+  // The structure already queued answers first: one that is finished can still be placed after a building it
+  // needed is lost (it is paid for), and one being built waits (updateProduction) until that is rebuilt.
+  if (cat === 'structure' && team.queues.structure && team.queues.structure.type === type) return team.queues.structure.ready ? 'place' : 'busy-same';
+  if (!available(team, type)) return 'Not available';
   if (cat === 'structure') {
     const q = team.queues.structure;
     if (q) return q.type === type ? (q.ready ? 'place' : 'busy-same') : 'busy';

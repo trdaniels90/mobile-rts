@@ -275,6 +275,7 @@
   const visibleToPlayer = (e) => alliedSides(e.team, G.me) || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y));
 
   function draw() {
+    spriteSpend = 0;   // (models.js: sprites made this frame)
     const z = cam.z;
     const ox = Math.floor(cam.x), oy = Math.floor(cam.y);
     const bw = Math.ceil(W / z) + 2, bh = Math.ceil(H / z) + 2;
@@ -757,9 +758,13 @@
   function stripTypes(team, side) {
     if (side === 'L') {
       const powers = hasBuilt(team, 'airfield') ? Object.keys(POWERS).map((k) => 'pw:' + k) : [];
-      return powers.concat(Object.keys(BUILD_DEFS).filter((k) => available(team, k)));
+      // (a queued structure stays on the list after a building it needs is lost, so it can be placed or cancelled)
+      const q = team.queues.structure;
+      return powers.concat(Object.keys(BUILD_DEFS).filter((k) => available(team, k) || (q && q.type === k)));
     }
-    return Object.keys(UNIT_DEFS).filter((k) => available(team, k))
+    // (so do queued units whose producer is lost: they wait, and can be cancelled)
+    const queued = new Set(UNIT_ORDER.flatMap((c) => (team.queues[c] || []).map((i) => i.type)));
+    return Object.keys(UNIT_DEFS).filter((k) => available(team, k) || queued.has(k))
       .sort((a, b) => UNIT_ORDER.indexOf(UNIT_DEFS[a].cat) - UNIT_ORDER.indexOf(UNIT_DEFS[b].cat));
   }
 
@@ -953,14 +958,14 @@
         p = team.powers[key] / POWERS[key].charge;
         st = p >= 1 ? 'READY' : '';
       } else if (cat === 'structure') {
-        if (sq && sq.type === type) { p = sq.progress; st = sq.ready ? 'READY' : sq.stalled ? 'ON HOLD' : ''; }
+        if (sq && sq.type === type) { p = sq.progress; st = sq.ready ? 'READY' : sq.stalled || !available(team, type) ? 'ON HOLD' : ''; }
         else if (sq) dim = true;
       } else {
         const list = team.queues[cat];
         count = list.filter((i) => i.type === type).length;
         const cur = activeItem(team, cat);
         if (cur && cur.type === type) { p = cur.progress; st = cur.stalled ? 'ON HOLD' : ''; }
-        else if (count) st = 'QUEUED';
+        else if (count) st = available(team, type) ? 'QUEUED' : 'ON HOLD';   // (its producer is lost)
         else if (list.length) dim = true;
       }
       el.clock.style.setProperty('--p', p);
@@ -1153,13 +1158,15 @@
     guard('beaten', beaten);
     const d0 = performance.now();
     guard('draw', draw);
-    if (G && !G.paused) {   // how smoothly this device runs the battle (Report: stats.frames)
-      const jump = Math.abs(cam.x - camWas.x) > W / cam.z / 2 || Math.abs(cam.y - camWas.y) > H / cam.z / 2;
-      Report.noteFrame(now, updMs, performance.now() - d0, jump);
-    }
-    camWas.x = cam.x; camWas.y = cam.y; updMs = 0;
+    const d1 = performance.now();
     guard('sidebar', () => updateSidebar(1 / 60));
     guard('radar', () => drawRadar(1 / 60));
+    guard('cameos', warmCameos);
+    if (G && !G.paused) {   // how smoothly this device runs the battle (Report: stats.frames)
+      const jump = Math.abs(cam.x - camWas.x) > W / cam.z / 2 || Math.abs(cam.y - camWas.y) > H / cam.z / 2;
+      Report.noteFrame(now, updMs, d1 - d0, jump, performance.now() - d1);
+    }
+    camWas.x = cam.x; camWas.y = cam.y; updMs = 0;
   }
   // A team game where this side is beaten (no production left) but an ally fights on: a card offers
   // the debrief now (a loss) or staying to watch with the whole map shown (then the alliance's result).
@@ -1186,6 +1193,21 @@
       document.body.append(beatenEl);
     }
     beatenEl.hidden = !on || !!G.watching;
+  }
+  // The sidebar's pictures of everything this side could build are drawn a few at a time in the first seconds of
+  // a battle (art.js cameoURL keeps them): drawn only when they first appear, a new building that unlocks several
+  // items at once stalled a frame for a third of a second on a phone.
+  let warmAt = 0;
+  function warmCameos() {
+    if (!G || G.paused || performance.now() < warmAt) return;
+    warmAt = performance.now() + 200;
+    const team = G.teams[G.me];
+    if (!team) return;
+    const types = Object.keys(POWERS).map((k) => 'pw:' + k).concat(Object.keys(BUILD_DEFS), Object.keys(UNIT_DEFS))
+      .filter((k) => k.startsWith('pw:') || defOf(k).factions.includes(team.faction));
+    const k = types.find((t) => !cameoCache.has(t + team.faction + (team.variant | 0)));
+    if (k) cameoURL(k, team.faction, team.variant);
+    else warmAt = performance.now() + 5000;
   }
   function guard(where, fn) { try { fn(); } catch (e) { Report.oops(where, e); } }
   // The next frame is asked for first, so nothing that goes wrong in this one can stop the loop.

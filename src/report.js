@@ -134,7 +134,7 @@ const Report = (() => {
   // (more than half a screen in one frame, as from a minimap tap), frames with ground still painting on screen
   // (art.js makeGround, the stand-in colours), and units alive. Kept in G.perf, so a saved game keeps its minutes.
   let frameAt = 0;
-  function noteFrame(now, upd, drw, camJump) {
+  function noteFrame(now, upd, drw, camJump, other) {
     try {
       const gap = (now - frameAt) / 1000;
       frameAt = now;
@@ -142,6 +142,12 @@ const Report = (() => {
       const P = G.perf || (G.perf = { min: [] }), i = Math.min(180, Math.floor(G.t / 60));
       const m = P.min[i] || (P.min[i] = { m: i, f: 0, ft: 0, slow: 0, long: 0, worst: 0, upd: 0, drw: 0, jumps: 0, wait: 0, units: 0 });
       m.f++; m.ft += gap; m.upd += upd; m.drw += drw;
+      // The worst of each part, the ground's share of drawing and the tiles it finished: a stutter none of these
+      // explains happened outside the game's own code (the browser collecting memory, or putting the frame on screen).
+      const gm = G.ground ? G.ground.ms || 0 : 0;
+      m.wu = Math.max(m.wu || 0, upd); m.wd = Math.max(m.wd || 0, drw); m.wg = Math.max(m.wg || 0, gm); m.wo = Math.max(m.wo || 0, other || 0);
+      m.gnd = (m.gnd || 0) + gm; m.tiles = (m.tiles || 0) + (G.ground ? G.ground.made || 0 : 0);
+      if (gap > 0.1) m.lx = (m.lx || 0) + (gap * 1000 - upd - drw - (other || 0) > 50 ? 1 : 0);   // long frames mostly outside the game's code
       if (gap > 0.05) m.slow++;
       if (gap > 0.1) m.long++;
       m.worst = Math.max(m.worst, gap * 1000);
@@ -155,7 +161,8 @@ const Report = (() => {
     let sc = {};
     try { sc = { cores: navigator.hardwareConcurrency || null, w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1 }; } catch (_) {}
     return { ...sc, minutes: G.perf.min.filter(Boolean).map((m) => ({ m: m.m, fps: m.ft ? Math.round(m.f / m.ft) : null, slow: m.slow, long: m.long,
-      worst: Math.round(m.worst), upd: +(m.upd / m.f).toFixed(1), drw: +(m.drw / m.f).toFixed(1), jumps: m.jumps, wait: m.wait, units: m.units })) };
+      worst: Math.round(m.worst), upd: +(m.upd / m.f).toFixed(1), drw: +(m.drw / m.f).toFixed(1), jumps: m.jumps, wait: m.wait, units: m.units,
+      wu: Math.round(m.wu || 0), wd: Math.round(m.wd || 0), wg: Math.round(m.wg || 0), wo: Math.round(m.wo || 0), gnd: +((m.gnd || 0) / m.f).toFixed(1), tiles: m.tiles || 0, lx: m.lx || 0 })) };
   }
   function end(won) {
     try { return finish(won ? 'win' : 'loss', G.over ? G.over.t : G.t, stats()); } catch (_) { return Promise.resolve(null); }
