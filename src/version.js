@@ -4,6 +4,14 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.12.2', date: '12 November 2026', title: 'Smoother scrolling, and helicopters that pick their targets', groups: [
+    ['Changes', [
+      'Jumping around the map (a tap on the radar, or scrolling fast) no longer makes the game stutter while the ground comes into view: the ground is now painted in the background, and big battlefields full of craters and wrecks fill in smoothly.',
+      'Helicopters go for the targets their weapon is made for: Hind Gunships for infantry, Allied Attack Helicopters for tanks and vehicles. They only hit other targets, buildings included, when none of those is in reach, and switch as soon as one turns up.',
+      'Jets on Auto Attack fly one strike, then wait on their pad until you switch Auto Attack on again (or pick a new enemy side). Jets built meanwhile wait too. The computer\'s jets are unchanged.',
+      'The game now notes how smoothly each battle runs on your device (frames per second, stutters), so slowdowns you report can be tracked down.',
+    ]],
+  ] },
   { v: '2026.11.12.1', date: '12 November 2026', title: 'Smarter enemy attacks, and orders that stick', groups: [
     ['New', [
       'Normal and Hard: the computer attacks at random times instead of on a steady rhythm, and attacks at once when its army at home grows big. Hard attacks more often than Normal.',
