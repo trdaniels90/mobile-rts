@@ -16,7 +16,7 @@
   const ui = {
     sidebar: $('sidebar'), credits: $('credits'), powerBar: $('powerBar'), topstrip: $('topstrip'),
     stripL: $('stripL'), stripR: $('stripR'), strips: document.querySelector('.sb-strips'),
-    autoBtn: $('autoBtn'), allyBtn: $('allyBtn'), returnBtn: $('returnBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'),
+    autoBtn: $('autoBtn'), allyBtn: $('allyBtn'), giveBtn: $('giveBtn'), returnBtn: $('returnBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'),
     eva: $('eva'), selbar: $('selbar'), selName: $('selName'), selHp: $('selHp'), selBtns: $('selBtns'),
     placebar: $('placebar'), placeText: $('placeText'), placeOk: $('placeOk'), placeCancel: $('placeCancel'),
     menu: $('menu'), menuTitle: $('menuTitle'), menuSub: $('menuSub'),
@@ -185,7 +185,8 @@
     // once an enemy building has been uncovered.
     if (!resumed) G.teams[G.me].auto = false;
     ui.autoBtn.setAttribute('aria-pressed', String(!!G.teams[G.me].auto));
-    ui.allyBtn.hidden = ui.returnBtn.hidden = !teamGame();
+    ui.allyBtn.hidden = ui.returnBtn.hidden = ui.giveBtn.hidden = !teamGame();
+    if (giveEl) giveEl.hidden = true;
     layout();
     if (resumed) return;
     const cy = G.entities.find((e) => e.team === G.me && e.type === 'cy');
@@ -861,6 +862,34 @@
     ui.autoBtn.setAttribute('aria-pressed', String(!!team.auto));
     eva(team.assist ? 'Defending our ally' : 'Ally support off. Units stay and defend');
   });
+  // GIVE: a card with each ally still in the fight and the amounts to send (`sendCredits`). The
+  // battle keeps running behind it; amounts this side cannot afford are greyed out.
+  let giveEl = null;
+  const giveAllies = () => { const me = G.teams[G.me]; return G.teams.filter((o) => o !== me && o.ally === me.ally && !o.out); };
+  function giveFill() {
+    const me = G.teams[G.me], have = Math.floor(me.credits);
+    const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    giveEl.querySelector('.gv-list').innerHTML = giveAllies().map((o) => `<p class="gv-name">${esc(o.name || (o.isAI ? 'Computer ally' : 'Ally'))}</p><div class="gv-row">`
+      + GIVE_AMOUNTS.map((n) => `<button type="button" class="pf-btn" data-to="${o.id}" data-n="${n}"${have < n ? ' disabled' : ''}>${n}</button>`).join('') + '</div>').join('');
+  }
+  ui.giveBtn.addEventListener('click', () => {
+    if (!G || G.over) return;
+    if (G.teams[G.me].out || !giveAllies().length) { evaCalm('No ally to give to', 4); return; }
+    if (!giveEl) {
+      giveEl = document.createElement('div'); giveEl.id = 'give'; giveEl.className = 'nw-wrap';
+      giveEl.innerHTML = '<div class="nw-card" role="dialog" aria-label="Give credits"><p class="nw-title">Give credits</p><div class="gv-list"></div>'
+        + '<button type="button" class="pf-btn" data-b="close">Close</button></div>';
+      giveEl.addEventListener('click', (ev) => {
+        const b = ev.target.closest('button');
+        if (ev.target !== giveEl && !b) return;                 // a tap on the card itself
+        if (b && b.dataset.to && G && !G.over) sendCredits(G.teams[G.me], +b.dataset.to, +b.dataset.n);
+        giveEl.hidden = true;
+      });
+      document.body.append(giveEl);
+    }
+    giveFill();
+    giveEl.hidden = false;
+  });
   ui.returnBtn.addEventListener('click', () => {
     if (!G) return;
     const team = G.teams[G.me];
@@ -884,6 +913,7 @@
     lastCredits = shown;
     const autoLabel = team.auto ? `AUTO ${Math.min(team.waiting || 0, GROUP_SIZE)}/${GROUP_SIZE}` : 'AUTO OFF';
     if (ui.autoLabel.textContent !== autoLabel) ui.autoLabel.textContent = autoLabel;
+    if (giveEl && !giveEl.hidden && (G.over || team.out)) giveEl.hidden = true;
     if (ui.allyBtn.getAttribute('aria-pressed') !== String(!!team.assist)) ui.allyBtn.setAttribute('aria-pressed', String(!!team.assist));
     if (ui.autoBtn.getAttribute('aria-pressed') !== String(!!team.auto)) ui.autoBtn.setAttribute('aria-pressed', String(!!team.auto));
     // Vertical power bar: green fill is output, the red tick is demand.
