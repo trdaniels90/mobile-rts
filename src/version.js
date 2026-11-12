@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.12.8', date: '12 November 2026', title: 'Give credits to an ally', groups: [
+    ['New', [
+      'Team battles (2 v 2, co-op and 3 v 3, skirmish and online) have a GIVE button next to ALLY: send 500, 1000 or 2500 credits to an ally still in the battle, or type another amount. More than you have sends everything you have. Both of you hear it. Thanks to JGFortanelli for building it.',
+    ]],
+  ] },
   { v: '2026.11.12.7', date: '12 November 2026', title: 'Ready-made unit pictures, and a short deploy screen', groups: [
     ['Changes', [
       'Units, buildings and wrecks now come as ready-made pictures loaded with the game, instead of being drawn from their 3D models in the middle of a battle. Big battles should hitch much less, on phones most of all. (About 1.5 MB more to download once, and more for team colours in team battles.)',

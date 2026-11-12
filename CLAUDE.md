@@ -469,7 +469,7 @@ share globals. Read this file first; the commit history explains every change in
   distance, seen strength (army plus known guns) against its own, allies already on it (+0.5 each, so allies gang up) and
   stickiness. A 3 v 3 of Hard computers on Snowbound: each alliance on one foe, the first side out at 9.7 min, then all moved on.
 
-## Giving credits to an ally (branch `friend/credit-transfer`, not released yet, team games in both modes)
+## Giving credits to an ally (2026.11.12.8, from PR #4 by JGFortanelli, team games in both modes)
 
 - `sendCredits(team, toSide, amount)` in world.js: only to another side of the same alliance that is not `out`, cut down
   to what the sender has; both sides hear a line (`say`). `toSide` is a side number, because netcore.js turns any team
