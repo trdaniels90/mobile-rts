@@ -336,6 +336,13 @@ share globals. Read this file first; the commit history explains every change in
   and copied onto tiles, so it is the same on either side of a tile edge. A wreck keeps its char seed; effects are copied
   (`markArgs`). Every pixel of the painter depends only on its position (`speck` hash, not a running random), so tiles
   match; bridges are drawn once each into their own picture; road ruts are worked out per pixel (`paintRuts`).
+- **Ground workers** (after 2026.11.12.1, both modes): a tile's pixels (`groundPixels`, about 90% of the cost) are worked
+  out in Web Workers (`groundWorkers`, 1 to 3, made from the functions' own source as a Blob, so no extra file); the main
+  thread only puts them in a canvas, draws bridges and scenery (`decorate`) and then the marks a few at a time
+  (`finishing`, `finishSome`; a busy battlefield tile can hold hundreds). A tile is shown only once all its marks are on.
+  Anything `groundPixels` uses must be listed in `groundWorkers`. Without workers (game server, old browsers) the old
+  main-thread strips are used. Jumping the camera on a 3 v 3 Snowbound at 1920 x 1080 and 4x CPU throttle: worst frame
+  238 ms before, about 15 ms after. `bibDecal` now builds its pixels in one picture (it was a fillRect per pixel).
 - **Anything new drawn onto the ground** must be a function in `MARK_FNS` (deterministic from its arguments, with a box in
   `markBox`), never a draw on a canvas kept in G. The game server records no marks (`HEADLESS`).
 - **Saves** keep `G.marks` (no pictures). An old save's two pictures are used as the ground (`legacy`, `G.legacyGround`,
