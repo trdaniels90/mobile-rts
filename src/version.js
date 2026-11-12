@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.12.6', date: '12 November 2026', title: 'Smoother ground when you jump around the map', groups: [
+    ['Changes', [
+      'Ground that is still loading now shows as a slightly blurred picture of the real ground instead of flat coloured blocks, so jumping or zooming around the map looks much smoother.',
+      'Fewer hitches on iPhones while new ground comes into view in big battles: wrecks are drawn much more cheaply, and the game reuses memory instead of asking for more.',
+      'Match reports record more detail about any remaining hitches, so they can be tracked down.',
+    ]],
+  ] },
   { v: '2026.11.12.5', date: '12 November 2026', title: 'Fewer pauses in big battles', groups: [
     ['Changes', [
       'Big battles (3 v 3 most of all) no longer pause for a moment while the computer plans a flanking attack, and computer sides take turns doing their thinking instead of all at once.',
