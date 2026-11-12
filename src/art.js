@@ -1046,6 +1046,47 @@ function idlePose(u, t) {
   }
   return null;
 }
+// Unit sprites are made the first time they are drawn (models.js sprite), which stalls a frame when a big fight
+// comes into view. warmSprites (ui.js, a couple of ms a frame) makes them ahead: for the kind of unit on the map
+// nearest the view not done yet, every facing of its hull and turret (both looks of a V2 and an Ore Truck), and a
+// soldier's common poses (standing, walking, firing, crouching, prone).
+const WARM_POSES = [0, 1, 12, 2, 13, 7, 4, 5, 14, 15];
+const warmDone = new Set();
+let warmJobs = [], warmIdleT = 0;
+function warmSprites(budgetMs, cx, cy) {
+  if (!G || (typeof HEADLESS !== 'undefined' && HEADLESS)) return;
+  const t0 = performance.now();
+  while (performance.now() - t0 < budgetMs) {
+    if (!warmJobs.length) {
+      if (t0 < warmIdleT) return;
+      let best = null, bd = Infinity;
+      for (const e of G.entities) {
+        if (!e.alive || e.kind !== 'unit' || warmDone.has(e.type + e.faction + (G.teams[e.team].variant | 0))) continue;
+        const d = Math.hypot(e.x - cx, e.y - cy);
+        if (d < bd) { bd = d; best = e; }
+      }
+      if (!best) { warmIdleT = t0 + 1000; return; }   // all done: look again in a second
+      const v = G.teams[best.team].variant | 0, def = best.def, f = best.faction;
+      warmDone.add(best.type + f + v);
+      if (best.cls === 'inf') {
+        for (const pose of WARM_POSES) {
+          if (pose === 7 && (best.type === 'rocket' || best.type === 'grenadier' || best.type === 'pilot')) continue;
+          for (let i = 0; i < 16; i++) warmJobs.push({ v, run: () => infSprite({ type: best.type, faction: f, face: i * Math.PI / 8 }, palFor(f), pose) });
+        }
+      } else {
+        const looks = def.draw === 'v2' ? [{ cd: 0 }, { cd: 2 }] : def.draw === 'harv' ? [{ load: 0 }, { load: def.capacity }] : [{}];
+        for (let i = 0; i < FACINGS; i++) {
+          const a = i * Math.PI * 2 / FACINGS;
+          for (const l of looks) warmJobs.push({ v, run: () => hullSprite({ def, faction: f, face: a, ...l }, palFor(f)) });
+          warmJobs.push({ v, run: () => turretSprite({ def, faction: f, tface: a }, palFor(f)) });
+        }
+      }
+    }
+    const j = warmJobs.shift(), keep = drawVar, spend = spriteSpend;
+    drawVar = j.v; spriteSpend = -1e9;
+    try { j.run(); } finally { drawVar = keep; spriteSpend = spend; }
+  }
+}
 const INF_ANIM = new WeakMap(), WALK = [1, 12, 2, 13];   // per soldier: when they last changed stance and last fired (drawing only)
 function drawUnit(g, u, t) {
   drawVar = G.teams[u.team].variant | 0;

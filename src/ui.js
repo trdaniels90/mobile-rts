@@ -1193,6 +1193,7 @@
     guard('sidebar', () => updateSidebar(1 / 60));
     guard('radar', () => drawRadar(1 / 60));
     guard('cameos', warmCameos);
+    if (G && !G.paused) guard('sprites', () => warmSprites(2, cam.x + W / cam.z / 2, cam.y + H / cam.z / 2));
     if (G && !G.paused) {   // how smoothly this device runs the battle (Report: stats.frames)
       const jump = Math.abs(cam.x - camWas.x) > W / cam.z / 2 || Math.abs(cam.y - camWas.y) > H / cam.z / 2;
       Report.noteFrame(now, updMs, d1 - d0, jump, performance.now() - d1);
