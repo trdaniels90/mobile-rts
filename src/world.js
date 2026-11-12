@@ -1037,11 +1037,18 @@ function setAssist(team, on) {
   team.auto = false;
   sendToAlly(team, idleGround(team).filter((u) => !u.garrison));
 }
-// The Return button: everything sent to an ally, and every ground unit out attacking (hunt or attack
-// orders), goes home and waits there again. Auto attack and Ally support are turned off so they stay.
+// The Return button: everything sent to an ally, every ground unit out attacking (hunt or attack
+// orders) and every aircraft out attacking goes home and waits there again. Auto attack and Ally support are turned off so they stay.
 function recallAlly(team, garrisonOnly) {
   team.assist = false; if (!garrisonOnly) team.auto = false;
   for (const u of unitsOf(team.id)) {
+    // Aircraft out attacking (or waiting away from their pad) fly home and stay on their pad.
+    if (!garrisonOnly && u.cls === 'air' && !u.def.scripted && !u.leaving && !u.defending && !u.scrambled &&
+      (u.order.type === 'hunt' || u.order.type === 'attack' || (u.order.type === 'guard' && !u.order.pad && !u.order.hold))) {
+      u.target = null; u.focus = null; u.huntTarget = null; u.oneStrike = false; u.manual = false;
+      setGuard(u); u.order.pad = true; u.staged = false;
+      continue;
+    }
     const attacking = !garrisonOnly && u.cls !== 'air' && u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward &&
       (u.order.type === 'hunt' || u.order.type === 'attack');
     if (!u.garrison && !attacking) continue;
