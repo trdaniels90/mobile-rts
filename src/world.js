@@ -3284,21 +3284,24 @@ function spreadOre(f) {
   G.ore[c] = 15;
   f.ext = Math.max(f.ext || 0, d - f.r - 0.8);
 }
-// Four-sided games (2 v 2 and co-op) have richer fields: TEAM_ORE_RICH times the ore, growing back
-// TEAM_ORE_REGROW times as fast (G.oreRich; 1 in a 1 v 1, and in saves from before 2026.11.05.3).
-const TEAM_ORE_RICH = 1.5, TEAM_ORE_REGROW = 2;
+// Team games (2 v 2, 3 v 3, co-op) have richer fields: TEAM_ORE_RICH times the ore (G.oreRich; 1 in a 1 v 1, and
+// in saves from before 2026.11.05.3). Every side's Ore Trucks work the same fields, so they also grow back faster:
+// ORE_REGROW_PER_SIDE cells a field per tick for each side in the battle (4 in a 2 v 2, 6 in a 3 v 3; one in a
+// 1 v 1), and a nearly bare cell (under a third of what it can hold) grows back twice as fast, so a scraped-out
+// field recovers in a couple of minutes instead of several.
+const TEAM_ORE_RICH = 1.5, ORE_REGROW_PER_SIDE = 1;
 function growOre() {
-  const r = Math.random, rich = G.oreRich || 1, grows = rich > 1 ? TEAM_ORE_REGROW : 1;
+  const r = Math.random, rich = G.oreRich || 1, team = rich > 1, grows = team ? G.teams.length * ORE_REGROW_PER_SIDE : 1;
   for (const f of G.oreFields) {
     updateFieldRest(f);
     if (f.gem) continue;   // gems never grow back
     if (r() < 0.05) spreadOre(f);   // about once every 40 seconds
-    for (let k = 0; k < grows; k++) {   // one cell a field every couple of seconds: a scraped-out field takes several minutes to recover
+    for (let k = 0; k < grows; k++) {   // in a 1 v 1, one cell a field every couple of seconds: a scraped-out field takes several minutes to recover
       const a = r() * Math.PI * 2, d = Math.sqrt(r()) * fieldReach(f);
       const x = Math.floor(f.cx + Math.cos(a) * d), y = Math.floor(f.cy + Math.sin(a) * d);
       const c = inMap(x, y) ? idx(x, y) : -1;
       const cap = Math.round(Math.min(ORE_MAX, (60 + (1 - Math.min(1, d / f.r)) * 190) * f.rich) * rich);
-      if (c >= 0 && !G.block[c] && !G.bld[c] && G.ore[c] < cap) G.ore[c] = Math.min(cap, G.ore[c] + 15);
+      if (c >= 0 && !G.block[c] && !G.bld[c] && G.ore[c] < cap) G.ore[c] = Math.min(cap, G.ore[c] + (team && G.ore[c] < cap / 3 ? 30 : 15));
     }
   }
 }
