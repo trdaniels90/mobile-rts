@@ -815,7 +815,15 @@ function nearBuckets(x, y, r) {
   for (let by = y0; by <= y1; by++) for (let bx = x0; bx <= x1; bx++) { const b = g[by * GRID_N + bx]; if (b.length) nearOut.push(b); }
   return nearOut;
 }
-function acquire(src, range, weapons, visible) {
+// Helicopters favour what their weapon is made for: the Hind's chain gun goes for infantry, the
+// Hellfires for tanks and vehicles. A favoured target is one the warhead hits at least 80% as hard as
+// its best kind of ground unit; anything else is only picked when nothing favoured is in sight.
+const armorOf = (e) => e.kind === 'bld' ? 'bld' : isAirborne(e) ? 'air' : e.def.armor === 'air' ? 'light' : e.def.armor;
+function favoured(w, e) {
+  const t = WARHEADS[w.wh];
+  return isAirborne(e) || t[armorOf(e)] >= 0.8 * Math.max(t.inf, t.light, t.heavy);
+}
+function acquire(src, range, weapons, visible, favour) {
   let best = null, bs = Infinity;
   const buckets = nearBuckets(src.x, src.y, range + CELL * 3);
   for (let bi = 0; bi < buckets.length; bi++) for (const e of buckets[bi]) {
@@ -830,6 +838,7 @@ function acquire(src, range, weapons, visible) {
     if (e.kind === 'bld') score += e.def.weapon ? 15 : 60;   // defences before harmless structures
     else if (!e.def.weapon && !e.def.harvester) score += 20;
     if (e.cls === 'inf' && weapons.every((w) => w.prefersArmor)) score += CELL * 4;   // tank killers look for vehicles first
+    if (favour && !weapons.some((w) => favoured(w, e))) score += range + CELL * 4;   // behind every favoured target in reach
     if (score < bs) { bs = score; best = e; }
   }
   return best;
@@ -1672,7 +1681,7 @@ function damage(t, amount, wh, attacker, from) {
   // As in Red Alert: whoever fires at a support plane (Spy Plane, Paratroopers transport, bomber)
   // gives away where it stands, to either side.
   if (t.def && t.def.scripted && attacker && hostile(attacker.team, t.team)) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5, G.fog[t.team]);
-  const armor = t.kind === 'bld' ? 'bld' : isAirborne(t) ? 'air' : t.def.armor === 'air' ? 'light' : t.def.armor;
+  const armor = armorOf(t);
   const mult = WARHEADS[wh][armor];
   if (!mult) return;
   // As in Red Alert: infantry under fire go prone and stay down (crawling if they have to move)
@@ -2744,12 +2753,19 @@ function airTarget(u) {
   const ws = airWeapons(u);
   // A defender keeps the raider base defence gave it, however far away: each jet has its own.
   if (u.defending && u.target && u.target.alive && ws.some((w) => canHit(w, u.target))) return u.target;
-  if (u.target && u.target.alive && ws.some((w) => canHit(w, u.target)) && distTo(u, u.target) < sight * 1.4) return u.target;
+  const heli = u.def.fly === 'heli';
+  // (A helicopter on something it is not made for keeps looking, and switches when a favoured target turns up.)
+  if (u.target && u.target.alive && ws.some((w) => canHit(w, u.target)) && distTo(u, u.target) < sight * 1.4 &&
+    !(heli && !ws.some((w) => favoured(w, u.target)))) return u.target;
   const src = o.type === 'guard' ? { x: o.x, y: o.y, team: u.team } : u;
   // On the attack with an open target to go for (airPick), it leaves targets covered by detected anti-air alone.
   let open = null;
   if (o.type === 'hunt' && u.aaClear) { const aa = knownAA(u.team, u.def.fly === 'jet'); if (aa.length) open = (e) => isAirborne(e) || !aaCover(aa, e); }
-  return ws.length ? acquire(src, sight, ws, open) : null;
+  if (!ws.length) return null;
+  const pick = acquire(src, sight, ws, open, heli);
+  // Nothing new in sight: carry on with the unfavoured target it had.
+  if (heli && !pick && u.target && u.target.alive && ws.some((w) => canHit(w, u.target)) && distTo(u, u.target) < sight * 1.4) return u.target;
+  return pick;
 }
 
 function updateAir(u, dt) {
@@ -2869,7 +2885,7 @@ function updateAir(u, dt) {
       if (b) flyJet(u, b.x, b.y, dt); else { nothingKnown(u); orbit(u, u.x, u.y, dt); }
     } else {
       // A jet cannot hover: with nothing to hit near where it was told to wait, it soon flies home.
-      if (!o.hold && (u.idleT = (u.idleT || 0) + dt) > 3 && padFor(u)) { setGuard(u); u.order.pad = true; u.staged = G.teams[u.team].auto; u.idleT = 0; }
+      if (!o.hold && (u.idleT = (u.idleT || 0) + dt) > 3 && padFor(u)) { setGuard(u); u.order.pad = true; u.staged = G.teams[u.team].auto && !oneWave(u); u.idleT = 0; }
       orbit(u, o.x, o.y, dt);
     }
     if (t) u.idleT = 0;
