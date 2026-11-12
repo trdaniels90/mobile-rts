@@ -57,6 +57,12 @@ const vm = require('vm');
     r.after = await cr(); r.closed = !(await shown(p));
     r.eva = await p.textContent('#eva');
     await p.tap('#giveBtn'); await p.tap('#give [data-b="close"]'); r.closeBtn = !(await shown(p)); r.unchanged = await cr();
+    // a typed amount: nothing typed keeps the card open, letters are refused, a number sends, too much sends all
+    await p.evaluate(() => { G.teams[G.me].credits = 900; });
+    await p.tap('#giveBtn'); await p.tap('#give [data-send]'); r.emptyStaysOpen = await shown(p);
+    await p.fill('#give [data-in]', '12a'); await p.tap('#give [data-send]'); r.lettersRefused = (await shown(p)) && (await cr())[0] === 900;
+    await p.fill('#give [data-in]', '350'); await p.tap('#give [data-send]'); r.typed = [await cr(), !(await shown(p)), await p.textContent('#eva')];
+    await p.tap('#giveBtn'); await p.fill('#give [data-in]', '99999'); await p.press('#give [data-in]', 'Enter'); r.typedTooMuch = [await cr(), !(await shown(p))];
     r.errs = p.errs; out.skirmish = r;
     await p.context().close();
   }

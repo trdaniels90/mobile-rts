@@ -918,7 +918,16 @@
     const me = G.teams[G.me], have = Math.floor(me.credits);
     const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     giveEl.querySelector('.gv-list').innerHTML = giveAllies().map((o) => `<p class="gv-name"><i style="background:${sideColour(o)}"></i>${esc(sideLabel(o))}</p><div class="gv-row">`
-      + GIVE_AMOUNTS.map((n) => `<button type="button" class="pf-btn" data-to="${o.id}" data-n="${n}"${have < n ? ' disabled' : ''}>${n}</button>`).join('') + '</div>').join('');
+      + GIVE_AMOUNTS.map((n) => `<button type="button" class="pf-btn" data-to="${o.id}" data-n="${n}"${have < n ? ' disabled' : ''}>${n}</button>`).join('')
+      + `<input class="gv-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" autocomplete="off" placeholder="Other amount" aria-label="Other amount" data-in="${o.id}">`
+      + `<button type="button" class="pf-btn" data-send="${o.id}">Send</button></div>`).join('');
+  }
+  // A typed amount: whole credits; more than this side has sends all it has (`sendCredits`).
+  function giveTyped(to) {
+    const inp = giveEl.querySelector(`[data-in="${to}"]`), n = /^\d+$/.test(inp.value.trim()) ? +inp.value.trim() : 0;
+    if (!(n > 0)) { inp.classList.add('bad'); inp.focus(); return false; }
+    sendCredits(G.teams[G.me], +to, n);
+    return true;
   }
   ui.giveBtn.addEventListener('click', () => {
     if (!G || G.over) return;
@@ -930,8 +939,15 @@
       giveEl.addEventListener('click', (ev) => {
         const b = ev.target.closest('button');
         if (ev.target !== giveEl && !b) return;                 // a tap on the card itself
+        if (b && b.dataset.send && G && !G.over && !giveTyped(b.dataset.send)) return;   // nothing typed: stay open
         if (b && b.dataset.to && G && !G.over) sendCredits(G.teams[G.me], +b.dataset.to, +b.dataset.n);
         giveEl.hidden = true;
+      });
+      giveEl.addEventListener('input', (ev) => ev.target.classList.remove('bad'));
+      giveEl.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter' || !ev.target.dataset.in || !G || G.over) return;
+        ev.preventDefault();
+        if (giveTyped(ev.target.dataset.in)) giveEl.hidden = true;
       });
       document.body.append(giveEl);
     }

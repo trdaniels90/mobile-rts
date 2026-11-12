@@ -444,7 +444,7 @@ share globals. Read this file first; the commit history explains every change in
   to what the sender has; both sides hear a line (`say`). `toSide` is a side number, because netcore.js turns any team
   in a remote order into the sender's own. Totals in `stats.given` / `stats.received` (go out with match reports).
 - The GIVE button (`giveBtn`, the `#give` card in ui.js) shows in team games: each ally still in the fight and
-  `GIVE_AMOUNTS` (500, 1000, 2500). No tax or cooldown. The computer never gives or asks.
+  `GIVE_AMOUNTS` (500, 1000, 2500), plus a typed whole amount per ally (`giveTyped`). No tax or cooldown. The computer never gives or asks.
 - Online it is one more entry in `COMMANDS` (netcore.js), so the server must run the same version.
 
 ## Windows app (`desktop/`)
