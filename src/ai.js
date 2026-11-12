@@ -571,7 +571,12 @@ function aiGather(team, groups, spots, target, strike, n) {
 function aiApproachSpots(team, from, target, count) {
   const foe = G.teams[target.team] || enemyOf(team), cy = buildingsOf(foe.id).find((b) => b.type === 'cy') || target;
   const guns = enemyBuildingsOf(team.id).filter((b) => b.def.defense && !b.def.antiAir && targetable(team.id, b));
-  const direct = pathLen(findPath(from.x, from.y, target.x, target.y, 8), from);
+  // One search from where the wave waits gives the way's length to the target and to every candidate point.
+  const far = Math.hypot(from.x - target.x, from.y - target.y) / CELL;
+  const field = pathField(from.x, from.y, far * 2.6 + 40);
+  const way = (x, y, r) => { const c = nearestFreeCell(cellOfPos(x, y), r); return c < 0 ? Infinity : field[c] * CELL; };
+  let direct = way(target.x, target.y, 12);
+  if (direct === Infinity) direct = far * CELL;   // (out of reach on the ground: as the crow flies)
   if (!direct) return null;
   const hist = team.apHist || [], r = Math.random;
   const diff = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
@@ -584,10 +589,9 @@ function aiApproachSpots(team, from, target, count) {
     if (c < 0) continue;
     const spot = { x: (cellX(c) + 0.5) * CELL, y: (cellY(c) + 0.5) * CELL };
     if (guns.some((b) => Math.hypot(b.x - spot.x, b.y - spot.y) < CELL * 11)) continue;   // out of range of their guns
-    const path = findPath(from.x, from.y, spot.x, spot.y, 8);
-    const there = path && path[path.length - 1];
-    if (!there || Math.hypot(there.x - spot.x, there.y - spot.y) > CELL * 4) continue;   // cannot get there
-    const ratio = (pathLen(path, from) + Math.hypot(spot.x - target.x, spot.y - target.y)) / direct;
+    const len = field[c] * CELL;
+    if (len === Infinity) continue;   // cannot get there
+    const ratio = (len + Math.hypot(spot.x - target.x, spot.y - target.y)) / direct;
     if (ratio > 2.6) continue;
     const bearing = Math.atan2(spot.y - cy.y, spot.x - cy.x);
     let w = 1 / (1 + Math.max(0, ratio - 1) * 2.5);
@@ -607,12 +611,6 @@ function aiApproachSpots(team, from, target, count) {
   if (out.length < count) return null;
   team.apHist = hist.concat(out.map((o) => o.bearing)).slice(-4);
   return out.map((o) => o.spot);
-}
-function pathLen(path, from) {
-  if (!path || !path.length) return 0;
-  let n = 0, x = from.x, y = from.y;
-  for (const p of path) { n += Math.hypot(p.x - x, p.y - y); x = p.x; y = p.y; }
-  return n;
 }
 function aiPincer(team) {
   const p = team.pincer;

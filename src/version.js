@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.12.5', date: '12 November 2026', title: 'Fewer pauses in big battles', groups: [
+    ['Changes', [
+      'Big battles (3 v 3 most of all) no longer pause for a moment while the computer plans a flanking attack, and computer sides take turns doing their thinking instead of all at once.',
+      'Units are drawn ahead of time in the background, so a big fight coming into view no longer makes the game hitch.',
+      'Units work out their routes faster, so the game runs more smoothly overall, and online and co-op battles on the game server run more smoothly too.',
+    ]],
+  ] },
   { v: '2026.11.12.4', date: '12 November 2026', title: 'Smoother big battles, and a calmer opening', groups: [
     ['Changes', [
       'The computer waits 2 minutes longer before its first attack: 8 minutes on Easy and Normal, 6 on Hard.',
