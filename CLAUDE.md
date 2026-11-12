@@ -296,7 +296,7 @@ share globals. Read this file first; the commit history explains every change in
 - Snapshots also carry the debrief log as it grows (`s.log` in netcore.js `snapshot`, applied in net.js `applySnapshot`),
   so a phone that ends a battle on its own (it could not reconnect) still has its graphs.
 
-## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (after 2026.11.11.1, not released)
+## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (2026.11.11.2; bridges, weather 2026.11.12)
 
 - `MAPS.snowbound` in maps.js: traced from the owner's design `maps/designs/snowbound.png` (126 cells, a lavender-ground palette:
   `tools/map-from-image.py` detects it; its light grey roads become dirt tracks) at **168 x 168** cells, `teamSize: 3`,
@@ -318,7 +318,7 @@ share globals. Read this file first; the commit history explains every change in
   game length, not memory. A 240-cell test map started and scrolled like Snowbound.
 - `node tools/sim/teams.js <repo> 1 8 snowbound 3v3`: about 660 units by minute 4, 91 s of CPU for 8 game minutes here.
 
-## The ground in tiles, and the marks of battle (branch `claude/tiled-ground`, not released)
+## The ground in tiles, and the marks of battle (2026.11.12)
 
 - Before: the ground and the wrecks layer were each one WORLD x WORLD canvas (130 MB at 168 cells; iOS refuses canvases
   over 4096 px a side, so maps stopped at 170 cells), painted whole at battle start (21 s on Snowbound at 4x CPU throttle).

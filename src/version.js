@@ -4,6 +4,17 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.12', date: '12 November 2026', title: 'Rain and snow, concrete bridges, faster battle starts', groups: [
+    ['New', [
+      'Weather: some battles on Three Crossings are fought in the rain, and on Snowbound it sometimes snows. It comes and goes during the battle, from a drizzle to a downpour. It only changes the look: sight, movement and combat are the same, in single player and online.',
+      'Snowbound\'s three bridges are now concrete, with parapets and snow banked along the sides.',
+    ]],
+    ['Changes', [
+      'The ground is now painted a piece at a time as you look at it, instead of all at once. Battles start much faster (on Snowbound most of all) and the game uses far less memory, so phones should cope better with the big maps.',
+      'Every battle scar stays: scorch marks, craters, wrecks, blown-off turrets and fallen soldiers are kept and redrawn exactly, also after Save and Continue. Games saved before this update continue with their scars too.',
+      'Trees, bushes and rocks sit in slightly different spots on every map.',
+    ]],
+  ] },
   { v: '2026.11.11.2', date: '11 November 2026', title: 'Snowbound: the first 3 v 3 map', groups: [
     ['New', [
       'New map: Snowbound, a big winter map (168 × 168 cells) made for 3 v 3. The north fights the south across the snow: a long lake with three bridges and a line of creeks lie between them.',
