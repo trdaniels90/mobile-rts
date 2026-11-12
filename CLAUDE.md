@@ -41,10 +41,11 @@ share globals. Read this file first; the commit history explains every change in
 1. Add an entry at the top of `RELEASES` in `src/version.js`. Versions look like `2026.10.29`,
    then `.1`, `.2`... on the same day. `VERSION` is the first entry. The menu shows its title, and
    What's New carries a NEW badge until it is read.
-2. Check every script with `node --check`.
+2. Check every script with `node --check`, and that the baked sprites are current: `node tools/bake-sprites.js <repo> --check`
+   (if stale, rebake: `node tools/bake-sprites.js <repo>`, see "Baked sprites").
 3. Build the single file: `python3 scripts/build-single-file.py <out.html>`. Load it in headless
    Playwright and start a game to check it runs without errors.
-4. **Owner's build:** publish `<out.html>` to the artifact URL above with the Artifact tool
+4. **Owner's build:** publish `<out.html>` (and, when they changed, the files in `sprites/` as `sprites/<name>`) to the artifact URL above with the Artifact tool
    (artifact slug `d3b16e49-e1b0-4114-9609-965e7c8a302b`; `get_artifact` for the base version).
    `publish_files` only reads files inside the repo folder, so build to `.build/index.html`, publish,
    then `rm -rf .build` (it is not gitignored, and the Stop hook complains about untracked files).
@@ -388,6 +389,16 @@ share globals. Read this file first; the commit history explains every change in
   per tile. The `gp`/`gd`/`gm` figures of the next report will say which step is slow.
 - **ground-tiles.js save and continue** saves the battle paused: the page's own loop ran the battle on between loading
   and looking (a computer side placed a building, +1 mark) once sides took turns thinking.
+- **Baked sprites (after 2026.11.12.6, both modes):** `tools/bake-sprites.js` renders every unit (all facings, looks and soldier
+  poses), every structure and the wrecks' burnt hulls and turrets, in each palette (`allies0-2`, `soviets0-2`: faction and
+  team colour, and `burnt`), with the game's own code, into `sprites/<name>.webp` (lossless; solid pixels exact, see-through
+  edges within 4/255) and `sprites/manifest.json` (key, place in the sheet, offsets, shadow). About 4.8 MB in all.
+  `SpriteSheets` (models.js) loads the main colours and `burnt` at start and a battle's teammate colours from `newGround`,
+  cutting them into `spriteCache2` as ImageBitmaps (about 1 s in the background); anything not loaded or not baked is
+  rendered as before. Only over http(s) and `app:` (the Windows app): pages opened from a file (the tools/sim tests) keep
+  rendering, since a picture loaded from a file cannot be read back. **Rebake after changing models.js, voxel.js or the
+  FACTIONS colours** (`--check` compares a hash of those). The service worker caches the main sheets with the music
+  (`ART`), the Windows app copies `sprites/`, and the owner's artifact needs them published as files like the music.
 - **Anything new drawn onto the ground** must be a function in `MARK_FNS` (deterministic from its arguments, with a box in
   `markBox`), never a draw on a canvas kept in G. The game server records no marks (`HEADLESS`).
 - **Saves** keep `G.marks` (no pictures). An old save's two pictures are used as the ground (`legacy`, `G.legacyGround`,

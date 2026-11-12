@@ -1061,6 +1061,7 @@ function makeGround(painter, legacy) {
 // The two layers marks are drawn on (G.tctx, G.dctx), and a new battle's ground.
 const GROUND_LAYER = { layer: 't' }, DECAL_LAYER = { layer: 'd' };
 function newGround(g, legacy) {
+  SpriteSheets.need(['burnt'].concat(g.teams.map((t) => t.faction + (t.variant | 0))));   // this battle's colours, baked (models.js)
   g.marks = g.marks || [];
   g.tctx = GROUND_LAYER; g.dctx = DECAL_LAYER;
   g.ground = makeGround(groundPainter(g.terr, g.seed, g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[validMap(g.mapId)].bridge), legacy);
