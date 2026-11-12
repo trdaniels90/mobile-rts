@@ -152,6 +152,9 @@ const Report = (() => {
       // explains happened outside the game's own code (the browser collecting memory, or putting the frame on screen).
       m.wu = Math.max(m.wu || 0, upd); m.wd = Math.max(m.wd || 0, drw); m.wg = Math.max(m.wg || 0, gm); m.wo = Math.max(m.wo || 0, other || 0);
       m.gnd = (m.gnd || 0) + gm; m.tiles = (m.tiles || 0) + cur.tiles;
+      const pk = G.ground && G.ground.peak;   // the ground's worst single steps: a tile's pixels put in, its scenery, one mark
+      if (pk) { m.gp = Math.max(m.gp || 0, pk.put); m.gd = Math.max(m.gd || 0, pk.dec); if (pk.mark > (m.gm || 0)) { m.gm = pk.mark; m.gmk = pk.mk; } }
+      if (G.ground && G.ground.blocky) m.blk = (m.blk || 0) + 1;
       if (gap > 0.1 && p) {
         const mine = p.upd + p.drw + p.oth;
         if (gap * 1000 - mine > 50) m.lx = (m.lx || 0) + 1;   // long frames mostly outside the game's code
@@ -178,7 +181,8 @@ const Report = (() => {
     try { sc = { cores: navigator.hardwareConcurrency || null, w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1 }; } catch (_) {}
     return { ...sc, minutes: G.perf.min.filter(Boolean).map((m) => ({ m: m.m, fps: m.ft ? Math.round(m.f / m.ft) : null, slow: m.slow, long: m.long,
       worst: Math.round(m.worst), upd: +(m.upd / m.f).toFixed(1), drw: +(m.drw / m.f).toFixed(1), jumps: m.jumps, wait: m.wait, units: m.units,
-      wu: Math.round(m.wu || 0), wd: Math.round(m.wd || 0), wg: Math.round(m.wg || 0), wo: Math.round(m.wo || 0), gnd: +((m.gnd || 0) / m.f).toFixed(1), tiles: m.tiles || 0, lx: m.lx || 0, lf: m.lf || [] })) };
+      wu: Math.round(m.wu || 0), wd: Math.round(m.wd || 0), wg: Math.round(m.wg || 0), wo: Math.round(m.wo || 0), gnd: +((m.gnd || 0) / m.f).toFixed(1), tiles: m.tiles || 0, lx: m.lx || 0, lf: m.lf || [],
+      gp: Math.round(m.gp || 0), gd: Math.round(m.gd || 0), gm: Math.round(m.gm || 0), gmk: m.gmk || '', blk: m.blk || 0 })) };
   }
   function end(won) {
     try { return finish(won ? 'win' : 'loss', G.over ? G.over.t : G.t, stats()); } catch (_) { return Promise.resolve(null); }
