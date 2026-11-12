@@ -469,6 +469,15 @@ share globals. Read this file first; the commit history explains every change in
   distance, seen strength (army plus known guns) against its own, allies already on it (+0.5 each, so allies gang up) and
   stickiness. A 3 v 3 of Hard computers on Snowbound: each alliance on one foe, the first side out at 9.7 min, then all moved on.
 
+## Giving credits to an ally (branch `friend/credit-transfer`, not released yet, team games in both modes)
+
+- `sendCredits(team, toSide, amount)` in world.js: only to another side of the same alliance that is not `out`, cut down
+  to what the sender has; both sides hear a line (`say`). `toSide` is a side number, because netcore.js turns any team
+  in a remote order into the sender's own. Totals in `stats.given` / `stats.received` (go out with match reports).
+- The GIVE button (`giveBtn`, the `#give` card in ui.js) shows in team games: each ally still in the fight and
+  `GIVE_AMOUNTS` (500, 1000, 2500), plus a typed whole amount per ally (`giveTyped`). No tax or cooldown. The computer never gives or asks.
+- Online it is one more entry in `COMMANDS` (netcore.js), so the server must run the same version.
+
 ## Windows app (`desktop/`)
 
 - `main.js` serves the game from `app://game/` (not `file://`, so match reports work and `fetch` of the music works;
@@ -519,6 +528,7 @@ Supabase.
 | `team-beaten.js` | A beaten side in a team game: the defeat card, Keep watching and Debrief, in a 2 v 2 skirmish and online co-op |
 | `server-3v3.js` | Raw WebSocket players on the server: 3 v AI refused on a 2 v 2 map; with `ANY_BATTLE=1`, 3 v AI and 3 v 3 start with six sides. Needs `npm install` in `server/` |
 | `ground-tiles.js` | The ground in tiles: every kind of mark in a staged battle, live vs repainted tiles and tile sizes pixel for pixel, save and continue, an old save's scars. `<repo> [maps] [old checkout]` |
+| `give-credits.js` | Giving credits to an ally: the rule headless, the GIVE card in a 2 v 2 skirmish, online co-op through the server and forged orders |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP

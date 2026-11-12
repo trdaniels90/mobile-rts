@@ -16,7 +16,7 @@
   const ui = {
     sidebar: $('sidebar'), credits: $('credits'), powerBar: $('powerBar'), topstrip: $('topstrip'),
     stripL: $('stripL'), stripR: $('stripR'), strips: document.querySelector('.sb-strips'),
-    autoBtn: $('autoBtn'), allyBtn: $('allyBtn'), returnBtn: $('returnBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'),
+    autoBtn: $('autoBtn'), allyBtn: $('allyBtn'), giveBtn: $('giveBtn'), returnBtn: $('returnBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'),
     eva: $('eva'), selbar: $('selbar'), selName: $('selName'), selHp: $('selHp'), selBtns: $('selBtns'),
     placebar: $('placebar'), placeText: $('placeText'), placeOk: $('placeOk'), placeCancel: $('placeCancel'),
     menu: $('menu'), menuTitle: $('menuTitle'), menuSub: $('menuSub'),
@@ -185,7 +185,8 @@
     // once an enemy building has been uncovered.
     if (!resumed) G.teams[G.me].auto = false;
     ui.autoBtn.setAttribute('aria-pressed', String(!!G.teams[G.me].auto));
-    ui.allyBtn.hidden = ui.returnBtn.hidden = !teamGame();
+    ui.allyBtn.hidden = ui.returnBtn.hidden = ui.giveBtn.hidden = !teamGame();
+    if (giveEl) giveEl.hidden = true;
     layout();
     if (resumed) return;
     const cy = G.entities.find((e) => e.team === G.me && e.type === 'cy');
@@ -909,6 +910,50 @@
     ui.autoBtn.setAttribute('aria-pressed', String(!!team.auto));
     eva(team.assist ? 'Defending our ally' : 'Ally support off. Units stay and defend');
   });
+  // GIVE: a card with each ally still in the fight and the amounts to send (`sendCredits`). The
+  // battle keeps running behind it; amounts this side cannot afford are greyed out.
+  let giveEl = null;
+  const giveAllies = () => { const me = G.teams[G.me]; return G.teams.filter((o) => o !== me && o.ally === me.ally && !o.out); };
+  function giveFill() {
+    const me = G.teams[G.me], have = Math.floor(me.credits);
+    const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    giveEl.querySelector('.gv-list').innerHTML = giveAllies().map((o) => `<p class="gv-name"><i style="background:${sideColour(o)}"></i>${esc(sideLabel(o))}</p><div class="gv-row">`
+      + GIVE_AMOUNTS.map((n) => `<button type="button" class="pf-btn" data-to="${o.id}" data-n="${n}"${have < n ? ' disabled' : ''}>${n}</button>`).join('')
+      + `<input class="gv-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" autocomplete="off" placeholder="Other amount" aria-label="Other amount" data-in="${o.id}">`
+      + `<button type="button" class="pf-btn" data-send="${o.id}">Send</button></div>`).join('');
+  }
+  // A typed amount: whole credits; more than this side has sends all it has (`sendCredits`).
+  function giveTyped(to) {
+    const inp = giveEl.querySelector(`[data-in="${to}"]`), n = /^\d+$/.test(inp.value.trim()) ? +inp.value.trim() : 0;
+    if (!(n > 0)) { inp.classList.add('bad'); inp.focus(); return false; }
+    sendCredits(G.teams[G.me], +to, n);
+    return true;
+  }
+  ui.giveBtn.addEventListener('click', () => {
+    if (!G || G.over) return;
+    if (G.teams[G.me].out || !giveAllies().length) { evaCalm('No ally to give to', 4); return; }
+    if (!giveEl) {
+      giveEl = document.createElement('div'); giveEl.id = 'give'; giveEl.className = 'nw-wrap';
+      giveEl.innerHTML = '<div class="nw-card" role="dialog" aria-label="Give credits"><p class="nw-title">Give credits</p><div class="gv-list"></div>'
+        + '<button type="button" class="pf-btn" data-b="close">Close</button></div>';
+      giveEl.addEventListener('click', (ev) => {
+        const b = ev.target.closest('button');
+        if (ev.target !== giveEl && !b) return;                 // a tap on the card itself
+        if (b && b.dataset.send && G && !G.over && !giveTyped(b.dataset.send)) return;   // nothing typed: stay open
+        if (b && b.dataset.to && G && !G.over) sendCredits(G.teams[G.me], +b.dataset.to, +b.dataset.n);
+        giveEl.hidden = true;
+      });
+      giveEl.addEventListener('input', (ev) => ev.target.classList.remove('bad'));
+      giveEl.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter' || !ev.target.dataset.in || !G || G.over) return;
+        ev.preventDefault();
+        if (giveTyped(ev.target.dataset.in)) giveEl.hidden = true;
+      });
+      document.body.append(giveEl);
+    }
+    giveFill();
+    giveEl.hidden = false;
+  });
   ui.returnBtn.addEventListener('click', () => {
     if (!G) return;
     const team = G.teams[G.me];
@@ -932,6 +977,7 @@
     lastCredits = shown;
     const autoLabel = team.auto ? `AUTO ${Math.min(team.waiting || 0, GROUP_SIZE)}/${GROUP_SIZE}` : 'AUTO OFF';
     if (ui.autoLabel.textContent !== autoLabel) ui.autoLabel.textContent = autoLabel;
+    if (giveEl && !giveEl.hidden && (G.over || team.out)) giveEl.hidden = true;
     if (ui.allyBtn.getAttribute('aria-pressed') !== String(!!team.assist)) ui.allyBtn.setAttribute('aria-pressed', String(!!team.assist));
     if (ui.autoBtn.getAttribute('aria-pressed') !== String(!!team.auto)) ui.autoBtn.setAttribute('aria-pressed', String(!!team.auto));
     // The picked enemy's colour along the button's edge.

@@ -1078,6 +1078,25 @@ function setAssist(team, on) {
   team.auto = false;
   sendToAlly(team, idleGround(team).filter((u) => !u.garrison));
 }
+// Giving credits to an ally (team games, the GIVE button). Only to another side of the same alliance
+// that is still in the fight; the amount is cut down to what the sender has. `toSide` is a side
+// number, not a team (netcore.js turns a team in a remote order into the sender's own). Returns the
+// amount that moved. The computer never gives or asks.
+const GIVE_AMOUNTS = [500, 1000, 2500];
+const allyLabel = (team) => team.name || (team.isAI ? 'your computer ally' : 'your ally');
+function sendCredits(team, toSide, amount) {
+  const to = Number.isInteger(toSide) ? G.teams[toSide] : null;
+  amount = Math.floor(+amount);
+  if (!team || !team.stats || !to || to === team || to.ally !== team.ally || team.out || to.out || !(amount > 0)) return 0;
+  amount = Math.min(amount, Math.floor(team.credits));
+  if (!(amount > 0)) return 0;
+  team.credits -= amount; to.credits += amount;
+  team.stats.given = (team.stats.given || 0) + amount;
+  to.stats.received = (to.stats.received || 0) + amount;
+  say(team.id, `Sent ${amount} credits to ${allyLabel(to)}`);
+  say(to.id, `Received ${amount} credits from ${allyLabel(team)}`);
+  return amount;
+}
 // The Return button: everything sent to an ally, every ground unit out attacking (hunt or attack
 // orders) and every aircraft out attacking goes home and waits there again. Auto attack and Ally support are turned off so they stay.
 function recallAlly(team, garrisonOnly) {
