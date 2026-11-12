@@ -69,7 +69,7 @@ share globals. Read this file first; the commit history explains every change in
 |---|---|
 | `src/data.js` | Unit and building stats, `WARHEADS`, `POWERS`, `DIFFICULTY` (AI behaviour per difficulty), `CATEGORIES` (build queues: structure, infantry, vehicle, heli, jet) |
 | `src/world.js` | The simulation: `G` (game state), `update(dt)`, production, combat, aircraft (`updateAir`), fog, powers, win check |
-| `src/ai.js` | The computer opponent: build order, army mix, attack waves, raids, scouting |
+| `src/ai.js` | The computer opponent: build order, army mix, attack waves (planner), scouting |
 | `src/ui.js` | Input (touch and mouse), camera, sidebar, menus |
 | `src/maps.js` | The `MAPS` list, `mapCardsHtml` and the skirmish map screen (`MapSelect`). `newWorld(..., mapId)` stores `G.mapId`; the online host picks the map in the lobby and sends it with `start`. A new map needs an entry here and a layout in `genMap` |
 | `src/art.js`, `src/models.js`, `src/voxel.js` | Drawing |
@@ -358,6 +358,32 @@ share globals. Read this file first; the commit history explains every change in
   offers the co-op leaderboard (`online.coop === 'board'`); a 3-player board needs `get_leaderboard` to split by size.
 - Not done yet: the leaderboard split, and phones with six players for real (server load and the
   lobby on a small screen).
+
+## Computer attacks, direct orders, team economy (2026.11.12.1, both modes)
+
+- **Planner** (`planner: true` in `DIFFICULTY` Normal and Hard; Easy keeps fixed waves): after the base is found and
+  `firstWave` has passed, each attack comes after `aiGap()` (`ai.gap`: mostly `short`, a `long` lull with `chance`, never over
+  600 s), or at once when the units waiting reach `ARMY_FULL` (60%) of the army cap (at least `AI_GAP_MIN` after the last). A
+  wave takes three quarters of what waits; from 12 units it splits into 2 squads, from 20 into 3 half the time.
+- **Flanking** (`aiApproachSpots`, `aiGather`, `aiPincer`): each squad gathers 13-17 cells off the target on a side that is
+  reachable, out of range of known guns, rarely straight ahead and not one of the last 4 used (`team.apHist`, bearings round the
+  target's side's Construction Yard), then all close in together. `ai.approach` is the share that flank first (1 on both).
+- **aiSquads:** a squad that started with 8+ units and is down to 35% of its worth against twice its strength pulls back; squads
+  near home answer a defence `defendBase` reports as short (`team.defShort`). `defendBase` no longer recalls planner waves itself.
+- **Raids were removed** on every difficulty (they almost never destroyed their target). `aiWaveTarget` attacks another found
+  enemy when its chosen one (`enemyOf`) has not been found (team games).
+- **Starved economy** (`aiStarved`: under `STARVED` 2,500 ore within 14 cells of its refineries and Outposts): the computer buys a
+  Mobile Outpost with 250 credits (a third if need be) at the front of the queue and holds army production until it is out.
+- **Aircraft avoid known anti-air** (`knownAA`, `aaCover`, `airPick` in world.js): hunting aircraft pick a building no detected AA
+  covers (finished SAM/AA Gun on explored ground, AA units there; Rangers only count against helicopters), else the least
+  covered; with an open target they also skip covered targets on the way (`airTarget`).
+- **Direct orders** (`takeOver`, `u.manual`, `u.manualFrom`): move, guard, attack and the Attack button keep a player's unit out of
+  Auto Attack, base defence, scrambles and the Ally button until Stop (`commandStop`). After an attack order, `releaseIdle` sends
+  it home to rejoin once it has stood idle `MANUAL_IDLE` (180 s). Never set for the computer.
+- **Team-game ore** (`growOre`): `ORE_REGROW_PER_SIDE` cells per field per tick for each side, and cells under a third full grow
+  twice as fast. Maps can add ore fields in code: `ore: [[x, y, r]]` in `MAPS` (Snowbound has one by the north-west start).
+- Sims: `ai-timing.js` (wave times, how waves went in), `teams.js` (prints `how`), `ore-econ.js` (ore and income every 5 min),
+  `aa-avoid.js`, `manual-override.js`, `ai-starved.js`. 2 v 2 of Hard computers: no winner in 35 min, as with the old AI.
 
 ## Windows app (`desktop/`)
 

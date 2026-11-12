@@ -4,6 +4,21 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.12.1', date: '12 November 2026', title: 'Smarter enemy attacks, and orders that stick', groups: [
+    ['New', [
+      'Normal and Hard: the computer attacks at random times instead of on a steady rhythm, and attacks at once when its army at home grows big. Hard attacks more often than Normal.',
+      'Normal and Hard: attack waves flank. A wave gathers just out of range of your guns on a side it has not used lately, then charges in; big waves split into two or three groups that hit from different sides at once.',
+      'Normal and Hard: a big attack that is clearly losing pulls back instead of dying to the last unit, and the computer brings attackers home only when its own base needs them.',
+      'Units you give an order (move, guard, attack) stay out of Auto Attack and base defence until you press Stop. Units you sent to attack rejoin by themselves after 3 minutes standing idle once their target is gone.',
+      'Aircraft on Auto Attack steer round anti-air you have found (SAM Sites, AA Guns, and anti-air soldiers and vehicles on ground you have uncovered) and go for a building it does not cover. Anti-air you have not found can still catch them.',
+    ]],
+    ['Changes', [
+      'Team battles (2 v 2, 3 v 3, co-op): ore grows back faster, more so the more sides there are, and a stripped field recovers in a couple of minutes, so the economy no longer dries up for everyone mid-game.',
+      'Snowbound: a new ore field near the north-west start position, which had none of its own.',
+      'The computer no longer sends small raids at Ore Trucks and outlying sites. When the ore near its refineries runs out, it buys a Mobile Outpost before more tanks.',
+      'In team battles, a computer that has not found its chosen enemy yet attacks another enemy it has found instead of waiting.',
+    ]],
+  ] },
   { v: '2026.11.12', date: '12 November 2026', title: 'Rain and snow, concrete bridges, faster battle starts', groups: [
     ['New', [
       'Weather: some battles on Three Crossings are fought in the rain, and on Snowbound it sometimes snows. It comes and goes during the battle, from a drizzle to a downpour. It only changes the look: sight, movement and combat are the same, in single player and online.',

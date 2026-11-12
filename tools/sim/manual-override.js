@@ -8,6 +8,7 @@ run(`newWorld('allies', 'normal', 5); G.me = 0; for (const t of G.teams) { t.isA
 const r = run(`(() => {
   const step = (s) => { for (let i = 0; i < s * 30; i++) update(1 / 30); };
   const me = G.teams[0], cy = buildingsOf(0).find((b) => b.type === 'cy'), res = {};
+  for (const b of buildingsOf(1)) { b.hp = b.maxHp = 1e9; }   // the battle must not end (Auto Attack goes for the enemy base)
   const mk = (n, dx) => Array.from({ length: n }, (_, i) => { const u = addUnit('rifle', me, cy.x + dx + i * 14, cy.y + 70); setGuard(u, u.x, u.y); u.staged = true; return u; });
   const A = mk(4, -150), C = mk(4, 40);
   commandMove(A, cy.x - 120, cy.y + 80);
@@ -35,7 +36,7 @@ const r = run(`(() => {
   for (let i = 0; i < 40 && target.alive; i++) step(1);
   res.targetDied = !target.alive; res.attackStillManual = D.manual === true;
   step(150); res.beforeIdleLimit = D.manual === true;
-  step(60); res.attackReleased = D.manual === false && D.staged === true; res.movedStays = M.manual === true;
+  step(60); res.attackReleased = D.manual === false && D.staged === true; res.Dstate = [D.alive, D.order.type, !!D.order.hold, D.manualFrom, D.idleSince && Math.round(G.t - D.idleSince), D.manual, G.over && JSON.stringify({ w: G.over.winner, how: G.over.how, t: Math.round(G.over.t || 0) })]; res.movedStays = M.manual === true;
   // the computer's own orders never set it
   G.teams[1].isAI = true; const e = addUnit('rifle', G.teams[1], 100, 100); commandMove([e], 200, 200); res.aiManual = !!e.manual;
   return res;
