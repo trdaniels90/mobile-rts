@@ -124,9 +124,38 @@ const Report = (() => {
     // Online: the battle's id, the same on every phone in it, so the co-op board shows a team's win once.
     try { const b = typeof Net !== 'undefined' && Net.lobby && Net.role && Net.lobby.match; if (b) out.battle = String(b).slice(0, 64); } catch (_) {}
     try { const n = typeof Net !== 'undefined' && Net.netStats(); if (n) out.net = n; } catch (_) {}
+    try { const f = frameStats(); if (f) out.frames = f; } catch (_) {}
     while (JSON.stringify(out).length > 90000 && out.log.samples.length > 40) out.log.samples = out.log.samples.filter((_, i) => i % 2 === 0);   // a very long game: a coarser graph
     if (JSON.stringify(out).length > 90000) delete out.log.samples;
     return out;
+  }
+  // How smoothly the battle ran on this device, per minute of battle: frames per second, frames over 50 and 100 ms
+  // (stutters), the worst frame, the average time a frame spent in the simulation and in drawing, camera jumps
+  // (more than half a screen in one frame, as from a minimap tap), frames with ground still painting on screen
+  // (art.js makeGround, the stand-in colours), and units alive. Kept in G.perf, so a saved game keeps its minutes.
+  let frameAt = 0;
+  function noteFrame(now, upd, drw, camJump) {
+    try {
+      const gap = (now - frameAt) / 1000;
+      frameAt = now;
+      if (!G || G.over || G.paused || G.hold || gap > 1 || document.hidden) return;   // a gap over a second is a pause
+      const P = G.perf || (G.perf = { min: [] }), i = Math.min(180, Math.floor(G.t / 60));
+      const m = P.min[i] || (P.min[i] = { m: i, f: 0, ft: 0, slow: 0, long: 0, worst: 0, upd: 0, drw: 0, jumps: 0, wait: 0, units: 0 });
+      m.f++; m.ft += gap; m.upd += upd; m.drw += drw;
+      if (gap > 0.05) m.slow++;
+      if (gap > 0.1) m.long++;
+      m.worst = Math.max(m.worst, gap * 1000);
+      if (camJump) m.jumps++;
+      if (G.ground && G.ground.missing) m.wait++;
+      if (!m.units) m.units = G.entities.filter((e) => e.alive && e.kind === 'unit').length;
+    } catch (_) {}
+  }
+  function frameStats() {
+    if (!G || !G.perf) return null;
+    let sc = {};
+    try { sc = { cores: navigator.hardwareConcurrency || null, w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1 }; } catch (_) {}
+    return { ...sc, minutes: G.perf.min.filter(Boolean).map((m) => ({ m: m.m, fps: m.ft ? Math.round(m.f / m.ft) : null, slow: m.slow, long: m.long,
+      worst: Math.round(m.worst), upd: +(m.upd / m.f).toFixed(1), drw: +(m.drw / m.f).toFixed(1), jumps: m.jumps, wait: m.wait, units: m.units })) };
   }
   function end(won) {
     try { return finish(won ? 'win' : 'loss', G.over ? G.over.t : G.t, stats()); } catch (_) { return Promise.resolve(null); }
@@ -188,7 +217,7 @@ const Report = (() => {
   function claim() { return local ? Promise.resolve(null) : post('rpc/claim_device', { p_device: device }, true); }
   // The name for the leaderboard: the commander name of a signed-in player, else the last one typed here.
   const name = () => (typeof Account !== 'undefined' && Account.name) || store('ps-name') || '';
-  return { start, resume, end, quit, oops, get errors() { return errs; }, submitName, board, claim, score, teamStats, get name() { return name(); }, get matchId() { return match && match.id; } };
+  return { start, resume, end, quit, oops, noteFrame, get errors() { return errs; }, submitName, board, claim, score, teamStats, get name() { return name(); }, get matchId() { return match && match.id; } };
 })();
 
 // The leaderboard page, on the same paper as What's New, and the name box in the debrief.

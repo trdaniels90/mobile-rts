@@ -229,6 +229,12 @@ share globals. Read this file first; the commit history explains every change in
   (average, worst, share over 250 and 500 ms) and per minute of battle (ping, worst, this phone's real
   frames per second, frames over 100 ms, units alive) in `stats.net`. High ping with low host fps in big
   fights means the host phone is overloaded; high ping at any battle size means the route between phones.
+- **Frame rate in every battle** (after 2026.11.12.1, skirmish and online): `Report.noteFrame` (called from ui.js `frame`)
+  keeps per-minute figures in `G.perf` (saved with the game), sent as `stats.frames`: `cores`, `w`, `h`, `dpr`, and per
+  minute `fps`, `slow` (frames over 50 ms), `long` (over 100 ms), `worst` (ms), `upd` / `drw` (average ms a frame spends in
+  the simulation and in `draw`), `jumps` (camera moved over half a screen in one frame, e.g. a minimap tap), `wait` (frames
+  with ground tiles still painting on screen) and `units`. Query:
+  `select m->>'m' min, m->>'fps' fps, m->>'long' long, m->>'worst' worst, m->>'upd' upd, m->>'drw' drw, m->>'jumps' jumps, m->>'wait' wait, m->>'units' units from matches, jsonb_array_elements(stats->'frames'->'minutes') m where id::text like '<id>%'`.
 - **Joining** (net.js `listen`, `knock`, `dropAttempt`, `retryable`; 2026.11.04.2):
   a connection attempt that fails before the lobby connects no longer kills the host's room. The host drops
   it and keeps listening, and a new hello replaces a stale attempt (before, the retry got "already has two

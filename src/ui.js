@@ -1128,7 +1128,8 @@
   // ---------------------------------------------------------------------------
   // Main loop
   // ---------------------------------------------------------------------------
-  let last = performance.now();
+  let last = performance.now(), updMs = 0;
+  const camWas = { x: 0, y: 0 };
   function frame(now) {
     let dt = Math.min(0.05, (now - last) / 1000);
     last = now;
@@ -1143,12 +1144,20 @@
       const total = dt;
       // Each part of a frame is guarded: an error is recorded with the match (Report.oops) and the
       // game carries on, instead of the loop stopping and the battle freezing on both phones.
+      const u0 = performance.now();
       if (Net.role === 'guest') guard('guest', () => Net.guestStep(dt));
       else guard('update', () => { while (dt > 0) { const step = Math.min(dt, 1 / 30); dt -= step; update(step); } });
       guard('net', () => Net.hostTick(total));
+      updMs = performance.now() - u0;
     }
     guard('beaten', beaten);
+    const d0 = performance.now();
     guard('draw', draw);
+    if (G && !G.paused) {   // how smoothly this device runs the battle (Report: stats.frames)
+      const jump = Math.abs(cam.x - camWas.x) > W / cam.z / 2 || Math.abs(cam.y - camWas.y) > H / cam.z / 2;
+      Report.noteFrame(now, updMs, performance.now() - d0, jump);
+    }
+    camWas.x = cam.x; camWas.y = cam.y; updMs = 0;
     guard('sidebar', () => updateSidebar(1 / 60));
     guard('radar', () => drawRadar(1 / 60));
   }
