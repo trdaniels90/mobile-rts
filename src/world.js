@@ -1098,7 +1098,7 @@ function launchGroups() {
     // one only after waiting AIR_GROUP_WAIT seconds for company.
     if (team.auto && enemyBaseKnown(team.id)) {
       const flyers = waiting.filter((u) => u.cls === 'air' && !u.interceptor), ok = (u) => u.as !== 'landed' || airFull(u);
-      if (!team.isAI) for (const u of flyers) { if (ok(u)) launchAircraft(u); }
+      if (!team.isAI) for (const u of flyers) { if (ok(u)) { launchAircraft(u); if (oneWave(u)) u.oneStrike = true; } }
       else for (const kind of ['heli', 'jet']) {
         const mine = flyers.filter((u) => u.def.fly === kind), ready = mine.filter(ok);
         for (const u of mine) if (!ok(u)) u.airReadyT = undefined;
@@ -1158,6 +1158,9 @@ function scramble(team) {
   }
 }
 
+// The player's jets fly one wave per Auto Attack: out once, home, and they wait on the pad until
+// Auto Attack is switched on (or a target side picked) again. Helicopters and the computer's jets keep going out.
+const oneWave = (u) => u.def.fly === 'jet' && !G.teams[u.team].isAI;
 const AIR_GROUP_WAIT = 150;   // seconds a lone computer aircraft waits for others before going out alone
 // `focus`: where a group of aircraft all go (null: the main base); left out, one in three picks an outlying site.
 function launchAircraft(u, focus) {
@@ -2757,7 +2760,7 @@ function updateAir(u, dt) {
   if (u.order.type === 'attack' && !u.order.target.alive) setGuard(u);   // its target is gone: hold here
   // A jet out of air-to-air missiles cannot fight an aircraft: it gives up the chase and flies home.
   if (jet && u.order.type === 'attack' && isAirborne(u.order.target) && !(u.aam > 0) && padFor(u)) {
-    setGuard(u); u.order.pad = true; u.staged = u.scrambled ? !!u.wasStaged : G.teams[u.team].auto; u.scrambled = false;
+    setGuard(u); u.order.pad = true; u.staged = u.scrambled ? !!u.wasStaged : G.teams[u.team].auto && !oneWave(u); u.scrambled = false;
   }
 
   if (u.as === 'landed') {
@@ -3234,9 +3237,9 @@ function spawnUnit(team, type) {
     const spot = padSpot(p, u);
     u.x = spot.x; u.y = spot.y; u.face = p.type === 'airfield' ? 0 : (team.id === PLAYER ? -0.8 : 2.35);
     u.as = 'landed'; u.alt = 0;
-    setGuard(u); u.order.pad = true; u.staged = true;
+    setGuard(u); u.order.pad = true; u.staged = !oneWave(u);
     if (team.isAI && aiKeepInterceptor(team, u)) return u;
-    if (team.auto) launchAircraft(u);
+    if (team.auto && !oneWave(u)) launchAircraft(u);
     return u;
   } else {
     let c = p.exitCell;
