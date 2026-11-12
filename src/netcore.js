@@ -53,7 +53,7 @@ const NetCore = (() => {
     return OBJ + JSON.stringify(v, rep);
   }
   // What a remote sidebar and debrief use of each side.
-  const TEAM = ['id', 'faction', 'isAI', 'ally', 'credits', 'power', 'low', 'auto', 'assist', 'waiting', 'queues', 'stats', 'powers', 'name', 'out'];
+  const TEAM = ['id', 'faction', 'isAI', 'ally', 'credits', 'power', 'low', 'auto', 'focusSide', 'assist', 'waiting', 'queues', 'stats', 'powers', 'name', 'out'];
   const teamJSON = (t) => JSON.stringify(Object.fromEntries(TEAM.map((k) => [k, k === 'credits' ? Math.round(t[k]) : t[k]])), rep);
 
   // A remote player: side is the side they command. full: the next snapshot carries everything and

@@ -359,6 +359,18 @@ share globals. Read this file first; the commit history explains every change in
 - Not done yet: the leaderboard split, and phones with six players for real (server load and the
   lobby on a small screen).
 
+## Auto Attack target picker (after 2026.11.12, both modes, not released yet)
+
+- In a battle with more than one enemy side, AUTO opens a picker (`autoPicker` in ui.js): each enemy side by name, faction
+  and colour name, disabled until its base is scouted (`enemyBaseKnown(tid, side)`) or once beaten; plus Nearest enemy, Auto
+  attack off and Cancel. A 1 v 1 keeps the plain toggle. The picked side's colour shows as a stripe on the button (`.aimed`).
+- `setAuto(team, on, side)` sets `team.focusSide` (synced in netcore `TEAM`; the guest's order passes the number). `chosenFoe(team)`
+  is that side while it is in the fight and known; `enemyOf` returns it first, and `nearestEnemyBuilding` keeps hunters to its
+  buildings (others are still fought on the way). Units already hunting another side drop their raid focus.
+- Computer (`aiPickFoe` in ai.js, every 30 s): Easy nearest (`focusSide = null`); Normal and Hard score each scouted foe by
+  distance, seen strength (army plus known guns) against its own, allies already on it (+0.5 each, so allies gang up) and
+  stickiness. A 3 v 3 of Hard computers on Snowbound: each alliance on one foe, the first side out at 9.7 min, then all moved on.
+
 ## Windows app (`desktop/`)
 
 - `main.js` serves the game from `app://game/` (not `file://`, so match reports work and `fetch` of the music works;
