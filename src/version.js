@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.12.7', date: '12 November 2026', title: 'Ready-made unit pictures, and a short deploy screen', groups: [
+    ['Changes', [
+      'Units, buildings and wrecks now come as ready-made pictures loaded with the game, instead of being drawn from their 3D models in the middle of a battle. Big battles should hitch much less, on phones most of all. (About 1.5 MB more to download once, and more for team colours in team battles.)',
+      'A battle now starts behind a short "Deploying forces" screen (a few seconds at most) while its pictures and the ground around you get ready, so the first seconds no longer stutter. A skirmish waits for it; an online battle carries on.',
+    ]],
+  ] },
   { v: '2026.11.12.6', date: '12 November 2026', title: 'Smoother ground when you jump around the map', groups: [
     ['Changes', [
       'Ground that is still loading now shows as a slightly blurred picture of the real ground instead of flat coloured blocks, so jumping or zooming around the map looks much smoother.',

@@ -393,12 +393,16 @@ share globals. Read this file first; the commit history explains every change in
   poses), every structure and the wrecks' burnt hulls and turrets, in each palette (`allies0-2`, `soviets0-2`: faction and
   team colour, and `burnt`), with the game's own code, into `sprites/<name>.webp` (lossless; solid pixels exact, see-through
   edges within 4/255) and `sprites/manifest.json` (key, place in the sheet, offsets, shadow). About 4.8 MB in all.
-  `SpriteSheets` (models.js) loads the main colours and `burnt` at start and a battle's teammate colours from `newGround`,
+  `SpriteSheets` (art.js, so its changes need no rebake) loads the main colours and `burnt` at start and a battle's teammate colours from `newGround`,
   cutting them into `spriteCache2` as ImageBitmaps (about 1 s in the background); anything not loaded or not baked is
   rendered as before. Only over http(s) and `app:` (the Windows app): pages opened from a file (the tools/sim tests) keep
   rendering, since a picture loaded from a file cannot be read back. **Rebake after changing models.js, voxel.js or the
   FACTIONS colours** (`--check` compares a hash of those). The service worker caches the main sheets with the music
   (`ART`), the Windows app copies `sprites/`, and the owner's artifact needs them published as files like the music.
+- **Deploying card (2026.11.12.7, both modes):** `loading` in ui.js holds a new, continued or online battle behind a
+  "Deploying forces" card until `SpriteSheets.ready()` and `G.ground.missing === 0` (at least `LOAD_MIN`, at most
+  `LOAD_MAX` 3 s; shown only after 120 ms). A skirmish does not run meanwhile; an online battle does (`Net.role`). Those
+  frames are left out of the match report.
 - **Anything new drawn onto the ground** must be a function in `MARK_FNS` (deterministic from its arguments, with a box in
   `markBox`), never a draw on a canvas kept in G. The game server records no marks (`HEADLESS`).
 - **Saves** keep `G.marks` (no pictures). An old save's two pictures are used as the ground (`legacy`, `G.legacyGround`,

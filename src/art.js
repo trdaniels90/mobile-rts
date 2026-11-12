@@ -141,6 +141,51 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme) {
   }
   return { pixels };
 }
+// Baked sprites (tools/bake-sprites.js; here, not in models.js, whose text the bake's --check hashes): sheets of finished pictures in sprites/, loaded in the background and cut
+// into the sprite cache, so the game does not render voxel models while you play. need(['allies0', ...]) loads those
+// sheets (faction and team colour 0-2, or 'burnt'); a sprite not loaded yet, or not baked, is rendered as before. Only
+// over http(s) and in the Windows app (a page opened from a file cannot read pictures back, which tests rely on).
+const SpriteSheets = (() => {
+  let man = null, manP = null;
+  const loaded = new Set();
+  const ok = () => typeof location !== 'undefined' && /^(https?|app):$/.test(location.protocol) && typeof createImageBitmap === 'function' && typeof fetch === 'function'
+    && !(typeof HEADLESS !== 'undefined' && HEADLESS);
+  const manifest = () => manP || (manP = fetch('sprites/manifest.json').then((r) => (r.ok ? r.json() : null)).then((m) => (man = m)).catch(() => null));
+  async function load(name) {
+    const m = await manifest();
+    const sh = m && m.sheets.find((x) => x.file.split('.')[0] === name);
+    if (!sh) return;
+    const r = await fetch('sprites/' + sh.file);
+    if (!r.ok) return;
+    const bmp = await createImageBitmap(await r.blob());
+    const cut = (x, y, w, h) => createImageBitmap(bmp, x, y, w, h);
+    for (let i = 0; i < sh.sprites.length; i += 64) {   // a few at a time, so loading never holds up a frame
+      await Promise.all(sh.sprites.slice(i, i + 64).map(async (e) => {
+        if (spriteCache2.has(e[0])) return;
+        const s = { img: await cut(e[1], e[2], e[3], e[4]), ox: e[5], oy: e[6] };
+        if (e.length > 7) { s.sh = await cut(e[7], e[8], e[9], e[10]); s.sox = e[11]; s.soy = e[12]; }
+        if (spriteCache2.has(e[0])) return;
+        spriteCache2.set(e[0], s);
+        const mk = e[0].slice(0, e[0].lastIndexOf('|'));
+        if (!spriteAny.has(mk)) spriteAny.set(mk, s);
+      }));
+    }
+    if (bmp.close) bmp.close();
+  }
+  let chain = Promise.resolve(), pending = 0;
+  function need(names) {
+    if (!ok()) return;
+    for (const n of names) {
+      if (loaded.has(n)) continue;
+      loaded.add(n); pending++;
+      chain = chain.then(() => load(n)).catch(() => {}).then(() => { pending--; });
+    }
+  }
+  // ready(): every sheet asked for so far is in (ui.js holds a battle's start on it, briefly).
+  return { need, ready: () => pending === 0, loaded: () => [...loaded], get manifest() { return man; } };
+})();
+SpriteSheets.need(['allies0', 'soviets0', 'burnt']);   // the main colours, in the background from the start
+
 // The ground painter for one map: paint(g, x0, y0, w, h, ox, oy) paints that part of the ground (world pixels) into
 // g at (ox, oy): the pixels (groundPixels), then bridges and scenery on top (decorate). Every pixel depends only on
 // where it is, so parts painted one by one fit together exactly (the ground tiles, makeGround). The scenery and

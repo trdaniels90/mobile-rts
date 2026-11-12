@@ -591,6 +591,8 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 .pick.maps .map-img { grid-row: 1 / span 2; width: min(34vh, 180px); height: auto; aspect-ratio: 1; image-rendering: pixelated; border: 1px solid #000; }
 #beaten { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,0.55); }
 #beaten[hidden] { display: none; }
+#deploying { position: fixed; inset: 0; z-index: 31; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,0.85); }
+#deploying[hidden] { display: none; }
 /* The Auto Attack picker (team games) and the picked enemy's colour on the AUTO button. */
 #autoPick { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,0.55); }
 #autoPick[hidden] { display: none; }

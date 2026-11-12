@@ -1135,12 +1135,36 @@
   // ---------------------------------------------------------------------------
   let last = performance.now(), updMs = 0;
   const camWas = { x: 0, y: 0 };
+  // Deploying: a battle (new, continued or online) starts behind a short card while this battle's sprite sheets load
+  // (art.js SpriteSheets) and the ground on screen is painted (art.js makeGround), so its first seconds do not
+  // stutter. A skirmish is held meanwhile; an online battle runs on (others are in it). Never longer than LOAD_MAX ms.
+  const LOAD_MAX = 3000, LOAD_MIN = 250;
+  let loadFor = null, loadEl = null;
+  function loading(now) {
+    if (!G || G.paused || G.over) return false;
+    if (!loadFor || loadFor.g !== G) loadFor = { g: G, since: now, done: false };
+    if (loadFor.done) return false;
+    const t = now - loadFor.since, ready = SpriteSheets.ready() && G.ground && G.ground.missing === 0 && t > LOAD_MIN;
+    if (ready || t > LOAD_MAX) { loadFor.done = true; showLoading(false); return false; }
+    if (t > 120) showLoading(true);   // (a fast device is ready before the card would even show)
+    return true;
+  }
+  function showLoading(on) {
+    if (!loadEl) {
+      if (!on) return;
+      loadEl = document.createElement('div'); loadEl.id = 'deploying'; loadEl.className = 'nw-wrap';
+      loadEl.innerHTML = '<div class="nw-card" role="status"><p class="nw-title">Deploying forces</p><p class="nw-sub">Preparing the battlefield</p></div>';
+      document.body.append(loadEl);
+    }
+    loadEl.hidden = !on;
+  }
   function frame(now) {
     spriteMs = 0; spriteN = 0;   // (models.js: sprites made in this frame, for the match report)
     let dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     shakeAmp *= Math.exp(-dt * 6);
-    if (G && !G.paused) {
+    const held = guard('loading', () => loading(now)) === true && !Net.role;
+    if (G && !G.paused && !held) {
       const k = 700 * dt / cam.z;
       if (keys.has('ArrowLeft') || keys.has('a')) cam.x -= k;
       if (keys.has('ArrowRight') || keys.has('d')) cam.x += k;
@@ -1164,7 +1188,7 @@
     guard('radar', () => drawRadar(1 / 60));
     guard('cameos', warmCameos);
     if (G && !G.paused) guard('sprites', () => warmSprites(2, cam.x + W / cam.z / 2, cam.y + H / cam.z / 2));
-    if (G && !G.paused) {   // how smoothly this device runs the battle (Report: stats.frames)
+    if (G && !G.paused && !(loadFor && loadFor.g === G && !loadFor.done)) {   // how smoothly this device runs the battle (Report: stats.frames)
       const jump = Math.abs(cam.x - camWas.x) > W / cam.z / 2 || Math.abs(cam.y - camWas.y) > H / cam.z / 2;
       Report.noteFrame(now, updMs, d1 - d0, jump, performance.now() - d1);
     }
@@ -1211,7 +1235,7 @@
     if (k) cameoURL(k, team.faction, team.variant);
     else warmAt = performance.now() + 5000;
   }
-  function guard(where, fn) { try { fn(); } catch (e) { Report.oops(where, e); } }
+  function guard(where, fn) { try { return fn(); } catch (e) { Report.oops(where, e); } }
   // The next frame is asked for first, so nothing that goes wrong in this one can stop the loop.
   function loop(now) { requestAnimationFrame(loop); frame(now); }
 
