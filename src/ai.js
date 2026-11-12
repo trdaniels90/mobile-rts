@@ -245,6 +245,7 @@ function aiPowerTarget(team, cluster) {
 const ARMY_UNITS = 80, ARMY_WORTH = 28000;   // defaults; DIFFICULTY ai.armyUnits and ai.armyWorth set them per difficulty (Normal 100 and 45000)
 function aiThink(team) {
   const c = aiCount(team);
+  aiPickFoe(team);
   aiCounter(team);
   aiPincer(team);
   aiSquads(team);
@@ -630,6 +631,37 @@ function aiPincer(team) {
 }
 // What the computer builds against (Normal and Hard, A.counter): the enemy ground army it can see
 // (mostly infantry, or mostly armour) and how fortified the enemy base it knows of is.
+// Which enemy side to attack in a team game (team.focusSide, read by enemyOf and the attackers'
+// nearestEnemyBuilding). Easy goes for the nearest. Normal and Hard weigh each enemy whose base
+// they have found: near, weak (the army and guns they have seen) and already under attack by an
+// ally (computer or player) all count for it, and the current choice is kept unless another is
+// clearly better. Looked at again every 30 seconds.
+const FOE_PICK_EVERY = 30;
+function aiPickFoe(team) {
+  const foes = G.teams.filter((t) => hostile(team.id, t.id));
+  if (foes.length < 2) return;
+  if (!G.diff.ai.adapt) { team.focusSide = null; return; }
+  if (team.foePickT && G.t - team.foePickT < FOE_PICK_EVERY && chosenFoe(team)) return;
+  team.foePickT = G.t;
+  const seen = inViewOf(team.id);
+  const might = (tid, all) => {
+    let v = 0;
+    for (const u of unitsOf(tid)) if (u.def.weapon && !u.def.harvester && !u.def.scripted && (all || seen(u))) v += u.def.cost || 300;
+    for (const b of buildingsOf(tid)) if (b.def.defense && (all || targetable(team.id, b))) v += (b.def.cost || 600) * 0.7;
+    return v;
+  };
+  const mine = Math.max(1500, might(team.id, true));
+  const allies = G.teams.filter((t) => t !== team && t.ally === team.ally && !t.out);
+  let best = null, bs = -Infinity;
+  for (const f of foes) {
+    if (f.out || !inTheFight(f.id) || !enemyBaseKnown(team.id, f.id)) continue;
+    const d = Math.hypot(f.start.cx - team.start.cx, f.start.cy - team.start.cy) / MAP;
+    const ganged = allies.filter((a) => a.focusSide === f.id).length;
+    const sc = -d * 1.5 - Math.min(2, might(f.id, false) / mine) * 0.8 + ganged * 0.5 + (team.focusSide === f.id ? 0.35 : 0) + Math.random() * 0.15;
+    if (sc > bs) { bs = sc; best = f; }
+  }
+  team.focusSide = best ? best.id : null;
+}
 function aiCounter(team) {
   if (!G.diff.ai.counter) return;
   if (team.counterT && G.t - team.counterT < 10) return;

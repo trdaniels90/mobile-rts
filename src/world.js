@@ -117,7 +117,7 @@ const teamGame = () => G.teams.length > 2;
 function makeTeam(id, faction, isAI) {
   return {
     id, faction, isAI, pal: FACTIONS[faction].pal, credits: 10000, shown: 10000, start: null,
-    power: { prod: 0, use: 0 }, low: false, auto: !!isAI,
+    power: { prod: 0, use: 0 }, low: false, auto: !!isAI, focusSide: null,
     queues: { structure: null, infantry: [], vehicle: [], heli: [], jet: [] },
     stats: { built: 0, units: 0, lost: 0, killed: 0, bldKilled: 0, bldLost: 0, harvested: 0 },
     cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, defending: false, calm: 0, allyCalm: 0, assist: false, harvHit: null,
@@ -760,6 +760,8 @@ const teamOf = (e) => G.teams[e.team];
 function enemyOf(team) {
   const foes = G.teams.filter((t) => hostile(team.id, t.id));
   if (foes.length === 1) return foes[0];
+  const chosen = chosenFoe(team);
+  if (chosen) return chosen;
   let f = G.teams[team.foe];
   if (f && hostile(team.id, f.id) && G.t < (team.foeT || 0) && !f.out) return f;
   const live = foes.filter((t) => !t.out && inTheFight(t.id));
@@ -863,7 +865,17 @@ function lastStand(u) {
   }
   return best;
 }
-function enemyBaseKnown(tid = G.me) { return foesOf(tid).some((f) => buildingsOf(f).some((b) => targetable(tid, b)) || (!hasProduction(f) && mcvsOf(f).length > 0)); }
+// side: only that enemy side (the Auto Attack picker asks it of each one).
+function enemyBaseKnown(tid = G.me, side = null) {
+  return foesOf(tid).some((f) => (side == null || f === side) && (buildingsOf(f).some((b) => targetable(tid, b)) || (!hasProduction(f) && mcvsOf(f).length > 0)));
+}
+// The enemy side a side has picked to attack (team.focusSide: the Auto Attack picker, or the
+// computer's own choice in aiPickFoe), while it is still in the fight and its base is known.
+// Null: no choice, so attackers go for whatever enemy base is nearest (and enemyOf picks the nearest side).
+function chosenFoe(team) {
+  const f = team.focusSide == null ? null : G.teams[team.focusSide];
+  return f && hostile(team.id, f.id) && !f.out && inTheFight(f.id) && enemyBaseKnown(team.id, f.id) ? f : null;
+}
 
 // The computer's attackers: one passing within 10 cells of a known enemy Outpost, or of a refinery
 // well away from every enemy Construction Yard, turns aside to destroy it (and what stands beside
@@ -904,8 +916,10 @@ function nearestEnemyBuilding(u) {
   // Aircraft on the attack steer round anti-air the side has found (see airPick).
   if (u.cls === 'air') { const aa = knownAA(u.team, u.def.fly === 'jet'); if (aa.length) { const b = airPick(u, aa); if (b) return b; } }
   let best = null, bd = Infinity, cy = null, cd = Infinity;
+  const only = chosenFoe(G.teams[u.team]);   // a picked enemy side: its base alone (others are still fought on the way)
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || !hostile(e.team, u.team) || !targetable(u.team, e)) continue;
+    if (only && e.team !== only.id) continue;
     const d = dist(u, e);
     if (d < bd) { bd = d; best = e; }
     if (e.type === 'cy' && d < cd) { cd = d; cy = e; }
@@ -940,8 +954,10 @@ const aaCover = (aa, t) => { let n = 0; for (const a of aa) if (Math.hypot(a.x -
 function airPick(u, aa) {
   if (u.aaPick && u.aaPick.alive && G.t - u.aaPickT < 1) return u.aaPick;
   let best = null, bs = Infinity, bc = 0;
+  const only = chosenFoe(G.teams[u.team]);   // a picked enemy side (Auto Attack picker, aiPickFoe): its buildings alone
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || !hostile(e.team, u.team) || !targetable(u.team, e)) continue;
+    if (only && e.team !== only.id) continue;
     const c = aaCover(aa, e), sc = c * 1e5 + dist(u, e) - (e.type === 'cy' ? CELL * 60 : 0);
     if (sc < bs) { bs = sc; best = e; bc = c; }
   }
@@ -3448,9 +3464,16 @@ function commandGuard(units, x, y) {
 // Stop: every order dropped, back to what a new unit does: ground units wait around the base,
 // aircraft on their pad, both ready for auto attack; Ore Trucks go back to harvesting.
 // Sidebar buttons, as functions so a PvP guest's taps can be sent to the host.
-function setAuto(team, on) {
+// side: in a team game, the enemy side to attack (the picker by the AUTO button); null for whichever is nearest.
+// Units already out hunting turn towards the new choice.
+function setAuto(team, on, side = null) {
   team.auto = !!on;
   if (!on) return;
+  const was = team.focusSide;
+  team.focusSide = side == null || !G.teams[side] || !hostile(team.id, side) ? null : side;
+  if (team.focusSide !== was && team.focusSide != null) {
+    for (const u of unitsOf(team.id)) if (u.order.type === 'hunt' && u.focus && u.focus.team !== team.focusSide) { u.focus = null; u.resume = null; u.huntTarget = null; }
+  }
   if (team.assist) { team.assist = false; for (const u of unitsOf(team.id)) u.garrison = false; }
   // Every idle ground unit attacks now; aircraft waiting on their pads take off.
   launchAll(team);

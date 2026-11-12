@@ -845,6 +845,8 @@
   ui.autoBtn.addEventListener('click', () => {
     if (!G) return;
     const team = G.teams[G.me];
+    // A team game with more than one enemy side: a picker says whom to attack.
+    if (G.teams.filter((t) => hostile(team.id, t.id)).length > 1) { autoPicker(team); return; }
     if (!team.auto && !enemyBaseKnown()) { evaCalm('Enemy base not located', 4); return; }   // scout it first
     setAuto(team, !team.auto);
     ui.autoBtn.setAttribute('aria-pressed', String(team.auto));
@@ -852,6 +854,47 @@
       eva('Auto attack on');
     } else eva('Auto attack off. New units guard the base');
   });
+  // The Auto Attack picker (team games): each enemy side by colour and name, only those whose base this
+  // side has found (scouted) can be picked; "Nearest" leaves the choice to the units, as before.
+  const sideColour = (t) => FACTIONS[t.faction][t.variant === 2 ? 'alt2' : t.variant ? 'alt' : 'pal'].main;
+  const COLOUR_NAMES = { allies: ['blue', 'green', 'teal'], soviets: ['red', 'amber', 'purple'] };
+  const sideLabel = (t) => `${t.name || (t.isAI ? 'Computer' : 'Commander')} · ${FACTIONS[t.faction].name} (${COLOUR_NAMES[t.faction][t.variant | 0]})`;
+  const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  let pickerEl = null, aimWas = '';
+  function autoPicker(team) {
+    if (!pickerEl) {
+      pickerEl = document.createElement('div'); pickerEl.id = 'autoPick'; pickerEl.className = 'nw-wrap';
+      pickerEl.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-pick]');
+        if (!b) { if (!ev.target.closest('.nw-card')) pickerEl.hidden = true; return; }
+        if (b.disabled) return;
+        pickerEl.hidden = true;
+        if (!G || G.over) return;
+        const me = G.teams[G.me], v = b.dataset.pick;
+        if (v === 'off') { setAuto(me, false); eva('Auto attack off. New units guard the base'); }
+        else if (v === 'near') { setAuto(me, true, null); eva('Auto attack on'); }
+        else if (v !== 'cancel') { const t = G.teams[+v]; setAuto(me, true, t.id); eva(`Auto attack on: ${sideLabel(t)}`); }
+        ui.autoBtn.setAttribute('aria-pressed', String(!!me.auto));
+      });
+      document.body.append(pickerEl);
+    }
+    const foes = G.teams.filter((t) => hostile(team.id, t.id));
+    const cur = team.auto ? (team.focusSide == null ? 'near' : String(team.focusSide)) : null;
+    const row = (t) => {
+      const out = t.out || !inTheFight(t.id), known = !out && enemyBaseKnown(team.id, t.id);
+      const note = out ? 'Defeated' : known ? '' : 'Not scouted';
+      return `<button type="button" class="pf-btn ap-row${cur === String(t.id) ? ' on' : ''}" data-pick="${t.id}"${known ? '' : ' disabled'}>`
+        + `<i style="background:${sideColour(t)}"></i>${esc(sideLabel(t))}${note ? `<small>${note}</small>` : ''}</button>`;
+    };
+    const any = enemyBaseKnown(team.id);
+    pickerEl.innerHTML = '<div class="nw-card" role="dialog" aria-label="Auto attack"><p class="nw-title">Auto attack</p>'
+      + `<p class="nw-sub">${any ? 'Choose the enemy to attack.' : 'No enemy base located yet: scout first.'}</p><div class="ap-list">`
+      + foes.map(row).join('')
+      + `<button type="button" class="pf-btn ap-row${cur === 'near' ? ' on' : ''}" data-pick="near"${any ? '' : ' disabled'}><i class="ap-any"></i>Nearest enemy</button>`
+      + (team.auto ? '<button type="button" class="pf-btn ap-row" data-pick="off">Auto attack off</button>' : '')
+      + '<button type="button" class="pf-btn ap-row ap-cancel" data-pick="cancel">Cancel</button></div></div>';
+    pickerEl.hidden = false;
+  }
   ui.allyBtn.addEventListener('click', () => {
     if (!G) return;
     const team = G.teams[G.me];
@@ -886,6 +929,9 @@
     if (ui.autoLabel.textContent !== autoLabel) ui.autoLabel.textContent = autoLabel;
     if (ui.allyBtn.getAttribute('aria-pressed') !== String(!!team.assist)) ui.allyBtn.setAttribute('aria-pressed', String(!!team.assist));
     if (ui.autoBtn.getAttribute('aria-pressed') !== String(!!team.auto)) ui.autoBtn.setAttribute('aria-pressed', String(!!team.auto));
+    // The picked enemy's colour along the button's edge.
+    const aimT = team.auto ? chosenFoe(team) : null, aimC = aimT ? sideColour(aimT) : '';
+    if (aimC !== aimWas) { aimWas = aimC; ui.autoBtn.style.setProperty('--aim', aimC || 'transparent'); ui.autoBtn.classList.toggle('aimed', !!aimC); }
     // Vertical power bar: green fill is output, the red tick is demand.
     const { prod, use } = team.power;
     const top = Math.max(100, prod, use) * 1.15;

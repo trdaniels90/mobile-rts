@@ -9,6 +9,7 @@ const RELEASES = [
       'Normal and Hard: the computer attacks at random times instead of on a steady rhythm, and attacks at once when its army at home grows big. Hard attacks more often than Normal.',
       'Normal and Hard: attack waves flank. A wave gathers just out of range of your guns on a side it has not used lately, then charges in; big waves split into two or three groups that hit from different sides at once.',
       'Normal and Hard: a big attack that is clearly losing pulls back instead of dying to the last unit, and the computer brings attackers home only when its own base needs them.',
+      'Team battles: Auto Attack asks which enemy side to go after (any side whose base you have found, or simply the nearest), and its colour shows on the button. Computer teams pick a target too and gang up on it.',
       'Units you give an order (move, guard, attack) stay out of Auto Attack and base defence until you press Stop. Units you sent to attack rejoin by themselves after 3 minutes standing idle once their target is gone.',
       'Aircraft on Auto Attack steer round anti-air you have found (SAM Sites, AA Guns, and anti-air soldiers and vehicles on ground you have uncovered) and go for a building it does not cover. Anti-air you have not found can still catch them.',
     ]],
