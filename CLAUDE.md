@@ -427,6 +427,10 @@ share globals. Read this file first; the commit history explains every change in
 - **Colours:** a third same-faction teammate is `variant` 2 with `FACTIONS[f].alt2` (Allies teal, Soviets purple).
 - **Reports:** 3 v AI is `pve` like co-op, and team battles record `stats.size` (sides per alliance). Only 2-player co-op
   offers the co-op leaderboard (`online.coop === 'board'`); a 3-player board needs `get_leaderboard` to split by size.
+- **Computer teammates in co-op (online, not released):** in `coop` and `coop3` the leader can give an open place on
+  the players' team to the computer (lobby button Add computer / Open for a friend; `{ k: 'mate', slot }`, slot
+  `mate: true` and `ai: true` in server.js). So two friends can play 3 v AI. Its difficulty is the co-op one. A co-op
+  with a computer teammate is unranked (no co-op board). `node tools/sim/server-coop-mate.js <repo>`.
 - Not done yet: the leaderboard split, and phones with six players for real (server load and the
   lobby on a small screen).
 
@@ -529,6 +533,7 @@ Supabase.
 | `server-3v3.js` | Raw WebSocket players on the server: 3 v AI refused on a 2 v 2 map; with `ANY_BATTLE=1`, 3 v AI and 3 v 3 start with six sides. Needs `npm install` in `server/` |
 | `ground-tiles.js` | The ground in tiles: every kind of mark in a staged battle, live vs repainted tiles and tile sizes pixel for pixel, save and continue, an old save's scars. `<repo> [maps] [old checkout]` |
 | `give-credits.js` | Giving credits to an ally: the rule headless, the GIVE card in a 2 v 2 skirmish, online co-op through the server and forged orders |
+| `server-coop-mate.js` | Co-op with a computer teammate: two players in a 3 v AI, the leader adds the computer, the battle starts with it on the players' team |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP

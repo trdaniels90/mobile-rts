@@ -14,6 +14,7 @@
 //                    { k: 'lobby', faction, map } (leader, 1 v 1: side 0's faction)
 //                    { k: 'setup', mode, map, diff } (leader) | { k: 'faction', slot, faction }
 //                    { k: 'team' } (move to the other alliance) | { k: 'go' } (leader)
+//                    { k: 'mate', slot } (leader, co-op: an open place on the players' team to the computer and back)
 //                    'c' orders | 'ping' | 'away' | 'back' | 'resume' | 'quit' | 'bye'
 //   server -> phone: { k: 'room', code, lead } | { k: 'err', why: 'none' | 'full' | 'version' | 'busy' }
 //                    { k: 'lobby', faction, map, mode, diff, host, guest, slots, mine, ready }
@@ -195,7 +196,7 @@ function lobbyMsg(R, me) {
   const [h, g] = R.seats;
   return { k: 'lobby', mode: R.mode, diff: R.diff, map: R.map, faction: R.slots[0].faction,
     host: h ? { name: h.name } : null, guest: g ? { name: g.name } : null,
-    slots: R.slots.map((x, i) => ({ ally: x.ally, faction: x.faction, ai: x.ai, name: by(i) ? by(i).name : null })),
+    slots: R.slots.map((x, i) => ({ ally: x.ally, faction: x.faction, ai: x.ai, mate: !!x.mate, name: by(i) ? by(i).name : null })),
     mine: me ? me.slot : null, players: R.seats.length, ready: ready(R) };
 }
 function sendLobby(R) { for (const s of R.seats) send(s.ws, lobbyMsg(R, s)); }
@@ -206,7 +207,7 @@ function start(R) {
   R.match = match;
   const { ctx, NetCore } = R;
   const name = (i) => { const s = R.seats.find((x) => x.slot === i); return s ? s.name : null; };
-  const sides = R.slots.map((x, i) => ({ faction: x.faction, ally: x.ally, ai: x.ai, name: name(i) }));
+  const sides = R.slots.map((x, i) => ({ faction: x.faction, ally: x.ally, ai: x.ai, mate: !!x.mate, name: name(i) }));
   const diff = BATTLES[R.mode].coop ? R.diff : 'normal';
   // Nobody on this copy is "me": every side is a remote player or the computer.
   ctx.get('newWorld')(sides[0].faction, diff, seed, 0, true, R.map, sides);
@@ -406,6 +407,11 @@ function onMessage(ws, m, st) {
       if (R.mode === '1v1') R.slots[1 - i].faction = other(x.faction);
       sendLobby(R);
     }
+  } else if (m.k === 'mate' && lead && lobby && BATTLES[R.mode].coop) {
+    // Co-op with fewer friends than places: the leader gives an open place on the players' team to a
+    // computer teammate (or back to a player). Slot 0 is always the leader's.
+    const i = +m.slot, x = R.slots[i];
+    if (x && i > 0 && x.ally === 0 && !R.seats.some((o) => o.slot === i)) { x.ai = !x.ai; x.mate = x.ai; sendLobby(R); }
   } else if (m.k === 'team' && lobby && BATTLES[R.mode].size > 1 && !BATTLES[R.mode].coop) {
     const to = freeSlot(R, R.slots[s.slot].ally === 0 ? 1 : 0);
     if (to !== undefined) { s.slot = to; sendLobby(R); }

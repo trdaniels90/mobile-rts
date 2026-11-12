@@ -201,7 +201,9 @@
     endPlace();
     Net.hookHost();
     newWorld(o.faction, o.diff || 'normal', o.seed, o.me, true, o.map, o.sides);
-    const coop = !battleOf(o.mode).coop ? null : o.mode === 'coop' ? 'board' : 'unranked';
+    // A co-op with a computer teammate (sides[i].mate) is unranked: the board is for players only.
+    const mates = (o.sides || []).some((x) => x.mate);
+    const coop = !battleOf(o.mode).coop ? null : o.mode === 'coop' && !mates ? 'board' : 'unranked';
     online = { opponent: o.opponent, coop, diff: o.diff || 'normal' };
     Sound.newMatch();
     afterNewWorld(o.faction);

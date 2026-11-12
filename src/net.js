@@ -408,6 +408,7 @@ const Net = (() => {
   function setDiff(diff) { if (onServer() && lobby.me === 'host') send({ k: 'setup', diff }); }
   function setFaction(slot, faction) { if (onServer()) send({ k: 'faction', slot, faction }); }
   function switchTeam() { if (onServer()) send({ k: 'team' }); }
+  function setMate(slot) { if (onServer() && lobby.me === 'host') send({ k: 'mate', slot }); }   // co-op: computer teammate in an open place
   function startBattle() {
     if (lobby && lobby.via === 'server' && lobby.me === 'host' && lobby.connected) { if (lobby.ready) send({ k: 'go' }); return; }   // the server starts it
     if (!lobby || lobby.me !== 'host' || !lobby.connected || !lobby.guest) return;
@@ -687,7 +688,7 @@ const Net = (() => {
   }
 
   return {
-    host, join, leave, swapSides, setMap, setMode, setDiff, setFaction, switchTeam, startBattle, surrender, watch, rematch, hostTick, guestStep, hookHost, netStats,
+    host, join, leave, swapSides, setMap, setMode, setDiff, setFaction, switchTeam, setMate, startBattle, surrender, watch, rematch, hostTick, guestStep, hookHost, netStats,
     get role() { return role; }, get lobby() { return lobby; }, get waiting() { return !!wait; },
     // For tests: drop the connection without a word, and a shorter wait.
     test: { drop() { const L = link; if (L) { try { L.pc.close(); } catch (_) {} } lost(); }, waitLimit(s) { WAIT_LIMIT = s; }, get resyncs() { return resyncs; } },
@@ -726,6 +727,7 @@ const Online = (() => {
       else if (act === 'diff') Net.setDiff(b.dataset.v);
       else if (act === 'faction') Net.setFaction(+b.dataset.slot, b.dataset.v);
       else if (act === 'team') Net.switchTeam();
+      else if (act === 'mate') Net.setMate(+b.dataset.slot);
     });
     root.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -782,14 +784,18 @@ const Online = (() => {
     const lead = L.me === 'host', mode = L.mode || '1v1';
     const need = L.slots.filter((x) => !x.ai).length, have = L.slots.filter((x) => !x.ai && x.name).length;
     const pick = (list, cur, act, can) => `<div class="on-modes">${list.map(([k, l]) => `<button type="button" class="pf-btn${k === cur ? ' on-go' : ''}"${can ? ` data-on="${act}" data-v="${k}"` : ' disabled'} aria-pressed="${k === cur}">${l}</button>`).join('')}</div>`;
+    const B = battleOf(mode);
     const slot = (x, i) => {
       const you = i === L.mine, canFlip = you || (lead && x.ai);
-      const who = x.ai ? 'Computer' : x.name ? esc(x.name) + (you ? ' (you)' : '') : '<i>open</i>';
-      return `<tr${you ? ' class="on-you"' : ''}><td>${who}</td><td class="on-side" data-faction="${x.faction}">${canFlip ? `<button type="button" class="pf-btn" data-on="faction" data-slot="${i}" data-v="${x.faction === 'allies' ? 'soviets' : 'allies'}">${SIDE[x.faction]}</button>` : SIDE[x.faction]}</td></tr>`;
+      const who = x.ai ? (x.mate ? 'Computer teammate' : 'Computer') : x.name ? esc(x.name) + (you ? ' (you)' : '') : '<i>open</i>';
+      // Co-op: the leader can give an open place on the players' team to a computer teammate, and take it back.
+      const mate = lead && B.coop && i > 0 && x.ally === 0 && !x.name && (x.mate || !x.ai)
+        ? ` <button type="button" class="pf-btn" data-on="mate" data-slot="${i}">${x.mate ? 'Open for a friend' : 'Add computer'}</button>` : '';
+      return `<tr${you ? ' class="on-you"' : ''}><td>${who}${mate}</td><td class="on-side" data-faction="${x.faction}">${canFlip ? `<button type="button" class="pf-btn" data-on="faction" data-slot="${i}" data-v="${x.faction === 'allies' ? 'soviets' : 'allies'}">${SIDE[x.faction]}</button>` : SIDE[x.faction]}</td></tr>`;
     };
     const team = (a) => `<table class="on-lobby"><caption>${mode === '1v1' ? (a === 0 ? 'Side 1' : 'Side 2') : 'Team ' + (a + 1)}</caption><tbody>${L.slots.map((x, i) => (x.ally === a ? slot(x, i) : '')).join('')}</tbody></table>`;
     const mineAlly = L.slots[L.mine] && L.slots[L.mine].ally;
-    const B = battleOf(mode), map = validMap(L.host && L.host.map);
+    const map = validMap(L.host && L.host.map);
     const canMove = B.size > 1 && !B.coop && L.slots.some((x, i) => x.ally !== mineAlly && !x.ai && !x.name);
     body.innerHTML = `<p class="on-code" aria-label="Room code">${esc(L.code)}</p>
       <p class="lb-intro">${have < need ? `Friends join with this code (${have} of ${need} players here).` : lead ? 'Everyone is here. Start when ready.' : 'Everyone is here. The leader starts the battle.'}</p>
