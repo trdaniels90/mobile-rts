@@ -917,7 +917,7 @@
   function giveFill() {
     const me = G.teams[G.me], have = Math.floor(me.credits);
     const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    giveEl.querySelector('.gv-list').innerHTML = giveAllies().map((o) => `<p class="gv-name">${esc(o.name || (o.isAI ? 'Computer ally' : 'Ally'))}</p><div class="gv-row">`
+    giveEl.querySelector('.gv-list').innerHTML = giveAllies().map((o) => `<p class="gv-name"><i style="background:${sideColour(o)}"></i>${esc(sideLabel(o))}</p><div class="gv-row">`
       + GIVE_AMOUNTS.map((n) => `<button type="button" class="pf-btn" data-to="${o.id}" data-n="${n}"${have < n ? ' disabled' : ''}>${n}</button>`).join('') + '</div>').join('');
   }
   ui.giveBtn.addEventListener('click', () => {
