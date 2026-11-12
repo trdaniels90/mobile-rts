@@ -299,8 +299,11 @@ share globals. Read this file first; the commit history explains every change in
 ## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (2026.11.11.2; bridges, weather 2026.11.12)
 
 - `MAPS.snowbound` in maps.js: traced from the owner's design `maps/designs/snowbound.png` (126 cells, a lavender-ground palette:
-  `tools/map-from-image.py` detects it; its light grey roads become dirt tracks) at **168 x 168** cells, `teamSize: 3`,
-  three timber bridges over the long lake (`--bridge` boxes in the comment), 16 gem fields placed in twins by the half turn.
+  `tools/map-from-image.py` detects it; its light grey roads become dirt tracks) at **210 x 210** cells (5/3 of the design;
+  168 until 2026.11.12, so older Snowbound saves no longer continue), `teamSize: 3`,
+  three bridges over the long lake (`--bridge` boxes in the comment), 16 gem fields placed in twins by the half turn, and an
+  ore field added in code for the north-west start (`ore` in MAPS, from `claude/ai-squads`). After a re-trace, rescale the
+  `gems` and `ore` positions (x 210/168 last time) and snap them to open ground.
   **Winter look:** `theme: 'snow'` in MAPS (`mapTheme`, `snowy()` in art.js): paintTerrain's snow, slush, ice and cold water
   palettes, snowy rock in `paintCliffs`, snowy pines only (`scenery.snowPines`, `treeModel(.., snow)`), and the minimap
   (`terrainMini`), base pads (`bibDecal`) and Pillbox camouflage (`groundColour`). Saves repaint with the theme.
@@ -316,7 +319,8 @@ share globals. Read this file first; the commit history explains every change in
   map must be made after `setMapSize`, never once at load. genMap's constants (`K`, `MID`, `FR`...) are for 144 only.
 - **No size limit from the ground** since it is painted in tiles (below). Bigger maps cost CPU (paths, the server) and
   game length, not memory. A 240-cell test map started and scrolled like Snowbound.
-- `node tools/sim/teams.js <repo> 1 8 snowbound 3v3`: about 660 units by minute 4, 91 s of CPU for 8 game minutes here.
+- `node tools/sim/teams.js <repo> 1 8 snowbound 3v3`: at 210 cells (with the ai-squads computer) about 750 units by minute 6
+  and 150 s of CPU for 8 game minutes here (111 s on the 168 map with the same computer): watch the server's `cpu_pct`.
 
 ## The ground in tiles, and the marks of battle (2026.11.12)
 
