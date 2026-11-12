@@ -361,6 +361,17 @@ share globals. Read this file first; the commit history explains every change in
   ground. Sidebar cameos are drawn a few at a time early in the battle (`warmCameos` in ui.js; a new building unlocking
   several items stalled a frame by 0.4 s). Tile canvases are reused (`spare`), `bibDecal` keeps one picture (`bibPic`).
   Phone-sized 3 v 3 at 4x throttle while tapping the radar: worst frame 317 to 133 ms, worst draw 230 to 75 ms.
+- **Simulation spikes (after 2026.11.12.4, both modes; `simprof`-style: wrap world.js functions in the headless context
+  and time each step):** a 10-minute 3 v 3 of computers had steps up to 287 ms. Causes and fixes: `aiApproachSpots` ran up
+  to 26 `findPath`s in one step, now one `pathField` (a Dijkstra distance map, cached within the step; Float64, since
+  Float32 rounding made it skip cells); `defendAllies` tested every enemy unit against every ally building every second
+  (330,000 `distTo` a second, a tenth of all CPU), now a bounding box first; `damageSpots` built a model the first time a
+  type was damaged (the server has none), now warmed one type a second in `structureDamageFx`; every side's `aiThink` and
+  `launchGroups(team)` ran in the same step, now the sides take turns through the second (`T.aiI`, `T.grp`, `T.grpI`);
+  `findPath`'s heuristic is 1.001 times octile (ties broken toward the goal: same lengths, about 28% faster). Worst step
+  287 to 37 ms; 12 game minutes of a 3 v 3 cost 111 s of CPU (was 150 s for 8). Unit sprites are also made ahead
+  (`warmSprites` in art.js, 2 ms a frame from ui.js: every facing of the hull and turret, and soldiers' common poses
+  `WARM_POSES`, for the kind of unit nearest the view not done yet).
 - **Anything new drawn onto the ground** must be a function in `MARK_FNS` (deterministic from its arguments, with a box in
   `markBox`), never a draw on a canvas kept in G. The game server records no marks (`HEADLESS`).
 - **Saves** keep `G.marks` (no pictures). An old save's two pictures are used as the ground (`legacy`, `G.legacyGround`,

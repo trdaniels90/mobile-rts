@@ -517,6 +517,47 @@ function nearestFreeCell(c, maxR) {
   return -1;
 }
 
+// How far (in cells, along the ground, by the pathfinder's rules) every cell is from world point (sx, sy), out to
+// maxCost: one search answers "how long is the way to each of these points" at once (the computer's flanking
+// planner, aiApproachSpots, asked findPath up to 26 times in one step, a quarter-second stall in a 3 v 3).
+// Infinity where it is out of reach or further. The array is reused: read it before the next call.
+let FIELD = null;
+function pathField(sx, sy, maxCost) {
+  if (!FIELD || FIELD.d.length !== NCELLS) FIELD = { d: new Float64Array(NCELLS), hk: new Float64Array(NCELLS * 8 + 8), hv: new Int32Array(NCELLS * 8 + 8), key: '' };
+  const d = FIELD.d, hk = FIELD.hk, hv = FIELD.hv;
+  let s = cellOfPos(sx, sy);
+  if (!freeCell(s)) s = nearestFreeCell(s, 3);
+  const key = s + ':' + maxCost + ':' + G.t;   // asked again in the same step (aiPincerStart tries 3 squads, then 2): the same answer
+  if (FIELD.key === key) return d;
+  FIELD.key = key;
+  d.fill(Infinity);
+  if (s < 0) return d;
+  let n = 0;
+  const push = (k, v) => { let i = n++; while (i > 0) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hk[i] = hk[p]; hv[i] = hv[p]; i = p; } hk[i] = k; hv[i] = v; };
+  const pop = () => {
+    const v = hv[0], lk = hk[--n], lv = hv[n];
+    if (n) { let i = 0; while (true) { let c = 2 * i + 1; if (c >= n) break; if (c + 1 < n && hk[c + 1] < hk[c]) c++; if (hk[c] >= lk) break; hk[i] = hk[c]; hv[i] = hv[c]; i = c; } hk[i] = lk; hv[i] = lv; }
+    return v;
+  };
+  d[s] = 0; push(0, s);
+  while (n) {
+    const k = hk[0], c = pop();
+    if (k > d[c]) continue;
+    if (k > maxCost) break;
+    const cx = cellX(c), cy = cellY(c);
+    for (let i = 0; i < 8; i++) {
+      const dx = DIRS8[i][0], dy = DIRS8[i][1], nx = cx + dx, ny = cy + dy;
+      if (nx < 0 || ny < 0 || nx >= MAP || ny >= MAP) continue;
+      const m = ny * MAP + nx;
+      if (G.block[m] || G.bld[m]) continue;
+      if (dx && dy && (G.block[cy * MAP + nx] || G.bld[cy * MAP + nx] || G.block[ny * MAP + cx] || G.bld[ny * MAP + cx])) continue;
+      const ng = k + (dx && dy ? 1.414 : 1);
+      if (ng < d[m] && n < hk.length) { d[m] = ng; push(ng, m); }
+    }
+  }
+  return d;
+}
+
 function findPath(sx, sy, tx, ty, rad) {
   let s = cellOfPos(sx, sy), t = cellOfPos(tx, ty);
   const exactEnd = freeCell(t);
@@ -547,7 +588,7 @@ function findPath(sx, sy, tx, ty, rad) {
     return v;
   };
   const tx0 = cellX(t), ty0 = cellY(t);
-  const h = (c) => { const dx = Math.abs(cellX(c) - tx0), dy = Math.abs(cellY(c) - ty0); return Math.max(dx, dy) + 0.414 * Math.min(dx, dy); };
+  const h = (c) => { const dx = Math.abs(cellX(c) - tx0), dy = Math.abs(cellY(c) - ty0); return (Math.max(dx, dy) + 0.414 * Math.min(dx, dy)) * 1.001; };   // (a hair over: ties go to the cell nearer the goal, so far fewer cells are searched)
   PF.g[s] = 0; PF.from[s] = -1; PF.open[s] = stamp;
   push(h(s), s);
   let best = s, bestH = h(s), expanded = 0, found = false;
@@ -1065,7 +1106,15 @@ function defendAllies(team) {
   if (!helping && !unitsOf(team.id).some((u) => u.assisting)) return;
   const allies = alliesOf(team);
   const allyBlds = new Map(allies.map((a) => [a, buildingsOf(a.id)]));   // once, not per enemy unit
-  const hit = (a, u) => allyBlds.get(a).some((b) => distTo(u, b) < CELL * 14) ||
+  // Each ally's buildings' box, 14 cells wider: an enemy outside it is near none of them (the exact test below
+  // was 330,000 distance checks a second in a 3 v 3, a tenth of the whole game's time).
+  const R = CELL * 14, box = new Map(allies.map((a) => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const b of allyBlds.get(a)) { x0 = Math.min(x0, b.cx * CELL); y0 = Math.min(y0, b.cy * CELL); x1 = Math.max(x1, (b.cx + b.w) * CELL); y1 = Math.max(y1, (b.cy + b.h) * CELL); }
+    return [a, [x0 - R, y0 - R, x1 + R, y1 + R]];
+  }));
+  const inBox = (a, u) => { const q = box.get(a); return u.x >= q[0] && u.x <= q[2] && u.y >= q[1] && u.y <= q[3]; };
+  const hit = (a, u) => (inBox(a, u) && allyBlds.get(a).some((b) => distTo(u, b) < R)) ||
     (a.baseHit && a.baseHit.until > G.t && Math.hypot(u.x - a.baseHit.x, u.y - a.baseHit.y) < CELL * 8);
   const threats = helping ? enemyUnitsOf(team.id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute && allies.some((a) => hit(a, u))) : [];
   if (!threats.length) {
@@ -1099,8 +1148,8 @@ function defendAllies(team) {
     setGuard(u, best.x, best.y); u.target = best; goTo(u, best.x, best.y);
   }
 }
-function launchGroups() {
-  for (const team of G.teams) {
+function launchGroups(only) {
+  for (const team of only ? [only] : G.teams) {
     releaseIdle(team);
     defendBase(team);
     defendAllies(team);
@@ -3572,8 +3621,12 @@ function update(dt) {
   if ((T.power -= dt) <= 0) { T.power = 0.5; updatePower(); }
   if ((T.shroud -= dt) <= 0) { T.shroud = 0.25; revealAround(); }
   if ((T.ore -= dt) <= 0) { T.ore = 2; growOre(); }
-  if ((T.ai -= dt) <= 0) { T.ai = 1; if (!G.over) for (const team of G.teams) if (team.isAI) aiThink(team); }
-  if ((T.win -= dt) <= 0) { T.win = 1; if (!G.remote) updateReserves(); checkWin(); if (!G.over) launchGroups(); }
+  // Each side thinks (aiThink) and sends out its groups (launchGroups) once a second, but the sides take turns
+  // through the second instead of all in one step (in a 3 v 3 that one step stalled a phone for a tenth of a second).
+  const nT = G.teams.length;
+  if ((T.ai -= dt) <= 0) { T.ai += 1 / nT; if (T.ai <= 0) T.ai = 1 / nT; T.aiI = ((T.aiI || 0) + 1) % nT; const team = G.teams[T.aiI]; if (!G.over && team && team.isAI) aiThink(team); }
+  if ((T.grp = (T.grp === undefined ? 0 : T.grp) - dt) <= 0) { T.grp += 1 / nT; if (T.grp <= 0) T.grp = 1 / nT; T.grpI = ((T.grpI || 0) + 1) % nT; if (!G.over) launchGroups(G.teams[T.grpI]); }
+  if ((T.win -= dt) <= 0) { T.win = 1; if (!G.remote) updateReserves(); checkWin(); }
   if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); for (const t of G.teams) if (!t.isAI) adviseTrucks(t); }
   updateEffects(dt);
   sweepDead();
@@ -3676,7 +3729,15 @@ function updateSamPits(dt) {
     b.popK = b.popHold > 0 ? Math.min(1, (b.popK || 0) + dt / (tgt ? 0.35 : 0.7)) : Math.max(0, (b.popK || 0) - dt / 1.1);
   }
 }
+let dmgWarmT = 0;
 function structureDamageFx(dt) {
+  // Where a building type's holes go (damageSpots) is worked out from its model the first time one is damaged: up to
+  // 0.1 s on the game server, which never draws and so has no models yet. Done ahead instead, one type a second.
+  if ((dmgWarmT -= dt) <= 0) {
+    dmgWarmT = 1;
+    const b = G.entities.find((e) => e.kind === 'bld' && e.alive && !dmgSpotCache.has(e.type));
+    if (b) damageSpots(b.type, b.faction);
+  }
   for (const b of G.entities) {
     if (b.kind !== 'bld' || !b.alive || b.buildT < 1 || b.sellT > 0) continue;
     const stage = dmgStage(b);
