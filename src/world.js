@@ -844,7 +844,23 @@ function buildGrid() {
   for (const b of g) b.length = 0;
   const at = (v) => Math.max(0, Math.min(GRID_N - 1, Math.floor(v / GRID_PX)));
   for (const e of G.entities) if (e.alive) g[at(e.y) * GRID_N + at(e.x)].push(e);
+  // Who is already firing at whom, and the damage of their next shots (see pledge).
+  atkOn.clear();
+  for (const e of G.entities) if (e.alive && e.kind === 'unit' && e.target && e.target.alive) pledge(e, e.target);
 }
+// Spreading the fire: units count who is already after each enemy (atkOn: n attackers, dmg their next shots
+// together). acquire and base defence pass over an enemy whose attackers' next shots already kill it, and
+// approachSpot fans the attackers out round it by their number. Rebuilt every step (not saved).
+const atkOn = new Map();
+function pledge(e, t) {
+  let a = atkOn.get(t);
+  if (!a) { a = { n: 0, dmg: 0 }; atkOn.set(t, a); }
+  a.n++;
+  const w = canHit(e.def.weapon, t) ? e.def.weapon : null;
+  if (w) a.dmg += w.dmg * (w.burst || 1) * ((WARHEADS[w.wh] || {})[armorOf(t)] || 0);
+}
+const overkill = (t) => { const a = atkOn.get(t); return !!a && t.kind === 'unit' && a.dmg >= t.hp * 1.2; };
+const OVERKILL = CELL * 3;   // how much further off a target no one is killing yet may be and still come first
 // The buckets within r of (x, y), as a list of arrays to loop through.
 const nearOut = [];
 function nearBuckets(x, y, r) {
@@ -880,6 +896,7 @@ function acquire(src, range, weapons, visible, favour) {
     else if (!e.def.weapon && !e.def.harvester) score += 20;
     if (e.cls === 'inf' && weapons.every((w) => w.prefersArmor)) score += CELL * 4;   // tank killers look for vehicles first
     if (favour && !weapons.some((w) => favoured(w, e))) score += range + CELL * 4;   // behind every favoured target in reach
+    if (e !== src.target && overkill(e)) score += OVERKILL;   // already as good as dead: shoot something else
     if (score < bs) { bs = score; best = e; }
   }
   return best;
@@ -1337,8 +1354,9 @@ function defendBase(team) {
     let best = null, bd = CELL * 32;
     // Jets spread out: each takes a raider the others have not, and keeps it until it is dead.
     if (u.def.fly === 'jet') best = u.target && u.target.alive && threats.includes(u.target) ? u.target : pickRaider(u);
-    else for (const t of threats) { const d = Math.hypot(u.x - t.x, u.y - t.y); if (d < bd && canTarget(u, t)) { bd = d; best = t; } }
+    else for (const t of threats) { const d = Math.hypot(u.x - t.x, u.y - t.y) + (t !== u.target && overkill(t) ? OVERKILL : 0); if (d < bd && canTarget(u, t)) { bd = d; best = t; } }
     if (!best) continue;
+    if (best !== u.target) pledge(u, best);   // so the next defenders spread over the raiders
     if (u.cls === 'air' && u.as === 'landed') { u.as = 'takeoff'; u.repairHold = false; }   // part-rearmed or part-repaired: good enough for a fight at home
     if (!u.defending) {
       // Remember where to return: the guard spot, or for attack groups already out, the rally point.
@@ -2321,16 +2339,75 @@ function engage(u, t, dt) {
   const ang = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
   if (d <= w.range) {
     u.dest = null; u.path = null;
+    if (slideOut(u, t, w, dt) && u.cls === 'inf') return;   // infantry find their place first, then fire
     let aligned = true;
     if (u.def.fixed) { u.face = u.tface = turnToward(u.face, ang, u.def.turn * dt); aligned = Math.abs(angDiff(ang, u.face)) < 0.08; }   // no turret: turn the vehicle
     else if (u.cls === 'veh') { u.tface = turnToward(u.tface, ang, 5 * dt); aligned = Math.abs(angDiff(ang, u.tface)) < 0.12; }
     else u.face = ang;
     if (aligned && u.cd <= 0 && w === u.def.weapon) { shoot(u, w, t); u.cd = w.rof; if (u.cls === 'inf' && u.def.weapon2) u.cd2 = Math.max(u.cd2, w.rof); }
   } else {
-    if (!u.needPath && (!u.dest || Math.hypot(u.dest.x - t.x, u.dest.y - t.y) > 40)) goTo(u, t.x, t.y);
+    const p = approachSpot(u, t, w);
+    if (!u.needPath && (!u.dest || Math.hypot(u.dest.x - p.x, u.dest.y - p.y) > 40)) goTo(u, p.x, p.y);
     followPath(u, dt);
     if (u.cls === 'veh') u.tface = turnToward(u.tface, ang, 3 * dt);
   }
+}
+
+// Where a unit closes in on its target from. Not the target's centre: every attacker walked to the same point
+// and the group ended up in one ball (and one V2 blast). Instead a spot just inside the unit's own reach, on the
+// side it comes from, turned round the target by its place in the group (u.fan, dealt out evenly by id) over an
+// arc as wide as the number of attackers needs (atkOn). The bearing is fixed when it takes the target
+// (u.apT its id, u.apA), so the spot does not creep round the target as the unit walks.
+function approachSpot(u, t, w) {
+  const R = fanR(t, w);
+  fanAngle(u, t, R);
+  const d = Math.hypot(u.x - t.x, u.y - t.y);
+  if (d < R + CELL) return t;   // already about there: just step in until it is in reach
+  const direct = Math.atan2(u.y - t.y, u.x - t.x);
+  for (const k of [1, 0.5, 0]) {   // its own spot; if that is water or rock, nearer its straight line in
+    const ang = direct + angDiff(u.apA, direct) * k;
+    const x = t.x + Math.cos(ang) * R, y = t.y + Math.sin(ang) * R;
+    if (x > 0 && y > 0 && x < WORLD && y < WORLD && passableAt(x, y)) return { x, y };
+  }
+  return t;
+}
+const fanR = (t, w) => Math.max(12, w.range * 0.85) + (t.kind === 'bld' ? Math.max(t.w, t.h) * CELL / 2 : 0);
+function fanAngle(u, t, R) {
+  if (u.apT === t.id) return;
+  if (u.fan === undefined) u.fan = ((u.id * 0.618034) % 1) * 2 - 1;
+  // The arc is sized for the group: those already after the target, or the friends around it now
+  // (who will mostly come in on the same target), whichever is more.
+  const a = atkOn.get(t);
+  let n = a ? a.n : 1, near = 1;
+  const bs = nearBuckets(u.x, u.y, CELL * 5);
+  for (let bi = 0; bi < bs.length; bi++) for (const e of bs[bi]) if (e !== u && e.alive && e.kind === 'unit' && e.team === u.team && e.cls !== 'air' && e.def.weapon && !e.def.harvester && Math.abs(e.x - u.x) < CELL * 5 && Math.abs(e.y - u.y) < CELL * 5) near++;
+  n = Math.max(n, near);
+  const spread = Math.min(1.5, n * (u.cls === 'inf' ? 13 : 26) / (2 * R));
+  u.apT = t.id; u.apA = Math.atan2(u.y - t.y, u.x - t.x) + u.fan * spread; u.slideT = 0;
+}
+// A unit that comes into reach on the near side of the target, in a crowd of its own side, steps along to its
+// own spot round the target (approachSpot) before it settles: infantry for at most SLIDE_MAX seconds without
+// firing, vehicles (and anything without a fixed gun) while they fire. True while it is stepping.
+const SLIDE_MAX = 3;
+function slideOut(u, t, w, dt) {
+  if (u.def.fixed || u.cls === 'air' || !u.def.speed || t.kind === 'unit' && t.cls === 'air') return false;
+  const R = fanR(t, w);
+  fanAngle(u, t, R);
+  if (u.slideT >= SLIDE_MAX) return false;
+  const x = t.x + Math.cos(u.apA) * R, y = t.y + Math.sin(u.apA) * R, dx = x - u.x, dy = y - u.y, d = Math.hypot(dx, dy);
+  if (d < 10) { u.slideT = SLIDE_MAX; return false; }   // there: stays put for this target
+  let crowd = 0;
+  const bs = nearBuckets(u.x, u.y, 18);
+  for (let bi = 0; bi < bs.length; bi++) for (const e of bs[bi]) if (e !== u && e.alive && e.kind === 'unit' && e.team === u.team && e.cls !== 'air' && Math.abs(e.x - u.x) < 18 && Math.abs(e.y - u.y) < 18) crowd++;
+  if (crowd < 2) return false;
+  u.slideT += dt;
+  const want = Math.atan2(dy, dx);
+  let speed = u.def.speed * (u.cls === 'inf' && u.stance === 'prone' ? CRAWL_SPEED : 1);
+  if (u.cls === 'veh') { u.face = turnToward(u.face, want, u.def.turn * dt); speed *= Math.max(0, Math.cos(angDiff(want, u.face))); }
+  else u.face = want;
+  const step = Math.min(speed * dt, d);
+  if (step > 0 && tryMove(u, Math.cos(u.cls === 'veh' ? u.face : want) * step, Math.sin(u.cls === 'veh' ? u.face : want) * step)) { u.anim += step; u.moving = true; }
+  return true;
 }
 
 function checkStuck(u, dt) {
@@ -3623,11 +3700,13 @@ function separate() {
       if (!b) continue;
       for (const o of b) {
         if (o.id <= a.id) continue;
-        const rr = (a.def.r + o.def.r) * (air ? 1.2 : 0.85);
+        // Ground units keep a little more than their own size apart (they used to overlap by 15%,
+        // and a fight became one ball), allies more than strangers.
+        const rr = (a.def.r + o.def.r) * (air ? 1.2 : a.team === o.team ? 1.25 : 1);
         const dx = o.x - a.x, dy = o.y - a.y, d = Math.hypot(dx, dy);
         if (d >= rr) continue;
         const nx = d > 0.01 ? dx / d : Math.random() - 0.5, ny = d > 0.01 ? dy / d : Math.random() - 0.5;
-        const push = Math.min(2, (rr - d) * 0.5);
+        const push = Math.min(air ? 2 : 3, (rr - d) * 0.5);
         // Heavier, busier units shove lighter, idle ones.
         const wa = (a.cls === 'inf' ? 1 : 0.4) * (a.moving ? 0.5 : 1), wo = (o.cls === 'inf' ? 1 : 0.4) * (o.moving ? 0.5 : 1), ws = wa + wo;
         if (air) { a.x -= nx * push * wa / ws; a.y -= ny * push * wa / ws; o.x += nx * push * wo / ws; o.y += ny * push * wo / ws; }

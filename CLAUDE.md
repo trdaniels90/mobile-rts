@@ -179,6 +179,21 @@ share globals. Read this file first; the commit history explains every change in
   a height field from the cliff cells, shaded by slope, cached per cell). They only block; the game has no
   height or high-ground bonus.
 
+## Units spread out in a fight (after 2026.11.13, not released, both modes)
+
+- Owner's report: units always balled up when auto attacking or defending. Three causes, three fixes (world.js):
+  **Approach spot** (`approachSpot`, `fanR`, `fanAngle`): `engage` used to path every attacker to the target's centre. Now each
+  heads for a spot at 0.85 of its range on its own side, turned by `u.fan` (dealt by id) over an arc sized for its group
+  (attackers in `atkOn`, or friends within 5 cells, at most +-1.5 rad); the bearing is fixed per target (`u.apT` id, `u.apA`).
+  **Sliding** (`slideOut`, `SLIDE_MAX` 3 s): a unit that comes into reach in a crowd (2+ friends within 18 px) steps along to its
+  spot; infantry hold fire meanwhile, vehicles fire on the move. **Spacing** (`separate`): ground units keep 1.25 times their radii
+  apart from allies, 1 from foes (was 0.85), push up to 3 px a step. **Fire spread** (`atkOn`, `pledge`, `overkill`, rebuilt in
+  `buildGrid` each step, not saved): `acquire` and `defendBase` put a unit already as good as dead (next shots of its attackers
+  >= 1.2 x its health) `OVERKILL` (3 cells) further back. The new unit fields are in netcore.js `SKIP`.
+- `node tools/sim/bunching.js <repo> 10 90` (headless staged fight: Soviet hunters into an Allied base defence; friends within a
+  V2 blast of each engaging unit): attackers 7.35 to 3.87 average, 6+ in one blast 67% to 19%, worst 19 to 12; defenders were
+  already about 2.4. Defenders kill more (about 8 of 24 attackers, was 6): the attackers still win every run.
+
 ## Recent mechanics (2026.10.31.2)
 
 - **Map:** "A Bridge Too Far" (`MAPS.bridge`, `src/maps.js`), 144 x 144 cells (`MAP` in data.js). The
@@ -553,6 +568,7 @@ Supabase.
 | `ground-tiles.js` | The ground in tiles: every kind of mark in a staged battle, live vs repainted tiles and tile sizes pixel for pixel, save and continue, an old save's scars. `<repo> [maps] [old checkout]` |
 | `give-credits.js` | Giving credits to an ally: the rule headless, the GIVE card in a 2 v 2 skirmish, online co-op through the server and forged orders |
 | `server-coop-mate.js` | Co-op with a computer teammate: two players in a 3 v AI, the leader adds the computer, the battle starts with it on the players' team |
+| `bunching.js` | Headless staged fight: how many friends stand inside one V2 blast of each fighting unit, attack and defence, and how the fight went. `<repo> [runs] [seconds]` |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
