@@ -179,6 +179,15 @@ share globals. Read this file first; the commit history explains every change in
   a height field from the cliff cells, shaded by slope, cached per cell). They only block; the game has no
   height or high-ground bonus.
 
+## Jets: gun runs instead of bombs (after 2026.11.13.2, not released, both modes)
+
+- Strike Jet and MiG no longer carry bombs (`bombs`/`bomb` gone from data.js, `u.bombs` is now `u.guns`). They have
+  `gun` (`runs` 3 a sortie, `rounds` 14 SA shells of 12, `splash` 9 px, walked `walk` 70 px along the flight line
+  through the target): `startStrafe` / `tickStrafe` in world.js, fired when a ground target is within `gun.range`
+  (110) and nearly dead ahead, after the missiles. Deadly to infantry, light on vehicles, little against tanks and
+  buildings. `strafe` is a host timer (netcore `SKIP`). The jet models still show bombs under the wings (changing
+  them needs a sprite rebake). Headless check: 10 riflemen, one MiG with an Airfield, 90 s: 8 killed.
+
 ## Units spread out in a fight (after 2026.11.13, not released, both modes)
 
 - Owner's report: units always balled up when auto attacking or defending. Three causes, three fixes (world.js):

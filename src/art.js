@@ -1371,9 +1371,9 @@ function drawUnit(g, u, t) {
       g.fillStyle = '#000'; g.fillRect(cx - 4, cy - 4, 9, 9);
       g.fillStyle = '#3ed04a'; g.fillRect(cx - 3, cy - 1, 7, 3); g.fillRect(cx - 1, cy - 3, 3, 7);
     }
-    // Yellow: main weapon, blue: air-to-air missiles, grey: bombs.
+    // Yellow: main weapon, blue: air-to-air missiles, grey: gun runs.
     if (u.as === 'landed' && u.def.weapon) {
-      const loads = [[u.def.weapon.ammo, u.ammo, '#e8c64a'], [u.def.weapon2 ? u.def.weapon2.ammo : 0, u.aam || 0, '#9cc8ff'], [u.def.bombs || 0, u.bombs || 0, '#b8b6aa']];
+      const loads = [[u.def.weapon.ammo, u.ammo, '#e8c64a'], [u.def.weapon2 ? u.def.weapon2.ammo : 0, u.aam || 0, '#9cc8ff'], [u.def.gun ? u.def.gun.runs : 0, u.guns || 0, '#b8b6aa']];
       const n = loads.reduce((s, l) => s + l[0], 0), x0 = Math.round(u.x - n * 1.5), y0 = Math.round(u.y + 9);
       g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x0 - 1, y0 - 1, n * 3 + 1, 4);
       let i = 0;

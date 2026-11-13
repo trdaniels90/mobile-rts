@@ -21,10 +21,10 @@ const { chromium, devices } = require('playwright');
       types.forEach((t, i) => { const a = i * 0.7; const u = addUnit(t, foe, cy.x + 300 + Math.cos(a) * 30, cy.y + Math.sin(a) * 30 + 40); if (u) { raiders.push(u); u.order = { type: 'hunt' }; } });
       const last = new Map(); let worst = 0; const t0 = G.t; const log = [];
       while (G.t - t0 < 120) {
-        step(0.5); if (Math.round((G.t - t0) * 2) % 20 === 0) log.push(Math.round(G.t - t0) + " " + migs.map((m) => m.alive ? m.as + (m.rearming ? "R" : "") + (m.defending ? "D" : "") + (m.target ? "T" : "-") + m.hp.toFixed(0) + "/" + m.ammo + m.aam + m.bombs : "x").join(" "));
+        step(0.5); if (Math.round((G.t - t0) * 2) % 20 === 0) log.push(Math.round(G.t - t0) + " " + migs.map((m) => m.alive ? m.as + (m.rearming ? "R" : "") + (m.defending ? "D" : "") + (m.target ? "T" : "-") + m.hp.toFixed(0) + "/" + m.ammo + m.aam + m.guns : "x").join(" "));
         for (const m of migs) {
           if (!m.alive) continue;
-          const key = (m.target ? m.target.id : -1) + ':' + m.ammo + ':' + m.aam + ':' + m.bombs;
+          const key = (m.target ? m.target.id : -1) + ':' + m.ammo + ':' + m.aam + ':' + m.guns;
           const l = last.get(m);
           if (!l || l.key !== key) last.set(m, { key, t: G.t });
           else if (m.target && m.as === 'fly') worst = Math.max(worst, G.t - l.t);

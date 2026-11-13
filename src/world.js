@@ -773,7 +773,7 @@ function addUnit(type, team, x, y) {
   u.tface = u.face; u.born = G.t;
   if (!d.harvester && !d.scripted && type !== 'pilot') team.stats.units++;
   if (d.harvester) { u.load = 0; u.hs = 'seek'; u.hcell = -1; u.htimer = 0; }
-  if (d.cls === 'air') { u.ammo = d.weapon ? d.weapon.ammo : 0; u.aam = d.weapon2 ? d.weapon2.ammo : 0; u.bombs = d.bombs || 0; u.flares = d.flares || 0; u.alt = 0; u.as = 'takeoff'; u.rt = 0; u.passT = 0; u.speedCur = 0; }
+  if (d.cls === 'air') { u.ammo = d.weapon ? d.weapon.ammo : 0; u.aam = d.weapon2 ? d.weapon2.ammo : 0; u.guns = d.gun ? d.gun.runs : 0; u.flares = d.flares || 0; u.alt = 0; u.as = 'takeoff'; u.rt = 0; u.passT = 0; u.speedCur = 0; }
   G.entities.push(u); G.byId.set(u.id, u);
   return u;
 }
@@ -1464,6 +1464,33 @@ function tickBurst(u, dt) {
   fireWeapon(u, b.w, b.target);
   b.t = b.w.gap;
   if (--b.left <= 0) u.burst = null;
+}
+
+// A jet's gun run: `rounds` cannon shells walked along the flight line through where the target
+// stood, from `walk`/2 short of it to `walk`/2 past it. Each shell hurts every enemy on the ground
+// within `splash` (full damage, small arms: deadly to infantry, weak against armour and buildings).
+function startStrafe(u, t) {
+  const g = u.def.gun, c = Math.cos(u.face), s = Math.sin(u.face);
+  u.strafe = { left: g.rounds, n: 0, t: 0, x0: t.x - c * g.walk / 2, y0: t.y - s * g.walk / 2, dx: c * g.walk / (g.rounds - 1), dy: s * g.walk / (g.rounds - 1) };
+}
+function tickStrafe(u, dt) {
+  const st = u.strafe;
+  if (!st) return;
+  if (!u.alive || !isAirborne(u)) { u.strafe = null; return; }
+  if ((st.t -= dt) > 0) return;
+  const g = u.def.gun, m = muzzle(u);
+  const x = st.x0 + st.dx * st.n + (Math.random() - 0.5) * 6, y = st.y0 + st.dy * st.n + (Math.random() - 0.5) * 6;
+  if (st.n % 3 === 0) hooks.sfx('mg', u.x, u.y);
+  u.fireT = 0.1; u.shots = (u.shots || 0) + 1; u.shotAt = G.t;
+  G.effects.push({ type: 'tracer', x: m.x, y: m.y, x2: x, y2: y, t: 0, life: 0.07 });
+  G.effects.push({ type: 'spark', x, y, t: 0, life: 0.12 });
+  if (st.n % 2 === 0) G.effects.push({ type: 'smoke', x, y, r: 3, t: 0, life: 0.6, alpha: 0.45, color: '#b8a888', vy: -6 });   // dust kicked up
+  if (!G.remote) for (const e of G.entities) {
+    if (!e.alive || !hostile(e.team, u.team) || isAirborne(e)) continue;
+    if (e.kind === 'bld' ? (x >= e.cx * CELL && x < (e.cx + e.w) * CELL && y >= e.cy * CELL && y < (e.cy + e.h) * CELL) : Math.hypot(e.x - x, e.y - y) < g.splash + (e.def.r || 0)) damage(e, g.dmg, g.wh, u, { x, y });
+  }
+  st.n++; st.t = g.gap;
+  if (--st.left <= 0) u.strafe = null;
 }
 
 // Smoke out of a gun turret's barrel (a heavier puff that rolls forward and up) or a pillbox's
@@ -2275,6 +2302,7 @@ function updateUnit(u, dt) {
   if (u.stance && G.t > u.stanceUntil) u.stance = null;   // quiet for a while: back on their feet
   u.moving = false;
   tickBurst(u, dt);
+  tickStrafe(u, dt);
   if (u.def.scripted) { updateFlight(u, dt); return; }
   if (u.chute > 0) { u.chute -= dt; if (u.chute <= 0) landChute(u); return; }
   if (u.cls === 'air') { updateAir(u, dt); return; }
@@ -2734,20 +2762,20 @@ function updateRepairOrder(u, dt) {
 }
 
 // --- Aircraft ---------------------------------------------------------------
-// Loads: ammo (main weapon), aam (jets' air-to-air missiles), bombs (jets), flares (jets).
-const airLoad = (d) => ({ ammo: d.weapon ? d.weapon.ammo : 0, aam: d.weapon2 ? d.weapon2.ammo : 0, bombs: d.bombs || 0 });
-const airEmpty = (u) => u.ammo <= 0 && !(u.aam > 0) && !(u.bombs > 0);
-function airFull(u) { const L = airLoad(u.def); return u.ammo >= L.ammo && (u.aam || 0) >= L.aam && (u.bombs || 0) >= L.bombs; }
+// Loads: ammo (main weapon), aam (jets' air-to-air missiles), guns (jets' gun runs), flares (jets).
+const airLoad = (d) => ({ ammo: d.weapon ? d.weapon.ammo : 0, aam: d.weapon2 ? d.weapon2.ammo : 0, guns: d.gun ? d.gun.runs : 0 });
+const airEmpty = (u) => u.ammo <= 0 && !(u.aam > 0) && !(u.guns > 0);
+function airFull(u) { const L = airLoad(u.def); return u.ammo >= L.ammo && (u.aam || 0) >= L.aam && (u.guns || 0) >= L.guns; }
 function rearmStep(u) {
   const L = airLoad(u.def);
   if (u.ammo < L.ammo) u.ammo++;
   else if ((u.aam || 0) < L.aam) u.aam = (u.aam || 0) + 1;
-  else if ((u.bombs || 0) < L.bombs) u.bombs = Math.min(L.bombs, (u.bombs || 0) + 2);
+  else if ((u.guns || 0) < L.guns) u.guns = (u.guns || 0) + 1;
   u.flares = u.def.flares || 0;
 }
 function airWeapons(u) {
   const ws = [];
-  if (u.ammo > 0 || u.bombs > 0) ws.push(u.def.weapon);
+  if (u.ammo > 0 || u.guns > 0) ws.push(u.def.weapon);
   if (u.aam > 0 && u.def.weapon2) ws.push(u.def.weapon2);
   return ws;
 }
@@ -2861,7 +2889,7 @@ function callFromReserve(team, r) {
   const e = edgePoint((team.start.cx + 0.5) * CELL, (team.start.cy + 0.5) * CELL, 0);
   const u = addUnit(r.type, team, Math.max(8, Math.min(WORLD - 8, e.x)), Math.max(8, Math.min(WORLD - 8, e.y)));
   team.stats.units--;   // already counted when it was built
-  u.hp = r.hp; u.ammo = r.ammo; u.aam = r.aam; u.bombs = r.bombs; u.flares = r.flares;
+  u.hp = r.hp; u.ammo = r.ammo; u.aam = r.aam; u.guns = r.guns; u.flares = r.flares;
   u.as = 'fly'; u.alt = JET_ALT; u.speedCur = u.def.speed;
   u.home = pad ? pad.id : null;
   u.face = u.tface = pad ? Math.atan2(pad.y - u.y, pad.x - u.x) : Math.atan2(WORLD / 2 - u.y, WORLD / 2 - u.x);
@@ -2884,7 +2912,7 @@ function flyAway(u, dt) {
   u.speedCur = Math.min(u.def.speed, (u.speedCur || 0) + 160 * dt);
   u.x += Math.cos(u.face) * u.speedCur * dt; u.y += Math.sin(u.face) * u.speedCur * dt; u.moving = true;
   if (u.x < -40 || u.y < -40 || u.x > WORLD + 40 || u.y > WORLD + 40) {
-    (G.teams[u.team].reserve || (G.teams[u.team].reserve = [])).push({ type: u.type, hp: u.hp, ammo: u.ammo, aam: u.aam, bombs: u.bombs, flares: u.flares });
+    (G.teams[u.team].reserve || (G.teams[u.team].reserve = [])).push({ type: u.type, hp: u.hp, ammo: u.ammo, aam: u.aam, guns: u.guns, flares: u.flares });
     u.alive = false;   // gone without a wreck
   }
 }
@@ -2978,10 +3006,10 @@ function updateAir(u, dt) {
   }
   if (u.retreat && !padFor(u)) u.retreat = false;   // pad lost on the way: fight on
   // Out of ammo, retreating, or told to wait on the pad: head home and land.
-  // Jets go home once their missiles and bombs for ground targets are spent, keeping any
+  // Jets go home once their missiles and gun runs for ground targets are spent, keeping any
   // air-to-air missiles for enemy aircraft met on the way (or for an air target the player picked).
   const o0 = u.order, huntingAir = o0.type === 'attack' && o0.target.alive && isAirborne(o0.target) && u.aam > 0;
-  const strikeSpent = jet && u.ammo <= 0 && !(u.bombs > 0) && !huntingAir;
+  const strikeSpent = jet && u.ammo <= 0 && !(u.guns > 0) && !huntingAir;
   if (airEmpty(u) || strikeSpent || u.retreat || u.rearming || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {
@@ -3020,21 +3048,18 @@ function updateAir(u, dt) {
     if (u.passT > 0) { u.passT -= dt; flyJet(u, u.x + Math.cos(u.face) * 100, u.y + Math.sin(u.face) * 100, dt); return; }
     if (t) {
       const d = distTo(u, t), ang = Math.atan2(t.y - u.y, t.x - u.x), air = isAirborne(t);
-      // Air targets get air-to-air missiles; ground targets get missiles from range, then bombs overhead.
+      // Air targets get air-to-air missiles; ground targets get missiles from range, then a gun run.
       const mw = air ? (u.aam > 0 ? u.def.weapon2 : null) : (u.ammo > 0 ? w : null);
       if (mw && d <= mw.range && Math.abs(angDiff(ang, u.face)) < 0.35 && u.cd <= 0) {
         shoot(u, mw, t); u.cd = mw.rof;
         if (air) u.aam--; else u.ammo--;
         if (Math.random() < 0.5) u.passT = 0.9;
         // A jet defending the base makes one pass, then flies home to rearm: a missile at an aircraft,
-        // or at a ground target it has no bombs left for, ends it; otherwise the bomb run does.
-        if (u.defending && o.type !== 'attack' && (air || !(u.bombs > 0))) u.rearming = true;
-      } else if (!air && u.bombs > 0 && d < 12 && u.cd2 <= 0) {
-        for (let i = 0; i < 2; i++) {
-          const ox = Math.cos(u.face) * i * 14, oy = Math.sin(u.face) * i * 14;
-          G.projectiles.push({ kind: 'bomb', team: u.team, from: u, w: u.def.bomb, tx: u.x + ox, ty: u.y + oy, x: u.x + ox, y: u.y + oy - u.alt, z: u.alt, t: 0, dur: 0.5, delay: i * 0.08 });
-        }
-        u.bombs -= 2; u.cd2 = 1.2; u.passT = 0.9;
+        // or at a ground target it has no gun runs left for, ends it; otherwise the gun run does.
+        if (u.defending && o.type !== 'attack' && (air || !(u.guns > 0))) u.rearming = true;
+      } else if (!air && u.guns > 0 && !u.strafe && d <= u.def.gun.range && Math.abs(angDiff(ang, u.face)) < 0.3 && u.cd2 <= 0) {
+        startStrafe(u, t);
+        u.guns--; u.cd2 = 1.6;
         if (u.defending && o.type !== 'attack') u.rearming = true;
       } else if (!(u.extT > 0) && d < (u.def.speed / u.def.turn) * 1.6 && Math.abs(angDiff(ang, u.face)) > 0.8) {
         // Too close to turn onto it (a raider beside the Airfield sits inside the turning circle, and the jet
