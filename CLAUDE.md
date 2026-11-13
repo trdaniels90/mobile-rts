@@ -415,6 +415,13 @@ share globals. Read this file first; the commit history explains every change in
   "Deploying forces" card until `SpriteSheets.ready()` and `G.ground.missing === 0` (at least `LOAD_MIN`, at most
   `LOAD_MAX` 3 s; shown only after 120 ms). A skirmish does not run meanwhile; an online battle does (`Net.role`). Those
   frames are left out of the match report.
+- **Pop-in (after 2026.11.13, both modes; match 258ad396, a 2560 x 1370 desktop at 120 fps with up to 1,136 frames a
+  minute showing stand-ins):** tiles were let go past `max(140, 3 x on screen)` and repainted on the way back. Now a
+  roomy computer (`GROUND_ROOMY` in art.js: Chrome's `deviceMemory` >= 8, or no touch screen, not a phone and 4+ cores)
+  keeps every tile and, once the preview is done, has the workers paint the rest of the map in the background, nearest
+  the view first (finished with the `ahead` time only). Snowbound: all 400 tiles in about 20 s, about 100-130 MB.
+  Phones keep the old limit. On every device a tile that comes in where a stand-in was on screen fades in over it
+  (`GROUND_FADE`, 250 ms, `t.born`) instead of popping.
 - **Anything new drawn onto the ground** must be a function in `MARK_FNS` (deterministic from its arguments, with a box in
   `markBox`), never a draw on a canvas kept in G. The game server records no marks (`HEADLESS`).
 - **Saves** keep `G.marks` (no pictures). An old save's two pictures are used as the ground (`legacy`, `G.legacyGround`,
