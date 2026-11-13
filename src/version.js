@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.13.3', date: '13 November 2026', title: 'Jets get guns, fewer air raids', groups: [
+    ['Changes', [
+      'Strike Jets and MiGs no longer carry bombs. Instead they make cannon gun runs (three a sortie): a burst of shells along their flight path that shreds infantry and hurts light vehicles, but barely scratches tanks and buildings.',
+      'Jets now fire their air-to-air missiles at ground targets too, once their ground-attack missiles are spent. They still save them for enemy aircraft on the way home.',
+      'The computer sends its aircraft out much less often: no air attacks before its first ground attack, then at least 3 minutes between jet strikes and between helicopter strikes. Its jets still scramble when you raid its base.',
+    ]],
+  ] },
   { v: '2026.11.13.2', date: '13 November 2026', title: 'Ready-made ground, no more pop-in', groups: [
     ['Improvements', [
       'Snowbound and Three Crossings now come with their ground ready-made, so the game no longer paints it while you play: the map appears sooner and stays sharp as you scroll. Their ground looks the same in every game now.',
