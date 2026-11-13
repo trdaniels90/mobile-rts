@@ -4,6 +4,15 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.13', date: '13 November 2026', title: 'Computer teammates in co-op, and jets defend again', groups: [
+    ['New', [
+      'Online co-op (2 v AI and 3 v AI): short a friend? The room leader can tap Add computer on an open place on your team to fill it with a computer teammate, and Open for a friend to give it back. A co-op with a computer teammate does not count for the co-op leaderboard.',
+    ]],
+    ['Fixes', [
+      'Jets defend the base again. After scrambling against enemy aircraft, jets were treated as if you had sent them somewhere yourself, and stopped answering raids on the base.',
+      'Jets no longer circle raiders close to their Airfield without firing: they fly out, come round and make a proper attack run.',
+    ]],
+  ] },
   { v: '2026.11.12.8', date: '12 November 2026', title: 'Give credits to an ally', groups: [
     ['New', [
       'Team battles (2 v 2, co-op and 3 v 3, skirmish and online) have a GIVE button next to ALLY: send 500, 1000 or 2500 credits to an ally still in the battle, or type another amount. More than you have sends everything you have. Both of you hear it. Thanks to JGFortanelli for building it.',
