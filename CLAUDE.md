@@ -125,6 +125,12 @@ share globals. Read this file first; the commit history explains every change in
   no other defender has, makes one pass (a missile at an aircraft, or the bomb run, sets
   `u.rearming`), flies home, rearms fully and goes out again. Raider ids are in `team.raiders`.
   A jet whose raider dies picks the next free one.
+- **Jets fly out to line up** (after 2026.11.12.8, both modes; `u.extT` in `updateAir`): a jet's turning circle (about 210 px
+  for a MiG) is wider than its missile range (130), so a raider beside the Airfield was inside it and defending jets
+  circled it without firing (owner's report: jets not defending the base). A jet that is closer than 1.6 turning radii
+  and not facing the target flies straight out until it has room (2 radii + range + 40 px, at most 3 s), then comes
+  round. `jet-defense.js` seeds 11-14: raiders killed 9 to 15, MiGs lost 12 to 10, worst time on a target without
+  firing 60 to 16 s.
 - **Anti-air missiles** (`fireWeapon`, `updateProjectiles`): missiles and rockets fired at aircraft
   have fuel of `AA_FUEL` (1.5) times the weapon's range, `SAM_FUEL` (3) for SAM Sites, and burn out
   if the target lands. Missiles at ground targets are unchanged.

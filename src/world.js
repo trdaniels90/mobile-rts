@@ -2953,6 +2953,16 @@ function updateAir(u, dt) {
         }
         u.bombs -= 2; u.cd2 = 1.2; u.passT = 0.9;
         if (u.defending && o.type !== 'attack') u.rearming = true;
+      } else if (!(u.extT > 0) && d < (u.def.speed / u.def.turn) * 1.6 && Math.abs(angDiff(ang, u.face)) > 0.8) {
+        // Too close to turn onto it (a raider beside the Airfield sits inside the turning circle, and the jet
+        // would circle it for ever without a shot): fly straight out, then come round for a proper run.
+        u.extT = 3;
+      }
+      // Flying out: far enough to turn round (one turning circle) and still line up before it is in range.
+      if (u.extT > 0) {
+        u.extT -= dt;
+        if (d < (u.def.speed / u.def.turn) * 2 + (mw ? mw.range : 0) + 40) { flyJet(u, u.x + Math.cos(u.face) * 100, u.y + Math.sin(u.face) * 100, dt); return; }
+        u.extT = 0;
       }
       flyJet(u, t.x, t.y, dt);
     } else if (o.type === 'hunt') {
