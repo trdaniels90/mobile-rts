@@ -2373,7 +2373,7 @@ function approachSpot(u, t, w) {
 }
 // The widest arc (radians either side of the unit's own bearing: 2.4 is most of the way round) and the room
 // each unit gets on it (px).
-const FAN_MAX = 2.4, FAN_GAP_INF = 20, FAN_GAP_VEH = 36;
+const FAN_MAX = 1.95, FAN_GAP_INF = 16, FAN_GAP_VEH = 31;
 const fanR = (t, w) => Math.max(12, w.range * 0.85) + (t.kind === 'bld' ? Math.max(t.w, t.h) * CELL / 2 : 0);
 function fanAngle(u, t, R) {
   if (u.apT === t.id) return;
@@ -2391,7 +2391,7 @@ function fanAngle(u, t, R) {
 // A unit that comes into reach on the near side of the target, in a crowd of its own side, steps along to its
 // own spot round the target (approachSpot) before it settles: infantry for at most SLIDE_MAX seconds without
 // firing, vehicles (and anything without a fixed gun) while they fire. True while it is stepping.
-const SLIDE_MAX = 5;
+const SLIDE_MAX = 4;
 function slideOut(u, t, w, dt) {
   if (u.def.fixed || u.cls === 'air' || !u.def.speed || t.kind === 'unit' && t.cls === 'air') return false;
   const R = fanR(t, w);
@@ -2400,8 +2400,8 @@ function slideOut(u, t, w, dt) {
   const x = t.x + Math.cos(u.apA) * R, y = t.y + Math.sin(u.apA) * R, dx = x - u.x, dy = y - u.y, d = Math.hypot(dx, dy);
   if (d < 10) { u.slideT = SLIDE_MAX; return false; }   // there: stays put for this target
   let crowd = 0;
-  const bs = nearBuckets(u.x, u.y, 22);
-  for (let bi = 0; bi < bs.length; bi++) for (const e of bs[bi]) if (e !== u && e.alive && e.kind === 'unit' && e.team === u.team && e.cls !== 'air' && Math.abs(e.x - u.x) < 22 && Math.abs(e.y - u.y) < 22) crowd++;
+  const bs = nearBuckets(u.x, u.y, 20);
+  for (let bi = 0; bi < bs.length; bi++) for (const e of bs[bi]) if (e !== u && e.alive && e.kind === 'unit' && e.team === u.team && e.cls !== 'air' && Math.abs(e.x - u.x) < 20 && Math.abs(e.y - u.y) < 20) crowd++;
   if (crowd < 1) return false;
   u.slideT += dt;
   const want = Math.atan2(dy, dx);
@@ -3705,7 +3705,7 @@ function separate() {
         if (o.id <= a.id) continue;
         // Ground units keep a little more than their own size apart (they used to overlap by 15%,
         // and a fight became one ball), allies more than strangers.
-        const rr = (a.def.r + o.def.r) * (air ? 1.2 : a.team === o.team ? 1.5 : 1);
+        const rr = (a.def.r + o.def.r) * (air ? 1.2 : a.team === o.team ? 1.4 : 1);
         const dx = o.x - a.x, dy = o.y - a.y, d = Math.hypot(dx, dy);
         if (d >= rr) continue;
         const nx = d > 0.01 ? dx / d : Math.random() - 0.5, ny = d > 0.01 ? dy / d : Math.random() - 0.5;
