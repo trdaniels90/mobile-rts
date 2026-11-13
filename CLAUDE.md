@@ -131,6 +131,12 @@ share globals. Read this file first; the commit history explains every change in
   and not facing the target flies straight out until it has room (2 radii + range + 40 px, at most 3 s), then comes
   round. `jet-defense.js` seeds 11-14: raiders killed 9 to 15, MiGs lost 12 to 10, worst time on a target without
   firing 60 to 16 s.
+- **Scrambles are not player orders** (after 2026.11.12.8, both modes): `scramble` launches jets with `commandAttack`,
+  which since 2026.11.12.1 marks a player's unit `manual` (`takeOver`), so after the first enemy air raid a player's jets
+  sat out base defence and later scrambles (co-op match 265e31c8 / 60025946: York's jets 2-3 kills in 11 minutes). Now
+  cleared right after. Staged co-op on Snowbound (two idle player bases with 3 Strike Jets each, two Normal computers):
+  jet time defending 54-84 to 163-325 jet-seconds, shots 15-17 to 30-50. **Any game-side caller of the command
+  functions on a player's units must clear `manual` the same way.**
 - **Anti-air missiles** (`fireWeapon`, `updateProjectiles`): missiles and rockets fired at aircraft
   have fuel of `AA_FUEL` (1.5) times the weapon's range, `SAM_FUEL` (3) for SAM Sites, and burn out
   if the target lands. Missiles at ground targets are unchanged.

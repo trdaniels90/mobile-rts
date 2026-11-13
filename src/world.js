@@ -1235,6 +1235,9 @@ function scramble(team) {
       if (!canTarget(u, t)) continue;
       if (!u.scrambled) { u.scrambled = true; u.wasStaged = u.staged; notify(team, 'scramble', 'Scrambling fighters', 20); }
       commandAttack([u], t);
+      // A scramble is the game's own order, not the player's: commandAttack marks a player's unit as under a
+      // direct order (takeOver), which kept scrambled jets out of base defence and later scrambles.
+      u.manual = false; u.manualFrom = undefined;
       if (u.as === 'landed') u.as = 'takeoff';
     } else if (u.scrambled || (u.interceptor && (u.order.type !== 'guard' || !u.order.pad))) {
       setGuard(u); u.order.pad = true; u.staged = !!u.wasStaged; u.scrambled = false;   // all clear: back to the Airfield
