@@ -332,6 +332,7 @@ function lightTankHull(pal) {
 }
 function lightTankTurret(pal) {
   const m = new VModel(-6.5, -6.5, 17.5, 7.5, 7);
+  m.py = -0.5;   // built half a voxel to +y (see ltank.py): turn it about its own centre
   m.box(-2, -4, 0, 2, -3, 2, pal.main, M_METAL);
   m.box(-4, -3, 0, -3, -2, 1, pal.dark, M_METAL);
   m.box(-3, -3, 0, -2, -2, 3, pal.main, M_METAL);

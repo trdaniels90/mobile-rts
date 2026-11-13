@@ -126,7 +126,7 @@ function renderVox(m, angle, opts) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   let sminX = Infinity, sminY = Infinity, smaxX = -Infinity, smaxY = -Infinity;
   for (let i = 0; i < n; i++) {
-    const cx = s.xs[i] + 0.5, cy = s.ys[i] + 0.5;
+    const cx = s.xs[i] + 0.5, cy = s.ys[i] + 0.5 + (m.py || 0);   // py: a model built off its centre line by a fraction of a voxel (an odd-width turret) is turned about its true centre
     const xr = cx * ca - cy * sa, yr = cx * sa + cy * ca;
     px[i] = xr; py[i] = yr;
     const z = s.zs[i];
