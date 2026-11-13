@@ -10,42 +10,53 @@ out = sys.argv[1]
 os.makedirs(out, exist_ok=True)
 
 # ------------------------------------------------------------------ hull
+# Design taken from a Tripo Studio reference: exposed road wheels under curved fenders, a sloped nose, a raised
+# fighting compartment amidships and a long engine deck falling away to the rear.
+STEEL, STEELHI = '#8c9094', '#b9bdc0'
 h = Scene()
 for s in (-1, 1):
-    yc = s * 4.5
-    h.cube((0, yc, 2.0), (12.0, 3.0, 4.0), TRACK, 'rough', name='track')                 # track run with rounded ends
-    for x in (-6.0, 6.0):
-        h.tube((x, yc - 1.5, 2.0), (x, yc + 1.5, 2.0), 2.0, TRACK, 'rough', name='track_end')
-    h.cube((0.2, s * 5.5, 2.8), (16.0, 1.0, 1.4), 'dark', 'metal', name='skirt_low')
-    h.cube((0.2, s * 5.5, 4.2), (16.0, 1.0, 1.6), 'light', 'metal', name='skirt')        # pale skirt panel, ridged
-    for x in range(-7, 9, 2):
-        h.cube((x + 0.5, s * 5.5, 4.2), (0.8, 1.0, 1.6), 'main', 'metal', name='skirt_ridge')
-    for x in (-7.5, 7.5):
-        h.cube((x, s * 5.0, 3.0), (1.2, 2.0, 2.4), TRACK, 'rough', name='track_cap')      # dark track ends show past the skirt
-h.cube((0, 0, 3.0), (14.0, 8.0, 3.0), 'dark', 'metal', name='lower_hull')
-h.cube((-0.5, 0, 5.0), (14.5, 10.0, 1.6), 'light', 'metal', name='deck')
-h.cube((7.6, 0, 4.9), (3.4, 10.0, 1.4), 'light', 'metal', rot=(0, 28, 0), name='glacis')   # sloped nose
-h.cube((8.5, 0, 3.0), (0.9, 8.0, 2.2), 'dark', 'metal', name='nose_plate')
-h.cube((-5.6, 0, 5.9), (4.2, 7.0, 0.6), 'main', 'metal', name='engine_deck')
-for x in (-7.0, -5.8, -4.6):
-    h.cube((x, 0, 6.1), (0.7, 5.0, 0.6), 'deep', 'matte', name='vent')
+    yc = s * 4.9
+    h.cube((0, yc, 1.7), (13.0, 2.6, 3.4), TRACK, 'rough', name='track')                  # track run with rounded ends
+    for x in (-6.5, 6.5):
+        h.tube((x, yc - 1.3, 1.7), (x, yc + 1.3, 1.7), 1.7, TRACK, 'rough', name='track_end')
+    h.cube((0, yc, 3.3), (13.0, 2.6, 0.5), TRACKHI, 'rough', name='track_top')
+    for x in (-5.5, -1.5, 2.5):                                                          # big steel road wheels on the outer face
+        h.cube((x, s * 5.9, 1.5), (2.0, 0.8, 2.0), STEEL, 'metal', name='wheel')
+        h.cube((x, s * 5.9, 1.5), (0.9, 0.9, 0.9), STEELHI, 'metal', name='hub')
+    h.cube((6.5, s * 5.9, 2.0), (1.0, 0.8, 1.0), STEEL, 'metal', name='sprocket')
+    h.cube((-0.2, s * 4.9, 4.1), (15.4, 3.2, 1.0), 'main', 'metal', name='fender')         # fender over the track
+    h.cube((-0.2, s * 6.1, 4.0), (15.4, 0.8, 0.9), 'dark', 'metal', name='fender_lip')
+    h.cube((8.0, s * 4.9, 3.6), (2.4, 3.2, 0.9), 'main', 'metal', rot=(0, 32, 0), name='fender_nose')   # drooping ends
+    h.cube((-8.2, s * 4.9, 3.6), (2.4, 3.2, 0.9), 'dark', 'metal', rot=(0, -32, 0), name='fender_tail')
+h.cube((0.2, 0, 2.6), (15.6, 7.0, 3.2), 'dark', 'metal', name='lower_hull')
+h.cube((-0.3, 0, 4.4), (15.0, 7.4, 1.0), 'main', 'metal', name='deck')
+h.prism([(4.2, -3.6), (4.2, 3.6), (9.0, -3.3), (9.0, 3.3)], [(3.4, -3.3), (3.4, 3.3), (4.6, -3.2), (4.6, 3.2)], 3.0, 6.0, 'light', 'metal', name='glacis')   # sloped nose
+h.cube((8.9, 0, 2.6), (0.8, 6.4, 1.8), 'dark', 'metal', name='nose_plate')
+h.prism([(-3.6, -4.4), (-3.6, 4.4), (4.4, -4.4), (4.4, 4.4)], [(-2.8, -3.5), (-2.8, 3.5), (3.6, -3.5), (3.6, 3.5)], 4.4, 6.2, 'main', 'metal', name='casemate')   # fighting compartment
+h.cube((0.4, 0, 6.0), (6.0, 6.6, 0.5), 'light', 'metal', name='casemate_roof')
 for s in (-1, 1):
-    h.cube((7.9, s * 4.0, 4.6), (0.6, 1.0, 0.8), '#b9a860', 'metal', name='headlight')
+    h.cube((0.6, s * 4.1, 5.4), (2.0, 0.7, 0.8), 'deep', 'matte', name='vision_port')
+h.prism([(-9.0, -3.6), (-9.0, 3.6), (-3.0, -3.6), (-3.0, 3.6)], [(-3.6, -3.4), (-3.6, 3.4), (-3.0, -3.4), (-3.0, 3.4)], 4.0, 6.0, 'main', 'metal', name='engine_deck')   # falls to the rear
+for x in (-7.5, -6.1, -4.7):
+    h.cube((x, 0, 5.0), (0.7, 4.6, 2.0), 'deep', 'matte', name='vent')
+h.cube((5.6, 1.4, 5.4), (1.6, 1.8, 1.0), 'dark', 'metal', name='driver_hatch')
+for s in (-1, 1):
+    h.cube((7.6, s * 4.6, 5.0), (0.8, 1.0, 0.9), '#b9a860', 'metal', name='headlight')
 hb = greedy_boxes(h.voxelize(-10, -8, 11, 9, 10))
 h.save_blend(os.path.join(out, 'ltank_hull.blend'))
 
-# ------------------------------------------------------------------ turret: a wide flat dome, long thin gun
+# ------------------------------------------------------------------ turret: a tall round dome with a cupola, one gun
 t = Scene()
-t.tube((0, 0, 0), (0, 0, 1.2), 5.2, 'dark', 'metal', name='turret_ring')
-t.sphere((-0.3, 0, 0.6), (5.7, 5.4, 3.3), 'main', 'metal', name='dome')
-t.sphere((-0.6, 0, 2.5), (3.6, 3.4, 1.2), 'light', 'metal', name='dome_roof')
-t.sphere((4.7, 0, 1.8), (1.5, 2.4, 1.5), 'dark', 'metal', name='mantlet')
-t.tube((5.0, 0, 1.8), (6.8, 0, 1.8), 1.2, GUN, 'metal', name='gun_base')
-t.tube((5.0, 0, 1.8), (14.8, 0, 1.8), 0.95, '#2a241f', 'metal', name='barrel')
-t.tube((13.4, 0, 1.8), (14.8, 0, 1.8), 1.25, '#1f1a16', 'metal', name='muzzle')
-for (x, y, r) in ((-1.8, -2.0, 1.6), (-1.4, 2.2, 1.4)):                              # commander and loader hatches
-    t.tube((x, y, 3.0), (x, y, 4.3), r, 'light', 'metal', name='hatch_rim')               # raised rim, pale
-    t.tube((x, y, 3.9), (x, y, 4.7), r - 0.6, '#15182a', 'matte', name='hatch_lid')       # dark navy lid, not black
+t.tube((0, 0, 0), (0, 0, 1.0), 4.7, 'dark', 'metal', name='turret_ring')
+t.sphere((0, 0, 0.4), (4.5, 4.4, 4.6), 'main', 'metal', name='dome')
+t.sphere((-0.5, -0.4, 1.9), (3.3, 3.2, 3.2), 'light', 'metal', name='dome_crown')
+t.cube((-3.9, 0, 1.6), (1.4, 3.0, 1.8), 'dark', 'metal', name='rear_bustle')
+t.tube((-0.9, 0.6, 4.4), (-0.9, 0.6, 5.7), 1.4, '#3a3d42', 'metal', name='cupola')
+t.tube((-0.9, 0.6, 5.4), (-0.9, 0.6, 6.2), 0.8, '#15182a', 'matte', name='cupola_lid')
+t.sphere((4.0, 0, 2.2), (1.6, 2.2, 1.6), 'dark', 'metal', name='mantlet')
+t.tube((4.4, 0, 2.2), (6.6, 0, 2.2), 1.25, STEEL, 'metal', name='gun_collar')
+t.tube((4.4, 0, 2.2), (14.8, 0, 2.2), 0.95, '#2a241f', 'metal', name='barrel')
+t.tube((13.4, 0, 2.2), (14.8, 0, 2.2), 1.25, '#1f1a16', 'metal', name='muzzle')
 tb = greedy_boxes(t.voxelize(-7, -7, 18, 7, 7))
 t.save_blend(os.path.join(out, 'ltank_turret.blend'))
 

@@ -16,6 +16,7 @@ const fs = require('fs');
     const c = document.createElement('canvas'); c.width = t.width * S; c.height = H * S;
     const g = c.getContext('2d');
     const d = UNIT_DEFS[type], pal = palFor(faction);
+    spriteSpend = -1e9;   // no stand-ins: every facing with its own sprite
     pick.forEach((k, i) => {
       const a = k * Math.PI * 2 / 8, u = { def: d, type, faction, face: a, tface: a, x: i * W + W / 2, y: H / 2 + 4 };
       blit(tg, hullSprite(u, pal), u.x, u.y);
