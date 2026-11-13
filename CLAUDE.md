@@ -42,10 +42,10 @@ share globals. Read this file first; the commit history explains every change in
    then `.1`, `.2`... on the same day. `VERSION` is the first entry. The menu shows its title, and
    What's New carries a NEW badge until it is read.
 2. Check every script with `node --check`, and that the baked sprites are current: `node tools/bake-sprites.js <repo> --check`
-   (if stale, rebake: `node tools/bake-sprites.js <repo>`, see "Baked sprites").
+   (if stale, rebake: `node tools/bake-sprites.js <repo>`, see "Baked sprites"), and the baked ground: `node tools/bake-ground.js <repo> --check`.
 3. Build the single file: `python3 scripts/build-single-file.py <out.html>`. Load it in headless
    Playwright and start a game to check it runs without errors.
-4. **Owner's build:** publish `<out.html>` (and, when they changed, the files in `sprites/` as `sprites/<name>`) to the artifact URL above with the Artifact tool
+4. **Owner's build:** publish `<out.html>` (and, when they changed, the files in `sprites/` as `sprites/<name>` and in `grounds/` as `grounds/<path>`) to the artifact URL above with the Artifact tool
    (artifact slug `d3b16e49-e1b0-4114-9609-965e7c8a302b`; `get_artifact` for the base version).
    `publish_files` only reads files inside the repo folder, so build to `.build/index.html`, publish,
    then `rm -rf .build` (it is not gitignored, and the Stop hook complains about untracked files).
@@ -438,6 +438,19 @@ share globals. Read this file first; the commit history explains every change in
   the view first (finished with the `ahead` time only). Snowbound: all 400 tiles in about 20 s, about 100-130 MB.
   Phones keep the old limit. On every device a tile that comes in where a stand-in was on screen fades in over it
   (`GROUND_FADE`, 250 ms, `t.born`) instead of popping.
+- **Baked ground (2026.11.13.2, both modes):** the fixed maps (`rows` in MAPS: Snowbound, Three Crossings) paint with a fixed
+  seed (`groundSeed`), so `tools/bake-ground.js` paints their ground once into `grounds/<map>/<i>.webp` (1024 px sheets,
+  `GROUND_SHEET`, row by row, bridges and scenery included, lossy WebP 0.8, about 35 dB) plus `preview.webp` (quarter size)
+  and `grounds/manifest.json` (about 12 MB in all). `GroundSheets` (art.js) loads the manifest at start; `newGround` uses a
+  map's bake only if its `key` equals `groundKey(G)` (a hash of everything the ground is painted from), so a changed layout
+  paints as before. In `makeGround`, `bk` cuts tiles from decoded sheets (`bakedFeed`, `finish` with `m.bmp`; a phone keeps
+  12 sheets, 4 loading at once); the preview comes from the file. A sheet that fails to load falls back to painting
+  (`bk.failed`, `Report.oops('groundSheet')`). Only over http(s) and `app:`, so tools/sim tests (file://) still paint.
+  **Rebake** after changing the ground painting in art.js, scenery (models.js, voxel.js) or a fixed map
+  (`node tools/bake-ground.js <repo> --check` in the release checklist). The service worker caches the manifest and
+  previews (`ART`) and sheets as they are used; the Windows app copies `grounds/`; the owner's artifact needs them as files.
+  4x-throttled phone-sized 3 v 3 here: start 3.6 to 2.9 s, stand-in frames while circling the map 26 to 20 (the
+  container's workers are fast; on a phone painting costs far more).
 - **Anything new drawn onto the ground** must be a function in `MARK_FNS` (deterministic from its arguments, with a box in
   `markBox`), never a draw on a canvas kept in G. The game server records no marks (`HEADLESS`).
 - **Saves** keep `G.marks` (no pictures). An old save's two pictures are used as the ground (`legacy`, `G.legacyGround`,

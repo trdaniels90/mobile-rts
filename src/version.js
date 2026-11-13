@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.13.2', date: '13 November 2026', title: 'Ready-made ground, no more pop-in', groups: [
+    ['Improvements', [
+      'Snowbound and Three Crossings now come with their ground ready-made, so the game no longer paints it while you play: the map appears sooner and stays sharp as you scroll. Their ground looks the same in every game now.',
+    ]],
+  ] },
   { v: '2026.11.13.1', date: '13 November 2026', title: 'Units spread out in a fight', groups: [
     ['Changes', [
       'Units no longer ball up when they attack or defend. Each one closes in from its own spot round the target, so a group fans out into an arc across the front instead of piling onto one point. Infantry may take a moment to step into place before they open fire.',

@@ -50,7 +50,7 @@ const os = require('os'), fs = require('fs'), path = require('path');
       const g512 = eval('(' + makeGround.toString().replace('const T = GROUND_TILE', 'const T = 512') + ')')(groundPainter(G.terr, G.seed, G.road, G.bridges, G.cliff, G.ford, mapTheme(map), MAPS[map].bridge), null);
       for (let i = 0; i < G.marks.length; i++) g512.add(i);
       r.tiles256vs512 = [cmp(liveT, g512.whole('t')), cmp(liveD, g512.whole('d'))];
-      const refT = paintTerrain(G.terr, G.seed, G.road, G.bridges, G.cliff, G.ford, mapTheme(map), MAPS[map].bridge), refD = mkCanvas(WORLD, WORLD);
+      const refT = paintTerrain(G.terr, groundSeed(G), G.road, G.bridges, G.cliff, G.ford, mapTheme(map), MAPS[map].bridge), refD = mkCanvas(WORLD, WORLD);
       for (const m of G.marks) drawMark((m[0] === 't' ? refT : refD).getContext('2d'), m);
       r.vsOnePicture = [cmp(liveT, refT), cmp(liveD, refD)];
       return r;
