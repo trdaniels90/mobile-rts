@@ -280,7 +280,7 @@ function lightTankHull(pal) {
   m.box(-6, -5, 1, -5, -4, 3, '#2a2925', M_ROUGH);
   m.box(-2, -5, 1, -1, -4, 3, '#2a2925', M_ROUGH);
   m.box(2, -5, 1, 3, -4, 3, '#2a2925', M_ROUGH);
-  m.box(-8, -4, 1, 8, 3, 3, pal.dark, M_METAL);
+  m.box(-8, -3, 1, 8, 3, 3, pal.dark, M_METAL);
   m.box(-7, 5, 1, -6, 6, 2, '#8c9094', M_METAL);
   m.box(-6, 5, 1, -5, 6, 2, '#b9bdc0', M_METAL);
   m.box(-3, 5, 1, -2, 6, 2, '#8c9094', M_METAL);
@@ -298,19 +298,17 @@ function lightTankHull(pal) {
   m.box(-3, 5, 2, -1, 6, 3, '#2a2925', M_ROUGH);
   m.box(1, 5, 2, 3, 6, 3, '#2a2925', M_ROUGH);
   m.box(6, 5, 2, 7, 6, 3, '#2a2925', M_ROUGH);
-  m.box(-9, -7, 3, -8, -3, 4, pal.dark, M_METAL);
-  m.box(7, -7, 3, 9, -4, 4, pal.main, M_METAL);
+  m.box(-9, -6, 3, -8, -3, 4, pal.dark, M_METAL);
   m.box(-7, -6, 3, 6, -4, 4, '#3b3a34', M_ROUGH);
-  m.box(-8, -4, 3, 4, 3, 4, pal.dark, M_METAL);
+  m.box(7, -6, 3, 9, -3, 4, pal.main, M_METAL);
   m.box(4, -4, 3, 5, 4, 4, pal.light, M_METAL);
-  m.box(5, -4, 3, 8, -3, 4, pal.dark, M_METAL);
-  m.box(8, -4, 3, 9, -3, 4, pal.main, M_METAL);
+  m.box(-8, -3, 3, 4, 3, 4, pal.dark, M_METAL);
   m.box(5, -3, 3, 8, 3, 4, pal.light, M_METAL);
   m.box(-9, 3, 3, -8, 6, 4, pal.dark, M_METAL);
   m.box(7, 3, 3, 9, 6, 4, pal.main, M_METAL);
   m.box(-7, 4, 3, 6, 6, 4, '#3b3a34', M_ROUGH);
-  m.box(-8, -7, 4, -7, -4, 5, pal.dark, M_METAL);
-  m.box(-7, -7, 4, 7, -3, 5, pal.main, M_METAL);
+  m.box(-8, -6, 4, -7, -4, 5, pal.dark, M_METAL);
+  m.box(-7, -6, 4, 7, -3, 5, pal.main, M_METAL);
   m.box(-8, -4, 4, -7, -2, 5, pal.main, M_METAL);
   m.box(-7, -3, 4, 4, -2, 5, pal.main, M_METAL);
   m.box(4, -3, 4, 7, 3, 5, pal.light, M_METAL);
@@ -322,12 +320,16 @@ function lightTankHull(pal) {
   m.box(-5, 2, 4, -4, 6, 5, pal.main, M_METAL);
   m.box(4, 3, 4, 7, 6, 5, pal.main, M_METAL);
   m.box(-8, 4, 4, -7, 6, 5, pal.dark, M_METAL);
-  m.box(-3, -4, 5, 4, 4, 6, pal.main, M_METAL);
+  m.box(-3, -4, 5, 0, 4, 6, pal.main, M_METAL);
+  m.box(0, -4, 5, 2, -3, 6, pal.deep, M_MATTE);
+  m.box(2, -4, 5, 4, 4, 6, pal.main, M_METAL);
   m.box(-5, -3, 5, -3, -2, 6, pal.main, M_METAL);
+  m.box(0, -3, 5, 2, 3, 6, pal.main, M_METAL);
   m.box(4, -3, 5, 5, 3, 6, pal.light, M_METAL);
   m.box(-4, -2, 5, -3, 3, 6, pal.main, M_METAL);
   m.box(5, 0, 5, 6, 2, 6, pal.dark, M_METAL);
   m.box(-5, 2, 5, -4, 3, 6, pal.main, M_METAL);
+  m.box(0, 3, 5, 2, 4, 6, pal.deep, M_MATTE);
   return m;
 }
 function lightTankTurret(pal) {

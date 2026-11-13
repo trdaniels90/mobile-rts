@@ -14,6 +14,8 @@ os.makedirs(out, exist_ok=True)
 # fighting compartment amidships and a long engine deck falling away to the rear.
 STEEL, STEELHI = '#8c9094', '#b9bdc0'
 h = Scene()
+# Keep part edges off the half-voxel lines in y: a face exactly on one takes a voxel on the -y side only, and the
+# hull comes out a voxel wider on one side (the turret then looks off centre facing toward or away from the camera).
 for s in (-1, 1):
     yc = s * 4.9
     h.cube((0, yc, 1.7), (13.0, 2.6, 3.4), TRACK, 'rough', name='track')                  # track run with rounded ends
@@ -24,18 +26,18 @@ for s in (-1, 1):
         h.cube((x, s * 5.9, 1.5), (2.0, 0.8, 2.0), STEEL, 'metal', name='wheel')
         h.cube((x, s * 5.9, 1.5), (0.9, 0.9, 0.9), STEELHI, 'metal', name='hub')
     h.cube((6.5, s * 5.9, 2.0), (1.0, 0.8, 1.0), STEEL, 'metal', name='sprocket')
-    h.cube((-0.2, s * 4.9, 4.1), (15.4, 3.2, 1.0), 'main', 'metal', name='fender')         # fender over the track
-    h.cube((-0.2, s * 6.1, 4.0), (15.4, 0.8, 0.9), 'dark', 'metal', name='fender_lip')
-    h.cube((8.0, s * 4.9, 3.6), (2.4, 3.2, 0.9), 'main', 'metal', rot=(0, 32, 0), name='fender_nose')   # drooping ends
-    h.cube((-8.2, s * 4.9, 3.6), (2.4, 3.2, 0.9), 'dark', 'metal', rot=(0, -32, 0), name='fender_tail')
-h.cube((0.2, 0, 2.6), (15.6, 7.0, 3.2), 'dark', 'metal', name='lower_hull')
+    h.cube((-0.2, s * 4.9, 4.1), (15.4, 3.0, 1.0), 'main', 'metal', name='fender')         # fender over the track
+    h.cube((-0.2, s * 5.9, 4.0), (15.4, 1.0, 0.9), 'dark', 'metal', name='fender_lip')
+    h.cube((8.0, s * 4.9, 3.6), (2.4, 3.0, 0.9), 'main', 'metal', rot=(0, 32, 0), name='fender_nose')   # drooping ends
+    h.cube((-8.2, s * 4.9, 3.6), (2.4, 3.0, 0.9), 'dark', 'metal', rot=(0, -32, 0), name='fender_tail')
+h.cube((0.2, 0, 2.6), (15.6, 6.8, 3.2), 'dark', 'metal', name='lower_hull')
 h.cube((-0.3, 0, 4.4), (15.0, 7.4, 1.0), 'main', 'metal', name='deck')
 h.prism([(4.2, -3.6), (4.2, 3.6), (9.0, -3.3), (9.0, 3.3)], [(3.4, -3.3), (3.4, 3.3), (4.6, -3.2), (4.6, 3.2)], 3.0, 6.0, 'light', 'metal', name='glacis')   # sloped nose
 h.cube((8.9, 0, 2.6), (0.8, 6.4, 1.8), 'dark', 'metal', name='nose_plate')
 h.prism([(-3.6, -4.4), (-3.6, 4.4), (4.4, -4.4), (4.4, 4.4)], [(-2.8, -3.5), (-2.8, 3.5), (3.6, -3.5), (3.6, 3.5)], 4.4, 6.2, 'main', 'metal', name='casemate')   # fighting compartment
 h.cube((0.4, 0, 6.0), (6.0, 6.6, 0.5), 'light', 'metal', name='casemate_roof')
 for s in (-1, 1):
-    h.cube((0.6, s * 4.1, 5.4), (2.0, 0.7, 0.8), 'deep', 'matte', name='vision_port')
+    h.cube((0.6, s * 3.9, 5.4), (2.0, 1.0, 0.8), 'deep', 'matte', name='vision_port')
 h.prism([(-9.0, -3.6), (-9.0, 3.6), (-3.0, -3.6), (-3.0, 3.6)], [(-3.6, -3.4), (-3.6, 3.4), (-3.0, -3.4), (-3.0, 3.4)], 4.0, 6.0, 'main', 'metal', name='engine_deck')   # falls to the rear
 for x in (-7.5, -6.1, -4.7):
     h.cube((x, 0, 5.0), (0.7, 4.6, 2.0), 'deep', 'matte', name='vent')
