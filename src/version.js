@@ -4,6 +4,14 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.13.1', date: '13 November 2026', title: 'Units spread out in a fight', groups: [
+    ['Changes', [
+      'Units no longer ball up when they attack or defend. Each one closes in from its own spot round the target, so a group fans out into an arc across the front instead of piling onto one point. Infantry may take a moment to step into place before they open fire.',
+      'Units keep a little more room between them, and a group spreads its fire: they stop piling every gun onto an enemy that is already as good as dead and shoot the next one.',
+      'Splash weapons (V2 rockets, artillery, grenades, Tesla Coils) catch fewer units at once, on both sides.',
+      'On computers the ground no longer pops in as you scroll around: the whole map is kept once it has been painted, and new ground fades in on every device.',
+    ]],
+  ] },
   { v: '2026.11.13', date: '13 November 2026', title: 'Computer teammates in co-op, and jets defend again', groups: [
     ['New', [
       'Online co-op (2 v AI and 3 v AI): short a friend? The room leader can tap Add computer on an open place on your team to fill it with a computer teammate, and Open for a friend to give it back. A co-op with a computer teammate does not count for the co-op leaderboard.',
