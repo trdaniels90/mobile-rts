@@ -184,15 +184,16 @@ share globals. Read this file first; the commit history explains every change in
 - Owner's report: units always balled up when auto attacking or defending. Three causes, three fixes (world.js):
   **Approach spot** (`approachSpot`, `fanR`, `fanAngle`): `engage` used to path every attacker to the target's centre. Now each
   heads for a spot at 0.85 of its range on its own side, turned by `u.fan` (dealt by id) over an arc sized for its group
-  (attackers in `atkOn`, or friends within 5 cells, at most +-1.5 rad); the bearing is fixed per target (`u.apT` id, `u.apA`).
-  **Sliding** (`slideOut`, `SLIDE_MAX` 3 s): a unit that comes into reach in a crowd (2+ friends within 18 px) steps along to its
-  spot; infantry hold fire meanwhile, vehicles fire on the move. **Spacing** (`separate`): ground units keep 1.25 times their radii
+  (attackers in `atkOn`, or friends within 5 cells; `FAN_GAP_INF` 20 / `FAN_GAP_VEH` 36 px each, at most `FAN_MAX` +-2.4 rad); the bearing is fixed per target (`u.apT` id, `u.apA`).
+  **Sliding** (`slideOut`, `SLIDE_MAX` 5 s): a unit that comes into reach beside a friend (within 22 px) steps along to its
+  spot; infantry hold fire meanwhile, vehicles fire on the move. **Spacing** (`separate`): ground units keep 1.5 times their radii
   apart from allies, 1 from foes (was 0.85), push up to 3 px a step. **Fire spread** (`atkOn`, `pledge`, `overkill`, rebuilt in
   `buildGrid` each step, not saved): `acquire` and `defendBase` put a unit already as good as dead (next shots of its attackers
   >= 1.2 x its health) `OVERKILL` (3 cells) further back. The new unit fields are in netcore.js `SKIP`.
 - `node tools/sim/bunching.js <repo> 10 90` (headless staged fight: Soviet hunters into an Allied base defence; friends within a
-  V2 blast of each engaging unit): attackers 7.35 to 3.87 average, 6+ in one blast 67% to 19%, worst 19 to 12; defenders were
-  already about 2.4. Defenders kill more (about 8 of 24 attackers, was 6): the attackers still win every run.
+  V2 blast of each engaging unit): attackers 7.35 to 2.7 average, 6+ in one blast 67% to 4%, worst 19 to 9 (the first, narrower version: 3.87, 19%, 12);
+  defenders were already about 2.4. Defenders kill more (7-8 of 24 attackers, was 6): the attackers still win every run.
+  Wider arcs were a preview for the owner; not yet confirmed as the final tuning.
 
 ## Recent mechanics (2026.10.31.2)
 
