@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.13.6', date: '13 November 2026', title: 'Long battles keep their stats', groups: [
+    ['Fixes', [
+      'Very long battles (about an hour) could lose all their numbers on the stats page and leaderboard because the report was too big. The report is now trimmed to fit, keeping the most important figures.',
+    ]],
+  ] },
   { v: '2026.11.13.5', date: '13 November 2026', title: 'A new look for the Light Tank', groups: [
     ['Changes', [
       'The Allied Light Tank has a new look: road wheels under drooping fenders, a sloped nose and a round dome turret with a single gun. It plays exactly as before.',
