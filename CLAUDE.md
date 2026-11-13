@@ -202,7 +202,7 @@ share globals. Read this file first; the commit history explains every change in
   1024 units a cell). **Build time** is cost x 0.024 s (`buildTime` in data.js; was 0.012), as OpenRA's
   `BuildDurationModifier` 60. **Every unit's speed** is OpenRA's Speed x 25 / 1024 x `CELL` (rifle 32, light tank 66,
   medium 42, heavy 38, Mammoth 25, Ore Truck 42, Ranger = Jeep 96, Longbow 87, Hind 66, Strike Jet = Yak 104, MiG 131,
-  Spy Plane = U2 219, Transport and Bomber = Badger 105). Cash, ore and combat unchanged.
+  Spy Plane = U2 219, Transport and Bomber = Badger 105; since 2026.11.13, both modes, Spy Plane 274 and Bomber 131, 1.25x at the owner's request, Transport unchanged). Cash, ore and combat unchanged.
 - **Computer timing x 1.5:** `firstWave` 720 (Easy, Normal) / 540 (Hard), `bigFrom`, `waveGap`, the planner `gap`s
   (cap 900 in `aiGap`), `AI_GAP_MIN` 70, `AIR_STRIKE_GAP` 270. `ai-timing.js` 2 Normal games: first waves 535 to
   785 s. `jet-defense.js` seeds 11-12: raiders killed 12 to 10, MiGs lost 5 to 5.

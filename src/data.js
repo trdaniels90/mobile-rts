@@ -142,9 +142,9 @@ const UNIT_DEFS = {
     gun: { dmg: 12, wh: 'SA', range: 110, runs: 3, rounds: 14, gap: 0.045, splash: 9, walk: 70 }, flares: 2,
   },
   // Support aircraft called in from the Airfield (see POWERS); they fly a set route and cannot be ordered.
-  spyplane: { name: 'Spy Plane', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 150, armor: 'air', speed: 219, sight: 8, r: 9 },
+  spyplane: { name: 'Spy Plane', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 150, armor: 'air', speed: 274, sight: 8, r: 9 },
   transport: { name: 'Transport', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 420, armor: 'air', speed: 105, sight: 5, r: 14 },
-  bomber: { name: 'Bomber', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 105, sight: 5, r: 14 },
+  bomber: { name: 'Bomber', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 131, sight: 5, r: 14 },
   mig: {
     name: 'MiG Fighter', cls: 'air', fly: 'jet', cat: 'jet', producer: 'airfield', factions: ['soviets'],
     cost: 1200, hp: 170, armor: 'air', speed: 131, turn: 2.3, sight: 6, r: 9,
