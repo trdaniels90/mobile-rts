@@ -3233,7 +3233,7 @@ function updateFlight(u, dt) {
   } else if (f.key === 'bomb' && f.bombs < POWERS.bomb.bombs && past >= -90) {
     f.bombT -= dt;
     if (f.bombT <= 0) {
-      f.bombT = 0.068; f.bombs++;   // 0.085 at speed 105; kept to the same 9 px spacing at 131
+      f.bombT = 0.085; f.bombs++;
       G.projectiles.push({ kind: 'bomb', team: u.team, from: u, w: POWERS.bomb.bomb, tx: u.x, ty: u.y, x: u.x, y: u.y - JET_ALT, z: JET_ALT, t: 0, dur: 0.55 });
     }
   }
