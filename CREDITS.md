@@ -71,6 +71,6 @@ twin-barrel tank in a forest.
 
 ## Unit designs
 
-The new Ore Truck and Rifle Infantry looks are hand-built voxel models (`src/models.js`) that take
+The new Ore Truck, Rifle Infantry and Allied Light Tank looks are hand-built voxel models (`src/models.js`) that take
 their general design from 3D reference models generated with Tripo Studio. No Tripo geometry,
 textures or video frames are used in the game.
