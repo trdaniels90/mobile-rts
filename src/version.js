@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.13.4', date: '13 November 2026', title: 'A slower, steadier battle', groups: [
+    ['Changes', [
+      'Everything takes twice as long to build, so bases and armies come together at a steadier pace, closer to the classic games.',
+      'Unit speeds have been retuned: infantry move a little faster, tanks a little slower (the Mammoth is the slowest of all), and aircraft fly about half as fast as before, so you have more time to react to air raids.',
+      'The computer gives you more time to build up: its first attack comes about 12 minutes in on Easy and Normal (9 on Hard), with longer lulls between attacks and air strikes.',
+    ]],
+  ] },
   { v: '2026.11.13.3', date: '13 November 2026', title: 'Jets get guns, fewer air raids', groups: [
     ['Changes', [
       'Strike Jets and MiGs no longer carry bombs. Instead they make cannon gun runs (three a sortie): a burst of shells along their flight path that shreds infantry and hurts light vehicles, but barely scratches tanks and buildings.',
