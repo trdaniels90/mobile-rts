@@ -43,8 +43,8 @@ const Manual = (() => {
     // Aircraft
     heli: ['A fast gunship with six Hellfire missiles a sortie: armour-piercing, deadly to tanks but poor against infantry. Flies home to rearm.', 'Tanks, vehicles', 'Infantry, AA Guns, SAM sites, rocket soldiers'],
     hind: ['An armoured Soviet gunship whose chain gun tears through infantry, with twelve bursts a sortie.', 'Infantry, light vehicles', 'AA defences, rockets'],
-    jet: ['Styled after the F-15E Strike Eagle: two ground-attack missiles, two air-to-air missiles, three cannon gun runs and two bursts of flares per sortie.', 'Structures, aircraft, infantry', 'SAM sites, flak, rockets'],
-    mig: ['A fast Soviet delta-wing fighter with missiles for ground and air targets, a cannon for strafing runs and flares.', 'Structures, aircraft, infantry', 'AA Guns, rockets'],
+    jet: ['Styled after the F-15E Strike Eagle: two ground-attack missiles, two air-to-air missiles (fired at ground targets too once the others are spent), three cannon gun runs and two bursts of flares per sortie.', 'Structures, aircraft, infantry', 'SAM sites, flak, rockets'],
+    mig: ['A fast Soviet delta-wing fighter with missiles for ground and air targets (the air-to-air pair also strikes the ground), a cannon for strafing runs and flares.', 'Structures, aircraft, infantry', 'AA Guns, rockets'],
   };
   const WEAPON = {
     rifle: 'Rifle', grenadier: 'Grenades (arcing, splash)', rocket: 'Dragon rockets; RedEye missiles (air)', pilot: 'Pistol',

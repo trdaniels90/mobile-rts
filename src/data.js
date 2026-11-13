@@ -129,14 +129,15 @@ const UNIT_DEFS = {
     cost: 1200, hp: 240, armor: 'air', speed: 105, sight: 6, r: 10,
     weapon: { dmg: 13, rof: 1.0, range: 120, wh: 'SA', proj: 'bullet', ammo: 12, burst: 5, gap: 0.07 },
   },
-  // Jets carry ground-attack missiles (weapon), air-to-air missiles (weapon2) and a cannon for
+  // Jets carry ground-attack missiles (weapon), air-to-air missiles (weapon2, also fired at ground
+  // targets once the ground-attack ones are spent) and a cannon for
   // gun runs (gun: `runs` strafing passes a sortie, each `rounds` shells walked along the flight
   // line through the target, each hurting what is within `splash`), and drop flares that can pull incoming missiles and rockets off course.
   jet: {
     name: 'Strike Jet', cls: 'air', fly: 'jet', cat: 'jet', producer: 'airfield', factions: ['allies'],
     cost: 1100, hp: 140, armor: 'air', speed: 210, turn: 2.4, sight: 6, r: 9,
     weapon: { dmg: 80, rof: 0.45, range: 130, wh: 'HE', proj: 'missile', ammo: 2 },
-    weapon2: { dmg: 60, rof: 0.5, range: 200, wh: 'HE', proj: 'missile', air: true, ground: false, ammo: 2 },
+    weapon2: { dmg: 60, rof: 0.5, range: 200, wh: 'HE', proj: 'missile', air: true, ammo: 2 },
     gun: { dmg: 12, wh: 'SA', range: 110, runs: 3, rounds: 14, gap: 0.045, splash: 9, walk: 70 }, flares: 2,
   },
   // Support aircraft called in from the Airfield (see POWERS); they fly a set route and cannot be ordered.
@@ -147,7 +148,7 @@ const UNIT_DEFS = {
     name: 'MiG Fighter', cls: 'air', fly: 'jet', cat: 'jet', producer: 'airfield', factions: ['soviets'],
     cost: 1200, hp: 170, armor: 'air', speed: 245, turn: 2.3, sight: 6, r: 9,   // just under a RedEye's 250: hard to catch from behind
     weapon: { dmg: 75, rof: 0.45, range: 130, wh: 'HE', proj: 'missile', ammo: 2 },
-    weapon2: { dmg: 60, rof: 0.5, range: 160, wh: 'HE', proj: 'missile', air: true, ground: false, ammo: 2 },
+    weapon2: { dmg: 60, rof: 0.5, range: 160, wh: 'HE', proj: 'missile', air: true, ammo: 2 },
     gun: { dmg: 12, wh: 'SA', range: 110, runs: 3, rounds: 14, gap: 0.045, splash: 9, walk: 70 }, flares: 2,
   },
 };

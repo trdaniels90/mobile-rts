@@ -3006,10 +3006,10 @@ function updateAir(u, dt) {
   }
   if (u.retreat && !padFor(u)) u.retreat = false;   // pad lost on the way: fight on
   // Out of ammo, retreating, or told to wait on the pad: head home and land.
-  // Jets go home once their missiles and gun runs for ground targets are spent, keeping any
+  // Jets go home once their missiles (both kinds: air-to-air ones are fired at the ground too) and gun runs are spent, keeping any
   // air-to-air missiles for enemy aircraft met on the way (or for an air target the player picked).
   const o0 = u.order, huntingAir = o0.type === 'attack' && o0.target.alive && isAirborne(o0.target) && u.aam > 0;
-  const strikeSpent = jet && u.ammo <= 0 && !(u.guns > 0) && !huntingAir;
+  const strikeSpent = jet && u.ammo <= 0 && !(u.guns > 0) && !(u.aam > 0) && !huntingAir;
   if (airEmpty(u) || strikeSpent || u.retreat || u.rearming || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {
@@ -3017,8 +3017,8 @@ function updateAir(u, dt) {
       const d = Math.hypot(spot.x - u.x, spot.y - u.y);
       if (jet) {
         if (u.aam > 0 && u.cd <= 0) {
-          const a = acquire(u, u.def.weapon2.range, [u.def.weapon2]);
-          if (a && Math.abs(angDiff(Math.atan2(a.y - u.y, a.x - u.x), u.face)) < 0.5) { shoot(u, u.def.weapon2, a); u.cd = u.def.weapon2.rof; u.aam--; }
+          const a = acquire(u, u.def.weapon2.range, [u.def.weapon2], isAirborne);
+          if (a && isAirborne(a) && Math.abs(angDiff(Math.atan2(a.y - u.y, a.x - u.x), u.face)) < 0.5) { shoot(u, u.def.weapon2, a); u.cd = u.def.weapon2.rof; u.aam--; }
         }
         landJet(u, spot, runwayDir(pad, spot), dt);
       } else {
@@ -3048,11 +3048,12 @@ function updateAir(u, dt) {
     if (u.passT > 0) { u.passT -= dt; flyJet(u, u.x + Math.cos(u.face) * 100, u.y + Math.sin(u.face) * 100, dt); return; }
     if (t) {
       const d = distTo(u, t), ang = Math.atan2(t.y - u.y, t.x - u.x), air = isAirborne(t);
-      // Air targets get air-to-air missiles; ground targets get missiles from range, then a gun run.
-      const mw = air ? (u.aam > 0 ? u.def.weapon2 : null) : (u.ammo > 0 ? w : null);
+      // Air targets get air-to-air missiles; ground targets get the ground-attack missiles from range, then
+      // the air-to-air ones once those are spent, and the gun runs.
+      const mw = air ? (u.aam > 0 ? u.def.weapon2 : null) : (u.ammo > 0 ? w : u.aam > 0 ? u.def.weapon2 : null);
       if (mw && d <= mw.range && Math.abs(angDiff(ang, u.face)) < 0.35 && u.cd <= 0) {
         shoot(u, mw, t); u.cd = mw.rof;
-        if (air) u.aam--; else u.ammo--;
+        if (mw === u.def.weapon2) u.aam--; else u.ammo--;
         if (Math.random() < 0.5) u.passT = 0.9;
         // A jet defending the base makes one pass, then flies home to rearm: a missile at an aircraft,
         // or at a ground target it has no gun runs left for, ends it; otherwise the gun run does.

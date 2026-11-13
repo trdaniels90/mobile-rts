@@ -699,7 +699,6 @@ function jetModel(pal, mig) {
       m.box(-14 + Math.round((z - 4) * 0.6), y, z, -9 - Math.round((z - 4) * 0.9), y + 1, z + 1, pal.main, M_METAL);
     }
     for (const y of [-2, 1]) { m.box(-15, y, 2, -14, y + 2, 4, '#2a2a28', M_METAL); m.set(-16, y, 3, C.black); m.set(-16, y + 1, 3, C.black); }   // nozzles
-    for (const y of [-7, 7]) m.cylX(-6, -1, y, 1.5, 0.8, '#5d605a', M_METAL);                     // bombs under the wings
   }
   return m;
 }

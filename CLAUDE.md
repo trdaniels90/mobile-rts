@@ -185,8 +185,9 @@ share globals. Read this file first; the commit history explains every change in
   `gun` (`runs` 3 a sortie, `rounds` 14 SA shells of 12, `splash` 9 px, walked `walk` 70 px along the flight line
   through the target): `startStrafe` / `tickStrafe` in world.js, fired when a ground target is within `gun.range`
   (110) and nearly dead ahead, after the missiles. Deadly to infantry, light on vehicles, little against tanks and
-  buildings. `strafe` is a host timer (netcore `SKIP`). The jet models still show bombs under the wings (changing
-  them needs a sprite rebake). Headless check: 10 riflemen, one MiG with an Airfield, 90 s: 8 killed.
+  buildings. `strafe` is a host timer (netcore `SKIP`). The Strike Jet model's bombs are gone (sprites rebaked).
+  Air-to-air missiles (`weapon2`, no `ground: false` now) are fired at ground targets once the ground-attack ones
+  are spent; a jet goes home only when both kinds and its gun runs are used. On the way home it fires them only at aircraft. Headless check: 10 riflemen, one MiG with an Airfield, 90 s: 8 killed.
 
 ## Units spread out in a fight (after 2026.11.13, not released, both modes)
 
