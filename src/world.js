@@ -1205,6 +1205,11 @@ function launchGroups(only) {
         for (const u of mine) if (!ok(u)) u.airReadyT = undefined;
         for (const u of ready) if (u.airReadyT === undefined) u.airReadyT = G.t;
         if (ready.length < 2 && !ready.some((u) => G.t - u.airReadyT >= AIR_GROUP_WAIT)) continue;
+        // Air attacks are spaced out: none before the first ground attack is due, then AIR_STRIKE_GAP between
+        // strikes of each kind (they went out again as soon as two were rearmed: a constant threat).
+        const airNext = team.airNext || (team.airNext = {});
+        if (G.t < G.diff.ai.firstWave || G.t < (airNext[kind] || 0)) continue;
+        airNext[kind] = G.t + AIR_STRIKE_GAP;
         const exp = expansionsOf(enemyOf(team), ready[0]), focus = exp.length && Math.random() < 1 / 3 ? exp[0] : null;
         for (const u of ready) { launchAircraft(u, focus); u.airReadyT = undefined; }
       }
@@ -1266,6 +1271,7 @@ function scramble(team) {
 // Auto Attack is switched on (or a target side picked) again. Helicopters and the computer's jets keep going out.
 const oneWave = (u) => u.def.fly === 'jet' && !G.teams[u.team].isAI;
 const AIR_GROUP_WAIT = 150;   // seconds a lone computer aircraft waits for others before going out alone
+const AIR_STRIKE_GAP = 180;   // seconds between the computer's jet strikes (and between its helicopter strikes)
 // `focus`: where a group of aircraft all go (null: the main base); left out, one in three picks an outlying site.
 function launchAircraft(u, focus) {
   setHunt(u);
@@ -3452,7 +3458,8 @@ function spawnUnit(team, type) {
     u.as = 'landed'; u.alt = 0;
     setGuard(u); u.order.pad = true; u.staged = !oneWave(u);
     if (team.isAI && aiKeepInterceptor(team, u)) return u;
-    if (team.auto && !oneWave(u)) launchAircraft(u);
+    // The computer's new aircraft wait for its next air strike (launchGroups, AIR_STRIKE_GAP).
+    if (team.auto && !oneWave(u) && !team.isAI) launchAircraft(u);
     return u;
   } else {
     let c = p.exitCell;

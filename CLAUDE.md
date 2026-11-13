@@ -189,6 +189,13 @@ share globals. Read this file first; the commit history explains every change in
   Air-to-air missiles (`weapon2`, no `ground: false` now) are fired at ground targets once the ground-attack ones
   are spent; a jet goes home only when both kinds and its gun runs are used. On the way home it fires them only at aircraft. Headless check: 10 riflemen, one MiG with an Airfield, 90 s: 8 killed.
 
+## Computer air strikes spaced out (after 2026.11.13.2, not released, skirmish and co-op)
+
+- The computer's aircraft went out again as soon as two were rearmed (every 30-60 s). Now `launchGroups` holds them
+  until `firstWave` has passed, then `AIR_STRIKE_GAP` (180 s, owner's pick, every difficulty) between jet strikes and
+  between helicopter strikes (`team.airNext[kind]`). Its new aircraft no longer take off on their own when built
+  (`spawnUnit`): they wait for the next strike. Base defence and scrambles are unaffected.
+
 ## Units spread out in a fight (after 2026.11.13, not released, both modes)
 
 - Owner's report: units always balled up when auto attacking or defending. Three causes, three fixes (world.js):
