@@ -125,8 +125,36 @@ const Report = (() => {
     try { const b = typeof Net !== 'undefined' && Net.lobby && Net.role && Net.lobby.match; if (b) out.battle = String(b).slice(0, 64); } catch (_) {}
     try { const n = typeof Net !== 'undefined' && Net.netStats(); if (n) out.net = n; } catch (_) {}
     try { const f = frameStats(); if (f) out.frames = f; } catch (_) {}
-    while (JSON.stringify(out).length > 90000 && out.log.samples.length > 40) out.log.samples = out.log.samples.filter((_, i) => i % 2 === 0);   // a very long game: a coarser graph
-    if (JSON.stringify(out).length > 90000) delete out.log.samples;
+    return fit(out);
+  }
+  // The database refuses stats over 100,000 bytes as it stores them (jsonb text puts a space after every ':' and
+  // ','), and an hour-long battle went over (match c723a785 kept nothing). Trim, least missed first, until it fits.
+  const STATS_MAX = 92000;
+  function size(o) { const s = JSON.stringify(o); return s.length + (s.match(/[:,]/g) || []).length; }
+  function fit(out) {
+    const L = out.log, F = out.frames;
+    const steps = [
+      () => { if (F && F.minutes.some((m) => m.lf.length)) { F.minutes.forEach((m) => { m.lf = []; }); return true; } },   // long-frame details
+      () => { if (L.samples && L.samples.length > 40) { L.samples = L.samples.filter((_, i) => i % 2 === 0); return true; } },   // a coarser graph
+      () => {   // the fallen with fewest kills (the debrief's lists keep the best)
+        const all = L.fallen.concat(L.alive);
+        if (all.length <= 20) return;
+        const cut = all.map((u) => u.kills).sort((a, b) => a - b)[Math.floor(all.length / 4)];
+        const n = L.fallen.length;
+        L.fallen = L.fallen.filter((u) => u.kills > cut);
+        if (L.fallen.length === n) L.fallen = L.fallen.sort((a, b) => b.kills - a.kills).slice(0, Math.ceil(n * 0.75));
+        out.trimmed = true;
+        return L.fallen.length < n;
+      },
+      () => { if (out.net && out.net.minutes) { delete out.net.minutes; return true; } },
+      () => { if (F) { delete out.frames; return true; } },
+      () => { if (L.samples) { delete L.samples; return true; } },
+      () => { if (L.events.length > 50) { L.events = L.events.slice(-50); return true; } },
+    ];
+    for (const step of steps) {
+      while (size(out) > STATS_MAX) if (!step()) break;
+      if (size(out) <= STATS_MAX) break;
+    }
     return out;
   }
   // How smoothly the battle ran on this device, per minute of battle: frames per second, frames over 50 and 100 ms
