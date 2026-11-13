@@ -63,7 +63,7 @@ const Manual = (() => {
   const side = (d) => (d.factions.length === 2 ? 'both' : d.factions[0] || 'none');
   const badge = (s) => s === 'both' ? '<span class="fm-side both">Both sides</span>' : s === 'allies' ? '<span class="fm-side allies">Allies</span>' : s === 'soviets' ? '<span class="fm-side soviets">Soviets</span>' : '<span class="fm-side none">Special</span>';
   const cells = (px) => `${Math.round(px / CELL * 2) / 2} cells`;
-  const speed = (d) => d.cls === 'inf' ? 'On foot' : d.speed <= 32 ? 'Very slow' : d.speed <= 42 ? 'Slow' : d.speed <= 56 ? 'Medium' : d.speed <= 100 ? 'Fast' : d.speed <= 160 ? 'Very fast' : 'Jet';
+  const speed = (d) => d.cls === 'inf' ? 'On foot' : d.fly === 'jet' ? 'Jet' : d.speed <= 32 ? 'Very slow' : d.speed <= 42 ? 'Slow' : d.speed <= 56 ? 'Medium' : d.speed <= 100 ? 'Fast' : d.speed <= 160 ? 'Very fast' : 'Jet';
   const armor = (d) => ({ inf: 'Infantry', light: 'Light', heavy: 'Heavy', air: 'Aircraft' }[d.armor] || 'Structure');
   const nameOf = (t) => defOf(t).name;
   const req = (list) => list && list.length ? list.map(nameOf).join(', ') : '';

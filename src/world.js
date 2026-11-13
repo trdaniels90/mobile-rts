@@ -1271,7 +1271,7 @@ function scramble(team) {
 // Auto Attack is switched on (or a target side picked) again. Helicopters and the computer's jets keep going out.
 const oneWave = (u) => u.def.fly === 'jet' && !G.teams[u.team].isAI;
 const AIR_GROUP_WAIT = 150;   // seconds a lone computer aircraft waits for others before going out alone
-const AIR_STRIKE_GAP = 180;   // seconds between the computer's jet strikes (and between its helicopter strikes)
+const AIR_STRIKE_GAP = 270;   // seconds between the computer's jet strikes (and between its helicopter strikes)
 // `focus`: where a group of aircraft all go (null: the main base); left out, one in three picks an outlying site.
 function launchAircraft(u, focus) {
   setHunt(u);

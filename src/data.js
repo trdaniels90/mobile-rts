@@ -40,53 +40,54 @@ const WARHEADS = {
 };
 
 // cls: inf | veh | air.  cat: which sidebar tab builds it.  speed in px/s, sight in cells.
+// Speeds match OpenRA's Red Alert at normal speed (its Speed x 25 ticks / 1024 per cell x CELL; 2026.11.13).
 const UNIT_DEFS = {
   rifle: {
     name: 'Rifle Infantry', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
-    cost: 100, hp: 50, armor: 'inf', speed: 26, sight: 4, r: 5,
+    cost: 100, hp: 50, armor: 'inf', speed: 32, sight: 4, r: 5,
     weapon: { dmg: 7, rof: 1.3, range: 70, wh: 'SA', proj: 'bullet', burst: 3, gap: 0.11 },
   },
   grenadier: {
     name: 'Grenadier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['soviets'],
-    cost: 160, hp: 50, armor: 'inf', speed: 24, sight: 5, r: 5,
+    cost: 160, hp: 50, armor: 'inf', speed: 40, sight: 5, r: 5,
     weapon: { dmg: 42, rof: 2.0, range: 100, wh: 'HE', proj: 'grenade', splash: 22 },
   },
   // Bails out of a downed aircraft. Cannot be built.
   pilot: {
-    name: 'Pilot', cls: 'inf', cat: 'infantry', factions: [], cost: 0, hp: 35, armor: 'inf', speed: 27, sight: 4, r: 5,
+    name: 'Pilot', cls: 'inf', cat: 'infantry', factions: [], cost: 0, hp: 35, armor: 'inf', speed: 32, sight: 4, r: 5,
     weapon: { dmg: 5, rof: 1.1, range: 60, wh: 'SA', proj: 'bullet' },
   },
   // A Dragon rocket for armour and a RedEye missile, with more reach, for aircraft. Both fire as often
   // as a Medium Tank's gun. Both sides train it; the Soviet one is drawn with an olive RPG-style launcher.
   rocket: {
     name: 'Rocket Soldier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
-    cost: 300, hp: 45, armor: 'inf', speed: 24, sight: 5, r: 5,
+    cost: 300, hp: 45, armor: 'inf', speed: 32, sight: 5, r: 5,
     weapon: { dmg: 35, rof: 1.5, range: 120, wh: 'AT', proj: 'rocket' },
     weapon2: { dmg: 50, rof: 1.5, range: 180, wh: 'AT', proj: 'rocket', air: true, ground: false, fuel: 1.7, sound: 'redeye' },   // chases a little further than AA_FUEL
   },
   ranger: {
     name: 'Ranger', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'jeep',
-    cost: 600, hp: 150, armor: 'light', speed: 80, turn: 5, sight: 6, r: 7, size: { len: 15, wid: 10 },
+    cost: 600, hp: 150, armor: 'light', speed: 96, turn: 5, sight: 6, r: 7, size: { len: 15, wid: 10 },
     weapon: { dmg: 6, rof: 1.3, range: 96, wh: 'SA', proj: 'bullet', air: true, heliOnly: true, burst: 4, gap: 0.08 },   // heliOnly: shoots helicopters but not jets
   },
   ltank: {
     name: 'Light Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'tank',
-    cost: 700, hp: 300, armor: 'heavy', speed: 56, turn: 3.2, sight: 5, r: 8, size: { len: 17, wid: 13, tur: 4.5, barrel: 10, light: true, tz: 5 },
+    cost: 700, hp: 300, armor: 'heavy', speed: 66, turn: 3.2, sight: 5, r: 8, size: { len: 17, wid: 13, tur: 4.5, barrel: 10, light: true, tz: 5 },
     weapon: { dmg: 30, rof: 1.3, range: 108, wh: 'AP', proj: 'shell' },
   },
   mtank: {
     name: 'Medium Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'tank',
-    cost: 800, hp: 400, armor: 'heavy', speed: 48, turn: 2.8, sight: 5, r: 9, size: { len: 24, wid: 16, tur: 5.5, barrel: 14, grizzly: true, tz: 5 },
+    cost: 800, hp: 400, armor: 'heavy', speed: 42, turn: 2.8, sight: 5, r: 9, size: { len: 24, wid: 16, tur: 5.5, barrel: 14, grizzly: true, tz: 5 },
     weapon: { dmg: 40, rof: 1.5, range: 114, wh: 'AP', proj: 'shell' },
   },
   htank: {
     name: 'Heavy Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'tank',
-    cost: 950, hp: 550, armor: 'heavy', speed: 42, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 16, tur: 6, barrel: 8, twin: true, heavy: true, tz: 6 },
+    cost: 950, hp: 550, armor: 'heavy', speed: 38, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 16, tur: 6, barrel: 8, twin: true, heavy: true, tz: 6 },
     weapon: { dmg: 30, rof: 1.7, range: 114, wh: 'AP', proj: 'shell', twin: true, stagger: 0.25 },   // stagger: the second barrel fires this much later
   },
   mammoth: {
     name: 'Mammoth Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'tank',
-    cost: 1700, hp: 950, armor: 'heavy', speed: 30, turn: 2, sight: 6, r: 12, size: { len: 24, wid: 22, tur: 7.5, barrel: 14, twin: true, pods: true, mammoth: true, tz: 4 },
+    cost: 1700, hp: 950, armor: 'heavy', speed: 25, turn: 2, sight: 6, r: 12, size: { len: 24, wid: 22, tur: 7.5, barrel: 14, twin: true, pods: true, mammoth: true, tz: 4 },
     weapon: { dmg: 45, rof: 1.9, range: 118, wh: 'AP', proj: 'shell', twin: true },
     weapon2: { dmg: 35, rof: 2.6, range: 140, wh: 'HE', proj: 'rocket', air: true },
   },
@@ -94,39 +95,39 @@ const UNIT_DEFS = {
   // turns to aim, and both lob their rounds in a high arc, so they can miss a moving target.
   arty: {
     name: 'Artillery', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['dome'], factions: ['allies'], draw: 'arty', fixed: true,
-    cost: 600, hp: 120, armor: 'light', speed: 36, turn: 2, sight: 5, r: 9, size: { len: 20, wid: 13, tur: 0, barrel: 15 },
+    cost: 600, hp: 120, armor: 'light', speed: 42, turn: 2, sight: 5, r: 9, size: { len: 20, wid: 13, tur: 0, barrel: 15 },
     weapon: { dmg: 110, rof: 4, range: 288, wh: 'ART', proj: 'artyshell', splash: 22, spread: 16 },
   },
   v2rl: {
     name: 'V2 Rocket Launcher', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['dome'], factions: ['soviets'], draw: 'v2', fixed: true,
-    cost: 800, hp: 150, armor: 'light', speed: 40, turn: 2, sight: 5, r: 10, size: { len: 22, wid: 12, tur: 0, barrel: 12 },
+    cost: 800, hp: 150, armor: 'light', speed: 42, turn: 2, sight: 5, r: 10, size: { len: 22, wid: 12, tur: 0, barrel: 12 },
     weapon: { dmg: 240, rof: 7, range: 312, wh: 'HE', proj: 'v2', splash: 30, spread: 12 },
   },
   harv: {
     name: 'Ore Truck', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies', 'soviets'], draw: 'harv',
-    cost: 1400, hp: 600, armor: 'heavy', speed: 50, turn: 3, sight: 4, r: 10, size: { len: 24, wid: 15 },
+    cost: 1400, hp: 600, armor: 'heavy', speed: 42, turn: 3, sight: 4, r: 10, size: { len: 24, wid: 15 },
     harvester: true, capacity: 1000,
   },
   // Drives out to a distant ore field and deploys into an Outpost, which lets its side build there.
   fob: {
     name: 'Mobile Outpost', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies', 'soviets'], draw: 'fob',
-    cost: 1000, hp: 500, armor: 'heavy', speed: 40, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 14 }, deploys: 'outpost',
+    cost: 1000, hp: 500, armor: 'heavy', speed: 35, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 14 }, deploys: 'outpost',
   },
   // Unpacks into a Construction Yard anywhere on the map. Needs a Service Depot.
   mcv: {
     name: 'Mobile Construction Yard', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['depot'], factions: ['allies', 'soviets'], draw: 'mcv',
-    cost: 2500, hp: 1200, armor: 'heavy', speed: 30, turn: 2, sight: 5, r: 12, size: { len: 28, wid: 16 }, deploys: 'cy',
+    cost: 2500, hp: 1200, armor: 'heavy', speed: 35, turn: 2, sight: 5, r: 12, size: { len: 28, wid: 16 }, deploys: 'cy',
   },
   // Closer to the original Red Alert: the Allied helicopter's Hellfires are anti-armour (6 a sortie,
   // 4 cells), the Hind's chain gun shreds infantry (12 bursts a sortie, 5 cells).
   heli: {
     name: 'Attack Helicopter', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', factions: ['allies'],
-    cost: 1200, hp: 220, armor: 'air', speed: 115, sight: 6, r: 9,
+    cost: 1200, hp: 220, armor: 'air', speed: 87, sight: 6, r: 9,
     weapon: { dmg: 55, rof: 0.9, range: 96, wh: 'HF', proj: 'rocket', ammo: 6, prefersArmor: true },
   },
   hind: {
     name: 'Hind Gunship', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', factions: ['soviets'],
-    cost: 1200, hp: 240, armor: 'air', speed: 105, sight: 6, r: 10,
+    cost: 1200, hp: 240, armor: 'air', speed: 66, sight: 6, r: 10,
     weapon: { dmg: 13, rof: 1.0, range: 120, wh: 'SA', proj: 'bullet', ammo: 12, burst: 5, gap: 0.07 },
   },
   // Jets carry ground-attack missiles (weapon), air-to-air missiles (weapon2, also fired at ground
@@ -135,18 +136,18 @@ const UNIT_DEFS = {
   // line through the target, each hurting what is within `splash`), and drop flares that can pull incoming missiles and rockets off course.
   jet: {
     name: 'Strike Jet', cls: 'air', fly: 'jet', cat: 'jet', producer: 'airfield', factions: ['allies'],
-    cost: 1100, hp: 140, armor: 'air', speed: 210, turn: 2.4, sight: 6, r: 9,
+    cost: 1100, hp: 140, armor: 'air', speed: 104, turn: 2.4, sight: 6, r: 9,
     weapon: { dmg: 80, rof: 0.45, range: 130, wh: 'HE', proj: 'missile', ammo: 2 },
     weapon2: { dmg: 60, rof: 0.5, range: 200, wh: 'HE', proj: 'missile', air: true, ammo: 2 },
     gun: { dmg: 12, wh: 'SA', range: 110, runs: 3, rounds: 14, gap: 0.045, splash: 9, walk: 70 }, flares: 2,
   },
   // Support aircraft called in from the Airfield (see POWERS); they fly a set route and cannot be ordered.
-  spyplane: { name: 'Spy Plane', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 150, armor: 'air', speed: 300, sight: 8, r: 9 },
-  transport: { name: 'Transport', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 420, armor: 'air', speed: 190, sight: 5, r: 14 },
-  bomber: { name: 'Bomber', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 200, sight: 5, r: 14 },
+  spyplane: { name: 'Spy Plane', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 150, armor: 'air', speed: 219, sight: 8, r: 9 },
+  transport: { name: 'Transport', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 420, armor: 'air', speed: 105, sight: 5, r: 14 },
+  bomber: { name: 'Bomber', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 105, sight: 5, r: 14 },
   mig: {
     name: 'MiG Fighter', cls: 'air', fly: 'jet', cat: 'jet', producer: 'airfield', factions: ['soviets'],
-    cost: 1200, hp: 170, armor: 'air', speed: 245, turn: 2.3, sight: 6, r: 9,   // just under a RedEye's 250: hard to catch from behind
+    cost: 1200, hp: 170, armor: 'air', speed: 131, turn: 2.3, sight: 6, r: 9,
     weapon: { dmg: 75, rof: 0.45, range: 130, wh: 'HE', proj: 'missile', ammo: 2 },
     weapon2: { dmg: 60, rof: 0.5, range: 160, wh: 'HE', proj: 'missile', air: true, ammo: 2 },
     gun: { dmg: 12, wh: 'SA', range: 110, runs: 3, rounds: 14, gap: 0.045, splash: 9, walk: 70 }, flares: 2,
@@ -221,18 +222,18 @@ const POWERS = {
 const DIFFICULTY = {
   easy:   { label: 'Easy',   income: 0.7,  speed: 0.8,  credits: 10000,
     ai: { wave: [4, 7], big: null, bigChance: 0,
-      firstWave: 480, bigFrom: 0, waveGap: 60, targets: 'cy', strike: [], defMax: 4, aa: 1, aaMax: 1, guard: [], expand: 0, armyWorth: 28000,
+      firstWave: 720, bigFrom: 0, waveGap: 90, targets: 'cy', strike: [], defMax: 4, aa: 1, aaMax: 1, guard: [], expand: 0, armyWorth: 28000,
       pincer: 0, counter: false, adapt: false, homeGuard: 0, interceptors: 0, queue: 2, planner: false,
       econ: { fast: false, refineries: 3, trucks: 5, truckFirst: false } } },
   normal: { label: 'Normal', income: 1.0,  speed: 1.0,  credits: 10000,
     ai: { wave: [10, 16], big: [16, 22], bigChance: 0.3,
-      firstWave: 480, bigFrom: 480, waveGap: 180, targets: 'weak', strike: ['para', 'bomb'], defMax: 11, aa: 1, aaMax: 3, guard: ['outpost'], outpostGuns: 2, expand: 24, armyWorth: 45000, armyUnits: 100,
-      pincer: 0.5, counter: true, adapt: true, homeGuard: 3, interceptors: 1, queue: 3, planner: true, approach: 1, gap: { short: [60, 300], long: [300, 600], chance: 0.2 },
+      firstWave: 720, bigFrom: 720, waveGap: 270, targets: 'weak', strike: ['para', 'bomb'], defMax: 11, aa: 1, aaMax: 3, guard: ['outpost'], outpostGuns: 2, expand: 24, armyWorth: 45000, armyUnits: 100,
+      pincer: 0.5, counter: true, adapt: true, homeGuard: 3, interceptors: 1, queue: 3, planner: true, approach: 1, gap: { short: [90, 450], long: [450, 900], chance: 0.2 },
       econ: { fast: true, refineries: 3, trucks: 6, truckFirst: true } } },
   hard:   { label: 'Hard',   income: 1.35, speed: 1.25, credits: 12000,
     ai: { wave: [6, 12], big: [12, 16], bigChance: 0.35,
-      firstWave: 360, bigFrom: 0, waveGap: 0, targets: 'weak', strike: ['para', 'bomb'], defMax: 15, aa: 2, aaMax: 5, guard: ['outpost', 'refinery'], outpostGuns: 3, expand: 24, armyWorth: 28000,
-      pincer: 0.6, counter: true, adapt: true, homeGuard: 5, interceptors: 2, queue: 3, planner: true, approach: 1, gap: { short: [45, 180], long: [180, 360], chance: 0.2 },
+      firstWave: 540, bigFrom: 0, waveGap: 0, targets: 'weak', strike: ['para', 'bomb'], defMax: 15, aa: 2, aaMax: 5, guard: ['outpost', 'refinery'], outpostGuns: 3, expand: 24, armyWorth: 28000,
+      pincer: 0.6, counter: true, adapt: true, homeGuard: 5, interceptors: 2, queue: 3, planner: true, approach: 1, gap: { short: [70, 270], long: [270, 540], chance: 0.2 },
       econ: { fast: true, refineries: 5, trucks: 10, truckFirst: true } } },
 };
 
@@ -240,7 +241,7 @@ const DIFFICULTY = {
 const CATEGORIES = ['structure', 'infantry', 'vehicle', 'heli', 'jet'];
 
 function defOf(type) { return UNIT_DEFS[type] || BUILD_DEFS[type]; }
-function buildTime(def) { return Math.max(3, def.cost / 1000 * 12); }
+function buildTime(def) { return Math.max(3, def.cost / 1000 * 24); }
 function catOf(type) { return UNIT_DEFS[type] ? UNIT_DEFS[type].cat : 'structure'; }
 
 for (const [k, d] of Object.entries(UNIT_DEFS)) d.type = k;

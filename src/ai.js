@@ -419,10 +419,10 @@ function aiLaunch(team, ready) {
 // The random wait before each attack, per difficulty (DIFFICULTY ai.gap): mostly `short`, now and then (`long`
 // chance) a longer lull; never over ten minutes. ARMY_FULL: share of the army cap waiting at home that
 // launches an attack early; AI_GAP_MIN: the least time between such waves.
-const ARMY_FULL = 0.6, AI_GAP_MIN = 45;
+const ARMY_FULL = 0.6, AI_GAP_MIN = 70;
 function aiGap() {
-  const g = G.diff.ai.gap || { short: [60, 300], long: [300, 600], chance: 0.2 }, [a, b] = Math.random() < g.chance ? g.long : g.short;
-  return Math.min(600, a + Math.random() * (b - a));
+  const g = G.diff.ai.gap || { short: [90, 450], long: [450, 900], chance: 0.2 }, [a, b] = Math.random() < g.chance ? g.long : g.short;
+  return Math.min(900, a + Math.random() * (b - a));
 }
 // Once a second: tracks the squads that have gone out, pulls a clearly losing one back to the rally
 // point, and sends squads home to a defence that is short-handed (defendBase works out the shortfall).
