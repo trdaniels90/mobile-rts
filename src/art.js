@@ -1374,13 +1374,11 @@ function drawStructure(g, b, t) {
     const kick = b.type === 'turret' ? recoil(b) * 1.6 : 0;   // the Gun Turret's head kicks back when it fires
     const hx = x + head[1] - Math.cos(b.tface) * kick, hy = y + head[2] - head[3] * VK - Math.sin(b.tface) * kick * 0.6;
     blit(g, headSprite(b.type, b.faction, b.tface, stage), hx, hy, false);
-    if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
+    if (b.type === 'ftur') {   // a burst of fire at the projector's mouth, not a gun flash
+      if (b.fireT > 0) { g.fillStyle = 'rgba(255,140,40,0.85)'; g.beginPath(); g.arc(hx + Math.cos(b.tface) * 10, hy + Math.sin(b.tface) * 10 - 3, 4 + Math.random() * 2, 0, 7); g.fill(); }
+    } else if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
   }
-  if ((b.type === 'pillbox' || b.type === 'ftur') && b.fireT > 0) {
-    const m = muzzle(b);
-    if (b.type === 'ftur') { g.fillStyle = 'rgba(255,140,40,0.85)'; g.beginPath(); g.arc(m.x, m.y, 4 + Math.random() * 2, 0, 7); g.fill(); }
-    else flash(g, m.x, m.y, 2);
-  }
+  if (b.type === 'pillbox' && b.fireT > 0) { const m = muzzle(b); flash(g, m.x, m.y, 2); }
   if (b.type === 'tesla' && b.charge > 0) {
     g.fillStyle = `rgba(140,190,255,${0.25 + 0.45 * b.charge})`;
     g.beginPath(); g.arc(x + 12, y + 35 - 50 * VK, 7 + Math.random() * 3, 0, 7); g.fill();

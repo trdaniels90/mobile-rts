@@ -2581,7 +2581,7 @@ const STRUCTURES = {
     return m;
   },
   // Flame tower: a six-sided tower with an arched stone foot, a braced frame, a brick room in the team colour and a
-  // railed platform carrying a burning bowl (fire comes from z 25). Modelled in Blender, voxelized by tools/blender/ftur.py.
+  // railed platform; the flame projector on top is a rotating head (HEADS.ftur, pivot at z 25, where fire comes from). Modelled in Blender, voxelized by tools/blender/ftur.py.
   // BLENDER:ftur begin
   ftur(pal) {
     const m = new VModel(-2, -2, 26, 26, 30);
@@ -2812,43 +2812,21 @@ const STRUCTURES = {
     m.box(8, 8, 25, 9, 9, 26, '#4a3828', M_ROUGH);
     m.box(15, 8, 25, 16, 9, 26, '#4a3828', M_ROUGH);
     m.box(7, 9, 25, 8, 11, 26, '#4a3828', M_ROUGH);
-    m.box(10, 9, 25, 14, 10, 26, '#2a2b2d', M_METAL);
     m.box(16, 9, 25, 17, 11, 26, '#4a3828', M_ROUGH);
     m.box(6, 10, 25, 7, 12, 26, '#4a3828', M_ROUGH);
-    m.box(9, 10, 25, 10, 11, 26, '#2a2b2d', M_METAL);
-    m.box(10, 10, 25, 14, 11, 26, '#ff7a1a', M_GLOW);
-    m.box(14, 10, 25, 15, 11, 26, '#2a2b2d', M_METAL);
+    m.box(10, 10, 25, 14, 16, 26, '#2a2b2d', M_METAL);
     m.box(17, 10, 25, 18, 12, 26, '#4a3828', M_ROUGH);
-    m.box(8, 11, 25, 9, 15, 26, '#2a2b2d', M_METAL);
-    m.box(9, 11, 25, 11, 12, 26, '#ff7a1a', M_GLOW);
-    m.box(11, 11, 25, 13, 15, 26, '#ff9a2a', M_GLOW);
-    m.box(13, 11, 25, 15, 12, 26, '#ff7a1a', M_GLOW);
-    m.box(15, 11, 25, 16, 15, 26, '#2a2b2d', M_METAL);
+    m.box(9, 11, 25, 10, 15, 26, '#2a2b2d', M_METAL);
+    m.box(14, 11, 25, 15, 15, 26, '#2a2b2d', M_METAL);
     m.box(5, 12, 25, 6, 14, 26, '#4a3828', M_ROUGH);
-    m.box(9, 12, 25, 10, 15, 26, '#ff7a1a', M_GLOW);
-    m.box(10, 12, 25, 11, 14, 27, '#ff9a2a', M_GLOW);
-    m.box(13, 12, 25, 14, 14, 28, '#ff9a2a', M_GLOW);
-    m.box(14, 12, 25, 15, 15, 26, '#ff7a1a', M_GLOW);
     m.box(18, 12, 25, 19, 14, 26, '#4a3828', M_ROUGH);
     m.box(6, 14, 25, 7, 16, 26, '#4a3828', M_ROUGH);
-    m.box(10, 14, 25, 11, 16, 26, '#ff7a1a', M_GLOW);
-    m.box(13, 14, 25, 14, 16, 26, '#ff7a1a', M_GLOW);
     m.box(17, 14, 25, 18, 16, 26, '#4a3828', M_ROUGH);
     m.box(7, 15, 25, 8, 17, 26, '#4a3828', M_ROUGH);
-    m.box(9, 15, 25, 10, 16, 26, '#2a2b2d', M_METAL);
-    m.box(11, 15, 25, 13, 16, 26, '#ff7a1a', M_GLOW);
-    m.box(14, 15, 25, 15, 16, 26, '#2a2b2d', M_METAL);
     m.box(16, 15, 25, 17, 17, 26, '#4a3828', M_ROUGH);
-    m.box(10, 16, 25, 14, 17, 26, '#2a2b2d', M_METAL);
     m.box(8, 17, 25, 9, 19, 26, '#4a3828', M_ROUGH);
     m.box(15, 17, 25, 16, 19, 26, '#4a3828', M_ROUGH);
     m.box(9, 18, 25, 15, 19, 26, '#4a3828', M_ROUGH);
-    m.box(10, 11, 26, 14, 12, 27, '#ff9a2a', M_GLOW);
-    m.box(11, 12, 26, 13, 14, 29, '#ffd25a', M_GLOW);
-    m.box(10, 14, 26, 14, 15, 27, '#ff9a2a', M_GLOW);
-    m.box(11, 11, 27, 13, 12, 28, '#ff9a2a', M_GLOW);
-    m.box(10, 12, 27, 11, 14, 28, '#ffd25a', M_GLOW);
-    m.box(11, 14, 27, 13, 15, 28, '#ff9a2a', M_GLOW);
     return m;
   },
   // BLENDER:ftur end
@@ -4703,6 +4681,25 @@ const HEADS = {
     m.box(7, -1, 1, 10, 1, 4, C.gun, M_METAL);                          // mantlet where the barrel leaves the tip
     return m;
   }, 12, 12, 6],
+  // Flame Tower: a flame projector on a turntable. Two fuel bottles in the team colour at the back, a splash shield,
+  // and a long nozzle with a flared, scorched mouth and a pilot light.
+  ftur: [(pal) => {
+    const m = new VModel(-7, -6, 11, 6, 8);
+    m.cylZ(0, 0, 0, 1, 3, '#2a2b2d', M_METAL);                          // turntable
+    m.box(-2, -2, 1, 2, 2, 3, '#3a3d42', M_METAL);                      // pump housing
+    for (const y of [-2, 2]) {                                          // fuel bottles
+      m.cylX(-6, -1, y, 2.5, 1.5, pal.main, M_ROUGH);
+      m.cylX(-4, -3, y, 2.5, 1.5, pal.deep, M_ROUGH);
+      m.cylX(-7, -6, y, 2.5, 1.0, '#8c9094', M_METAL);
+    }
+    m.box(1, -4, 1, 3, 4, 5, pal.dark, M_METAL);                        // splash shield
+    m.box(1, -3, 4, 3, 3, 5, '#3a3d42', M_METAL);
+    m.cylX(2, 8, 0, 3, 1.0, '#34362f', M_METAL);                        // nozzle
+    m.cylX(7, 10, 0, 3, 1.5, '#1c1612', M_METAL);                       // flared, scorched mouth
+    m.box(9, -1, 2, 10, 1, 4, '#ff7a1a', M_GLOW);                       // pilot light
+    m.box(3, -1, 1, 5, 1, 2, '#6e5539', M_ROUGH);                       // fuel line under the nozzle
+    return m;
+  }, 12, 13, 25],
   // Twin-barrel AA gun head (tools/blender/aagun.py).
   aagun: [(pal) => {
     const m = new VModel(-6, -6, 12, 6, 12);

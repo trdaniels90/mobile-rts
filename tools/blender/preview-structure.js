@@ -11,6 +11,7 @@ const fs = require('fs');
   if (override) await p.evaluate(fs.readFileSync(override, 'utf8'));
   const data = await p.evaluate(async ([type, faction, S]) => {
     newWorld(faction, 'normal', 7, 0, false);
+    spriteSpend = -1e9;   // no stand-ins: every sprite is made when asked for
     for (let i = 0; i < 3; i++) { if (typeof pumpDamaged === 'function') for (let k = 0; k < 40; k++) pumpDamaged(); await new Promise((r) => setTimeout(r, 60)); }
     const d = BUILD_DEFS[type], W = d.w * CELL + 24, H = d.h * CELL + 96;
     const t = document.createElement('canvas'); t.width = W * 3; t.height = H;

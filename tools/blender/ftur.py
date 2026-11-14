@@ -1,8 +1,9 @@
 """Soviet Flame Tower, modelled in Blender and voxelized for the game.
 python3 -I tools/blender/ftur.py <out_dir>  ->  ftur.js (STRUCTURES.ftur body for models.js), ftur.preview.js, ftur.blend
-Box: x -2..26, y -2..26, z 0..30. The tower stands at (12, 13); its fire bowl is at z 25 (art.js and world.js aim effects there).
+Box: x -2..26, y -2..26, z 0..30. The tower stands at (12, 13); the flame projector (a rotating head, HEADS.ftur in models.js) pivots there at z 25,
+which is also where art.js and world.js aim effects.
 Design taken from an AI-generated reference: a six-sided tower with an arched stone foot, a braced frame, a brick
-room in the team colour, an open lattice and a railed platform carrying a burning bowl.
+room in the team colour, an open lattice and a railed platform. The reference's fire bowl is replaced by a flamethrower.
 """
 import math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -59,17 +60,14 @@ for k in range(6):
     x0, y0 = corner(5.2, k)
     x1, y1 = corner(5.6, k)
     s.tube((x0, y0, 20.5), (x1, y1, 24.2), 0.6, TIMBER2, 'rough', name='lattice_post', verts=8)
-# ---- railed platform and the fire bowl
+# ---- railed platform
 s.prism(hexagon(6.6), hexagon(6.6), 24.0, 25.0, TIMBER2, 'rough', name='platform')
 for k in range(6):
     x0, y0 = corner(6.4, k)
     x1, y1 = corner(6.4, k + 1)
     s.tube((x0, y0, 25.6), (x1, y1, 25.6), 0.55, TIMBER, 'rough', name='rail', verts=8)
     s.tube((x0, y0, 24.6), (x0, y0, 26.2), 0.6, TIMBER, 'rough', name='rail_post', verts=8)
-s.tube((CX, CY, 24.6), (CX, CY, 26.0), 4.0, IRON, 'metal', name='bowl', verts=16)
-s.tube((CX, CY, 25.0), (CX, CY, 26.4), 3.1, EMBER, 'glow', name='bowl_fire', verts=16)
-s.sphere((CX, CY, 26.6), (2.4, 2.4, 2.0), FIRE, 'glow', name='flame')
-s.sphere((CX - 0.3, CY, 27.4), (1.4, 1.4, 2.0), FIREHI, 'glow', name='flame_tip')
+s.tube((CX, CY, 24.6), (CX, CY, 25.6), 3.2, IRON, 'metal', name='turntable', verts=16)   # the flame projector (HEADS.ftur in models.js) turns on this
 # ---- fuel drums and a crate at the foot
 for (x, y) in ((2.8, 20.6), (5.4, 22.0)):
     s.tube((x, y, 1.0), (x, y, 4.4), 1.5, 'light', 'metal', name='drum', verts=12)
