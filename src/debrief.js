@@ -31,7 +31,7 @@ const Debrief = (() => {
       </div>
       <div class="db-grid" data-page="score" hidden>
         <section class="db-panel"><table class="db-table"></table></section>
-        <section class="db-panel"><p class="db-ptitle">Your kills by unit</p><div class="db-bytype"></div></section>
+        <section class="db-panel"><p class="db-ptitle">Kills made by your units</p><div class="db-bytype"></div></section>
       </div>
       <div class="db-extra"></div>
       <div class="db-buttons"><button type="button" class="db-rematch">Rematch</button><button type="button" class="db-new">Main Menu</button></div>
