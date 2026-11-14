@@ -42,10 +42,10 @@ share globals. Read this file first; the commit history explains every change in
    then `.1`, `.2`... on the same day. `VERSION` is the first entry. The menu shows its title, and
    What's New carries a NEW badge until it is read.
 2. Check every script with `node --check`, and that the baked sprites are current: `node tools/bake-sprites.js <repo> --check`
-   (if stale, rebake: `node tools/bake-sprites.js <repo>`, see "Baked sprites").
+   (if stale, rebake: `node tools/bake-sprites.js <repo>`, see "Baked sprites"), and the baked ground: `node tools/bake-ground.js <repo> --check`.
 3. Build the single file: `python3 scripts/build-single-file.py <out.html>`. Load it in headless
    Playwright and start a game to check it runs without errors.
-4. **Owner's build:** publish `<out.html>` (and, when they changed, the files in `sprites/` as `sprites/<name>`) to the artifact URL above with the Artifact tool
+4. **Owner's build:** publish `<out.html>` (and, when they changed, the files in `sprites/` as `sprites/<name>` and in `grounds/` as `grounds/<path>`) to the artifact URL above with the Artifact tool
    (artifact slug `d3b16e49-e1b0-4114-9609-965e7c8a302b`; `get_artifact` for the base version).
    `publish_files` only reads files inside the repo folder, so build to `.build/index.html`, publish,
    then `rm -rf .build` (it is not gitignored, and the Stop hook complains about untracked files).
@@ -178,6 +178,50 @@ share globals. Read this file first; the commit history explains every change in
 - Its rock (`'#'`) is painted into the ground as brown rocky ridges (`G.cliff` mask, `paintCliffs` in art.js:
   a height field from the cliff cells, shaded by slope, cached per cell). They only block; the game has no
   height or high-ground bonus.
+
+## Jets: gun runs instead of bombs (after 2026.11.13.2, not released, both modes)
+
+- Strike Jet and MiG no longer carry bombs (`bombs`/`bomb` gone from data.js, `u.bombs` is now `u.guns`). They have
+  `gun` (`runs` 3 a sortie, `rounds` 14 SA shells of 12, `splash` 9 px, walked `walk` 70 px along the flight line
+  through the target): `startStrafe` / `tickStrafe` in world.js, fired when a ground target is within `gun.range`
+  (110) and nearly dead ahead, after the missiles. Deadly to infantry, light on vehicles, little against tanks and
+  buildings. `strafe` is a host timer (netcore `SKIP`). The Strike Jet model's bombs are gone (sprites rebaked).
+  Air-to-air missiles (`weapon2`, no `ground: false` now) are fired at ground targets once the ground-attack ones
+  are spent; a jet goes home only when both kinds and its gun runs are used. On the way home it fires them only at aircraft. Headless check: 10 riflemen, one MiG with an Airfield, 90 s: 8 killed.
+
+## Computer air strikes spaced out (after 2026.11.13.2, not released, skirmish and co-op)
+
+- The computer's aircraft went out again as soon as two were rearmed (every 30-60 s). Now `launchGroups` holds them
+  until `firstWave` has passed, then `AIR_STRIKE_GAP` (180 s, owner's pick, every difficulty) between jet strikes and
+  between helicopter strikes (`team.airNext[kind]`). Its new aircraft no longer take off on their own when built
+  (`spawnUnit`): they wait for the next strike. Base defence and scrambles are unaffected.
+
+## OpenRA pace (after 2026.11.13, not released, both modes)
+
+- Owner asked for a slower game, modelled on OpenRA's Red Alert (`mods/ra` rules at normal speed: 25 ticks a second,
+  1024 units a cell). **Build time** is cost x 0.024 s (`buildTime` in data.js; was 0.012), as OpenRA's
+  `BuildDurationModifier` 60. **Every unit's speed** is OpenRA's Speed x 25 / 1024 x `CELL` (rifle 32, light tank 66,
+  medium 42, heavy 38, Mammoth 25, Ore Truck 42, Ranger = Jeep 96, Longbow 87, Hind 66, Strike Jet = Yak 104, MiG 131,
+  Spy Plane = U2 219, Transport and Bomber = Badger 105). Cash, ore and combat unchanged.
+- **Computer timing x 1.5:** `firstWave` 720 (Easy, Normal) / 540 (Hard), `bigFrom`, `waveGap`, the planner `gap`s
+  (cap 900 in `aiGap`), `AI_GAP_MIN` 70, `AIR_STRIKE_GAP` 270. `ai-timing.js` 2 Normal games: first waves 535 to
+  785 s. `jet-defense.js` seeds 11-12: raiders killed 12 to 10, MiGs lost 5 to 5.
+
+## Units spread out in a fight (after 2026.11.13, not released, both modes)
+
+- Owner's report: units always balled up when auto attacking or defending. Three causes, three fixes (world.js):
+  **Approach spot** (`approachSpot`, `fanR`, `fanAngle`): `engage` used to path every attacker to the target's centre. Now each
+  heads for a spot at 0.85 of its range on its own side, turned by `u.fan` (dealt by id) over an arc sized for its group
+  (attackers in `atkOn`, or friends within 5 cells; `FAN_GAP_INF` 16 / `FAN_GAP_VEH` 31 px each, at most `FAN_MAX` +-1.95 rad); the bearing is fixed per target (`u.apT` id, `u.apA`).
+  **Sliding** (`slideOut`, `SLIDE_MAX` 4 s): a unit that comes into reach beside a friend (within 20 px) steps along to its
+  spot; infantry hold fire meanwhile, vehicles fire on the move. **Spacing** (`separate`): ground units keep 1.4 times their radii
+  apart from allies, 1 from foes (was 0.85), push up to 3 px a step. **Fire spread** (`atkOn`, `pledge`, `overkill`, rebuilt in
+  `buildGrid` each step, not saved): `acquire` and `defendBase` put a unit already as good as dead (next shots of its attackers
+  >= 1.2 x its health) `OVERKILL` (3 cells) further back. The new unit fields are in netcore.js `SKIP`.
+- `node tools/sim/bunching.js <repo> 10 90` (headless staged fight: Soviet hunters into an Allied base defence; friends within a
+  V2 blast of each engaging unit): attackers 7.35 to 3.26 average, 6+ in one blast 67% to 10%, worst 19 to 13 (owner's in-between pick of three tunings shown as
+  video: narrow +-1.5 rad / 13-26 px / 1.25 / 3 s gave 3.87, 19%; wide +-2.4 / 20-36 / 1.5 / 5 s gave 2.7, 4%);
+  defenders were already about 2.4. Defenders kill more (7-8 of 24 attackers, was 6): the attackers still win every run.
 
 ## Recent mechanics (2026.10.31.2)
 
@@ -415,6 +459,26 @@ share globals. Read this file first; the commit history explains every change in
   "Deploying forces" card until `SpriteSheets.ready()` and `G.ground.missing === 0` (at least `LOAD_MIN`, at most
   `LOAD_MAX` 3 s; shown only after 120 ms). A skirmish does not run meanwhile; an online battle does (`Net.role`). Those
   frames are left out of the match report.
+- **Pop-in (after 2026.11.13, both modes; match 258ad396, a 2560 x 1370 desktop at 120 fps with up to 1,136 frames a
+  minute showing stand-ins):** tiles were let go past `max(140, 3 x on screen)` and repainted on the way back. Now a
+  roomy computer (`GROUND_ROOMY` in art.js: Chrome's `deviceMemory` >= 8, or no touch screen, not a phone and 4+ cores)
+  keeps every tile and, once the preview is done, has the workers paint the rest of the map in the background, nearest
+  the view first (finished with the `ahead` time only). Snowbound: all 400 tiles in about 20 s, about 100-130 MB.
+  Phones keep the old limit. On every device a tile that comes in where a stand-in was on screen fades in over it
+  (`GROUND_FADE`, 250 ms, `t.born`) instead of popping.
+- **Baked ground (2026.11.13.2, both modes):** the fixed maps (`rows` in MAPS: Snowbound, Three Crossings) paint with a fixed
+  seed (`groundSeed`), so `tools/bake-ground.js` paints their ground once into `grounds/<map>/<i>.webp` (1024 px sheets,
+  `GROUND_SHEET`, row by row, bridges and scenery included, lossy WebP 0.8, about 35 dB) plus `preview.webp` (quarter size)
+  and `grounds/manifest.json` (about 12 MB in all). `GroundSheets` (art.js) loads the manifest at start; `newGround` uses a
+  map's bake only if its `key` equals `groundKey(G)` (a hash of everything the ground is painted from), so a changed layout
+  paints as before. In `makeGround`, `bk` cuts tiles from decoded sheets (`bakedFeed`, `finish` with `m.bmp`; a phone keeps
+  12 sheets, 4 loading at once); the preview comes from the file. A sheet that fails to load falls back to painting
+  (`bk.failed`, `Report.oops('groundSheet')`). Only over http(s) and `app:`, so tools/sim tests (file://) still paint.
+  **Rebake** after changing the ground painting in art.js, scenery (models.js, voxel.js) or a fixed map
+  (`node tools/bake-ground.js <repo> --check` in the release checklist). The service worker caches the manifest and
+  previews (`ART`) and sheets as they are used; the Windows app copies `grounds/`; the owner's artifact needs them as files.
+  4x-throttled phone-sized 3 v 3 here: start 3.6 to 2.9 s, stand-in frames while circling the map 26 to 20 (the
+  container's workers are fast; on a phone painting costs far more).
 - **Anything new drawn onto the ground** must be a function in `MARK_FNS` (deterministic from its arguments, with a box in
   `markBox`), never a draw on a canvas kept in G. The game server records no marks (`HEADLESS`).
 - **Saves** keep `G.marks` (no pictures). An old save's two pictures are used as the ground (`legacy`, `G.legacyGround`,
@@ -546,6 +610,7 @@ Supabase.
 | `ground-tiles.js` | The ground in tiles: every kind of mark in a staged battle, live vs repainted tiles and tile sizes pixel for pixel, save and continue, an old save's scars. `<repo> [maps] [old checkout]` |
 | `give-credits.js` | Giving credits to an ally: the rule headless, the GIVE card in a 2 v 2 skirmish, online co-op through the server and forged orders |
 | `server-coop-mate.js` | Co-op with a computer teammate: two players in a 3 v AI, the leader adds the computer, the battle starts with it on the players' team |
+| `bunching.js` | Headless staged fight: how many friends stand inside one V2 blast of each fighting unit, attack and defence, and how the fight went. `<repo> [runs] [seconds]` |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP

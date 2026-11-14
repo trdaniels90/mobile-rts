@@ -43,14 +43,14 @@ const Manual = (() => {
     // Aircraft
     heli: ['A fast gunship with six Hellfire missiles a sortie: armour-piercing, deadly to tanks but poor against infantry. Flies home to rearm.', 'Tanks, vehicles', 'Infantry, AA Guns, SAM sites, rocket soldiers'],
     hind: ['An armoured Soviet gunship whose chain gun tears through infantry, with twelve bursts a sortie.', 'Infantry, light vehicles', 'AA defences, rockets'],
-    jet: ['Styled after the F-15E Strike Eagle: two ground-attack missiles, two air-to-air missiles, four bombs and two bursts of flares per sortie.', 'Structures, aircraft', 'SAM sites, flak, rockets'],
-    mig: ['A fast Soviet delta-wing fighter-bomber with missiles for ground and air targets, bombs and flares.', 'Structures, aircraft', 'AA Guns, rockets'],
+    jet: ['Styled after the F-15E Strike Eagle: two ground-attack missiles, two air-to-air missiles (fired at ground targets too once the others are spent), three cannon gun runs and two bursts of flares per sortie.', 'Structures, aircraft, infantry', 'SAM sites, flak, rockets'],
+    mig: ['A fast Soviet delta-wing fighter with missiles for ground and air targets (the air-to-air pair also strikes the ground), a cannon for strafing runs and flares.', 'Structures, aircraft, infantry', 'AA Guns, rockets'],
   };
   const WEAPON = {
     rifle: 'Rifle', grenadier: 'Grenades (arcing, splash)', rocket: 'Dragon rockets; RedEye missiles (air)', pilot: 'Pistol',
     ranger: 'Machine gun (hits helicopters, not jets)', ltank: 'Light cannon', mtank: 'Cannon', htank: 'Twin cannons', mammoth: 'Twin cannons + anti-air missile pods',
     arty: 'Howitzer (arcing, splash)', v2rl: 'V2 rocket (arcing, huge splash)', heli: 'Hellfire missiles (anti-armour)', hind: 'Chain gun',
-    jet: 'Missiles (ground and air), bombs', mig: 'Missiles (ground and air), bombs',
+    jet: 'Missiles (ground and air), cannon', mig: 'Missiles (ground and air), cannon',
     pillbox: 'Machine gun', turret: 'Cannon', aagun: 'Flak (aircraft only)', ftur: 'Flamethrower', tesla: 'Tesla bolt', sam: 'SAM missiles (aircraft only)',
   };
   const POWER_TEXT = {
@@ -63,7 +63,7 @@ const Manual = (() => {
   const side = (d) => (d.factions.length === 2 ? 'both' : d.factions[0] || 'none');
   const badge = (s) => s === 'both' ? '<span class="fm-side both">Both sides</span>' : s === 'allies' ? '<span class="fm-side allies">Allies</span>' : s === 'soviets' ? '<span class="fm-side soviets">Soviets</span>' : '<span class="fm-side none">Special</span>';
   const cells = (px) => `${Math.round(px / CELL * 2) / 2} cells`;
-  const speed = (d) => d.cls === 'inf' ? 'On foot' : d.speed <= 32 ? 'Very slow' : d.speed <= 42 ? 'Slow' : d.speed <= 56 ? 'Medium' : d.speed <= 100 ? 'Fast' : d.speed <= 160 ? 'Very fast' : 'Jet';
+  const speed = (d) => d.cls === 'inf' ? 'On foot' : d.fly === 'jet' ? 'Jet' : d.speed <= 32 ? 'Very slow' : d.speed <= 42 ? 'Slow' : d.speed <= 56 ? 'Medium' : d.speed <= 100 ? 'Fast' : d.speed <= 160 ? 'Very fast' : 'Jet';
   const armor = (d) => ({ inf: 'Infantry', light: 'Light', heavy: 'Heavy', air: 'Aircraft' }[d.armor] || 'Structure');
   const nameOf = (t) => defOf(t).name;
   const req = (list) => list && list.length ? list.map(nameOf).join(', ') : '';

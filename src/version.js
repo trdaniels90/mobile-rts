@@ -4,6 +4,43 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.13.6', date: '13 November 2026', title: 'Long battles keep their stats', groups: [
+    ['Fixes', [
+      'Very long battles (about an hour) could lose all their numbers on the stats page and leaderboard because the report was too big. The report is now trimmed to fit, keeping the most important figures.',
+    ]],
+  ] },
+  { v: '2026.11.13.5', date: '13 November 2026', title: 'A new look for the Light Tank', groups: [
+    ['Changes', [
+      'The Allied Light Tank has a new look: road wheels under drooping fenders, a sloped nose and a round dome turret with a single gun. It plays exactly as before.',
+    ]],
+  ] },
+  { v: '2026.11.13.4', date: '13 November 2026', title: 'A slower, steadier battle', groups: [
+    ['Changes', [
+      'Everything takes twice as long to build, so bases and armies come together at a steadier pace, closer to the classic games.',
+      'Unit speeds have been retuned: infantry move a little faster, tanks a little slower (the Mammoth is the slowest of all), and aircraft fly about half as fast as before, so you have more time to react to air raids.',
+      'The computer gives you more time to build up: its first attack comes about 12 minutes in on Easy and Normal (9 on Hard), with longer lulls between attacks and air strikes.',
+    ]],
+  ] },
+  { v: '2026.11.13.3', date: '13 November 2026', title: 'Jets get guns, fewer air raids', groups: [
+    ['Changes', [
+      'Strike Jets and MiGs no longer carry bombs. Instead they make cannon gun runs (three a sortie): a burst of shells along their flight path that shreds infantry and hurts light vehicles, but barely scratches tanks and buildings.',
+      'Jets now fire their air-to-air missiles at ground targets too, once their ground-attack missiles are spent. They still save them for enemy aircraft on the way home.',
+      'The computer sends its aircraft out much less often: no air attacks before its first ground attack, then at least 3 minutes between jet strikes and between helicopter strikes. Its jets still scramble when you raid its base.',
+    ]],
+  ] },
+  { v: '2026.11.13.2', date: '13 November 2026', title: 'Ready-made ground, no more pop-in', groups: [
+    ['Improvements', [
+      'Snowbound and Three Crossings now come with their ground ready-made, so the game no longer paints it while you play: the map appears sooner and stays sharp as you scroll. Their ground looks the same in every game now.',
+    ]],
+  ] },
+  { v: '2026.11.13.1', date: '13 November 2026', title: 'Units spread out in a fight', groups: [
+    ['Changes', [
+      'Units no longer ball up when they attack or defend. Each one closes in from its own spot round the target, so a group fans out into an arc across the front instead of piling onto one point. Infantry may take a moment to step into place before they open fire.',
+      'Units keep a little more room between them, and a group spreads its fire: they stop piling every gun onto an enemy that is already as good as dead and shoot the next one.',
+      'Splash weapons (V2 rockets, artillery, grenades, Tesla Coils) catch fewer units at once, on both sides.',
+      'On computers the ground no longer pops in as you scroll around: the whole map is kept once it has been painted, and new ground fades in on every device.',
+    ]],
+  ] },
   { v: '2026.11.13', date: '13 November 2026', title: 'Computer teammates in co-op, and jets defend again', groups: [
     ['New', [
       'Online co-op (2 v AI and 3 v AI): short a friend? The room leader can tap Add computer on an open place on your team to fill it with a computer teammate, and Open for a friend to give it back. A co-op with a computer teammate does not count for the co-op leaderboard.',

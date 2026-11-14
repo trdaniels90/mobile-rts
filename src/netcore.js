@@ -42,7 +42,7 @@ const NetCore = (() => {
   // ---------------------------------------------------------------------------
   // Fields a remote player never needs: the host's own timers and bookkeeping. `anim` (the walk
   // cycle) the remote copy keeps itself.
-  const SKIP = new Set(['def', 'path', 'pathIdx', 'needPath', 'lastX', 'lastY', 'stuckN', 'stuckT', 'think', 'cd', 'cd2', 'extT', 'sent',
+  const SKIP = new Set(['def', 'strafe', 'path', 'pathIdx', 'needPath', 'lastX', 'lastY', 'stuckN', 'stuckT', 'think', 'cd', 'cd2', 'extT', 'sent', 'fan', 'apT', 'apA', 'slideT',
     'smokeT', 'revealT', 'dmgSeen', 'dmgHp', 'dropT', 'dmgFxT', 'popK', 'popHold', 'anim', 'htimer', 'hcell', 'crowdT', 'nearBest', 'clankT', 'final', 'roll', 'rollTo', 'fireT', 'shotAt', 'twinNext', 'twinTarget', 'plumeT', 'flareT', 'jetOn', 'jetD', 'jetSeen']);   // fireT: the copy lights the flash itself from `shots`
   const COARSE = new Set(['x', 'y', 'alt']);   // to a tenth of a pixel
   const OBJ = '\u0000';   // marks an object field, kept as JSON for comparing

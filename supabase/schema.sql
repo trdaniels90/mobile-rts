@@ -61,7 +61,7 @@ create or replace function public.match_end(p_id uuid, p_device uuid, p_result t
 returns void language sql security definer set search_path = '' as $$
   update public.matches
   set ended_at = now(), last_seen = now(), result = p_result, duration_s = p_duration,
-      stats = case when octet_length(p_stats::text) <= 100000 then p_stats end
+      stats = case when octet_length(p_stats::text) <= 100000 then p_stats else stats end
   where id = p_id and device_id = p_device and ended_at is null
     and p_result in ('win', 'loss', 'quit');
 $$;

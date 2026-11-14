@@ -9,7 +9,7 @@ const out = path.join(__dirname, '..', 'game');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
 for (const f of ['index.html', 'style.css', 'manifest.webmanifest']) fs.copyFileSync(path.join(root, f), path.join(out, f));
-for (const d of ['src', 'music', 'maps', 'icons', 'sprites']) fs.cpSync(path.join(root, d), path.join(out, d), { recursive: true });
+for (const d of ['src', 'music', 'maps', 'icons', 'sprites', 'grounds']) fs.cpSync(path.join(root, d), path.join(out, d), { recursive: true });
 const src = fs.readFileSync(path.join(root, 'src', 'version.js'), 'utf8');
 const m = /v:\s*'(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?'/.exec(src);
 if (!m) throw new Error('no version in src/version.js');

@@ -186,6 +186,31 @@ const SpriteSheets = (() => {
 })();
 SpriteSheets.need(['allies0', 'soviets0', 'burnt']);   // the main colours, in the background from the start
 
+// The baked ground (tools/bake-ground.js): the fixed maps' ground (maps traced from a design, `rows` in MAPS) painted
+// once into pictures, grounds/<map>/<i>.webp in GROUND_SHEET squares (row by row) and grounds/<map>/preview.webp at a
+// quarter size, so a battle shows pictures instead of painting the ground (makeGround). A map's entry in
+// grounds/manifest.json is used only if its `key` matches the battle's ground (groundKey), so a changed layout falls
+// back to painting until it is rebaked. Over http(s) and app: only, as SpriteSheets.
+const GROUND_SHEET = 1024;
+const GroundSheets = (() => {
+  let man = null;
+  const ok = () => typeof location !== 'undefined' && /^(https?|app):$/.test(location.protocol) && typeof createImageBitmap === 'function' && typeof fetch === 'function'
+    && !(typeof HEADLESS !== 'undefined' && HEADLESS);
+  if (ok()) fetch('grounds/manifest.json').then((r) => (r.ok ? r.json() : null)).then((m) => { man = m; }).catch(() => {});
+  return { get manifest() { return man; }, ok };
+})();
+// Fixed maps paint the same ground every game (so it can be baked); generated maps vary it with the battle's seed.
+function groundSeed(g) { return MAPS[validMap(g.mapId)].rows ? 0x2b1d5eed : g.seed; }
+// A hash of everything the ground of battle g is painted from (the baked pictures are only used when it matches).
+function groundKey(g) {
+  let h = 0x811c9dc5 | 0;
+  const num = (v) => { h = Math.imul(h ^ (v | 0), 16777619); };
+  const str = (t) => { for (let i = 0; i < t.length; i++) num(t.charCodeAt(i)); };
+  str(JSON.stringify([validMap(g.mapId), MAP, CELL, GROUND_TILE, GROUND_SHEET, groundSeed(g), mapTheme(g.mapId), MAPS[validMap(g.mapId)].bridge || '', g.bridges || []]));
+  for (const a of [g.terr, g.road, g.cliff, g.ford]) { num(a ? a.length : -1); if (a) for (let i = 0; i < a.length; i++) num(a[i]); }
+  return (h >>> 0).toString(16);
+}
+
 // The ground painter for one map: paint(g, x0, y0, w, h, ox, oy) paints that part of the ground (world pixels) into
 // g at (ox, oy): the pixels (groundPixels), then bridges and scenery on top (decorate). Every pixel depends only on
 // where it is, so parts painted one by one fit together exactly (the ground tiles, makeGround). The scenery and
@@ -855,7 +880,14 @@ function groundWorkers() {
 }
 // The ground of the battle in G: newWorld and SaveGame.load make it (after setMapSize). legacy (old saves): the
 // pictures the save kept, { g, d } bitmaps, in place of painting.
-function makeGround(painter, legacy) {
+// A computer with memory to spare (not a phone or tablet: no touch screen, or Chrome reporting 8 GB) keeps every
+// tile it paints and paints the rest of the map in the background once the preview is done, so scrolling back and
+// forth never shows a tile being repainted. A phone keeps the tiles near the view only (memory).
+const GROUND_ROOMY = typeof navigator !== 'undefined' && (navigator.deviceMemory >= 8 ||
+  (navigator.deviceMemory === undefined && !(navigator.maxTouchPoints > 0) && !/iPhone|iPad|iPod|Android/.test(navigator.userAgent) && (navigator.hardwareConcurrency || 0) >= 4));
+// A tile that comes in on screen fades in over its stand-in for this long (ms), rather than popping in.
+const GROUND_FADE = 250;
+function makeGround(painter, legacy, baked) {
   const T = GROUND_TILE, n = Math.ceil(WORLD / T), STRIP = 32;
   const tiles = new Map();            // tile number -> { g: canvas, d: canvas or null, used }, painted
   const pending = new Map();          // tile number -> { t, row }: being painted, STRIP rows at a time
@@ -874,6 +906,43 @@ function makeGround(painter, legacy) {
   // The preview: the whole ground at a quarter size, worked out by the workers when they have nothing else to do
   // (and taken from every finished tile), shown blurred where a tile is not painted yet, instead of flat blocks.
   const PV = 4, pvDone = new Uint8Array(n * n), pvBusy = new Set();
+  let pvCount = 0;   // tiles of the preview done
+  const pvMark = (k) => { if (!pvDone[k]) { pvDone[k] = 1; pvCount++; } };
+  let shown = new Set();   // tiles on screen last frame as a stand-in: when they come in, they fade in
+  // Baked ground (GroundSheets): the sheets decoded so far (a phone keeps the 12 last used), those loading; a tile is
+  // cut from its sheet. If a file will not load, the ground is painted as before (bk.failed).
+  const SH = GROUND_SHEET, per = Math.ceil(WORLD / SH);
+  const bk = !legacy && baked ? { sheets: new Map(), loading: new Set(), keep: GROUND_ROOMY ? Infinity : 12, failed: false } : null;
+  const fast = () => bk && !bk.failed;
+  const fetchPic = (f) => fetch(baked.dir + f).then((r) => { if (!r.ok) throw new Error(f + ' ' + r.status); return r.blob(); }).then((b) => createImageBitmap(b));
+  if (bk) {
+    fetchPic('preview.webp').then((bmp) => {
+      if (bk.failed) return;
+      const g = pvCtx(); g.drawImage(bmp, 0, 0);
+      for (let k = 0; k < n * n; k++) pvMark(k);
+    }).catch(() => {});
+  }
+  function sheetLoad(i) {
+    bk.loading.add(i);
+    fetchPic(i + '.webp').then((bmp) => {
+      bk.loading.delete(i);
+      bk.sheets.set(i, { bmp, used: frameNo });
+      if (bk.sheets.size > bk.keep) {   // let the least recently used go (not one used this frame)
+        const old = [...bk.sheets].filter(([, s]) => s.used < frameNo).sort((a, b) => a[1].used - b[1].used);
+        for (let j = 0; j < old.length && bk.sheets.size > bk.keep; j++) bk.sheets.delete(old[j][0]);
+      }
+    }).catch((e) => { bk.loading.delete(i); bk.failed = true; if (typeof Report !== 'undefined' && Report.oops) Report.oops('groundSheet', e.message || e); });
+  }
+  // The wanted tiles whose sheet is in: ready to finish (cut out on the main thread, then the marks). Sheets that are
+  // not in are asked for, four at a time, nearest first.
+  function bakedFeed() {
+    for (const k of queue) {
+      if (tiles.has(k) || ready.has(k) || finishing.has(k)) continue;
+      const [x0, y0] = at(k), i = Math.floor(y0 / SH) * per + Math.floor(x0 / SH), s = bk.sheets.get(i);
+      if (s) { s.used = frameNo; ready.set(k, { bmp: s.bmp, sx: x0 % SH, sy: y0 % SH, w: Math.min(T, WORLD - x0), h: Math.min(T, WORLD - y0) }); }
+      else if (!bk.loading.has(i) && bk.loading.size < 4) sheetLoad(i);
+    }
+  }
   let preview = null, pvCenter = 0;
   const pvCtx = () => { if (!preview) preview = mkCanvas(Math.ceil(WORLD / PV), Math.ceil(WORLD / PV)); return preview.getContext('2d'); };
   // The worst single steps of the last update (Report: stats.frames gp, gd, gm, gmk).
@@ -896,7 +965,7 @@ function makeGround(painter, legacy) {
     finishing.delete(k);
     f.t.used = frameNo;
     tiles.set(k, f.t); finished++;
-    if (!pvDone[k] && pool) { const [x0, y0] = at(k), g = pvCtx(); g.imageSmoothingEnabled = true; g.drawImage(f.t.g, 0, 0, Math.min(T, WORLD - x0), Math.min(T, WORLD - y0), x0 / PV, y0 / PV, Math.min(T, WORLD - x0) / PV, Math.min(T, WORLD - y0) / PV); pvDone[k] = 1; }
+    if (!pvDone[k] && pool) { const [x0, y0] = at(k), g = pvCtx(); g.imageSmoothingEnabled = true; g.drawImage(f.t.g, 0, 0, Math.min(T, WORLD - x0), Math.min(T, WORLD - y0), x0 / PV, y0 / PV, Math.min(T, WORLD - x0) / PV, Math.min(T, WORLD - y0) / PV); pvMark(k); }
     return true;
   }
   if (pool) {
@@ -905,7 +974,7 @@ function makeGround(painter, legacy) {
       if (m.gen !== gen) return;
       if (m.pv) {
         pvBusy.delete(m.k);
-        if (m.ok && !pvDone[m.k]) { const [x0, y0] = at(m.k); pvCtx().putImageData(new ImageData(m.d, m.w, m.h), x0 / PV, y0 / PV); pvDone[m.k] = 1; }
+        if (m.ok && !pvDone[m.k]) { const [x0, y0] = at(m.k); pvCtx().putImageData(new ImageData(m.d, m.w, m.h), x0 / PV, y0 / PV); pvMark(m.k); }
         feed(); return;
       }
       inflight.delete(m.k);
@@ -916,6 +985,7 @@ function makeGround(painter, legacy) {
   const useWorkers = () => pool && !pool.failed;
   // Gives each idle worker the next wanted tile.
   function feed() {
+    if (fast()) { bakedFeed(); return; }
     if (!useWorkers()) return;
     for (const w of pool.workers) {
       if (w.job !== null) continue;
@@ -945,6 +1015,12 @@ function makeGround(painter, legacy) {
   function finish(k, m) {
     const [x0, y0] = at(k), t = { g: tileCanvas(), d: null, used: frameNo }, g = t.g.getContext('2d');
     const a = performance.now();
+    if (m.bmp) {   // baked: the tile cut from its sheet, bridges and scenery included
+      g.drawImage(m.bmp, m.sx, m.sy, m.w, m.h, 0, 0, m.w, m.h);
+      peak.put = Math.max(peak.put, performance.now() - a);
+      finishing.set(k, { t, i: 0 });
+      return;
+    }
     g.putImageData(new ImageData(m.d, m.w, m.h), 0, 0);
     if (bufs.length < 8) bufs.push(m.d.buffer);
     const b = performance.now();
@@ -1043,11 +1119,21 @@ function makeGround(painter, legacy) {
     ms: 0, made: 0, peak, blocky: 0,   // the last update's time, tiles finished and worst steps (Report: stats.frames)
     upd(sx, sy, sw, sh, ms, ahead) {
       const t0 = performance.now(), seen = tilesIn(sx, sy, sw, sh);
-      if (drawn && useWorkers()) {
+      if (fast() || (drawn && useWorkers())) {   // (baked: the first frame waits for its sheets too, behind the deploying card)
         const want = seen.filter((k) => !tiles.has(k));
         for (const k of tilesIn(sx - T, sy - T, sw + 2 * T, sh + 2 * T)) if (!tiles.has(k) && !want.includes(k)) want.push(k);
-        for (const k of want) {
-          if (performance.now() >= t0 + ms) break;
+        const near = want.length;
+        // A roomy computer, once the preview is done: the rest of the map, nearest the view first, a few at a time
+        // (finished with the `ahead` time only, after what is on and round the screen).
+        if (GROUND_ROOMY && pvCount === n * n && tiles.size + finishing.size < n * n) {
+          const cx = pvCenter % n, cy = Math.floor(pvCenter / n), more = [], has = new Set(want);
+          for (let c = 0; c < n * n; c++) if (!tiles.has(c) && !has.has(c)) more.push([Math.abs(c % n - cx) + Math.abs(Math.floor(c / n) - cy), c]);
+          more.sort((a, b) => a[0] - b[0]);
+          for (let i = 0; i < Math.min(more.length, (pool ? pool.workers.length : 2) + 4); i++) want.push(more[i][1]);
+        }
+        for (let i = 0; i < want.length; i++) {
+          const k = want[i];
+          if (performance.now() >= t0 + (i < near ? ms : Math.min(ms, ahead))) break;
           if (!finishing.has(k)) { const m = ready.get(k); if (!m) continue; ready.delete(k); finish(k, m); }
           finishSome(k, t0 + ms);
         }
@@ -1058,16 +1144,22 @@ function makeGround(painter, legacy) {
         for (const k of seen) if (!tiles.has(k) && !paintSome(k, drawn ? t0 + ms : 0) && drawn) break;
       }
       drawn = true;
-      if (!useWorkers() && performance.now() < t0 + ms) {
+      if (!fast() && !useWorkers() && performance.now() < t0 + ms) {
         const ring = tilesIn(sx - T, sy - T, sw + 2 * T, sh + 2 * T).filter((k) => !tiles.has(k));
         const until = performance.now() + ahead;
         for (const k of ring) if (!paintSome(k, until) || performance.now() >= until) break;
       }
       let missing = 0, blocky = 0;
-      for (const k of seen) { const t = tiles.get(k); if (t) t.used = frameNo; else { missing++; if (!pvDone[k]) blocky++; } }
+      const now = performance.now(), wasShown = shown;
+      shown = new Set();
+      for (const k of seen) {
+        const t = tiles.get(k);
+        if (t) { t.used = frameNo; if (wasShown.has(k)) t.born = now; }   // was a stand-in on screen last frame: fade in
+        else { missing++; shown.add(k); if (!pvDone[k]) blocky++; }
+      }
       this.missing = missing;   // tiles on screen still showing a stand-in (tests)
       this.blocky = blocky;     // of those, with no preview yet: the flat minimap colours
-      trim(Math.max(140, seen.length * 3));
+      trim(GROUND_ROOMY ? n * n : Math.max(140, seen.length * 3));
     },
     // Draws one layer ('t' the ground, 'd' the wrecks and bodies) of world rect (sx, sy, sw, sh) into g at (dx, dy).
     draw(g, layer, sx, sy, sw, sh, dx, dy) {
@@ -1076,17 +1168,23 @@ function makeGround(painter, legacy) {
         const t = tiles.get(k), [x0, y0] = at(k);
         const ix = Math.max(sx, x0), iy = Math.max(sy, y0), iw = Math.min(sx + sw, x0 + T, WORLD) - ix, ih = Math.min(sy + sh, y0 + T, WORLD) - iy;
         if (iw <= 0 || ih <= 0) continue;
-        if (!t) {
-          if (layer !== 't') continue;
+        const standIn = () => {
           if (pvDone[k]) {   // the preview, blurred up
             const sm = g.imageSmoothingEnabled; g.imageSmoothingEnabled = true;
             g.drawImage(preview, ix / PV, iy / PV, iw / PV, ih / PV, dx + ix - sx, dy + iy - sy, iw, ih);
             g.imageSmoothingEnabled = sm;
           } else g.drawImage(lowRes(), ix / CELL, iy / CELL, iw / CELL, ih / CELL, dx + ix - sx, dy + iy - sy, iw, ih);
-          continue;
-        }
+        };
+        if (!t) { if (layer === 't') standIn(); continue; }
         const c = layer === 't' ? t.g : t.d;
-        if (c) g.drawImage(c, ix - x0, iy - y0, iw, ih, dx + ix - sx, dy + iy - sy, iw, ih);
+        if (!c) continue;
+        const age = t.born ? (performance.now() - t.born) / GROUND_FADE : 1;
+        if (age < 1) {   // coming in: over its stand-in, more of it each frame
+          if (layer === 't') standIn();
+          const a = g.globalAlpha; g.globalAlpha = a * Math.max(0, age);
+          g.drawImage(c, ix - x0, iy - y0, iw, ih, dx + ix - sx, dy + iy - sy, iw, ih);
+          g.globalAlpha = a;
+        } else { t.born = 0; g.drawImage(c, ix - x0, iy - y0, iw, ih, dx + ix - sx, dy + iy - sy, iw, ih); }
       }
     },
     // The whole of one layer in one picture (tests only: too big for a phone on large maps).
@@ -1109,7 +1207,10 @@ function newGround(g, legacy) {
   SpriteSheets.need(['burnt'].concat(g.teams.map((t) => t.faction + (t.variant | 0))));   // this battle's colours, baked (models.js)
   g.marks = g.marks || [];
   g.tctx = GROUND_LAYER; g.dctx = DECAL_LAYER;
-  g.ground = makeGround(groundPainter(g.terr, g.seed, g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[validMap(g.mapId)].bridge), legacy);
+  const id = validMap(g.mapId), man = GroundSheets.manifest, bm = GroundSheets.ok() && man && man.maps && man.maps[id];
+  const baked = bm && bm.key === groundKey(g) ? { dir: 'grounds/' + id + '/' } : null;
+  g.ground = makeGround(groundPainter(g.terr, groundSeed(g), g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[id].bridge), legacy, baked);
+  g.ground.baked = !!baked;
   const G0 = G; G = g;   // (add reads G.marks)
   try { for (let i = 0; i < g.marks.length; i++) g.ground.add(i); } finally { G = G0; }
 }
@@ -1270,9 +1371,9 @@ function drawUnit(g, u, t) {
       g.fillStyle = '#000'; g.fillRect(cx - 4, cy - 4, 9, 9);
       g.fillStyle = '#3ed04a'; g.fillRect(cx - 3, cy - 1, 7, 3); g.fillRect(cx - 1, cy - 3, 3, 7);
     }
-    // Yellow: main weapon, blue: air-to-air missiles, grey: bombs.
+    // Yellow: main weapon, blue: air-to-air missiles, grey: gun runs.
     if (u.as === 'landed' && u.def.weapon) {
-      const loads = [[u.def.weapon.ammo, u.ammo, '#e8c64a'], [u.def.weapon2 ? u.def.weapon2.ammo : 0, u.aam || 0, '#9cc8ff'], [u.def.bombs || 0, u.bombs || 0, '#b8b6aa']];
+      const loads = [[u.def.weapon.ammo, u.ammo, '#e8c64a'], [u.def.weapon2 ? u.def.weapon2.ammo : 0, u.aam || 0, '#9cc8ff'], [u.def.gun ? u.def.gun.runs : 0, u.guns || 0, '#b8b6aa']];
       const n = loads.reduce((s, l) => s + l[0], 0), x0 = Math.round(u.x - n * 1.5), y0 = Math.round(u.y + 9);
       g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x0 - 1, y0 - 1, n * 3 + 1, 4);
       let i = 0;
