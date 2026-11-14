@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.14.9', date: '14 November 2026', title: 'Defend ally: you pick the ally', groups: [
+    ['Changed', [
+      'With more than one ally (3 v 3 and larger maps), the ALLY button now lets you pick which ally to defend. Your units go to that ally, and picking another sends them over.',
+      'Units sent to help an ally now also go after enemies attacking that ally\'s units just outside its base, not only raiders at the base itself.',
+    ]],
+  ] },
   { v: '2026.11.14.8', date: '14 November 2026', title: 'Faster aircraft, no more truck jams', groups: [
     ['Changed', [
       'Spy Planes, Bombers, Strike Jets and MiGs fly 25% faster.',
