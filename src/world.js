@@ -1541,6 +1541,7 @@ function fireWeapon(src, w, t, follow) {
       const off = shots > 1 ? (i ? 2 : -2) : w.stagger ? src.barrel * 2 : 0;
       G.projectiles.push({ x: m.x + off * Math.sin(src.tface || 0), y: m.y - off * Math.cos(src.tface || 0), target: t, w, from: src, team: src.team,
         speed: PROJ_SPEED[w.proj] || 400, kind: w.proj, trail: 0, delay: i * 0.1, thick: src.kind === 'bld' && src.type === 'sam',
+        ...(w.proj === 'fireball' ? { sx: m.x, sy: m.y } : null),   // where it left: the stream of fire is drawn from there (ui.js fireStream)
         // A missile fired at an aircraft only has fuel for a little past its weapon's range, and
         // gives up if the aircraft lands: it cannot chase a jet across the map.
         aa: (w.proj === 'missile' || w.proj === 'rocket') && isAirborne(t), fuel: w.range * (w.fuel || (src.kind === 'bld' && src.type === 'sam' ? SAM_FUEL : AA_FUEL)) });

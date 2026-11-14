@@ -147,6 +147,38 @@
     if (!ui.placebar || ui.placebar.hidden) return 0;
     return Math.max(0, ui.placebar.getBoundingClientRect().bottom - canvas.getBoundingClientRect().top + 8);
   }
+  // The Flame Tower's shot, drawn as a flamethrower's stream: a jet of fire from the projector's mouth to where the
+  // shot has got to, thin and white-hot at the nozzle, wider and redder toward its head. Looks only: the shot itself
+  // (world.js) still flies and lands as before. An old save's shot has no start point and is drawn as a ball of fire.
+  function fireStream(v, p) {
+    let sx = p.sx, sy = p.sy;
+    const f = p.from, head = HEADS.ftur;
+    if (f && f.alive && f.type === 'ftur') {   // from the nozzle's mouth, which turns with the head
+      sx = f.cx * CELL + head[1] + Math.cos(f.tface) * 10; sy = f.cy * CELL + head[2] - head[3] * VK + Math.sin(f.tface) * 10 - 3;
+    }
+    if (typeof sx !== 'number') {
+      const r = 2.5 + Math.random();
+      v.fillStyle = 'rgba(255,120,30,0.55)'; v.beginPath(); v.arc(p.x, p.y, r + 2, 0, 7); v.fill();
+      v.fillStyle = '#ffb040'; v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.fill();
+      return;
+    }
+    const dx = p.x - sx, dy = p.y - sy, len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const ux = dx / len, uy = dy / len, n = Math.max(2, Math.ceil(len / 2.5));
+    for (const pass of [0, 1, 2]) {   // red-orange glow, then the orange body, then the white-hot core
+      v.fillStyle = pass === 0 ? 'rgba(255,90,20,0.4)' : pass === 1 ? 'rgba(255,165,50,0.85)' : '#fff2b8';
+      for (let i = 0; i <= n; i++) {
+        const k = i / n, d = k * len, wob = (Math.random() - 0.5) * (0.6 + d * 0.03);
+        const r = pass === 0 ? 2.2 + d * 0.035 + Math.random() : pass === 1 ? 1.3 + d * 0.022 + Math.random() * 0.6 : Math.max(0, 1.1 - k * 0.8);
+        if (pass === 2 && k > 0.75) break;   // the core gives out before the head
+        if (r <= 0.3) continue;
+        v.beginPath(); v.arc(sx + ux * d - uy * wob, sy + uy * d + ux * wob, r, 0, 7); v.fill();
+      }
+    }
+    const r = 3 + Math.random() * 1.5;   // the rolling head of the stream
+    v.fillStyle = 'rgba(255,110,25,0.6)'; v.beginPath(); v.arc(p.x, p.y, r + 1.5, 0, 7); v.fill();
+    v.fillStyle = '#ffb040'; v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.fill();
+  }
   function centerOn(x, y) { cam.x = x - W / cam.z / 2; cam.y = y - H / cam.z / 2; clampCam(); }
   const s2w = (sx, sy) => ({ x: cam.x + sx / cam.z, y: cam.y + sy / cam.z });
 
@@ -345,13 +377,7 @@
         v.fillStyle = '#6f7d48'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 1, 1);
         continue;
       }
-      if (p.kind === 'fireball') {
-        const r = 2.5 + Math.random();
-        v.fillStyle = 'rgba(255,120,30,0.55)'; v.beginPath(); v.arc(p.x, p.y, r + 2, 0, 7); v.fill();
-        v.fillStyle = '#ffb040'; v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.fill();
-        v.fillStyle = '#fff4c0'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 2);
-        continue;
-      }
+      if (p.kind === 'fireball') { fireStream(v, p); continue; }
       if (p.kind === 'shell') { v.fillStyle = '#ffe9a0'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 2); v.fillStyle = 'rgba(255,200,90,0.5)'; v.fillRect(Math.round(p.x - ca * 3), Math.round(p.y - sa * 3), 1, 1); }
       else if (p.kind === 'flak') { v.fillStyle = '#ffd36a'; v.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
       else {
