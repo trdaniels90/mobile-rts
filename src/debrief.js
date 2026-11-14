@@ -80,7 +80,7 @@ const Debrief = (() => {
         return `<tr><td>${label}</td><td class="${(low ? a < b : a > b) ? 'lead' : ''}">${f(a)}</td><td class="${(low ? b < a : b > a) ? 'lead' : ''}">${f(b)}</td></tr>`;
       }).join('') + '</tbody>';
     const byType = {};
-    for (const u of alive.concat(L.fallen)) byType[u.type] = (byType[u.type] || 0) + u.kills;
+    for (const u of alive.concat(L.fallen.filter((u) => u.team === G.me))) byType[u.type] = (byType[u.type] || 0) + u.kills;
     const bt = Object.entries(byType).sort((a, b) => b[1] - a[1]), most = bt.length ? bt[0][1] : 1;
     root.querySelector('.db-bytype').innerHTML = bt.length ? bt.map(([t, k]) => `<div class="db-bt"><span>${esc(UNIT_DEFS[t].name)}</span><div class="db-bar" style="width:${(k / most * 100).toFixed(1)}%;background:${cMe}"></div><b>${k}</b></div>`).join('')
       : '<p class="db-call">No kills recorded.</p>';
