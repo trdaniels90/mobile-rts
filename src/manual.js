@@ -12,8 +12,8 @@ const Manual = (() => {
     apower: ['Twice the output of a standard plant on a 3x3 footprint. Unlocked by the War Factory.', '', 'Losing one hurts twice as much'],
     refinery: ['Processes ore into credits. Each comes with a free Ore Truck that harvests and unloads on its own. Build them close to ore fields.', '', 'Key target for enemy raids'],
     outpost: ['Unpacked from a Mobile Outpost. You can build up to 8 cells around it, so a refinery can sit right beside a distant ore field.', '', 'Lightly defended unless you add guns'],
-    barracks: ['Trains infantry. More Barracks train faster (1.5x with two, 2x with three, up to 2.5x with four), and losing one does not stop training if you have another.', '', ''],
-    factory: ['Builds tanks, support vehicles, Ore Trucks and the Mobile Outpost. Unlocks the Helicopter Base and Advanced Power Plant. More War Factories build faster (1.5x with two, 2x with three, up to 2.5x with four).', '', ''],
+    barracks: ['Trains infantry. More Barracks train faster (1.5x with two, 2x with three, up to 2.5x with four), and losing one does not stop training if you have another. New soldiers come out of your PRIMARY Barracks (double-tap one to choose), else the newest.', '', ''],
+    factory: ['Builds tanks, support vehicles, Ore Trucks and the Mobile Outpost. Unlocks the Helicopter Base and Advanced Power Plant. More War Factories build faster (1.5x with two, 2x with three, up to 2.5x with four). Vehicles come out of your PRIMARY War Factory (double-tap one to choose), else the newest.', '', ''],
     dome: ['Turns on the radar minimap (it goes offline on low power) and unlocks the Airfield and your side\'s long-range support vehicle at the War Factory.', '', 'Without it you fight blind'],
     depot: ['Repairs ground vehicles: tanks, support vehicles, Ore Trucks and the Mobile Outpost. Select damaged vehicles and tap REPAIR, or tap the depot. One vehicle at a time is repaired on the pad in front of it while the rest wait beside it. A full repair costs half the vehicle\'s price. Needs a War Factory.', '', 'Vehicles on the pad do not fire back'],
     helipad: ['Four landing pads in one base: each base holds four helicopters, so build another base for more. Builds and rearms helicopters, each parked on its own pad, and comes with one free helicopter. Aircraft are repaired on their pad for credits. More bases build helicopters faster (1.5x with two, 2x with three, up to 2.5x with four).', '', ''],
@@ -143,6 +143,8 @@ const Manual = (() => {
         <tr><td>Orders</td><td colspan="2">ATTACK, GUARD and STOP on the bar that shows your selection (see Your Army in Battle)</td></tr>
         <tr><td>Deselect</td><td>The ✕ button</td><td>Right click or Esc</td></tr>
         <tr><td>Build</td><td>Tap an icon; when READY tap the map, then tap the ghost again</td><td>Click the icon, then the map</td></tr>
+        <tr><td>Rally point</td><td colspan="2">Select a Barracks or War Factory, tap RALLY, then tap the map: its new units go there (NO RALLY clears it). Without one, new units wait beside the base that made them, so an Outpost's units stay at the Outpost</td></tr>
+        <tr><td>Primary building</td><td>Double-tap a Barracks or War Factory, or select it and tap PRIMARY</td><td>Double click, or PRIMARY</td></tr>
         <tr><td>Cancel production</td><td>Hold the icon</td><td>Right click the icon</td></tr>
         <tr><td>Scroll and zoom</td><td>Drag, pinch, or tap the radar</td><td>Arrow keys or WASD, mouse wheel, click the radar</td></tr>
         <tr><td>Pause</td><td>The Options tab</td><td>P or Space</td></tr>

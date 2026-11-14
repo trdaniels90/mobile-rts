@@ -1050,8 +1050,12 @@ function airPick(u, aa) {
 const GROUP_SIZE = 10;
 // A random open spot inside the build area: beside one of the side's buildings, off ore, roads
 // out of factories and refinery docks, picked from a few tries as the one with the fewest units.
-function scatterSpot(team) {
-  const mine = buildingsOf(team.id).filter((b) => !b.def.defense);
+// near: a building or unit; only buildings of that base (within BASE_REACH of it) are used, so
+// units made at an Outpost wait there rather than walking back to the main base.
+const BASE_REACH = 14 * CELL;
+function scatterSpot(team, near) {
+  let mine = buildingsOf(team.id).filter((b) => !b.def.defense);
+  if (near) { const local = mine.filter((b) => Math.hypot(b.x - near.x, b.y - near.y) < BASE_REACH); if (local.length) mine = local; }
   if (!mine.length) return rallyPoint(team);
   let best = null, bn = Infinity;
   for (let k = 0; k < 14; k++) {
@@ -3488,7 +3492,8 @@ function updateProduction(team, dt) {
 function spawnUnit(team, type) {
   const d = UNIT_DEFS[type];
   const producers = G.entities.filter((e) => e.alive && e.kind === 'bld' && e.team === team.id && e.type === d.producer && e.sellT <= 0);
-  const p = d.cls === 'air' ? leastBusyPad(team.id, d.producer) : producers[producers.length - 1];
+  // Ground units come out of the side's primary building of that type (setPrimary), else the newest.
+  const p = d.cls === 'air' ? leastBusyPad(team.id, d.producer) : producers.find((e) => e.primary) || producers[producers.length - 1];
   if (!p) return null;
   let u;
   if (d.cls === 'air') {
@@ -3511,12 +3516,32 @@ function spawnUnit(team, type) {
   }
   if (d.harvester) return u;
   if (team.isAI && aiHomeGuard(team, u)) return u;
-  // New units spread out around the base; auto attack launches them in groups.
-  const { x: gx, y: gy } = scatterSpot(team);
+  // New units go to their building's rally point, else spread out around the base that made them;
+  // auto attack launches them in groups.
+  const { x: gx, y: gy } = p.rally ? rallySpot(p.rally) : scatterSpot(team, p);
   setGuard(u, gx, gy);
   u.staged = true;
   goTo(u, gx, gy);
   return u;
+}
+
+// A free spot near a rally point, so units sent there do not all stand on one cell.
+function rallySpot(r) {
+  const a = Math.random() * Math.PI * 2, d = Math.random() * 1.8 * CELL;
+  let c = cellOfPos(r.x + Math.cos(a) * d, r.y + Math.sin(a) * d);
+  if (!freeCell(c)) c = nearestFreeCell(c, 5);
+  return c === undefined || c < 0 ? { x: r.x, y: r.y } : cellCenter(c);
+}
+// Primary building and rally points, for Barracks and War Factories (both modes, orders online).
+const canRally = (b) => !!(b && b.alive && b.kind === 'bld' && b.def.exit && !b.def.depot && Object.values(UNIT_DEFS).some((d) => d.producer === b.type && d.cls !== 'air'));
+function setPrimary(b) {
+  if (!canRally(b)) return;
+  for (const e of G.entities) if (e.kind === 'bld' && e.team === b.team && e.type === b.type) e.primary = false;
+  b.primary = true;
+}
+function setRally(b, x, y) {
+  if (!canRally(b)) return;
+  b.rally = x == null || y == null ? null : { x: Math.max(0, Math.min(WORLD - 1, +x || 0)), y: Math.max(0, Math.min(WORLD - 1, +y || 0)) };
 }
 
 function updatePower() {
@@ -3670,7 +3695,7 @@ function releaseIdle(team) {
     if (G.t - u.idleSince < MANUAL_IDLE) continue;
     u.manual = false; u.manualFrom = undefined; u.idleSince = undefined;
     if (u.cls === 'air') { setGuard(u); u.order.pad = true; u.staged = true; continue; }
-    const sp = scatterSpot(team);
+    const sp = scatterSpot(team, u);
     setGuard(u, sp.x, sp.y); u.staged = true; goTo(u, sp.x, sp.y);
   }
 }

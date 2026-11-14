@@ -564,6 +564,7 @@ const Net = (() => {
     if (f === 'setAssist') a[0].assist = !!a[1];
     if (f === 'recallAlly') { a[0].assist = false; if (!a[1]) a[0].auto = false; }
     if (f === 'setRepair') a[0].repairing = !!a[1];
+    if (f === 'setPrimary' || f === 'setRally') ORIGC[f](...a);   // shown at once; the host's snapshot confirms it
     go();
     return f === 'deployFob' ? null : undefined;
   }

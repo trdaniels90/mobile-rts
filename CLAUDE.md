@@ -217,6 +217,19 @@ share globals. Read this file first; the commit history explains every change in
   the burn adds about a quarter to the tower's damage (riflemen: 98 from the burn, 368 from shots; light tanks 12 and 56).
   Fights vary too much from run to run for kill counts to show it.
 
+## Units gather at their own base, rally points, primary buildings (after 2026.11.14.3, not released, both modes)
+
+- Owner's report: a Barracks and War Factory built at an Outpost by an ally's base sent their units back to the main base
+  (`scatterSpot` picked a random building of the side). Now `scatterSpot(team, near)` uses only buildings within `BASE_REACH`
+  (14 cells) of the producer (or, in `releaseIdle`, of the unit). Computer too.
+- **Rally points** (`setRally(b, x, y)`, `b.rally`, `rallySpot`): Barracks and War Factories (`canRally`; not aircraft). New ground
+  units go there (still `staged`, so Auto Attack launches them). UI: RALLY (next map tap, `beginRally`), NO RALLY, a dashed
+  line and flag from the exit while selected (`drawRally`).
+- **Primary building** (`setPrimary(b)`, `b.primary`): `spawnUnit` uses the primary producer of the type, else the newest as
+  before. Double-tap the building or PRIMARY on the bar (shown with 2+ of the type); a PRIMARY tag is drawn on it.
+- Both are orders in netcore `COMMANDS` (the server must run the same version) and plain fields on the building (saved, synced).
+  `node tools/sim/rally.js <repo>`.
+
 ## More Airfields and Helicopter Bases build faster (2026.11.14.2, both modes)
 
 - `producerBoost` (world.js) now covers every producer in `BOOSTED` (barracks, factory, helipad, airfield): `PRODUCER_BOOST`
@@ -639,6 +652,7 @@ Supabase.
 | `give-credits.js` | Giving credits to an ally: the rule headless, the GIVE card in a 2 v 2 skirmish, online co-op through the server and forged orders |
 | `server-coop-mate.js` | Co-op with a computer teammate: two players in a 3 v AI, the leader adds the computer, the battle starts with it on the players' team |
 | `bunching.js` | Headless staged fight: how many friends stand inside one V2 blast of each fighting unit, attack and defence, and how the fight went. `<repo> [runs] [seconds]` |
+| `rally.js` | Headless: units from an Outpost Barracks stay there, PRIMARY picks the Barracks, a rally point gathers new units, fallback when the primary is lost |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP

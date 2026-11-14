@@ -417,12 +417,22 @@
       if (e.kind === 'bld') {
         const bx = e.cx * CELL, by = e.cy * CELL;
         if (sel) brackets(v, bx - 1, by - 1, bx + e.w * CELL, by + e.h * CELL);
+        if (sel && e.team === G.me && e.rally && e.exitCell !== undefined) drawRally(v, e, e.rally);
         drawHealth(v, e, bx + e.w * CELL / 2, by - 6, Math.min(48, e.w * CELL - 8));
       } else {
         const r = e.def.r + 2, yy = e.y - (e.alt || 0) - (e.cls === 'inf' ? 8 : 3);
         if (sel) brackets(v, e.x - r, yy - r - (e.cls === 'inf' ? 5 : 0), e.x + r, yy + r + (e.cls === 'inf' ? 3 : 0));
         drawHealth(v, e, e.x, yy - r - (e.cls === 'inf' ? 10 : 5), Math.max(10, r * 2));
       }
+    }
+
+    // PRIMARY over the building new units come out of, when there is more than one of its type.
+    for (const e of G.entities) {
+      if (!e.alive || !e.primary || e.kind !== 'bld' || e.team !== G.me || !inView(e) || producersOfType(e).length < 2) continue;
+      const tx = e.cx * CELL + e.w * CELL / 2, ty = e.cy * CELL + e.h * CELL - 3;
+      v.font = 'bold 7px monospace'; v.textAlign = 'center'; v.textBaseline = 'middle';
+      v.fillStyle = 'rgba(0,0,0,0.65)'; v.fillRect(tx - 18, ty - 4.5, 36, 9);
+      v.fillStyle = '#f2d24a'; v.fillText('PRIMARY', tx, ty + 0.5);
     }
 
     // Shroud: black where the player has never looked, softened at the edges.
@@ -456,8 +466,18 @@
     }
   }
 
+  // A dashed line from a building to its rally point and a small flag there.
+  function drawRally(v, b, r) {
+    const sx = cellX(b.exitCell) * CELL + CELL / 2, sy = cellY(b.exitCell) * CELL + CELL / 2;
+    v.strokeStyle = 'rgba(94,224,96,0.85)'; v.lineWidth = 1;
+    v.setLineDash([4, 3]); v.beginPath(); v.moveTo(sx, sy); v.lineTo(r.x, r.y); v.stroke(); v.setLineDash([]);
+    v.beginPath(); v.moveTo(r.x, r.y); v.lineTo(r.x, r.y - 12); v.stroke();
+    v.fillStyle = '#5ee060'; v.beginPath(); v.moveTo(r.x, r.y - 12); v.lineTo(r.x + 7, r.y - 9.5); v.lineTo(r.x, r.y - 7); v.fill();
+    v.beginPath(); v.arc(r.x, r.y, 2, 0, 7); v.fill();
+  }
   function drawPlacement(v) {
     const p = G.place;
+    if (p && p.rally && p.x !== undefined) { drawRally(v, p.rally, p); return; }
     if (p && (p.power || p.guard) && p.x !== undefined) {
       const r = p.guard ? Math.max(...p.guard.filter((u) => u.alive).map(guardReach), CELL) : p.power === 'spy' ? POWERS.spy.reveal * CELL : p.power === 'para' ? 40 : 60;
       v.strokeStyle = p.guard ? '#5ee060' : '#ff5a4a'; v.lineWidth = 1;
@@ -544,6 +564,9 @@
   }
   const ownUnits = () => G.selection.filter((e) => e.alive && e.kind === 'unit' && e.team === G.me);
   function select(list) { G.selection = list; }
+  const producersOfType = (b) => G.entities.filter((e) => e.alive && e.kind === 'bld' && e.team === b.team && e.type === b.type && e.sellT <= 0);
+  // The building of this type that new units come out of (as spawnUnit picks it).
+  const activeProducer = (b) => { const l = producersOfType(b); return l.find((e) => e.primary) || l[l.length - 1]; };
   function marker(x, y, color) { G.effects.push({ type: 'ring', x, y, color, t: 0, life: 0.5 }); }
 
   let lastTap = null;
@@ -566,6 +589,9 @@
       const now = performance.now();
       const dbl = lastTap && now - lastTap.t < 350 && lastTap.type === e.type;
       lastTap = { t: now, type: e.type };
+      if (dbl && e.kind === 'bld' && canRally(e) && producersOfType(e).length > 1) {
+        setPrimary(e); select([e]); eva('Primary building set'); Sound.ack('veh'); return;
+      }
       if (dbl && e.kind === 'unit') {
         const vx = cam.x, vy = cam.y, vw = W / cam.z, vh = H / cam.z;
         select(unitsOf(G.me).filter((u) => u.type === e.type && !u.chute && u.x > vx && u.x < vx + vw && u.y > vy && u.y < vy + vh));
@@ -633,9 +659,16 @@
     ui.placeOk.hidden = true;
     ui.placebar.hidden = false;
   }
+  // Rally: the next tap on the map is where this building's new units go.
+  function beginRally(b) {
+    G.place = { rally: b };
+    ui.placeText.textContent = `${isTouch ? 'Tap' : 'Click'} where new units from this ${b.def.name} should go`;
+    ui.placeOk.hidden = true;
+    ui.placebar.hidden = false;
+  }
   function endPlace() { if (G) G.place = null; ui.placebar.hidden = true; ui.placeOk.textContent = 'PLACE'; clampCam(); }
   function ghostAt(w) {
-    if (G.place.power || G.place.guard) { G.place.x = w.x; G.place.y = w.y; G.place.ok = true; refreshPlaceBtn(); return; }
+    if (G.place.power || G.place.guard || G.place.rally) { G.place.x = w.x; G.place.y = w.y; G.place.ok = true; refreshPlaceBtn(); return; }
     const d = BUILD_DEFS[G.place.type];
     G.place.cx = Math.round(w.x / CELL - d.w / 2);
     G.place.cy = Math.round(w.y / CELL - d.h / 2);
@@ -651,6 +684,12 @@
       commandGuard(units, p.x, p.y); marker(p.x, p.y, '#5ee060'); Sound.ack(units[0].cls); endPlace();
       return;
     }
+    if (p && p.rally) {
+      const b = p.rally;
+      if (p.x !== undefined && b.alive) { setRally(b, p.x, p.y); marker(p.x, p.y, '#5ee060'); Sound.ack('veh'); select([b]); }
+      endPlace();
+      return;
+    }
     if (p && p.power) {
       if (p.x === undefined) return;
       if (launchPower(G.teams[G.me], p.power, p.x, p.y)) { marker(p.x, p.y, '#ff4a3a'); Sound.ack('air'); endPlace(); }
@@ -663,7 +702,7 @@
   }
   function placeTap(w) {
     const p = G.place;
-    if (p.guard) { ghostAt(w); confirmPlace(); return; }
+    if (p.guard || p.rally) { ghostAt(w); confirmPlace(); return; }
     if (p.power) {
       if (!isTouch || (p.x !== undefined && Math.hypot(w.x - p.x, w.y - p.y) < 30 / cam.z)) { ghostAt(w); confirmPlace(); }
       else ghostAt(w);
@@ -1093,6 +1132,11 @@
     if (own.some((e) => e.kind === 'unit')) btns.push(['stop', 'STOP']);
     if (own.some((e) => canService(e) && e.hp < e.maxHp) && hasBuilt(G.teams[G.me], 'depot')) btns.push(['svc', 'REPAIR']);
     if (bld) {
+      if (canRally(bld)) {
+        if (producersOfType(bld).length > 1) btns.push(['primary', activeProducer(bld) === bld ? 'PRIMARY ✓' : 'PRIMARY']);
+        btns.push(['rally', 'RALLY']);
+        if (bld.rally) btns.push(['norally', 'NO RALLY']);
+      }
       btns.push(['repair', bld.repairing ? 'REPAIRING' : 'REPAIR']);
       if (bld.type !== 'cy') btns.push(['sell', sellArmed === bld ? 'CONFIRM' : 'SELL']);
     }
@@ -1120,6 +1164,9 @@
     else if (act === 'guard') beginGuard(own.filter((u) => u.kind === 'unit' && !u.def.harvester));
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
     else if (act === 'svc') { commandRepair(own.filter((u) => canService(u) && u.hp < u.maxHp)); eva('To the Service Depot'); Sound.ack('veh'); }
+    else if (act === 'primary' && bld) { setPrimary(bld); eva('Primary building set'); }
+    else if (act === 'rally' && bld) beginRally(bld);
+    else if (act === 'norally' && bld) setRally(bld, null, null);
     else if (act === 'repair' && bld) setRepair(bld, !bld.repairing);
     else if (act === 'sell' && bld) {
       if (sellArmed === bld) { sellStructure(bld); select([]); sellArmed = null; eva('Structure sold'); Sound.play('sell'); }
