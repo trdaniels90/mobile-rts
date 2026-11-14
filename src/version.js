@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.14.7', date: '14 November 2026', title: 'A new map: Twin Lakes', groups: [
+    ['New', [
+      'Twin Lakes, a new map for 1 v 1, 2 v 2 and 2 v computer. Two long lakes cut the island from corner to corner: the north-east fights the south-west over a neck of ore-rich land in the middle and a long concrete bridge at either end. Map design by JGFortanelli.',
+    ]],
+  ] },
   { v: '2026.11.14.6', date: '14 November 2026', title: 'Fairer ore', groups: [
     ['Changed', [
       'The computer no longer out-mines you. In games with a computer opponent or ally, its Ore Refineries stop at about the number the human players have (never fewer than 2, plus one extra at an Outpost), so more of the ore is left for you.',
