@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.14.11', date: '14 November 2026', title: 'Normal computer army cap', groups: [
+    ['Changed', [
+      'On Normal, the computer\'s army cap is now 90 units (it was 100, then briefly 80). Its armies fill a little faster than the 80 cap and attack waves are slightly bigger.',
+    ]],
+  ] },
   { v: '2026.11.14.10', date: '14 November 2026', title: 'Twin Lakes bridge fix', groups: [
     ['Fixes', [
       'Twin Lakes: the lower span of the south-east bridge was drawn sideways. It now runs the same way as the other three. Fix by JGFortanelli.',
