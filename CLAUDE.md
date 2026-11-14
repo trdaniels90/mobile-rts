@@ -407,7 +407,8 @@ share globals. Read this file first; the commit history explains every change in
 ## Map "Lakeside", a small 3 v 3 map (after 2026.11.14.1, not released, both modes)
 
 - `MAPS.lakes`: traced 1:1 from `maps/designs/lakes.png` (96 design cells = **96 x 96** game cells, the size asked for),
-  `teamSize: 3`, north (starts 0-3) against south (4-7), nearly symmetric by a half turn. Name is a placeholder.
+  `teamSize: 3`, 6 starts: north (0-2) against south (3-5), nearly symmetric by a half turn; the design's two middle
+  starts were removed at the owner's request. Concrete bridges. Name is a placeholder.
 - Its bridges are diagonal: `--decks` in `tools/map-from-image.py` turns strips of the deck colour (100, 88, 84) and the
   rails touching them into bridge cells, and `genLayoutMap` fits a run of bridge cells within 22.5 degrees of a diagonal
   along its main axis (axis-aligned runs as before, so the other maps' bakes are unchanged).

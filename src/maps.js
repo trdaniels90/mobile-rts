@@ -419,20 +419,21 @@ const MAPS = {
     name: 'Lakeside',
     img: 'maps/lakes.png',
     blurb: 'An island of lakes for 3 v 3. The north fights the south round the lakes in the middle: five bridges cross them, and narrow land joins the flanks. Every base has ore of its own, with gems behind each and out by the lakes.',
-    info: '96 × 96 cells · 8 start positions · made for 3 v 3',
+    info: '96 × 96 cells · 6 start positions · made for 3 v 3',
+    bridge: 'concrete',   // concrete bridges (art.js concreteBridge)
     size: 96,   // cells a side, as in the design (one design cell is one game cell)
-    // The north (start positions 0-3) against the south (4-7). Nearly symmetric by a half turn, so each start has a
+    // The north (start positions 0-2) against the south (3-5); the design's two middle starts were removed (owner's call). Nearly symmetric by a half turn, so each start has a
     // twin on the other side. (The tool lists starts west first; they are reordered here.)
-    teams: [[0, 1, 2, 3], [4, 5, 6, 7]],
+    teams: [[0, 1, 2], [3, 4, 5]],
     teamSize: 3,
     // A fixed layout, traced from the owner's design (maps/designs/lakes.png) by
     // python3 tools/map-from-image.py maps/designs/lakes.png 96 96 --decks
     // Its bridges are diagonal (genLayoutMap fits each along its run). Ore as on Snowbound: the traced fields (every start
-    // has its own), gem fields [x, y, radius] one behind each start position (same order as spawns), then pairs out on
+    // has its own), gem fields [x, y, radius] one behind each start position (same order as spawns), a pair where the middle starts were, then pairs out on
     // the map, twins by the half turn.
-    gems: [[11, 12, 2.4], [52, 10, 2.4], [84, 8, 2.4], [10, 44, 2.4], [83, 47, 2.4], [13, 81, 2.4], [54, 84, 2.4], [86, 80, 2.4],
+    gems: [[11, 12, 2.4], [52, 10, 2.4], [84, 8, 2.4], [13, 81, 2.4], [54, 84, 2.4], [86, 80, 2.4], [10, 44, 2.4], [83, 47, 2.4],
       [42, 22, 2.6], [56, 69, 2.6], [30, 58, 2.6], [66, 38, 2.6]],
-    spawns: [[17,16],[50,15],[78,12],[17,47],[75,44],[19,77],[50,79],[81,81]],
+    spawns: [[17,16],[50,15],[78,12],[19,77],[50,79],[81,81]],
     rows: [
       '96~',
       '96~',
