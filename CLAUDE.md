@@ -417,6 +417,15 @@ share globals. Read this file first; the commit history explains every change in
 - `node tools/sim/teams.js <repo> 1 8 snowbound 3v3`: at 210 cells (with the ai-squads computer) about 750 units by minute 6
   and 150 s of CPU for 8 game minutes here (111 s on the 168 map with the same computer): watch the server's `cpu_pct`.
 
+## Computer refinery cap (after 2026.11.14.5, not released, both modes)
+
+- Owner's request after match 553c3209: the computer sides out-mined the humans (4 to 7 refineries, up to 16 Ore Trucks, against 2 or 3).
+  `aiRefCap(team)` in ai.js: the computer's refineries (every refinery step in `aiNextStructure`, Outpost refineries too) stop at the
+  average count of the human sides still in the fight (`!isAI`, not `out`; at least 2). An Outpost's first refinery may go one over.
+  No human in the game (sims, a handed-over side): no cap. Every refinery brings a free truck, so trucks are capped with it.
+  Staged `lakes` 3 v 3 with one idle human side, Normal, 15 min: computers 3 refineries / 6 trucks each (was 4 to 7 / 6 to 10).
+  A side the server hands to the computer counts as a computer from then on.
+
 ## Map "Lakeside", a 3 v 3 map (2026.11.14.3; enlarged to 192 after 2026.11.14.4, not released, both modes)
 
 - **Enlarged to 192 x 192** (owner's pick, both modes): match 553c3209 (3 v AI, 29 min) ran out of ore on the 96 map: 58,000 ore a side at the start against 1.8 million harvested by six sides (regrowth), and the computers out-harvested the humans. The same design now traces at 2 x (`map-from-image.py lakes.png 96 192 --decks`), so ore is about 4 x (203,000 a side; Three Crossings 197,000). Spawns and gems are the old ones x 2 + 1 (gem radii 3.2 / 3.5). Saves of a 96-cell Lakeside no longer continue. `teams.js <repo> 1 12 lakes 3v3`: no errors, 68 s CPU for 12 minutes. The 96-cell notes below are the original.

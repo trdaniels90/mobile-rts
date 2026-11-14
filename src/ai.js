@@ -8,6 +8,18 @@ function aiCount(team) {
   return c;
 }
 
+// The computer does not out-mine the people it plays with (match 553c3209: its sides ended with 4 to 7 refineries and up to
+// 16 Ore Trucks against a player's 2 or 3, and took more than half of the ore). Its refineries are capped at the average
+// of the human sides still in the fight (at least 2); with no human in the game there is no cap. Every refinery brings a
+// free Ore Truck, so this caps the trucks too. Counts refineries being built as well.
+function aiRefCap(team) {
+  const humans = G.teams.filter((t) => !t.isAI && !t.out);
+  if (!humans.length) return Infinity;
+  let total = 0;
+  for (const h of humans) total += buildingsOf(h.id).filter((b) => b.type === 'refinery').length;
+  return Math.max(2, Math.ceil(total / humans.length));
+}
+
 function aiNextStructure(team, c) {
   const p = team.power, defense = team.faction === 'allies' ? 'turret' : 'tesla', aa = team.faction === 'allies' ? 'aagun' : 'sam';
   const antiInf = team.faction === 'allies' ? 'pillbox' : 'ftur';
@@ -24,7 +36,8 @@ function aiNextStructure(team, c) {
   if (A.adapt && available(team, aa) && n(aa) < (team.sawAir ? 2 : G.t >= 120 ? 1 : 0)) return build(aa);
   // An Outpost with no refinery beside it yet comes first: that is what it was sent out for.
   const outpostRef = aiOutpostForRefinery(team);
-  if (outpostRef && outpostRef.got === 0 && available(team, 'refinery') && n('refinery') < 8) {
+  const refCap = aiRefCap(team);   // an Outpost's first refinery may go one over: that is what it was sent out for
+  if (outpostRef && outpostRef.got === 0 && available(team, 'refinery') && n('refinery') < Math.min(8, refCap + 1)) {
     return p.prod - p.use < powerNeed('refinery') + 10 && available(team, pwr) ? pwr : 'refinery';
   }
   // How many defences it may have depends on the difficulty; more AA once the enemy flies.
@@ -40,12 +53,13 @@ function aiNextStructure(team, c) {
     ['factory', 2], [defense, Math.min(3, capMain)], [aa, aaWant], ['refinery', 3], [defense, Math.min(4, capMain)],
     ['refinery', A.econ.refineries],
   ];
-  for (const [type, count] of wants) {
+  for (const [type, want] of wants) {
+    const count = type === 'refinery' ? Math.min(want, refCap) : want;
     if (n(type) >= count || !available(team, type)) continue;
     return build(type);
   }
   // The rest of an Outpost's refineries (it wants 1 to 3, rolled when it deploys).
-  if (outpostRef && available(team, 'refinery') && n('refinery') < 8) return build('refinery');
+  if (outpostRef && available(team, 'refinery') && n('refinery') < Math.min(8, refCap)) return build('refinery');
   // Money piling up: more Barracks and War Factories, so it can build faster.
   if (team.credits > 5000) {
     if (n('factory') < 3 && available(team, 'factory')) return build('factory');
