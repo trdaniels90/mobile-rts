@@ -136,18 +136,18 @@ const UNIT_DEFS = {
   // line through the target, each hurting what is within `splash`), and drop flares that can pull incoming missiles and rockets off course.
   jet: {
     name: 'Strike Jet', cls: 'air', fly: 'jet', cat: 'jet', producer: 'airfield', factions: ['allies'],
-    cost: 1100, hp: 140, armor: 'air', speed: 104, turn: 2.4, sight: 6, r: 9,
+    cost: 1100, hp: 140, armor: 'air', speed: 130, turn: 2.4, sight: 6, r: 9,
     weapon: { dmg: 80, rof: 0.45, range: 130, wh: 'HE', proj: 'missile', ammo: 2 },
     weapon2: { dmg: 60, rof: 0.5, range: 200, wh: 'HE', proj: 'missile', air: true, ammo: 2 },
     gun: { dmg: 12, wh: 'SA', range: 110, runs: 3, rounds: 14, gap: 0.045, splash: 9, walk: 70 }, flares: 2,
   },
   // Support aircraft called in from the Airfield (see POWERS); they fly a set route and cannot be ordered.
-  spyplane: { name: 'Spy Plane', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 150, armor: 'air', speed: 274, sight: 8, r: 9 },
+  spyplane: { name: 'Spy Plane', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 150, armor: 'air', speed: 343, sight: 8, r: 9 },
   transport: { name: 'Transport', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 420, armor: 'air', speed: 105, sight: 5, r: 14 },
-  bomber: { name: 'Bomber', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 131, sight: 5, r: 14 },
+  bomber: { name: 'Bomber', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 164, sight: 5, r: 14 },
   mig: {
     name: 'MiG Fighter', cls: 'air', fly: 'jet', cat: 'jet', producer: 'airfield', factions: ['soviets'],
-    cost: 1200, hp: 170, armor: 'air', speed: 131, turn: 2.3, sight: 6, r: 9,
+    cost: 1200, hp: 170, armor: 'air', speed: 164, turn: 2.3, sight: 6, r: 9,
     weapon: { dmg: 75, rof: 0.45, range: 130, wh: 'HE', proj: 'missile', ammo: 2 },
     weapon2: { dmg: 60, rof: 0.5, range: 160, wh: 'HE', proj: 'missile', air: true, ammo: 2 },
     gun: { dmg: 12, wh: 'SA', range: 110, runs: 3, rounds: 14, gap: 0.045, splash: 9, walk: 70 }, flares: 2,
