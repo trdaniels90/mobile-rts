@@ -456,6 +456,19 @@ function genLayoutMap(m) {
       if (inMap(x, y) && T[idx(x, y)] === 5 && !G.ford[idx(x, y)] && !seenB[idx(x, y)]) { seenB[idx(x, y)] = 1; cells.push(idx(x, y)); }
     }
     const xs = cells.map(cellX), ys = cells.map(cellY), x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, y0 = Math.min(...ys), y1 = Math.max(...ys) + 1;
+    // A diagonal run (Lakeside's bridges): drawn along its main axis, from end to end, as wide as the run across it.
+    const mx = xs.reduce((a, v) => a + v, 0) / xs.length, my = ys.reduce((a, v) => a + v, 0) / ys.length;
+    let sxx = 0, syy = 0, sxy = 0;
+    xs.forEach((x, i) => { sxx += (x - mx) ** 2; syy += (ys[i] - my) ** 2; sxy += (x - mx) * (ys[i] - my); });
+    const ang = Math.atan2(2 * sxy, sxx - syy) / 2, off = Math.abs(((ang % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2) - Math.PI / 4);
+    if (cells.length >= 6 && off < Math.PI / 8) {   // within 22.5 degrees of a diagonal
+      const ux = Math.cos(ang), uy = Math.sin(ang), along = xs.map((x, i) => (x - mx) * ux + (ys[i] - my) * uy);
+      const across = xs.map((x, i) => -(x - mx) * uy + (ys[i] - my) * ux);
+      const u0 = Math.min(...along) - 0.6, u1 = Math.max(...along) + 0.6, w = Math.max(...across) - Math.min(...across) + 0.4;
+      const v0 = (Math.max(...across) + Math.min(...across)) / 2, cx = mx + 0.5 - uy * v0, cy = my + 0.5 + ux * v0;
+      G.bridges.push({ a: { x: (cx + ux * u0) * CELL, y: (cy + uy * u0) * CELL }, b: { x: (cx + ux * u1) * CELL, y: (cy + uy * u1) * CELL }, w: w * CELL });
+      continue;
+    }
     G.bridges.push(x1 - x0 >= y1 - y0
       ? { a: { x: x0 * CELL, y: (y0 + y1) / 2 * CELL }, b: { x: x1 * CELL, y: (y0 + y1) / 2 * CELL }, w: (y1 - y0 + 0.4) * CELL }
       : { a: { x: (x0 + x1) / 2 * CELL, y: y0 * CELL }, b: { x: (x0 + x1) / 2 * CELL, y: y1 * CELL }, w: (x1 - x0 + 0.4) * CELL });

@@ -404,6 +404,17 @@ share globals. Read this file first; the commit history explains every change in
 - `node tools/sim/teams.js <repo> 1 8 snowbound 3v3`: at 210 cells (with the ai-squads computer) about 750 units by minute 6
   and 150 s of CPU for 8 game minutes here (111 s on the 168 map with the same computer): watch the server's `cpu_pct`.
 
+## Map "Lakeside", a small 3 v 3 map (after 2026.11.14.1, not released, both modes)
+
+- `MAPS.lakes`: traced 1:1 from `maps/designs/lakes.png` (96 design cells = **96 x 96** game cells, the size asked for),
+  `teamSize: 3`, north (starts 0-3) against south (4-7), nearly symmetric by a half turn. Name is a placeholder.
+- Its bridges are diagonal: `--decks` in `tools/map-from-image.py` turns strips of the deck colour (100, 88, 84) and the
+  rails touching them into bridge cells, and `genLayoutMap` fits a run of bridge cells within 22.5 degrees of a diagonal
+  along its main axis (axis-aligned runs as before, so the other maps' bakes are unchanged).
+- Ore as on Snowbound: the traced fields (every start has its own, so no `ore` entries), a gem field behind each start and
+  two twin pairs. `teams.js <repo> 1 10 lakes 3v3`: no errors, fighting from minute 4, 72 s CPU for 10 minutes.
+- Source of the design not confirmed: credit it in `CREDITS.md` before release (no EA or Westwood maps).
+
 ## The ground in tiles, and the marks of battle (2026.11.12)
 
 - Before: the ground and the wrecks layer were each one WORLD x WORLD canvas (130 MB at 168 cells; iOS refuses canvases

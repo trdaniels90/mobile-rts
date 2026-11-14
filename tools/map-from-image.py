@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Turn a pixel-art map design into a fixed layout for src/maps.js.
 
-    python3 tools/map-from-image.py <design.png> <cells per side in the design> <game MAP size> [--bridge x0,y0,x1,y1 ...] [--ford x0,y0,x1,y1 ...]
+    python3 tools/map-from-image.py <design.png> <cells per side in the design> <game MAP size> [--bridge x0,y0,x1,y1 ...] [--ford x0,y0,x1,y1 ...] [--decks]
 
 The design is read one colour per design cell (the picture may be scaled up by a whole number):
 dark green grass, blue water, brown shore (walkable dirt), light green woods, grey lines rock or
@@ -10,6 +10,8 @@ cliffs, yellow ore (with its darker specks), red dots start positions. Designs o
 cells, inclusive) marks the grey bar there as a bridge; each --ford box makes it a shallow ford. The layout is scaled to the game's map
 size and printed as run-length rows ('.' grass, ',' dirt, 'T' woods, '#' rock, '~' water,
 '=' bridge, 'f' ford, 'o' ore) plus the start positions in game cells, west of the map's middle first.
+--decks: designs that draw bridges as a diagonal strip of the brown-grey rock colour (100, 88, 84) with grey rails either
+side (maps/designs/lakes.png): each such strip of 6 or more cells is a bridge, with the rails touching it.
 """
 import sys
 from PIL import Image
@@ -31,6 +33,8 @@ def main():
             i = args.index(flag)
             boxes.append(tuple(int(v) for v in args[i + 1].split(',')))
             del args[i:i + 2]
+    decks = '--decks' in args
+    if decks: args.remove('--decks')
     path, n, size = args[0], int(args[1]), int(args[2])
     im = Image.open(path).convert('RGB')
     px, k = im.load(), im.size[0] / n
@@ -53,6 +57,25 @@ def main():
             elif c == ORE: grid[y][x] = 'o'
             elif c == RED: spawns.append((x, y))
             elif c not in SPECK and c != GRASS: print('unknown colour', c, 'at', x, y, file=sys.stderr)
+    if decks:   # strips of deck colour (8-connected, 6+ cells) and the rails beside them are bridges
+        seen = set()
+        for y0 in range(n):
+            for x0 in range(n):
+                if col[y0][x0] != (100, 88, 84) or (x0, y0) in seen: continue
+                strip, i = [(x0, y0)], 0
+                seen.add((x0, y0))
+                while i < len(strip):
+                    x, y = strip[i]; i += 1
+                    for dx in (-1, 0, 1):
+                        for dy in (-1, 0, 1):
+                            q = (x + dx, y + dy)
+                            if 0 <= q[0] < n and 0 <= q[1] < n and q not in seen and col[q[1]][q[0]] == (100, 88, 84):
+                                seen.add(q); strip.append(q)
+                if len(strip) < 6: continue
+                for x, y in strip:
+                    grid[y][x] = '='
+                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        if 0 <= x + dx < n and 0 <= y + dy < n and col[y + dy][x + dx] == (84, 84, 84): grid[y + dy][x + dx] = '='
     # Specks count as ore when they touch an ore field.
     changed = True
     while changed:
