@@ -4,6 +4,15 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.14.4', date: '14 November 2026', title: 'Rally points', groups: [
+    ['New', [
+      'Rally points: select a Barracks or War Factory, tap RALLY, then tap the map. New units from it go to that spot. NO RALLY clears it.',
+      'Primary building: with two or more Barracks (or War Factories), double-tap one or tap PRIMARY to choose which one trains. It shows a PRIMARY tag.',
+    ]],
+    ['Fixes', [
+      'Units made at an Outpost now wait at that Outpost instead of walking back to your main base.',
+    ]],
+  ] },
   { v: '2026.11.14.3', date: '14 November 2026', title: 'A new map: Lakeside', groups: [
     ['New', [
       'Lakeside, a small 3 v 3 map: three bases in the north against three in the south, round a group of lakes in the middle. Four concrete bridges cross the lakes. Every base has ore of its own with gems behind it, and the richest fields lie by the middle bridges. Map design by C. Gibke.',
