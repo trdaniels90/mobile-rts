@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.14', date: '14 November 2026', title: 'A new Flame Tower', groups: [
+    ['Changes', [
+      'The Soviet Flame Tower has a new look: a six-sided brick and stone tower with a flamethrower head that turns to follow its target. Its fire is now a steady jet that stays on as it sweeps from one enemy to the next. It plays exactly as before.',
+      'The Spy Plane and the Bomber fly a quarter faster. The Bomber\'s carpet of bombs is a little longer, so a Bombing Run does more damage.',
+    ]],
+  ] },
   { v: '2026.11.13.6', date: '13 November 2026', title: 'Long battles keep their stats', groups: [
     ['Fixes', [
       'Very long battles (about an hour) could lose all their numbers on the stats page and leaderboard because the report was too big. The report is now trimmed to fit, keeping the most important figures.',
