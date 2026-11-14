@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.14.5', date: '14 November 2026', title: 'Lakeside is bigger', groups: [
+    ['Changed', [
+      'Lakeside is now twice as wide, 192 x 192 cells, with about four times the ore. Every base has far more ore to work and the fields last the whole battle, so sides no longer run dry. Same layout, bridges and gems, but everything is further apart, so the first fights come later.',
+      'A Lakeside game you had saved on the old, smaller map cannot be continued.',
+    ]],
+  ] },
   { v: '2026.11.14.4', date: '14 November 2026', title: 'Rally points', groups: [
     ['New', [
       'Rally points: select a Barracks or War Factory, tap RALLY, then tap the map. New units from it go to that spot. NO RALLY clears it.',
