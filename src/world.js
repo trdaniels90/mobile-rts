@@ -2631,6 +2631,13 @@ function threatNear(u) {
   if (!u.threat) return false;
   return G.entities.some((e) => e.alive && e.kind === 'unit' && hostile(e.team, u.team) && !e.def.scripted && Math.hypot(e.x - u.threat.x, e.y - u.threat.y) < CELL * 9);
 }
+// Another truck of this refinery holds its dock (on its way in or unloading).
+function dockBusy(ref, u) {
+  const h = ref.dockU;
+  if (!h || h === u) return false;
+  if (!h.alive || h.ref !== ref || (h.hs !== 'return' && h.hs !== 'unload')) { ref.dockU = null; return false; }
+  return true;
+}
 function updateHarvester(u, dt) {
   const cap = u.def.capacity, team = teamOf(u);
   switch (u.hs) {
@@ -2668,8 +2675,23 @@ function updateHarvester(u, dt) {
       if (!ref) { u.hs = 'wait'; u.htimer = 3; break; }
       const dock = dockPoint(ref);
       u.ref = ref;
-      if (dist(u, dock) < 10) { u.dest = null; u.path = null; u.hs = 'unload'; u.htimer = 0; }
-      else if ((!u.dest && !u.needPath) || (u.dest && Math.hypot(u.dest.x - dock.x, u.dest.y - dock.y) > 4)) goTo(u, dock.x, dock.y);
+      if (dist(u, dock) < 10) { ref.dockU = u; u.qSpot = null; u.dest = null; u.path = null; u.hs = 'unload'; u.htimer = 0; }
+      else if (dockBusy(ref, u)) {
+        // One truck unloads at a time: the rest wait in a ring round the dock instead of all
+        // pushing for the same cell and jamming (separate() keeps them from ever reaching it).
+        if (!u.qSpot || u.qRef !== ref) {
+          const a = (u.id % 8) * Math.PI / 4, c = nearestFreeCell(cellOfPos(dock.x + Math.cos(a) * CELL * 3, dock.y + Math.abs(Math.sin(a)) * CELL * 3), 4);
+          u.qRef = ref; u.qSpot = c >= 0 ? cellCenter(c) : { x: u.x, y: u.y };
+          goTo(u, u.qSpot.x, u.qSpot.y);
+        }
+      } else {
+        ref.dockU = u; u.qSpot = null;
+        if (dist(u, dock) < CELL * 1.3) {   // close: roll straight onto the dock (the building's edge can stop a path short)
+          const a = Math.atan2(dock.y - u.y, dock.x - u.x), step = Math.min(dist(u, dock), u.def.speed * 0.6 * dt);
+          u.dest = null; u.path = null; u.needPath = false;
+          u.face = turnToward(u.face, a, 4 * dt); u.x += Math.cos(a) * step; u.y += Math.sin(a) * step; u.moving = true;
+        } else if ((!u.dest && !u.needPath) || (u.dest && Math.hypot(u.dest.x - dock.x, u.dest.y - dock.y) > 4)) goTo(u, dock.x, dock.y);
+      }
       break;
     }
     case 'unload': {
@@ -2683,7 +2705,7 @@ function updateHarvester(u, dt) {
         const gain = (amt + extra) * (team.isAI ? G.diff.income : 1);
         team.credits += gain; team.stats.harvested += gain;
         if (u.load <= 0) {
-          u.load = 0; u.hs = 'seek';
+          u.load = 0; u.hs = 'seek'; if (u.ref.dockU === u) u.ref.dockU = null;
           if (G.t < (u.holdUntil || 0)) {   // retreating: wait to one side of the refinery, clear of the dock
             u.hs = 'wait'; u.htimer = u.holdUntil - G.t;
             const a = Math.random() * Math.PI * 2, x = u.ref.x + Math.cos(a) * CELL * 3, y = u.ref.y + CELL * 1.5 + Math.abs(Math.sin(a)) * CELL * 2;
