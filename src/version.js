@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.14.3', date: '14 November 2026', title: 'A new map: Lakeside', groups: [
+    ['New', [
+      'Lakeside, a small 3 v 3 map: three bases in the north against three in the south, round a group of lakes in the middle. Four concrete bridges cross the lakes. Every base has ore of its own with gems behind it, and the richest fields lie by the middle bridges. Map design by C. Gibke.',
+    ]],
+  ] },
   { v: '2026.11.14.2', date: '14 November 2026', title: 'More Airfields, faster jets', groups: [
     ['Changes', [
       'Extra Airfields and Helicopter Bases now speed up building, like Barracks and War Factories: 1.5x with two, 2x with three, up to 2.5x with four. This works for the computer too.',

@@ -418,7 +418,7 @@ const MAPS = {
   lakes: {
     name: 'Lakeside',
     img: 'maps/lakes.png',
-    blurb: 'An island of lakes for 3 v 3. The north fights the south round the lakes in the middle: five bridges cross them, and narrow land joins the flanks. Every base has ore of its own, with gems behind each and out by the lakes.',
+    blurb: 'An island of lakes for 3 v 3. The north fights the south round the lakes in the middle: four bridges cross them, and narrow land joins the flanks. Every base has ore of its own, with gems behind each and out by the lakes.',
     info: '96 × 96 cells · 6 start positions · made for 3 v 3',
     bridge: 'concrete',   // concrete bridges (art.js concreteBridge)
     size: 96,   // cells a side, as in the design (one design cell is one game cell)
