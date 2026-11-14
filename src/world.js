@@ -469,7 +469,16 @@ function genLayoutMap(m) {
       G.bridges.push({ a: { x: (cx + ux * u0) * CELL, y: (cy + uy * u0) * CELL }, b: { x: (cx + ux * u1) * CELL, y: (cy + uy * u1) * CELL }, w: w * CELL });
       continue;
     }
-    G.bridges.push(x1 - x0 >= y1 - y0
+    // A square run (Twin Lakes' short span) crosses the water: it runs north-south when the water is to its west and east.
+    let wide = x1 - x0 >= y1 - y0;
+    if (x1 - x0 === y1 - y0) {
+      const wet = (x, y) => (inMap(x, y) && T[idx(x, y)] === 4 ? 1 : 0);
+      let we = 0, ns = 0;
+      for (let y = y0; y < y1; y++) we += wet(x0 - 1, y) + wet(x1, y);
+      for (let x = x0; x < x1; x++) ns += wet(x, y0 - 1) + wet(x, y1);
+      wide = we <= ns;
+    }
+    G.bridges.push(wide
       ? { a: { x: x0 * CELL, y: (y0 + y1) / 2 * CELL }, b: { x: x1 * CELL, y: (y0 + y1) / 2 * CELL }, w: (y1 - y0 + 0.4) * CELL }
       : { a: { x: (x0 + x1) / 2 * CELL, y: y0 * CELL }, b: { x: (x0 + x1) / 2 * CELL, y: y1 * CELL }, w: (x1 - x0 + 0.4) * CELL });
   }

@@ -403,6 +403,8 @@ share globals. Read this file first; the commit history explains every change in
 - Checked: all four starts connect; `node tools/sim/teams.js <repo> 1 10 twinlakes` (2 v 2 of computers: about 470 units by
   minute 8, every side sent a wave). The contributor confirmed the design is their own and chose to keep the name and the gem fields; the size is a first guess.
 - Its id is `twinlakes` because the owner's Lakeside already uses `lakes`.
+- Its south-east bridge's lower span is as long as it is wide (7 x 7 cells), and `genLayoutMap` drew a square run west-east. A square run now
+  runs north-south when the water is to its west and east (world.js; the other maps have no square runs, their bakes are unchanged).
 
 ## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (2026.11.11.2; bridges, weather 2026.11.12)
 
