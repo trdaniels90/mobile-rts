@@ -414,7 +414,8 @@ share globals. Read this file first; the commit history explains every change in
   along its main axis (axis-aligned runs as before, so the other maps' bakes are unchanged).
 - Ore as on Snowbound: the traced fields (every start has its own, so no `ore` entries), a gem field behind each start and
   two twin pairs. `teams.js <repo> 1 10 lakes 3v3`: no errors, fighting from minute 4, 72 s CPU for 10 minutes.
-- Source of the design not confirmed: credit it in `CREDITS.md` before release (no EA or Westwood maps).
+- Design drawn by C. Gibke (credited in `CREDITS.md`), found online. Permission to use it is not confirmed: the owner
+  decides before release.
 
 ## The ground in tiles, and the marks of battle (2026.11.12)
 

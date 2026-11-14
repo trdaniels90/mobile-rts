@@ -64,6 +64,10 @@ Loaded from Google Fonts under the [SIL Open Font License 1.1](https://openfontl
 The layout of "Three Crossings" is traced from a pixel map design supplied by the owner
 (`maps/designs/river.png`) with `tools/map-from-image.py`.
 
+The layout of "Lakeside" is traced from a map design drawn by C. Gibke
+(http://ourworld.compuserve.com/homepages/CGibke/), `maps/designs/lakes.png`, with `tools/map-from-image.py`.
+The two middle start positions were removed and the bridges are concrete.
+
 ## App icon
 
 The app icon (`icons/`) is AI-generated artwork made with ChatGPT for this project: a Soviet
