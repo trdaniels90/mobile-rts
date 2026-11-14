@@ -256,7 +256,7 @@ function aiPowerTarget(team, cluster) {
   return { x: best.x, y: best.y };
 }
 
-const ARMY_UNITS = 80, ARMY_WORTH = 28000;   // defaults; DIFFICULTY ai.armyUnits and ai.armyWorth set them per difficulty (Normal 80 and 45000)
+const ARMY_UNITS = 80, ARMY_WORTH = 28000;   // defaults; DIFFICULTY ai.armyUnits and ai.armyWorth set them per difficulty (Normal 90 and 45000)
 function aiThink(team) {
   const c = aiCount(team);
   aiPickFoe(team);
