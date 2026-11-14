@@ -391,6 +391,19 @@ share globals. Read this file first; the commit history explains every change in
 - Snapshots also carry the debrief log as it grows (`s.log` in netcore.js `snapshot`, applied in net.js `applySnapshot`),
   so a phone that ends a battle on its own (it could not reconnect) still has its graphs.
 
+## Map "Twin Lakes" (contributor's map by JGFortanelli, owner OK'd, not released)
+
+- `MAPS.twinlakes` in maps.js: **132 x 132** cells, 4 start positions, `teamSize: 2` (1 v 1, 2 v 2, co-op). Two lakes run from the
+  north-west to the south-east; the north-east (starts 0-1) fights the south-west (2-3) over the land between the lakes and
+  a concrete bridge at each end (`bridge: 'concrete'`; two spans each, with an island in the middle). One gem field behind each start.
+- Traced from `maps/designs/twinlakes.png` (75 cells), which was redrawn one colour per cell from the contributor's screenshot
+  (cropped to the land plus 2 cells of water). Changes from the picture: the 6-cell bridges are 4 design cells wide (7 in
+  the game) and the rails on their approaches are dirt road, so armies are not squeezed into 3 cells.
+- Its ground is baked (`grounds/twinlakes/`), its preview is in `ART` and its picture in `FILES` in sw.js.
+- Checked: all four starts connect; `node tools/sim/teams.js <repo> 1 10 twinlakes` (2 v 2 of computers: about 470 units by
+  minute 8, every side sent a wave). The contributor confirmed the design is their own and chose to keep the name and the gem fields; the size is a first guess.
+- Its id is `twinlakes` because the owner's Lakeside already uses `lakes`.
+
 ## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (2026.11.11.2; bridges, weather 2026.11.12)
 
 - `MAPS.snowbound` in maps.js: traced from the owner's design `maps/designs/snowbound.png` (126 cells, a lavender-ground palette:

@@ -68,6 +68,10 @@ The layout of "Lakeside" is traced from a map design drawn by C. Gibke
 (http://ourworld.compuserve.com/homepages/CGibke/), `maps/designs/lakes.png`, with `tools/map-from-image.py`.
 The two middle start positions were removed and the bridges are concrete.
 
+The layout of "Twin Lakes" is traced the same way from a pixel map design by JGFortanelli
+(`maps/designs/twinlakes.png`, redrawn one colour per cell from their picture; the bridges were narrowed
+and are concrete).
+
 ## App icon
 
 The app icon (`icons/`) is AI-generated artwork made with ChatGPT for this project: a Soviet
