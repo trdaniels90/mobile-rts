@@ -147,6 +147,56 @@
     if (!ui.placebar || ui.placebar.hidden) return 0;
     return Math.max(0, ui.placebar.getBoundingClientRect().bottom - canvas.getBoundingClientRect().top + 8);
   }
+  // The Flame Tower's fire, drawn as a flamethrower's stream. Looks only: its shots (world.js) still fly, land, splash
+  // and burn as before, two every couple of seconds.
+  // flameJet: while a tower is engaging (it has a target in range and has fired within a reload), one unbroken jet
+  // runs from the projector's mouth out to the target, and stays on between shots and from one target to the next
+  // (held JET_HOLD seconds when a target dies, while the tower picks another), so a group is hosed down in one go
+  // instead of the stream starting over with every shot. It follows the head as it turns. jetOn / jetD / jetSeen are
+  // draw-only state on the building (netcore.js SKIP).
+  const JET_SPEED = 230, JET_HOLD = 0.45;
+  function flameJet(v, b) {
+    const w = b.def.weapon, t = b.target, head = HEADS.ftur;
+    const engaged = b.buildT >= 1 && t && t.alive && typeof t.x === 'number' && G.t - (b.shotAt == null ? -99 : b.shotAt) < w.rof + 0.5
+      && Math.hypot(t.x - b.x, t.y - b.y) < w.range + 12;
+    if (engaged) { b.jetD = Math.hypot(t.x - b.x, t.y - b.y); b.jetSeen = G.t; if (b.jetOn == null) b.jetOn = G.t; }
+    else if (b.jetOn != null && !(G.t - b.jetSeen < JET_HOLD)) b.jetOn = null;
+    if (b.jetOn == null) return;
+    const ca = Math.cos(b.tface), sa = Math.sin(b.tface);
+    const sx = b.cx * CELL + head[1] + ca * 10, sy = b.cy * CELL + head[2] - head[3] * VK + sa * 10 - 3;
+    const ex = b.x + ca * b.jetD, ey = b.y + sa * b.jetD - 5;   // on the ground, out along where the head points
+    const full = Math.hypot(ex - sx, ey - sy), k = Math.min(1, ((G.t - b.jetOn) * JET_SPEED + 8) / full);
+    streamLine(v, sx, sy, sx + (ex - sx) * k, sy + (ey - sy) * k);
+  }
+  // A shot from a tower whose jet is showing is part of that jet. Otherwise (the tower is gone, or an old save's shot)
+  // it is drawn on its own: a short stream from where it left, or a ball of fire.
+  function fireStream(v, p) {
+    const f = p.from;
+    if (f && f.alive && f.type === 'ftur' && f.jetOn != null) return;
+    if (typeof p.sx === 'number') return streamLine(v, p.sx, p.sy, p.x, p.y);
+    const r = 2.5 + Math.random();
+    v.fillStyle = 'rgba(255,120,30,0.55)'; v.beginPath(); v.arc(p.x, p.y, r + 2, 0, 7); v.fill();
+    v.fillStyle = '#ffb040'; v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.fill();
+  }
+  // A jet of fire from (sx, sy) to (ex, ey): thin and white-hot at the nozzle, wider and redder toward a rolling head.
+  function streamLine(v, sx, sy, ex, ey) {
+    const dx = ex - sx, dy = ey - sy, len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const ux = dx / len, uy = dy / len, n = Math.max(2, Math.ceil(len / 2.5));
+    for (const pass of [0, 1, 2]) {   // red-orange glow, then the orange body, then the white-hot core
+      v.fillStyle = pass === 0 ? 'rgba(255,90,20,0.4)' : pass === 1 ? 'rgba(255,165,50,0.85)' : '#fff2b8';
+      for (let i = 0; i <= n; i++) {
+        const k = i / n, d = k * len, wob = (Math.random() - 0.5) * (0.6 + d * 0.03);
+        const r = pass === 0 ? 2.2 + d * 0.035 + Math.random() : pass === 1 ? 1.3 + d * 0.022 + Math.random() * 0.6 : Math.max(0, 1.1 - k * 0.8);
+        if (pass === 2 && k > 0.75) break;   // the core gives out before the head
+        if (r <= 0.3) continue;
+        v.beginPath(); v.arc(sx + ux * d - uy * wob, sy + uy * d + ux * wob, r, 0, 7); v.fill();
+      }
+    }
+    const r = 3 + Math.random() * 1.5;   // the rolling head of the stream
+    v.fillStyle = 'rgba(255,110,25,0.6)'; v.beginPath(); v.arc(ex, ey, r + 1.5, 0, 7); v.fill();
+    v.fillStyle = '#ffb040'; v.beginPath(); v.arc(ex, ey, r, 0, 7); v.fill();
+  }
   function centerOn(x, y) { cam.x = x - W / cam.z / 2; cam.y = y - H / cam.z / 2; clampCam(); }
   const s2w = (sx, sy) => ({ x: cam.x + sx / cam.z, y: cam.y + sy / cam.z });
 
@@ -321,6 +371,7 @@
       if (e.kind === 'bld') drawStructure(v, e, G.t);
       else drawUnit(v, e, G.t);
     }
+    for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') flameJet(v, e);
     for (const p of G.projectiles) {
       if (p.delay > 0) continue;
       const a = p.a || 0, ca = Math.cos(a), sa = Math.sin(a);
@@ -345,13 +396,7 @@
         v.fillStyle = '#6f7d48'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 1, 1);
         continue;
       }
-      if (p.kind === 'fireball') {
-        const r = 2.5 + Math.random();
-        v.fillStyle = 'rgba(255,120,30,0.55)'; v.beginPath(); v.arc(p.x, p.y, r + 2, 0, 7); v.fill();
-        v.fillStyle = '#ffb040'; v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.fill();
-        v.fillStyle = '#fff4c0'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 2);
-        continue;
-      }
+      if (p.kind === 'fireball') { fireStream(v, p); continue; }
       if (p.kind === 'shell') { v.fillStyle = '#ffe9a0'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 2); v.fillStyle = 'rgba(255,200,90,0.5)'; v.fillRect(Math.round(p.x - ca * 3), Math.round(p.y - sa * 3), 1, 1); }
       else if (p.kind === 'flak') { v.fillStyle = '#ffd36a'; v.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
       else {

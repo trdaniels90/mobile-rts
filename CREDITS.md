@@ -74,3 +74,6 @@ twin-barrel tank in a forest.
 The new Ore Truck, Rifle Infantry and Allied Light Tank looks are hand-built voxel models (`src/models.js`) that take
 their general design from 3D reference models generated with Tripo Studio. No Tripo geometry,
 textures or video frames are used in the game.
+
+The Soviet Flame Tower is a hand-built voxel model (`tools/blender/ftur.py`) that takes its general design
+from an AI-generated reference picture supplied by a contributor. The picture itself is not used in the game.
