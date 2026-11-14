@@ -417,7 +417,9 @@ share globals. Read this file first; the commit history explains every change in
 - `node tools/sim/teams.js <repo> 1 8 snowbound 3v3`: at 210 cells (with the ai-squads computer) about 750 units by minute 6
   and 150 s of CPU for 8 game minutes here (111 s on the 168 map with the same computer): watch the server's `cpu_pct`.
 
-## Map "Lakeside", a small 3 v 3 map (after 2026.11.14.1, not released, both modes)
+## Map "Lakeside", a 3 v 3 map (2026.11.14.3; enlarged to 192 after 2026.11.14.4, not released, both modes)
+
+- **Enlarged to 192 x 192** (owner's pick, both modes): match 553c3209 (3 v AI, 29 min) ran out of ore on the 96 map: 58,000 ore a side at the start against 1.8 million harvested by six sides (regrowth), and the computers out-harvested the humans. The same design now traces at 2 x (`map-from-image.py lakes.png 96 192 --decks`), so ore is about 4 x (203,000 a side; Three Crossings 197,000). Spawns and gems are the old ones x 2 + 1 (gem radii 3.2 / 3.5). Saves of a 96-cell Lakeside no longer continue. `teams.js <repo> 1 12 lakes 3v3`: no errors, 68 s CPU for 12 minutes. The 96-cell notes below are the original.
 
 - `MAPS.lakes`: traced 1:1 from `maps/designs/lakes.png` (96 design cells = **96 x 96** game cells, the size asked for),
   `teamSize: 3`, 6 starts: north (0-2) against south (3-5), nearly symmetric by a half turn; the design's two middle
