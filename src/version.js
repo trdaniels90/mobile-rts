@@ -4,6 +4,15 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.14.8', date: '14 November 2026', title: 'Faster aircraft, no more truck jams', groups: [
+    ['Changed', [
+      'Spy Planes, Bombers, Strike Jets and MiGs fly 25% faster.',
+      'On Normal, the computer now fields at most 80 units (was 100), so its attack waves come a little sooner and its armies are smaller.',
+    ]],
+    ['Fixes', [
+      'Ore Trucks no longer jam at the Refinery. They take turns at the dock and wait in a ring around it, so trucks (yours and the computer\'s) keep unloading instead of circling.',
+    ]],
+  ] },
   { v: '2026.11.14.7', date: '14 November 2026', title: 'A new map: Twin Lakes', groups: [
     ['New', [
       'Twin Lakes, a new map for 1 v 1, 2 v 2 and 2 v computer. Two long lakes cut the island from corner to corner: the north-east fights the south-west over a neck of ore-rich land in the middle and a long concrete bridge at either end. Map design by JGFortanelli.',
