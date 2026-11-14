@@ -120,7 +120,7 @@ function makeTeam(id, faction, isAI) {
     power: { prod: 0, use: 0 }, low: false, auto: !!isAI, focusSide: null,
     queues: { structure: null, infantry: [], vehicle: [], heli: [], jet: [] },
     stats: { built: 0, units: 0, lost: 0, killed: 0, bldKilled: 0, bldLost: 0, harvested: 0 },
-    cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, defending: false, calm: 0, allyCalm: 0, assist: false, harvHit: null,
+    cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, defending: false, calm: 0, allyCalm: 0, assist: false, assistSide: null, harvHit: null,
   };
 }
 
@@ -1099,18 +1099,28 @@ function launchAll(team) {
 const alliesOf = (team) => G.teams.filter((o) => o !== team && o.ally === team.ally && !o.out && buildingsOf(o.id).length);
 const idleGround = (team) => unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.defending && !u.assisting && !u.homeward && !u.manual &&
   u.cls !== 'air' && u.order.type === 'guard' && !u.order.hold);
+// The ally a human's Ally button defends: the one picked (`team.assistSide`) while it is still in the fight, else the first.
+function assistAlly(team) {
+  const all = alliesOf(team);
+  return all.find((o) => o.id === team.assistSide) || all[0] || null;
+}
 function sendToAlly(team, units) {
-  const ally = alliesOf(team)[0];
+  const ally = assistAlly(team);
   if (!ally) return 0;
   for (const u of units) { const s = scatterSpot(ally); setGuard(u, s.x, s.y); u.staged = false; u.garrison = true; goTo(u, s.x, s.y); }
   return units.length;
 }
-function setAssist(team, on) {
+function setAssist(team, on, side) {
   on = !!on && alliesOf(team).length > 0;
   team.assist = on;
   if (!on) return;   // off: the units already sent keep defending, new ones stay home (recallAlly brings them back)
   team.auto = false;
+  const was = assistAlly(team);
+  if (Number.isInteger(side) && alliesOf(team).some((o) => o.id === side)) team.assistSide = side;
+  const now = assistAlly(team);
   sendToAlly(team, idleGround(team).filter((u) => !u.garrison));
+  // Switched to another ally: the units already garrisoned (and not out fighting) move over to it.
+  if (was && now && was !== now) sendToAlly(team, unitsOf(team.id).filter((u) => u.garrison && !u.assisting && u.order.type === 'guard' && !u.order.hold));
 }
 // Giving credits to an ally (team games, the GIVE button). Only to another side of the same alliance
 // that is still in the fight; the amount is cut down to what the sender has. `toSide` is a side
@@ -1157,17 +1167,21 @@ function defendAllies(team) {
   if (!alliesOf(team).length && unitsOf(team.id).some((u) => u.garrison)) recallAlly(team, true);   // nobody left to help
   const helping = team.isAI ? G.diff.ai.adapt : unitsOf(team.id).some((u) => u.garrison);
   if (!helping && !unitsOf(team.id).some((u) => u.assisting)) return;
-  const allies = alliesOf(team);
+  // A human defends the ally they picked; the computer answers any ally's call.
+  const allies = team.isAI ? alliesOf(team) : [assistAlly(team)].filter(Boolean);
+  if (!allies.length) return;
   const allyBlds = new Map(allies.map((a) => [a, buildingsOf(a.id)]));   // once, not per enemy unit
   // Each ally's buildings' box, 14 cells wider: an enemy outside it is near none of them (the exact test below
   // was 330,000 distance checks a second in a 3 v 3, a tenth of the whole game's time).
-  const R = CELL * 14, box = new Map(allies.map((a) => {
+  const R = CELL * 14, R2 = CELL * 22, box = new Map(allies.map((a) => {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const b of allyBlds.get(a)) { x0 = Math.min(x0, b.cx * CELL); y0 = Math.min(y0, b.cy * CELL); x1 = Math.max(x1, (b.cx + b.w) * CELL); y1 = Math.max(y1, (b.cy + b.h) * CELL); }
-    return [a, [x0 - R, y0 - R, x1 + R, y1 + R]];
+    return [a, [x0 - R2, y0 - R2, x1 + R2, y1 + R2]];
   }));
   const inBox = (a, u) => { const q = box.get(a); return u.x >= q[0] && u.x <= q[2] && u.y >= q[1] && u.y <= q[3]; };
-  const hit = (a, u) => (inBox(a, u) && allyBlds.get(a).some((b) => distTo(u, b) < R)) ||
+  // Raiders at the base, or enemy units (a little further out) shooting at that ally's units just outside it.
+  const onUnits = (a, u) => u.target && u.target.alive && u.target.kind === 'unit' && G.teams[u.target.team] && G.teams[u.target.team].ally === a.ally;
+  const hit = (a, u) => (inBox(a, u) && allyBlds.get(a).some((b) => { const d = distTo(u, b); return d < R || (d < R2 && onUnits(a, u)); })) ||
     (a.baseHit && a.baseHit.until > G.t && Math.hypot(u.x - a.baseHit.x, u.y - a.baseHit.y) < CELL * 8);
   const threats = helping ? enemyUnitsOf(team.id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute && allies.some((a) => hit(a, u))) : [];
   if (!threats.length) {

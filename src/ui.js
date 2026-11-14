@@ -989,13 +989,42 @@
   }
   ui.allyBtn.addEventListener('click', () => {
     if (!G) return;
-    const team = G.teams[G.me];
-    if (!team.assist && !G.teams.some((o) => o !== team && o.ally === team.ally && !o.out)) { evaCalm('No ally to help', 4); return; }
-    setAssist(team, !team.assist);
+    const team = G.teams[G.me], allies = G.teams.filter((o) => o !== team && o.ally === team.ally && !o.out);
+    if (!team.assist && !allies.length) { evaCalm('No ally to help', 4); return; }
+    // More than one ally (3 v 3 and larger maps): a picker says which one to defend.
+    if (allies.length > 1) { allyPicker(team, allies); return; }
+    setAssist(team, !team.assist, allies[0] && allies[0].id);
     ui.allyBtn.setAttribute('aria-pressed', String(!!team.assist));
     ui.autoBtn.setAttribute('aria-pressed', String(!!team.auto));
     eva(team.assist ? 'Defending our ally' : 'Ally support off. Units stay and defend');
   });
+  // The Ally picker: each ally still in the fight by colour and name; the one being defended is marked.
+  let allyPickEl = null;
+  function allyPicker(team, allies) {
+    if (!allyPickEl) {
+      allyPickEl = document.createElement('div'); allyPickEl.id = 'allyPick'; allyPickEl.className = 'nw-wrap';
+      allyPickEl.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-pick]');
+        if (!b) { if (!ev.target.closest('.nw-card')) allyPickEl.hidden = true; return; }
+        allyPickEl.hidden = true;
+        if (!G || G.over) return;
+        const me = G.teams[G.me], v = b.dataset.pick;
+        if (v === 'off') { setAssist(me, false); eva('Ally support off. Units stay and defend'); }
+        else if (v !== 'cancel') { const t = G.teams[+v]; setAssist(me, true, t.id); eva(`Defending ${sideLabel(t)}`); }
+        ui.allyBtn.setAttribute('aria-pressed', String(!!me.assist));
+        ui.autoBtn.setAttribute('aria-pressed', String(!!me.auto));
+      });
+      document.body.append(allyPickEl);
+    }
+    const cur = team.assist ? assistAlly(team) : null;
+    const row = (t) => `<button type="button" class="pf-btn ap-row${cur === t ? ' on' : ''}" data-pick="${t.id}"><i style="background:${sideColour(t)}"></i>${esc(sideLabel(t))}</button>`;
+    allyPickEl.innerHTML = '<div class="nw-card" role="dialog" aria-label="Defend ally"><p class="nw-title">Defend ally</p>'
+      + '<p class="nw-sub">Choose the ally to send your units to.</p><div class="ap-list">'
+      + allies.map(row).join('')
+      + (team.assist ? '<button type="button" class="pf-btn ap-row" data-pick="off">Ally support off</button>' : '')
+      + '<button type="button" class="pf-btn ap-row ap-cancel" data-pick="cancel">Cancel</button></div></div>';
+    allyPickEl.hidden = false;
+  }
   // GIVE: a card with each ally still in the fight and the amounts to send (`sendCredits`). The
   // battle keeps running behind it; amounts this side cannot afford are greyed out.
   let giveEl = null;

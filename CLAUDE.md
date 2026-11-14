@@ -736,3 +736,8 @@ online-only change.
 
 Lockstep (both devices simulating) was rejected. The simulation uses `Math.random` and
 frame-time maths everywhere, so it is not deterministic.
+
+## Defend ally: pick the ally, answer units outside the base (after 2026.11.14.8, not released, team games, both modes)
+
+- With 2+ allies the ALLY button opens a picker (`allyPicker` in ui.js); `setAssist(team, on, side)` stores `team.assistSide` (synced; the guest's order carries the side). `assistAlly(team)` is the picked ally (else the first). A human's units go to and defend only that one; picking another moves the garrison over. The computer still answers any ally's call.
+- `defendAllies` also treats an enemy unit as a threat when it is shooting at an ally's unit within `R2` (22 cells) of that ally's buildings (raiders at the base were 14 cells). `node tools/sim/ally-defend.js <repo>` (3 v 3 on Lakeside): old code never answered raiders at the second ally and killed 1 of 2 units hitting a unit outside the base; now 3 of 3 and 2 of 2.
