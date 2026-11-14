@@ -228,7 +228,7 @@ const DIFFICULTY = {
       econ: { fast: false, refineries: 3, trucks: 5, truckFirst: false } } },
   normal: { label: 'Normal', income: 1.0,  speed: 1.0,  credits: 10000,
     ai: { wave: [10, 16], big: [16, 22], bigChance: 0.3,
-      firstWave: 720, bigFrom: 720, waveGap: 270, targets: 'weak', strike: ['para', 'bomb'], defMax: 11, aa: 1, aaMax: 3, guard: ['outpost'], outpostGuns: 2, expand: 24, armyWorth: 45000, armyUnits: 100,
+      firstWave: 720, bigFrom: 720, waveGap: 270, targets: 'weak', strike: ['para', 'bomb'], defMax: 11, aa: 1, aaMax: 3, guard: ['outpost'], outpostGuns: 2, expand: 24, armyWorth: 45000, armyUnits: 80,
       pincer: 0.5, counter: true, adapt: true, homeGuard: 3, interceptors: 1, queue: 3, planner: true, approach: 1, gap: { short: [90, 450], long: [450, 900], chance: 0.2 },
       econ: { fast: true, refineries: 3, trucks: 6, truckFirst: true } } },
   hard:   { label: 'Hard',   income: 1.35, speed: 1.25, credits: 12000,
