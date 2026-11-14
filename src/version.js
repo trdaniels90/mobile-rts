@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.14.10', date: '14 November 2026', title: 'Twin Lakes bridge fix', groups: [
+    ['Fixes', [
+      'Twin Lakes: the lower span of the south-east bridge was drawn sideways. It now runs the same way as the other three. Fix by JGFortanelli.',
+    ]],
+  ] },
   { v: '2026.11.14.9', date: '14 November 2026', title: 'Defend ally: you pick the ally', groups: [
     ['Changed', [
       'With more than one ally (3 v 3 and larger maps), the ALLY button now lets you pick which ally to defend. Your units go to that ally, and picking another sends them over.',
