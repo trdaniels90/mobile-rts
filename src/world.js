@@ -3302,6 +3302,32 @@ function updateBuilding(b, dt) {
   const ang = Math.atan2(t.y - (t.alt || 0) - b.y, t.x - b.x);
   if (b.type !== 'tesla') b.tface = turnToward(b.tface, ang, 5 * dt);
   if (b.cd <= 0 && (b.type === 'tesla' || Math.abs(angDiff(ang, b.tface)) < 0.15)) { shoot(b, w, t); b.cd = w.rof; if (b.def.camo) b.revealT = CAMO_REVEAL; }
+  if (w.jet) flameBurn(b, w, t, dt);
+}
+
+// The Flame Tower's jet of fire (drawn by ui.js flameJet) burns what stands in it. While the tower is engaging (a target in
+// range and a shot within a reload, as the jet is drawn), every hostile ground unit within w.jet.width px of the line from
+// the tower out along its aim, as far as the target, takes w.jet.dps (FIRE warhead) a second, in ticks of JET_TICK; the
+// target itself always does. Shots still fly and land as before. burnT is a host timer (netcore.js SKIP).
+const JET_TICK = 0.25;
+function flameBurn(b, w, t, dt) {
+  if (G.remote) return;
+  if ((b.burnT = (b.burnT || 0) - dt) > 0) return;
+  b.burnT += JET_TICK;
+  if (b.burnT < 0) b.burnT = 0;
+  const len = Math.hypot(t.x - b.x, t.y - b.y);
+  if (len > w.range + 12 || G.t - (b.shotAt == null ? -99 : b.shotAt) > w.rof + 0.5) return;
+  const ca = Math.cos(b.tface), sa = Math.sin(b.tface), amt = w.jet.dps * JET_TICK;
+  const mx = b.x + ca * len / 2, my = b.y + sa * len / 2;
+  let hitT = false;
+  for (const bucket of nearBuckets(mx, my, len / 2 + w.jet.width + 12)) for (const e of bucket) {
+    if (!e.alive || e.kind !== 'unit' || isAirborne(e) || !hostile(b.team, e.team)) continue;
+    const dx = e.x - b.x, dy = e.y - b.y, along = dx * ca + dy * sa;
+    if (along < 6 || along > len + 6 || Math.abs(dx * sa - dy * ca) > w.jet.width + (e.def.r || 0)) continue;
+    if (e === t) hitT = true;
+    damage(e, amt, w.wh, b);
+  }
+  if (!hitT && t.alive && hostile(b.team, t.team) && !isAirborne(t)) damage(t, amt, w.wh, b);
 }
 
 // How far (in cells) from one of its own structures a side may place a new one; Outposts reach further.

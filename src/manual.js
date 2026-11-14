@@ -21,7 +21,7 @@ const Manual = (() => {
     pillbox: ['A camouflaged machine-gun nest, coloured to match the ground. The enemy cannot see it until a ground unit comes within 3 cells or it opens fire, and it hides again a few seconds later. Cheap and quick to build.', 'Infantry', 'Tanks'],
     turret: ['A heavy gun turret that outranges most tanks.', 'Tanks, vehicles', 'Infantry swarms, artillery'],
     aagun: ['Fills the sky with black flak. Cannot fire at ground targets.', 'Helicopters, jets', 'Anything on the ground'],
-    ftur: ['Throws burning fuel that keeps burning on the ground for a moment.', 'Infantry', 'Tanks'],
+    ftur: ['Hoses its target with a jet of fire that burns everything standing in it, and throws burning fuel that keeps burning on the ground for a moment.', 'Infantry', 'Tanks'],
     tesla: ['Long-range lightning: one strike kills a soldier outright and each one tears into armour. Needs plenty of power: on low power it goes dark.', 'Infantry, vehicles', 'Artillery, V2 rockets, power cuts'],
     sam: ['Launches guided missiles at aircraft, with a roar of backblast. Cannot fire at ground targets.', 'Helicopters, jets', 'Anything on the ground'],
     // Infantry

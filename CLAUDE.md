@@ -207,6 +207,16 @@ share globals. Read this file first; the commit history explains every change in
   (cap 900 in `aiGap`), `AI_GAP_MIN` 70, `AIR_STRIKE_GAP` 270. `ai-timing.js` 2 Normal games: first waves 535 to
   785 s. `jet-defense.js` seeds 11-12: raiders killed 12 to 10, MiGs lost 5 to 5.
 
+## Flame Tower jet burns (after 2026.11.14, not released, both modes)
+
+- The new Flame Tower (PR #6) draws a steady jet of fire (ui.js `flameJet`). Now the jet does damage too: `flameBurn` in world.js,
+  called from `updateBuilding` for a weapon with `jet` (`ftur`: `jet: { dps: 10, width: 7 }`, FIRE warhead). While the tower is
+  engaging (target in range, a shot within a reload), every `JET_TICK` (0.25 s) each hostile ground unit within `width` px (plus
+  its radius) of the line from the tower along its aim, out to the target, takes `dps x JET_TICK`; the target always does. Shots
+  are unchanged. `burnT` is a host timer (netcore `SKIP`). Measured (staged: 10 riflemen or 4 light tanks attacking one tower):
+  the burn adds about a quarter to the tower's damage (riflemen: 98 from the burn, 368 from shots; light tanks 12 and 56).
+  Fights vary too much from run to run for kill counts to show it.
+
 ## Units spread out in a fight (after 2026.11.13, not released, both modes)
 
 - Owner's report: units always balled up when auto attacking or defending. Three causes, three fixes (world.js):
