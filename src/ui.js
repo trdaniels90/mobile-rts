@@ -147,22 +147,40 @@
     if (!ui.placebar || ui.placebar.hidden) return 0;
     return Math.max(0, ui.placebar.getBoundingClientRect().bottom - canvas.getBoundingClientRect().top + 8);
   }
-  // The Flame Tower's shot, drawn as a flamethrower's stream: a jet of fire from the projector's mouth to where the
-  // shot has got to, thin and white-hot at the nozzle, wider and redder toward its head. Looks only: the shot itself
-  // (world.js) still flies and lands as before. An old save's shot has no start point and is drawn as a ball of fire.
+  // The Flame Tower's fire, drawn as a flamethrower's stream. Looks only: its shots (world.js) still fly, land, splash
+  // and burn as before, two every couple of seconds.
+  // flameJet: while a tower is engaging (it has a target in range and has fired within a reload), one unbroken jet
+  // runs from the projector's mouth out to the target, and stays on between shots and from one target to the next
+  // (held JET_HOLD seconds when a target dies, while the tower picks another), so a group is hosed down in one go
+  // instead of the stream starting over with every shot. It follows the head as it turns. jetOn / jetD / jetSeen are
+  // draw-only state on the building (netcore.js SKIP).
+  const JET_SPEED = 230, JET_HOLD = 0.45;
+  function flameJet(v, b) {
+    const w = b.def.weapon, t = b.target, head = HEADS.ftur;
+    const engaged = b.buildT >= 1 && t && t.alive && typeof t.x === 'number' && G.t - (b.shotAt == null ? -99 : b.shotAt) < w.rof + 0.5
+      && Math.hypot(t.x - b.x, t.y - b.y) < w.range + 12;
+    if (engaged) { b.jetD = Math.hypot(t.x - b.x, t.y - b.y); b.jetSeen = G.t; if (b.jetOn == null) b.jetOn = G.t; }
+    else if (b.jetOn != null && !(G.t - b.jetSeen < JET_HOLD)) b.jetOn = null;
+    if (b.jetOn == null) return;
+    const ca = Math.cos(b.tface), sa = Math.sin(b.tface);
+    const sx = b.cx * CELL + head[1] + ca * 10, sy = b.cy * CELL + head[2] - head[3] * VK + sa * 10 - 3;
+    const ex = b.x + ca * b.jetD, ey = b.y + sa * b.jetD - 5;   // on the ground, out along where the head points
+    const full = Math.hypot(ex - sx, ey - sy), k = Math.min(1, ((G.t - b.jetOn) * JET_SPEED + 8) / full);
+    streamLine(v, sx, sy, sx + (ex - sx) * k, sy + (ey - sy) * k);
+  }
+  // A shot from a tower whose jet is showing is part of that jet. Otherwise (the tower is gone, or an old save's shot)
+  // it is drawn on its own: a short stream from where it left, or a ball of fire.
   function fireStream(v, p) {
-    let sx = p.sx, sy = p.sy;
-    const f = p.from, head = HEADS.ftur;
-    if (f && f.alive && f.type === 'ftur') {   // from the nozzle's mouth, which turns with the head
-      sx = f.cx * CELL + head[1] + Math.cos(f.tface) * 10; sy = f.cy * CELL + head[2] - head[3] * VK + Math.sin(f.tface) * 10 - 3;
-    }
-    if (typeof sx !== 'number') {
-      const r = 2.5 + Math.random();
-      v.fillStyle = 'rgba(255,120,30,0.55)'; v.beginPath(); v.arc(p.x, p.y, r + 2, 0, 7); v.fill();
-      v.fillStyle = '#ffb040'; v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.fill();
-      return;
-    }
-    const dx = p.x - sx, dy = p.y - sy, len = Math.hypot(dx, dy);
+    const f = p.from;
+    if (f && f.alive && f.type === 'ftur' && f.jetOn != null) return;
+    if (typeof p.sx === 'number') return streamLine(v, p.sx, p.sy, p.x, p.y);
+    const r = 2.5 + Math.random();
+    v.fillStyle = 'rgba(255,120,30,0.55)'; v.beginPath(); v.arc(p.x, p.y, r + 2, 0, 7); v.fill();
+    v.fillStyle = '#ffb040'; v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.fill();
+  }
+  // A jet of fire from (sx, sy) to (ex, ey): thin and white-hot at the nozzle, wider and redder toward a rolling head.
+  function streamLine(v, sx, sy, ex, ey) {
+    const dx = ex - sx, dy = ey - sy, len = Math.hypot(dx, dy);
     if (len < 1) return;
     const ux = dx / len, uy = dy / len, n = Math.max(2, Math.ceil(len / 2.5));
     for (const pass of [0, 1, 2]) {   // red-orange glow, then the orange body, then the white-hot core
@@ -176,8 +194,8 @@
       }
     }
     const r = 3 + Math.random() * 1.5;   // the rolling head of the stream
-    v.fillStyle = 'rgba(255,110,25,0.6)'; v.beginPath(); v.arc(p.x, p.y, r + 1.5, 0, 7); v.fill();
-    v.fillStyle = '#ffb040'; v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.fill();
+    v.fillStyle = 'rgba(255,110,25,0.6)'; v.beginPath(); v.arc(ex, ey, r + 1.5, 0, 7); v.fill();
+    v.fillStyle = '#ffb040'; v.beginPath(); v.arc(ex, ey, r, 0, 7); v.fill();
   }
   function centerOn(x, y) { cam.x = x - W / cam.z / 2; cam.y = y - H / cam.z / 2; clampCam(); }
   const s2w = (sx, sy) => ({ x: cam.x + sx / cam.z, y: cam.y + sy / cam.z });
@@ -353,6 +371,7 @@
       if (e.kind === 'bld') drawStructure(v, e, G.t);
       else drawUnit(v, e, G.t);
     }
+    for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') flameJet(v, e);
     for (const p of G.projectiles) {
       if (p.delay > 0) continue;
       const a = p.a || 0, ca = Math.cos(a), sa = Math.sin(a);
