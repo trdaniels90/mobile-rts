@@ -217,7 +217,7 @@ share globals. Read this file first; the commit history explains every change in
   the burn adds about a quarter to the tower's damage (riflemen: 98 from the burn, 368 from shots; light tanks 12 and 56).
   Fights vary too much from run to run for kill counts to show it.
 
-## More Airfields and Helicopter Bases build faster (after 2026.11.14.1, not released, both modes)
+## More Airfields and Helicopter Bases build faster (2026.11.14.2, both modes)
 
 - `producerBoost` (world.js) now covers every producer in `BOOSTED` (barracks, factory, helipad, airfield): `PRODUCER_BOOST`
   1x, 1.5x, 2x, 2.5x with 1 to 4+ of that building. Applies to the computer too. The Field Manual says so for all four.

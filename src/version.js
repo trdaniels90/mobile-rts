@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.14.2', date: '14 November 2026', title: 'More Airfields, faster jets', groups: [
+    ['Changes', [
+      'Extra Airfields and Helicopter Bases now speed up building, like Barracks and War Factories: 1.5x with two, 2x with three, up to 2.5x with four. This works for the computer too.',
+      'The Field Manual now explains this speed-up for all four buildings. (It wrongly said more Barracks did not train faster.)',
+    ]],
+  ] },
   { v: '2026.11.14.1', date: '14 November 2026', title: 'The Flame Tower burns', groups: [
     ['Changes', [
       'The Flame Tower\'s jet of fire now burns whatever stands in it, not just the target, so enemies caught in the stream take steady damage between its shots. Deadly to infantry, weak against tanks.',
