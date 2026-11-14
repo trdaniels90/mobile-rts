@@ -3437,11 +3437,12 @@ function cancelProduction(team, type) {
   return false;
 }
 
-// Each extra Barracks or War Factory speeds up its queue: 1.5x with two, 2x with three, at most
-// 2.5x. Production still runs one unit at a time per queue.
+// Each extra Barracks, War Factory, Helicopter Base or Airfield speeds up its queue: 1.5x with two,
+// 2x with three, at most 2.5x. Production still runs one unit at a time per queue.
 const PRODUCER_BOOST = [1, 1, 1.5, 2, 2.5];
+const BOOSTED = new Set(['barracks', 'factory', 'helipad', 'airfield']);
 function producerBoost(team, def) {
-  if (def.producer !== 'barracks' && def.producer !== 'factory') return 1;
+  if (!BOOSTED.has(def.producer)) return 1;
   const n = G.entities.filter((e) => e.alive && e.kind === 'bld' && e.team === team.id && e.type === def.producer && e.sellT <= 0).length;
   return PRODUCER_BOOST[Math.min(n, PRODUCER_BOOST.length - 1)];
 }
