@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.14.1', date: '14 November 2026', title: 'The Flame Tower burns', groups: [
+    ['Changes', [
+      'The Flame Tower\'s jet of fire now burns whatever stands in it, not just the target, so enemies caught in the stream take steady damage between its shots. Deadly to infantry, weak against tanks.',
+    ]],
+  ] },
   { v: '2026.11.14', date: '14 November 2026', title: 'A new Flame Tower', groups: [
     ['Changes', [
       'The Soviet Flame Tower has a new look: a six-sided brick and stone tower with a flamethrower head that turns to follow its target. Its fire is now a steady jet that stays on as it sweeps from one enemy to the next. It plays exactly as before.',

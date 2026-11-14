@@ -207,7 +207,7 @@ share globals. Read this file first; the commit history explains every change in
   (cap 900 in `aiGap`), `AI_GAP_MIN` 70, `AIR_STRIKE_GAP` 270. `ai-timing.js` 2 Normal games: first waves 535 to
   785 s. `jet-defense.js` seeds 11-12: raiders killed 12 to 10, MiGs lost 5 to 5.
 
-## Flame Tower jet burns (after 2026.11.14, not released, both modes)
+## Flame Tower jet burns (2026.11.14.1, both modes)
 
 - The new Flame Tower (PR #6) draws a steady jet of fire (ui.js `flameJet`). Now the jet does damage too: `flameBurn` in world.js,
   called from `updateBuilding` for a weapon with `jet` (`ftur`: `jet: { dps: 10, width: 7 }`, FIRE warhead). While the tower is
