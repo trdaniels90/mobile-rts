@@ -409,7 +409,9 @@ function aiLaunch(team, ready) {
   const full = A.planner && team.attackAt !== undefined && ready.length >= (A.armyUnits || ARMY_UNITS) * ARMY_FULL && G.t - (team.lastWave || -1e9) >= AI_GAP_MIN;
   // The first wave waits a while (on Easy and Normal), waves keep a gap between them, and each
   // takes only its planned number of units: the rest wait for the next one.
-  if (A.planner) { if (!full && (team.attackAt === undefined || G.t < team.attackAt || ready.length < team.plan.size)) return; }
+  // Planner waves are held until the army is big: WAVE_HOLD of the army cap, by count or by worth.
+  const hold = A.planner && ready.length < (A.armyUnits || ARMY_UNITS) * WAVE_HOLD && ready.reduce((w, u) => w + (u.def.cost || 300), 0) < (A.armyWorth || ARMY_WORTH) * WAVE_HOLD;
+  if (A.planner) { if (!full && (team.attackAt === undefined || G.t < team.attackAt || ready.length < team.plan.size || hold)) return; }
   else if (ready.length < team.plan.size || G.t < A.firstWave || G.t - (team.lastWave || -1e9) < A.waveGap) return;
   // The planner's wave sends every unit that has gathered (the units on home guard are not in `ready`).
   const take = A.planner ? ready.length : team.plan.size;
@@ -432,7 +434,7 @@ function aiLaunch(team, ready) {
 // The random wait before each attack, per difficulty (DIFFICULTY ai.gap): mostly `short`, now and then (`long`
 // chance) a longer lull; never over ten minutes. ARMY_FULL: share of the army cap waiting at home that
 // launches an attack early; AI_GAP_MIN: the least time between such waves.
-const ARMY_FULL = 0.6, AI_GAP_MIN = 70;
+const ARMY_FULL = 0.6, AI_GAP_MIN = 70, WAVE_HOLD = 0.5;
 function aiGap() {
   const g = G.diff.ai.gap || { short: [90, 450], long: [450, 900], chance: 0.2 }, [a, b] = Math.random() < g.chance ? g.long : g.short;
   return Math.min(900, a + Math.random() * (b - a));
