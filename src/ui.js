@@ -382,6 +382,7 @@
     const x0 = ox - 80, y0 = oy - 80, x1 = ox + bw + 80, y1 = oy + bh + 80;
     const inView = (e) => e.x > x0 && e.x < x1 && e.y > y0 && e.y < y1;
     for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0) drawEffect(v, fx);
+    drawTrees(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40);   // swaying in the wind, burning (art.js)
 
     const ground = [], air = [];
     for (const e of G.entities) {

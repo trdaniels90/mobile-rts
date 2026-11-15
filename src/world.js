@@ -4132,6 +4132,54 @@ function windNow() {
   const g = 1 + 0.4 * Math.sin(G.t * 0.35) + 0.2 * Math.sin(G.t * 0.9 + 1.3);
   return { x: Math.cos(a) * WIND * g, y: Math.sin(a) * WIND * g * 0.6, a };
 }
+// Trees on fire (drawn by drawTrees in art.js). An explosion sets the trees round it alight; a burning tree may
+// catch a neighbour or two a few seconds later, then the fire dies out and leaves burnt trees. G.treeFire holds
+// when each burning or burnt tree (its number in G.ground.trees) caught, G.treeHot those still burning. It runs in
+// the effects pass from the explosions each copy sees, so nothing goes over the network. Looks only.
+const litFx = new WeakSet();
+const TREE_SPREAD = 0.22;   // chance a burning tree catches each tree within 16 px
+function igniteTrees(x, y, r) {
+  const T = G.ground && G.ground.trees;
+  if (!T || !T.length) return;
+  const fire = G.treeFire || (G.treeFire = {}), hot = G.treeHot || (G.treeHot = []);
+  const cellsOf = T.cells || (T.cells = treeCells(T));
+  const near = (x, y, r, fn) => {
+    for (let cy = Math.floor((y - r) / CELL); cy <= Math.floor((y + r + 14) / CELL); cy++) for (let cx = Math.floor((x - r) / CELL); cx <= Math.floor((x + r) / CELL); cx++) {
+      const list = cx >= 0 && cy >= 0 && cx < MAP && cy < MAP && cellsOf.get(cy * MAP + cx);
+      if (list) for (const i of list) if (Math.hypot(T[i].x - x, T[i].y - 8 - y) <= r) fn(i);
+    }
+  };
+  const queue = [];
+  near(x, y, r, (i) => { if (fire[i] === undefined) { fire[i] = G.t; hot.push(i); queue.push(i); } });
+  // Where the fire goes on to: worked out now, each catching a little after the tree beside it.
+  while (queue.length && hot.length < 400) {
+    const i = queue.shift();
+    near(T[i].x, T[i].y - 8, 16, (j) => {
+      if (fire[j] !== undefined || Math.random() >= TREE_SPREAD) return;
+      fire[j] = fire[i] + 2.5 + Math.random() * 3; hot.push(j); queue.push(j);
+    });
+  }
+}
+function treeCells(T) {
+  const m = new Map();
+  T.forEach((tr, i) => { const k = Math.floor(tr.y / CELL) * MAP + Math.floor(tr.x / CELL); if (!m.has(k)) m.set(k, []); m.get(k).push(i); });
+  return m;
+}
+function treeFires(dt) {
+  const hot = G.treeHot, T = G.ground && G.ground.trees;
+  if (!hot || !hot.length || !T || !T.length) return;
+  const show = G.me >= 0 && G.seen;
+  G.treeHot = hot.filter((i) => {
+    const tr = T[i], age = G.t - G.treeFire[i];
+    if (!tr) return false;
+    if (age > TREE_BURN) { scorch(G.tctx, tr.x, tr.y - 3, 9, (i * 7919) | 0); return false; }   // ash round the foot of the burnt tree
+    if (age < 0 || !show || !G.seen[idx(Math.floor(tr.x / CELL), Math.floor(tr.y / CELL))]) return true;
+    const heat = Math.sin(Math.min(1, age / TREE_BURN) * Math.PI) + 0.15;
+    if (Math.random() < dt * 9 * heat) G.effects.push({ type: 'fire', x: tr.x + (Math.random() - 0.5) * 12, y: tr.y - 4 - Math.random() * 14, t: 0, life: 0.5 + Math.random() * 0.5, vy: -14 - Math.random() * 8 });
+    if (Math.random() < dt * 3 * heat) G.effects.push({ type: 'smoke', x: tr.x + (Math.random() - 0.5) * 6, y: tr.y - 18, r: 3, t: 0, life: 2.4, alpha: 0.5, color: '#36322d', vy: -10, vx: 2 });
+    return true;
+  });
+}
 // Smoke, debris, bodies and the like. A PvP guest runs these itself; G.inFx marks what they set
 // off (more effects, sounds, marks on the ground), which the host need not send.
 function updateEffects(dt) {
@@ -4144,6 +4192,7 @@ function updateEffects(dt) {
     else if (fx.type === 'eject') updateEject(fx, dt);
     else if (fx.type === 'ragdoll') updateRagdoll(fx, dt);
     else if (fx.type === 'turret') updateTurret(fx, dt);
+    else if (fx.type === 'expl' && fx.t >= 0 && fx.size >= 9 && !litFx.has(fx)) { litFx.add(fx); igniteTrees(fx.x, fx.y + 3, Math.max(12, fx.size * 1.4)); }
     else if (fx.type === 'flare' && fx.t >= 0) {
       fx.vx *= Math.exp(-1.4 * dt); fx.vy += (14 - fx.vy) * (1 - Math.exp(-1.2 * dt));   // drag, then a slow fall
       if ((fx.trailT = (fx.trailT || 0) - dt) <= 0) { fx.trailT = 0.05; fx.trail.push({ x: fx.x, y: fx.y }); if (fx.trail.length > 18) fx.trail.shift(); }
@@ -4159,6 +4208,7 @@ function updateEffects(dt) {
   }
   structureDamageFx(dt);
   plantSmoke(dt);
+  treeFires(dt);
   updateSamPits(dt);
   for (let i = n0; i < G.effects.length; i++) G.effects[i].sent = true;
   G.inFx = false;

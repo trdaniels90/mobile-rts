@@ -4690,6 +4690,41 @@ function treeModel(seed, pine, snow) {
   }
   return m;
 }
+// A tree burnt out by fire: a charred trunk and bare, blackened branches (broadleaf) or stubs of boughs up a
+// charred pole (pine). Same seed as the living tree, so it keeps its height.
+const CHAR = ['#221e1b', '#2f2a25', '#3e362f', '#4f453b'];
+function burntTreeModel(seed, pine) {
+  const r = rng(seed);
+  const m = new VModel(-12, -12, 12, 12, 30);
+  const col = () => CHAR[Math.floor(r() * 4)];
+  if (pine) {
+    const top = 15 + Math.floor(r() * 6);
+    m.cylZ(0, 0, 0, top, 1.4, CHAR[1], M_ROUGH);
+    for (let z = 5; z < top - 1; z += 3) {
+      for (let k = 0; k < 4; k++) {
+        if (r() < 0.35) continue;
+        const a = k * Math.PI / 2 + r() * 0.8, len = 1 + Math.floor(r() * Math.max(1, (top - z) * 0.3));
+        for (let i = 1; i <= len + 1; i++) m.set(Math.round(Math.cos(a) * i), Math.round(Math.sin(a) * i), z - (i > 2 ? 1 : 0), col(), M_ROUGH);
+      }
+    }
+  } else {
+    m.cylZ(0, 0, 0, 10, 1.7, CHAR[1], M_ROUGH);
+    const limbs = 4 + Math.floor(r() * 3);
+    for (let b = 0; b < limbs; b++) {
+      const a = r() * Math.PI * 2, z0 = 6 + r() * 4, len = 4 + r() * 4, rise = 0.6 + r() * 0.8;
+      for (let i = 0; i <= len * 2; i++) {
+        const t = i / 2, x = Math.cos(a) * t, y = Math.sin(a) * t, z = z0 + t * rise;
+        m.set(Math.round(x), Math.round(y), Math.round(z), col(), M_ROUGH);
+        if (i === Math.floor(len) && r() < 0.7) {   // a twig off the end
+          const a2 = a + (r() < 0.5 ? 0.9 : -0.9);
+          for (let j = 1; j <= 2; j++) m.set(Math.round(x + Math.cos(a2) * j), Math.round(y + Math.sin(a2) * j), Math.round(z + j), col(), M_ROUGH);
+        }
+      }
+    }
+    for (let z = 10; z < 13; z++) m.set(0, 0, z, CHAR[0], M_ROUGH);   // the snapped top of the trunk
+  }
+  return m;
+}
 function rockModel(seed) {
   const r = rng(seed);
   const m = new VModel(-13, -10, 13, 10, 12);
@@ -4736,12 +4771,14 @@ function gemModel(level, variant) {
   }
   return m;
 }
-const scenery = { trees: [], pines: [], snowPines: [], rocks: [], ore: [], gem: [] };
+const scenery = { trees: [], pines: [], snowPines: [], burntTrees: [], burntPines: [], rocks: [], ore: [], gem: [] };
 function buildScenery() {
   if (scenery.trees.length) return;
   for (let i = 0; i < 6; i++) scenery.trees.push(renderVox(treeModel(i * 97 + 3, false), 0));
   for (let i = 0; i < 5; i++) scenery.pines.push(renderVox(treeModel(i * 71 + 11, true), 0));
   for (let i = 0; i < 6; i++) scenery.snowPines.push(renderVox(treeModel(i * 71 + 11, true, true), 0));
+  for (let i = 0; i < 5; i++) scenery.burntTrees.push(renderVox(burntTreeModel(i * 97 + 3, false), 0));
+  for (let i = 0; i < 5; i++) scenery.burntPines.push(renderVox(burntTreeModel(i * 71 + 11, true), 0));
   for (let i = 0; i < 5; i++) scenery.rocks.push(renderVox(rockModel(i * 53 + 7), 0));
   for (let lv = 0; lv < 4; lv++) { scenery.ore[lv] = []; for (let v = 0; v < 4; v++) scenery.ore[lv].push(renderVox(oreModel(lv, v), 0)); }
   for (let lv = 0; lv < 4; lv++) { scenery.gem[lv] = []; for (let v = 0; v < 4; v++) scenery.gem[lv].push(renderVox(gemModel(lv, v), 0)); }

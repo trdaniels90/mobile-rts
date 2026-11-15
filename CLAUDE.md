@@ -859,6 +859,20 @@ frame-time maths everywhere, so it is not deterministic.
   Then Grenadier splash 22 to 14 px (owner's pick): Rifles vs Grenadiers Allies won 7 of 8 (left 2,683 / 1,498), Mixed 4 of 8, Infantry only 3 of 8, Artillery vs V2 3 of 8,
   Medium vs Mammoth 2 of 8, Medium vs Heavy 5 of 8, Light vs Heavy 4 of 8, Rockets vs Mammoth 4 of 8, Rangers + Light vs Heavy 1 of 8.
 
+## Trees sway in the wind and burn (after 2026.11.15.6, not released, both modes, looks only)
+
+- Trees are no longer painted into the ground (or its bake): `groundPainter`'s `prepare` puts them in `P.trees` (same random stream, so
+  rocks and bushes are where they were), `newGround` keeps them in `G.ground.trees` (sorted by y; none on the server or for an old
+  save's legacy ground), and `drawTrees` (art.js, called from ui.js `draw` before the units) draws them and their shadows each frame.
+  Each leans with `windNow()` (world.js, the wind that already blows smoke), harder in rain or snow (`weatherLevel`), with a gust rolling
+  across the woods downwind and a little flutter: a shear about the tree's foot. Pines are stiffer, burnt trees hardly move.
+- **Burning** (world.js `igniteTrees`, `treeFires`): an `expl` effect of size 9 or more sets the trees within `max(12, 1.4 x size)` px
+  alight when it goes off (in `updateEffects`, so each phone does it from the explosions it sees; `litFx` is a WeakSet, not a field, so
+  the host never sends it). Each burning tree may catch each neighbour within 16 px (`TREE_SPREAD` 0.22, a few seconds later), so a fire
+  spreads a little and dies out. It burns `TREE_BURN` (9) s with flames, smoke and a glow, fading into a burnt tree (`burntTreeModel`
+  in models.js, `scenery.burntTrees` / `burntPines`), then leaves a scorch mark. `G.treeFire` (tree number -> time it caught) and
+  `G.treeHot` are plain data, so saves keep burnt trees. Ground rebaked (`groundKey` has a `live-trees` token); sprites rebaked for the hash only.
+
 ## Stuck trucks and Outposts, defeated sides blow up (after 2026.11.15.5, not released, both modes)
 
 - **Dock deadlock** (`dockProgress`, `DOCK_PATIENCE` 5 s, `DOCK_BAN` 8 s): a truck holding a refinery's dock claim but getting no nearer lost it to
