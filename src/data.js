@@ -66,7 +66,7 @@ const UNIT_DEFS = {
   rifle: {
     name: 'Rifle Infantry', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
     cost: 100, hp: 50, armor: 'inf', speed: 32, sight: 4, r: 5,
-    weapon: { dmg: 7, rof: 1.3, range: 70, wh: 'RF', proj: 'bullet', burst: 3, gap: 0.11, splash: 14 },
+    weapon: { dmg: 7, rof: 1.3, range: 120, wh: 'RF', proj: 'bullet', burst: 3, gap: 0.11, splash: 14 },
   },
   grenadier: {
     name: 'Grenadier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['soviets'],

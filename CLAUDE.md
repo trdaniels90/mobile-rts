@@ -840,3 +840,6 @@ frame-time maths everywhere, so it is not deterministic.
   tank rows moved by noise only. Soviet infantry and Mammoths still win most of the rest.
   Then Artillery health 200 to 190 (owner: it won every fight): Artillery vs V2 Allies won 4 of 8 (left 3,828 / 4,096), Mixed 1 of 8, Infantry only 3 of 8,
   Medium vs Mammoth 1 of 8, Rifles vs Grenadiers 1 of 8. Runs vary a lot with 6 to 8 seeds, so treat 1 or 2 wins as noise.
+  Then Rifle Infantry range 70 to 120 px (5 cells, OpenRA's M1Carbine; both sides): Rifles vs Grenadiers 1 to 3 of 8 (left 1,866 / 1,866), Mixed 1 to 3 of 8, Infantry only 2 of 8.
+  Grenadier splash is the main lever for infantry (22 px: rifles won 2 of 10; 12 px: 7 of 10; 6 px, OpenRA's: 9 of 10): not changed yet.
+  OpenRA infantry share cells (`SharesCell` on the foot locomotor, up to 5 per cell), so they do clump; ours keep 1.4 radii apart.
