@@ -877,9 +877,15 @@ frame-time maths everywhere, so it is not deterministic.
 
 - Lakeside has `weather: { kind: 'rain', chance: 0.5 }` (A Bridge Too Far and Twin Lakes still have none, owner's call).
 - **Lightning** in any rain (`lightning`, `lightningAt` in art.js, from `drawWeather`): each second of battle clock rolls from the weather's
-  seed, so both online phones strike together; none under level 0.45, up to `LIGHTNING_RATE` (0.05 a second) in the heaviest rain. A strike: a
-  jagged forked bolt on screen (where differs per phone), a double flash (skipped with prefers-reduced-motion, `calmFlash`) and `thunder`
-  (audio.js FX: crack and a 4 s rolling rumble on a looped noise source) 0.25 to 1.85 s later. Nothing in the simulation reads it.
+  seed, so every online phone flashes together; none under level 0.45, up to `LIGHTNING_RATE` (0.05 a second) in the heaviest rain. Every strike:
+  a double screen flash (skipped with prefers-reduced-motion, `calmFlash`) and `thunder` (audio.js FX: crack and a 4 s rolling rumble on a looped
+  noise source) 0.25 to 1.85 s later. No bolt is drawn for these.
+- **Bolts that land** (owner's request, **both modes, gameplay**; world.js `lightningStrikes`, `boltStrike`, host only, so the server must run the
+  same version): `BOLT_SHARE` (0.35) of strikes (the 4th number of `lightningAt`) come down as a visible bolt (the `bolt` effect, drawn in art.js
+  `drawEffect`) anywhere on the map: 30% a finished building of any side, 12% a standing bridge span, else a wood (or any dry ground). It
+  leaves an `expl` (size 12: the trees round it catch) and a scorch, and a fire in `G.bolts` (saved) that burns `BOLT_BURN` (10) s with flames
+  and smoke; a building or span hit loses `BOLT_DMG` (10%) of its full health over the burn (`damage(.., 'GR', null)`: no attacker, no alarm).
+  Checked: forced strikes every second for a minute (60 bolts, 40 trees burnt, no errors); a hit Construction Yard lost exactly 10% in 10 s.
 
 ## Stuck trucks and Outposts, defeated sides blow up (after 2026.11.15.5, not released, both modes)
 

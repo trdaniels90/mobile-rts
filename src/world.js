@@ -4062,6 +4062,7 @@ function update(dt) {
   if ((T.win -= dt) <= 0) { T.win = 1; if (!G.remote) updateReserves(); checkWin(); }
   if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); for (const t of G.teams) if (!t.isAI) adviseTrucks(t); }
   if (!G.over && (T.stuck = (T.stuck === undefined ? 5 : T.stuck) - dt) <= 0) { T.stuck = 5; stuckWatch(); }
+  lightningStrikes(dt);
   updateEffects(dt);
   sweepDead();
   rollCredits(dt);
@@ -4180,6 +4181,62 @@ function treeFires(dt) {
     if (Math.random() < dt * 5 * heat) G.effects.push({ type: 'smoke', x: tr.x + (Math.random() - 0.5) * 10, y: tr.y - 26, r: 4, t: 0, life: 2.8, alpha: 0.55, color: '#2e2a26', vy: -14, vx: 2, drag: 0.4 });
     return true;
   });
+}
+// Lightning that lands (owner's request, both modes). Every strike flashes the screen and thunders (art.js lightning, on every
+// phone); BOLT_SHARE of them come down as a bolt you can see, somewhere on the map: on a building, a bridge span, a wood
+// or open ground, chosen here by the host. It sets the spot alight: the trees there catch (the 'expl' it leaves goes to
+// guests as usual), the ground is scorched, and a building or span burns for BOLT_BURN s, losing BOLT_DMG of its full
+// health over that time. G.bolts holds the fires (plain data, saved); the guests get the bolt, flames and health.
+const BOLT_SHARE = 0.35, BOLT_BURN = 10, BOLT_DMG = 0.1;
+function lightningStrikes(dt) {
+  const w = G.weather;
+  if (G.remote || !w || w.kind !== 'rain') return;
+  const t0 = G.boltT === undefined ? G.t - dt : G.boltT;
+  G.boltT = G.t;
+  if (G.t - t0 < 2) for (let s = Math.floor(t0); s <= Math.floor(G.t); s++) {
+    const hit = lightningAt(w, s);
+    if (hit && s + hit[0] > t0 && s + hit[0] <= G.t && hit[3] < BOLT_SHARE) boltStrike();
+  }
+  if (!G.bolts || !G.bolts.length) return;
+  G.bolts = G.bolts.filter((f) => {
+    f.t -= dt;
+    const e = f.id ? G.byId.get(f.id) : null;
+    if (f.id && (!e || !e.alive)) return false;
+    let x = f.x, y = f.y, wd = 12, ht = 10;
+    if (e) {
+      if (e.kind === 'bld') { x = (e.cx + e.w / 2) * CELL; y = (e.cy + e.h / 2) * CELL; wd = e.w * CELL * 0.8; ht = e.h * CELL * 0.7; }
+      else { x = e.x; y = e.y; wd = Math.min(60, e.w * CELL); ht = Math.min(40, e.h * CELL); }
+      damage(e, e.maxHp * BOLT_DMG / BOLT_BURN * dt, 'GR', null);   // GR: full damage on structures; no attacker, so no alarm
+    }
+    const heat = Math.min(1, f.t / 3);
+    if (Math.random() < dt * (e ? 10 : 6) * heat) G.effects.push({ type: 'fire', x: x + (Math.random() - 0.5) * wd, y: y + (Math.random() - 0.5) * ht, t: 0, life: 0.6 + Math.random() * 0.6, s: 1.2 + Math.random() * 0.5, vy: -14 - Math.random() * 10 });
+    if (Math.random() < dt * 2.5 * heat) G.effects.push({ type: 'smoke', x: x + (Math.random() - 0.5) * wd * 0.6, y: y - 10, r: 4, t: 0, life: 2.6, alpha: 0.5, color: '#2e2a26', vy: -12, vx: 2, drag: 0.4 });
+    return f.t > 0;
+  });
+}
+// Where a bolt comes down: a building, a bridge span, a wood or open ground.
+function boltStrike() {
+  const r = Math.random(), cell = (want) => {
+    for (let i = 0; i < 80; i++) { const c = Math.floor(Math.random() * NCELLS); if (want(G.terr[c])) return [(cellX(c) + 0.2 + Math.random() * 0.6) * CELL, (cellY(c) + 0.2 + Math.random() * 0.6) * CELL]; }
+    return null;
+  };
+  const blds = G.entities.filter((e) => e.alive && e.kind === 'bld' && e.buildT >= 1), spans = (G.spans || []).filter((s) => s.alive);
+  let tgt = null, x, y;
+  if (r < 0.3 && blds.length) tgt = blds[Math.floor(Math.random() * blds.length)];
+  else if (r < 0.42 && spans.length) tgt = spans[Math.floor(Math.random() * spans.length)];
+  if (tgt) {
+    x = tgt.kind === 'bld' ? (tgt.cx + Math.random() * tgt.w) * CELL : tgt.x + (Math.random() - 0.5) * CELL;
+    y = tgt.kind === 'bld' ? (tgt.cy + Math.random() * tgt.h) * CELL : tgt.y + (Math.random() - 0.5) * CELL;
+  } else {
+    const p = (r < 0.75 && cell((t) => t === 2)) || cell((t) => t !== 4);   // a wood, else any dry ground
+    if (!p) return;
+    [x, y] = p;
+  }
+  const seed = (Math.random() * 1e6) | 0;
+  G.effects.push({ type: 'bolt', x, y, t: 0, life: 0.45, seed });
+  G.effects.push({ type: 'expl', x, y: y - 2, size: 12, t: 0.02, life: 0.6, seed: seed + 1 });   // sets trees round it alight (updateEffects)
+  scorch(G.tctx, x, y, 12, seed);
+  (G.bolts || (G.bolts = [])).push({ x, y, t: BOLT_BURN, id: tgt ? tgt.id : 0 });
 }
 // Smoke, debris, bodies and the like. A PvP guest runs these itself; G.inFx marks what they set
 // off (more effects, sounds, marks on the ground), which the host need not send.
