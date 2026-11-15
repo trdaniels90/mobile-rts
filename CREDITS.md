@@ -72,6 +72,13 @@ The layout of "Twin Lakes" is traced the same way from a pixel map design by JGF
 (`maps/designs/twinlakes.png`, redrawn one colour per cell from their picture; the bridges were narrowed
 and are concrete).
 
+## Engineer
+
+The Engineer's look (helmet, olive tactical vest with pouches, knee pads) follows a reference figure supplied by
+JGFortanelli, an AI-generated 3D model made with Rodin Gen-1 (prompt: "Military tactical soldier figure"). The voxel
+model in `src/models.js` is original; the reference itself is not in the game. Its cost, health, speed and sight are
+Red Alert's published unit statistics.
+
 ## App icon
 
 The app icon (`icons/`) is AI-generated artwork made with ChatGPT for this project: a Soviet

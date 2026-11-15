@@ -28,7 +28,9 @@ const FACTIONS = {
 
 // Damage multiplier by warhead against armor class.
 // A bridge span that can be destroyed (maps with `breakable` in MAPS; world.js addSpan): neutral, never fired on unless
-// ordered, armoured like a structure. Down, any side can pay to rebuild it.
+// ordered (Attack ground), armoured like a structure. Down, an Engineer rebuilds it (the computer pays `rebuild` instead).
+// SPOT: a point on the ground units were told to fire at (commandAttackGround).
+const SPOT = { name: 'Ground', armor: 'bld', r: 0 };
 const SPAN = { name: 'Bridge', hp: 6000, armor: 'bld', r: 20, rebuild: 1500, rebuildTime: 45 };
 const WARHEADS = {
   SA:    { inf: 1.0, light: 0.55, heavy: 0.25, bld: 0.3, air: 0.6 },   // small arms
@@ -54,6 +56,13 @@ const UNIT_DEFS = {
     name: 'Grenadier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['soviets'],
     cost: 160, hp: 50, armor: 'inf', speed: 40, sight: 5, r: 5,
     weapon: { dmg: 42, rof: 2.0, range: 100, wh: 'HE', proj: 'grenade', splash: 22 },
+  },
+  // Unarmed. Walks into a destroyed bridge span and it is rebuilt, or into a damaged friendly structure and it is
+  // repaired in full; either way the Engineer is used up (world.js commandEngineer). Cost, health, speed and sight
+  // as Red Alert's (its speed 4 is the Rifle Infantry's).
+  engineer: {
+    name: 'Engineer', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
+    cost: 500, hp: 25, armor: 'inf', speed: 32, sight: 4, r: 5, engineer: true,
   },
   // Bails out of a downed aircraft. Cannot be built.
   pilot: {

@@ -515,14 +515,67 @@ function breakSpan(s, attacker) {
     const c = s.cells[(Math.random() * s.cells.length) | 0], p = cellCenter(c);
     G.effects.push({ type: 'expl', x: p.x + (Math.random() - 0.5) * CELL, y: p.y + (Math.random() - 0.5) * CELL, size: 12 + Math.random() * 8, t: -i * 0.12, life: 0.8, seed: (Math.random() * 1e6) | 0, debris: true });
   }
+  for (let i = 0; i < 5; i++) { const p = cellCenter(s.cells[(Math.random() * s.cells.length) | 0]); waterSplash(p.x, p.y, true); }
   for (const t of G.teams) say(t.id, 'Bridge destroyed');
 }
-// A side pays to have a destroyed span rebuilt; it is back after SPAN.rebuildTime.
+// Attack ground: fire at a point, whatever is there. On a bridge span that can be destroyed, the span is the
+// target; anywhere else the units shell the spot (a target of its own, never hurt, never in G.entities) until
+// they are given another order.
+function commandAttackGround(units, x, y) {
+  if (!(x >= 0 && y >= 0 && x < WORLD && y < WORLD)) return;
+  const s = spanAt(x, y);
+  commandAttack(units, s && s.alive ? s : { kind: 'spot', type: 'spot', def: SPOT, team: -1, x, y, hp: 1, maxHp: 1, alive: true, hitT: -99 });
+}
+
+// Engineers: sent to a destroyed bridge span, or to a damaged structure of their own alliance, they walk up to it,
+// put it right at once (the span stands again, the structure is back at full health) and are used up.
+const engineerJob = (u, t) => !!t && (t.kind === 'span' ? !t.alive : t.kind === 'bld' && t.alive && t.hp < t.maxHp && t.buildT >= 1 && t.sellT <= 0 && alliedSides(u.team, t.team));
+// The free cell beside a span or structure nearest the unit that it can walk to.
+function besideSpot(u, t) {
+  const here = cellOfPos(u.x, u.y), ring = [];
+  for (let y = t.cy - 1; y <= t.cy + t.h; y++) for (let x = t.cx - 1; x <= t.cx + t.w; x++) {
+    if (!inMap(x, y) || (x >= t.cx && x < t.cx + t.w && y >= t.cy && y < t.cy + t.h) || !freeCell(idx(x, y))) continue;
+    ring.push(idx(x, y));
+  }
+  const d = (c) => Math.hypot(cellX(c) * CELL + CELL / 2 - u.x, cellY(c) * CELL + CELL / 2 - u.y);
+  ring.sort((a, b) => d(a) - d(b));
+  for (const c of ring) if (c === here || connected(here, c)) return cellCenter(c);
+  return null;
+}
+function commandEngineer(units, t) {
+  for (const u of units) {
+    if (!u.alive || !u.def.engineer || !engineerJob(u, t)) continue;
+    const p = besideSpot(u, t);
+    if (!p) { say(u.team, 'Cannot reach it'); continue; }
+    u.order = { type: 'engineer', target: t, x: p.x, y: p.y }; u.target = null; u.staged = false; takeOver(u, 'move');
+    goTo(u, p.x, p.y);
+  }
+}
+function updateEngineer(u) {
+  const o = u.order, t = o.target;
+  if (!engineerJob(u, t)) { setGuard(u); return; }   // someone else got there first, or it is gone
+  // Beside it is enough, and a little further off when it has settled as near as the crowd lets it (followPath).
+  const d = distTo(u, t), settled = !u.dest && !u.needPath;
+  if (d > CELL * 1.5 && !(settled && d <= CELL * 3)) {
+    if (settled) { const p = besideSpot(u, t); if (p) goTo(u, p.x, p.y); else setGuard(u); }
+    return;
+  }
+  if (t.kind === 'span') {
+    t.rebT = 0; t.hp = t.maxHp; setSpan(t, true);
+    for (const tm of G.teams) say(tm.id, 'Bridge rebuilt');
+  } else {
+    t.hp = t.maxHp;
+    say(u.team, 'Structure repaired');
+  }
+  hooks.sfx('place', t.x, t.y); hooks.sfx('build', t.x, t.y);
+  u.alive = false;   // used up (not a loss)
+}
+
+// The computer pays to have a destroyed span rebuilt (it trains no Engineers); it is back after SPAN.rebuildTime.
 function rebuildSpan(team, s) {
   if (!s || s.kind !== 'span' || s.alive || s.rebT > 0 || !team || team.out || team.credits < SPAN.rebuild) return false;
   team.credits -= SPAN.rebuild;
   s.rebT = SPAN.rebuildTime; s.by = team.id;
-  say(team.id, 'Rebuilding bridge');
   return true;
 }
 function updateSpans(dt) {
@@ -1906,7 +1959,7 @@ function impact(kind, x, y, inAir) {
 
 // `from`: where the hit came from (a blast centre or the shooter), for how a soldier falls.
 function damage(t, amount, wh, attacker, from) {
-  if (!t.alive || G.remote) return;   // (a PvP guest's copy only shows the host's battle)
+  if (!t.alive || G.remote || t.kind === 'spot') return;   // (a PvP guest's copy only shows the host's battle)
   if (t.kind === 'bld' && t.def.camo && !(attacker && alliedSides(attacker.team, t.team))) t.revealT = CAMO_REVEAL;   // being hit gives it away
   // As in Red Alert: whoever fires at a support plane (Spy Plane, Paratroopers transport, bomber)
   // gives away where it stands, to either side.
@@ -2099,7 +2152,7 @@ function ragdoll(e, wh, from) {
     if (wh === 'TESLA') { G.effects.push({ type: 'spark', x: e.x, y: e.y - 8, t: 0, life: 0.3 }); fx.burnt = true; fx.shock = 0.5 + r() * 0.3; }
   }
   // The weapon, flung loose from the hands.
-  const wl = e.type === 'rocket' ? 12 : e.type === 'grenadier' || e.type === 'pilot' ? 0 : 8;
+  const wl = e.type === 'rocket' ? 12 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'engineer' ? 0 : 8;
   if (wl) {
     const hx = P[18], hy = P[19], hz = e.type === 'rocket' ? 15 : 10;
     fx.gun = { P: new Float32Array([hx - ca * wl / 2, hy - sa * wl / 2, hz, hx + ca * wl / 2, hy + sa * wl / 2, hz + 0.5]), len: wl };
@@ -2419,6 +2472,7 @@ function updateUnit(u, dt) {
   if (u.chute > 0) { u.chute -= dt; if (u.chute <= 0) landChute(u); return; }
   if (u.cls === 'air') { updateAir(u, dt); return; }
   if (u.order.type === 'repair') { updateRepairOrder(u, dt); followPath(u, dt); checkStuck(u, dt); return; }
+  if (u.order.type === 'engineer') { updateEngineer(u); if (u.alive) { followPath(u, dt); checkStuck(u, dt); } return; }
   u.repairing = false;
   if (u.def.harvester) { updateHarvester(u, dt); followPath(u, dt); checkStuck(u, dt); return; }
 

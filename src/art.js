@@ -1279,7 +1279,7 @@ function warmSprites(budgetMs, cx, cy) {
       warmDone.add(best.type + f + v);
       if (best.cls === 'inf') {
         for (const pose of WARM_POSES) {
-          if (pose === 7 && (best.type === 'rocket' || best.type === 'grenadier' || best.type === 'pilot')) continue;
+          if (pose === 7 && (best.type === 'rocket' || best.type === 'grenadier' || best.type === 'pilot' || best.type === 'engineer')) continue;
           for (let i = 0; i < 16; i++) warmJobs.push({ v, run: () => infSprite({ type: best.type, faction: f, face: i * Math.PI / 8 }, palFor(f), pose) });
         }
       } else {
@@ -1307,7 +1307,7 @@ function drawUnit(g, u, t) {
     if (u.chute > 0) { drawChute(g, u, pal, t); return; }
     // As in Red Alert: a four-pose walk, the weapon brought up to the shoulder to shoot (and held
     // there a moment), dropping prone under fire through a crouch, crawling, and getting up again.
-    const prone = u.stance === 'prone', gun = u.type !== 'rocket' && u.type !== 'grenadier' && u.type !== 'pilot';
+    const prone = u.stance === 'prone', gun = u.type !== 'rocket' && u.type !== 'grenadier' && u.type !== 'pilot' && u.type !== 'engineer';
     let a = INF_ANIM.get(u);
     if (!a) INF_ANIM.set(u, a = { prone, at: -9, aim: -9 });
     if (a.prone !== prone) { a.prone = prone; a.at = t; }
@@ -1562,6 +1562,28 @@ function spanRuin(s) {
       // Broken edge: a dark line of rubble where the deck ends.
       g.fillStyle = 'rgba(20, 22, 26, 0.55)';
       for (let v = -hw + 3; v <= hw - 3; v += 2 + r() * 3) { const p = at(T(CELL * (0.6 + r() * 0.5)), v); g.fillRect(Math.round(p[0]), Math.round(p[1]), 2, 2); }
+    }
+  }
+  // Debris: broken pieces of the deck lying in the shallows between the two ends, half under water.
+  if (b) {
+    const len = Math.hypot(b.b.x - b.a.x, b.b.y - b.a.y), ux = (b.b.x - b.a.x) / len, uy = (b.b.y - b.a.y) / len, hw = b.w / 2 - 6;
+    const r = rng(s.id * 104729 + 7), concrete = m.bridge === 'concrete', ang = Math.atan2(uy, ux);
+    const top = concrete ? ['#8d9196', '#7c8085', '#9a9ea3'] : ['#6b5638', '#7a6342', '#5a4730'], side = concrete ? '#4c5055' : '#3a2c1c';
+    const n = Math.max(6, Math.round(len * b.w / 2600));
+    for (let i = 0; i < n; i++) {
+      const t = CELL * 1.5 + r() * Math.max(1, len - CELL * 3), v = (r() * 2 - 1) * hw;
+      const px = b.a.x + ux * t - uy * v - X0, py = b.a.y + uy * t + ux * v - Y0;
+      const w2 = (i < 3 ? 10 : 4) + r() * (i < 3 ? 10 : 6), h2 = (i < 3 ? 6 : 3) + r() * (i < 3 ? 6 : 4), rot = ang + (r() - 0.5) * 1.6;
+      g.save();
+      g.translate(Math.round(px), Math.round(py)); g.rotate(rot);
+      g.fillStyle = 'rgba(12, 24, 40, 0.45)'; g.fillRect(-w2 / 2 - 1, -h2 / 2 + 1, w2 + 3, h2 + 2);        // its shadow in the water
+      g.fillStyle = side; g.fillRect(-w2 / 2, -h2 / 2, w2, h2 + 1);
+      g.fillStyle = top[i % 3]; g.fillRect(-w2 / 2, -h2 / 2, w2, h2 - 1);
+      g.fillStyle = 'rgba(40, 70, 105, 0.6)'; g.fillRect(-w2 / 2, h2 / 2 - 2 - r() * 2, w2 * (0.4 + r() * 0.6), 3);   // water lapping over one edge
+      if (concrete && w2 > 9) { g.fillStyle = '#3a3d40'; g.fillRect(w2 / 2 - 1, -1, 4, 1); g.fillRect(w2 / 2 - 1, 1.5, 3, 1); }   // reinforcing bars
+      g.restore();
+      g.fillStyle = 'rgba(225, 235, 245, 0.55)';                                                               // foam round it
+      for (let k = 0; k < 3; k++) g.fillRect(Math.round(px + (r() - 0.5) * (w2 + 6)), Math.round(py + (r() - 0.5) * (h2 + 6)), 1, 1);
     }
   }
   g.restore();

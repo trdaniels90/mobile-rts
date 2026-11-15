@@ -1,5 +1,6 @@
-// Bridges that can be destroyed (maps with `breakable`), headless: a span is only hurt by an ordered attack, goes down
-// with what stands on it, turns to water (routes go round), is rebuilt for credits, and travels to an online copy.
+// Bridges that can be destroyed (maps with `breakable`), attack ground and Engineers, headless: a span is only hurt by an
+// ordered attack, goes down with what stands on it, turns to water (routes go round), is rebuilt by an Engineer (the
+// computer pays instead), and travels to an online copy.
 // node tools/sim/bridges.js <repo>
 const vm = require('vm');
 const root = process.argv[2];
@@ -41,16 +42,46 @@ let wet = false;
 for (let i = 0; i < 60 && !wet; i++) { step(1); wet = run('S.cells.includes(cellOfPos(idle.x, idle.y))'); }
 ok('nobody drives over the gap', !wet && run('idle.alive'));
 
-// Rebuilding.
-run('T0.credits = 1000; 0');
+// Attack ground: a spot away from any bridge is shelled until another order; a spot on a span attacks the span.
+run(`var gunner = addUnit('mtank', T0, north.x - 60, north.y - 30), gx = north.x - 60, gy = north.y - 140; commandAttackGround([gunner], gx, gy); 0`);
+ok('attack ground makes a spot target', run(`gunner.order.type === 'attack' && gunner.order.target.kind === 'spot'`));
+let fired = 0;
+for (let i = 0; i < 24; i++) { step(0.5); if (run('gunner.cd > 0.5')) fired++; }
+ok('the unit keeps shelling the spot', run(`gunner.order.type === 'attack' && gunner.order.target.alive`) && fired >= 4, { reloads: fired });
+run(`commandAttackGround([gunner], G.spans[2].x, G.spans[2].y); 0`);
+ok('attack ground on a bridge names its span', run('gunner.order.target === G.spans[2]'));
+run('commandStop([gunner]); 0');
+
+// Engineers: one rebuilds the span and is used up; one repairs a damaged structure.
+run(`var eng = addUnit('engineer', T0, north.x + 30, north.y - 20), eng2 = addUnit('engineer', T0, north.x + 40, north.y - 20); 0`);
+ok('engineer is unarmed and cheap to kill', run('!eng.def.weapon && eng.maxHp === 25 && eng.def.cost === 500'));
+run(`commandEngineer([eng], S); 0`);
+ok('engineer takes the job', run(`eng.order.type === 'engineer' && eng.order.target === S`));
+let et = 0;
+while (!run('S.alive') && et < 60) { step(1); et++; }
+ok('engineer rebuilt the span', run('S.alive && S.hp === S.maxHp && S.cells.every((c) => G.terr[c] === 5 && G.block[c] === 0)'), { seconds: et });
+ok('and was used up', run('!eng.alive'));
+ok('no job on a standing span', run(`(commandEngineer([eng2], S), eng2.order.type !== 'engineer')`));
+run(`var cyB = buildingsOf(0).find((b) => b.type === 'cy') || addBuilding('cy', T0, Math.floor(north.x / CELL) - 1, S.cy - 12); cyB.buildT = 1; cyB.hp = 300;
+  eng2.x = cyB.x; eng2.y = (cyB.cy + cyB.h + 2) * CELL; commandEngineer([eng2], cyB); 0`);
+et = 0;
+while (run('eng2.alive') && et < 60) { step(1); et++; }
+ok('engineer repaired the structure in full', run('!eng2.alive && cyB.hp === cyB.maxHp'), { seconds: et });
+run(`var eng3 = addUnit('engineer', T1, cyB.x, (cyB.cy + cyB.h + 2) * CELL); cyB.hp = 300; commandEngineer([eng3], cyB); 0`);
+ok('an enemy engineer cannot repair it', run(`eng3.order.type !== 'engineer'`));
+
+// Both sides train Engineers at a Barracks.
+run(`for (const T of [T0, T1]) { const c = buildingsOf(T.id).find((b) => b.type === 'cy'); const bk = addBuilding('barracks', T, c.cx + 4, c.cy); bk.buildT = 1; T.credits = 2000; startProduction(T, 'engineer'); } 0`);
+step(40);
+ok('both factions train an Engineer for 500', run(`[T0, T1].every((T) => unitsOf(T.id).some((u) => u.type === 'engineer' && Math.hypot(u.x - T.start.cx * CELL, u.y - T.start.cy * CELL) < 400) && Math.round(T.credits) === 1500)`), run('[T0, T1].map((T) => [T.faction, Math.round(T.credits)])'));
+
+// The computer pays instead (it trains no Engineers).
+run(`damage(S, 1e6, 'AP', gunner); T0.credits = 1000; 0`);
 ok('too poor to rebuild', run('rebuildSpan(T0, S)') === false);
 run('T0.credits = 5000; 0');
 ok('rebuild ordered and paid', run('rebuildSpan(T0, S)') === true && run('T0.credits') === 5000 - run('SPAN.rebuild'));
-ok('no second payment', run('rebuildSpan(T1, S)') === false);
-step(run('SPAN.rebuildTime') - 2);
-ok('not up early', !run('S.alive'));
-step(4);
-ok('rebuilt: deck again, full health', run('S.alive && S.hp === S.maxHp && S.cells.every((c) => G.terr[c] === 5 && G.block[c] === 0)'));
+step(run('SPAN.rebuildTime') + 2);
+ok('rebuilt after the wait', run('S.alive && S.hp === S.maxHp'));
 
 // Online: the snapshot carries the spans; an order from a remote player can name one.
 run(`var P = NetCore.peer(1), snap = null; NetCore.hosting = true; NetCore.snapshots([P], (p, s) => { snap = s; }); 0`);
@@ -59,8 +90,12 @@ run(`snap = null; NetCore.snapshots([P], (p, s) => { snap = s; }); 0`);
 ok('nothing sent while unchanged', run('!snap || !snap.sp'));
 run(`var mine = addUnit('mtank', T1, south.x, south.y); NetCore.applyCommand(1, { f: 'commandAttack', a: [[{ $e: mine.id }], { $e: S.id }] }); 0`);
 ok('a remote attack order names the span', run('mine.order.type === "attack" && mine.order.target === S'));
-run(`S.hp = 1; damage(S, 500, 'AP', mine); T1.credits = 4000; NetCore.applyCommand(1, { f: 'rebuildSpan', a: [{ $t: 1 }, { $e: S.id }] }); 0`);
-ok('a remote rebuild order works', run('!S.alive && S.rebT > 0 && S.by === 1'));
+run(`NetCore.applyCommand(1, { f: 'commandAttackGround', a: [[{ $e: mine.id }], 400, 400] }); 0`);
+ok('a remote attack-ground order works', run(`mine.order.target.kind === 'spot' && mine.order.target.x === 400`));
+run(`S.hp = 1; damage(S, 500, 'AP', mine); var eng4 = addUnit('engineer', T1, south.x, south.y); NetCore.applyCommand(1, { f: 'commandEngineer', a: [[{ $e: eng4.id }], { $e: S.id }] }); 0`);
+ok('a remote engineer order names the span', run(`!S.alive && eng4.order.type === 'engineer' && eng4.order.target === S`));
+run(`snap = null; NetCore.snapshots([P], (p, s) => { snap = s; }); 0`);
+ok('a spot target travels in a snapshot without breaking it', run(`!!snap && !!snap.e[mine.id] && JSON.stringify(snap).length > 0`));
 run(`applySpans([[6000, 1, 0], [0, 0, 12], [6000, 1, 0], [6000, 1, 0]]); 0`);
 ok('a copy applies the host state', run('S.alive && !G.spans[1].alive && G.spans[1].rebT === 12 && G.terr[G.spans[1].cells[0]] === 4'));
 

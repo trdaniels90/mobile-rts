@@ -417,7 +417,7 @@
     air.sort((a, b) => (a.alt || 0) - (b.alt || 0) || a.y - b.y);
     for (const e of air) drawUnit(v, e, G.t);
 
-    // Bridge spans: health while under fire or being picked as a target, progress while rebuilt.
+    // Bridge spans: health while under fire or while a ground target is being picked, progress while the computer rebuilds one.
     for (const s of G.spans || []) {
       if (!G.seen[idx(Math.floor(s.x / CELL), Math.floor(s.y / CELL))]) continue;
       if (s.alive && (G.t - s.hitT < 3 || aimSpan)) drawHealth(v, s, s.x, s.y - 2, 40);
@@ -589,30 +589,28 @@
   function marker(x, y, color) { G.effects.push({ type: 'ring', x, y, color, t: 0, life: 0.5 }); }
 
   let lastTap = null;
-  // Bridges that can be destroyed (world.js addSpan). aimSpan: the units waiting for a bridge to be tapped (BRIDGE
-  // on the bar). rebuildArmed: the destroyed span tapped once; a second tap pays for the rebuild.
-  let aimSpan = null, rebuildArmed = null, spanSig = '';
+  // Attack ground (the ATTACK GROUND button): aimSpan holds the units waiting for the next tap, which orders them to
+  // fire at that spot, or at the bridge span there (world.js commandAttackGround).
+  let aimSpan = null, spanSig = '';
   function tap(sx, sy, shift) {
     if (!G || G.over) return;
     const w = s2w(sx, sy);
     if (G.place) { placeTap(w); return; }
     if (aimSpan) {
-      const units = aimSpan.filter((u) => u.alive), s = spanAt(w.x, w.y);
+      const units = aimSpan.filter((u) => u.alive), hit = pick(w.x, w.y, (isTouch ? 16 : 6) / cam.z);
       aimSpan = null;
-      if (s && s.alive) {
-        const able = units.filter((u) => canTarget(u, s));
-        if (able.length) { commandAttack(able, s); marker(s.x, s.y, '#ff4a3a'); Sound.ack(able[0].cls === 'inf' ? 'attack' : able[0].cls); }
+      if (units.length && !(hit && hit.team !== undefined && hostile(hit.team, G.me))) {   // (an enemy under the tap: the usual attack order below)
+        commandAttackGround(units, w.x, w.y);
+        marker(w.x, w.y, '#ff4a3a'); Sound.ack(units[0].cls === 'inf' ? 'attack' : units[0].cls);
         return;
       }
     }
-    const down = spanAt(w.x, w.y);
-    if (down && !down.alive && G.teams[G.me] && !G.teams[G.me].out) {
-      const now = performance.now();
-      if (down.rebT > 0) evaCalm('Bridge is being rebuilt', 3);
-      else if (G.teams[G.me].credits < SPAN.rebuild) evaCalm(`Rebuilding the bridge costs ${SPAN.rebuild}`, 4);
-      else if (rebuildArmed && rebuildArmed.s === down && now - rebuildArmed.t < 5000) { rebuildArmed = null; rebuildSpan(G.teams[G.me], down); }
-      else { rebuildArmed = { s: down, t: now }; evaCalm(`Tap again to rebuild the bridge: ${SPAN.rebuild} credits`, 5); }
-      return;
+    // Engineers: tap a destroyed bridge span to rebuild it, or a damaged structure of your side or an ally's to repair it.
+    const engs = G.selection.filter((u) => u.alive && u.kind === 'unit' && u.team === G.me && u.def.engineer);
+    if (engs.length) {
+      const down = spanAt(w.x, w.y), bld = pick(w.x, w.y, (isTouch ? 16 : 6) / cam.z);
+      const job = down && !down.alive ? down : bld && bld.kind === 'bld' && engineerJob(engs[0], bld) ? bld : null;
+      if (job) { commandEngineer(engs, job); marker(job.x, job.y, '#3ed04a'); Sound.ack('inf'); return; }
     }
     const slop = (isTouch ? 16 : 6) / cam.z;
     const e = pick(w.x, w.y, slop);
@@ -1198,7 +1196,7 @@
     const btns = [];
     if (own.some((e) => e.kind === 'unit' && e.def.deploys)) btns.push(['deploy', 'DEPLOY']);
     if (fighters.length) btns.push(['hunt', 'ATTACK'], ['guard', 'GUARD']);
-    if (fighters.length && (G.spans || []).some((s) => s.alive)) btns.push(['span', 'BRIDGE']);
+    if (fighters.length) btns.push(['span', 'ATTACK GROUND']);
     if (own.some((e) => e.kind === 'unit')) btns.push(['stop', 'STOP']);
     if (own.some((e) => canService(e) && e.hp < e.maxHp) && hasBuilt(G.teams[G.me], 'depot')) btns.push(['svc', 'REPAIR']);
     if (bld) {
@@ -1231,7 +1229,7 @@
       if (!enemyBaseKnown()) evaCalm('Enemy base not located', 4);   // pick a target, or scout first
       else { commandHunt(own.filter((u) => u.kind === 'unit' && (u.def.weapon || u.cls === 'air'))); eva('Attacking enemy base'); Sound.ack('attack'); }
     }
-    else if (act === 'span') { aimSpan = own.filter((u) => u.kind === 'unit' && !u.def.harvester && (u.def.weapon || u.cls === 'air')); evaCalm('Tap the bridge to destroy', 5); }
+    else if (act === 'span') { aimSpan = own.filter((u) => u.kind === 'unit' && !u.def.harvester && (u.def.weapon || u.cls === 'air')); evaCalm('Tap the ground to attack', 5); }
     else if (act === 'guard') beginGuard(own.filter((u) => u.kind === 'unit' && !u.def.harvester));
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
     else if (act === 'svc') { commandRepair(own.filter((u) => canService(u) && u.hp < u.maxHp)); eva('To the Service Depot'); Sound.ack('veh'); }
