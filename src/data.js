@@ -26,6 +26,20 @@ const FACTIONS = {
   },
 };
 
+// Veterancy, as in OpenRA's Red Alert: a unit is promoted when the cost of what it has destroyed reaches
+// `at` times its own cost. Each rank (index 0 = none, 4 = elite) multiplies the damage it deals (`fire`),
+// the damage it takes (`armor`), its speed on the ground and its reload time. An elite unit also heals
+// `heal` of its health every `healEvery` seconds once it has not been hit for `healWait`.
+const VET = {
+  at: [2, 4, 8, 16],
+  fire: [1, 1.05, 1.1, 1.2, 1.3],
+  armor: [1, 0.95, 0.9, 0.85, 0.75],
+  speed: [1, 1.05, 1.1, 1.2, 1.4],
+  reload: [1, 0.95, 0.9, 0.85, 0.75],
+  heal: 0.05, healEvery: 4, healWait: 5,
+  names: ['', 'Veteran', 'Veteran II', 'Veteran III', 'Elite'],
+};
+
 // Damage multiplier by warhead against armor class.
 const WARHEADS = {
   SA:    { inf: 1.0, light: 0.55, heavy: 0.25, bld: 0.3, air: 0.6 },   // small arms

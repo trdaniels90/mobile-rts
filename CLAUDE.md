@@ -678,6 +678,7 @@ Supabase.
 | `give-credits.js` | Giving credits to an ally: the rule headless, the GIVE card in a 2 v 2 skirmish, online co-op through the server and forged orders |
 | `server-coop-mate.js` | Co-op with a computer teammate: two players in a 3 v AI, the leader adds the computer, the battle starts with it on the players' team |
 | `bunching.js` | Headless staged fight: how many friends stand inside one V2 blast of each fighting unit, attack and defence, and how the fight went. `<repo> [runs] [seconds]` |
+| `veterancy.js` | Headless: ranks at 2, 4, 8, 16 times own cost destroyed, firepower, armour, speed, reload, elite self-heal, no ranks for Ore Trucks or structures, a staged fight |
 | `rally.js` | Headless: units from an Outpost Barracks stay there, PRIMARY picks the Barracks, a rally point gathers new units, fallback when the primary is lost |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
@@ -743,3 +744,18 @@ frame-time maths everywhere, so it is not deterministic.
 
 - With 2+ allies the ALLY button opens a picker (`allyPicker` in ui.js); `setAssist(team, on, side)` stores `team.assistSide` (synced; the guest's order carries the side). `assistAlly(team)` is the picked ally (else the first). A human's units go to and defend only that one; picking another moves the garrison over. The computer still answers any ally's call.
 - `defendAllies` also treats an enemy unit as a threat when it is shooting at an ally's unit within `R2` (22 cells) of that ally's buildings (raiders at the base were 14 cells). `node tools/sim/ally-defend.js <repo>` (3 v 3 on Lakeside): old code never answered raiders at the second ally and killed 1 of 2 units hitting a unit outside the base; now 3 of 3 and 2 of 2.
+
+## Unit veterancy (after 2026.11.14.12, not released, both modes)
+
+- Owner's request, OpenRA's Red Alert rules (`^GainsExperience` in its `mods/ra/rules/defaults.yaml`). `VET` in data.js: a unit is
+  promoted when `killWorth` (cost of what it destroyed, already kept for the debrief) reaches 2, 4, 8, 16 times its own cost.
+  `u.rank` 1-4 (4 = Elite): damage dealt x 1.05 / 1.1 / 1.2 / 1.3 and taken x 0.95 / 0.9 / 0.85 / 0.75 (both in `damage`), reload
+  x 0.95 / 0.9 / 0.85 / 0.75 (where `u.cd` is set from `rof`), ground speed x 1.05 / 1.1 / 1.2 / 1.4 (`followPath`, `slideOut`;
+  **aircraft keep their speed**, their turning-circle maths depends on it). Elite heals 5% every 4 s after 5 s unhit (`vetHeal`).
+- `promote` (world.js, from `kill`): only armed units that cost something (`gainsRank`: not Ore Trucks, support planes, pilots'
+  free spawns or structures); a gold ring effect and "Unit promoted" / "Unit promoted to elite" (text only, no voice clip yet,
+  at most every 12 s). The computer's units earn ranks too; the AI does not reason about them.
+- `rank` is a plain unit field: saved, and synced to online guests (so the server must run the same version); `healT` is a host
+  timer (netcore `SKIP`). Drawn by `drawRank` in ui.js for every visible ranked unit (gold chevrons, a star for Elite; enemy
+  ranks show too) and named in the selection bar. Field Manual row "Veterancy".
+- Not done: a promotion sound or voice line, ranks in the debrief, a newly built unit starting with rank (OpenRA has none either).

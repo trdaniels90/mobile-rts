@@ -143,6 +143,7 @@ const Manual = (() => {
         <tr><td>Orders</td><td colspan="2">ATTACK, GUARD and STOP on the bar that shows your selection (see Your Army in Battle)</td></tr>
         <tr><td>Deselect</td><td>The ✕ button</td><td>Right click or Esc</td></tr>
         <tr><td>Build</td><td>Tap an icon; when READY tap the map, then tap the ghost again</td><td>Click the icon, then the map</td></tr>
+        <tr><td>Veterancy</td><td colspan="2">A unit is promoted when it has destroyed 2, 4, 8 and 16 times its own cost (gold chevrons beside it). Each rank hits harder (+5, 10, 20, 30%), takes less damage (-5, 10, 15, 25%), reloads faster (5, 10, 15, 25%) and moves faster on the ground (+5, 10, 20, 40%). The fourth rank is Elite (a gold star): it also repairs itself when out of the fight. Structures and Ore Trucks earn no ranks</td></tr>
         <tr><td>Rally point</td><td colspan="2">Select a Barracks or War Factory, tap RALLY, then tap the map: its new units go there (NO RALLY clears it). Without one, new units wait beside the base that made them, so an Outpost's units stay at the Outpost</td></tr>
         <tr><td>Primary building</td><td>Double-tap a Barracks or War Factory, or select it and tap PRIMARY</td><td>Double click, or PRIMARY</td></tr>
         <tr><td>Cancel production</td><td>Hold the icon</td><td>Right click the icon</td></tr>

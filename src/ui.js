@@ -315,6 +315,21 @@
     g.fillStyle = f > 0.5 ? '#3ed04a' : f > 0.25 ? '#e8d23a' : '#e03a2a';
     g.fillRect(x, y, Math.max(1, Math.round(w * f)), 2);
   }
+  // Veterancy: one gold chevron per rank at the unit's lower right; an elite unit wears a star.
+  function drawRank(g, e) {
+    const r = e.def.r, x = Math.round(e.x + r - 1), y0 = Math.round(e.y - (e.alt || 0) + (e.cls === 'inf' ? -2 : r - 2));
+    if (e.rank >= VET.at.length) {
+      g.fillStyle = '#000'; g.fillRect(x - 3, y0 - 3, 7, 7);
+      g.fillStyle = '#ffd65a'; g.fillRect(x - 2, y0, 5, 1); g.fillRect(x, y0 - 2, 1, 5); g.fillRect(x - 1, y0 - 1, 3, 3);
+      g.fillStyle = '#fff6c8'; g.fillRect(x, y0, 1, 1);
+      return;
+    }
+    for (let i = 0; i < e.rank; i++) {
+      const y = y0 - i * 3;
+      g.fillStyle = '#000'; g.fillRect(x - 3, y - 1, 7, 4);
+      g.fillStyle = '#ffd65a'; g.fillRect(x, y - 1, 1, 1); g.fillRect(x - 1, y, 3, 1); g.fillRect(x - 2, y + 1, 2, 1); g.fillRect(x + 1, y + 1, 2, 1);
+    }
+  }
   function brackets(g, x0, y0, x1, y1) {
     x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
     g.fillStyle = '#f2f2ea';
@@ -413,6 +428,7 @@
       if (!inView(e) || !visibleToPlayer(e)) continue;
       const sel = G.selection.includes(e);
       const recent = G.t - e.hitT < 3;
+      if (e.rank && e.kind === 'unit') drawRank(v, e);
       if (!sel && !recent) continue;
       if (e.kind === 'bld') {
         const bx = e.cx * CELL, by = e.cy * CELL;
@@ -1148,7 +1164,7 @@
     if (!sel.length) { ui.selbar.hidden = true; selSig = ''; return; }
     ui.selbar.hidden = false;
     const one = sel.length === 1 ? sel[0] : null;
-    ui.selName.textContent = one ? (one.def.name + (hostile(one.team, G.me) ? ' · enemy' : one.team !== G.me ? ' · ally' : '')) : `${sel.length} units`;
+    ui.selName.textContent = one ? (one.def.name + (one.rank ? ' · ' + VET.names[one.rank] : '') + (hostile(one.team, G.me) ? ' · enemy' : one.team !== G.me ? ' · ally' : '')) : `${sel.length} units`;
     const hp = one ? one.hp / one.maxHp : sel.reduce((s, e) => s + e.hp / e.maxHp, 0) / sel.length;
     ui.selHp.style.setProperty('--p', Math.max(0, hp));
     ui.selHp.dataset.state = hp > 0.5 ? 'ok' : hp > 0.25 ? 'warn' : 'low';

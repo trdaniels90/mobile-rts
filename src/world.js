@@ -765,7 +765,7 @@ function followPath(u, dt) {
     return false;
   }
   const want = Math.atan2(dy, dx);
-  let speed = u.def.speed, mx, my;
+  let speed = u.def.speed * VET.speed[u.rank || 0], mx, my;
   // Infantry in a loose wave, and vehicles, each keep their own pace (paceMul).
   if (u.paceMul && u.paceMul !== 1 && (u.order.type === 'hunt' || u.order.type === 'attack')) speed *= u.paceMul;
   if (u.cls === 'inf' && u.stance === 'prone') speed *= CRAWL_SPEED;   // under fire: crawling
@@ -1845,6 +1845,23 @@ function impact(kind, x, y, inAir) {
 }
 
 // `from`: where the hit came from (a blast centre or the shooter), for how a soldier falls.
+// Veterancy (VET in data.js). Only armed units that cost something earn ranks; structures never do.
+function gainsRank(u) { return u.kind === 'unit' && u.def.cost > 0 && !u.def.scripted && !u.def.harvester && !!(u.def.weapon || u.def.weapon2 || u.def.gun); }
+function promote(u) {
+  if (G.remote || !u.alive || !gainsRank(u)) return;
+  let r = u.rank || 0;
+  while (r < VET.at.length && u.killWorth >= VET.at[r] * u.def.cost) r++;
+  if (r === (u.rank || 0)) return;
+  u.rank = r;
+  G.effects.push({ type: 'ring', x: u.x, y: u.y - (u.alt || 0), t: 0, life: 1.2, color: 'rgba(255,214,90,0.95)' });
+  notify(G.teams[u.team], 'promo', r >= VET.at.length ? 'Unit promoted to elite' : 'Unit promoted', 12);
+}
+function vetHeal(u, dt) {   // an elite unit mends itself when it has not been hit for a while
+  if (u.hp >= u.maxHp || G.t - u.hitT < VET.healWait) { u.healT = 0; return; }
+  u.healT = (u.healT || 0) + dt;
+  if (u.healT >= VET.healEvery) { u.healT = 0; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * VET.heal); }
+}
+
 function damage(t, amount, wh, attacker, from) {
   if (!t.alive || G.remote) return;   // (a PvP guest's copy only shows the host's battle)
   if (t.kind === 'bld' && t.def.camo && !(attacker && alliedSides(attacker.team, t.team))) t.revealT = CAMO_REVEAL;   // being hit gives it away
@@ -1854,6 +1871,8 @@ function damage(t, amount, wh, attacker, from) {
   const armor = armorOf(t);
   const mult = WARHEADS[wh][armor];
   if (!mult) return;
+  if (attacker && attacker.rank) amount *= VET.fire[attacker.rank];
+  if (t.rank) amount *= VET.armor[t.rank];
   // As in Red Alert: infantry under fire go prone and stay down (crawling if they have to move)
   // until they have not been hit for a while. Prone, they take PRONE_COVER of the damage.
   let cover = 1;
@@ -1922,7 +1941,7 @@ function kill(e, attacker, wh, from) {
   if (attacker && hostile(attacker.team, e.team)) {
     const st = G.teams[attacker.team].stats;
     if (e.kind === 'unit') st.killed++; else st.bldKilled++;
-    if (attacker.kind === 'unit') { attacker.kills = (attacker.kills || 0) + 1; attacker.killWorth = (attacker.killWorth || 0) + (e.def.cost || 0); }
+    if (attacker.kind === 'unit') { attacker.kills = (attacker.kills || 0) + 1; attacker.killWorth = (attacker.killWorth || 0) + (e.def.cost || 0); promote(attacker); }
   }
   if (e.kind === 'bld' && e.sellT <= 0) {
     team.stats.bldLost++;
@@ -2346,6 +2365,7 @@ function updateUnit(u, dt) {
     u.twinNext = 0; u.twinTarget = null;
     if (t && t.alive) fireWeapon(u, u.def.weapon, t, true);
   }
+  if (u.rank >= VET.at.length) vetHeal(u, dt);
   if (u.stance && G.t > u.stanceUntil) u.stance = null;   // quiet for a while: back on their feet
   u.moving = false;
   tickBurst(u, dt);
@@ -2400,8 +2420,8 @@ function updateUnit(u, dt) {
   if (u.def.weapon2 && u.cd2 <= 0 && (u.cls !== 'inf' || u.cd <= 0)) {
     const t2 = u.target && canHit(u.def.weapon2, u.target) && distTo(u, u.target) <= u.def.weapon2.range ? u.target : acquire(u, u.def.weapon2.range, [u.def.weapon2]);
     if (t2) {
-      if (u.cls === 'inf') { u.face = Math.atan2(t2.y - (t2.alt || 0) - u.y, t2.x - u.x); u.cd = Math.max(u.cd, u.def.weapon2.rof); }
-      fireWeapon(u, u.def.weapon2, t2); u.cd2 = u.def.weapon2.rof;
+      if (u.cls === 'inf') { u.face = Math.atan2(t2.y - (t2.alt || 0) - u.y, t2.x - u.x); u.cd = Math.max(u.cd, u.def.weapon2.rof * VET.reload[u.rank || 0]); }
+      fireWeapon(u, u.def.weapon2, t2); u.cd2 = u.def.weapon2.rof * VET.reload[u.rank || 0];
     } else u.cd2 = 0.3;   // nothing in reach: look again shortly (not every frame)
   }
   checkStuck(u, dt);
@@ -2419,7 +2439,7 @@ function engage(u, t, dt) {
     if (u.def.fixed) { u.face = u.tface = turnToward(u.face, ang, u.def.turn * dt); aligned = Math.abs(angDiff(ang, u.face)) < 0.08; }   // no turret: turn the vehicle
     else if (u.cls === 'veh') { u.tface = turnToward(u.tface, ang, 5 * dt); aligned = Math.abs(angDiff(ang, u.tface)) < 0.12; }
     else u.face = ang;
-    if (aligned && u.cd <= 0 && w === u.def.weapon) { shoot(u, w, t); u.cd = w.rof; if (u.cls === 'inf' && u.def.weapon2) u.cd2 = Math.max(u.cd2, w.rof); }
+    if (aligned && u.cd <= 0 && w === u.def.weapon) { shoot(u, w, t); u.cd = w.rof * VET.reload[u.rank || 0]; if (u.cls === 'inf' && u.def.weapon2) u.cd2 = Math.max(u.cd2, u.cd); }
   } else {
     const p = approachSpot(u, t, w);
     if (!u.needPath && (!u.dest || Math.hypot(u.dest.x - p.x, u.dest.y - p.y) > 40)) goTo(u, p.x, p.y);
@@ -2480,7 +2500,7 @@ function slideOut(u, t, w, dt) {
   if (crowd < 1) return false;
   u.slideT += dt;
   const want = Math.atan2(dy, dx);
-  let speed = u.def.speed * (u.cls === 'inf' && u.stance === 'prone' ? CRAWL_SPEED : 1);
+  let speed = u.def.speed * VET.speed[u.rank || 0] * (u.cls === 'inf' && u.stance === 'prone' ? CRAWL_SPEED : 1);
   if (u.cls === 'veh') { u.face = turnToward(u.face, want, u.def.turn * dt); speed *= Math.max(0, Math.cos(angDiff(want, u.face))); }
   else u.face = want;
   const step = Math.min(speed * dt, d);
@@ -3087,7 +3107,7 @@ function updateAir(u, dt) {
       if (jet) {
         if (u.aam > 0 && u.cd <= 0) {
           const a = acquire(u, u.def.weapon2.range, [u.def.weapon2], isAirborne);
-          if (a && isAirborne(a) && Math.abs(angDiff(Math.atan2(a.y - u.y, a.x - u.x), u.face)) < 0.5) { shoot(u, u.def.weapon2, a); u.cd = u.def.weapon2.rof; u.aam--; }
+          if (a && isAirborne(a) && Math.abs(angDiff(Math.atan2(a.y - u.y, a.x - u.x), u.face)) < 0.5) { shoot(u, u.def.weapon2, a); u.cd = u.def.weapon2.rof * VET.reload[u.rank || 0]; u.aam--; }
         }
         landJet(u, spot, runwayDir(pad, spot), dt);
       } else {
@@ -3121,7 +3141,7 @@ function updateAir(u, dt) {
       // the air-to-air ones once those are spent, and the gun runs.
       const mw = air ? (u.aam > 0 ? u.def.weapon2 : null) : (u.ammo > 0 ? w : u.aam > 0 ? u.def.weapon2 : null);
       if (mw && d <= mw.range && Math.abs(angDiff(ang, u.face)) < 0.35 && u.cd <= 0) {
-        shoot(u, mw, t); u.cd = mw.rof;
+        shoot(u, mw, t); u.cd = mw.rof * VET.reload[u.rank || 0];
         if (mw === u.def.weapon2) u.aam--; else u.ammo--;
         if (Math.random() < 0.5) u.passT = 0.9;
         // A jet defending the base makes one pass, then flies home to rearm: a missile at an aircraft,
@@ -3164,7 +3184,7 @@ function updateAir(u, dt) {
     if (d > w.range * 0.9) flyHeli(u, t.x, t.y, dt);
     else {
       u.face = turnToward(u.face, ang, 4 * dt);
-      if (Math.abs(angDiff(ang, u.face)) < 0.2 && u.cd <= 0) { shoot(u, w, t); u.cd = w.rof; u.ammo--; }
+      if (Math.abs(angDiff(ang, u.face)) < 0.2 && u.cd <= 0) { shoot(u, w, t); u.cd = w.rof * VET.reload[u.rank || 0]; u.ammo--; }
     }
   } else if (o.type === 'hunt') {
     const b = nearestEnemyBuilding(u);
