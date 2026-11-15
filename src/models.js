@@ -1579,6 +1579,35 @@ const STRUCTURES = {
     m.box(23, 34, 1, 24, 62, 9, '#2c2c28', M_METAL);                     // hangar doors
     return m;
   },
+  // Tech Center (Allied): a white research laboratory. A two-storey block with a glass curtain wall
+  // and a glazed atrium, a satellite dish on the roof, a lattice antenna and a row of rooftop plant.
+  tech(pal) {
+    const m = new VModel(-2, -2, 76, 76, 50);
+    slabV(m, 0, 0, 72, 72);
+    m.box(4, 14, 1, 68, 66, 22, C.wall, M_MATTE);                        // the laboratory block
+    m.paint(4, 14, 1, 68, 66, 22, (x, y, z) => (z === 11 ? C.wallD : undefined));   // floor line
+    for (const z0 of [4, 14]) m.box(6, 65, z0, 66, 66, z0 + 5, C.glass, M_GLASS);    // curtain wall, two floors
+    m.paint(6, 65, 4, 66, 66, 19, (x, y, z) => ((x - 6) % 5 === 0 ? C.wallD : undefined));
+    m.box(4, 14, 22, 68, 66, 23, pal.main, M_METAL);                     // roof edge in the side's colour
+    m.box(6, 16, 23, 66, 64, 24, '#a7a59c', M_ROUGH);
+    m.box(26, 52, 1, 46, 70, 16, '#5d7f92', M_GLASS);                    // glazed atrium over the entrance
+    m.paint(26, 52, 1, 46, 70, 16, (x, y, z) => ((x - 26) % 5 === 0 || z % 5 === 0 ? '#c9ccc8' : undefined));
+    m.box(26, 52, 16, 46, 70, 17, pal.main, M_METAL);
+    m.box(32, 69, 1, 40, 70, 8, '#2c2c28');                              // doors
+    m.cylZ(22, 32, 24, 30, 2, C.steel, M_METAL);                         // the dish on its pedestal
+    for (let x = 12; x < 33; x++) for (let y = 22; y < 43; y++) {
+      const d = Math.hypot(x + 0.5 - 22, y + 0.5 - 32);
+      if (d < 10) m.set(x, y, Math.round(31 + d * d / 22), d > 9 ? C.steel : '#e9e7df', M_METAL);
+    }
+    m.line(22, 32, 31, 22, 32, 38, C.steel, M_METAL); m.set(22, 32, 39, '#ff4030', M_GLOW);
+    latticeV(m, 58, 20, 24, 48, C.steel); m.set(59, 21, 49, '#ff4030', M_GLOW);   // antenna
+    for (const x of [40, 47, 54]) { m.box(x, 40, 24, x + 5, 47, 28, C.metal, M_METAL); m.cylZ(x + 2.5, 43.5, 28, 29, 2, '#4a4c47', M_METAL); }   // rooftop plant
+    m.box(4, 4, 1, 22, 13, 9, C.wallD, M_MATTE);                         // storage annex and tanks
+    m.box(4, 4, 9, 22, 13, 10, pal.main, M_METAL);
+    for (const x of [30, 38]) m.cylZ(x, 8, 1, 11, 3.2, '#c7c9c4', M_METAL);
+    m.set(66, 30, 23, '#7fd0ff', M_GLOW); m.set(66, 50, 23, '#7fd0ff', M_GLOW);
+    return m;
+  },
   turret() {
     const m = new VModel(-2, -2, 26, 26, 7);
     m.cylZ(12, 12, 0, 5, 10.5, C.wallD, M_MATTE);
@@ -4115,6 +4144,34 @@ const SOVIET = {
     m.paint(23, 28, 1, 24, 68, 18, () => SV.seam);
     m.box(23, 34, 1, 24, 62, 11, '#262624', M_METAL);                   // shelter doors
     m.box(23, 46, 11, 24, 50, 15, pal.main, M_MATTE);
+    return m;
+  },
+  // Tech Center (Soviet): a research institute. A stepped concrete block with strip windows and a star,
+  // a ribbed reactor dome in the side's colour, a banded stack and a radio mast.
+  tech(pal) {
+    const m = new VModel(-2, -2, 76, 76, 54);
+    slabV(m, 0, 0, 72, 72);
+    panelBox(m, 4, 30, 1, 68, 66, 16);                                   // the institute block
+    flatRoof(m, 4, 30, 68, 66, 16, pal);
+    stripWin(m, 6, 30, 65, 5, 7); stripWin(m, 42, 66, 65, 5, 7);
+    stripWin(m, 6, 30, 65, 11, 13); stripWin(m, 42, 66, 65, 11, 13);
+    m.box(31, 65, 1, 41, 66, 10, '#2a2420');                             // entrance under a star
+    starFront(m, 36, 65, 13, 2.6, C.yellow);
+    bannerV(m, 32, 40, 65, 17, 3, pal);
+    panelBox(m, 12, 6, 1, 52, 32, 12);                                   // the reactor hall behind
+    flatRoof(m, 12, 6, 52, 32, 12, pal);
+    for (let z = 0; z < 22; z++) {                                       // the ribbed dome
+      const r = Math.sqrt(Math.max(0, 15 * 15 - z * z * 0.47));
+      if (r > 0.5) m.cylZ(32, 19, 13 + z, 14 + z, r, z % 4 === 3 ? pal.dark : pal.main, M_METAL);
+    }
+    m.paint(16, 4, 13, 48, 34, 36, (x, y, z) => ((x + y) % 6 === 0 && z < 30 ? pal.dark : undefined));
+    m.cylZ(32, 19, 34, 36, 3, SV.steel, M_METAL); m.set(32, 19, 36, '#ff4030', M_GLOW);
+    stackV(m, 60, 14, 1, 46, 2.8, pal);                                  // banded stack
+    latticeV(m, 6, 34, 17, 44, SV.steel);                                // radio mast
+    m.paint(5, 33, 17, 10, 38, 44, (x, y, z) => (Math.floor(z / 4) % 2 ? pal.main : C.white));
+    m.set(7, 35, 45, '#ff4030', M_GLOW);
+    starTop(m, 54, 48, 7, pal.main);
+    for (const x of [6, 58]) sandbagsV(m, x, 68, x + 8, 71, 3);
     return m;
   },
   // Tesla Coil: the same ring-cone coil for both sides, with the Soviet colour on the ring round its base.

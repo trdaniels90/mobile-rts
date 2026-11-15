@@ -49,7 +49,7 @@ function aiNextStructure(team, c) {
   const wants = [
     ['refinery', 1], ['barracks', 1], ['refinery', fast ? 2 : 1],
     [antiInf, Math.min(1, capInf)], ['factory', 1], [defense, Math.min(1, capMain)], ['refinery', 2], ['dome', 1], ['depot', 1],
-    ['helipad', 1], [antiInf, Math.min(2, capInf)], [defense, Math.min(2, capMain)], [aa, Math.min(1, aaWant)], ['airfield', 1],
+    ['tech', 1], ['helipad', 1], [antiInf, Math.min(2, capInf)], [defense, Math.min(2, capMain)], [aa, Math.min(1, aaWant)], ['airfield', 1],
     ['factory', 2], [defense, Math.min(3, capMain)], [aa, aaWant], ['refinery', 3], [defense, Math.min(4, capMain)],
     ['refinery', A.econ.refineries],
   ];
@@ -380,14 +380,16 @@ function aiThink(team) {
     const supMax = k.turtle ? 8 : k.inf ? 6 : 4;
     if (available(team, sup) && (c[sup] || 0) < supMax) opts.push(sup);
     if (available(team, sup) && (c[sup] || 0) < supMax && (k.turtle || k.inf)) opts.push(sup, sup);
-    startProduction(team, opts[Math.floor(Math.random() * opts.length)]);
+    // Top-tier units wait for a Tech Center: until then a Mammoth Tank is a Heavy Tank.
+    const pick = opts[Math.floor(Math.random() * opts.length)];
+    startProduction(team, available(team, pick) ? pick : pick === 'mammoth' ? 'htank' : 'mtank');
   }
   // Helicopters and jets have their own queues; against aircraft it leans on fighters.
   const air = G.entities.filter((e) => e.alive && e.team === team.id && e.cls === 'air').length + team.queues.heli.length + team.queues.jet.length;
   if (!capped && money > (anti ? 600 : 900) && air < 6 && !truckDue) {
     const heli = team.faction === 'allies' ? 'heli' : 'hind', jet = team.faction === 'allies' ? 'jet' : 'mig';
     if (c.airfield && !team.queues.jet.length && padRoom(team, 'airfield') > 0 && (anti || Math.random() < 0.5)) startProduction(team, jet);
-    else if (c.helipad && !team.queues.heli.length && (!anti || !c.airfield || Math.random() < 0.25)) startProduction(team, heli);
+    else if (c.helipad && available(team, heli) && !team.queues.heli.length && (!anti || !c.airfield || Math.random() < 0.25)) startProduction(team, heli);
   }
 
   // Airfield support powers: bomb the thickest part of the enemy base, drop troops on its economy,
@@ -740,7 +742,7 @@ function aiWaveTarget(team, from) {
     return (roll < 0.45 ? cy : roll < 0.7 ? of(['refinery']) : roll < 0.85 ? of(['power', 'apower']) : expansionsOf(foe, from)[0]) || cy || theirs[0];
   }
   // Valuable and lightly guarded scores highest; whatever the last wave went for scores less.
-  const value = { cy: 2.4, refinery: 3, power: 2.6, apower: 2.8, factory: 2.2, outpost: 2.4, airfield: 2, helipad: 1.6, barracks: 1.6, depot: 1.4 };
+  const value = { cy: 2.4, refinery: 3, power: 2.6, apower: 2.8, factory: 2.2, outpost: 2.4, airfield: 2, helipad: 1.6, barracks: 1.6, depot: 1.4, tech: 1.8 };
   const guns = theirs.filter((b) => b.def.defense);
   let best = null, bs = -Infinity;
   for (const b of theirs) {

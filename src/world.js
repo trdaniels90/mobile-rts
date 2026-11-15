@@ -3570,10 +3570,11 @@ function placeStructure(team, type, cx, cy) {
     const h = addUnit('harv', team, p.x, p.y);
     h.face = Math.PI / 2;
   }
-  // A new Helipad comes with a helicopter and a new Airfield with a jet, parked and ready.
+  // A new Helipad comes with a helicopter and a new Airfield with a jet, parked and ready (not one that still
+  // needs a Tech Center: the Allied Attack Helicopter).
   if (type === 'helipad' || type === 'airfield') {
     const free = Object.keys(UNIT_DEFS).find((k) => UNIT_DEFS[k].producer === type && UNIT_DEFS[k].factions.includes(team.faction));
-    if (free) spawnUnit(team, free);
+    if (free && available(team, free)) spawnUnit(team, free);
   }
   updatePower();
   return b;

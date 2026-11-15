@@ -788,6 +788,18 @@ frame-time maths everywhere, so it is not deterministic.
 - With 2+ allies the ALLY button opens a picker (`allyPicker` in ui.js); `setAssist(team, on, side)` stores `team.assistSide` (synced; the guest's order carries the side). `assistAlly(team)` is the picked ally (else the first). A human's units go to and defend only that one; picking another moves the garrison over. The computer still answers any ally's call.
 - `defendAllies` also treats an enemy unit as a threat when it is shooting at an ally's unit within `R2` (22 cells) of that ally's buildings (raiders at the base were 14 cells). `node tools/sim/ally-defend.js <repo>` (3 v 3 on Lakeside): old code never answered raiders at the second ally and killed 1 of 2 units hitting a unit outside the base; now 3 of 3 and 2 of 2.
 
+## Tech Center (after 2026.11.15.1, not released, both modes)
+
+- `tech` in `BUILD_DEFS` (both factions, 3x3, 1500 credits, 1000 health, -100 power, needs a Radar Dome). Unlocks the top-tier
+  units through their `req`: Mammoth Tank (`['tech']`), Artillery (`['dome', 'tech']`), Attack Helicopter (`['tech']`). The Hind and
+  V2 are not gated. A new Helicopter Base gives its free helicopter only if it is `available` (so no free Apache before a Tech Center).
+  Models: `STRUCTURES.tech` (Allied lab: glass front, atrium, dish, antenna) and `SOVIET.tech` (institute with a ribbed reactor dome,
+  banded stack, mast). Sprites rebaked; ground bakes only got a new key.
+- Computer: `['tech', 1]` after the Service Depot in `aiNextStructure`; vehicle picks it cannot build yet fall back (Mammoth to Heavy
+  Tank, Artillery to Medium Tank); helicopters only when `available`. Headless 1 v 1 on A Bridge Too Far: Tech Center at 370 s (Hard)
+  and 580 s (Easy), then helicopters, Artillery and Mammoths.
+- The owner plans to use it later for per-unit upgrades bought there and for new units. Online, the server must run the same version.
+
 ## Unit veterancy (after 2026.11.14.12, not released, both modes)
 
 - Owner's request, OpenRA's Red Alert rules (`^GainsExperience` in its `mods/ra/rules/defaults.yaml`). `VET` in data.js: a unit is

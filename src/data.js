@@ -114,7 +114,7 @@ const UNIT_DEFS = {
     weapon: { dmg: 30, rof: 1.7, range: 114, wh: 'AP', proj: 'shell', twin: true, stagger: 0.25 },   // stagger: the second barrel fires this much later
   },
   mammoth: {
-    name: 'Mammoth Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'tank',
+    name: 'Mammoth Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['tech'], factions: ['soviets'], draw: 'tank',
     cost: 2000, hp: 950, armor: 'heavy', speed: 25, turn: 2, sight: 6, r: 12, size: { len: 24, wid: 22, tur: 7.5, barrel: 14, twin: true, pods: true, mammoth: true, tz: 4 },
     weapon: { dmg: 45, rof: 1.9, range: 118, wh: 'AP', proj: 'shell', twin: true },
     weapon2: { dmg: 35, rof: 2.6, range: 140, wh: 'HE', proj: 'rocket', air: true },
@@ -122,7 +122,7 @@ const UNIT_DEFS = {
   // Long-range support, built once a Radar Dome stands. Neither has a turret: the whole vehicle
   // turns to aim, and both lob their rounds in a high arc, so they can miss a moving target.
   arty: {
-    name: 'Artillery', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['dome'], factions: ['allies'], draw: 'arty', fixed: true,
+    name: 'Artillery', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['dome', 'tech'], factions: ['allies'], draw: 'arty', fixed: true,
     cost: 600, hp: 120, armor: 'light', speed: 42, turn: 2, sight: 5, r: 9, size: { len: 20, wid: 13, tur: 0, barrel: 15 },
     weapon: { dmg: 110, rof: 4, range: 288, wh: 'ART', proj: 'artyshell', splash: 22, spread: 16 },
   },
@@ -149,7 +149,7 @@ const UNIT_DEFS = {
   // Closer to the original Red Alert: the Allied helicopter's Hellfires are anti-armour (6 a sortie,
   // 4 cells), the Hind's chain gun shreds infantry (12 bursts a sortie, 5 cells).
   heli: {
-    name: 'Attack Helicopter', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', factions: ['allies'],
+    name: 'Attack Helicopter', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', req: ['tech'], factions: ['allies'],
     cost: 1200, hp: 220, armor: 'air', speed: 87, sight: 6, r: 9,
     weapon: { dmg: 55, rof: 0.9, range: 96, wh: 'HF', proj: 'rocket', ammo: 6, prefersArmor: true },
   },
@@ -198,6 +198,9 @@ const BUILD_DEFS = {
   depot:    { name: 'Service Depot', w: 3, h: 2, hp: 800, power: -30, cost: 1200, req: ['factory'], factions: ['allies', 'soviets'], exit: true, depot: true },
   dome:     { name: 'Radar Dome',   w: 2, h: 2, hp: 1000, power: -40, cost: 1000, req: ['refinery'], factions: ['allies', 'soviets'], sight: 10 },
   airfield: { name: 'Airfield',     w: 4, h: 3, hp: 500,  power: -30, cost: 1000, req: ['dome'],     factions: ['allies', 'soviets'] },
+  // Unlocks each side's top-tier units: the Mammoth Tank (Soviets), Artillery and the Attack Helicopter (Allies).
+  // Later it is meant to sell upgrades and unlock new units.
+  tech:     { name: 'Tech Center',  w: 3, h: 3, hp: 1000, power: -100, cost: 1500, req: ['dome'],    factions: ['allies', 'soviets'], sight: 5 },
   turret:   { name: 'Gun Turret',   w: 1, h: 1, hp: 450,  power: -40, cost: 600,  req: ['barracks'], factions: ['allies'], defense: true,
               weapon: { dmg: 40, rof: 1.4, range: 165, wh: 'AP', proj: 'shell' } },
   aagun:    { name: 'AA Gun',       w: 1, h: 1, hp: 400,  power: -50, cost: 800,  req: ['barracks'], factions: ['allies'], defense: true, antiAir: true,
