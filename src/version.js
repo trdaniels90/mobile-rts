@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.15.5', date: '15 November 2026', title: 'Attack Ground fix', groups: [
+    ['Fixed', [
+      'Attack Ground on open ground no longer breaks the game: units now walk up and shell the spot you tap.',
+    ]],
+  ] },
   { v: '2026.11.15.4', date: '15 November 2026', title: 'Infantry balance', groups: [
     ['Balance', [
       'Rifle Infantry (both sides) now shoot 5 cells, up from 3, and their bullets splash a little on enemy soldiers standing next to the target.',
