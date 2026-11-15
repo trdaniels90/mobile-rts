@@ -843,3 +843,5 @@ frame-time maths everywhere, so it is not deterministic.
   Then Rifle Infantry range 70 to 120 px (5 cells, OpenRA's M1Carbine; both sides): Rifles vs Grenadiers 1 to 3 of 8 (left 1,866 / 1,866), Mixed 1 to 3 of 8, Infantry only 2 of 8.
   Grenadier splash is the main lever for infantry (22 px: rifles won 2 of 10; 12 px: 7 of 10; 6 px, OpenRA's: 9 of 10): not changed yet.
   OpenRA infantry share cells (`SharesCell` on the foot locomotor, up to 5 per cell), so they do clump; ours keep 1.4 radii apart.
+  Then Grenadier splash 22 to 14 px (owner's pick): Rifles vs Grenadiers Allies won 7 of 8 (left 2,683 / 1,498), Mixed 4 of 8, Infantry only 3 of 8, Artillery vs V2 3 of 8,
+  Medium vs Mammoth 2 of 8, Medium vs Heavy 5 of 8, Light vs Heavy 4 of 8, Rockets vs Mammoth 4 of 8, Rangers + Light vs Heavy 1 of 8.

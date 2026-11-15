@@ -71,7 +71,7 @@ const UNIT_DEFS = {
   grenadier: {
     name: 'Grenadier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['soviets'],
     cost: 160, hp: 50, armor: 'inf', speed: 40, sight: 5, r: 5,
-    weapon: { dmg: 42, rof: 2.0, range: 100, wh: 'GR', proj: 'grenade', splash: 22 },
+    weapon: { dmg: 42, rof: 2.0, range: 100, wh: 'GR', proj: 'grenade', splash: 14 },
   },
   // Unarmed. Walks into a destroyed bridge span and it is rebuilt, or into a damaged friendly structure and it is
   // repaired in full; either way the Engineer is used up (world.js commandEngineer). Cost, health, speed and sight
