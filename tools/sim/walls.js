@@ -48,6 +48,7 @@ ok('an enemy soldier cannot walk in through it', run(`foe.y > gy * CELL`), run('
 
 // Barbed wire: infantry stopped, vehicles through, flattening it.
 run(`var cy1 = buildingsOf(1).find((b) => b.type === 'cy'), bk1 = addBuilding('barracks', T1, cy1.cx + 5, cy1.cy); bk1.buildT = 1; T1.credits = 3000;
+  for (const u of unitsOf(1)) u.alive = false;   // (its starting units may be standing on the row)
   var wx = cy1.cx, wy = cy1.cy + cy1.h + 3; 0`);
 ok('a line of wire', run(`placeWalls(T1, 'wire', wx - 2, wy, wx + 4, wy)`) === 7);
 run(`var wc = idx(wx + 1, wy), sol = addUnit('rifle', T1, 0, 0), tank = addUnit('htank', T1, (wx + 1.5) * CELL, (wy - 2) * CELL); 0`);
