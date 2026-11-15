@@ -882,7 +882,9 @@ frame-time maths everywhere, so it is not deterministic.
   noise source) 0.25 to 1.85 s later. No bolt is drawn for these.
 - **Bolts that land** (owner's request, **both modes, gameplay**; world.js `lightningStrikes`, `boltStrike`, host only, so the server must run the
   same version): `BOLT_SHARE` (0.35) of strikes (the 4th number of `lightningAt`) come down as a visible bolt (the `bolt` effect, drawn in art.js
-  `drawEffect`) anywhere on the map: 30% a finished building of any side, 12% a standing bridge span, else a wood (or any dry ground). It
+  `drawEffect`) on a random cell of dry land anywhere on the map, every cell as likely (owner: "anywhere on the map"); whatever is there takes it: a finished
+  building of any side, a standing bridge span (only maps with `breakable` bridges have spans), a wood or open ground. 2,000 strikes on Lakeside at the start: even over the
+  map's quarters (lakes aside), 0.2% buildings, 4% woods. It
   leaves an `expl` (size 12: the trees round it catch) and a scorch, and a fire in `G.bolts` (saved) that burns `BOLT_BURN` (10) s with flames
   and smoke; a building or span hit loses `BOLT_DMG` (10%) of its full health over the burn (`damage(.., 'GR', null)`: no attacker, no alarm).
   Checked: forced strikes every second for a minute (60 bolts, 40 trees burnt, no errors); a hit Construction Yard lost exactly 10% in 10 s.

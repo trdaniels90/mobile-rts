@@ -4214,24 +4214,15 @@ function lightningStrikes(dt) {
     return f.t > 0;
   });
 }
-// Where a bolt comes down: a building, a bridge span, a wood or open ground.
+// Where a bolt comes down: anywhere on the map's dry land (bridges included), every spot as likely as any other.
+// Whatever stands there takes it: a building, a bridge span, a wood (its trees catch) or open ground.
 function boltStrike() {
-  const r = Math.random(), cell = (want) => {
-    for (let i = 0; i < 80; i++) { const c = Math.floor(Math.random() * NCELLS); if (want(G.terr[c])) return [(cellX(c) + 0.2 + Math.random() * 0.6) * CELL, (cellY(c) + 0.2 + Math.random() * 0.6) * CELL]; }
-    return null;
-  };
-  const blds = G.entities.filter((e) => e.alive && e.kind === 'bld' && e.buildT >= 1), spans = (G.spans || []).filter((s) => s.alive);
-  let tgt = null, x, y;
-  if (r < 0.3 && blds.length) tgt = blds[Math.floor(Math.random() * blds.length)];
-  else if (r < 0.42 && spans.length) tgt = spans[Math.floor(Math.random() * spans.length)];
-  if (tgt) {
-    x = tgt.kind === 'bld' ? (tgt.cx + Math.random() * tgt.w) * CELL : tgt.x + (Math.random() - 0.5) * CELL;
-    y = tgt.kind === 'bld' ? (tgt.cy + Math.random() * tgt.h) * CELL : tgt.y + (Math.random() - 0.5) * CELL;
-  } else {
-    const p = (r < 0.75 && cell((t) => t === 2)) || cell((t) => t !== 4);   // a wood, else any dry ground
-    if (!p) return;
-    [x, y] = p;
-  }
+  let c = -1;
+  for (let i = 0; i < 200 && c < 0; i++) { const k = Math.floor(Math.random() * NCELLS); if (G.terr[k] !== 4) c = k; }
+  if (c < 0) return;
+  const x = (cellX(c) + Math.random()) * CELL, y = (cellY(c) + Math.random()) * CELL;
+  const tgt = G.entities.find((e) => e.alive && e.kind === 'bld' && e.buildT >= 1 && cellX(c) >= e.cx && cellX(c) < e.cx + e.w && cellY(c) >= e.cy && cellY(c) < e.cy + e.h)
+    || (G.spans || []).find((s) => s.alive && s.cells.includes(c)) || null;
   const seed = (Math.random() * 1e6) | 0;
   G.effects.push({ type: 'bolt', x, y, t: 0, life: 0.45, seed });
   G.effects.push({ type: 'expl', x, y: y - 2, size: 12, t: 0.02, life: 0.6, seed: seed + 1 });   // sets trees round it alight (updateEffects)
