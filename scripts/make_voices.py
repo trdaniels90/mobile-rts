@@ -39,6 +39,8 @@ EVA = {
   'more ore trucks needed': 'More ore trucks needed.',
   'enemy base not located': 'Enemy base not located.',
   'attacking enemy base': 'Attacking enemy base.',
+  'unit promoted': 'Unit promoted.',
+  'unit promoted to elite': 'Unit promoted to elite.',
 }
 ACKS = {
   'inf': ['Acknowledged.', 'Yes sir.', 'Moving out.', 'Affirmative.', 'Right away.'],

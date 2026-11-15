@@ -131,26 +131,6 @@ const Sound = (() => {
     g.gain.linearRampToValueAtTime(peak, t + att);
     g.gain.exponentialRampToValueAtTime(0.0001, t + att + dec);
   }
-  // A trumpet note: two slightly detuned sawtooths (and a square an octave down for body) through a low-pass filter that
-  // opens quickly as the note speaks and settles back, a scoop up to pitch, a breath puff, vibrato on notes over 0.25 s.
-  function brass(t, f, dur, peak, dest) {
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 1.2;
-    lp.frequency.setValueAtTime(f * 1.2, t); lp.frequency.linearRampToValueAtTime(f * 7, t + 0.035); lp.frequency.exponentialRampToValueAtTime(f * 3.2, t + 0.16);
-    lp.frequency.setValueAtTime(f * 3.2, t + dur); lp.frequency.exponentialRampToValueAtTime(f * 1.1, t + dur + 0.09);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.025); g.gain.linearRampToValueAtTime(peak * 0.78, t + 0.12);
-    g.gain.setValueAtTime(peak * 0.78, t + dur); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.1);
-    lp.connect(g); g.connect(dest);
-    const vib = dur > 0.25 ? ctx.createOscillator() : null, vg = vib ? gain(0, null) : null;
-    if (vib) { vib.frequency.value = 5.5; vg.gain.setValueAtTime(0, t); vg.gain.linearRampToValueAtTime(f * 0.007, t + dur * 0.6); vib.connect(vg); vib.start(t); vib.stop(t + dur + 0.15); }
-    for (const [type, mul, det, lvl] of [['sawtooth', 1, -4, 0.5], ['sawtooth', 1, 4, 0.5], ['square', 0.5, 0, 0.18]]) {
-      const o = ctx.createOscillator(); o.type = type; o.detune.value = det;
-      o.frequency.setValueAtTime(f * mul * 0.94, t); o.frequency.exponentialRampToValueAtTime(f * mul, t + 0.03);   // the lip scoop
-      if (vg) vg.connect(o.frequency);
-      o.connect(gain(lvl, lp)); o.start(t); o.stop(t + dur + 0.15);
-    }
-    noiseHit(t, 0.04, 'bandpass', f * 3, f * 2, 1.5, peak * 0.25, dest);   // breath at the attack
-  }
   function noiseHit(t, dur, filterType, f0, f1, q, peak, dest, att) {
     const src = ctx.createBufferSource(); src.buffer = noise;
     src.playbackRate.value = 0.8 + Math.random() * 0.4;
@@ -348,24 +328,13 @@ const Sound = (() => {
     cashDown(t, o) { tone(t, 'triangle', 1250, 1150, 0.03, 0.14, o, 0.001); noiseHit(t, 0.012, 'highpass', 5000, 5000, 0.7, 0.05, o); },
     ready(t, o) { tone(t, 'square', 880, 880, 0.06, 0.14, o); tone(t + 0.08, 'square', 1320, 1320, 0.08, 0.14, o); },
     denied(t, o) { tone(t, 'square', 220, 200, 0.18, 0.1, o); },
-    // Veterancy: a bugle call on a synthesized trumpet (brass(): a buzzy sawtooth pair through a filter that opens as the note
-    // speaks, a scoop up to pitch, a puff of breath and a little vibrato on held notes). Original calls on the bugle's own notes.
-    // Promoted: ta-ta-ta-taaa up the C major chord. Elite: a two-trumpet call a third apart that ends on a held chord.
-    promote(t, o) {
-      for (const [f, d, len] of [[392, 0, 0.1], [523, 0.11, 0.1], [659, 0.22, 0.1], [784, 0.33, 0.55]]) brass(t + d, f, len, 0.32, o);
-    },
-    promoteElite(t, o) {
-      const call = [[523, 0, 0.09], [523, 0.1, 0.09], [659, 0.2, 0.09], [784, 0.3, 0.16], [1047, 0.48, 0.7]];
-      for (const [f, d, len] of call) brass(t + d, f, len, 0.26, o);
-      for (const [f, d, len] of [[392, 0, 0.09], [392, 0.1, 0.09], [523, 0.2, 0.09], [659, 0.3, 0.16], [784, 0.48, 0.7]]) brass(t + d + 0.004, f, len, 0.17, o);
-    },
   };
   const THROTTLE = { die: 0.09, dieBlast: 0.12, dieFire: 0.2, build: 0.12, collapse: 0.3, cashUp: 0.07, cashDown: 0.07, rifle: 0.03, m16: 0.03, mg: 0.03, pillbox: 0.03, cannon: 0.05, cannonHeavy: 0.06, turretGun: 0.06, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, redeye: 0.05, missile: 0.05, flak: 0.06, tesla: 0.1 };
   // How much each sound matters when the voices run out, and how long it occupies one.
-  const PRIORITY = { click: 9, ready: 9, promote: 9, promoteElite: 9, denied: 9, sell: 9, place: 9, cashUp: 8, cashDown: 8, explodeBig: 10, collapse: 9, explodeVeh: 8, cannonHeavy: 7, missile: 6, rocket: 6, redeye: 6, tesla: 6,
+  const PRIORITY = { click: 9, ready: 9, denied: 9, sell: 9, place: 9, cashUp: 8, cashDown: 8, explodeBig: 10, collapse: 9, explodeVeh: 8, cannonHeavy: 7, missile: 6, rocket: 6, redeye: 6, tesla: 6,
     cannon: 5, turretGun: 5, hitMed: 5, flame: 5, fireHit: 5, throw: 4, flak: 4, mg: 3, pillbox: 3, hitSmall: 3, build: 2, die: 2, dieBlast: 3, dieFire: 3, rifle: 2, m16: 2 };
   const HOLD = { explodeBig: 1.6, collapse: 1.6, explodeVeh: 1.1, cannonHeavy: 0.9, cannon: 0.6, turretGun: 0.6, hitMed: 0.6, tesla: 0.8, flame: 0.9, fireHit: 0.8, missile: 0.9, rocket: 0.9, redeye: 0.9, build: 0.5, die: 0.5, dieBlast: 0.7, dieFire: 0.8, rifle: 0.3, m16: 0.3, mg: 0.22, pillbox: 0.22, hitSmall: 0.3, flak: 0.5, throw: 0.5 };
-  const UI_SOUNDS = new Set(['click', 'ready', 'denied', 'sell', 'place', 'cashUp', 'cashDown', 'promote', 'promoteElite']);
+  const UI_SOUNDS = new Set(['click', 'ready', 'denied', 'sell', 'place', 'cashUp', 'cashDown']);
   // Rough loudness of each effect so distant battles do not drown nearby ones.
   const LEVEL = { rifle: 0.7, m16: 0.7, mg: 0.95, pillbox: 0.95, throw: 0.8, cannon: 0.8, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, redeye: 0.65, missile: 0.7, flak: 0.75, tesla: 0.85,
     hitSmall: 0.7, hitMed: 0.8, explodeVeh: 0.9, explodeBig: 1.0, flame: 0.8, fireHit: 0.8, build: 0.55, collapse: 1.0, die: 0.7, dieBlast: 0.75, dieFire: 0.7 };
@@ -526,7 +495,7 @@ registerProcessor('sfx-mix', SfxMix);
     const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const entry = synthCache[name] = { ready: false, list: [] };
     if (!OAC || !FX[name]) return null;
-    const ui = UI_SOUNDS.has(name), len = ui ? (name.startsWith('promote') ? 1.4 : 0.6) : 1.6;
+    const ui = UI_SOUNDS.has(name), len = ui ? 0.6 : 1.6;
     let pending = 2;
     for (let k = 0; k < 2; k++) {
       let off;

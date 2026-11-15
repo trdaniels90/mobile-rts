@@ -47,7 +47,6 @@
   function eva(msg) {
     Sound.say(msg);
     if (/complete|ready/i.test(msg)) Sound.play('ready');
-    else if (/^Unit promoted/.test(msg)) Sound.play(/elite/i.test(msg) ? 'promoteElite' : 'promote');   // veterancy (promote in world.js)
     ui.eva.textContent = msg;
     ui.eva.hidden = false;
     ui.eva.classList.remove('show'); void ui.eva.offsetWidth; ui.eva.classList.add('show');
