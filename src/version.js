@@ -4,6 +4,16 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.15.1', date: '15 November 2026', title: 'Promotions announced, tank balance', groups: [
+    ['New', [
+      'The announcer now says "Unit promoted" when one of your units ranks up, and "Unit promoted to elite" at the top rank.',
+    ]],
+    ['Balance', [
+      'Heavy Tank 950 to 1150 credits, Mammoth Tank 1700 to 2000 (OpenRA\'s prices).',
+      'Rifles, Grenadiers and artillery now use OpenRA\'s damage tables: rifles barely scratch tanks and structures, grenades are strong against structures but weak against vehicles, and artillery does much less to tanks.',
+      'Computer on Normal and Hard (since 2026.11.15): fewer base defences, and it waits until its army is half its cap, then attacks with every waiting unit.',
+    ]],
+  ] },
   { v: '2026.11.15', date: '15 November 2026', title: 'Veterancy, destroyable bridges and Engineers', groups: [
     ['New', [
       'Unit veterancy, as in OpenRA\'s Red Alert: a unit is promoted when it has destroyed 2, 4, 8 and 16 times its own cost. Each rank hits harder, takes less damage, reloads faster and moves faster on the ground; the fourth rank, Elite, also repairs itself out of the fight. Gold chevrons show a unit\'s rank, and the selection bar names it.',
