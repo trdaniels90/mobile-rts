@@ -4172,7 +4172,7 @@ function treeFires(dt) {
   G.treeHot = hot.filter((i) => {
     const tr = T[i], age = G.t - G.treeFire[i];
     if (!tr) return false;
-    if (age > TREE_BURN) { scorch(G.tctx, tr.x, tr.y - 3, 9, (i * 7919) | 0); return false; }   // ash round the foot of the burnt tree
+    if (age > TREE_BURN) { scorch(G.tctx, tr.x, tr.y - 3, 14, (i * 7919) | 0); return false; }   // ash round the foot of the burnt tree
     if (age < 0 || !show || !G.seen[idx(Math.floor(tr.x / CELL), Math.floor(tr.y / CELL))]) return true;
     const heat = Math.sin(Math.min(1, age / TREE_BURN) * Math.PI) + 0.15;
     if (Math.random() < dt * 9 * heat) G.effects.push({ type: 'fire', x: tr.x + (Math.random() - 0.5) * 12, y: tr.y - 4 - Math.random() * 14, t: 0, life: 0.5 + Math.random() * 0.5, vy: -14 - Math.random() * 8 });

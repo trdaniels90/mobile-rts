@@ -4692,36 +4692,39 @@ function treeModel(seed, pine, snow) {
 }
 // A tree burnt out by fire: a charred trunk and bare, blackened branches (broadleaf) or stubs of boughs up a
 // charred pole (pine). Same seed as the living tree, so it keeps its height.
-const CHAR = ['#221e1b', '#2f2a25', '#3e362f', '#4f453b'];
+const CHAR = ['#1e1a17', '#2c2622', '#3b3430', '#4a423b'], ASH = ['#6b635b', '#827970', '#968d82'];
 function burntTreeModel(seed, pine) {
   const r = rng(seed);
   const m = new VModel(-12, -12, 12, 12, 30);
-  const col = () => CHAR[Math.floor(r() * 4)];
+  const col = (z, top) => z >= top - 1 || r() < 0.3 ? ASH[Math.floor(r() * 3)] : CHAR[Math.floor(r() * 4)];   // grey ash on top, char below
+  const blob = (x, y, z, c) => { for (const [dx, dy] of [[0, 0], [1, 0], [0, 1]]) m.set(Math.round(x) + dx, Math.round(y) + dy, Math.round(z), c, M_ROUGH); };
   if (pine) {
-    const top = 15 + Math.floor(r() * 6);
-    m.cylZ(0, 0, 0, top, 1.4, CHAR[1], M_ROUGH);
-    for (let z = 5; z < top - 1; z += 3) {
-      for (let k = 0; k < 4; k++) {
-        if (r() < 0.35) continue;
-        const a = k * Math.PI / 2 + r() * 0.8, len = 1 + Math.floor(r() * Math.max(1, (top - z) * 0.3));
-        for (let i = 1; i <= len + 1; i++) m.set(Math.round(Math.cos(a) * i), Math.round(Math.sin(a) * i), z - (i > 2 ? 1 : 0), col(), M_ROUGH);
-      }
+    const top = 18 + Math.floor(r() * 6);
+    for (let z = 0; z < top; z++) for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) {
+      const rad = z < top - 4 ? 1.9 : 1.2;
+      if (Math.hypot(x + 0.5, y + 0.5) <= rad) m.set(x, y, z, x + y > 0 && r() < 0.5 ? ASH[Math.floor(r() * 2)] : CHAR[Math.floor(r() * 3)], M_ROUGH);
+    }
+    for (let z = 5; z < top - 2; z += 3) for (let k = 0; k < 4; k++) {   // stubs of burnt boughs, drooping
+      if (r() < 0.25) continue;
+      const a = k * Math.PI / 2 + r() * 0.8, len = 2 + Math.floor(r() * Math.max(1, (top - z) * 0.35));
+      for (let i = 1; i <= len + 1; i++) blob(Math.cos(a) * (i + 1), Math.sin(a) * (i + 1), z - (i > 2 ? 1 : 0), col(i, len + 1));
     }
   } else {
-    m.cylZ(0, 0, 0, 10, 1.7, CHAR[1], M_ROUGH);
-    const limbs = 4 + Math.floor(r() * 3);
+    for (let z = 0; z < 12; z++) for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) {
+      if (Math.hypot(x + 0.5, y + 0.5) <= (z < 3 ? 2.4 : 2)) m.set(x, y, z, x + y > 0 && r() < 0.5 ? ASH[Math.floor(r() * 2)] : CHAR[Math.floor(r() * 3)], M_ROUGH);
+    }
+    const limbs = 5 + Math.floor(r() * 3);
     for (let b = 0; b < limbs; b++) {
-      const a = r() * Math.PI * 2, z0 = 6 + r() * 4, len = 4 + r() * 4, rise = 0.6 + r() * 0.8;
+      const a = (b / limbs) * Math.PI * 2 + r() * 0.6, z0 = 7 + r() * 5, len = 5 + r() * 4, rise = 0.6 + r() * 0.7;
       for (let i = 0; i <= len * 2; i++) {
         const t = i / 2, x = Math.cos(a) * t, y = Math.sin(a) * t, z = z0 + t * rise;
-        m.set(Math.round(x), Math.round(y), Math.round(z), col(), M_ROUGH);
-        if (i === Math.floor(len) && r() < 0.7) {   // a twig off the end
+        blob(x, y, z, col(i, len * 2));
+        if (i === Math.floor(len) && r() < 0.8) {   // a twig off the side
           const a2 = a + (r() < 0.5 ? 0.9 : -0.9);
-          for (let j = 1; j <= 2; j++) m.set(Math.round(x + Math.cos(a2) * j), Math.round(y + Math.sin(a2) * j), Math.round(z + j), col(), M_ROUGH);
+          for (let j = 1; j <= 3; j++) m.set(Math.round(x + Math.cos(a2) * j), Math.round(y + Math.sin(a2) * j), Math.round(z + j), ASH[Math.floor(r() * 3)], M_ROUGH);
         }
       }
     }
-    for (let z = 10; z < 13; z++) m.set(0, 0, z, CHAR[0], M_ROUGH);   // the snapped top of the trunk
   }
   return m;
 }

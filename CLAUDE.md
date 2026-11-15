@@ -869,8 +869,8 @@ frame-time maths everywhere, so it is not deterministic.
 - **Burning** (world.js `igniteTrees`, `treeFires`): an `expl` effect of size 9 or more sets the trees within `max(12, 1.4 x size)` px
   alight when it goes off (in `updateEffects`, so each phone does it from the explosions it sees; `litFx` is a WeakSet, not a field, so
   the host never sends it). Each burning tree may catch each neighbour within 16 px (`TREE_SPREAD` 0.22, a few seconds later), so a fire
-  spreads a little and dies out. It burns `TREE_BURN` (9) s with flames, smoke and a glow, fading into a burnt tree (`burntTreeModel`
-  in models.js, `scenery.burntTrees` / `burntPines`), then leaves a scorch mark. `G.treeFire` (tree number -> time it caught) and
+  spreads a little and dies out. It burns `TREE_BURN` (9) s with flames, smoke and a glow, fading into a burnt tree (`burntTreeModel`: a thick charred trunk and limbs with grey ash on top, so it shows against dark woods;
+  in models.js, `scenery.burntTrees` / `burntPines`), then leaves a scorch mark (14 px). `G.treeFire` (tree number -> time it caught) and
   `G.treeHot` are plain data, so saves keep burnt trees. Ground rebaked (`groundKey` has a `live-trees` token); sprites rebaked for the hash only.
 
 ## Stuck trucks and Outposts, defeated sides blow up (after 2026.11.15.5, not released, both modes)
