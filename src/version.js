@@ -4,6 +4,16 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.15.3', date: '15 November 2026', title: 'Tech Center', groups: [
+    ['New', [
+      'Tech Center for both sides (1500 credits, needs a Radar Dome, uses 100 power). It unlocks the top-tier units: the Mammoth Tank for the Soviets, Artillery and the Attack Helicopter for the Allies. Lose it and you cannot build them until you rebuild it.',
+      'Each side has its own look: a glass research campus with a glass dome for the Allies, and a grand domed institute with a monument out front for the Soviets.',
+      'The computer builds one too, after its Service Depot.',
+    ]],
+    ['Changed', [
+      'A new Allied Helicopter Base gives its free helicopter only once a Tech Center stands.',
+    ]],
+  ] },
   { v: '2026.11.15.2', date: '15 November 2026', title: 'Artillery fix', groups: [
     ['Balance', [
       'Artillery hits infantry and structures as hard as before again. Only its damage to tanks stays at OpenRA\'s low figure.',
