@@ -845,3 +845,14 @@ frame-time maths everywhere, so it is not deterministic.
   OpenRA infantry share cells (`SharesCell` on the foot locomotor, up to 5 per cell), so they do clump; ours keep 1.4 radii apart.
   Then Grenadier splash 22 to 14 px (owner's pick): Rifles vs Grenadiers Allies won 7 of 8 (left 2,683 / 1,498), Mixed 4 of 8, Infantry only 3 of 8, Artillery vs V2 3 of 8,
   Medium vs Mammoth 2 of 8, Medium vs Heavy 5 of 8, Light vs Heavy 4 of 8, Rockets vs Mammoth 4 of 8, Rangers + Light vs Heavy 1 of 8.
+
+## Stuck trucks and Outposts, defeated sides blow up (after 2026.11.15.5, not released, both modes)
+
+- **Dock deadlock** (`dockProgress`, `DOCK_PATIENCE` 5 s, `DOCK_BAN` 8 s): a truck holding a refinery's dock claim but getting no nearer lost it to
+  nobody and blocked the queue for minutes (Snowbound 2 v 2: 154 stuck-truck samples to 36). `findPath` returned the raw goal when start and the nearest
+  open cell were the same cell, so a goal inside water or rock left a unit pushing at the shore for ever (computer Outposts on Twin Lakes, 195 samples to 11);
+  it now returns that open cell. `aiDriveStalled` (ai.js): a driving Outpost or Construction Yard idle 20 s unpacks where it stands or picks a new goal.
+  `node tools/sim/stuck.js <repo> [minutes] [map] [1v1|2v2]` lists units idle 20 s on an order.
+- **Defeated sides** (`startWipe`, `tickWipe`, `t.wipe`): when a side goes `out`, each unit and building blows up at its own moment over 5 s. No survivors
+  (`WIPING` stops crew, pilots and building escapees) and not counted in the debrief's losses. A beaten player's "Keep watching" sees the empty base.
+  `node tools/sim/wipe-out.js <repo>`.

@@ -684,7 +684,7 @@ function findPath(sx, sy, tx, ty, rad) {
   if (!exactEnd) t = nearestFreeCell(t, 12);
   if (!freeCell(s)) s = nearestFreeCell(s, 3);
   if (s < 0 || t < 0) return null;
-  if (s === t) return [{ x: tx, y: ty }];
+  if (s === t) return [exactEnd ? { x: tx, y: ty } : cellCenter(t)];   // (a goal inside water or rock: stop at the nearest open cell, never push at the goal itself)
   const stamp = ++PF.stamp;
   const heapK = [], heapV = [];
   const push = (k, v) => {
@@ -2045,6 +2045,29 @@ function notify(team, key, msg, cooldown) {
   say(team.id, msg);
 }
 
+// A side that is defeated (`out`) loses everything it has left: each unit and building blows up at its own moment over
+// the next WIPE_SPREAD seconds (`t.wipe`: [id, time] pairs, plain data so it saves). The blasts leave no survivors and are
+// not counted as losses in the debrief.
+const WIPE_SPREAD = 5;
+let WIPING = false;
+function startWipe(t) {
+  if (G.remote) return;
+  t.wipe = [];
+  for (const e of G.entities) if (e.alive && e.team === t.id) t.wipe.push([e.id, G.t + 0.3 + Math.random() * WIPE_SPREAD]);
+}
+function tickWipe(t) {
+  const w = t.wipe, keep = [];
+  for (const p of w) {
+    const e = G.byId.get(p[0]);
+    if (!e || !e.alive) continue;
+    if (p[1] > G.t) { keep.push(p); continue; }
+    const lost = t.stats.lost, bl = t.stats.bldLost;
+    WIPING = true;
+    try { kill(e, null); } finally { WIPING = false; }
+    t.stats.lost = lost; t.stats.bldLost = bl;
+  }
+  t.wipe = keep.length ? keep : null;
+}
 function kill(e, attacker, wh, from) {
   e.alive = false;
   const team = teamOf(e);
@@ -2282,6 +2305,7 @@ function deployFob(u) {
 // wreck and stands guard. Made on the host only (a PvP guest gets the unit in a snapshot).
 const CREW_SURVIVES = 1 / 3;
 function crewBailOut(e) {
+  if (WIPING) return;   // a defeated side's wreckage leaves no survivors
   const c = nearestFreeCell(cellOfPos(Math.max(0, Math.min(WORLD - 1, e.x)), Math.max(0, Math.min(WORLD - 1, e.y))), 3);
   if (c < 0) return;
   const p = cellCenter(c), u = addUnit('rifle', G.teams[e.team], p.x, p.y);
@@ -2289,6 +2313,7 @@ function crewBailOut(e) {
   setGuard(u);
 }
 function escapeSurvivors(b) {
+  if (WIPING) return;   // a defeated side's wreckage leaves no survivors
   const team = G.teams[b.team], n = b.type === 'cy' ? 4 : Math.min(3, Math.max(1, Math.round(b.w * b.h / 2)));
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2;
@@ -2419,6 +2444,7 @@ function updateEject(fx, dt) {
 // Reaching any of its side's structures, the pilot is recovered: off the field, with a small bonus.
 const PILOT_BOUNTY = 100;
 function ejectPilot(e) {
+  if (WIPING) return;   // a defeated side's wreckage leaves no survivors
   if (G.remote) return;   // a PvP guest's copy runs the effect but never makes units: the host's pilot arrives in a snapshot
   // Over water the pilot still parachutes down (landChute drowns it); anywhere else it needs open ground nearby.
   const over = cellOfPos(Math.max(0, Math.min(WORLD - 1, e.x)), Math.max(0, Math.min(WORLD - 1, e.y)));
@@ -3844,7 +3870,7 @@ function logWave(team, big) {
 function checkWin() {
   if (G.over) return;
   for (const t of G.teams) if (!t.out && !inTheFight(t.id)) {
-    t.out = true;
+    t.out = true; startWipe(t);
     if (teamGame()) for (const o of G.teams) if (o !== t && !o.out) say(o.id, alliedSides(o.id, t.id) ? 'Ally defeated' : 'Enemy defeated');
   }
   const left = new Set(G.teams.filter((t) => !t.out).map((t) => t.ally));
@@ -4018,6 +4044,7 @@ function update(dt) {
     if (e.kind === 'unit') updateUnit(e, dt); else updateBuilding(e, dt);
   }
   separate();
+  if (!G.remote) for (const t of G.teams) if (t.wipe) tickWipe(t);
   updateProjectiles(dt);
   processPaths();
   if (!G.over) for (const team of G.teams) { updateProduction(team, dt); updatePowers(team, dt); }
