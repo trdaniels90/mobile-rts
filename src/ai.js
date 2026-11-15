@@ -411,9 +411,8 @@ function aiLaunch(team, ready) {
   // takes only its planned number of units: the rest wait for the next one.
   if (A.planner) { if (!full && (team.attackAt === undefined || G.t < team.attackAt || ready.length < team.plan.size)) return; }
   else if (ready.length < team.plan.size || G.t < A.firstWave || G.t - (team.lastWave || -1e9) < A.waveGap) return;
-  // The planner's wave takes three quarters of what has gathered while it waited (at least the planned size);
-  // the rest stay to guard the base.
-  const take = A.planner ? Math.min(ready.length, Math.max(team.plan.size, Math.ceil(ready.length * 0.75))) : team.plan.size;
+  // The planner's wave sends every unit that has gathered (the units on home guard are not in `ready`).
+  const take = A.planner ? ready.length : team.plan.size;
   ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, take);   // first come, first sent
   const target = aiWaveTarget(team, ready[0]);
   if (!target) return;
