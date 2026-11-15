@@ -880,3 +880,18 @@ frame-time maths everywhere, so it is not deterministic.
   `select id, stats->'errors' from matches where stats->'errors' @> '[{"where":"stuck1"}]'`. The `stack` field holds JSON for up to 2 units: type, side, cell, order,
   `as` assisting, `df` defending, `sg` staged, `dest` (cells), `np` needPath, `pl`/`pi` path length and index, `sn` stuckN, `mv` moving, `tg` [target type, distance],
   `foe` enemy units within 8 cells, `fr` friends within 2, `pin` in a pincer squad. 12 minutes of a 2 v 2 on Twin Lakes: no reports (no false alarms).
+
+## Stall recovery and squad leaders (after 2026.11.15.6, not released, both modes; ideas from OpenRA's bot)
+
+- Compared with OpenRA's `SquadManagerBotModule` / `GroundStates` (bleed branch): theirs drops a squad's order after about 2.5 s without progress and picks a
+  target again, keeps a squad round a leader (its slowest unit) and regroups strays on it, and sends defenders only from near the attack. Ours is stronger on
+  strategy (flanks, foe scoring, counter-building), so only the first two were taken.
+- **Stall recovery** (`stuckWatch`, `unstick`, `STUCK_AFTER` 10 s, checked every 5 s; every difficulty, host only): a computer ground unit with somewhere to go that has not
+  moved 6 px, has nothing in weapon reach and is not waiting for a leader: the first stall clears its target and path and re-issues the order (`u.stallN` 1); the
+  second sends it home (`scatterSpot`, staged) to rejoin the next wave. `stallN` goes back to 0 when it moves. The first 3 stalls of a match still go to `stats.errors`
+  as `stuck1..3` (field `st` is the stall count). Wedged-unit test: re-picked at about 15 s, sent home at about 25 s.
+- **Squad leader** (`aiLeader` in ai.js, called from `aiSquads` once a second, Normal and Hard only: Easy has no squads): the slowest unit (nearest the middle if several)
+  leads. A unit more than `LEADER_R` (6) + 1.5 x sqrt(n) cells ahead of it toward the target holds still for 2.5 s at a time (`u.waitLeader`, read in `updateUnit`),
+  at most `LEADER_MAX` 20 s, then goes on and is not held again for `LEADER_BAN` 30 s. Nothing holds once any unit of the squad has a target or was hit in the last 8 s.
+  Measured (24 mixed units sent at an empty base on `bridge`): worst front-to-back stretch 988 to 646 px, the first arrival is slower, 24 of 24 arrived (22 without).
+  12 min of a 2 v 2 on Twin Lakes and 8 min of a 3 v 3 on Snowbound: no errors, 32 s CPU for the 3 v 3.

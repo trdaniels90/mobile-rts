@@ -477,6 +477,34 @@ function aiGap() {
 }
 // Once a second: tracks the squads that have gone out, pulls a clearly losing one back to the rally
 // point, and sends squads home to a defence that is short-handed (defendBase works out the shortfall).
+// A marching squad keeps together round its leader, as in OpenRA's bot: the leader is the squad's slowest unit (the one nearest
+// the middle if several are as slow), and a unit that has got more than LEADER_R cells (plus a little for a big squad) ahead of
+// it, measured toward the target, holds still for a couple of seconds at a time until the leader catches up (`u.waitLeader`,
+// read in updateUnit). Nothing holds once any of the squad has a target or has been hit (a fight goes on as it is), no unit
+// holds for more than LEADER_MAX seconds at a stretch (it then goes on for LEADER_BAN), and units behind the leader never wait.
+const LEADER_R = 6, LEADER_MAX = 20, LEADER_BAN = 30;
+function aiLeader(list) {
+  const m = list.filter((u) => u.alive && u.cls !== 'air' && (u.order.type === 'hunt' || u.order.type === 'attack'));
+  if (m.length < 4) { for (const u of m) u.waitLeader = 0; return; }
+  if (m.some((u) => (u.target && u.target.alive) || G.t - u.hitT < 8)) { for (const u of m) u.waitLeader = 0; return; }
+  const pace = (u) => u.def.speed * (u.paceMul || 1);
+  const cx = m.reduce((a, u) => a + u.x, 0) / m.length, cy = m.reduce((a, u) => a + u.y, 0) / m.length;
+  let slow = Infinity;
+  for (const u of m) slow = Math.min(slow, pace(u));
+  let leader = null, bd = Infinity;
+  for (const u of m) if (pace(u) <= slow * 1.05) { const d = Math.hypot(u.x - cx, u.y - cy); if (d < bd) { bd = d; leader = u; } }
+  const t = leader && leader.focus && leader.focus.alive ? leader.focus : null;
+  if (!t) { for (const u of m) u.waitLeader = 0; return; }
+  const R = CELL * (LEADER_R + Math.sqrt(m.length) * 1.5), dl = Math.hypot(leader.x - t.x, leader.y - t.y);
+  for (const u of m) {
+    if (u === leader || (u.waitBan || 0) > G.t) { u.waitLeader = 0; continue; }
+    const ahead = dl - Math.hypot(u.x - t.x, u.y - t.y) > R;
+    if (!ahead) { u.waitLeader = 0; u.waitSince = 0; continue; }
+    if (!(u.waitLeader > G.t)) u.waitSince = G.t;
+    if (G.t - u.waitSince > LEADER_MAX) { u.waitLeader = 0; u.waitSince = 0; u.waitBan = G.t + LEADER_BAN; continue; }
+    u.waitLeader = G.t + 2.5;
+  }
+}
 function aiSquads(team) {
   const sq = team.squads;
   if (!sq || !sq.length) return;
@@ -508,6 +536,7 @@ function aiSquads(team) {
       team.sqn = team.sqn || { home: 0, back: 0 }; team.sqn.back++;
       return false;
     }
+    aiLeader(l);
     return true;
   });
 }
