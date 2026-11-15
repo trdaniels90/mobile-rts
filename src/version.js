@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.15.4', date: '15 November 2026', title: 'Infantry balance', groups: [
+    ['Balance', [
+      'Rifle Infantry (both sides) now shoot 5 cells, up from 3, and their bullets splash a little on enemy soldiers standing next to the target.',
+      'Grenadier blasts are smaller (about two thirds of the old radius), so a grenade hits fewer soldiers at once.',
+      'Artillery has 190 health, up from 120.',
+    ]],
+  ] },
   { v: '2026.11.15.3', date: '15 November 2026', title: 'Tech Center', groups: [
     ['New', [
       'Tech Center for both sides (1500 credits, needs a Radar Dome, uses 100 power). It unlocks the top-tier units: the Mammoth Tank for the Soviets, Artillery and the Attack Helicopter for the Allies. Lose it and you cannot build them until you rebuild it.',
