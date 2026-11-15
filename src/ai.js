@@ -290,8 +290,33 @@ function aiBridges(team) {
   if (down.some((s) => !taken.has(s)) && !friends.some((u) => u.team === team.id) && !team.queues.infantry.some((i) => i.type === 'engineer') &&
       team.credits >= UNIT_DEFS.engineer.cost + 300) startProduction(team, 'engineer');
 }
+// Walls (Normal and Hard): a short line of wall in front of each ground defence, across the way the enemy comes
+// from. Five pieces, never a ring, so nothing of its own is shut in. Sandbags (Allies) or Barbed Wire (Soviets);
+// on Hard, Concrete once a War Factory stands. One defence at a time, while it has money to spare, up to a cap.
+const AI_WALL_CAP = { normal: 20, hard: 36 };
+function aiWalls(team) {
+  const cap = AI_WALL_CAP[G.diffKey];
+  if (!cap || G.t < 300 || G.t < (team.wallT || 0)) return;
+  team.wallT = G.t + 15;
+  if (team.credits < 1200) return;
+  const kind = G.diffKey === 'hard' && wallAvailable(team, 'concrete') ? 'concrete' : team.faction === 'allies' ? 'sandbag' : 'wire';
+  if (!wallAvailable(team, kind)) return;
+  let own = 0;
+  if (G.wallN) for (let c = 0; c < NCELLS; c++) if (G.wall[c] && G.wallTeam[c] === team.id) own++;
+  if (own >= cap) return;
+  const b = buildingsOf(team.id).find((e) => e.def.defense && !e.def.antiAir && e.buildT >= 1 && e.sellT <= 0 && !e.walled);
+  if (!b) return;
+  b.walled = true;
+  const foe = enemyOf(team), bx = b.cx + b.w / 2, by = b.cy + b.h / 2;
+  let dx = foe.start.cx - bx, dy = foe.start.cy - by;
+  const d = Math.hypot(dx, dy) || 1;
+  dx /= d; dy /= d;
+  const mx = bx + dx * 2.6, my = by + dy * 2.6;   // the middle of the line, out in front
+  placeWalls(team, kind, Math.floor(mx - dy * 2), Math.floor(my + dx * 2), Math.floor(mx + dy * 2), Math.floor(my - dx * 2));
+}
 function aiThink(team) {
   aiBridges(team);
+  aiWalls(team);
   const c = aiCount(team);
   aiPickFoe(team);
   aiCounter(team);

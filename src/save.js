@@ -128,6 +128,7 @@ const SaveGame = (() => {
       const g = thaw(rec.state);
       g.byId = new Map(g.entities.map((e) => [e.id, e]));
       for (const s of g.spans || []) { s.def = SPAN; g.byId.set(s.id, s); }   // bridge spans (world.js addSpan)
+      if (!g.wall || g.wall.length !== NCELLS) { g.wall = new Uint8Array(NCELLS); g.wallTeam = new Uint8Array(NCELLS); g.wallHp = new Uint16Array(NCELLS); g.wallN = 0; }   // walls (a save from before them)
       // Alliances (team games, 2026.11.05): a save from before has none, each side its own. Allies share
       // one fog array, which the save keeps as copies: join them up again.
       g.teams.forEach((t, i) => { if (t.ally === undefined) t.ally = i; });

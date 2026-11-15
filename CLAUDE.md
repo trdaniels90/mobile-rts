@@ -448,6 +448,45 @@ share globals. Read this file first; the commit history explains every change in
   continue in the browser. `tools/sim/production.js` fails on `main` too (not from this change).
 - On a phone the selection bar wraps to two rows with ATTACK GROUND on it.
 
+## Walls and gates (contributor's change by JGFortanelli, owner OK'd for both modes, not released; branch `friend/walls-gates`, on top of the bridges branch)
+
+- **Not structures.** A map layer: `G.wall` (kind id per cell, `WALLS` / `WALL_BY_ID` in data.js), `G.wallTeam`, `G.wallHp`,
+  `G.wallN` (how many stand), made by `ensureWalls()` (newWorld; save.js for older saves). Nothing that loops over
+  buildings sees them: no power, no win rule, no base alarms, no auto targeting.
+- **Kinds:** Sandbags (Allies, Barracks, $25, 100 health), Barbed Wire (Soviets, Barracks, $20, 40), Concrete Wall (both,
+  War Factory, $100, 300), Gate (both, War Factory, $250, 300, one cell). All need a Construction Yard (`wallAvailable`).
+- **Blocking:** hard pieces (sandbags, concrete) set `G.block`, so every terrain test sees them. Wire and gates do not:
+  `freeCell` asks `softBlocks(c)`, which goes by `MOVER`, the unit a path (`processPaths`) or a step (`tryMove`) is being
+  worked out for: wire stops infantry, a gate stops whoever is not of its alliance, and with no unit named both stop
+  everything. `canPlace` refuses any wall cell. A vehicle flattens the wire it drives over (`tryMove`).
+- **Placing:** `placeWalls(team, kind, x0, y0, x1, y1)` lays `wallLine` (straight, stepping one axis at a time so a slant
+  has no corner gaps, at most `WALL_LINE_MAX` 40) on every cell `wallOk` allows (open ground, nothing on it, within the
+  building range of one of the side's buildings), paying per piece as far as the money goes. Built at once.
+  `sellWall(team, x, y)` takes down one of your own for half its price.
+- **Damage:** only ordered fire. `commandAttackGround` on a wall cell makes a spot target with `wall: cell`; `damage`
+  passes it to `hitWall`, and the spot dies with the piece so the attackers stand down. Structure armour.
+- **Shooting a way through** (`breachWalls`, each side every 4 s while walls stand; `wallInTheWay`): hunting units
+  (Auto Attack, the computer's waves) whose way to the nearest enemy building is shut attack the first enemy wall or gate
+  on the shortest way in (two floods: as the unit walks, then also through enemy walls), up to 3 groups a turn, units
+  within `BREACH_REACH` 15 cells join. `u.breach` sends them back to the hunt after; `manual` is cleared (not a player's
+  order). Direct orders are left alone.
+- **The computer** (`aiWalls` in ai.js, Normal and Hard, from minute 5, with 1,200 credits to spare, every 15 s): five
+  pieces across the enemy's line of approach, 2.6 cells in front of each ground defence (`b.walled`), never a ring.
+  Sandbags or wire; Concrete on Hard with a War Factory. Cap 20 pieces (Normal), 36 (Hard). It builds no gates.
+- **Online:** `placeWalls` and `sellWall` are in netcore `COMMANDS` (the server must run the same version). Snapshots
+  carry `wl` (`[cell, kind, side, health]` for cells that changed, where the player can see or the wall is their
+  alliance's, every fifth snapshot like ore); the copy applies it with `applyWalls`, and `clearWalls` on a resync.
+- **Looks:** `wallPic` in art.js draws each piece on a canvas (by kind, joined sides, side colour, battered, gate open),
+  no voxel models, so no sprite rebake. Drawn in ui.js `draw` after the wrecks layer, on explored ground. A gate shows
+  open while a ground unit of its alliance is beside it (looks only). Grey dots on the radar, gates yellow.
+- **UI:** `wl:<kind>` items at the end of the structures strip (`wallCameo`); `beginWall` / `wallBar` / `placeTap`: tap the
+  start, tap the end (tap again to move it), BUILD; it stays in wall mode for the next line. Tap an enemy wall with
+  fighters selected to attack it; tap your own twice with nothing selected to take it down.
+- `node tools/sim/walls.js <repo>` (headless: rules and prices, each kind's blocking, gates and alliances, wire under
+  tracks, ordered fire only, selling, hunters shooting through a walled-in base, snapshots and remote orders). A
+  phone-sized browser run laid concrete, a gate and sandbags, walked a soldier through the gate and took a piece down.
+  Not yet tried: two real phones online, and a save and continue in the browser.
+
 ## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (2026.11.11.2; bridges, weather 2026.11.12)
 
 - `MAPS.snowbound` in maps.js: traced from the owner's design `maps/designs/snowbound.png` (126 cells, a lavender-ground palette:
@@ -735,6 +774,7 @@ Supabase.
 | `bunching.js` | Headless staged fight: how many friends stand inside one V2 blast of each fighting unit, attack and defence, and how the fight went. `<repo> [runs] [seconds]` |
 | `veterancy.js` | Headless: ranks at 2, 4, 8, 16 times own cost destroyed, firepower, armour, speed, reload, elite self-heal, no ranks for Ore Trucks or structures, a staged fight |
 | `bridges.js` | Headless: attack ground, destroyable bridge spans on Twin Lakes (hurt only by an ordered attack, collapse, routes go round), Engineers rebuilding a span and repairing a structure, online snapshot and orders, the computer training and sending an Engineer |
+| `walls.js` | Headless: walls and gates: laying a line (rules, prices), what each kind stops, gates and alliances, wire under tracks, ordered fire only, selling, Auto Attack units shooting a way through, online snapshot and orders |
 | `rally.js` | Headless: units from an Outpost Barracks stay there, PRIMARY picks the Barracks, a rally point gathers new units, fallback when the primary is lost |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 

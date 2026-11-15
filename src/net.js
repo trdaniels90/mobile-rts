@@ -445,7 +445,7 @@ const Net = (() => {
     hud();
     listener();
   }
-  function clearCopy() { G.entities = []; G.byId.clear(); registerSpans(); G.bld.fill(0); G.resv.fill(0); G.projectiles = []; G.selection = []; }
+  function clearCopy() { G.entities = []; G.byId.clear(); registerSpans(); clearWalls(); G.bld.fill(0); G.resv.fill(0); G.projectiles = []; G.selection = []; }
   // Quitting an online battle is surrendering. The host's battle decides; the guest asks it.
   // how: 'quit', or 'out' when their side was already beaten in a team game and they leave for the debrief.
   function surrender(how = 'quit') {
@@ -610,6 +610,7 @@ const Net = (() => {
     if (s.fog) { const fog = G.fog[G.me]; for (const i of s.fog) fog[i] = 1; G.shroudDirty = true; }
     if (s.ore) for (let i = 0; i < s.ore.length; i += 3) { G.ore[s.ore[i]] = s.ore[i + 1]; G.gem[s.ore[i]] = s.ore[i + 2]; }
     if (s.sp) applySpans(s.sp);
+    if (s.wl) applyWalls(s.wl);
     if (s.ev) for (const ev of s.ev) playEvent(ev);
     if (s.log) {   // the host's debrief log, as it grows
       const L = G.log, [a, b, c] = s.log.at;

@@ -80,6 +80,7 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
       t.start = { ...G.spawns[i] };
     }
   }
+  ensureWalls();
   genMap(seed);
   // The ground, painted in tiles as it is looked at, and the marks of battle (art.js makeGround): G.tctx is
   // the ground's layer, G.dctx the layer of bodies and wrecks above it, so later craters and scorch marks
@@ -523,8 +524,156 @@ function breakSpan(s, attacker) {
 // they are given another order.
 function commandAttackGround(units, x, y) {
   if (!(x >= 0 && y >= 0 && x < WORLD && y < WORLD)) return;
-  const s = spanAt(x, y);
-  commandAttack(units, s && s.alive ? s : { kind: 'spot', type: 'spot', def: SPOT, team: -1, x, y, hp: 1, maxHp: 1, alive: true, hitT: -99 });
+  const s = spanAt(x, y), c = cellOfPos(x, y);
+  const spot = { kind: 'spot', type: 'spot', def: SPOT, team: -1, x, y, hp: 1, maxHp: 1, alive: true, hitT: -99 };
+  if (G.wall[c]) { const p = cellCenter(c); spot.wall = c; spot.x = p.x; spot.y = p.y; }   // a wall or gate: fire until it is down
+  commandAttack(units, s && s.alive ? s : spot);
+}
+
+// ---------------------------------------------------------------------------
+// Walls and gates (WALLS in data.js): G.wall holds the kind of piece in each cell (0 none), G.wallTeam its side,
+// G.wallHp its health, G.wallN how many stand. Hard pieces also set G.block; wire and gates are judged by who is
+// moving (softBlocks). Saved with the game as they are; an online copy is sent the cells that changed (netcore).
+function ensureWalls() {
+  if (G.wall && G.wall.length === NCELLS) return;
+  G.wall = new Uint8Array(NCELLS); G.wallTeam = new Uint8Array(NCELLS); G.wallHp = new Uint16Array(NCELLS); G.wallN = 0;
+}
+const wallAvailable = (team, kind) => { const d = WALLS[kind]; return !!d && d.factions.includes(team.faction) && hasBuilt(team, 'cy') && hasBuilt(team, d.req); };
+// Whether a piece may stand in this cell: open ground with nothing on it, near one of the side's own buildings.
+function wallOk(team, c, blds) {
+  const x = cellX(c), y = cellY(c);
+  if (x < 1 || y < 1 || x > MAP - 2 || y > MAP - 2 || G.terr[c] > 1 || G.block[c] || G.bld[c] || G.ore[c] > 0 || G.resv[c] || G.wall[c]) return false;
+  for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && cellOfPos(e.x, e.y) === c) return false;
+  for (const b of blds || buildingsOf(team.id)) {
+    const reach = b.def.buildRadius || BUILD_RANGE;
+    if (x <= b.cx + b.w + reach && x >= b.cx - reach - 1 && y <= b.cy + b.h + reach && y >= b.cy - reach - 1) return true;
+  }
+  return false;
+}
+// The cells of a straight line between two cells (at most WALL_LINE_MAX); a gate is one piece.
+function wallLine(kind, x0, y0, x1, y1) {
+  if (WALLS[kind] && WALLS[kind].gate) { x1 = x0; y1 = y0; }
+  // (a slanted line steps along one axis at a time, so it has no corner gaps to slip through)
+  const out = [], n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+  const add = (x, y) => { if (out.length < WALL_LINE_MAX && inMap(x, y)) out.push(idx(x, y)); };
+  let px = x0, py = y0;
+  add(x0, y0);
+  for (let i = 1; i <= n; i++) {
+    const x = Math.round(x0 + (x1 - x0) * i / n), y = Math.round(y0 + (y1 - y0) * i / n);
+    if (x !== px && y !== py) add(x, py);
+    add(x, y); px = x; py = y;
+  }
+  return out;
+}
+function setWall(c, id, tid, hp) {
+  const was = WALL_BY_ID[G.wall[c]], d = WALL_BY_ID[id];
+  if (was && was.hard) G.block[c] = 0;
+  if (!was && d) G.wallN++; else if (was && !d) G.wallN--;
+  G.wall[c] = id; G.wallTeam[c] = d ? tid : 0; G.wallHp[c] = d ? hp : 0;
+  if (d && d.hard) G.block[c] = 1;
+  G.wallEver = true; G.wallRev = (G.wallRev || 0) + 1;
+}
+// Lays a line of pieces from one cell to another: every cell that can take one, as far as the money goes.
+// Returns how many were laid.
+function placeWalls(team, kind, x0, y0, x1, y1) {
+  if (!team || team.out || !wallAvailable(team, kind) || ![x0, y0, x1, y1].every(Number.isInteger)) return 0;
+  const d = WALLS[kind], blds = buildingsOf(team.id);
+  let n = 0;
+  for (const c of wallLine(kind, x0, y0, x1, y1)) {
+    if (team.credits < d.cost) break;
+    if (!wallOk(team, c, blds)) continue;
+    team.credits -= d.cost; setWall(c, d.id, team.id, d.hp); n++;
+  }
+  if (n) { const p = cellCenter(idx(x0, y0)); hooks.sfx('place', p.x, p.y); }
+  return n;
+}
+function removeWall(c) {
+  const d = WALL_BY_ID[G.wall[c]];
+  if (!d) return;
+  const p = cellCenter(c);
+  setWall(c, 0, 0, 0);
+  hooks.sfx(d.wire ? 'hitMed' : 'collapse', p.x, p.y);
+  G.effects.push({ type: 'expl', x: p.x, y: p.y, size: d.wire ? 5 : 9, t: 0, life: 0.5, seed: (Math.random() * 1e6) | 0, debris: !d.wire });
+}
+function hitWall(c, dmg) {
+  if (!G.wall[c] || !(dmg > 0)) return;
+  if (G.wallHp[c] > dmg) { G.wallHp[c] = Math.max(1, Math.round(G.wallHp[c] - dmg)); G.wallRev++; }
+  else removeWall(c);
+}
+// Taking down a piece of your own: half its price back.
+function sellWall(team, x, y) {
+  if (!team || !Number.isInteger(x) || !Number.isInteger(y) || !inMap(x, y)) return false;
+  const c = idx(x, y), d = WALL_BY_ID[G.wall[c]];
+  if (!d || G.wallTeam[c] !== team.id) return false;
+  setWall(c, 0, 0, 0);
+  team.credits += Math.floor(d.cost / 2);
+  const p = cellCenter(c); hooks.sfx('place', p.x, p.y);
+  return true;
+}
+// An online copy: the cells the host sent, [cell, kind, side, health] in a row.
+function applyWalls(list) {
+  ensureWalls();
+  for (let i = 0; i < list.length; i += 4) setWall(list[i], list[i + 1], list[i + 2], list[i + 3]);
+}
+function clearWalls() {
+  if (!G.wall) return;
+  for (let c = 0; c < NCELLS; c++) if (G.wall[c]) setWall(c, 0, 0, 0);
+}
+
+// Units on an Auto Attack (or the computer's waves) that find the way to their target walled off shoot a way
+// through: the first enemy wall or gate on the shortest way in, then they go on. Each side in turn, a few groups
+// at a time. A player's direct orders are left alone (Attack ground is theirs to give).
+const BREACH_REACH = 15;   // cells: the units around the one that found the way shut join in
+function breachWalls(team) {
+  if (!G.wallN) return;
+  const units = unitsOf(team.id).filter((u) => u.cls !== 'air' && u.def.weapon && !u.def.harvester && !u.chute);
+  // Back to the hunt once the wall is down.
+  for (const u of units) if (u.breach && !(u.order.type === 'attack' && u.order.target.alive)) { u.breach = false; if (u.order.type === 'guard') setHunt(u); }
+  const hunters = units.filter((u) => u.order.type === 'hunt' && !u.breach && !(u.target && u.target.alive));
+  const done = [];
+  for (const lead of hunters) {
+    if (done.length >= 3) break;
+    if (done.some((o) => Math.hypot(o.x - lead.x, o.y - lead.y) < BREACH_REACH * CELL)) continue;
+    done.push(lead);
+    const goal = nearestEnemyBuilding(lead);
+    if (!goal) continue;
+    const c = wallInTheWay(lead, goal);
+    if (c < 0) continue;
+    const p = cellCenter(c), group = hunters.filter((u) => Math.hypot(u.x - lead.x, u.y - lead.y) < BREACH_REACH * CELL);
+    commandAttackGround(group, p.x, p.y);
+    for (const u of group) if (u.order.type === 'attack') { u.breach = true; u.manual = false; u.manualFrom = undefined; }   // (not a player's order: see takeOver)
+  }
+}
+// The enemy wall or gate to shoot through for a unit to reach a structure, or -1 when it can walk there (or no wall
+// is to blame). Two floods from the unit: one as it walks, one that also goes through enemy walls and gates.
+function wallInTheWay(u, goal) {
+  const s = cellOfPos(u.x, u.y), n = NCELLS, from = new Int32Array(n).fill(-2);
+  const atGoal = (x, y) => x >= goal.cx - 1 && x <= goal.cx + goal.w && y >= goal.cy - 1 && y <= goal.cy + goal.h;
+  const enemyWall = (c) => G.wall[c] && hostile(u.team, G.wallTeam[c]);
+  const flood = (through) => {
+    from.fill(-2); from[s] = -1;
+    const q = [s];
+    for (let i = 0; i < q.length; i++) {
+      const c = q[i], cx = cellX(c), cy = cellY(c);
+      if (atGoal(cx, cy)) return c;
+      for (let k = 0; k < 4; k++) {
+        const nx = cx + DIRS8[k][0], ny = cy + DIRS8[k][1];
+        if (!inMap(nx, ny)) continue;
+        const m = idx(nx, ny);
+        if (from[m] !== -2) continue;
+        if (!(freeCell(m) || (through && enemyWall(m) && !G.bld[m]))) continue;
+        from[m] = c; q.push(m);
+      }
+    }
+    return -1;
+  };
+  MOVER = u;
+  try {
+    if (flood(false) >= 0) return -1;
+    let c = flood(true), wall = -1;
+    for (; c >= 0; c = from[c]) if (enemyWall(c)) wall = c;   // (walking back from the goal: the last one found is the first met)
+    return wall;
+  } finally { MOVER = null; }
 }
 
 // Engineers: sent to a destroyed bridge span, or to a damaged structure of their own alliance, they walk up to it,
@@ -612,7 +761,16 @@ function setMapSize(n) {
   GRID_N = Math.ceil(MAP / GRID_CELLS);
   Object.assign(PF, { g: new Float32Array(NCELLS), from: new Int32Array(NCELLS), open: new Uint32Array(NCELLS), closed: new Uint32Array(NCELLS), stamp: 0 });
 }
-const freeCell = (c) => !G.block[c] && !G.bld[c];
+// MOVER: the unit a path or a step is being worked out for, so barbed wire stops only infantry and a gate only those
+// who are not of its alliance (softBlocks). With no unit named, wire and gates stop everything. Hard walls are in G.block.
+let MOVER = null;
+function softBlocks(c) {
+  const d = WALL_BY_ID[G.wall[c]];
+  if (!d || d.hard) return false;
+  if (!MOVER) return true;
+  return d.wire ? MOVER.cls === 'inf' : !alliedSides(MOVER.team, G.wallTeam[c]);
+}
+const freeCell = (c) => !G.block[c] && !G.bld[c] && !(G.wallN && softBlocks(c));
 function passableAt(x, y) {
   if (x < 2 || y < 2 || x > WORLD - 2 || y > WORLD - 2) return false;
   return freeCell(cellOfPos(x, y));
@@ -812,7 +970,8 @@ function processPaths() {
     const u = G.pathQueue.shift();
     if (!u.alive || !u.needPath || !u.dest) { u.needPath = false; continue; }
     u.needPath = false;
-    u.path = findPath(u.x, u.y, u.dest.x, u.dest.y, u.def.r);
+    MOVER = u;
+    try { u.path = findPath(u.x, u.y, u.dest.x, u.dest.y, u.def.r); } finally { MOVER = null; }
     u.pathIdx = 0;
     if (!u.path || !u.path.length) u.dest = null;
     else if (u.lane && (u.order.type === 'hunt' || u.order.type === 'attack')) laneOffsetPath(u);
@@ -820,11 +979,17 @@ function processPaths() {
 }
 
 function tryMove(u, dx, dy) {
-  const nx = u.x + dx, ny = u.y + dy;
-  if (passableAt(nx, ny)) { u.x = nx; u.y = ny; return true; }
-  if (dx && passableAt(nx, u.y)) { u.x = nx; return true; }
-  if (dy && passableAt(u.x, ny)) { u.y = ny; return true; }
-  return false;
+  MOVER = u;
+  try {
+    const nx = u.x + dx, ny = u.y + dy;
+    let ok = false;
+    if (passableAt(nx, ny)) { u.x = nx; u.y = ny; ok = true; }
+    else if (dx && passableAt(nx, u.y)) { u.x = nx; ok = true; }
+    else if (dy && passableAt(u.x, ny)) { u.y = ny; ok = true; }
+    // A vehicle flattens the barbed wire it drives over.
+    if (ok && G.wallN && u.cls === 'veh' && !G.remote) { const c = cellOfPos(u.x, u.y), d = WALL_BY_ID[G.wall[c]]; if (d && d.wire) removeWall(c); }
+    return ok;
+  } finally { MOVER = null; }
 }
 
 // How close counts as arrived. Alone, a unit walks right up to the point; when friendly units
@@ -1968,7 +2133,11 @@ function vetHeal(u, dt) {   // an elite unit mends itself when it has not been h
 }
 
 function damage(t, amount, wh, attacker, from) {
-  if (!t.alive || G.remote || t.kind === 'spot') return;   // (a PvP guest's copy only shows the host's battle)
+  if (!t.alive || G.remote) return;
+  if (t.kind === 'spot') {   // a point on the ground: only a wall or gate standing there is hurt
+    if (t.wall !== undefined) { if (G.wall[t.wall]) hitWall(t.wall, amount * (WARHEADS[wh].bld || 0)); if (!G.wall[t.wall]) t.alive = false; }
+    return;
+  }   // (a PvP guest's copy only shows the host's battle)
   if (t.kind === 'bld' && t.def.camo && !(attacker && alliedSides(attacker.team, t.team))) t.revealT = CAMO_REVEAL;   // being hit gives it away
   // As in Red Alert: whoever fires at a support plane (Spy Plane, Paratroopers transport, bomber)
   // gives away where it stands, to either side.
@@ -3572,7 +3741,7 @@ function canPlace(team, type, cx, cy, gap) {
   if (cx < 1 || cy < 1 || cx + d.w > MAP - 1 || cy + d.h + (d.exit ? 1 : 0) > MAP - 1) return false;
   for (let y = cy; y < cy + d.h; y++) for (let x = cx; x < cx + d.w; x++) {
     const c = idx(x, y);
-    if (G.block[c] || G.bld[c] || G.ore[c] > 0 || G.resv[c]) return false;
+    if (G.block[c] || G.bld[c] || G.ore[c] > 0 || G.resv[c] || G.wall[c]) return false;
   }
   if (d.exit) { const c = idx(cx + Math.floor(d.w / 2), cy + d.h); if (G.block[c] || G.bld[c]) return false; }
   const x0 = cx * CELL, y0 = cy * CELL, x1 = (cx + d.w) * CELL, y1 = (cy + d.h) * CELL;
@@ -4058,7 +4227,7 @@ function update(dt) {
   // through the second instead of all in one step (in a 3 v 3 that one step stalled a phone for a tenth of a second).
   const nT = G.teams.length;
   if ((T.ai -= dt) <= 0) { T.ai += 1 / nT; if (T.ai <= 0) T.ai = 1 / nT; T.aiI = ((T.aiI || 0) + 1) % nT; const team = G.teams[T.aiI]; if (!G.over && team && team.isAI) aiThink(team); }
-  if ((T.grp = (T.grp === undefined ? 0 : T.grp) - dt) <= 0) { T.grp += 1 / nT; if (T.grp <= 0) T.grp = 1 / nT; T.grpI = ((T.grpI || 0) + 1) % nT; if (!G.over) launchGroups(G.teams[T.grpI]); }
+  if ((T.grp = (T.grp === undefined ? 0 : T.grp) - dt) <= 0) { T.grp += 1 / nT; if (T.grp <= 0) T.grp = 1 / nT; T.grpI = ((T.grpI || 0) + 1) % nT; if (!G.over) { launchGroups(G.teams[T.grpI]); T.brN = (T.brN || 0) + 1; if (G.wallN && Math.floor(T.brN / nT) % 4 === 0 && !G.teams[T.grpI].out) breachWalls(G.teams[T.grpI]); } }
   if ((T.win -= dt) <= 0) { T.win = 1; if (!G.remote) updateReserves(); checkWin(); }
   if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); for (const t of G.teams) if (!t.isAI) adviseTrucks(t); }
   if (!G.over && (T.stuck = (T.stuck === undefined ? 5 : T.stuck) - dt) <= 0) { T.stuck = 5; stuckWatch(); }

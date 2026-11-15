@@ -121,6 +121,16 @@ const NetCore = (() => {
       for (let i = 0; i < NCELLS; i++) if ((G.ore[i] !== P.oreSent[i] || G.gem[i] !== P.gemSent[i]) && view[i]) { P.oreSent[i] = G.ore[i]; P.gemSent[i] = G.gem[i]; o.push(i, G.ore[i], G.gem[i]); }
       if (o.length) s.ore = o;
     }
+    // Walls and gates: the cells that changed, where this player can see (with the ore, every fifth snapshot).
+    if (G.wallEver && (P.snapN - 1) % ORE_EVERY === 0) {
+      if (!P.wallSent || P.wallSent.length !== NCELLS) P.wallSent = new Uint32Array(NCELLS);
+      const w = [];
+      for (let i = 0; i < NCELLS; i++) {
+        const v = G.wall[i] | (G.wallTeam[i] << 4) | (G.wallHp[i] << 8);
+        if (v !== P.wallSent[i] && (view[i] || (G.wall[i] && friendly(G.wallTeam[i], P.side)))) { P.wallSent[i] = v; w.push(i, G.wall[i], G.wallTeam[i], G.wallHp[i]); }
+      }
+      if (w.length) s.wl = w;
+    }
     // Bridge spans that can be destroyed: all of them whenever one changes (health, standing).
     if (G.spans && G.spans.length) {
       const sp = JSON.stringify(G.spans.map((x) => [Math.max(0, Math.ceil(x.hp)), x.alive ? 1 : 0]));
@@ -177,7 +187,7 @@ const NetCore = (() => {
   // Orders from a remote player, for their own side only.
   const COMMANDS = ['commandMove', 'commandAttack', 'commandHunt', 'commandGuard', 'commandStop', 'startProduction', 'cancelProduction',
     'placeStructure', 'launchPower', 'deployFob', 'setAuto', 'setAssist', 'recallAlly', 'setRepair', 'sellStructure', 'commandRepair', 'sendCredits',
-    'setPrimary', 'setRally', 'commandAttackGround', 'commandEngineer'];
+    'setPrimary', 'setRally', 'commandAttackGround', 'commandEngineer', 'placeWalls', 'sellWall'];
   const ORIGC = {};
   for (const f of COMMANDS) ORIGC[f] = root[f];
   function applyCommand(side, m) {

@@ -1643,6 +1643,112 @@ function drawGhost(g, type, faction, cx, cy) {
   g.globalAlpha = 1;
 }
 
+// Walls and gates (world.js placeWalls): one picture a piece, 24 px wide and 34 high (it stands up to 10 px above its
+// cell), made for its kind, the sides it joins on (mask: 1 north, 2 east, 4 south, 8 west), its side's colour, whether
+// it is battered and, for a gate, whether it stands open. Kept by key.
+const wallPics = new Map();
+const WALL_UP = 10;
+function wallPic(id, mask, colour, hurt, open) {
+  const key = id + '|' + mask + '|' + colour + '|' + (hurt ? 1 : 0) + '|' + (open ? 1 : 0);
+  let c = wallPics.get(key);
+  if (c) return c;
+  c = mkCanvas(CELL, CELL + WALL_UP);
+  const g = c.getContext('2d'), d = WALL_BY_ID[id], N = mask & 1, E = mask & 2, S = mask & 4, Wt = mask & 8;
+  const r = rng(id * 977 + mask * 131 + 7);
+  // A raised shape: its footprint (rectangles in cell pixels) drawn as a shadow, then its sides, then its top.
+  const raise = (rects, h, top, side, edge) => {
+    g.fillStyle = 'rgba(0,0,0,0.28)';
+    for (const [x, y, w, hh] of rects) g.fillRect(x + 2, y + WALL_UP + 1, w, hh);
+    g.fillStyle = side;
+    for (let k = 0; k < h; k++) for (const [x, y, w, hh] of rects) g.fillRect(x, y + WALL_UP - k, w, hh);
+    g.fillStyle = top;
+    for (const [x, y, w, hh] of rects) g.fillRect(x, y + WALL_UP - h, w, hh);
+    if (edge) { g.fillStyle = edge; for (const [x, y, w] of rects) g.fillRect(x, y + WALL_UP - h, w, 1); }
+  };
+  // The run of a wall through its cell: a middle block and an arm to each side it joins.
+  const run = (t) => {
+    const a = (CELL - t) / 2, rects = [[a, a, t, t]];
+    if (N) rects.push([a, 0, t, a]); if (S) rects.push([a, a + t, t, a]);
+    if (Wt) rects.push([0, a, a, t]); if (E) rects.push([a + t, a, a, t]);
+    if (!mask) rects[0] = [a - 2, a - 2, t + 4, t + 4];
+    return rects;
+  };
+  if (d.gate) {
+    // Two posts with the way between them: across the cell when the wall runs west-east (or stands alone), else down it.
+    const ns = !(E || Wt) && (N || S), posts = ns ? [[6, 0, 12, 5], [6, 19, 12, 5]] : [[0, 6, 5, 12], [19, 6, 5, 12]];
+    g.fillStyle = 'rgba(70,60,45,0.55)';                                   // the worn track through it
+    if (ns) g.fillRect(8, 5 + WALL_UP, 8, 14); else g.fillRect(5, 8 + WALL_UP, 14, 8);
+    raise(posts, 9, '#b4b7b2', '#74777a', '#d2d5d0');
+    g.fillStyle = colour;
+    for (const [x, y, w, hh] of posts) g.fillRect(x + 1, y + WALL_UP - 8, Math.max(1, w - 2), Math.max(1, hh - 2) > 3 ? 2 : 1);
+    if (!open) {                                                           // the barrier, in hazard stripes
+      const bar = ns ? [10, 5, 4, 14] : [5, 10, 14, 4];
+      raise([bar], 5, '#d8b024', '#8a6e12');
+      g.fillStyle = '#1c1c1a';
+      for (let k = 2; k < 14; k += 4) { if (ns) g.fillRect(10, 5 + k + WALL_UP - 5, 4, 2); else g.fillRect(5 + k, 10 + WALL_UP - 5, 2, 4); }
+    } else {                                                               // open: the barrier swung up against a post
+      g.fillStyle = '#d8b024';
+      if (ns) g.fillRect(10, WALL_UP - 9, 4, 6); else g.fillRect(1, 4 + WALL_UP - 9, 3, 6);
+    }
+  } else if (d.wire) {
+    // Posts and three strands of coiled wire along the run.
+    const ew = E || Wt || !(N || S), ns = N || S;
+    const strand = (horiz) => {
+      for (let k = 0; k < CELL; k++) {
+        const wob = Math.round(Math.sin(k * 1.3) * 2), wob2 = Math.round(Math.cos(k * 1.1) * 2);
+        const from = horiz ? (Wt || !E ? 0 : 12) : (N || !S ? 0 : 12), to = horiz ? (E || !Wt ? CELL : 12) : (S || !N ? CELL : 12);
+        if (k < from || k >= to) continue;
+        const px = horiz ? k : 12, py = horiz ? 12 : k;
+        g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(px + (horiz ? 0 : wob) + 1, py + (horiz ? wob : 0) + WALL_UP + 1, 1, 1);
+        g.fillStyle = '#b9bec4'; g.fillRect(px + (horiz ? 0 : wob), py + (horiz ? wob : 0) + WALL_UP - 3, 1, 1);
+        g.fillStyle = '#7d848c'; g.fillRect(px + (horiz ? 0 : wob2), py + (horiz ? wob2 : 0) + WALL_UP - 1, 1, 1);
+        if (k % 4 === 0) { g.fillStyle = '#e4e8ec'; g.fillRect(px + (horiz ? 0 : wob), py + (horiz ? wob : 0) + WALL_UP - 4, 1, 1); }   // barbs
+      }
+    };
+    if (ew) strand(true);
+    if (ns) strand(false);
+    const post = (x, y) => { g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x + 1, y + WALL_UP, 2, 2); g.fillStyle = '#5a4630'; g.fillRect(x, y + WALL_UP - 6, 2, 7); g.fillStyle = '#7a6244'; g.fillRect(x, y + WALL_UP - 6, 1, 7); };
+    post(11, 11);
+    if (ew && !E) post(21, 11); if (ew && !Wt) post(1, 11);
+    if (ns && !S) post(11, 21); if (ns && !N) post(11, 1);
+  } else if (d.key === 'sandbag') {
+    const rects = run(12);
+    raise(rects, 5, '#b8a672', '#77673f', '#cdbc88');
+    g.fillStyle = 'rgba(70,58,30,0.55)';                                   // the seams between the bags
+    for (const [x, y, w, hh] of rects) {
+      for (let k = 3 + (r() * 2 | 0); k < w - 1; k += 5) g.fillRect(x + k, y + WALL_UP - 5, 1, hh);
+      for (let k = 3; k < hh - 1; k += 5) g.fillRect(x, y + k + WALL_UP - 5, w, 1);
+    }
+  } else {
+    const rects = run(10);
+    raise(rects, 8, '#aeb1ac', '#6c6f72', '#cfd2cd');
+    g.fillStyle = colour;                                                  // a line of the side's colour along the top
+    for (const [x, y, w, hh] of rects) { if (w >= hh) g.fillRect(x, y + (hh >> 1) + WALL_UP - 8, w, 1); else g.fillRect(x + (w >> 1), y + WALL_UP - 8, 1, hh); }
+  }
+  if (hurt && !d.wire) {                                                   // battered: chips and cracks
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(20,18,14,0.6)';
+    for (let k = 0; k < 14; k++) g.fillRect((r() * CELL) | 0, (r() * (CELL + WALL_UP)) | 0, 1 + (r() * 2 | 0), 1 + (r() * 2 | 0));
+    g.globalCompositeOperation = 'source-over';
+  }
+  wallPics.set(key, c);
+  return c;
+}
+// A sidebar picture for a kind of wall: three pieces of it in a row.
+function wallCameo(kind, faction, key) {
+  const W = 64, H = 48, c = mkCanvas(W, H), g = c.getContext('2d'), d = WALLS[kind];
+  const grd = g.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, '#26313b'); grd.addColorStop(0.5, '#46525c'); grd.addColorStop(0.52, '#4c5530'); grd.addColorStop(1, '#262c16');
+  g.fillStyle = grd; g.fillRect(0, 0, W, H);
+  g.imageSmoothingEnabled = false;
+  const col = palFor(faction).main, k = 1.25;
+  const row = d.gate ? [[3, 2], [4, 10], [3, 8]] : [[d.id, 2], [d.id, 10], [d.id, 8]];
+  row.forEach(([id, mask], i) => g.drawImage(wallPic(id, mask, col, false, false), Math.round((W - 3 * CELL * k) / 2 + i * CELL * k), Math.round((H - (CELL + WALL_UP) * k) / 2 + 2), CELL * k, (CELL + WALL_UP) * k));
+  const url = c.toDataURL();
+  cameoCache.set(key, url);
+  return url;
+}
+
 // A destroyed bridge span (world.js addSpan), drawn over the ground while it is down (ui.js draw): open water where
 // its cells were, with a ragged stub of the deck left at each end. Painted once per span with the map's own painter.
 const spanRuins = new WeakMap();
@@ -2017,6 +2123,7 @@ const cameoCache = new Map();
 function cameoURL(type, faction, variant) {
   const v = variant | 0, key = type + faction + v;
   if (cameoCache.has(key)) return cameoCache.get(key);
+  if (type.startsWith('wl:')) return wallCameo(type.slice(3), faction, key);
   const keep = drawVar; drawVar = v;
   try { return makeCameo(type, faction, key); } finally { drawVar = keep; }
 }

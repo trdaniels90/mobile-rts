@@ -41,6 +41,20 @@ const VET = {
 };
 
 // Damage multiplier by warhead against armor class.
+// Walls and gates: a layer of the map (G.wall, one piece a cell), not structures. Laid in straight lines near your own
+// buildings and paid for by the piece (world.js placeWalls). hard: nothing on the ground passes. wire: stops infantry,
+// vehicles drive through and flatten it. gate: its own alliance passes, everyone else is stopped. Only ordered fire
+// (Attack ground) hurts them, and units on an Auto Attack that find their way walled off shoot a way through.
+const WALLS = {
+  sandbag:  { id: 1, name: 'Sandbags', cost: 25, hp: 100, factions: ['allies'], req: 'barracks', hard: true },
+  wire:     { id: 2, name: 'Barbed Wire', cost: 20, hp: 40, factions: ['soviets'], req: 'barracks', wire: true },
+  concrete: { id: 3, name: 'Concrete Wall', cost: 100, hp: 300, factions: ['allies', 'soviets'], req: 'factory', hard: true },
+  gate:     { id: 4, name: 'Gate', cost: 250, hp: 300, factions: ['allies', 'soviets'], req: 'factory', gate: true },
+};
+const WALL_BY_ID = [null];
+for (const k in WALLS) { WALLS[k].key = k; WALL_BY_ID[WALLS[k].id] = WALLS[k]; }
+const WALL_LINE_MAX = 40;   // pieces in one line
+
 // A bridge span that can be destroyed (maps with `breakable` in MAPS; world.js addSpan): neutral, never fired on unless
 // ordered (Attack ground), armoured like a structure. Down, an Engineer rebuilds it (the computer trains one for it: ai.js aiBridges).
 // SPOT: a point on the ground units were told to fire at (commandAttackGround).

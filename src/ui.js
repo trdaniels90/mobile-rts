@@ -377,6 +377,18 @@
     }
 
     G.ground.draw(v, 'd', sx, sy, sw, sh, sx, sy);
+    // Walls and gates on explored ground (art.js wallPic). A gate stands open while one of its own alliance is beside it.
+    if (G.wallN) {
+      for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
+        const c = idx(cx, cy), id = G.wall[c];
+        if (!id || !G.seen[c]) continue;
+        const wt = G.wallTeam[c], d = WALL_BY_ID[id], tm = G.teams[wt];
+        const mask = (cy > 0 && G.wall[c - MAP] ? 1 : 0) | (cx < MAP - 1 && G.wall[c + 1] ? 2 : 0) | (cy < MAP - 1 && G.wall[c + MAP] ? 4 : 0) | (cx > 0 && G.wall[c - 1] ? 8 : 0);
+        let open = false;
+        if (d.gate) { const gx = (cx + 0.5) * CELL, gy = (cy + 0.5) * CELL; open = G.entities.some((e) => e.alive && e.kind === 'unit' && !isAirborne(e) && Math.abs(e.x - gx) < 34 && Math.abs(e.y - gy) < 34 && alliedSides(e.team, wt)); }
+        v.drawImage(wallPic(id, mask, tm ? tm.pal.main : '#888', G.wallHp[c] < d.hp / 2, open), cx * CELL, cy * CELL - WALL_UP);
+      }
+    }
     // Destroyed bridge spans: water and broken ends over the painted bridge (art.js spanRuin).
     for (const s of G.spans || []) if (!s.alive && s.x > ox - 400 && s.x < ox + bw + 400 && s.y > oy - 400 && s.y < oy + bh + 400) { const p = spanRuin(s); v.drawImage(p.c, p.x, p.y); }
     const x0 = ox - 80, y0 = oy - 80, x1 = ox + bw + 80, y1 = oy + bh + 80;
@@ -516,6 +528,16 @@
       v.beginPath(); v.moveTo(p.x - 8, p.y); v.lineTo(p.x + 8, p.y); v.moveTo(p.x, p.y - 8); v.lineTo(p.x, p.y + 8); v.stroke();
       return;
     }
+    if (p && p.wall) {   // a line of wall: the cells it would take, green where a piece can stand
+      if (p.ax === undefined) return;
+      const team = G.teams[G.me], blds = buildingsOf(team.id);
+      for (const c of wallLine(p.wall, p.ax, p.ay, p.bx, p.by)) {
+        v.fillStyle = wallOk(team, c, blds) ? 'rgba(90,230,110,0.45)' : 'rgba(220,40,30,0.45)';
+        v.fillRect(cellX(c) * CELL, cellY(c) * CELL, CELL, CELL);
+      }
+      v.strokeStyle = '#f2f2ea'; v.lineWidth = 1; v.strokeRect(p.ax * CELL + 0.5, p.ay * CELL + 0.5, CELL - 1, CELL - 1);
+      return;
+    }
     if (!p || p.cx === undefined) return;
     const d = BUILD_DEFS[p.type];
     const team = G.teams[G.me];
@@ -559,6 +581,7 @@
     rctx.imageSmoothingEnabled = false;
     rctx.drawImage(miniTerrain, 0, 0, Wr, Hr);
     for (let i = 0; i < NCELLS; i++) if (G.ore[i] && G.seen[i]) { rctx.fillStyle = G.gem[i] ? '#a58cff' : '#c9a227'; rctx.fillRect(cellX(i) * k, cellY(i) * k, Math.ceil(k), Math.ceil(k)); }
+    if (G.wallN) for (let i = 0; i < NCELLS; i++) if (G.wall[i] && G.seen[i]) { rctx.fillStyle = WALL_BY_ID[G.wall[i]].gate ? '#d8b024' : '#9a9c98'; rctx.fillRect(cellX(i) * k, cellY(i) * k, Math.ceil(k), Math.ceil(k)); }
     for (const e of G.entities) {
       if (!visibleToPlayer(e)) continue;
       rctx.fillStyle = G.teams[e.team].pal[e.kind === 'bld' ? 'main' : 'light'];
@@ -603,7 +626,7 @@
   let lastTap = null;
   // Attack ground (the ATTACK GROUND button): aimSpan holds the units waiting for the next tap, which orders them to
   // fire at that spot, or at the bridge span there (world.js commandAttackGround).
-  let aimSpan = null, spanSig = '';
+  let aimSpan = null, spanSig = '', wallArmed = null;
   function tap(sx, sy, shift) {
     if (!G || G.over) return;
     const w = s2w(sx, sy);
@@ -627,6 +650,20 @@
     const slop = (isTouch ? 16 : 6) / cam.z;
     const e = pick(w.x, w.y, slop);
     const mine = ownUnits();
+    // A wall or gate under the tap (and nothing else): an enemy's is attacked by the selected fighters; your own,
+    // with nothing selected, is taken down on a second tap for half its price.
+    const wc = cellOfPos(Math.max(0, Math.min(WORLD - 1, w.x)), Math.max(0, Math.min(WORLD - 1, w.y)));
+    if (!e && G.wallN && G.wall[wc] && G.seen[wc]) {
+      const wd = WALL_BY_ID[G.wall[wc]], now = performance.now();
+      if (hostile(G.wallTeam[wc], G.me)) {
+        const able = mine.filter((u) => !u.def.harvester && (u.def.weapon || u.cls === 'air'));
+        if (able.length) { commandAttackGround(able, w.x, w.y); marker((cellX(wc) + 0.5) * CELL, (cellY(wc) + 0.5) * CELL, '#ff4a3a'); Sound.ack(able[0].cls === 'inf' ? 'attack' : able[0].cls); return; }
+      } else if (G.wallTeam[wc] === G.me && !mine.length) {
+        if (wallArmed && wallArmed.c === wc && now - wallArmed.t < 5000) { wallArmed = null; sellWall(G.teams[G.me], cellX(wc), cellY(wc)); Sound.play('click'); }
+        else { wallArmed = { c: wc, t: now }; evaCalm(`Tap again to take down this ${wd.gate ? 'Gate' : 'piece'} for $${Math.floor(wd.cost / 2)}`, 5); }
+        return;
+      }
+    }
     if (e && e.team === G.me) {
       if (e.kind === 'bld' && e.type === 'refinery' && mine.length && mine.every((u) => u.def.harvester)) {
         for (const u of mine) { u.hs = 'return'; u.dest = null; }
@@ -716,8 +753,29 @@
     ui.placeOk.hidden = true;
     ui.placebar.hidden = false;
   }
+  // Walls and gates: the first tap is where the line starts, the next where it ends (tap again to move the end),
+  // then BUILD. The bar says how many pieces can stand and what they cost. It stays in wall mode for the next line.
+  function beginWall(kind) {
+    G.place = { wall: kind };
+    select([]);
+    ui.placeOk.textContent = 'BUILD';
+    ui.placeOk.hidden = false;
+    ui.placebar.hidden = false;
+    wallBar();
+  }
+  function wallBar() {
+    const p = G.place, d = WALLS[p.wall], team = G.teams[G.me];
+    let n = 0;
+    if (p.ax !== undefined) { const blds = buildingsOf(team.id); n = wallLine(p.wall, p.ax, p.ay, p.bx, p.by).filter((c) => wallOk(team, c, blds)).length; }
+    const can = Math.min(n, Math.floor(team.credits / d.cost));
+    p.ok = can > 0;
+    ui.placeText.textContent = p.ax === undefined ? (d.gate ? `${isTouch ? 'Tap' : 'Click'} where the Gate goes, in a gap in your wall` : `${isTouch ? 'Tap' : 'Click'} where the ${d.name} start, then where they end`)
+      : !n ? `${d.name} cannot stand there` : d.gate ? `Gate: $${d.cost}` : `${d.name}: ${can} ${can === 1 ? 'piece' : 'pieces'}, $${can * d.cost}${can < n ? ' (all you can afford)' : p.ax === p.bx && p.ay === p.by ? '. Tap where the line ends' : ''}`;
+    refreshPlaceBtn();
+  }
   function endPlace() { if (G) G.place = null; ui.placebar.hidden = true; ui.placeOk.textContent = 'PLACE'; clampCam(); }
   function ghostAt(w) {
+    if (G.place.wall) return;
     if (G.place.power || G.place.guard || G.place.rally) { G.place.x = w.x; G.place.y = w.y; G.place.ok = true; refreshPlaceBtn(); return; }
     const d = BUILD_DEFS[G.place.type];
     G.place.cx = Math.round(w.x / CELL - d.w / 2);
@@ -728,6 +786,14 @@
   function refreshPlaceBtn() { ui.placeOk.disabled = !(G.place && G.place.ok); }
   function confirmPlace() {
     const p = G.place;
+    if (p && p.wall) {
+      if (p.ax === undefined || !p.ok) return;
+      placeWalls(G.teams[G.me], p.wall, p.ax, p.ay, p.bx, p.by);
+      Sound.play('click');
+      G.place = { wall: p.wall };
+      setTimeout(() => { if (G && G.place && G.place.wall) wallBar(); }, 50);
+      return;
+    }
     if (p && p.guard) {
       const units = p.guard.filter((u) => u.alive);
       if (p.x === undefined || !units.length) { endPlace(); return; }
@@ -752,6 +818,12 @@
   }
   function placeTap(w) {
     const p = G.place;
+    if (p.wall) {
+      const cx = Math.floor(w.x / CELL), cy = Math.floor(w.y / CELL);
+      if (p.ax === undefined || WALLS[p.wall].gate) { p.ax = p.bx = cx; p.ay = p.by = cy; } else { p.bx = cx; p.by = cy; }
+      wallBar();
+      return;
+    }
     if (p.guard || p.rally) { ghostAt(w); confirmPlace(); return; }
     if (p.power) {
       if (!isTouch || (p.x !== undefined && Math.hypot(w.x - p.x, w.y - p.y) < 30 / cam.z)) { ghostAt(w); confirmPlace(); }
@@ -897,7 +969,7 @@
       const powers = hasBuilt(team, 'airfield') ? Object.keys(POWERS).map((k) => 'pw:' + k) : [];
       // (a queued structure stays on the list after a building it needs is lost, so it can be placed or cancelled)
       const q = team.queues.structure;
-      return powers.concat(Object.keys(BUILD_DEFS).filter((k) => available(team, k) || (q && q.type === k)));
+      return powers.concat(Object.keys(BUILD_DEFS).filter((k) => available(team, k) || (q && q.type === k)), Object.keys(WALLS).filter((k) => wallAvailable(team, k)).map((k) => 'wl:' + k));
     }
     // (so do queued units whose producer is lost: they wait, and can be cancelled)
     const queued = new Set(UNIT_ORDER.flatMap((c) => (team.queues[c] || []).map((i) => i.type)));
@@ -917,7 +989,7 @@
       return;
     }
     for (const type of types) {
-      const pw = type.startsWith('pw:'), d = pw ? POWERS[type.slice(3)] : defOf(type);
+      const pw = type.startsWith('pw:'), wl = type.startsWith('wl:'), d = pw ? POWERS[type.slice(3)] : wl ? WALLS[type.slice(3)] : defOf(type);
       const btn = document.createElement('button');
       btn.type = 'button'; btn.className = 'cameo'; btn.dataset.type = type;
       btn.title = pw ? d.name : `${d.name}: $${d.cost}`;
@@ -941,6 +1013,11 @@
       if (powerReady(team, key)) beginTarget(key); else eva('Not available');
       return;
     }
+    if (type.startsWith('wl:')) {   // walls and gates: straight to laying a line, paid for by the piece
+      const kind = type.slice(3);
+      if (G.place && G.place.wall === kind) endPlace(); else if (wallAvailable(team, kind)) beginWall(kind); else eva('Not available');
+      return;
+    }
     // Training / Building is said when a queue starts, not for every unit added to it.
     const cat = catOf(type), wasBusy = cat === 'structure' ? !!team.queues.structure : team.queues[cat].length > 0;
     const res = startProduction(team, type);
@@ -956,6 +1033,7 @@
     if (!G) return;
     const team = G.teams[G.me];
     if (type.startsWith('pw:')) { if (G.place && G.place.power === type.slice(3)) endPlace(); return; }
+    if (type.startsWith('wl:')) { if (G.place && G.place.wall === type.slice(3)) endPlace(); return; }
     if (G.place && G.place.type === type) endPlace();
     if (cancelProduction(team, type)) eva('Cancelled');
   }
@@ -1163,11 +1241,13 @@
     const sq = team.queues.structure;
     for (const [type, el] of cameoEls) {
       let p = 0, st = '', count = 0, dim = false;
-      const cat = type.startsWith('pw:') ? 'power' : catOf(type);
+      const cat = type.startsWith('pw:') ? 'power' : type.startsWith('wl:') ? 'wall' : catOf(type);
       if (cat === 'power') {
         const key = type.slice(3);
         p = team.powers[key] / POWERS[key].charge;
         st = p >= 1 ? 'READY' : '';
+      } else if (cat === 'wall') {
+        st = G.place && G.place.wall === type.slice(3) ? 'READY' : '';
       } else if (cat === 'structure') {
         if (sq && sq.type === type) { p = sq.progress; st = sq.ready ? 'READY' : sq.stalled || !available(team, type) ? 'ON HOLD' : ''; }
         else if (sq) dim = true;
