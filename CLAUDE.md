@@ -676,6 +676,19 @@ share globals. Read this file first; the commit history explains every change in
 - The installer is unsigned, so Windows SmartScreen warns on first run until a code-signing certificate is added.
 - The app's game version equals the web version, so it matches the game server.
 
+## Mac app (`desktop/`, after 2026.11.15.6, not released, needs a Mac to test)
+
+- Unsigned `.dmg` and `.zip` (universal, ad-hoc signed by `scripts/adhoc-sign.js`, so Gatekeeper needs right-click > Open once), built by the
+  `mac` job in `.github/workflows/desktop.yml` after the Windows job, on the same release. `npm run dist:mac` builds locally (on a Mac).
+- **No electron-updater on Mac** (Squirrel.Mac needs a signature). `desktop/content-update.js` updates the game's files instead: the `mac` job
+  uploads `content-manifest.json` (every file in `desktop/game` with SHA-256, game version, `shell` version) to the release; the app reads the
+  newest release that has one every 30 min, builds the new files in `userData/content/<ver>.part` (unchanged files copied, changed ones fetched
+  from the Pages site and hash-checked, so a deploy that has not finished is retried later), then offers a restart. `pickBase` in main.js uses the
+  downloaded copy if newer than the bundled one; one that never finished loading is ignored (`bad`). Windows is unchanged.
+- **When a game update needs a newer `main.js` / `preload.js`**, raise `SHELL_API` in content-update.js and `SHELL` in `scripts/make-manifest.js`
+  together: older Mac apps then show "download the new app" instead of updating.
+- Tested here only with a stubbed Electron (`pickBase`, staging, restart offer, unconfirmed-boot fallback); the packaged app is untested.
+
 ## Supabase
 
 - **Project:** `yorrgemlhoxbxvyvzcwe`. The Supabase MCP tools work in these sessions.

@@ -1,5 +1,5 @@
-name: Windows app
-# Builds the Windows installer and publishes it as a GitHub Release. The installed app checks
+name: Desktop apps
+# Builds the Windows installer (and the Mac app, below) and publishes them as a GitHub Release. The installed app checks
 # these releases and updates itself. Runs when a new game version reaches main.
 on:
   push:
@@ -23,3 +23,29 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run release
+  # Mac app: an unsigned .dmg and .zip on the same release, plus content-manifest.json. The installed Mac
+  # app cannot use electron-updater (no signature), so it reads the manifest and updates its game files
+  # itself (desktop/content-update.js). Runs after the Windows job so both attach to one release.
+  mac:
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Install
+        working-directory: desktop
+        run: npm install
+      - name: Build and publish
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release:mac
+      - name: Publish the game manifest
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm run manifest -- content-manifest.json
+          TAG="v$(node -p "require('./package.json').version")"
+          gh release upload "$TAG" content-manifest.json --clobber --repo "$GITHUB_REPOSITORY"

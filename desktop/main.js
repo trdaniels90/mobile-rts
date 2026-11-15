@@ -1,7 +1,8 @@
 'use strict';
 // Red Horizon for PC: a window around the game files in ./game, served from app://game/ (not
 // file://, so the game treats it as a real site: match reports work and fetch() of the music
-// works). Updates come from GitHub Releases through electron-updater.
+// works). Windows updates come from GitHub Releases through electron-updater; the unsigned Mac app
+// updates its game files instead (content-update.js).
 const { app, BrowserWindow, protocol, net, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -10,6 +11,9 @@ const { pathToFileURL } = require('url');
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
 ]);
+
+const MAC = process.platform === 'darwin';
+const content = MAC ? require('./content-update') : null;
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
@@ -29,22 +33,25 @@ function createWindow() {
     icon: path.join(__dirname, 'game', 'icons', 'icon-512.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required' },
   });
-  Menu.setApplicationMenu(null);
-  win.webContents.on('did-finish-load', () => win.webContents.setZoomFactor(loadZoom()));
+  // Mac keeps a small menu so Cmd+Q, Cmd+H and Cmd+M work; Windows has none.
+  Menu.setApplicationMenu(MAC ? Menu.buildFromTemplate([{ role: 'appMenu' }, { label: 'View', submenu: [{ role: 'togglefullscreen' }] }, { role: 'windowMenu' }]) : null);
+  win.webContents.on('did-finish-load', () => { win.webContents.setZoomFactor(loadZoom()); if (content) content.confirm(); });
   win.loadURL('app://game/index.html');
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('before-input-event', (e, i) => {
     if (i.type !== 'keyDown') return;
+    const mod = MAC ? i.meta : i.control; // Cmd on a Mac, Ctrl elsewhere
     if (i.key === 'F11') { win.setFullScreen(!win.isFullScreen()); e.preventDefault(); }
     else if (i.key === 'Escape' && win.isFullScreen() && i.shift) { win.setFullScreen(false); e.preventDefault(); }
-    else if (i.control && (i.key === '=' || i.key === '+')) { setZoom(win.webContents.getZoomFactor() + 0.1); e.preventDefault(); }
-    else if (i.control && i.key === '-') { setZoom(win.webContents.getZoomFactor() - 0.1); e.preventDefault(); }
-    else if (i.control && i.key === '0') { setZoom(1); e.preventDefault(); }
+    else if (mod && (i.key === '=' || i.key === '+')) { setZoom(win.webContents.getZoomFactor() + 0.1); e.preventDefault(); }
+    else if (mod && i.key === '-') { setZoom(win.webContents.getZoomFactor() - 0.1); e.preventDefault(); }
+    else if (mod && i.key === '0') { setZoom(1); e.preventDefault(); }
     else if (i.key === 'F12' && !app.isPackaged) win.webContents.toggleDevTools();
   });
 }
 
 function setupUpdates() {
+  if (MAC) { content.start(win); return; }
   if (!app.isPackaged) return;
   const { autoUpdater } = require('electron-updater');
   autoUpdater.autoDownload = true;
@@ -62,7 +69,8 @@ function setupUpdates() {
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 app.whenReady().then(() => {
-  const base = path.join(__dirname, 'game');
+  let base = path.join(__dirname, 'game');
+  if (content) base = content.pickBase(base);
   protocol.handle('app', (req) => {
     const p = decodeURIComponent(new URL(req.url).pathname);
     const file = path.normalize(path.join(base, p === '/' ? 'index.html' : p));

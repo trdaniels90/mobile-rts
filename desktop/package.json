@@ -10,7 +10,10 @@
     "prep": "node scripts/prep.js",
     "start": "npm run prep && electron .",
     "dist": "npm run prep && electron-builder --win --publish never",
-    "release": "npm run prep && electron-builder --win --publish always"
+    "release": "npm run prep && electron-builder --win --publish always",
+    "dist:mac": "npm run prep && electron-builder --mac --publish never",
+    "release:mac": "npm run prep && electron-builder --mac --publish always",
+    "manifest": "node scripts/make-manifest.js"
   },
   "dependencies": {
     "electron-updater": "^6.3.9"
@@ -25,6 +28,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "content-update.js",
       "game/**/*",
       "package.json"
     ],
@@ -55,6 +59,27 @@
         "repo": "mobile-rts",
         "releaseType": "release"
       }
-    ]
+    ],
+    "afterPack": "scripts/adhoc-sign.js",
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.games",
+      "icon": "game/icons/icon-512.png",
+      "identity": null,
+      "artifactName": "RedHorizon-${version}-mac.${ext}"
+    }
   }
 }
