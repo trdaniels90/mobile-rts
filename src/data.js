@@ -123,7 +123,7 @@ const UNIT_DEFS = {
   // turns to aim, and both lob their rounds in a high arc, so they can miss a moving target.
   arty: {
     name: 'Artillery', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['dome', 'tech'], factions: ['allies'], draw: 'arty', fixed: true,
-    cost: 600, hp: 200, armor: 'light', speed: 42, turn: 2, sight: 5, r: 9, size: { len: 20, wid: 13, tur: 0, barrel: 15 },
+    cost: 600, hp: 190, armor: 'light', speed: 42, turn: 2, sight: 5, r: 9, size: { len: 20, wid: 13, tur: 0, barrel: 15 },
     weapon: { dmg: 110, rof: 4, range: 288, wh: 'ART', proj: 'artyshell', splash: 22, spread: 16 },
   },
   v2rl: {

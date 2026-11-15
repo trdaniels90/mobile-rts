@@ -838,3 +838,5 @@ frame-time maths everywhere, so it is not deterministic.
   (`fireWeapon`, bullet branch: full damage at the target, half at the edge, RF multipliers). Before / after: Artillery vs V2 Allies won 0 of 6
   to 6 of 6 (left 2,258 / 4,612 to 5,321 / 3,603); Mixed army 1 to 2 of 6 (left 1,590 / 3,305 to 2,343 / 2,700); Rifles vs Grenadiers still 1 of 6;
   tank rows moved by noise only. Soviet infantry and Mammoths still win most of the rest.
+  Then Artillery health 200 to 190 (owner: it won every fight): Artillery vs V2 Allies won 4 of 8 (left 3,828 / 4,096), Mixed 1 of 8, Infantry only 3 of 8,
+  Medium vs Mammoth 1 of 8, Rifles vs Grenadiers 1 of 8. Runs vary a lot with 6 to 8 seeds, so treat 1 or 2 wins as noise.
