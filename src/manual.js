@@ -158,6 +158,7 @@ const Manual = (() => {
       <h4>Orders</h4>
       <p><b>ATTACK</b> sends ground units after the nearest enemy building you have found, fighting whatever they meet; aircraft fly one strike and come home. <b>GUARD</b>: tap it, then the area to hold. The ring shows how far your units will go after enemies (Artillery and V2 launchers fire as far as they can shoot at anything in view), and they hold the area until you give another order, ignoring Auto Attack and calls for help. <b>STOP</b> drops every order: units go back to waiting around the base, aircraft to their pad.</p>
       <p>Tapping an enemy is a direct order: your units go for that target and nothing else, even if they come under fire on the way. Units guarding or attacking on their own turn on whoever shoots at them.</p>
+      <p><b>Bridges</b> on some maps (Twin Lakes) can be destroyed. Select your units, tap <b>BRIDGE</b>, then tap the bridge: they fire on that span until it falls, taking whatever stands on it into the water. Nothing shoots a bridge unless ordered to. Tap a destroyed span twice to have it rebuilt for ${SPAN.rebuild} credits; it takes ${SPAN.rebuildTime} seconds, and either side can pay.</p>
       <h4>Defending</h4>
       <p>Units waiting near your base turn on any raiders inside it, paratroopers included, or on anything shooting your Ore Trucks, then go back to their posts when it is quiet again. Only as many go as the fight needs, and jets and helicopters go first; ground units make up the rest.</p>
       <h4>Aircraft</h4>

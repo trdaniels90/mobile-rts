@@ -406,6 +406,32 @@ share globals. Read this file first; the commit history explains every change in
 - Its south-east bridge's lower span is as long as it is wide (7 x 7 cells), and `genLayoutMap` drew a square run west-east. A square run now
   runs north-south when the water is to its west and east (world.js; the other maps have no square runs, their bakes are unchanged).
 
+## Bridges that can be destroyed (contributor's change by JGFortanelli, not released, both modes, needs the owner's OK)
+
+- Per map: `breakable: true` in MAPS (only Twin Lakes so far). Fixed maps only (`genLayoutMap`): each run of bridge cells
+  becomes a **span** (`addSpan` in world.js, `G.spans`), `SPAN` in data.js (6,000 health, structure armour, rebuild 1,500
+  credits in 45 s).
+- A span is **not in `G.entities`** (nothing targets, draws, counts or sends it as an entity) but it is in `G.byId`, so
+  `commandAttack` and an online order can name it (`kind: 'span'`, `team: -1`). `registerSpans()` puts them back after
+  `G.byId` is rebuilt (net.js `clearCopy`; save.js does the same on load). Both copies of an online battle lay out the
+  same map, so span ids match. Old saves have no `G.spans`: their bridges cannot be destroyed.
+- Only an ordered attack hurts it (`damage` has a branch for spans; `splash`, `acquire` and base defences never see it).
+  `breakSpan`: its cells become water (`setSpan`: `G.terr` 4, `G.block` 1), ground units on it are killed, every moving
+  ground unit re-paths, every human side hears "Bridge destroyed". `rebuildSpan(team, span)`: any side not `out` pays;
+  `updateSpans` brings it back at full health. The computer never attacks bridges; `aiBridges` (ai.js) has the nearest
+  destroyed span rebuilt when it holds twice the price (checked every 20 s).
+- **Online:** `rebuildSpan` is in netcore `COMMANDS` (the server must run the same version); snapshots carry `sp`
+  (`[health, standing, rebuild seconds left]` per span, whenever it changes) and the copy applies it with `applySpans`.
+- **UI** (ui.js): BRIDGE on the selection bar (fighters selected, a span standing) arms `aimSpan`, the next tap on a span
+  orders the attack. Tapping a destroyed span twice within 5 s pays for the rebuild. Health bar while hit or aimed,
+  blue bar while rebuilding; the minimap repaints span cells when one changes (`spanSig`).
+- **Looks:** the bridge stays painted in the ground (and its bake); while a span is down `spanRuin` (art.js) draws water
+  and a ragged stub at each end over it, after the wrecks layer, so no marks or rebake are involved. Wrecks and scorch
+  marks on the deck show again when it is rebuilt.
+- `node tools/sim/bridges.js <repo>` (headless: ordered attack only, collapse, re-routing, rebuild, snapshot and remote
+  orders, the computer's rebuild). A phone-sized browser run checked the button, the taps and the pictures.
+  Not yet tried: two real phones online, and a save and continue in the browser.
+
 ## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (2026.11.11.2; bridges, weather 2026.11.12)
 
 - `MAPS.snowbound` in maps.js: traced from the owner's design `maps/designs/snowbound.png` (126 cells, a lavender-ground palette:
@@ -678,6 +704,7 @@ Supabase.
 | `give-credits.js` | Giving credits to an ally: the rule headless, the GIVE card in a 2 v 2 skirmish, online co-op through the server and forged orders |
 | `server-coop-mate.js` | Co-op with a computer teammate: two players in a 3 v AI, the leader adds the computer, the battle starts with it on the players' team |
 | `bunching.js` | Headless staged fight: how many friends stand inside one V2 blast of each fighting unit, attack and defence, and how the fight went. `<repo> [runs] [seconds]` |
+| `bridges.js` | Headless: destroyable bridge spans on Twin Lakes: hurt only by an ordered attack, collapse, routes go round, rebuild for credits, online snapshot and orders, the computer's rebuild |
 | `rally.js` | Headless: units from an Outpost Barracks stay there, PRIMARY picks the Barracks, a rally point gathers new units, fallback when the primary is lost |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 

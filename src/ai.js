@@ -257,7 +257,18 @@ function aiPowerTarget(team, cluster) {
 }
 
 const ARMY_UNITS = 80, ARMY_WORTH = 28000;   // defaults; DIFFICULTY ai.armyUnits and ai.armyWorth set them per difficulty (Normal 90 and 45000)
+// A destroyed bridge span: the computer has the nearest one rebuilt when it can well afford it.
+function aiBridges(team) {
+  if (!G.spans || !G.spans.length || G.t < (team.spanT || 0)) return;
+  team.spanT = G.t + 20;
+  if (team.credits < SPAN.rebuild * 2) return;
+  const down = G.spans.filter((s) => !s.alive && !(s.rebT > 0));
+  if (!down.length) return;
+  const d = (s) => Math.hypot(s.x / CELL - team.start.cx, s.y / CELL - team.start.cy);
+  rebuildSpan(team, down.reduce((a, b) => (d(a) <= d(b) ? a : b)));
+}
 function aiThink(team) {
+  aiBridges(team);
   const c = aiCount(team);
   aiPickFoe(team);
   aiCounter(team);

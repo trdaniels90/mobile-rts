@@ -1525,6 +1525,51 @@ function drawGhost(g, type, faction, cx, cy) {
   g.globalAlpha = 1;
 }
 
+// A destroyed bridge span (world.js addSpan), drawn over the ground while it is down (ui.js draw): open water where
+// its cells were, with a ragged stub of the deck left at each end. Painted once per span with the map's own painter.
+const spanRuins = new WeakMap();
+function spanRuin(s) {
+  let pic = spanRuins.get(s);
+  if (pic) return pic;
+  const M = 10;   // the painted bridge (rails, shadow) reaches a little past its cells
+  const X0 = s.cx * CELL - M, Y0 = s.cy * CELL - M, w = s.w * CELL + 2 * M, h = s.h * CELL + 2 * M, m = MAPS[validMap(G.mapId)];
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  const terr = G.terr.slice();
+  for (const k of s.cells) terr[k] = 4;
+  const painter = (bridges) => groundPainter(terr, groundSeed(G), G.road, bridges, G.cliff, G.ford, mapTheme(G.mapId), m.bridge);
+  g.save();
+  g.beginPath();
+  for (const k of s.cells) g.rect(cellX(k) * CELL - X0 - M, cellY(k) * CELL - Y0 - M, CELL + 2 * M, CELL + 2 * M);
+  g.clip();
+  painter([]).paint(g, X0, Y0, w, h);
+  const b = G.bridges[s.bi];
+  if (b) {
+    const full = document.createElement('canvas'); full.width = w; full.height = h;
+    painter([b]).paint(full.getContext('2d'), X0, Y0, w, h);
+    const len = Math.hypot(b.b.x - b.a.x, b.b.y - b.a.y), ux = (b.b.x - b.a.x) / len, uy = (b.b.y - b.a.y) / len, hw = b.w / 2 + 3;
+    const r = rng(s.id * 7919 + 13);
+    const at = (t, v) => [b.a.x + ux * t - uy * v - X0, b.a.y + uy * t + ux * v - Y0];
+    for (const end of [0, 1]) {
+      const T = (t) => (end ? len - t : t);
+      g.save();
+      g.beginPath();
+      g.moveTo(...at(T(-CELL), -hw)); g.lineTo(...at(T(-CELL), hw));
+      for (let v = hw; v >= -hw; v -= 3) g.lineTo(...at(T(CELL * (0.55 + r() * 0.55)), v));
+      g.closePath(); g.clip();
+      g.drawImage(full, 0, 0);
+      g.restore();
+      // Broken edge: a dark line of rubble where the deck ends.
+      g.fillStyle = 'rgba(20, 22, 26, 0.55)';
+      for (let v = -hw + 3; v <= hw - 3; v += 2 + r() * 3) { const p = at(T(CELL * (0.6 + r() * 0.5)), v); g.fillRect(Math.round(p[0]), Math.round(p[1]), 2, 2); }
+    }
+  }
+  g.restore();
+  pic = { c, x: X0, y: Y0 };
+  spanRuins.set(s, pic);
+  return pic;
+}
+
 function drawOre(g, cx, cy, amount, gem) {
   const lv = amount >= 190 ? 3 : amount >= 120 ? 2 : amount >= 60 ? 1 : 0;   // untouched fields (up to 375) look the same as full ones
   blit(g, (gem ? scenery.gem : scenery.ore)[lv][(cx * 7 + cy * 13) & 3], cx * CELL, cy * CELL);

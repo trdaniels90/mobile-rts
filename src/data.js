@@ -27,6 +27,9 @@ const FACTIONS = {
 };
 
 // Damage multiplier by warhead against armor class.
+// A bridge span that can be destroyed (maps with `breakable` in MAPS; world.js addSpan): neutral, never fired on unless
+// ordered, armoured like a structure. Down, any side can pay to rebuild it.
+const SPAN = { name: 'Bridge', hp: 6000, armor: 'bld', r: 20, rebuild: 1500, rebuildTime: 45 };
 const WARHEADS = {
   SA:    { inf: 1.0, light: 0.55, heavy: 0.25, bld: 0.3, air: 0.6 },   // small arms
   AP:    { inf: 0.3, light: 0.9,  heavy: 1.0,  bld: 0.7, air: 1.0 },   // tank shells
