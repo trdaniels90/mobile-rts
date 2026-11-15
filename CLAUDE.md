@@ -795,7 +795,8 @@ frame-time maths everywhere, so it is not deterministic.
   V2 are not gated. A new Helicopter Base gives its free helicopter only if it is `available` (so no free Apache before a Tech Center).
   Models (redrawn at the owner's request: elegant, lots of glass, Red Alert as inspiration only): `STRUCTURES.tech` (Allied glass
   campus: curtain-walled tower and hall with roof lights, geodesic glass dome, glazed entrance canopy) and `SOVIET.tech` (institute:
-  arched windows behind a portico, two glazed towers, a drum of windows under a ribbed glass dome with lantern and star spire). Sprites rebaked; ground bakes only got a new key.
+  arched windows behind a portico, two glazed towers, a drum of windows under a ribbed glass dome with lantern and star spire,
+  and a bronze worker statue with raised fist and banner on a granite plinth at the foot of the steps). Sprites rebaked; ground bakes only got a new key.
 - Computer: `['tech', 1]` after the Service Depot in `aiNextStructure`; vehicle picks it cannot build yet fall back (Mammoth to Heavy
   Tank, Artillery to Medium Tank); helicopters only when `available`. Headless 1 v 1 on A Bridge Too Far: Tech Center at 370 s (Hard)
   and 580 s (Easy), then helicopters, Artillery and Mammoths.

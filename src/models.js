@@ -4219,6 +4219,23 @@ const SOVIET = {
     m.line(DX, DY, 45, DX, DY, 56, SV.steel, M_METAL);
     for (let z = 56; z <= 59; z++) for (let x = DX - 2; x <= DX + 2; x++) if (inStar(x - DX, 57.5 - z, 2.4)) m.set(x, DY, z, C.yellow, M_GLOW);
     bannerV(m, 18, 24, 64, 15, 7, pal); bannerV(m, 48, 54, 64, 15, 7, pal);
+    // A monument at the foot of the steps: a bronze worker in a long coat, fist raised, a banner in
+    // the other hand, on a red granite plinth with a gold star.
+    const BZ = '#6d5d3e', BZD = '#4a3f2a';
+    m.box(31, 65, 1, 42, 72, 3, SV.light, M_ROUGH);
+    m.box(32, 66, 3, 41, 71, 10, '#6a2c26', M_ROUGH);
+    m.box(31, 65, 10, 42, 72, 11, '#7d3830', M_ROUGH);
+    starFront(m, 36.5, 70, 6.5, 2.2, C.yellow);
+    m.box(34, 67, 11, 36, 69, 16, BZD, M_METAL); m.box(37, 68, 11, 39, 70, 16, BZD, M_METAL);   // legs, striding
+    m.box(33, 67, 15, 40, 70, 18, BZ, M_METAL);                          // long coat
+    m.box(34, 67, 18, 39, 70, 22, BZ, M_METAL);
+    m.box(33, 67, 21, 40, 70, 23, BZ, M_METAL);                          // shoulders
+    m.ellipsoid(36.5, 68.5, 24.5, 1.6, 1.6, 1.9, BZ, M_METAL);           // head
+    m.line(39.5, 68.5, 22, 42, 68.5, 29, BZ, M_METAL); m.line(40, 69, 22, 42.5, 69, 29, BZD, M_METAL);   // raised arm
+    m.ellipsoid(42.3, 68.7, 29.5, 1, 1, 1, BZ, M_METAL);                 // fist
+    m.line(32.5, 68.5, 21, 32.5, 68.5, 12, BZ, M_METAL);                 // the other arm, holding the banner
+    m.line(31.5, 68.5, 11, 31.5, 68.5, 33, BZD, M_METAL);                // the banner pole
+    for (let x = 25; x < 31; x++) { const w = Math.round(Math.sin((x - 25) * 0.9)); m.box(x, 68 + w, 27, x + 1, 69 + w, 33, pal.main, M_MATTE); }
     return m;
   },
   // Tesla Coil: the same ring-cone coil for both sides, with the Soviet colour on the ring round its base.
