@@ -4,6 +4,15 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.15.6', date: '15 November 2026', title: 'Stuck trucks and a clean defeat', groups: [
+    ['Changed', [
+      'When a side is defeated, all of its remaining units and buildings now blow up, one after another over a few seconds.',
+    ]],
+    ['Fixed', [
+      'Ore Trucks no longer jam in a queue at a refinery for minutes when the truck at the front cannot reach the dock.',
+      'Units ordered onto water or rock now stop at the nearest open ground instead of pushing at the shore for ever (the computer\'s Mobile Outposts could get stuck this way).',
+    ]],
+  ] },
   { v: '2026.11.15.5', date: '15 November 2026', title: 'Attack Ground fix', groups: [
     ['Fixed', [
       'Attack Ground on open ground no longer breaks the game: units now walk up and shell the spot you tap.',
