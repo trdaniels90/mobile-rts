@@ -417,15 +417,10 @@
     air.sort((a, b) => (a.alt || 0) - (b.alt || 0) || a.y - b.y);
     for (const e of air) drawUnit(v, e, G.t);
 
-    // Bridge spans: health while under fire or while a ground target is being picked, progress while the computer rebuilds one.
+    // Bridge spans: health while under fire or while a ground target is being picked.
     for (const s of G.spans || []) {
       if (!G.seen[idx(Math.floor(s.x / CELL), Math.floor(s.y / CELL))]) continue;
       if (s.alive && (G.t - s.hitT < 3 || aimSpan)) drawHealth(v, s, s.x, s.y - 2, 40);
-      else if (!s.alive && s.rebT > 0) {
-        const x = Math.round(s.x - 20), y = Math.round(s.y - 2);
-        v.fillStyle = '#000'; v.fillRect(x - 1, y - 1, 42, 4);
-        v.fillStyle = '#4aa8ff'; v.fillRect(x, y, Math.max(1, Math.round(40 * (1 - s.rebT / SPAN.rebuildTime))), 2);
-      }
     }
     // Selection brackets and health bars.
     for (const e of G.entities) {

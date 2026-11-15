@@ -428,17 +428,22 @@ share globals. Read this file first; the commit history explains every change in
   rebuilds the span or restores the structure to full health at once and the Engineer is used up (`alive = false`, not a
   loss). UI: Engineers selected, tap the destroyed span or the damaged structure. No capturing of enemy structures.
   Its model is the infantry figure with an olive vest, knee pads, a spanner on the pack and a yellow toolbox, no weapon
-  (`E` in `infModel`; listed with `pilot` wherever a rifle is left out). The computer trains none: `aiBridges` (ai.js)
-  pays `SPAN.rebuild` (1,500) through `rebuildSpan` when it holds twice that, and the span is back after 45 s.
+  (`E` in `infModel`; listed with `pilot` wherever a rifle is left out).
+- **The computer** (`aiBridges` in ai.js, every 10 s, every difficulty): while a span is down it sends each idle Engineer
+  of its own to the nearest destroyed span it can walk to that no Engineer of its alliance is heading for, and trains
+  one (never a second while one is alive or queued) when it holds 800 credits. It never attacks bridges and does not use
+  Engineers on structures. Headless 2 v 2 of Hard computers on Twin Lakes with two spans destroyed at minute 4: both
+  rebuilt within a minute, no errors in 12 minutes; each side trained one, so an Engineer or two is left over, waiting
+  for the next span. Paying credits for a rebuild (`rebuildSpan`, the 45 s wait, the blue bar) is gone.
 - **Online:** `commandAttackGround` and `commandEngineer` are in netcore `COMMANDS` (the server must run the same
-  version); snapshots carry `sp` (`[health, standing, rebuild seconds left]` per span, whenever it changes) and the copy
+  version); snapshots carry `sp` (`[health, standing]` per span, whenever it changes) and the copy
   applies it with `applySpans`.
 - **Looks:** the bridge stays painted in the ground (and its bake); while a span is down `spanRuin` (art.js) draws water,
   a ragged stub at each end and broken pieces of the deck in the water over it, after the wrecks layer, so no marks are
   involved. Health bar on a span while hit or while a ground target is being picked; the minimap repaints span cells
   when one changes (`spanSig`). Sprites and ground were rebaked (models.js changed).
 - `node tools/sim/bridges.js <repo>` (headless: ordered attack only, collapse, re-routing, attack ground, Engineers
-  rebuilding and repairing, training at the Barracks, snapshot and remote orders, the computer's rebuild). A phone-sized
+  rebuilding and repairing, training at the Barracks, snapshot and remote orders, the computer training and sending one). A phone-sized
   browser run checked the button, the taps and the pictures. Not yet tried: two real phones online, and a save and
   continue in the browser. `tools/sim/production.js` fails on `main` too (not from this change).
 - On a phone the selection bar wraps to two rows with ATTACK GROUND on it.
@@ -715,7 +720,7 @@ Supabase.
 | `give-credits.js` | Giving credits to an ally: the rule headless, the GIVE card in a 2 v 2 skirmish, online co-op through the server and forged orders |
 | `server-coop-mate.js` | Co-op with a computer teammate: two players in a 3 v AI, the leader adds the computer, the battle starts with it on the players' team |
 | `bunching.js` | Headless staged fight: how many friends stand inside one V2 blast of each fighting unit, attack and defence, and how the fight went. `<repo> [runs] [seconds]` |
-| `bridges.js` | Headless: attack ground, destroyable bridge spans on Twin Lakes (hurt only by an ordered attack, collapse, routes go round), Engineers rebuilding a span and repairing a structure, online snapshot and orders, the computer's rebuild |
+| `bridges.js` | Headless: attack ground, destroyable bridge spans on Twin Lakes (hurt only by an ordered attack, collapse, routes go round), Engineers rebuilding a span and repairing a structure, online snapshot and orders, the computer training and sending an Engineer |
 | `rally.js` | Headless: units from an Outpost Barracks stay there, PRIMARY picks the Barracks, a rally point gathers new units, fallback when the primary is lost |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 

@@ -28,10 +28,10 @@ const FACTIONS = {
 
 // Damage multiplier by warhead against armor class.
 // A bridge span that can be destroyed (maps with `breakable` in MAPS; world.js addSpan): neutral, never fired on unless
-// ordered (Attack ground), armoured like a structure. Down, an Engineer rebuilds it (the computer pays `rebuild` instead).
+// ordered (Attack ground), armoured like a structure. Down, an Engineer rebuilds it (the computer trains one for it: ai.js aiBridges).
 // SPOT: a point on the ground units were told to fire at (commandAttackGround).
 const SPOT = { name: 'Ground', armor: 'bld', r: 0 };
-const SPAN = { name: 'Bridge', hp: 6000, armor: 'bld', r: 20, rebuild: 1500, rebuildTime: 45 };
+const SPAN = { name: 'Bridge', hp: 6000, armor: 'bld', r: 20 };
 const WARHEADS = {
   SA:    { inf: 1.0, light: 0.55, heavy: 0.25, bld: 0.3, air: 0.6 },   // small arms
   AP:    { inf: 0.3, light: 0.9,  heavy: 1.0,  bld: 0.7, air: 1.0 },   // tank shells

@@ -121,9 +121,9 @@ const NetCore = (() => {
       for (let i = 0; i < NCELLS; i++) if ((G.ore[i] !== P.oreSent[i] || G.gem[i] !== P.gemSent[i]) && view[i]) { P.oreSent[i] = G.ore[i]; P.gemSent[i] = G.gem[i]; o.push(i, G.ore[i], G.gem[i]); }
       if (o.length) s.ore = o;
     }
-    // Bridge spans that can be destroyed: all of them whenever one changes (health, standing, rebuilding).
+    // Bridge spans that can be destroyed: all of them whenever one changes (health, standing).
     if (G.spans && G.spans.length) {
-      const sp = JSON.stringify(G.spans.map((x) => [Math.max(0, Math.ceil(x.hp)), x.alive ? 1 : 0, Math.ceil(x.rebT || 0)]));
+      const sp = JSON.stringify(G.spans.map((x) => [Math.max(0, Math.ceil(x.hp)), x.alive ? 1 : 0]));
       if (sp !== P.spSent) { P.spSent = sp; s.sp = JSON.parse(sp); }
     }
     // The debrief's log as it grows (a sample every 15 s), so a phone that has to end the battle on its own

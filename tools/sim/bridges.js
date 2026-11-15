@@ -1,6 +1,6 @@
 // Bridges that can be destroyed (maps with `breakable`), attack ground and Engineers, headless: a span is only hurt by an
 // ordered attack, goes down with what stands on it, turns to water (routes go round), is rebuilt by an Engineer (the
-// computer pays instead), and travels to an online copy.
+// computer trains one for it), and travels to an online copy.
 // node tools/sim/bridges.js <repo>
 const vm = require('vm');
 const root = process.argv[2];
@@ -75,14 +75,6 @@ run(`for (const T of [T0, T1]) { const c = buildingsOf(T.id).find((b) => b.type 
 step(40);
 ok('both factions train an Engineer for 500', run(`[T0, T1].every((T) => unitsOf(T.id).some((u) => u.type === 'engineer' && Math.hypot(u.x - T.start.cx * CELL, u.y - T.start.cy * CELL) < 400) && Math.round(T.credits) === 1500)`), run('[T0, T1].map((T) => [T.faction, Math.round(T.credits)])'));
 
-// The computer pays instead (it trains no Engineers).
-run(`damage(S, 1e6, 'AP', gunner); T0.credits = 1000; 0`);
-ok('too poor to rebuild', run('rebuildSpan(T0, S)') === false);
-run('T0.credits = 5000; 0');
-ok('rebuild ordered and paid', run('rebuildSpan(T0, S)') === true && run('T0.credits') === 5000 - run('SPAN.rebuild'));
-step(run('SPAN.rebuildTime') + 2);
-ok('rebuilt after the wait', run('S.alive && S.hp === S.maxHp'));
-
 // Online: the snapshot carries the spans; an order from a remote player can name one.
 run(`var P = NetCore.peer(1), snap = null; NetCore.hosting = true; NetCore.snapshots([P], (p, s) => { snap = s; }); 0`);
 ok('first snapshot carries the spans', run('!!(snap && snap.sp && snap.sp.length === 4 && snap.sp[0][1] === 1)'), run('snap && snap.sp'));
@@ -96,8 +88,8 @@ run(`S.hp = 1; damage(S, 500, 'AP', mine); var eng4 = addUnit('engineer', T1, so
 ok('a remote engineer order names the span', run(`!S.alive && eng4.order.type === 'engineer' && eng4.order.target === S`));
 run(`snap = null; NetCore.snapshots([P], (p, s) => { snap = s; }); 0`);
 ok('a spot target travels in a snapshot without breaking it', run(`!!snap && !!snap.e[mine.id] && JSON.stringify(snap).length > 0`));
-run(`applySpans([[6000, 1, 0], [0, 0, 12], [6000, 1, 0], [6000, 1, 0]]); 0`);
-ok('a copy applies the host state', run('S.alive && !G.spans[1].alive && G.spans[1].rebT === 12 && G.terr[G.spans[1].cells[0]] === 4'));
+run(`applySpans([[6000, 1], [0, 0], [6000, 1], [6000, 1]]); 0`);
+ok('a copy applies the host state', run('S.alive && !G.spans[1].alive && G.terr[G.spans[1].cells[0]] === 4'));
 
 // A saved game keeps the spans and the orders that name them.
 if (run('typeof SaveGame !== "undefined" && !!SaveGame.freeze')) {
@@ -106,9 +98,16 @@ if (run('typeof SaveGame !== "undefined" && !!SaveGame.freeze')) {
   ok('a saved attack order still names its span', run('g2.entities.find((e) => e.id === mine.id).order.target === g2.spans[0]'));
 } else console.log('(SaveGame not loaded here: save not checked)');
 
-// The computer rebuilds when it can well afford it.
-run(`applySpans([[6000, 1, 0], [0, 0, 0], [6000, 1, 0], [6000, 1, 0]]); T1.isAI = true; T1.credits = 9000; T1.spanT = 0; aiBridges(T1); 0`);
-ok('the computer orders a rebuild', run('G.spans[1].rebT > 0 && G.spans[1].by === 1'));
+// The computer trains an Engineer for a destroyed span and sends it; it does not train a second one meanwhile.
+run(`applySpans([[6000, 1], [6000, 1], [6000, 1], [6000, 1]]); for (const u of G.entities) if (u.kind === 'unit' && u.def.engineer) u.alive = false;
+  damage(S, 1e6, 'AP', gunner); T1.isAI = true; T1.credits = 3000; T1.spanT = 0; T1.queues.infantry.length = 0; aiBridges(T1); 0`);
+ok('the computer queues an Engineer', run(`T1.queues.infantry.filter((i) => i.type === 'engineer').length === 1`));
+run(`T1.spanT = 0; aiBridges(T1); 0`);
+ok('only one at a time', run(`T1.queues.infantry.filter((i) => i.type === 'engineer').length === 1`));
+let ct = 0;
+while (!run('S.alive') && ct < 400) { step(2); ct += 2; }
+ok('its Engineer walks over and rebuilds the span', run('S.alive'), { seconds: ct });
+ok('and it trains no more once the bridges stand', run(`(T1.spanT = 0, aiBridges(T1), !T1.queues.infantry.some((i) => i.type === 'engineer') && !unitsOf(1).some((u) => u.def.engineer))`));
 
 console.log(fails ? fails + ' FAILED' : 'all passed');
 process.exit(fails ? 1 : 0);

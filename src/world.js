@@ -490,10 +490,10 @@ function genLayoutMap(m) {
 // Bridges that can be destroyed (MAPS `breakable`): each run of bridge cells is a span with health. It is not in
 // G.entities (nothing looks for it, draws it or sends it as an entity) but it is in G.byId, so an attack order and
 // an online order can name it. Neutral: only an ordered attack hurts it. Down, its cells are water; any side can
-// pay to have it rebuilt (rebuildSpan). The map is laid out the same on every copy of a battle, so the ids match.
+// send an Engineer to rebuild it (commandEngineer). The map is laid out the same on every copy of a battle, so the ids match.
 function addSpan(cells, x0, y0, x1, y1, bi) {
   const s = { id: G.nextId++, kind: 'span', type: 'span', def: SPAN, team: -1, cx: x0, cy: y0, w: x1 - x0, h: y1 - y0,
-    x: (x0 + x1) / 2 * CELL, y: (y0 + y1) / 2 * CELL, cells: cells.slice(), bi, hp: SPAN.hp, maxHp: SPAN.hp, alive: true, hitT: -99, rebT: 0 };
+    x: (x0 + x1) / 2 * CELL, y: (y0 + y1) / 2 * CELL, cells: cells.slice(), bi, hp: SPAN.hp, maxHp: SPAN.hp, alive: true, hitT: -99 };
   G.spans.push(s); G.byId.set(s.id, s);
 }
 // After G.byId is rebuilt (a loaded game, an online copy starting afresh).
@@ -505,7 +505,7 @@ function setSpan(s, up) {
   for (const c of s.cells) { G.terr[c] = up ? 5 : 4; G.block[c] = up ? 0 : 1; }
 }
 function breakSpan(s, attacker) {
-  s.hp = 0; s.rebT = 0; s.by = undefined;
+  s.hp = 0;
   setSpan(s, false);
   // Whatever stood on it goes down with it; everyone on the way somewhere finds a new way.
   for (const u of G.entities.slice()) if (u.alive && u.kind === 'unit' && !isAirborne(u) && s.cells.includes(cellOfPos(u.x, u.y))) kill(u, attacker, 'HE', s);
@@ -561,7 +561,7 @@ function updateEngineer(u) {
     return;
   }
   if (t.kind === 'span') {
-    t.rebT = 0; t.hp = t.maxHp; setSpan(t, true);
+    t.hp = t.maxHp; setSpan(t, true);
     for (const tm of G.teams) say(tm.id, 'Bridge rebuilt');
   } else {
     t.hp = t.maxHp;
@@ -571,28 +571,13 @@ function updateEngineer(u) {
   u.alive = false;   // used up (not a loss)
 }
 
-// The computer pays to have a destroyed span rebuilt (it trains no Engineers); it is back after SPAN.rebuildTime.
-function rebuildSpan(team, s) {
-  if (!s || s.kind !== 'span' || s.alive || s.rebT > 0 || !team || team.out || team.credits < SPAN.rebuild) return false;
-  team.credits -= SPAN.rebuild;
-  s.rebT = SPAN.rebuildTime; s.by = team.id;
-  return true;
-}
-function updateSpans(dt) {
-  for (const s of G.spans || []) {
-    if (s.alive || !(s.rebT > 0) || (s.rebT -= dt) > 0) continue;
-    s.rebT = 0; s.hp = s.maxHp; setSpan(s, true);
-    hooks.sfx('place', s.x, s.y);
-    for (const t of G.teams) say(t.id, 'Bridge rebuilt');
-  }
-}
-// An online copy: the spans as the host sent them, [health, standing, seconds of rebuilding left] each.
+// An online copy: the spans as the host sent them, [health, standing] each.
 function applySpans(list) {
   list.forEach((v, i) => {
     const s = G.spans && G.spans[i];
     if (!s) return;
     if (v[0] < s.hp) s.hitT = G.t;
-    s.hp = v[0]; s.rebT = v[2];
+    s.hp = v[0];
     if (!!v[1] !== s.alive) setSpan(s, !!v[1]);
   });
 }
@@ -3994,7 +3979,6 @@ function update(dt) {
   updateProjectiles(dt);
   processPaths();
   if (!G.over) for (const team of G.teams) { updateProduction(team, dt); updatePowers(team, dt); }
-  if (!G.over) updateSpans(dt);
   const T = G.timers;
   if ((T.power -= dt) <= 0) { T.power = 0.5; updatePower(); }
   if ((T.shroud -= dt) <= 0) { T.shroud = 0.25; revealAround(); }
