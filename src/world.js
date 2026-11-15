@@ -2582,7 +2582,8 @@ function approachSpot(u, t, w) {
 const FAN_MAX = 1.95, FAN_GAP_INF = 16, FAN_GAP_VEH = 31;
 const fanR = (t, w) => Math.max(12, w.range * 0.85) + (t.kind === 'bld' || t.kind === 'span' ? Math.max(t.w, t.h) * CELL / 2 : 0);
 function fanAngle(u, t, R) {
-  if (u.apT === t.id) return;
+  const key = t.id !== undefined ? t.id : t.x + ',' + t.y;   // a ground spot has no id: its place is its key
+  if (u.apT === key) return;
   if (u.fan === undefined) u.fan = ((u.id * 0.618034) % 1) * 2 - 1;
   // The arc is sized for the group: those already after the target, or the friends around it now
   // (who will mostly come in on the same target), whichever is more.
@@ -2592,7 +2593,7 @@ function fanAngle(u, t, R) {
   for (let bi = 0; bi < bs.length; bi++) for (const e of bs[bi]) if (e !== u && e.alive && e.kind === 'unit' && e.team === u.team && e.cls !== 'air' && e.def.weapon && !e.def.harvester && Math.abs(e.x - u.x) < CELL * 5 && Math.abs(e.y - u.y) < CELL * 5) near++;
   n = Math.max(n, near);
   const spread = Math.min(FAN_MAX, n * (u.cls === 'inf' ? FAN_GAP_INF : FAN_GAP_VEH) / (2 * R));
-  u.apT = t.id; u.apA = Math.atan2(u.y - t.y, u.x - t.x) + u.fan * spread; u.slideT = 0;
+  u.apT = key; u.apA = Math.atan2(u.y - t.y, u.x - t.x) + u.fan * spread; u.slideT = 0;
 }
 // A unit that comes into reach on the near side of the target, in a crowd of its own side, steps along to its
 // own spot round the target (approachSpot) before it settles: infantry for at most SLIDE_MAX seconds without
