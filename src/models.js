@@ -1579,33 +1579,51 @@ const STRUCTURES = {
     m.box(23, 34, 1, 24, 62, 9, '#2c2c28', M_METAL);                     // hangar doors
     return m;
   },
-  // Tech Center (Allied): a white research laboratory. A two-storey block with a glass curtain wall
-  // and a glazed atrium, a satellite dish on the roof, a lattice antenna and a row of rooftop plant.
+  // Tech Center (Allied): an elegant glass research campus. A long two-storey hall with a full curtain wall,
+  // a glass tower behind it, a geodesic glass dome over the laboratory and a canopied entrance; white
+  // frames throughout, the side's colour on the roof edges.
   tech(pal) {
     const m = new VModel(-2, -2, 76, 76, 50);
+    const G1 = '#4f7488', G2 = '#7ea6bb', FR = '#eceae3';
     slabV(m, 0, 0, 72, 72);
-    m.box(4, 14, 1, 68, 66, 22, C.wall, M_MATTE);                        // the laboratory block
-    m.paint(4, 14, 1, 68, 66, 22, (x, y, z) => (z === 11 ? C.wallD : undefined));   // floor line
-    for (const z0 of [4, 14]) m.box(6, 65, z0, 66, 66, z0 + 5, C.glass, M_GLASS);    // curtain wall, two floors
-    m.paint(6, 65, 4, 66, 66, 19, (x, y, z) => ((x - 6) % 5 === 0 ? C.wallD : undefined));
-    m.box(4, 14, 22, 68, 66, 23, pal.main, M_METAL);                     // roof edge in the side's colour
-    m.box(6, 16, 23, 66, 64, 24, '#a7a59c', M_ROUGH);
-    m.box(26, 52, 1, 46, 70, 16, '#5d7f92', M_GLASS);                    // glazed atrium over the entrance
-    m.paint(26, 52, 1, 46, 70, 16, (x, y, z) => ((x - 26) % 5 === 0 || z % 5 === 0 ? '#c9ccc8' : undefined));
-    m.box(26, 52, 16, 46, 70, 17, pal.main, M_METAL);
-    m.box(32, 69, 1, 40, 70, 8, '#2c2c28');                              // doors
-    m.cylZ(22, 32, 24, 30, 2, C.steel, M_METAL);                         // the dish on its pedestal
-    for (let x = 12; x < 33; x++) for (let y = 22; y < 43; y++) {
-      const d = Math.hypot(x + 0.5 - 22, y + 0.5 - 32);
-      if (d < 10) m.set(x, y, Math.round(31 + d * d / 22), d > 9 ? C.steel : '#e9e7df', M_METAL);
+    // Curtain wall on a box: glass faces with white mullions every 4 and a white band at each floor.
+    const glassBox = (x0, y0, z0, x1, y1, z1, floor) => {
+      m.box(x0, y0, z0, x1, y1, z1, G1, M_GLASS);
+      m.paint(x0, y0, z0, x1, y1, z1, (x, y, z) => {
+        if ((z - z0) % floor === 0) return FR;
+        if (((x - x0) % 4 === 0 && (y === y0 || y === y1 - 1)) || ((y - y0) % 4 === 0 && (x === x0 || x === x1 - 1))) return FR;
+        return (z - z0) % floor === floor - 1 || hash3(x, y >> 1, z) > 0.88 ? G2 : undefined;   // reflections
+      });
+      m.box(x0, y0, z1, x1, y1, z1 + 1, pal.main, M_METAL);
+      m.box(x0 + 1, y0 + 1, z1, x1 - 1, y1 - 1, z1 + 1, '#b9b7ae', M_ROUGH);
+    };
+    glassBox(6, 8, 1, 28, 30, 36, 5);                                    // the tower
+    m.box(10, 12, 37, 24, 26, 39, FR, M_MATTE);                          // its crown
+    m.line(17, 19, 39, 17, 19, 47, C.steel, M_METAL); m.set(17, 19, 48, '#ff4030', M_GLOW);
+    glassBox(4, 30, 1, 68, 64, 13, 6);                                   // the main hall
+    for (let y = 33; y < 62; y += 5) {                                   // its glass roof lights
+      m.box(7, y, 13, 33, y + 3, 15, G1, M_GLASS);
+      m.paint(7, y, 13, 33, y + 3, 15, (x, yy, z) => ((x - 7) % 4 === 0 ? FR : z === 14 && yy === y + 1 ? G2 : undefined));
     }
-    m.line(22, 32, 31, 22, 32, 38, C.steel, M_METAL); m.set(22, 32, 39, '#ff4030', M_GLOW);
-    latticeV(m, 58, 20, 24, 48, C.steel); m.set(59, 21, 49, '#ff4030', M_GLOW);   // antenna
-    for (const x of [40, 47, 54]) { m.box(x, 40, 24, x + 5, 47, 28, C.metal, M_METAL); m.cylZ(x + 2.5, 43.5, 28, 29, 2, '#4a4c47', M_METAL); }   // rooftop plant
-    m.box(4, 4, 1, 22, 13, 9, C.wallD, M_MATTE);                         // storage annex and tanks
-    m.box(4, 4, 9, 22, 13, 10, pal.main, M_METAL);
-    for (const x of [30, 38]) m.cylZ(x, 8, 1, 11, 3.2, '#c7c9c4', M_METAL);
-    m.set(66, 30, 23, '#7fd0ff', M_GLOW); m.set(66, 50, 23, '#7fd0ff', M_GLOW);
+    glassBox(30, 12, 1, 66, 30, 9, 4);                                   // the rear laboratory wing
+    // The geodesic dome over the laboratory: glass panes in a white frame of ribs and rings.
+    m.cylZ(46, 46, 14, 17, 12, FR, M_MATTE);
+    m.ellipsoid(46, 46, 17, 11.5, 11.5, 13, G1, M_GLASS);
+    m.paint(34, 34, 17, 59, 59, 31, (x, y, z) => {
+      const a = Math.atan2(y + 0.5 - 46, x + 0.5 - 46) / (Math.PI * 2) * 12;
+      if (Math.abs(a - Math.round(a)) < 0.09 || (z - 17) % 4 === 0) return FR;
+      return hash3(x, y, z) > 0.75 ? G2 : undefined;
+    });
+    m.cylZ(46, 46, 29, 31, 1.6, FR, M_METAL); m.set(46, 46, 31, '#7fd0ff', M_GLOW);
+    // Glazed entrance canopy on slim white columns.
+    for (const x of [26, 46]) m.box(x, 66, 1, x + 1, 67, 9, FR, M_MATTE);
+    m.box(24, 64, 9, 49, 69, 10, G2, M_GLASS);
+    m.paint(24, 64, 9, 49, 69, 10, (x) => ((x - 24) % 5 === 0 ? FR : undefined));
+    m.box(24, 68, 10, 49, 69, 11, pal.main, M_METAL);
+    m.box(32, 63, 1, 40, 64, 8, '#20282c');                              // doors
+    m.box(52, 4, 1, 68, 11, 7, FR, M_MATTE);                             // a small dish on the wing
+    m.cylZ(60, 20, 10, 13, 1.2, C.steel, M_METAL);
+    m.ellipsoid(60, 20, 15, 4.5, 4.5, 1.5, '#e9e7df', M_METAL);
     return m;
   },
   turret() {
@@ -4146,32 +4164,61 @@ const SOVIET = {
     m.box(23, 46, 11, 24, 50, 15, pal.main, M_MATTE);
     return m;
   },
-  // Tech Center (Soviet): a research institute. A stepped concrete block with strip windows and a star,
-  // a ribbed reactor dome in the side's colour, a banded stack and a radio mast.
+  // Tech Center (Soviet): a grand research institute. A colonnaded hall of tall arched windows, two
+  // glazed towers with stepped tops, and in the middle a drum of windows under a great ribbed glass dome
+  // with a lantern and a star-tipped spire.
   tech(pal) {
-    const m = new VModel(-2, -2, 76, 76, 54);
+    const m = new VModel(-2, -2, 76, 76, 62);
+    const G1 = '#3f5a68', G2 = '#6f93a6';
     slabV(m, 0, 0, 72, 72);
-    panelBox(m, 4, 30, 1, 68, 66, 16);                                   // the institute block
-    flatRoof(m, 4, 30, 68, 66, 16, pal);
-    stripWin(m, 6, 30, 65, 5, 7); stripWin(m, 42, 66, 65, 5, 7);
-    stripWin(m, 6, 30, 65, 11, 13); stripWin(m, 42, 66, 65, 11, 13);
-    m.box(31, 65, 1, 41, 66, 10, '#2a2420');                             // entrance under a star
-    starFront(m, 36, 65, 13, 2.6, C.yellow);
-    bannerV(m, 32, 40, 65, 17, 3, pal);
-    panelBox(m, 12, 6, 1, 52, 32, 12);                                   // the reactor hall behind
-    flatRoof(m, 12, 6, 52, 32, 12, pal);
-    for (let z = 0; z < 22; z++) {                                       // the ribbed dome
-      const r = Math.sqrt(Math.max(0, 15 * 15 - z * z * 0.47));
-      if (r > 0.5) m.cylZ(32, 19, 13 + z, 14 + z, r, z % 4 === 3 ? pal.dark : pal.main, M_METAL);
+    // Tall arched windows on a front face (row y) between concrete pilasters every 6.
+    const arches = (x0, x1, y, z0, z1) => {
+      for (let x = x0; x + 4 <= x1; x += 6) for (let z = z0; z < z1; z++) for (let dx = 1; dx < 5; dx++) {
+        const top = z1 - 1 - (dx === 1 || dx === 4 ? 1 : 0);              // rounded heads
+        if (z <= top) m.set(x + dx, y, z, z === z0 + Math.floor((z1 - z0) / 2) ? SV.seam : z >= top - 1 ? G2 : G1, M_GLASS);
+      }
+    };
+    panelBox(m, 4, 34, 1, 68, 64, 15);                                   // the hall
+    flatRoof(m, 4, 34, 68, 64, 15, pal);
+    arches(4, 68, 63, 3, 14);
+    for (const x0 of [7, 51]) for (let y = 37; y < 61; y += 6) {         // glazed roof lights either side of the dome
+      m.box(x0, y, 15, x0 + 14, y + 4, 17, G1, M_GLASS);
+      m.paint(x0, y, 15, x0 + 14, y + 4, 17, (x, yy, z) => ((x - x0) % 3 === 0 ? SV.steel : z === 16 && (yy === y + 1 || yy === y + 2) ? G2 : undefined));
     }
-    m.paint(16, 4, 13, 48, 34, 36, (x, y, z) => ((x + y) % 6 === 0 && z < 30 ? pal.dark : undefined));
-    m.cylZ(32, 19, 34, 36, 3, SV.steel, M_METAL); m.set(32, 19, 36, '#ff4030', M_GLOW);
-    stackV(m, 60, 14, 1, 46, 2.8, pal);                                  // banded stack
-    latticeV(m, 6, 34, 17, 44, SV.steel);                                // radio mast
-    m.paint(5, 33, 17, 10, 38, 44, (x, y, z) => (Math.floor(z / 4) % 2 ? pal.main : C.white));
-    m.set(7, 35, 45, '#ff4030', M_GLOW);
-    starTop(m, 54, 48, 7, pal.main);
-    for (const x of [6, 58]) sandbagsV(m, x, 68, x + 8, 71, 3);
+    for (const x of [4, 10, 16, 52, 58, 64]) m.box(x, 64, 1, x + 1, 66, 16, SV.light, M_ROUGH);   // columns of the portico
+    m.box(4, 64, 15, 69, 67, 17, SV.conc, M_ROUGH);
+    m.box(22, 64, 1, 50, 70, 2, SV.light, M_ROUGH); m.box(24, 64, 2, 48, 68, 3, SV.light, M_ROUGH);   // steps
+    m.box(32, 63, 1, 40, 64, 10, '#2a2420');
+    // Two glazed towers at the back corners, stepped at the top.
+    for (const x0 of [5, 51]) {
+      panelBox(m, x0, 8, 1, x0 + 16, 34, 30);
+      for (let x = x0 + 1; x < x0 + 15; x += 3) m.box(x, 33, 3, x + 2, 34, 29, G1, M_GLASS);   // glass strips on the face
+      m.paint(x0, 33, 3, x0 + 16, 34, 29, (x, y, z) => ((z - 3) % 5 === 4 ? SV.seam : z % 5 === 0 ? G2 : undefined));
+      flatRoof(m, x0, 8, x0 + 16, 34, 30, pal);
+      panelBox(m, x0 + 3, 12, 31, x0 + 13, 30, 35);
+      flatRoof(m, x0 + 3, 12, x0 + 13, 30, 35, pal);
+      m.box(x0 + 4, 29, 32, x0 + 12, 30, 34, G1, M_GLASS);
+    }
+    // The drum of windows and the ribbed glass dome.
+    const DX = 36, DY = 36;
+    m.cylZ(DX, DY, 16, 26, 13, SV.conc, M_ROUGH);
+    m.paint(DX - 14, DY - 14, 18, DX + 14, DY + 14, 25, (x, y, z) => {
+      const a = Math.atan2(y + 0.5 - DY, x + 0.5 - DX) / (Math.PI * 2) * 16;
+      return Math.abs(a - Math.round(a)) < 0.28 || z === 21 ? undefined : z >= 24 ? G2 : G1;
+    });
+    m.cylZ(DX, DY, 26, 27, 13.6, pal.main, M_METAL);
+    m.ellipsoid(DX, DY, 27, 12.5, 12.5, 15, G1, M_GLASS);
+    m.paint(DX - 13, DY - 13, 27, DX + 13, DY + 13, 43, (x, y, z) => {
+      const a = Math.atan2(y + 0.5 - DY, x + 0.5 - DX) / (Math.PI * 2) * 16;
+      if (Math.abs(a - Math.round(a)) < 0.1) return pal.main;            // ribs in the side's colour
+      if ((z - 27) % 5 === 0) return SV.steel;
+      return hash3(x, y, z) > 0.78 ? G2 : undefined;
+    });
+    m.cylZ(DX, DY, 41, 45, 2.6, SV.light, M_ROUGH);                       // lantern and spire
+    m.cylZ(DX, DY, 42, 44, 2.7, '#ffd27a', M_GLOW);
+    m.line(DX, DY, 45, DX, DY, 56, SV.steel, M_METAL);
+    for (let z = 56; z <= 59; z++) for (let x = DX - 2; x <= DX + 2; x++) if (inStar(x - DX, 57.5 - z, 2.4)) m.set(x, DY, z, C.yellow, M_GLOW);
+    bannerV(m, 18, 24, 64, 15, 7, pal); bannerV(m, 48, 54, 64, 15, 7, pal);
     return m;
   },
   // Tesla Coil: the same ring-cone coil for both sides, with the Soviet colour on the ring round its base.

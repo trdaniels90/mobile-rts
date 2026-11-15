@@ -793,8 +793,9 @@ frame-time maths everywhere, so it is not deterministic.
 - `tech` in `BUILD_DEFS` (both factions, 3x3, 1500 credits, 1000 health, -100 power, needs a Radar Dome). Unlocks the top-tier
   units through their `req`: Mammoth Tank (`['tech']`), Artillery (`['dome', 'tech']`), Attack Helicopter (`['tech']`). The Hind and
   V2 are not gated. A new Helicopter Base gives its free helicopter only if it is `available` (so no free Apache before a Tech Center).
-  Models: `STRUCTURES.tech` (Allied lab: glass front, atrium, dish, antenna) and `SOVIET.tech` (institute with a ribbed reactor dome,
-  banded stack, mast). Sprites rebaked; ground bakes only got a new key.
+  Models (redrawn at the owner's request: elegant, lots of glass, Red Alert as inspiration only): `STRUCTURES.tech` (Allied glass
+  campus: curtain-walled tower and hall with roof lights, geodesic glass dome, glazed entrance canopy) and `SOVIET.tech` (institute:
+  arched windows behind a portico, two glazed towers, a drum of windows under a ribbed glass dome with lantern and star spire). Sprites rebaked; ground bakes only got a new key.
 - Computer: `['tech', 1]` after the Service Depot in `aiNextStructure`; vehicle picks it cannot build yet fall back (Mammoth to Heavy
   Tank, Artillery to Medium Tank); helicopters only when `available`. Headless 1 v 1 on A Bridge Too Far: Tech Center at 370 s (Hard)
   and 580 s (Easy), then helicopters, Artillery and Mammoths.
