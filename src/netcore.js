@@ -121,6 +121,11 @@ const NetCore = (() => {
       for (let i = 0; i < NCELLS; i++) if ((G.ore[i] !== P.oreSent[i] || G.gem[i] !== P.gemSent[i]) && view[i]) { P.oreSent[i] = G.ore[i]; P.gemSent[i] = G.gem[i]; o.push(i, G.ore[i], G.gem[i]); }
       if (o.length) s.ore = o;
     }
+    // Bridge spans that can be destroyed: all of them whenever one changes (health, standing).
+    if (G.spans && G.spans.length) {
+      const sp = JSON.stringify(G.spans.map((x) => [Math.max(0, Math.ceil(x.hp)), x.alive ? 1 : 0]));
+      if (sp !== P.spSent) { P.spSent = sp; s.sp = JSON.parse(sp); }
+    }
     // The debrief's log as it grows (a sample every 15 s), so a phone that has to end the battle on its own
     // (it could not reconnect) still has its graphs. Each list goes from where this player's copy is.
     const L = G.log, ls = P.logSent || (P.logSent = [0, 0, 0]);
@@ -172,7 +177,7 @@ const NetCore = (() => {
   // Orders from a remote player, for their own side only.
   const COMMANDS = ['commandMove', 'commandAttack', 'commandHunt', 'commandGuard', 'commandStop', 'startProduction', 'cancelProduction',
     'placeStructure', 'launchPower', 'deployFob', 'setAuto', 'setAssist', 'recallAlly', 'setRepair', 'sellStructure', 'commandRepair', 'sendCredits',
-    'setPrimary', 'setRally'];
+    'setPrimary', 'setRally', 'commandAttackGround', 'commandEngineer'];
   const ORIGC = {};
   for (const f of COMMANDS) ORIGC[f] = root[f];
   function applyCommand(side, m) {

@@ -37,6 +37,7 @@ const Manual = (() => {
     mammoth: ['Slow and enormous. Twin cannons for ground targets and missile pods that also fire at aircraft.', 'Everything', 'Its own speed'],
     arty: ['A tracked howitzer that outranges every defence. With no turret the whole vehicle turns to aim, and its shells drop in a high arc, so it can miss a moving target. Needs a Radar Dome.', 'Defences, infantry, anything standing still', 'Anything that reaches it'],
     v2rl: ['A truck carrying one huge rocket on a launch rail. Slow to reload but the blast wrecks buildings, with a crater and a shake you can feel. Needs a Radar Dome.', 'Structures, defences', 'Fast units, aircraft'],
+    engineer: ['Unarmed. Send one into a destroyed bridge to rebuild it, or into a damaged structure of yours or an ally\'s to repair it in full, at once. Either way the Engineer is used up.', 'Bridges, battered buildings', 'Everything: keep it out of the fight'],
     harv: ['Finds ore, fills up and drives home to unload, all on its own. It works the field nearest its refinery until every last bit is gone, then the next nearest; at most three trucks share a field. Gems are worth twice as much as ore but never grow back. Under fire it runs home and waits by the refinery until the danger has passed.', '', 'Unarmed: protect it'],
     mcv: ['A Construction Yard on wheels. Drive it anywhere on the map and tap DEPLOY to start a second base, or to rebuild a lost yard. While it is driving it still keeps your side in the fight. Needs a Service Depot.', '', 'Slow and unarmed'],
     fob: ['Drive it to a distant ore field and tap DEPLOY: it unpacks into an Outpost you can build around.', '', 'Unarmed while driving'],
@@ -159,6 +160,7 @@ const Manual = (() => {
       <h4>Orders</h4>
       <p><b>ATTACK</b> sends ground units after the nearest enemy building you have found, fighting whatever they meet; aircraft fly one strike and come home. <b>GUARD</b>: tap it, then the area to hold. The ring shows how far your units will go after enemies (Artillery and V2 launchers fire as far as they can shoot at anything in view), and they hold the area until you give another order, ignoring Auto Attack and calls for help. <b>STOP</b> drops every order: units go back to waiting around the base, aircraft to their pad.</p>
       <p>Tapping an enemy is a direct order: your units go for that target and nothing else, even if they come under fire on the way. Units guarding or attacking on their own turn on whoever shoots at them.</p>
+      <p><b>ATTACK GROUND</b>: tap it, then a spot. Your units fire at that spot until you give another order. On some maps (Twin Lakes) the bridges can be destroyed this way: tap a bridge and they fire on that span until it falls, taking whatever stands on it into the water. Nothing shoots a bridge unless ordered to. To rebuild one, select an <b>Engineer</b> and tap the destroyed span.</p>
       <h4>Defending</h4>
       <p>Units waiting near your base turn on any raiders inside it, paratroopers included, or on anything shooting your Ore Trucks, then go back to their posts when it is quiet again. Only as many go as the fight needs, and jets and helicopters go first; ground units make up the rest.</p>
       <h4>Aircraft</h4>
@@ -170,7 +172,7 @@ const Manual = (() => {
     { ch: 'Structures', title: 'Base and Economy', html: () => entries(['cy', 'power', 'apower', 'refinery', 'outpost', 'dome']) },
     { ch: 'Structures', title: 'Production', html: () => entries(['barracks', 'factory', 'depot', 'helipad', 'airfield']) },
     { ch: 'Structures', title: 'Defences', html: () => entries(['pillbox', 'turret', 'aagun', 'ftur', 'tesla', 'sam']) },
-    { ch: 'Infantry', title: 'Infantry', html: () => entries(['rifle', 'grenadier', 'rocket', 'pilot']) },
+    { ch: 'Infantry', title: 'Infantry', html: () => entries(['rifle', 'grenadier', 'rocket', 'engineer', 'pilot']) },
     { ch: 'Vehicles', title: 'Armour', html: () => entries(['ranger', 'ltank', 'mtank', 'htank', 'mammoth']) },
     { ch: 'Vehicles', title: 'Support Vehicles', html: () => entries(['arty', 'v2rl', 'harv', 'fob', 'mcv']) },
     { ch: 'Aircraft', title: 'Aircraft', html: () => entries(['heli', 'hind', 'jet', 'mig']) },

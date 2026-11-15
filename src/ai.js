@@ -257,7 +257,30 @@ function aiPowerTarget(team, cluster) {
 }
 
 const ARMY_UNITS = 80, ARMY_WORTH = 28000;   // defaults; DIFFICULTY ai.armyUnits and ai.armyWorth set them per difficulty (Normal 90 and 45000)
+// Destroyed bridge spans: the computer trains an Engineer (one at a time, when no Engineer of its alliance is free or
+// on the way) and sends each idle Engineer to the nearest destroyed span it can walk to that nobody is already
+// heading for. Checked every 10 s.
+function aiBridges(team) {
+  if (!G.spans || !G.spans.length || G.t < (team.spanT || 0)) return;
+  team.spanT = G.t + 10;
+  const down = G.spans.filter((s) => !s.alive);
+  if (!down.length) return;
+  const friends = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.def.engineer && alliedSides(u.team, team.id));
+  const taken = new Set(friends.filter((u) => u.order.type === 'engineer').map((u) => u.order.target));
+  const idle = friends.filter((u) => u.team === team.id && u.order.type !== 'engineer' && !u.chute);
+  for (const u of idle) {
+    const open = down.filter((s) => !taken.has(s)).sort((a, b) => Math.hypot(a.x - u.x, a.y - u.y) - Math.hypot(b.x - u.x, b.y - u.y));
+    for (const s of open) {
+      commandEngineer([u], s);
+      if (u.order.type === 'engineer') { taken.add(s); break; }   // (not taken: it cannot walk there)
+    }
+  }
+  // Spans still waiting, and no Engineer of its own alive or on order: train one.
+  if (down.some((s) => !taken.has(s)) && !friends.some((u) => u.team === team.id) && !team.queues.infantry.some((i) => i.type === 'engineer') &&
+      team.credits >= UNIT_DEFS.engineer.cost + 300) startProduction(team, 'engineer');
+}
 function aiThink(team) {
+  aiBridges(team);
   const c = aiCount(team);
   aiPickFoe(team);
   aiCounter(team);

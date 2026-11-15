@@ -406,6 +406,48 @@ share globals. Read this file first; the commit history explains every change in
 - Its south-east bridge's lower span is as long as it is wide (7 x 7 cells), and `genLayoutMap` drew a square run west-east. A square run now
   runs north-south when the water is to its west and east (world.js; the other maps have no square runs, their bakes are unchanged).
 
+## Attack ground, bridges that can be destroyed, Engineers (contributor's change by JGFortanelli, not released, both modes, needs the owner's OK)
+
+- **Attack ground** (`commandAttackGround(units, x, y)` in world.js; ATTACK GROUND on the selection bar for fighters, then a
+  tap: `aimSpan` in ui.js; an enemy under the tap gets the usual attack order). On a standing bridge span it is an attack
+  on the span. Anywhere else the target is a **spot**: a plain object (`kind: 'spot'`, `SPOT` in data.js, no id, not in
+  `G.entities` or `G.byId`), never hurt (`damage` returns), shelled until another order. It travels in snapshots as plain
+  data on the unit. Meant for buildable walls and gates later.
+- **Bridges** per map: `breakable: true` in MAPS (only Twin Lakes so far). Fixed maps only (`genLayoutMap`): each run of
+  bridge cells becomes a **span** (`addSpan`, `G.spans`), `SPAN` in data.js (6,000 health, structure armour).
+- A span is **not in `G.entities`** (nothing targets, draws, counts or sends it as an entity) but it is in `G.byId`, so
+  `commandAttack` and an online order can name it (`kind: 'span'`, `team: -1`). `registerSpans()` puts them back after
+  `G.byId` is rebuilt (net.js `clearCopy`; save.js does the same on load). Both copies of an online battle lay out the
+  same map, so span ids match. Old saves have no `G.spans`: their bridges cannot be destroyed.
+- Only an ordered attack hurts it (`damage` has a branch for spans; `splash`, `acquire` and base defences never see it).
+  `breakSpan`: its cells become water (`setSpan`: `G.terr` 4, `G.block` 1), ground units on it are killed, every moving
+  ground unit re-paths, every human side hears "Bridge destroyed".
+- **Engineer** (`engineer` in UNIT_DEFS, both factions, Barracks, 500 credits, 25 health, speed 32, sight 4, unarmed,
+  `engineer: true`). `commandEngineer(units, target)`: a destroyed span, or a damaged finished structure of its own
+  alliance (`engineerJob`). It walks to the nearest reachable free cell beside it (`besideSpot`), then `updateEngineer`
+  rebuilds the span or restores the structure to full health at once and the Engineer is used up (`alive = false`, not a
+  loss). UI: Engineers selected, tap the destroyed span or the damaged structure. No capturing of enemy structures.
+  Its model is the infantry figure with an olive vest, knee pads, a spanner on the pack and a yellow toolbox, no weapon
+  (`E` in `infModel`; listed with `pilot` wherever a rifle is left out).
+- **The computer** (`aiBridges` in ai.js, every 10 s, every difficulty): while a span is down it sends each idle Engineer
+  of its own to the nearest destroyed span it can walk to that no Engineer of its alliance is heading for, and trains
+  one (never a second while one is alive or queued) when it holds 800 credits. It never attacks bridges and does not use
+  Engineers on structures. Headless 2 v 2 of Hard computers on Twin Lakes with two spans destroyed at minute 4: both
+  rebuilt within a minute, no errors in 12 minutes; each side trained one, so an Engineer or two is left over, waiting
+  for the next span. Paying credits for a rebuild (`rebuildSpan`, the 45 s wait, the blue bar) is gone.
+- **Online:** `commandAttackGround` and `commandEngineer` are in netcore `COMMANDS` (the server must run the same
+  version); snapshots carry `sp` (`[health, standing]` per span, whenever it changes) and the copy
+  applies it with `applySpans`.
+- **Looks:** the bridge stays painted in the ground (and its bake); while a span is down `spanRuin` (art.js) draws water,
+  a ragged stub at each end and broken pieces of the deck in the water over it, after the wrecks layer, so no marks are
+  involved. Health bar on a span while hit or while a ground target is being picked; the minimap repaints span cells
+  when one changes (`spanSig`). Sprites and ground were rebaked (models.js changed).
+- `node tools/sim/bridges.js <repo>` (headless: ordered attack only, collapse, re-routing, attack ground, Engineers
+  rebuilding and repairing, training at the Barracks, snapshot and remote orders, the computer training and sending one). A phone-sized
+  browser run checked the button, the taps and the pictures. Not yet tried: two real phones online, and a save and
+  continue in the browser. `tools/sim/production.js` fails on `main` too (not from this change).
+- On a phone the selection bar wraps to two rows with ATTACK GROUND on it.
+
 ## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (2026.11.11.2; bridges, weather 2026.11.12)
 
 - `MAPS.snowbound` in maps.js: traced from the owner's design `maps/designs/snowbound.png` (126 cells, a lavender-ground palette:
@@ -679,6 +721,7 @@ Supabase.
 | `server-coop-mate.js` | Co-op with a computer teammate: two players in a 3 v AI, the leader adds the computer, the battle starts with it on the players' team |
 | `bunching.js` | Headless staged fight: how many friends stand inside one V2 blast of each fighting unit, attack and defence, and how the fight went. `<repo> [runs] [seconds]` |
 | `veterancy.js` | Headless: ranks at 2, 4, 8, 16 times own cost destroyed, firepower, armour, speed, reload, elite self-heal, no ranks for Ore Trucks or structures, a staged fight |
+| `bridges.js` | Headless: attack ground, destroyable bridge spans on Twin Lakes (hurt only by an ordered attack, collapse, routes go round), Engineers rebuilding a span and repairing a structure, online snapshot and orders, the computer training and sending an Engineer |
 | `rally.js` | Headless: units from an Outpost Barracks stay there, PRIMARY picks the Barracks, a rally point gathers new units, fallback when the primary is lost |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 

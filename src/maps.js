@@ -635,6 +635,7 @@ const MAPS = {
     blurb: 'Two long lakes cut the island from corner to corner. The north-east fights the south-west over a neck of ore-rich land in the middle and a long bridge at either end, each resting on a small island. Big ore fields lie in both far corners.',
     info: '132 × 132 cells · 4 start positions · made for 2 v 2',
     size: 132,   // cells a side (setMapSize); the 75-cell design at 1.76
+    breakable: true,   // its bridge spans can be destroyed and rebuilt (world.js addSpan)
     bridge: 'concrete',   // concrete bridges (art.js concreteBridge) instead of timber
     // The north-east (start positions 0-1) against the south-west (2-3), each alliance on its own side of the lakes
     // (newWorld): a 1 v 1 starts one player on each. (The tool lists starts west first; they are reordered here.)

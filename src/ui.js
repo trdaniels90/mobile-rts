@@ -353,6 +353,13 @@
     v.imageSmoothingEnabled = false;
     v.fillStyle = '#000'; v.fillRect(0, 0, bw, bh);
     if (!G) return;
+    // A bridge span destroyed or rebuilt: the minimap's terrain follows.
+    const sig = (G.spans || []).map((s) => (s.alive ? 1 : 0)).join('');
+    if (sig !== spanSig) {
+      spanSig = sig;
+      for (const s of G.spans || []) for (const c of s.cells) { mtctx.fillStyle = terrainMini()[G.terr[c]]; mtctx.fillRect(cellX(c), cellY(c), 1, 1); }
+      radarWas = null;
+    }
     const sx = Math.max(0, ox), sy = Math.max(0, oy);
     const sw = Math.min(WORLD, ox + bw) - sx, sh = Math.min(WORLD, oy + bh) - sy;
     // The ground is painted in tiles as it comes into view (art.js makeGround): up to 6 ms a frame for what is on
@@ -370,6 +377,8 @@
     }
 
     G.ground.draw(v, 'd', sx, sy, sw, sh, sx, sy);
+    // Destroyed bridge spans: water and broken ends over the painted bridge (art.js spanRuin).
+    for (const s of G.spans || []) if (!s.alive && s.x > ox - 400 && s.x < ox + bw + 400 && s.y > oy - 400 && s.y < oy + bh + 400) { const p = spanRuin(s); v.drawImage(p.c, p.x, p.y); }
     const x0 = ox - 80, y0 = oy - 80, x1 = ox + bw + 80, y1 = oy + bh + 80;
     const inView = (e) => e.x > x0 && e.x < x1 && e.y > y0 && e.y < y1;
     for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0) drawEffect(v, fx);
@@ -423,6 +432,11 @@
     air.sort((a, b) => (a.alt || 0) - (b.alt || 0) || a.y - b.y);
     for (const e of air) drawUnit(v, e, G.t);
 
+    // Bridge spans: health while under fire or while a ground target is being picked.
+    for (const s of G.spans || []) {
+      if (!G.seen[idx(Math.floor(s.x / CELL), Math.floor(s.y / CELL))]) continue;
+      if (s.alive && (G.t - s.hitT < 3 || aimSpan)) drawHealth(v, s, s.x, s.y - 2, 40);
+    }
     // Selection brackets and health bars.
     for (const e of G.entities) {
       if (!inView(e) || !visibleToPlayer(e)) continue;
@@ -586,10 +600,29 @@
   function marker(x, y, color) { G.effects.push({ type: 'ring', x, y, color, t: 0, life: 0.5 }); }
 
   let lastTap = null;
+  // Attack ground (the ATTACK GROUND button): aimSpan holds the units waiting for the next tap, which orders them to
+  // fire at that spot, or at the bridge span there (world.js commandAttackGround).
+  let aimSpan = null, spanSig = '';
   function tap(sx, sy, shift) {
     if (!G || G.over) return;
     const w = s2w(sx, sy);
     if (G.place) { placeTap(w); return; }
+    if (aimSpan) {
+      const units = aimSpan.filter((u) => u.alive), hit = pick(w.x, w.y, (isTouch ? 16 : 6) / cam.z);
+      aimSpan = null;
+      if (units.length && !(hit && hit.team !== undefined && hostile(hit.team, G.me))) {   // (an enemy under the tap: the usual attack order below)
+        commandAttackGround(units, w.x, w.y);
+        marker(w.x, w.y, '#ff4a3a'); Sound.ack(units[0].cls === 'inf' ? 'attack' : units[0].cls);
+        return;
+      }
+    }
+    // Engineers: tap a destroyed bridge span to rebuild it, or a damaged structure of your side or an ally's to repair it.
+    const engs = G.selection.filter((u) => u.alive && u.kind === 'unit' && u.team === G.me && u.def.engineer);
+    if (engs.length) {
+      const down = spanAt(w.x, w.y), bld = pick(w.x, w.y, (isTouch ? 16 : 6) / cam.z);
+      const job = down && !down.alive ? down : bld && bld.kind === 'bld' && engineerJob(engs[0], bld) ? bld : null;
+      if (job) { commandEngineer(engs, job); marker(job.x, job.y, '#3ed04a'); Sound.ack('inf'); return; }
+    }
     const slop = (isTouch ? 16 : 6) / cam.z;
     const e = pick(w.x, w.y, slop);
     const mine = ownUnits();
@@ -1174,6 +1207,7 @@
     const btns = [];
     if (own.some((e) => e.kind === 'unit' && e.def.deploys)) btns.push(['deploy', 'DEPLOY']);
     if (fighters.length) btns.push(['hunt', 'ATTACK'], ['guard', 'GUARD']);
+    if (fighters.length) btns.push(['span', 'ATTACK GROUND']);
     if (own.some((e) => e.kind === 'unit')) btns.push(['stop', 'STOP']);
     if (own.some((e) => canService(e) && e.hp < e.maxHp) && hasBuilt(G.teams[G.me], 'depot')) btns.push(['svc', 'REPAIR']);
     if (bld) {
@@ -1206,6 +1240,7 @@
       if (!enemyBaseKnown()) evaCalm('Enemy base not located', 4);   // pick a target, or scout first
       else { commandHunt(own.filter((u) => u.kind === 'unit' && (u.def.weapon || u.cls === 'air'))); eva('Attacking enemy base'); Sound.ack('attack'); }
     }
+    else if (act === 'span') { aimSpan = own.filter((u) => u.kind === 'unit' && !u.def.harvester && (u.def.weapon || u.cls === 'air')); evaCalm('Tap the ground to attack', 5); }
     else if (act === 'guard') beginGuard(own.filter((u) => u.kind === 'unit' && !u.def.harvester));
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
     else if (act === 'svc') { commandRepair(own.filter((u) => canService(u) && u.hp < u.maxHp)); eva('To the Service Depot'); Sound.ack('veh'); }
