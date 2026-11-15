@@ -83,5 +83,9 @@ The new Ore Truck, Rifle Infantry and Allied Light Tank looks are hand-built vox
 their general design from 3D reference models generated with Tripo Studio. No Tripo geometry,
 textures or video frames are used in the game.
 
+The Allied Ore Refinery is a hand-built voxel model that takes its general layout (tall stacks, a round process
+tank, a low processing hall) from an industrial-complex reference generated with Rodin Gen-1 (Hyper3D). No Rodin
+geometry, textures or video frames are used in the game.
+
 The Soviet Flame Tower is a hand-built voxel model (`tools/blender/ftur.py`) that takes its general design
 from an AI-generated reference picture supplied by a contributor. The picture itself is not used in the game.
