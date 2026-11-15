@@ -4,6 +4,17 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.15', date: '15 November 2026', title: 'Veterancy, destroyable bridges and Engineers', groups: [
+    ['New', [
+      'Unit veterancy, as in OpenRA\'s Red Alert: a unit is promoted when it has destroyed 2, 4, 8 and 16 times its own cost. Each rank hits harder, takes less damage, reloads faster and moves faster on the ground; the fourth rank, Elite, also repairs itself out of the fight. Gold chevrons show a unit\'s rank, and the selection bar names it.',
+      'Attack ground: tap ATTACK GROUND, then a spot, and the selected units fire there until given another order.',
+      'Bridges can be destroyed on Twin Lakes (by an ordered ATTACK GROUND on a span). Units on a falling span are lost and routes go round.',
+      'Engineer (Barracks, 500 credits): rebuilds a destroyed bridge span or fully repairs a damaged structure of your side, and is used up doing it. The computer trains Engineers to rebuild spans.',
+    ]],
+    ['Changed', [
+      'The Allied Ore Refinery has a new look: banded stacks, a process tank on a gantry and a front hall. Design by JGFortanelli.',
+    ]],
+  ] },
   { v: '2026.11.14.12', date: '14 November 2026', title: 'Debrief kills fix', groups: [
     ['Fixes', [
       'The debrief\'s kills list counted kills made by the enemy\'s fallen units too, so it could show units your faction cannot build. It now lists only your own units, and is titled "Kills made by your units".',
