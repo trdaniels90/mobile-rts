@@ -4174,9 +4174,10 @@ function treeFires(dt) {
     if (!tr) return false;
     if (age > TREE_BURN) { scorch(G.tctx, tr.x, tr.y - 3, 14, (i * 7919) | 0); return false; }   // ash round the foot of the burnt tree
     if (age < 0 || !show || !G.seen[idx(Math.floor(tr.x / CELL), Math.floor(tr.y / CELL))]) return true;
-    const heat = Math.sin(Math.min(1, age / TREE_BURN) * Math.PI) + 0.15;
-    if (Math.random() < dt * 9 * heat) G.effects.push({ type: 'fire', x: tr.x + (Math.random() - 0.5) * 12, y: tr.y - 4 - Math.random() * 14, t: 0, life: 0.5 + Math.random() * 0.5, vy: -14 - Math.random() * 8 });
-    if (Math.random() < dt * 3 * heat) G.effects.push({ type: 'smoke', x: tr.x + (Math.random() - 0.5) * 6, y: tr.y - 18, r: 3, t: 0, life: 2.4, alpha: 0.5, color: '#36322d', vy: -10, vx: 2 });
+    const heat = treeHeat(age / TREE_BURN);
+    // Flames leaping from all over the crown and above it, and a column of smoke.
+    for (let n = dt * 26 * heat; n > 0; n--) if (n >= 1 || Math.random() < n) G.effects.push({ type: 'fire', x: tr.x + (Math.random() - 0.5) * 18, y: tr.y - 6 - Math.random() * 20, t: 0, life: 0.4 + Math.random() * 0.5, s: 1.2 + Math.random() * 0.6 * heat, vy: -18 - Math.random() * 14 });
+    if (Math.random() < dt * 5 * heat) G.effects.push({ type: 'smoke', x: tr.x + (Math.random() - 0.5) * 10, y: tr.y - 26, r: 4, t: 0, life: 2.8, alpha: 0.55, color: '#2e2a26', vy: -14, vx: 2, drag: 0.4 });
     return true;
   });
 }

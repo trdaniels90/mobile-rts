@@ -728,6 +728,35 @@ function weatherLevel(w, t) {
 // burns (G.treeFire, world.js treeFires) and is left a burnt tree. g: the view, already translated to the world;
 // draws the trees whose base is between y0 and y1 and x0 and x1. Looks only.
 const TREE_BURN = 9;   // seconds a tree burns before it is a bare, burnt tree
+// How fiercely a tree burns at p (0 to 1 of TREE_BURN): it is ablaze within a second or so, roars, and dies down over the last third.
+function treeHeat(p) { const a = p * TREE_BURN; return Math.max(0, Math.min(1, a / 1.2, (TREE_BURN - a) / 3)); }
+// A tree's shape in flame: each of its pixels yellow, orange or red, with gaps, in TREE_FLAME_FRAMES pictures whose
+// pattern rises up the tree from one to the next. Made once per tree picture.
+const TREE_FLAME_FRAMES = 4, treeFlameCache = new WeakMap();
+function treeFlames(spr) {
+  let fr = treeFlameCache.get(spr);
+  if (fr) return fr;
+  const W = spr.img.width, H = spr.img.height, src = spr.img.getContext('2d').getImageData(0, 0, W, H).data;
+  const hsh = (x, y) => { let h = Math.imul(x * 374761393 + y * 668265263, 1274126177); h ^= h >>> 13; return ((h >>> 0) % 1000) / 1000; };
+  fr = [];
+  for (let k = 0; k < TREE_FLAME_FRAMES; k++) {
+    const c = mkCanvas(W, H), g = c.getContext('2d'), im = g.createImageData(W, H), d = im.data;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      if (src[i + 3] < 100) continue;
+      // Tongues: columns of flame that move up a few pixels each frame, brightest low down and at their cores.
+      const n = hsh(x, (y + k * 3) >> 1) * 0.6 + hsh(x >> 1, (y + k * 3) >> 2) * 0.4, up = y / H;
+      if (n < 0.3 + 0.3 * (1 - up)) continue;   // gaps, more of them near the top
+      const v = n * 0.9 + up * 0.3 - 0.1;
+      const col = v > 0.95 ? [255, 244, 190] : v > 0.78 ? [255, 214, 90] : v > 0.58 ? [255, 150, 40] : v > 0.4 ? [236, 88, 24] : [170, 40, 16];
+      d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 235;
+    }
+    g.putImageData(im, 0, 0);
+    fr.push(c);
+  }
+  treeFlameCache.set(spr, fr);
+  return fr;
+}
 function drawTrees(g, x0, y0, x1, y1) {
   const T = G.ground && G.ground.trees;
   if (!T || !T.length) return;
@@ -759,11 +788,16 @@ function drawTrees(g, x0, y0, x1, y1) {
     g.setTransform(tf.a, tf.b, tf.c + c * tf.a, tf.d, tf.e - c * tf.a * tr.y, tf.f);
     if (p < 1) { g.globalAlpha = 1 - p * p; g.drawImage(tr.s.img, Math.round(tr.x + tr.s.ox), Math.round(tr.y + tr.s.oy)); }
     if (p > 0) { g.globalAlpha = Math.min(1, p * 1.6); g.drawImage(tr.burnt.img, Math.round(tr.x + tr.burnt.ox), Math.round(tr.y + tr.burnt.oy)); }
-    if (p > 0 && p < 1) {   // glowing while it burns
+    if (p > 0 && p < 1) {   // engulfed: the tree's own shape in flickering flame, then a glow round it
+      const heat = treeHeat(p), src = p < 0.5 ? tr.s : tr.burnt, fr = treeFlames(src)[Math.floor(t * 12 + ph * 3) % TREE_FLAME_FRAMES];
+      g.globalAlpha = 0.95 * heat;
+      g.drawImage(fr, Math.round(tr.x + src.ox), Math.round(tr.y + src.oy));
+      g.globalCompositeOperation = 'lighter';
+      g.globalAlpha = 0.18 * heat; g.drawImage(fr, Math.round(tr.x + src.ox), Math.round(tr.y + src.oy) - 1);
       g.setTransform(tf);
-      const heat = Math.sin(p * Math.PI) * (0.75 + 0.25 * Math.sin(t * 13 + ph));
-      g.globalAlpha = 0.35 * heat; g.fillStyle = '#ff7a20';
-      g.beginPath(); g.ellipse(tr.x, tr.y - 9, 9, 10, 0, 0, 7); g.fill();
+      g.globalAlpha = 0.12 * heat * (0.8 + 0.2 * Math.sin(t * 13 + ph)); g.fillStyle = '#ff6a18';
+      g.beginPath(); g.ellipse(tr.x, tr.y - 14, 14, 15, 0, 0, 7); g.fill();
+      g.globalCompositeOperation = 'source-over';
     }
   }
   g.globalAlpha = 1;
