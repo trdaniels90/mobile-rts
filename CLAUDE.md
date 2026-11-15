@@ -825,6 +825,6 @@ frame-time maths everywhere, so it is not deterministic.
   (was three quarters) and waits until the army is `WAVE_HOLD` (half) of its cap by count or worth. Computer-only games still never
   end (1 v 1 run to 75 min): waves of 35 to 59 units die within about 100 s of contact, and both sides attack at the same moment.
 - **Owner's picks from an OpenRA comparison:** Heavy Tank 950 to 1150, Mammoth 1700 to 2000 (OpenRA's costs). Warheads: `RF` (rifle;
-  was SA) 1 / 0.27 / 0.07 / 0.07 for inf / light / heavy / bld, `GR` (Grenadier; was HE) 0.6 / 0.25 / 0.25 / 1, `ART` 0.6 / 0.6 / 0.25 / 0.4.
+  was SA) 1 / 0.27 / 0.07 / 0.07 for inf / light / heavy / bld, `GR` (Grenadier; was HE) 0.6 / 0.25 / 0.25 / 1, `ART` 0.9 / 0.9 / 0.25 / 0.75 (only the tank figure is OpenRA's; the full OpenRA row was tried and put back).
 - Measured after (Hard computers, 20 min): Soviets still lead 8 of 8 1 v 1 on `bridge` and 10 of 10 faction-against-faction 2 v 2 on
   `twinlakes` (either seat); by value lost (4 games) Allies 372,000 to Soviets 283,000. Unit kill counts alone overstate it: Allies field more cheap infantry.

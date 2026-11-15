@@ -53,7 +53,7 @@ const WARHEADS = {
   FLAK:  { inf: 0,   light: 0,    heavy: 0,    bld: 0,   air: 1.0 },
   TESLA: { inf: 1.6, light: 1.0,  heavy: 0.9,  bld: 0.6, air: 0 },
   FIRE:  { inf: 1.3, light: 0.6,  heavy: 0.3,  bld: 0.7, air: 0 },   // flame tower
-  ART:   { inf: 0.6, light: 0.6,  heavy: 0.25, bld: 0.4, air: 0 },    // artillery shells: OpenRA's 155mm (2026.11.15)
+  ART:   { inf: 0.9, light: 0.9,  heavy: 0.25, bld: 0.75, air: 0 },   // artillery shells: only the tank figure is OpenRA's 155mm (2026.11.15)
   RF:    { inf: 1.0, light: 0.27, heavy: 0.07, bld: 0.07, air: 0.6 }, // rifles: OpenRA's M1Carbine, with infantry kept at 1
   GR:    { inf: 0.6, light: 0.25, heavy: 0.25, bld: 1.0, air: 1.0 },  // grenades: OpenRA's Grenade
   AT:    { inf: 0.3, light: 0.75, heavy: 1.0,  bld: 0.6, air: 1.0 },   // Rocket Soldier: Red Alert's AP
