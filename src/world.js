@@ -1802,7 +1802,7 @@ function updateProjectiles(dt) {
       if (p.kind === 'fireball') { fireBlast(p, t.alive ? t.x : p.x, t.alive ? t.y : p.y); continue; }
       if (t.alive) damage(t, p.w.dmg, p.w.wh, p.from || null, { x: p.x, y: p.y });
       impact(p.kind, t.alive ? tx : p.x, t.alive ? ty : p.y, isAirborne(t));
-      if (p.w.wh === 'HE' && t.kind === 'unit' && !isAirborne(t)) splash(tx, ty, 14, p.w.dmg * 0.4, p.team, t, p.from);
+      if ((p.w.wh === 'HE' || p.w.wh === 'GR') && t.kind === 'unit' && !isAirborne(t)) splash(tx, ty, 14, p.w.dmg * 0.4, p.team, t, p.from);
       continue;
     }
     p.x += (dx / d) * step; p.y += (dy / d) * step;
@@ -2122,7 +2122,7 @@ const RAG_MIN = [[2, 9, 0.5], [2, 10, 0.5], [1, 5, 0.45], [1, 6, 0.45], [0, 2, 0
 function ragdoll(e, wh, from) {
   const r = Math.random;
   const a = from && (from.x !== e.x || from.y !== e.y) ? Math.atan2(e.y - from.y, e.x - from.x) : r() * Math.PI * 2;
-  const blast = wh === 'HE' || wh === 'AP' || wh === 'ART' || wh === 'AT' || wh === 'HF';
+  const blast = wh === 'HE' || wh === 'GR' || wh === 'AP' || wh === 'ART' || wh === 'AT' || wh === 'HF';
   const fx = { type: 'ragdoll', x: e.x, y: e.y, unitType: e.type, faction: e.faction, v: teamOf(e).variant | 0, face: e.face, t: 0, life: 14, age: 0, still: 0, acc: 0 };
   // Joints in world space, standing as the soldier stood.
   const n = RAG_PTS.length, ca = Math.cos(e.face), sa = Math.sin(e.face);

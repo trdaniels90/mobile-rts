@@ -53,7 +53,9 @@ const WARHEADS = {
   FLAK:  { inf: 0,   light: 0,    heavy: 0,    bld: 0,   air: 1.0 },
   TESLA: { inf: 1.6, light: 1.0,  heavy: 0.9,  bld: 0.6, air: 0 },
   FIRE:  { inf: 1.3, light: 0.6,  heavy: 0.3,  bld: 0.7, air: 0 },   // flame tower
-  ART:   { inf: 0.9, light: 0.9,  heavy: 0.85, bld: 0.75, air: 0 },  // artillery shells
+  ART:   { inf: 0.6, light: 0.6,  heavy: 0.25, bld: 0.4, air: 0 },    // artillery shells: OpenRA's 155mm (2026.11.15)
+  RF:    { inf: 1.0, light: 0.27, heavy: 0.07, bld: 0.07, air: 0.6 }, // rifles: OpenRA's M1Carbine, with infantry kept at 1
+  GR:    { inf: 0.6, light: 0.25, heavy: 0.25, bld: 1.0, air: 1.0 },  // grenades: OpenRA's Grenade
   AT:    { inf: 0.3, light: 0.75, heavy: 1.0,  bld: 0.6, air: 1.0 },   // Rocket Soldier: Red Alert's AP
   HF:    { inf: 0.15, light: 0.9, heavy: 1.0,  bld: 0.7, air: 1.0 },   // Hellfire: a tank killer, wasted on infantry
 };
@@ -64,12 +66,12 @@ const UNIT_DEFS = {
   rifle: {
     name: 'Rifle Infantry', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
     cost: 100, hp: 50, armor: 'inf', speed: 32, sight: 4, r: 5,
-    weapon: { dmg: 7, rof: 1.3, range: 70, wh: 'SA', proj: 'bullet', burst: 3, gap: 0.11 },
+    weapon: { dmg: 7, rof: 1.3, range: 70, wh: 'RF', proj: 'bullet', burst: 3, gap: 0.11 },
   },
   grenadier: {
     name: 'Grenadier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['soviets'],
     cost: 160, hp: 50, armor: 'inf', speed: 40, sight: 5, r: 5,
-    weapon: { dmg: 42, rof: 2.0, range: 100, wh: 'HE', proj: 'grenade', splash: 22 },
+    weapon: { dmg: 42, rof: 2.0, range: 100, wh: 'GR', proj: 'grenade', splash: 22 },
   },
   // Unarmed. Walks into a destroyed bridge span and it is rebuilt, or into a damaged friendly structure and it is
   // repaired in full; either way the Engineer is used up (world.js commandEngineer). Cost, health, speed and sight
@@ -108,12 +110,12 @@ const UNIT_DEFS = {
   },
   htank: {
     name: 'Heavy Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'tank',
-    cost: 950, hp: 550, armor: 'heavy', speed: 38, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 16, tur: 6, barrel: 8, twin: true, heavy: true, tz: 6 },
+    cost: 1150, hp: 550, armor: 'heavy', speed: 38, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 16, tur: 6, barrel: 8, twin: true, heavy: true, tz: 6 },
     weapon: { dmg: 30, rof: 1.7, range: 114, wh: 'AP', proj: 'shell', twin: true, stagger: 0.25 },   // stagger: the second barrel fires this much later
   },
   mammoth: {
     name: 'Mammoth Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'tank',
-    cost: 1700, hp: 950, armor: 'heavy', speed: 25, turn: 2, sight: 6, r: 12, size: { len: 24, wid: 22, tur: 7.5, barrel: 14, twin: true, pods: true, mammoth: true, tz: 4 },
+    cost: 2000, hp: 950, armor: 'heavy', speed: 25, turn: 2, sight: 6, r: 12, size: { len: 24, wid: 22, tur: 7.5, barrel: 14, twin: true, pods: true, mammoth: true, tz: 4 },
     weapon: { dmg: 45, rof: 1.9, range: 118, wh: 'AP', proj: 'shell', twin: true },
     weapon2: { dmg: 35, rof: 2.6, range: 140, wh: 'HE', proj: 'rocket', air: true },
   },
