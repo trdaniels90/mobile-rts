@@ -801,7 +801,10 @@ frame-time maths everywhere, so it is not deterministic.
 - `rank` is a plain unit field: saved, and synced to online guests (so the server must run the same version); `healT` is a host
   timer (netcore `SKIP`). Drawn by `drawRank` in ui.js for every visible ranked unit (gold chevrons, a star for Elite; enemy
   ranks show too) and named in the selection bar. Field Manual row "Veterancy".
-- Not done: a promotion sound or voice line, ranks in the debrief, a newly built unit starting with rank (OpenRA has none either).
+- **Promotion sound** (after 2026.11.15): `promote` and `promoteElite` in audio.js `FX` (synthesized UI sounds, a rising bugle call;
+  Elite a step higher with a held chord and a shimmer; rendered offline at 1.2 s, not the usual 0.6). ui.js `eva` plays them when the
+  line starts "Unit promoted", so only the owner hears them, online guests too (their lines arrive through `evaFor`).
+- Not done: a spoken voice line (needs `scripts/make_voices.py` and the Kokoro model), ranks in the debrief.
 
 ## Computer waves, Soviet tank costs, OpenRA armour multipliers (after 2026.11.14.12, not released, both modes)
 
