@@ -873,6 +873,14 @@ frame-time maths everywhere, so it is not deterministic.
   in models.js, `scenery.burntTrees` / `burntPines`), then leaves a scorch mark (14 px). `G.treeFire` (tree number -> time it caught) and
   `G.treeHot` are plain data, so saves keep burnt trees. Ground rebaked (`groundKey` has a `live-trees` token); sprites rebaked for the hash only.
 
+## Rain on Lakeside, lightning (after 2026.11.15.6, not released, both modes, looks and sound only)
+
+- Lakeside has `weather: { kind: 'rain', chance: 0.5 }` (A Bridge Too Far and Twin Lakes still have none, owner's call).
+- **Lightning** in any rain (`lightning`, `lightningAt` in art.js, from `drawWeather`): each second of battle clock rolls from the weather's
+  seed, so both online phones strike together; none under level 0.45, up to `LIGHTNING_RATE` (0.05 a second) in the heaviest rain. A strike: a
+  jagged forked bolt on screen (where differs per phone), a double flash (skipped with prefers-reduced-motion, `calmFlash`) and `thunder`
+  (audio.js FX: crack and a 4 s rolling rumble on a looped noise source) 0.25 to 1.85 s later. Nothing in the simulation reads it.
+
 ## Stuck trucks and Outposts, defeated sides blow up (after 2026.11.15.5, not released, both modes)
 
 - **Dock deadlock** (`dockProgress`, `DOCK_PATIENCE` 5 s, `DOCK_BAN` 8 s): a truck holding a refinery's dock claim but getting no nearer lost it to

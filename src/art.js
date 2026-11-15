@@ -803,6 +803,60 @@ function drawTrees(g, x0, y0, x1, y1) {
   g.globalAlpha = 1;
   g.setTransform(tf);
 }
+// Lightning in rain: now and then, more often the heavier it rains (none in a drizzle), a forked bolt strikes
+// somewhere on screen, the sky flashes, and thunder follows a moment later. When it strikes is worked out from the
+// weather's seed and the battle clock, so both phones of an online battle see a strike at the same moment (where on
+// screen differs). Looks and sound only. Players who ask for less motion get the bolt without the screen flash.
+const calmFlash = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const LIGHTNING_RATE = 0.05;   // strikes a second in the heaviest rain (about one every 20 s)
+function lightningAt(w, slot) {   // [strike time within the second, or -1; and two numbers for its look]
+  let h = Math.imul((w.seed | 0) ^ 0x5bd1e995, 0x27d4eb2d) + Math.imul(slot, 0x165667b1);
+  const r = rng(h ^ (h >>> 15)); r();
+  const L = weatherLevel(w, slot), p = L < 0.45 ? 0 : LIGHTNING_RATE * (L - 0.45) / 0.55;
+  return r() < p ? [r(), r(), r()] : null;
+}
+function lightning(g, w, t, k, paused) {
+  const F = weatherFx, W = g.canvas.width, H = g.canvas.height;
+  if (!paused && F.lt !== undefined && t > F.lt && t - F.lt < 2) {
+    for (let s = Math.floor(F.lt); s <= Math.floor(t); s++) {
+      const hit = lightningAt(w, s);
+      if (!hit || s + hit[0] <= F.lt || s + hit[0] > t) continue;
+      // The bolt: a jagged line from the top of the screen down to a point on the ground, with a few forks.
+      const x0 = W * (0.08 + 0.6 * hit[1]), y1 = H * (0.35 + 0.5 * hit[2]), r = rng((s * 7919) | 0), pts = [[x0 + (r() - 0.5) * W * 0.2, -10]];
+      const forks = [], steps = 14;
+      for (let i = 1; i <= steps; i++) {
+        const [px, py] = pts[i - 1], ny = -10 + (y1 + 10) * i / steps, nx = i === steps ? x0 : px + (r() - 0.5) * 34 * k + (x0 - px) * 0.15;
+        pts.push([nx, ny]);
+        if (i > 3 && i < steps - 2 && r() < 0.3) {   // a fork that dies out
+          const f = [[nx, ny]], dir = r() < 0.5 ? -1 : 1;
+          for (let j = 1; j < 5; j++) f.push([f[j - 1][0] + dir * (6 + r() * 14) * k, f[j - 1][1] + (8 + r() * 12) * k]);
+          forks.push(f);
+        }
+      }
+      F.bolt = { born: performance.now(), pts, forks };
+      if (typeof Sound !== 'undefined') setTimeout(() => Sound.play('thunder', 0.55 + 0.45 * hit[2], (x0 / W) * 1.2 - 0.6, 0), 250 + hit[1] * 1600);
+    }
+  }
+  F.lt = t;
+  const B = F.bolt;
+  if (!B) return;
+  const age = (performance.now() - B.born) / 1000;
+  if (age > 0.6) { F.bolt = null; return; }
+  // The flash: bright at once, a second flicker, then gone.
+  const flash = age < 0.08 ? 1 : age < 0.14 ? 0.25 : age < 0.22 ? 0.8 : Math.max(0, 0.8 * (1 - (age - 0.22) / 0.38));
+  if (!calmFlash) { g.fillStyle = `rgba(226,232,255,${(0.32 * flash).toFixed(3)})`; g.fillRect(0, 0, W, H); }
+  if (age > 0.3) return;
+  const line = (pts, wdt, col) => { g.strokeStyle = col; g.lineWidth = wdt; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (const p of pts) g.lineTo(p[0], p[1]); g.stroke(); };
+  const a = age < 0.14 && age > 0.08 ? 0.35 : 1;
+  g.lineJoin = 'round';
+  for (const [wdt, col] of [[7 * k, `rgba(150,170,255,${0.25 * a})`], [3 * k, `rgba(200,215,255,${0.6 * a})`], [1.2 * k, `rgba(255,255,255,${a})`]]) {
+    line(B.pts, wdt, col);
+    for (const f of B.forks) line(f, wdt * 0.6, col);
+  }
+  // Where it strikes: a bright splash on the ground.
+  const [gx, gy] = B.pts[B.pts.length - 1];
+  g.fillStyle = `rgba(255,255,240,${0.7 * a})`; g.beginPath(); g.arc(gx, gy, 4 * k, 0, 7); g.fill();
+}
 // Draws the weather over the battle on the screen canvas g: the view's top left at world (vx, vy), vw x vh world
 // pixels, k screen pixels a world pixel. Drops and flakes live in the world (they stay put as the camera moves) and
 // wrap round the view.
@@ -821,6 +875,7 @@ function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {
   g.fillStyle = rain ? `rgba(14,22,34,${(0.1 + 0.16 * L).toFixed(3)})` : `rgba(214,222,236,${(0.04 + 0.08 * L).toFixed(3)})`;
   g.fillRect(0, 0, g.canvas.width, g.canvas.height);
   if (rain) {
+    lightning(g, w, t, k, paused);
     const wind = 70;
     g.strokeStyle = 'rgba(180,200,220,0.5)'; g.lineWidth = Math.max(1, Math.round(k * 0.6));
     g.beginPath();

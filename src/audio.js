@@ -316,6 +316,20 @@ const Sound = (() => {
     dieFire(t, o) { tone(t, 'sawtooth', 420, 180, 0.8, 0.1, o); },
     // Fallbacks for the recorded construction clank and collapse.
     build(t, o) { noiseHit(t, 0.12, 'bandpass', 2200, 1600, 3, 0.4, o); tone(t, 'square', 330, 300, 0.08, 0.12, o); },
+    // Thunder: a sharp crack, then a long low rumble that rolls a few times as it dies away.
+    thunder(t, o) {
+      noiseHit(t, 0.3, 'bandpass', 2400, 500, 0.7, 0.55, o, 0.004);
+      const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true;
+      const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 0.6;
+      f.frequency.setValueAtTime(700, t); f.frequency.exponentialRampToValueAtTime(90, t + 3.6);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(1, t + 0.12);
+      for (const [dt, v] of [[0.5, 0.55], [0.9, 0.85], [1.5, 0.4], [2.0, 0.6], [2.8, 0.25]]) g.gain.linearRampToValueAtTime(v, t + dt);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 3.9);
+      src.connect(f); f.connect(g); g.connect(o);
+      src.start(t, Math.random()); src.stop(t + 4);
+      tone(t + 0.05, 'sine', 55, 32, 2.2, 0.5, o, 0.08);
+    },
     collapse(t, o) { noiseHit(t, 1.2, 'lowpass', 900, 150, 0.8, 0.7, o); noiseHit(t + 0.15, 0.6, 'bandpass', 1800, 900, 2, 0.25, o); },
     place(t, o) {
       tone(t, 'sine', 95, 45, 0.3, 0.7, o); noiseHit(t, 0.18, 'lowpass', 500, 200, 0.7, 0.5, o);
@@ -331,9 +345,9 @@ const Sound = (() => {
   };
   const THROTTLE = { die: 0.09, dieBlast: 0.12, dieFire: 0.2, build: 0.12, collapse: 0.3, cashUp: 0.07, cashDown: 0.07, rifle: 0.03, m16: 0.03, mg: 0.03, pillbox: 0.03, cannon: 0.05, cannonHeavy: 0.06, turretGun: 0.06, hitSmall: 0.05, hitMed: 0.06, explodeVeh: 0.08, rocket: 0.05, redeye: 0.05, missile: 0.05, flak: 0.06, tesla: 0.1 };
   // How much each sound matters when the voices run out, and how long it occupies one.
-  const PRIORITY = { click: 9, ready: 9, denied: 9, sell: 9, place: 9, cashUp: 8, cashDown: 8, explodeBig: 10, collapse: 9, explodeVeh: 8, cannonHeavy: 7, missile: 6, rocket: 6, redeye: 6, tesla: 6,
+  const PRIORITY = { thunder: 10, click: 9, ready: 9, denied: 9, sell: 9, place: 9, cashUp: 8, cashDown: 8, explodeBig: 10, collapse: 9, explodeVeh: 8, cannonHeavy: 7, missile: 6, rocket: 6, redeye: 6, tesla: 6,
     cannon: 5, turretGun: 5, hitMed: 5, flame: 5, fireHit: 5, throw: 4, flak: 4, mg: 3, pillbox: 3, hitSmall: 3, build: 2, die: 2, dieBlast: 3, dieFire: 3, rifle: 2, m16: 2 };
-  const HOLD = { explodeBig: 1.6, collapse: 1.6, explodeVeh: 1.1, cannonHeavy: 0.9, cannon: 0.6, turretGun: 0.6, hitMed: 0.6, tesla: 0.8, flame: 0.9, fireHit: 0.8, missile: 0.9, rocket: 0.9, redeye: 0.9, build: 0.5, die: 0.5, dieBlast: 0.7, dieFire: 0.8, rifle: 0.3, m16: 0.3, mg: 0.22, pillbox: 0.22, hitSmall: 0.3, flak: 0.5, throw: 0.5 };
+  const HOLD = { thunder: 4, explodeBig: 1.6, collapse: 1.6, explodeVeh: 1.1, cannonHeavy: 0.9, cannon: 0.6, turretGun: 0.6, hitMed: 0.6, tesla: 0.8, flame: 0.9, fireHit: 0.8, missile: 0.9, rocket: 0.9, redeye: 0.9, build: 0.5, die: 0.5, dieBlast: 0.7, dieFire: 0.8, rifle: 0.3, m16: 0.3, mg: 0.22, pillbox: 0.22, hitSmall: 0.3, flak: 0.5, throw: 0.5 };
   const UI_SOUNDS = new Set(['click', 'ready', 'denied', 'sell', 'place', 'cashUp', 'cashDown']);
   // Rough loudness of each effect so distant battles do not drown nearby ones.
   const LEVEL = { rifle: 0.7, m16: 0.7, mg: 0.95, pillbox: 0.95, throw: 0.8, cannon: 0.8, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, redeye: 0.65, missile: 0.7, flak: 0.75, tesla: 0.85,
@@ -495,7 +509,7 @@ registerProcessor('sfx-mix', SfxMix);
     const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const entry = synthCache[name] = { ready: false, list: [] };
     if (!OAC || !FX[name]) return null;
-    const ui = UI_SOUNDS.has(name), len = ui ? 0.6 : 1.6;
+    const ui = UI_SOUNDS.has(name), len = ui ? 0.6 : name === 'thunder' ? 4.2 : 1.6;
     let pending = 2;
     for (let k = 0; k < 2; k++) {
       let off;
