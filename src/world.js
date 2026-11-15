@@ -2787,6 +2787,12 @@ function threatNear(u) {
   return G.entities.some((e) => e.alive && e.kind === 'unit' && hostile(e.team, u.team) && !e.def.scripted && Math.hypot(e.x - u.threat.x, e.y - u.threat.y) < CELL * 9);
 }
 // Another truck of this refinery holds its dock (on its way in or unloading).
+// A truck that holds the dock must keep getting nearer to it (4 px in DOCK_PATIENCE seconds) or it loses the claim.
+const DOCK_PATIENCE = 5, DOCK_BAN = 8;
+function dockProgress(u, d) {
+  if (!u.dockBest || d < u.dockBest.d - 4) { u.dockBest = { d, t: G.t }; return true; }
+  return G.t - u.dockBest.t < DOCK_PATIENCE;
+}
 function dockBusy(ref, u) {
   const h = ref.dockU;
   if (!h || h === u) return false;
@@ -2830,8 +2836,14 @@ function updateHarvester(u, dt) {
       if (!ref) { u.hs = 'wait'; u.htimer = 3; break; }
       const dock = dockPoint(ref);
       u.ref = ref;
-      if (dist(u, dock) < 10) { ref.dockU = u; u.qSpot = null; u.dest = null; u.path = null; u.hs = 'unload'; u.htimer = 0; }
-      else if (dockBusy(ref, u)) {
+      const dd = dist(u, dock);
+      if (dd < 10) { ref.dockU = u; u.qSpot = null; u.dest = null; u.path = null; u.hs = 'unload'; u.htimer = 0; }
+      else if (ref.dockU === u && !dockProgress(u, dd)) {
+        // Holding the dock but not getting any nearer (the trucks queued round it block the way): give it up for a
+        // while so the next in line can take it, instead of everyone waiting on a truck that cannot arrive.
+        ref.dockU = null; u.dockBan = G.t + DOCK_BAN; u.qSpot = null; u.dest = null; u.path = null; u.dockBest = null;
+      }
+      else if (dockBusy(ref, u) || G.t < (u.dockBan || 0)) {
         // One truck unloads at a time: the rest wait in a ring round the dock instead of all
         // pushing for the same cell and jamming (separate() keeps them from ever reaching it).
         if (!u.qSpot || u.qRef !== ref) {
@@ -2840,6 +2852,7 @@ function updateHarvester(u, dt) {
           goTo(u, u.qSpot.x, u.qSpot.y);
         }
       } else {
+        if (ref.dockU !== u) u.dockBest = null;
         ref.dockU = u; u.qSpot = null;
         if (dist(u, dock) < CELL * 1.3) {   // close: roll straight onto the dock (the building's edge can stop a path short)
           const a = Math.atan2(dock.y - u.y, dock.x - u.x), step = Math.min(dist(u, dock), u.def.speed * 0.6 * dt);

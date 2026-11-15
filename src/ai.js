@@ -181,6 +181,15 @@ function aiOutpostForRefinery(team) {
   if (best) best.got = bg;
   return best;
 }
+// A driving Outpost or Construction Yard that has not moved for AI_DRIVE_STALL seconds is jammed (a wall of units, a
+// path that leads nowhere): true after it has had a go at unpacking where it stands (the caller picks a new goal if not).
+const AI_DRIVE_STALL = 20;
+function aiDriveStalled(u) {
+  if (!u.aiMove || Math.hypot(u.x - u.aiMove.x, u.y - u.aiMove.y) > 6) { u.aiMove = { x: u.x, y: u.y, t: G.t }; return false; }
+  if (G.t - u.aiMove.t < AI_DRIVE_STALL) return false;
+  u.aiMove = null;
+  return true;
+}
 // Drive a Mobile Outpost to just short of the field (on the home side) and deploy it there; on
 // Normal and Hard right at the field's edge, so the refinery that follows sits on the ore.
 function aiDriveFob(team, u) {
@@ -193,6 +202,7 @@ function aiDriveFob(team, u) {
     return;
   }
   const d = Math.hypot(u.x - u.aiGoal.x, u.y - u.aiGoal.y);
+  if (u.order.type !== 'guard' && aiDriveStalled(u)) { if (!deployFob(u)) { u.aiGoal = null; commandStop([u]); } return; }
   if (d < CELL * 2.5 || (u.order.type === 'guard' && d < CELL * 6)) { if (!deployFob(u)) u.aiGoal = null; }
   else if (u.order.type === 'guard') commandMove([u], u.aiGoal.x, u.aiGoal.y);
 }
@@ -207,6 +217,7 @@ function aiDriveMcv(team, u) {
     return;
   }
   const d = Math.hypot(u.x - u.aiGoal.x, u.y - u.aiGoal.y);
+  if (u.order.type !== 'guard' && aiDriveStalled(u)) { if (!deployFob(u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; commandStop([u]); } return; }
   if (d < CELL * 2.5 || (u.order.type === 'guard' && d < CELL * 6)) { if (!deployFob(u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; } }
   else if (u.order.type === 'guard') commandMove([u], u.aiGoal.x, u.aiGoal.y);
 }
