@@ -49,7 +49,7 @@ const Manual = (() => {
     mig: ['A fast Soviet delta-wing fighter with missiles for ground and air targets (the air-to-air pair also strikes the ground), a cannon for strafing runs and flares.', 'Structures, aircraft, infantry', 'AA Guns, rockets'],
   };
   const WEAPON = {
-    rifle: 'Rifle', grenadier: 'Grenades (arcing, splash)', rocket: 'Dragon rockets; RedEye missiles (air)', pilot: 'Pistol',
+    rifle: 'Rifle (small splash)', grenadier: 'Grenades (arcing, splash)', rocket: 'Dragon rockets; RedEye missiles (air)', pilot: 'Pistol',
     ranger: 'Machine gun (hits helicopters, not jets)', ltank: 'Light cannon', mtank: 'Cannon', htank: 'Twin cannons', mammoth: 'Twin cannons + anti-air missile pods',
     arty: 'Howitzer (arcing, splash)', v2rl: 'V2 rocket (arcing, huge splash)', heli: 'Hellfire missiles (anti-armour)', hind: 'Chain gun',
     jet: 'Missiles (ground and air), cannon', mig: 'Missiles (ground and air), cannon',

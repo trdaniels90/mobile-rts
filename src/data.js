@@ -66,7 +66,7 @@ const UNIT_DEFS = {
   rifle: {
     name: 'Rifle Infantry', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
     cost: 100, hp: 50, armor: 'inf', speed: 32, sight: 4, r: 5,
-    weapon: { dmg: 7, rof: 1.3, range: 70, wh: 'RF', proj: 'bullet', burst: 3, gap: 0.11 },
+    weapon: { dmg: 7, rof: 1.3, range: 70, wh: 'RF', proj: 'bullet', burst: 3, gap: 0.11, splash: 14 },
   },
   grenadier: {
     name: 'Grenadier', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['soviets'],
@@ -123,7 +123,7 @@ const UNIT_DEFS = {
   // turns to aim, and both lob their rounds in a high arc, so they can miss a moving target.
   arty: {
     name: 'Artillery', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['dome', 'tech'], factions: ['allies'], draw: 'arty', fixed: true,
-    cost: 600, hp: 120, armor: 'light', speed: 42, turn: 2, sight: 5, r: 9, size: { len: 20, wid: 13, tur: 0, barrel: 15 },
+    cost: 600, hp: 200, armor: 'light', speed: 42, turn: 2, sight: 5, r: 9, size: { len: 20, wid: 13, tur: 0, barrel: 15 },
     weapon: { dmg: 110, rof: 4, range: 288, wh: 'ART', proj: 'artyshell', splash: 22, spread: 16 },
   },
   v2rl: {

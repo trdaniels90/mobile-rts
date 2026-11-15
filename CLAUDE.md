@@ -830,3 +830,11 @@ frame-time maths everywhere, so it is not deterministic.
   was SA) 1 / 0.27 / 0.07 / 0.07 for inf / light / heavy / bld, `GR` (Grenadier; was HE) 0.6 / 0.25 / 0.25 / 1, `ART` 0.9 / 0.9 / 0.25 / 0.75 (only the tank figure is OpenRA's; the full OpenRA row was tried and put back).
 - Measured after (Hard computers, 20 min): Soviets still lead 8 of 8 1 v 1 on `bridge` and 10 of 10 faction-against-faction 2 v 2 on
   `twinlakes` (either seat); by value lost (4 games) Allies 372,000 to Soviets 283,000. Unit kill counts alone overstate it: Allies field more cheap infantry.
+
+## Artillery 200 health, rifle splash (after 2026.11.15.2, not released, both modes)
+
+- Owner's picks after staged fights (equal credits, `bridge`, 6 seeds, 180 s; open-ground script not in the repo) showed the Allies losing most matchups.
+  Artillery health 120 to 200; Rifle Infantry (both sides) bullets splash `splash: 14` px on hostile ground units beside the target
+  (`fireWeapon`, bullet branch: full damage at the target, half at the edge, RF multipliers). Before / after: Artillery vs V2 Allies won 0 of 6
+  to 6 of 6 (left 2,258 / 4,612 to 5,321 / 3,603); Mixed army 1 to 2 of 6 (left 1,590 / 3,305 to 2,343 / 2,700); Rifles vs Grenadiers still 1 of 6;
+  tank rows moved by noise only. Soviet infantry and Mammoths still win most of the rest.

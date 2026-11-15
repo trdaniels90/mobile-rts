@@ -1698,6 +1698,13 @@ function fireWeapon(src, w, t, follow) {
   } else if (w.proj === 'bullet') {
     const jx = (Math.random() - 0.5) * 6, jy = (Math.random() - 0.5) * 6;
     damage(t, w.dmg, w.wh, src);
+    if (w.splash && !isAirborne(t)) {   // rifle bullets: a little splash on hostile ground units next to the target (full at the target, half at the edge)
+      for (const e of G.entities) {
+        if (!e.alive || e === t || e.kind !== 'unit' || isAirborne(e) || !hostile(e.team, src.team)) continue;
+        const d = Math.hypot(e.x - t.x, e.y - t.y);
+        if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, src, { x: t.x, y: t.y });
+      }
+    }
     G.effects.push({ type: 'tracer', x: m.x, y: m.y, x2: t.x + jx, y2: ty + jy, t: 0, life: 0.07 });
     G.effects.push({ type: 'spark', x: t.x + jx, y: ty + jy, t: 0, life: 0.12 });
   } else if (w.proj === 'tesla') {
