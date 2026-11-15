@@ -919,7 +919,16 @@ function smoothPath(sx, sy, pts, rad) {
   return out;
 }
 
-function goTo(u, x, y) {
+// The computer re-sends a defending or hunting unit after a moving target every second or so (defendBase, defendAllies, the
+// hunt look-round): in a big fight that was about 140 new routes a second, every one throwing away the unit's path and putting it at the
+// back of the queue, so units stood waiting for a route instead of walking (match with units idle 10 s+, `need` true at place 37
+// of 108). A computer unit that already has a route (or is queued for one) keeps it while its goal has moved less than
+// REROUTE_MIN cells, or REROUTE_FRAC of the way left; `force` (a stuck unit, a retry) always works a new one out.
+const REROUTE_MIN = 3, REROUTE_FRAC = 0.15, REROUTE_AGE = 4;   // (a route older than REROUTE_AGE s is worked out again: walls, buildings and bridges change)
+function goTo(u, x, y, force) {
+  if (!force && u.dest && (u.path || u.needPath) && G.teams[u.team].isAI && !u.def.harvester && !u.def.deploys) {
+    if ((u.needPath || G.t - (u.pathT || 0) < REROUTE_AGE) && Math.hypot(u.dest.x - x, u.dest.y - y) < Math.max(CELL * REROUTE_MIN, Math.hypot(u.x - x, u.y - y) * REROUTE_FRAC)) return;
+  }
   u.dest = { x, y };
   u.path = null; u.pathIdx = 0; u.stuckN = 0; u.nearBest = null;
   if (!u.needPath) { u.needPath = true; G.pathQueue.push(u); }
@@ -972,7 +981,7 @@ function processPaths() {
     u.needPath = false;
     MOVER = u;
     try { u.path = findPath(u.x, u.y, u.dest.x, u.dest.y, u.def.r); } finally { MOVER = null; }
-    u.pathIdx = 0;
+    u.pathIdx = 0; u.pathT = G.t;
     if (!u.path || !u.path.length) u.dest = null;
     else if (u.lane && (u.order.type === 'hunt' || u.order.type === 'attack')) laneOffsetPath(u);
   }
@@ -2825,7 +2834,7 @@ function checkStuck(u, dt) {
   u.lastX = u.x; u.lastY = u.y;
   if (!u.dest || u.needPath || moved > 3) { u.stuckN = 0; return; }
   u.stuckN++;
-  if (u.stuckN === 2 || u.stuckN === 4) { const n = u.stuckN, d = u.dest; goTo(u, d.x, d.y); u.stuckN = n; }
+  if (u.stuckN === 2 || u.stuckN === 4) { const n = u.stuckN, d = u.dest; goTo(u, d.x, d.y, true); u.stuckN = n; }
   else if (u.stuckN >= 6) { u.dest = null; u.path = null; u.stuckN = 0; }
 }
 

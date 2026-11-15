@@ -965,3 +965,16 @@ frame-time maths everywhere, so it is not deterministic.
   at most `LEADER_MAX` 20 s, then goes on and is not held again for `LEADER_BAN` 30 s. Nothing holds once any unit of the squad has a target or was hit in the last 8 s.
   Measured (24 mixed units sent at an empty base on `bridge`): worst front-to-back stretch 988 to 646 px, the first arrival is slower, 24 of 24 arrived (22 without).
   12 min of a 2 v 2 on Twin Lakes and 8 min of a 3 v 3 on Snowbound: no errors, 32 s CPU for the 3 v 3.
+
+## Path churn: the computer keeps its route (after 2026.11.15.6, not released, both modes)
+
+- Found with the stall recovery on Twin Lakes 2 v 2 (a defender with a destination and no path, `need` true, place 37 of 108 in `G.pathQueue`): in a big fight the computer
+  called `goTo` about 140 times a second (`defendBase` / `defendAllies` re-send every defender after a moving target each second), and every call threw away the unit's path and
+  put it at the back of the queue, so units spent the time waiting for a route (waits up to 1.5 s, restarted each second). `goTo(u, x, y, force)` now keeps a computer unit's route
+  (or its place in the queue) while the new goal is within `max(REROUTE_MIN 3 cells, REROUTE_FRAC 0.15 of the way left)` of the old one and the route is under `REROUTE_AGE` (4 s)
+  old (`u.pathT`, set in `processPaths`), so walls, buildings and bridges that change are picked up. `force` (stuck units in `checkStuck`) always re-routes. Humans' orders are unchanged.
+  Units waiting for a route per game: about 8,800 samples to 4,800 (3 runs each, 12 min, Twin Lakes 2 v 2); route searches a second in the fight 143 to 100.
+- Open: a computer V2 Launcher wedged for 40 s inside its own walled base (path of 5 points, next point 25 px away, free cells around it); seen once in about ten 12-minute runs, the stall
+  recovery cannot help (it was already heading for its scatter spot). Not reproduced a second time.
+- **PR #11 (walls and gates, JGFortanelli) is merged into this branch** (merge commit). `tools/sim/walls.js` is flaky on its own, with or without this branch: 'a line of wire' fails about
+  half the runs (placement depends on trees), 'hunters shoot a way through' 2 in 16.
