@@ -801,11 +801,11 @@ frame-time maths everywhere, so it is not deterministic.
 - `rank` is a plain unit field: saved, and synced to online guests (so the server must run the same version); `healT` is a host
   timer (netcore `SKIP`). Drawn by `drawRank` in ui.js for every visible ranked unit (gold chevrons, a star for Elite; enemy
   ranks show too) and named in the selection bar. Field Manual row "Veterancy".
-- **Promotion sound** (after 2026.11.15): `promote` and `promoteElite` in audio.js `FX`: original bugle calls on a synthesized trumpet
-  (`brass()`: detuned sawtooths through an opening low-pass, a lip scoop, breath and vibrato), owner asked for a trumpet like OpenRA's;
-  Elite is two trumpets a third apart ending on a held chord. Rendered offline at 1.4 s (UI sounds are usually 0.6). ui.js `eva` plays them when the
-  line starts "Unit promoted", so only the owner hears them, online guests too (their lines arrive through `evaFor`).
-- Not done: a spoken voice line (needs `scripts/make_voices.py` and the Kokoro model), ranks in the debrief.
+- **Voice lines** (after 2026.11.15, owner's pick over a chime or trumpet, which were tried and removed): "Unit promoted." and
+  "Unit promoted to elite." in `src/voices.js` (`eva:unit promoted`, `eva:unit promoted to elite`), rendered alone with
+  `scripts/make_voices.py`'s `render()` and settings (`af_heart`, 0.93, `EVA_FX`), so the other clips were left as they were. Only
+  the unit's owner hears them (`notify`), online guests too.
+- Not done: ranks in the debrief.
 
 ## Computer waves, Soviet tank costs, OpenRA armour multipliers (after 2026.11.14.12, not released, both modes)
 
