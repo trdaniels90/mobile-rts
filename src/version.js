@@ -4,6 +4,20 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.15.7', date: '15 November 2026', title: 'Walls and gates, storms, smarter squads', groups: [
+    ['New', [
+      'Walls and gates (by JGFortanelli): Sandbags (Allies) and Barbed Wire (Soviets) from a Barracks, Concrete Wall and Gate from a War Factory. Tap a piece at the end of the structures strip, tap where the line starts and ends, then BUILD. Sandbags and Concrete stop everything on the ground, wire stops only infantry (vehicles flatten it), and a gate lets your own side through. Nothing shoots a wall unless you order it (tap it with units selected, or ATTACK GROUND); units on Auto Attack shoot a way through a wall that shuts them out. Tap your own piece twice with nothing selected to take it down for half its price. The computer lays short lines of walls in front of its defences.',
+      'Storms: rain on Lakeside now comes with lightning and thunder, and some bolts land on a random spot anywhere on the map. A bolt sets trees alight and burns for a few seconds, and a building or bridge it hits loses a tenth of its health. Single player and online.',
+      'Trees sway in the wind, harder in rain and snow, and burn when caught in explosions or struck by lightning. Fire can spread a little from tree to tree and leaves burnt trunks and a scorch mark.',
+    ]],
+    ['Changed', [
+      'The computer\'s attack squads now keep together on the march: the slowest unit leads, and faster units that get far ahead wait for it, until the fighting starts.',
+      'A computer unit that gets stuck now picks its target and route again, then goes home to rejoin the next wave.',
+    ]],
+    ['Fixed', [
+      'In big fights the computer\'s units no longer stand waiting for a route: they keep walking the route they have while their target barely moves.',
+    ]],
+  ] },
   { v: '2026.11.15.6', date: '15 November 2026', title: 'Stuck trucks and a clean defeat', groups: [
     ['Changed', [
       'When a side is defeated, all of its remaining units and buildings now blow up, one after another over a few seconds.',
