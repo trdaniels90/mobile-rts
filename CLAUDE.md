@@ -869,3 +869,14 @@ frame-time maths everywhere, so it is not deterministic.
 - **Defeated sides** (`startWipe`, `tickWipe`, `t.wipe`): when a side goes `out`, each unit and building blows up at its own moment over 5 s. No survivors
   (`WIPING` stops crew, pilots and building escapees) and not counted in the debrief's losses. A beaten player's "Keep watching" sees the empty base.
   `node tools/sim/wipe-out.js <repo>`.
+
+## Stuck-unit diagnostics (after 2026.11.15.6, not released, both modes)
+
+- Owner's report (Twin Lakes 2 v 2, red attacked while they attacked, a computer side's army went to defend and sat shooting without moving, one soldier
+  in the middle "walking" in place) could not be reproduced: 400 random long paths all arrive; a staged raid on one base had its ally's 58 defenders go out
+  and none stick; a tight ball of 100 riflemen walks off, and 10 walkers leave a ball of 120 idle ones in 20 s; the squad gather (`aiPincer`) times out.
+- So `stuckWatch` (world.js, every 15 s, host only): a computer ground unit with somewhere to go (hunt/attack/move, `assisting`, a path) that has not moved
+  6 px in `STUCK_AFTER` (30 s) with nothing in weapon reach is written by `Report.oops('stuck1'..'stuck3', ...)`: at most 3 per match, 60 s apart. Query
+  `select id, stats->'errors' from matches where stats->'errors' @> '[{"where":"stuck1"}]'`. The `stack` field holds JSON for up to 2 units: type, side, cell, order,
+  `as` assisting, `df` defending, `sg` staged, `dest` (cells), `np` needPath, `pl`/`pi` path length and index, `sn` stuckN, `mv` moving, `tg` [target type, distance],
+  `foe` enemy units within 8 cells, `fr` friends within 2, `pin` in a pincer squad. 12 minutes of a 2 v 2 on Twin Lakes: no reports (no false alarms).

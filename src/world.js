@@ -4058,10 +4058,39 @@ function update(dt) {
   if ((T.ai -= dt) <= 0) { T.ai += 1 / nT; if (T.ai <= 0) T.ai = 1 / nT; T.aiI = ((T.aiI || 0) + 1) % nT; const team = G.teams[T.aiI]; if (!G.over && team && team.isAI) aiThink(team); }
   if ((T.grp = (T.grp === undefined ? 0 : T.grp) - dt) <= 0) { T.grp += 1 / nT; if (T.grp <= 0) T.grp = 1 / nT; T.grpI = ((T.grpI || 0) + 1) % nT; if (!G.over) launchGroups(G.teams[T.grpI]); }
   if ((T.win -= dt) <= 0) { T.win = 1; if (!G.remote) updateReserves(); checkWin(); }
-  if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); for (const t of G.teams) if (!t.isAI) adviseTrucks(t); }
+  if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); stuckWatch(); for (const t of G.teams) if (!t.isAI) adviseTrucks(t); }
   updateEffects(dt);
   sweepDead();
   rollCredits(dt);
+}
+// Diagnostics for the match report: a computer unit that has a place to go (a hunt, attack or move order, a defence call or
+// a path) but has not moved 6 px in STUCK_AFTER seconds, with nothing in weapon reach, is written to `stats.errors` as
+// 'stuck1', 'stuck2', 'stuck3' (the first three such moments of a match, 60 s apart at least) with what it was doing.
+const STUCK_AFTER = 30;
+let STUCK_SEEN = null;
+function stuckWatch() {
+  if (G.remote || typeof Report === 'undefined' || !Report.oops) return;
+  if (!STUCK_SEEN || STUCK_SEEN.g !== G) { STUCK_SEEN = new Map(); STUCK_SEEN.g = G; STUCK_SEEN.n = 0; STUCK_SEEN.last = -999; }
+  const found = [];
+  for (const u of G.entities) {
+    if (!u.alive || u.kind !== 'unit' || u.cls === 'air' || u.def.harvester || u.def.scripted || !u.def.speed || u.def.deploys || !G.teams[u.team].isAI) continue;
+    const o = u.order.type;
+    if (!(o === 'hunt' || o === 'attack' || o === 'move' || u.assisting || u.dest || u.needPath)) { STUCK_SEEN.delete(u.id); continue; }
+    const inReach = u.target && u.target.alive && u.def.weapon && distTo(u, u.target) <= Math.max(u.def.weapon.range, (u.def.weapon2 && u.def.weapon2.range) || 0) * 1.15;
+    const s = STUCK_SEEN.get(u.id);
+    if (inReach || !s || Math.hypot(u.x - s[0], u.y - s[1]) > 6) { STUCK_SEEN.set(u.id, [u.x, u.y, G.t]); continue; }
+    if (G.t - s[2] >= STUCK_AFTER) found.push(u);
+  }
+  if (!found.length || STUCK_SEEN.n >= 3 || G.t - STUCK_SEEN.last < 60) return;
+  STUCK_SEEN.n++; STUCK_SEEN.last = G.t;
+  const near = (u, r, f) => { let n = 0; for (const e of G.entities) if (e !== u && e.alive && e.kind === 'unit' && e.cls !== 'air' && Math.abs(e.x - u.x) < r && Math.abs(e.y - u.y) < r && f(e)) n++; return n; };
+  const info = found.slice(0, 2).map((u) => ({
+    id: u.id, ty: u.type, tm: u.team, c: [cellX(cellOfPos(u.x, u.y)), cellY(cellOfPos(u.x, u.y))], ord: u.order.type, as: !!u.assisting, df: !!u.defending, sg: !!u.staged,
+    dest: u.dest ? [Math.round(u.dest.x / CELL), Math.round(u.dest.y / CELL)] : null, np: !!u.needPath, pl: u.path ? u.path.length : null, pi: u.pathIdx, sn: u.stuckN, mv: !!u.moving,
+    tg: u.target && u.target.alive ? [u.target.type, Math.round(distTo(u, u.target))] : null, foe: near(u, CELL * 8, (e) => hostile(u.team, e.team)), fr: near(u, CELL * 2, (e) => e.team === u.team),
+    pin: !!(G.teams[u.team].pincer && G.teams[u.team].pincer.groups.some((g) => g.includes(u))), n: found.length,
+  }));
+  Report.oops('stuck' + STUCK_SEEN.n, { message: 'idle on an order for ' + STUCK_AFTER + ' s', stack: JSON.stringify(info) });
 }
 // Wind: blows smoke along. It holds one direction for a spell, then swings round to a new random one,
 // and swells and eases slowly. Every direction is worked out from the map seed and the match clock, so
