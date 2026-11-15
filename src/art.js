@@ -1531,7 +1531,7 @@ const spanRuins = new WeakMap();
 function spanRuin(s) {
   let pic = spanRuins.get(s);
   if (pic) return pic;
-  const M = 10;   // the painted bridge (rails, shadow) reaches a little past its cells
+  const M = 18;   // the painted bridge (rails, and its shadow up to 16 px to one side) reaches past its cells
   const X0 = s.cx * CELL - M, Y0 = s.cy * CELL - M, w = s.w * CELL + 2 * M, h = s.h * CELL + 2 * M, m = MAPS[validMap(G.mapId)];
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const g = c.getContext('2d');
