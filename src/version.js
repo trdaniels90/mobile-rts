@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.16', date: '16 November 2026', title: 'Wider gates, slower ally help', groups: [
+    ['Changed', [
+      'The Gate (by JGFortanelli) is now three cells wide and bought as one for $500 with 600 health. Tap where its middle goes; it turns to fit a gap in your wall, and tapping the same spot again turns it. Its barrier sinks into the ground when your own side is beside it. Taking it down gives back $250. Gates already standing in a saved game stay as they were.',
+      'Sandbags are redrawn as two staggered courses of single sacks.',
+      'In team games the computer\'s ally no longer rushes to help the instant you hit one base: it answers only after the base has been under attack for 10 seconds, and only with units within 35 cells of the raiders (was 70). Single player and online.',
+    ]],
+  ] },
   { v: '2026.11.15.7', date: '15 November 2026', title: 'Walls and gates, storms, smarter squads', groups: [
     ['New', [
       'Walls and gates (by JGFortanelli): Sandbags (Allies) and Barbed Wire (Soviets) from a Barracks, Concrete Wall and Gate from a War Factory. Tap a piece at the end of the structures strip, tap where the line starts and ends, then BUILD. Sandbags and Concrete stop everything on the ground, wire stops only infantry (vehicles flatten it), and a gate lets your own side through. Nothing shoots a wall unless you order it (tap it with units selected, or ATTACK GROUND); units on Auto Attack shoot a way through a wall that shuts them out. Tap your own piece twice with nothing selected to take it down for half its price. The computer lays short lines of walls in front of its defences.',
