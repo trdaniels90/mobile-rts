@@ -1738,6 +1738,95 @@ function groundColour(b) {
   groundMemo.set(b, c);
   return c;
 }
+// ---------------------------------------------------------------------------
+// Turning parts (models.js SPINNERS): the Soviet radar's dish. Looks only: the angle is kept here by building id, never on the building.
+// ---------------------------------------------------------------------------
+const DISH_SPEED = 0.9;   // radians a second (one turn in about 7 s)
+const dishAngles = new Map();   // building id -> { a, t }
+function dishAngle(b, stage) {
+  let d = dishAngles.get(b.id);
+  if (!d) {
+    if (dishAngles.size > 64) for (const id of dishAngles.keys()) if (!G.byId.has(id)) dishAngles.delete(id);
+    d = { a: b.id * 1.7, t: G.t }; dishAngles.set(b.id, d);
+  }
+  const low = G.teams[b.team] && G.teams[b.team].low;
+  if (!(b.buildT < 1 || b.sellT > 0 || stage >= 2 || low)) d.a += DISH_SPEED * Math.max(0, Math.min(0.25, G.t - d.t));
+  d.t = G.t;
+  return d.a;
+}
+
+// ---------------------------------------------------------------------------
+// Build-up and selling in the iso view: the footprint's pad (a diamond), a scaffold of poles and rails standing at its
+// corners, the structure's own model cut off at a rising height (models.js buildSprite), welding sparks at the top and a
+// sheen when it is done. Everything is worked out from k, the building's id and the battle clock, so it looks the same
+// however often it is drawn; the only things kept are the sprites. k runs 0 to 1 going up and back down when selling.
+// ---------------------------------------------------------------------------
+let buildSweepT = 0;
+function drawBuildUp(g, b, s, x, y, k, selling, camo) {
+  const W = b.w * CELL, Hh = b.h * CELL, H = s.img.height, up = g.upright;
+  const pal = palFor(b.faction), soviet = b.faction === 'soviets';
+  const mdl = modelCache.get('S' + b.type + camoPal(b.faction, camo).key);
+  const hFull = (mdl ? mdl.d : H / VK) * VK, hb = hFull * k + 3;
+  const A = [x, y], B = [x + W, y], C = [x, y + Hh], D = [x + W, y + Hh];   // back, right, left and front corners of the diamond
+  if (performance.now() - buildSweepT > 5000) { buildSweepT = performance.now(); dropBuildSprites(); }
+  // Pad and dust.
+  g.upright = false;
+  const pc = camo !== undefined ? '#' + (camo | 0x1000000).toString(16).slice(1) : '#000';
+  g.globalAlpha = (camo !== undefined ? 0.5 : 0.3) * Math.min(1, k / 0.15);
+  g.fillStyle = pc; g.fillRect(x, y, W, Hh);
+  g.globalAlpha = 0.8 * Math.min(1, k / 0.15);
+  g.strokeStyle = pal.main; g.lineWidth = 1; g.setLineDash([4, 3]); g.strokeRect(x + 0.5, y + 0.5, W - 1, Hh - 1); g.setLineDash([]);
+  g.globalAlpha = 1; g.upright = up;
+  if (!selling && k < 0.12) {
+    const dk = k / 0.12;
+    for (const [cx, cy] of [A, B, C, D]) standAt(g, cx, cy, 2 + dk * 5, () => { g.fillStyle = `rgba(190,175,150,${0.5 * (1 - dk)})`; g.beginPath(); g.arc(cx, cy, 2 + dk * 5, 0, 7); g.fill(); });
+  }
+  // Scaffold: poles at the corners and rails every 8 px, the back two sides before the building and the front two after it.
+  const fade = k < 0.85 ? 1 : Math.max(0, (1 - k) / 0.15);
+  const pole = soviet ? '#9c3a2a' : '#d8b13a', rail = soviet ? '#8a8d8a' : '#e6c960';
+  const pl = (P, h0, h1) => { const [x0, y0] = liftPt(P[0], P[1], h0), [x1, y1] = liftPt(P[0], P[1], h1); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); };
+  const rl = (P, Q, h) => { const [x0, y0] = liftPt(P[0], P[1], h), [x1, y1] = liftPt(Q[0], Q[1], h); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); };
+  const scaffold = (poles, rails) => {
+    if (fade <= 0) return;
+    g.globalAlpha = fade; g.lineWidth = 1.2;
+    g.strokeStyle = pole; for (const P of poles) pl(P, 0, hb);
+    g.strokeStyle = rail; for (let h = 8; h <= hb; h += 8) for (const [P, Q] of rails) rl(P, Q, h);
+    g.globalAlpha = 1; g.lineWidth = 1;
+  };
+  scaffold([A, B, C], [[A, B], [A, C]]);
+  // The structure: its own model cut at the current height, or until that is made, sunk into its pad.
+  const step = Math.min(BUILD_STEPS - 1, Math.floor(k * BUILD_STEPS)), layer = buildSprite(b.type, b.faction, step, camo);
+  if (layer) blit(g, layer, x, y);
+  else {
+    g.save(); g.beginPath();
+    const top = hFull + 40;
+    for (const P of [C, D, B]) { if (P === C) g.moveTo(P[0], P[1]); else g.lineTo(P[0], P[1]); }
+    g.lineTo(...liftPt(B[0], B[1], top)); g.lineTo(...liftPt(C[0], C[1], top)); g.closePath(); g.clip();
+    blit(g, s, ...liftPt(x, y, -(1 - k) * H), false);
+    g.restore();
+  }
+  scaffold([D], [[B, D], [C, D]]);
+  // Welding sparks along the top edge.
+  if (!selling || k < 1) {
+    const n = 6 + (b.id % 5), f = Math.floor(G.t * 14);
+    for (let i = 0; i < n; i++) {
+      const e = hash3(b.id, f, i), r = hash3(i, b.id, f + 7), side = Math.floor(e * 4) % 4, t = (e * 7) % 1;
+      const [P, Q] = [[A, B], [B, D], [D, C], [C, A]][side];
+      const px = P[0] + (Q[0] - P[0]) * t, py = P[1] + (Q[1] - P[1]) * t;
+      standAt(g, px, py, hb + r * 3, () => { g.fillStyle = r > 0.5 ? '#fff6c0' : '#ffb030'; g.fillRect(Math.round(px), Math.round(py), 1, 1); });
+    }
+  }
+  // A short white sheen across the finished structure.
+  if (!selling && k >= 0.85) {
+    const t = (k - 0.85) / 0.15, [XA] = toView(C[0], C[1]), [XB] = toView(B[0], B[1]), [, Yf] = toView(D[0], D[1]);
+    const xc = XA + (XB - XA + 20) * t - 10, wd = Math.max(8, (XB - XA) * 0.14), ytop = Yf - hFull - 8, ybot = Yf + 6;
+    const pts = [[xc - wd + 10, ytop], [xc + wd + 10, ytop], [xc + wd - 10, ybot], [xc - wd - 10, ybot]].map(([X, Y]) => fromView(X, Y));
+    g.save(); g.beginPath(); pts.forEach((P, i) => (i ? g.lineTo(P[0], P[1]) : g.moveTo(P[0], P[1]))); g.closePath(); g.clip();
+    g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.35 * (1 - t);
+    blit(g, layer || s, x, y, false);
+    g.restore();
+  }
+}
 function drawStructure(g, b, t) {
   drawVar = G.teams[b.team].variant | 0;
   const camo = b.type === 'pillbox' ? groundColour(b) : undefined;
@@ -1745,14 +1834,7 @@ function drawStructure(g, b, t) {
   const x = b.cx * CELL, y = b.cy * CELL;
   let k = b.buildT;
   if (b.sellT > 0) k = Math.min(k, b.sellT / 1.2);
-  if (k < 1) {
-    // Build-up: the structure rises out of its foundation behind a scaffold line.
-    const H = s.img.height, hh = Math.max(1, Math.round(H * k));
-    g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x, y, b.w * CELL, b.h * CELL);
-    g.drawImage(s.img, 0, H - hh, s.img.width, hh, Math.round(x + s.ox), Math.round(y + s.oy + H - hh), s.img.width, hh);
-    g.fillStyle = '#d8b13a'; g.fillRect(x, Math.round(y + s.oy + H - hh), b.w * CELL, 1);
-    return;
-  }
+  if (k < 1) { drawBuildUp(g, b, s, x, y, k, b.sellT > 0, camo); return; }
   const stage = dmgStage(b);
   blit(g, stage ? damagedSprite(b.type, b.faction, stage, camo) : s, x, y);
   const head = HEADS[b.type];
@@ -1764,6 +1846,11 @@ function drawStructure(g, b, t) {
     if (b.type === 'ftur') {   // a burst of fire at the projector's mouth, not a gun flash
       if (b.fireT > 0) { g.fillStyle = 'rgba(255,140,40,0.85)'; g.beginPath(); g.arc(hx + Math.cos(b.tface) * 10, hy + Math.sin(b.tface) * 10 - 3, 4 + Math.random() * 2, 0, 7); g.fill(); }
     } else if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
+  }
+  const sp = SPINNERS[b.type] && SPINNERS[b.type][b.faction];
+  if (sp) {   // a turning part that is not a weapon (the Soviet radar's dish)
+    const [lx, ly] = liftPt(x + sp[1], y + sp[2], sp[3] * VK);
+    blit(g, spinnerSprite(b.type, b.faction, dishAngle(b, stage), stage), lx, ly, false);
   }
   if (b.type === 'pillbox' && b.fireT > 0) { const m = muzzle(b); flash(g, ...liftPt(m.x, m.y + m.h, m.h), 2); }
   const fs = FLAG_SPOTS[b.type] && FLAG_SPOTS[b.type][b.faction];

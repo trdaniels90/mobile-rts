@@ -1079,6 +1079,20 @@ frame-time maths everywhere, so it is not deterministic.
   when one of their trees catches fire or burns out and dropped 5 s after the last far view; burning trees are still drawn one by one.
   Rain splashes are capped with the view like the drops. Phones never get that many trees in view.
 
+## Soviet radar dish turns, new build-up for every structure (after 2026.11.16.5, not released, both modes; the server must match)
+
+- **Build-up takes `BUILD_UP` (2.5 s, data.js; was 1.4)** after placing: the one gameplay change (owner's pick). `node tools/sim/teams.js <repo> 1 8 bridge 1v1`
+  before and after: same 25 buildings at minute 8, so the computer is not held up.
+- **`SPINNERS`** (models.js, next to `HEADS`, same layout, kept apart because `HEADS` is keyed by type only and world.js `muzzle` reads it): the Soviet Radar's mesh antenna
+  and feed horn (`radarDish`) are no longer in the building's model (the cameo still has them, still). `spinnerSprite(type, faction, angle, stage)`; art.js `drawStructure` draws it on
+  its pedestal. `dishAngle` (art.js; a `Map` by building id, never a field on `b`): `DISH_SPEED` 0.9 rad/s, stops while building or selling, at damage stage 2 and on low power.
+  Not baked. The Allied Radar Dome's small dish does not turn yet (owner's call).
+- **`drawBuildUp`** (art.js) replaces the old row crop for `buildT < 1` and selling (`sellT / 1.2`, backwards): the footprint's diamond as a pad with a dashed outline, a scaffold of poles
+  and rails at the corners (Allies yellow, Soviets red-brown; back sides before the building, front after), the structure's own model cut at a rising height (`buildSprite`,
+  `BUILD_STEPS` 6 layers, made one at a time in the background by `pumpBuild`, warmed by `warmBuild` when an item is READY in the sidebar, dropped by `dropBuildSprites` after 30 s unused;
+  not baked), welding sparks, dust at the corners, a white sheen at the end. Until a layer is made the finished sprite sinks into the pad, clipped to the footprint's front edges.
+  Everything comes from `k`, the building's id and `G.t`: no state, no effects.
+
 ## Flags fly in the wind (after 2026.11.16, both modes, looks only)
 
 - The modelled flags (Allied Ore Refinery, Allied and Soviet Outposts) keep only their poles in models.js; the cloth is drawn

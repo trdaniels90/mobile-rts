@@ -2452,6 +2452,15 @@ const STRUCTURES = {
   },
 };
 
+// The Soviet radar's curved mesh antenna and feed horn, with its pivot (the pedestal's top) at (px, py, pz) of the model.
+function radarDish(m, px, py, pz) {
+  for (let x = -16; x < 17; x++) {
+    const dx = x + 0.5 - 0.5, y = Math.round(-3 - dx * dx / 34);
+    for (let z = 0; z < 15; z++) m.set(px + x, py + y, pz + z, (px + x + z) % 2 ? '#6a6f6c' : '#454a48', M_ROUGH);
+    if ((px + x) % 4 === 0) m.line(px + x, py + y + 1, pz, px, py + 1, pz + 4, '#4f5452', M_METAL);
+  }
+  m.box(px - 1, py - 11, pz + 6, px + 2, py, pz + 8, SV.steel, M_METAL);   // feed horn boom
+}
 // ---------------------------------------------------------------------------
 // Soviet structures: Cold War Soviet in style. Grey precast concrete panels and flat roofs, strip
 // windows, olive steel, and the side's colour as the accent: stars, hanging banners, parapets and
@@ -4138,7 +4147,7 @@ const SOVIET = {
   },
   // BLENDER:refinery_soviets end
   // Radar: a concrete bunker carrying a big curved mesh antenna, and a banded lattice mast.
-  dome(pal) {
+  dome(pal, cameo) {
     const m = new VModel(-2, -2, 50, 50, 46);
     slabV(m, 0, 0, 48, 48);
     panelBox(m, 4, 14, 1, 44, 44, 12);
@@ -4146,12 +4155,7 @@ const SOVIET = {
     stripWin(m, 6, 26, 43, 6, 8);
     m.box(30, 43, 1, 38, 44, 9, SV.olive, M_METAL);
     m.cylZ(22, 28, 13, 18, 3, SV.steel, M_METAL);                       // pedestal
-    for (let x = 6; x < 39; x++) {                                       // the antenna: a curved mesh
-      const dx = x + 0.5 - 22.5, y = Math.round(25 - dx * dx / 34);
-      for (let z = 18; z < 33; z++) m.set(x, y, z, (x + z) % 2 ? '#6a6f6c' : '#454a48', M_ROUGH);
-      if (x % 4 === 0) m.line(x, y + 1, 18, 22, 29, 22, '#4f5452', M_METAL);
-    }
-    m.box(21, 17, 24, 24, 28, 26, SV.steel, M_METAL);                   // feed horn boom
+    if (cameo) radarDish(m, 22, 28, 18);                                 // the dish turns in the battle (SPINNERS, art.js); the cameo shows it still
     latticeV(m, 38, 16, 13, 42, SV.steel);
     m.paint(37, 15, 13, 42, 20, 42, (x, y, z) => (Math.floor(z / 4) % 2 ? pal.main : C.white));
     m.set(39, 17, 43, '#ff4030', M_GLOW);
@@ -4489,6 +4493,14 @@ function camoPal(faction, col) {
   if (!p) { p = { ...base, key: k, camo: col }; camoPals.set(k, p); }
   return p;
 }
+// Turning parts that are not weapons: type, then faction -> [builder, pivot x, pivot y, pivot height]. Same layout as HEADS
+// (built round its own pivot), but kept apart: HEADS is keyed by type only and world.js muzzle reads it.
+const SPINNERS = { dome: { soviets: [(pal) => { const m = new VModel(-20, -14, 40, 18, 16); radarDish(m, 0, 0, 0); return m; }, 22, 28, 18] } };
+function spinnerSprite(type, faction, angle, stage) {
+  const pal = palFor(faction), h = SPINNERS[type][faction], key = 'P' + type + pal.key;
+  if (stage) return facingSprite(key + 'd' + stage, () => scorchModel(model(key, () => h[0](pal)), stage, type), angle, FACINGS, { shadow: false });
+  return facingSprite(key, () => h[0](pal), angle, FACINGS, { shadow: false });
+}
 function structureSprite(type, faction, camo) {
   const pal = camoPal(faction, camo);
   return sprite('S' + type + pal.key, () => STRUCTURES[type](pal, faction), 0, 0);
@@ -4664,6 +4676,49 @@ function pumpDamaged() {
   sprite('S' + q.type + pal.key + 'd' + q.stage, () => damageModel(model('S' + q.type + pal.key, () => STRUCTURES[q.type](pal, q.faction)), q.stage, q.type, q.faction), 0, 0);
   dmgQueue.shift();
   if (dmgQueue.length) setTimeout(pumpDamaged, 20);
+}
+// Build-up: a structure going up (or being sold) is drawn from its own model cut off at a height, so the walls rise course by
+// course (art.js drawBuildUp). BUILD_STEPS cut heights, made one at a time in the background like the damaged copies, and
+// dropped again once nothing of that type has been under construction for BUILD_KEEP ms. Not baked.
+const BUILD_STEPS = 6, BUILD_KEEP = 30000;
+const buildQueue = [], buildUsed = new Map();   // sprite key -> last time wanted
+function buildModel(m, step) {
+  const c = copyModel(m), cut = step <= 0 ? 1 : Math.ceil(m.d * step / BUILD_STEPS), n = c.w * c.h;
+  for (let i = cut * n; i < c.col.length; i++) c.col[i] = -1;
+  return c;
+}
+// The sprite of a structure built to `step` (0 = the slab only, BUILD_STEPS - 1 = just short of done), or null until it is made.
+function buildSprite(type, faction, step, camo) {
+  const pal = camoPal(faction, camo), mk = 'S' + type + pal.key + 'b' + step, k = mk + '|0';
+  buildUsed.set(k, performance.now());
+  const s = spriteCache2.get(k);
+  if (s) return s;
+  if (!buildQueue.some((q) => q.k === k)) {
+    buildQueue.push({ k, mk, type, faction, step, camo, v: drawVar });
+    if (buildQueue.length === 1) setTimeout(pumpBuild, 0);
+  }
+  return null;
+}
+function warmBuild(type, faction, camo) { if (G && G.me >= 0) for (let i = 0; i < BUILD_STEPS; i++) buildSprite(type, faction, i, camo); }
+function pumpBuild() {
+  spriteSpend = -1e9;   // (made between frames, never a stand-in; ui.js draw resets it)
+  const q = buildQueue.shift();
+  if (!q) return;
+  const keep = drawVar; drawVar = q.v;
+  try {
+    const pal = camoPal(q.faction, q.camo), bk = 'S' + q.type + pal.key;
+    sprite(q.mk, () => buildModel(model(bk, () => STRUCTURES[q.type](pal, q.faction)), q.step), 0, 0);
+  } finally { drawVar = keep; }
+  if (buildQueue.length) setTimeout(pumpBuild, 20);
+}
+// Let go of build sprites nothing has asked for lately.
+function dropBuildSprites() {
+  const now = performance.now();
+  for (const [k, t] of buildUsed) {
+    if (now - t < BUILD_KEEP) continue;
+    buildUsed.delete(k);
+    spriteCache2.delete(k); modelCache.delete(k.slice(0, -2)); spriteAny.delete(k.slice(0, -2));
+  }
 }
 function hullSprite(u, pal) {
   const d = u.def;

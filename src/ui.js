@@ -1437,7 +1437,7 @@ function draw() {
       } else if (cat === 'wall') {
         st = G.place && G.place.wall === type.slice(3) ? 'READY' : '';
       } else if (cat === 'structure') {
-        if (sq && sq.type === type) { p = sq.progress; st = sq.ready ? 'READY' : sq.stalled || !available(team, type) ? 'ON HOLD' : ''; }
+        if (sq && sq.type === type) { p = sq.progress; if (sq.ready) warmBuild(type, team.faction); st = sq.ready ? 'READY' : sq.stalled || !available(team, type) ? 'ON HOLD' : ''; }
         else if (sq) dim = true;
       } else {
         const list = team.queues[cat];

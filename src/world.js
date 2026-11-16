@@ -4291,7 +4291,7 @@ function updateBuilding(b, dt) {
   b.fireT = Math.max(0, b.fireT - dt);
   b.charge = Math.max(0, b.charge - dt * 1.5);
   if (b.buildT < 1) {
-    b.buildT = Math.min(1, b.buildT + dt / 1.4);
+    b.buildT = Math.min(1, b.buildT + dt / BUILD_UP);
     // Clanks and hammering while it goes up.
     if ((b.clankT = (b.clankT || 0) - dt) <= 0) { b.clankT = 0.28 + Math.random() * 0.12; hooks.sfx('build', b.x + (Math.random() - 0.5) * b.w * CELL, b.y); }
   }
