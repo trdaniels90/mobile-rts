@@ -167,10 +167,11 @@
     else if (b.jetOn != null && !(G.t - b.jetSeen < JET_HOLD)) b.jetOn = null;
     if (b.jetOn == null) return;
     const ca = Math.cos(b.tface), sa = Math.sin(b.tface);
-    const sx = b.cx * CELL + head[1] + ca * 10, sy = b.cy * CELL + head[2] - head[3] * VK + sa * 10 - 3;
-    const ex = b.x + ca * b.jetD, ey = b.y + sa * b.jetD - 5;   // on the ground, out along where the head points
+    // From the nozzle (at the head's height) to the ground out along where the head points, in screen pixels.
+    const [sx, sy] = onScreen(v, b.cx * CELL + head[1] + ca * 10, b.cy * CELL + head[2] + sa * 10, head[3] * VK + 3);
+    const [ex, ey] = onScreen(v, b.x + ca * b.jetD, b.y + sa * b.jetD, 5);
     const full = Math.hypot(ex - sx, ey - sy), k = Math.min(1, ((G.t - b.jetOn) * JET_SPEED + 8) / full);
-    streamLine(v, sx, sy, sx + (ex - sx) * k, sy + (ey - sy) * k);
+    screenDraw(v, () => streamLine(v, sx, sy, sx + (ex - sx) * k, sy + (ey - sy) * k));
   }
   // A shot from a tower whose jet is showing is part of that jet. Otherwise (the tower is gone, or an old save's shot)
   // it is drawn on its own: a short stream from where it left, or a ball of fire.
@@ -200,6 +201,32 @@
     const r = 3 + Math.random() * 1.5;   // the rolling head of the stream
     v.fillStyle = 'rgba(255,110,25,0.6)'; v.beginPath(); v.arc(ex, ey, r + 1.5, 0, 7); v.fill();
     v.fillStyle = '#ffb040'; v.beginPath(); v.arc(ex, ey, r, 0, 7); v.fill();
+  }
+  // World (x, y) at height h, in the pixels of canvas g as it is now set up; and drawing in those pixels.
+  function onScreen(g, x, y, h) { const [wx, wy] = liftPt(x, y, h), m = g.getTransform(); return [m.a * wx + m.c * wy + m.e, m.b * wx + m.d * wy + m.f]; }
+  function screenDraw(g, fn) { const up = g.upright; g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.upright = false; try { fn(); } finally { g.upright = up; g.restore(); } }
+  // The land beyond the map's edge (the iso view shows past it at the corners): each edge cell's minimap colour carried
+  // outward EDGE_PAD cells, softened, darkening into haze. Made once a battle.
+  const EDGE_PAD = 64;
+  let edgeFor = null, edgeCv = null;
+  function edgePic() {
+    if (edgeFor === G && edgeCv) return edgeCv;
+    const P = EDGE_PAD, N = MAP + 2 * P, c = mkCanvas(N, N), g = c.getContext('2d');
+    g.drawImage(miniTerrain, P, P);
+    g.drawImage(miniTerrain, 0, 0, MAP, 1, P, 0, MAP, P); g.drawImage(miniTerrain, 0, MAP - 1, MAP, 1, P, P + MAP, MAP, P);
+    g.drawImage(miniTerrain, 0, 0, 1, MAP, 0, P, P, MAP); g.drawImage(miniTerrain, MAP - 1, 0, 1, MAP, P + MAP, P, P, MAP);
+    for (const [sx, sy, dx, dy] of [[0, 0, 0, 0], [MAP - 1, 0, P + MAP, 0], [0, MAP - 1, 0, P + MAP], [MAP - 1, MAP - 1, P + MAP, P + MAP]]) g.drawImage(miniTerrain, sx, sy, 1, 1, dx, dy, P, P);
+    const soft = mkCanvas(N, N), s = soft.getContext('2d');
+    s.filter = 'blur(2px)'; s.drawImage(c, 0, 0); s.filter = 'none';
+    const img = s.getImageData(0, 0, N, N), d = img.data;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const ox = Math.max(P - x, 0, x - (P + MAP - 1)), oy = Math.max(P - y, 0, y - (P + MAP - 1)), out = Math.hypot(ox, oy);
+      const k = 1 - Math.min(0.85, out / 30 * 0.85), i = (y * N + x) * 4;
+      d[i] *= k; d[i + 1] *= k; d[i + 2] *= k; d[i + 3] = 255;
+    }
+    s.putImageData(img, 0, 0);
+    edgeFor = G; edgeCv = soft;
+    return soft;
   }
   function centerOn(x, y) { [x, y] = toView(x, y); cam.x = x - W / cam.z / 2; cam.y = y - H / cam.z / 2; clampCam(); }
   // Screen point to the world point on the ground under it.
@@ -378,9 +405,22 @@ function draw() {
     const sw = Math.min(WORLD, ox + bw) - sx, sh = Math.min(WORLD, oy + bh) - sy;
     // The ground is painted in tiles as it comes into view (art.js makeGround): up to 6 ms a frame for what is on
     // screen, then 3 ms for the tiles round it.
+    // Only the ground tiles that show: the world box round a turned screen is about three times the screen.
+    if (G.ground.keep) G.ground.keep((x0, y0, T, pad) => {
+      let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+      for (const [x, y] of [[x0, y0], [x0 + T, y0], [x0, y0 + T], [x0 + T, y0 + T]]) { const [X, Y] = toView(x, y); a = Math.min(a, X); b = Math.min(b, Y); c = Math.max(c, X); d = Math.max(d, Y); }
+      const m = 8 + (pad || 0) * 0.7;
+      return c > vx - m && a < vx + VW + m && d > vy - m && b < vy + VH + m;
+    });
     G.ground.update(sx, sy, sw, sh, 6, 3);
     const toWorld = () => v.setTransform(VIEW.c, VIEW.s * VIEW.F, -VIEW.s, VIEW.c * VIEW.F, -vx, -vy);   // world -> view canvas
     toWorld();
+    if (sx > ox || sy > oy || sx + sw < ox + bw || sy + sh < oy + bh) {   // past the map's edge: its land carried on, fading into haze
+      v.imageSmoothingEnabled = true;
+      const e = edgePic(), P = EDGE_PAD;
+      v.drawImage(e, -P * CELL, -P * CELL, (MAP + 2 * P) * CELL, (MAP + 2 * P) * CELL);
+      v.imageSmoothingEnabled = false;
+    }
     G.ground.draw(v, 't', sx, sy, sw, sh, sx, sy);
 
     // Ore
@@ -393,6 +433,7 @@ function draw() {
 
     G.ground.draw(v, 'd', sx, sy, sw, sh, sx, sy);
     // Walls and gates on explored ground (art.js wallPic). A gate stands open while one of its own alliance is beside it.
+    const wallsHere = [];   // (sorted in with the units below, art.js drawWallIso)
     if (G.wallN) {
       for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
         const c = idx(cx, cy), id = G.wall[c];
@@ -412,7 +453,7 @@ function draw() {
           s.v = want > s.v ? Math.min(1, s.v + step) : Math.max(0, s.v - step);
           open = Math.round(s.v * GATE_STEPS);
         }
-        v.drawImage(wallPic(id, mask, tm ? tm.pal.main : '#888', G.wallHp[c] < d.hp / 2, open, gm), cx * CELL, cy * CELL - WALL_UP);
+        wallsHere.push({ kind: 'wall', c, cx, cy, x: (cx + 0.5) * CELL, y: (cy + 0.5) * CELL, id, mask, gm, open, col: tm ? tm.pal.main : '#888', hurt: G.wallHp[c] < d.hp / 2 });
       }
     }
     // Destroyed bridge spans: water and broken ends over the painted bridge (art.js spanRuin).
@@ -430,6 +471,7 @@ function draw() {
     }
     // Village houses on explored ground (world.js genVillage), sorted in with everything else.
     for (const t of trees) ground.push(t);
+    for (const w of wallsHere) ground.push(w);
     for (const h of G.houses || []) if (h.alive && houseSeen(h) && h.x > x0 - 60 && h.x < x1 + 60 && h.y > y0 - 60 && h.y < y1 + 120) ground.push(h);
     for (const p of G.props || []) if (inView(p) && G.seen[cellOfPos(p.x, p.y)]) ground.push(p);
     for (const f of G.folk || []) if (f.st !== 'in' && inView(f) && G.seen[cellOfPos(f.x, f.y)]) ground.push({ kind: 'folk', v: f, y: f.y });
@@ -437,9 +479,30 @@ function draw() {
     if (G.birds) drawBirds(v, false, x0, y0, x1, y1);   // pigeons on the ground
     // Back to front on the screen. A structure sorts by a point 0.4 of the way into its footprint, so a unit beside
     // one of its front walls is drawn in front of it and one by its back walls behind it.
-    const baseY = (e) => e.kind === 'bld' || e.kind === 'house' ? viewDepth((e.cx + e.w * 0.4) * CELL, (e.cy + e.h * 0.4) * CELL)
-      : e.kind === 'folk' || e.kind === 'hen' ? viewDepth(e.v.x, e.v.y) : viewDepth(e.x, e.y);
-    ground.sort((a, b) => baseY(a) - baseY(b));
+    // A structure sorts by its footprint's front corner. Anything standing beside one is in front of it when it is nearer
+    // the camera than the closest point of the footprint (beside a front wall), and is then moved to just after it;
+    // otherwise (beside a back wall) it is already before it.
+    const big = (e) => e.kind === 'bld' || e.kind === 'house';
+    const posOf = (e) => (e.kind === 'folk' || e.kind === 'hen' ? e.v : e);
+    for (const e of ground) {
+      if (big(e)) {
+        const x0 = e.cx * CELL, y0 = e.cy * CELL, x1 = x0 + e.w * CELL, y1 = y0 + e.h * CELL;
+        e._key = Math.max(viewDepth(x0, y0), viewDepth(x1, y0), viewDepth(x0, y1), viewDepth(x1, y1));
+      } else { const p = posOf(e); e._key = viewDepth(p.x, p.y); }
+    }
+    const NEAR = CELL * 1.5;
+    for (const b of ground) {
+      if (!big(b)) continue;
+      const x0 = b.cx * CELL, y0 = b.cy * CELL, x1 = x0 + b.w * CELL, y1 = y0 + b.h * CELL;
+      for (const e of ground) {
+        if (big(e) || e._key > b._key) continue;
+        const p = posOf(e);
+        if (p.x < x0 - NEAR || p.x > x1 + NEAR || p.y < y0 - NEAR || p.y > y1 + NEAR) continue;
+        const nx = Math.max(x0, Math.min(x1, p.x)), ny = Math.max(y0, Math.min(y1, p.y));
+        if (viewDepth(p.x, p.y) > viewDepth(nx, ny)) e._key = b._key + 0.01;
+      }
+    }
+    ground.sort((a, b) => a._key - b._key);
     v.upright = true;   // from here on, pictures, pixels and labels stand upright (art.js uprightCtx)
     for (const e of ground) {
       if (e.kind === 'bld') drawStructure(v, e, G.t);
@@ -448,6 +511,7 @@ function draw() {
       else if (e.kind === 'folk') drawFolk(v, e.v);
       else if (e.kind === 'hen') drawHen(v, e.v);
       else if (e.kind === 'tree') drawTree(v, e);
+      else if (e.kind === 'wall') drawWallIso(v, e);
       else drawUnit(v, e, G.t);
     }
     for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') flameJet(v, e);
@@ -578,10 +642,14 @@ function draw() {
   function drawRally(v, b, r) {
     const sx = cellX(b.exitCell) * CELL + CELL / 2, sy = cellY(b.exitCell) * CELL + CELL / 2;
     v.strokeStyle = 'rgba(94,224,96,0.85)'; v.lineWidth = 1;
-    v.setLineDash([4, 3]); v.beginPath(); v.moveTo(sx, sy); v.lineTo(r.x, r.y); v.stroke(); v.setLineDash([]);
-    v.beginPath(); v.moveTo(r.x, r.y); v.lineTo(r.x, r.y - 12); v.stroke();
-    v.fillStyle = '#5ee060'; v.beginPath(); v.moveTo(r.x, r.y - 12); v.lineTo(r.x + 7, r.y - 9.5); v.lineTo(r.x, r.y - 7); v.fill();
-    v.beginPath(); v.arc(r.x, r.y, 2, 0, 7); v.fill();
+    v.setLineDash([4, 3]); v.beginPath(); v.moveTo(sx, sy); v.lineTo(r.x, r.y); v.stroke(); v.setLineDash([]);   // (on the ground)
+    v.fillStyle = '#5ee060'; v.beginPath(); v.arc(r.x, r.y, 2, 0, 7); v.fill();
+    const [fx, fy] = onScreen(v, r.x, r.y, 0);   // the flag stands up the screen
+    screenDraw(v, () => {
+      v.strokeStyle = 'rgba(94,224,96,0.85)'; v.lineWidth = 1;
+      v.beginPath(); v.moveTo(fx, fy); v.lineTo(fx, fy - 12); v.stroke();
+      v.fillStyle = '#5ee060'; v.beginPath(); v.moveTo(fx, fy - 12); v.lineTo(fx + 7, fy - 9.5); v.lineTo(fx, fy - 7); v.fill();
+    });
   }
   function drawPlacement(v) {
     const p = G.place;

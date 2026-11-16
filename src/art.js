@@ -1319,10 +1319,12 @@ function makeGround(painter, legacy, baked) {
     return low;
   }
   // The tiles over world rect (sx, sy, sw, sh), nearest its middle first.
-  const tilesIn = (sx, sy, sw, sh) => {
+  // keepTile (the iso view, ui.js): of the tiles in the box, only those that show on the screen (pad: how far round it).
+  let keepTile = null;
+  const tilesIn = (sx, sy, sw, sh, pad) => {
     const out = [], mx = sx + sw / 2, my = sy + sh / 2;
     for (let ty = Math.max(0, Math.floor(sy / T)); ty <= Math.min(n - 1, Math.floor((sy + sh - 1) / T)); ty++)
-      for (let tx = Math.max(0, Math.floor(sx / T)); tx <= Math.min(n - 1, Math.floor((sx + sw - 1) / T)); tx++) out.push(tileOf(tx, ty));
+      for (let tx = Math.max(0, Math.floor(sx / T)); tx <= Math.min(n - 1, Math.floor((sx + sw - 1) / T)); tx++) if (!keepTile || keepTile(tx * T, ty * T, T, pad || 0)) out.push(tileOf(tx, ty));
     const dist = (k) => { const [x, y] = at(k); return Math.hypot(x + T / 2 - mx, y + T / 2 - my); };
     return out.sort((a, b) => dist(a) - dist(b));
   };
@@ -1333,6 +1335,7 @@ function makeGround(painter, legacy, baked) {
     // paints all it shows, however long that takes.
     // With workers, `ms` is the time for finishing tiles whose pixels are back, on screen first, and the workers are
     // given the tiles on screen, then the ring.
+    keep(fn) { keepTile = fn; },
     update(sx, sy, sw, sh, ms, ahead) {
       frameNo++;
       peak.put = peak.dec = peak.mark = 0; peak.mk = '';
@@ -1345,7 +1348,7 @@ function makeGround(painter, legacy, baked) {
       const t0 = performance.now(), seen = tilesIn(sx, sy, sw, sh);
       if (fast() || (drawn && useWorkers())) {   // (baked: the first frame waits for its sheets too, behind the deploying card)
         const want = seen.filter((k) => !tiles.has(k));
-        for (const k of tilesIn(sx - T, sy - T, sw + 2 * T, sh + 2 * T)) if (!tiles.has(k) && !want.includes(k)) want.push(k);
+        for (const k of tilesIn(sx - T, sy - T, sw + 2 * T, sh + 2 * T, T)) if (!tiles.has(k) && !want.includes(k)) want.push(k);
         const near = want.length;
         // A roomy computer, once the preview is done: the rest of the map, nearest the view first, a few at a time
         // (finished with the `ahead` time only, after what is on and round the screen).
@@ -1369,7 +1372,7 @@ function makeGround(painter, legacy, baked) {
       }
       drawn = true;
       if (!fast() && !useWorkers() && performance.now() < t0 + ms) {
-        const ring = tilesIn(sx - T, sy - T, sw + 2 * T, sh + 2 * T).filter((k) => !tiles.has(k));
+        const ring = tilesIn(sx - T, sy - T, sw + 2 * T, sh + 2 * T, T).filter((k) => !tiles.has(k));
         const until = performance.now() + ahead;
         for (const k of ring) if (!paintSome(k, until) || performance.now() >= until) break;
       }
@@ -2540,4 +2543,92 @@ function makeCameo(type, faction, key) {
   const url = c.toDataURL();
   cameoCache.set(key, url);
   return url;
+}
+
+// ---------------------------------------------------------------------------
+// Walls and gates in the iso view: each piece is built from boxes (a post in the middle of its cell and an arm toward each
+// joined neighbour) drawn as solid prisms, back to front, with only the faces turned to the camera. ui.js sorts each cell
+// in with the units (kind 'wall') and calls drawWallIso on the view canvas.
+const WALL_LOOK = {
+  1: { h: 8, a: 6, top: '#c2ae80', side: '#9c8a5f', seam: '#7d6d49' },      // sandbags: two courses of sacks
+  3: { h: 13, a: 5, top: '#a7a7a0', side: '#85857e', seam: '#686862' },     // concrete
+};
+function drawWallIso(g, e) {
+  const tf = g.getTransform();
+  const S = (x, y, h) => { const [wx, wy] = liftPt(x, y, h); return [tf.a * wx + tf.c * wy + tf.e, tf.b * wx + tf.d * wy + tf.f]; };
+  const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16); return `rgb(${Math.round(((n >> 16) & 255) * k)},${Math.round(((n >> 8) & 255) * k)},${Math.round((n & 255) * k)})`; };
+  const poly = (pts, fill, stroke) => { g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath(); if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = 1; g.stroke(); } };
+  // A box from (x0, y0) to (x1, y1) on the ground, from height z0 to z1; colours as #rrggbb, k darkens (a battered piece).
+  const box = (x0, y0, x1, y1, z0, z1, top, side, edge, k = 1) => {
+    edge = edge && shade(edge, k);
+    const faces = [[[x1, y0], [x1, y1], 1, 0], [[x0, y1], [x1, y1], 0, 1], [[x0, y0], [x0, y1], -1, 0], [[x0, y0], [x1, y0], 0, -1]];
+    for (const [a, b, nx, ny] of faces) {
+      const facing = nx * VIEW.s + ny * VIEW.c;   // toward the camera
+      if (facing <= 0.01) continue;
+      poly([S(a[0], a[1], z0), S(b[0], b[1], z0), S(b[0], b[1], z1), S(a[0], a[1], z1)], shade(side, k * (nx > 0 || ny < 0 ? 0.92 : 0.78)), edge);
+    }
+    poly([S(x0, y0, z1), S(x1, y0, z1), S(x1, y1, z1), S(x0, y1, z1)], shade(top, k), edge);
+  };
+  const bx = e.cx * CELL, by = e.cy * CELL, mx = bx + CELL / 2, my = by + CELL / 2, m = e.mask;
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
+  const up = g.upright; g.upright = false;
+  // Parts: the middle and an arm to each joined side, drawn furthest first.
+  const parts = (a) => {
+    const out = [[mx - a, my - a, mx + a, my + a]];
+    if (m & 1) out.push([mx - a, by, mx + a, my - a]);
+    if (m & 8) out.push([bx, my - a, mx - a, my + a]);
+    if (m & 2) out.push([mx + a, my - a, bx + CELL, my + a]);
+    if (m & 4) out.push([mx - a, my + a, mx + a, by + CELL]);
+    return out.sort((p, q) => viewDepth((p[0] + p[2]) / 2, (p[1] + p[3]) / 2) - viewDepth((q[0] + q[2]) / 2, (q[1] + q[3]) / 2));
+  };
+  const L = WALL_LOOK[e.id];
+  if (L) {
+    const k = e.hurt ? 0.78 : 1;
+    for (const [x0, y0, x1, y1] of parts(L.a)) {
+      if (e.id === 1) {   // sandbags: a lower and an upper course, the upper a little narrower
+        box(x0, y0, x1, y1, 0, L.h / 2, L.top, L.side, L.seam, k);
+        box(x0 + 0.7, y0 + 0.7, x1 - 0.7, y1 - 0.7, L.h / 2, L.h, L.top, L.side, L.seam, k);
+      } else box(x0, y0, x1, y1, 0, L.h, L.top, L.side, L.seam, k);
+    }
+    if (e.id === 3) {   // the owner's colour along the top
+      g.strokeStyle = e.col; g.lineWidth = 1.5; g.beginPath();
+      const a = S(mx, my, L.h);
+      for (const [dx, dy, bit] of [[0, -1, 1], [1, 0, 2], [0, 1, 4], [-1, 0, 8]]) if (m & bit) { const b = S(mx + dx * CELL / 2, my + dy * CELL / 2, L.h); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
+      if (!m) { const b = S(mx + 2, my + 2, L.h); g.moveTo(a[0] - 2, a[1]); g.lineTo(b[0], b[1]); }
+      g.stroke();
+    }
+  } else if (e.id === 2) {   // barbed wire: posts and loose coils along each arm
+    const ends = [[mx, my]];
+    for (const [dx, dy, bit] of [[0, -1, 1], [1, 0, 2], [0, 1, 4], [-1, 0, 8]]) if (m & bit) ends.push([mx + dx * CELL / 2, my + dy * CELL / 2]);
+    if (ends.length === 1) ends.push([mx - 8, my], [mx + 8, my]);
+    g.strokeStyle = e.hurt ? 'rgba(110,106,98,0.8)' : 'rgba(170,166,154,0.85)'; g.lineWidth = 0.7;
+    for (let i = 1; i < ends.length; i++) {
+      const [x0, y0] = ends[0], [x1, y1] = ends[i];
+      for (let j = 0; j <= 4; j++) {
+        const t = j / 4, [cx, cy] = S(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, 4);
+        g.beginPath(); g.ellipse(cx + (j % 2 ? 0.8 : -0.8), cy, 3.4, 3.8, 0.3, 0, 7); g.stroke();
+      }
+    }
+    for (const [x, y] of ends) box(x - 0.8, y - 0.8, x + 0.8, y + 0.8, 0, 9, '#4a4036', '#3a3328');
+  } else {   // a gate: concrete pylons at its ends, a ribbed steel barrier between them that sinks into the ground to open
+    const cs = gateCells(e.c), vert = cs.length > 1 ? cs[cs.length - 1] - cs[0] >= MAP : e.id === 5;
+    const end = e.id === 6 || cs.length === 1, rise = 2 + 9 * (1 - e.open / GATE_STEPS);
+    const along = (u0, u1, a) => (vert ? [mx - a, by + u0, mx + a, by + u1] : [bx + u0, my - a, bx + u1, my + a]);
+    // The barrier runs over the middle and halfway into each end, toward the middle.
+    const first = cs[0] === e.c, last = cs[cs.length - 1] === e.c;
+    const u0 = cs.length === 1 ? 4 : first ? CELL / 2 : 0, u1 = cs.length === 1 ? CELL - 4 : last ? CELL / 2 : CELL;
+    const barrier = () => { const [x0, y0, x1, y1] = along(u0, u1, 1.6); box(x0, y0, x1, y1, 0, rise, '#c9b23a', '#7c7d78', '#4a4b47'); };
+    const pylons = cs.length === 1 ? [2, CELL - 2] : end ? [CELL / 2] : [];
+    const pyl = pylons.map((u) => { const [x0, y0, x1, y1] = along(u - 4, u + 4, 4); return [x0, y0, x1, y1]; });
+    const items = [...pyl.map((p) => ['p', p]), ['b']].sort((a, b) => (a[0] === 'b' ? viewDepth(mx, my) : viewDepth((a[1][0] + a[1][2]) / 2, (a[1][1] + a[1][3]) / 2))
+      - (b[0] === 'b' ? viewDepth(mx, my) : viewDepth((b[1][0] + b[1][2]) / 2, (b[1][1] + b[1][3]) / 2)));
+    for (const [kind, p] of items) {
+      if (kind === 'b') { if (u1 > u0) barrier(); continue; }
+      box(p[0], p[1], p[2], p[3], 0, 17, '#a9a9a2', '#8a8a84', '#5c5c57', e.hurt ? 0.8 : 1);
+      const [lx, ly] = S((p[0] + p[2]) / 2, (p[1] + p[3]) / 2, 17);
+      g.fillStyle = e.open > 0 ? '#5ee060' : '#f0a020'; g.fillRect(Math.round(lx - 1.5), Math.round(ly - 1.5), 3, 3);   // its lamp
+      g.fillStyle = e.col; g.fillRect(Math.round(lx - 3), Math.round(ly + 3), 6, 2);   // the owner's colour
+    }
+  }
+  g.upright = up; g.restore();
 }

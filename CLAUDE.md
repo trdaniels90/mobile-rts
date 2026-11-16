@@ -144,10 +144,16 @@ share globals. Read this file first; the commit history explains every change in
   `h0`/`h2`; sparks, flak bursts, hit explosions (`impact(.., h)`, marks now on the ground under the target), muzzle and
   barrel smoke and missile trails carry `lift`; muzzle flashes and bombs are lifted in art.js / ui.js. The game's own
   positions, ranges and hits are unchanged. The server must run the same version (shots carry three more numbers).
-- **Known bugs:** walls (`wallPic`) are flat squashed
-  pictures; the draw order beside big structures is a guess (0.4 into the footprint); flame jets, rally lines and the
-  Tesla bolt are flat on the ground; the ground draws the whole world box round the screen (about 3 times the tiles: watch
-  phones); the map shows its corners as black; pedestrians, hens and birds untested; not tried on a real phone or online.
+- **Fixed (walls, order, ground, edges, flames):** walls and gates are solid prisms (`drawWallIso` in art.js: a post and an
+  arm per joined side; sandbags two courses, concrete with the owner's colour on top, wire posts and coils, gate pylons
+  with lamps and a barrier that sinks with `open`), sorted with the units (kind 'wall'); `wallPic` is now only for the
+  sidebar. Draw order: a structure sorts by its footprint's front corner, and anything within 1.5 cells that is nearer the
+  camera than the closest footprint point is moved just after it. Ground: `G.ground.keep(fn)` limits tiles to those that
+  show on the turned screen (`tilesIn(.., pad)`). Past the map's edge: `edgePic` (ui.js), the edge cells' minimap colours
+  carried out `EDGE_PAD` cells, blurred and fading into haze. Flame jets and the rally flag are drawn in screen pixels
+  (`onScreen`, `screenDraw` in ui.js); the rally line stays on the ground.
+- **Known bugs:** not tried on a real phone or online; pedestrians, hens and birds untested; the debrief and Field Manual
+  pictures are unchanged.
 
 ## Recent mechanics (2026.10.31 and .31.1)
 
