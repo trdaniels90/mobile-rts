@@ -164,7 +164,7 @@ function spawnPoints(mapId) {
 
 function genMap(seed) {
   G.spans = [];   // bridge spans that can be destroyed (genLayoutMap, maps with `breakable`)
-  G.houses = [];   // village houses (genVillage, maps with `village`)
+  G.houses = []; G.props = []; G.birds = null;   // village houses, props and pigeons (genVillage, maps with `village`)
   if (MAPS[G.mapId].rows) { genLayoutMap(MAPS[G.mapId]); genVillage(MAPS[G.mapId], seed); return; }
   const r = rng(seed ^ 0x5bd1e995);
   const T = G.terr;
@@ -784,12 +784,15 @@ function genVillage(m, seed) {
   };
   const put = (x0, y0, w, h, kind) => {
     for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) taken[idx(x, y)] = 1;
-    const church = kind.startsWith('church'), hp = church ? 1400 : Math.min(1000, 150 + 70 * w * h);
-    const h1 = { id: G.nextId++, kind: 'house', type: houseType(kind, w, h, church ? seed >>> 0 : look()), def: HOUSE, team: -1,
-      cx: x0, cy: y0, w, h, x: (x0 + w / 2) * CELL, y: (y0 + h / 2) * CELL, hp, maxHp: hp, alive: true, hitT: -99 };
+    const church = kind.startsWith('church'), fountain = kind === 'fountain', hp = fountain ? 1200 : church ? 1400 : Math.min(1000, 150 + 70 * w * h);
+    const h1 = { id: G.nextId++, kind: 'house', type: houseType(kind, w, h, church || fountain ? seed >>> 0 : look()), def: HOUSE, team: -1,
+      cx: x0, cy: y0, w, h, x: (x0 + w / 2) * CELL, y: (y0 + h / 2) * CELL, hp, maxHp: hp, alive: true, hitT: -99,
+      cap: fountain ? 0 : church ? 10 : Math.max(3, Math.min(6, w * h)), n: 0 };
     G.houses.push(h1); G.byId.set(h1.id, h1);
     setHouse(h1, true);
   };
+  // The fountain in the middle of the square.
+  if (m.square) { const [a, b, c, d] = m.square; put(Math.round((a + c + 1) / 2) - 2, Math.round((b + d + 1) / 2) - 2, 4, 4, 'fountain'); }
   // The church: on one of the long plots beside the square, its tower toward the square.
   const longLots = m.lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) === 3);
   if (longLots.length) {
@@ -813,6 +816,36 @@ function genVillage(m, seed) {
       put(x0, y0, w, h, 'house');
       used += w * h;
     }
+  }
+  villageProps(m, r, taken);
+}
+// What makes the village look lived in (looks only, every copy rolls the same): street lamps (MAPS lamps), market stalls
+// and benches on the square, barrels, crates and hay by the houses, carts in the lanes. None of them block; a blast or a
+// passing vehicle knocks them over (houseFx). G.props: { kind: 'prop', k, x, y (px), v (look), up }.
+function villageProps(m, r, taken) {
+  G.props = [];
+  const add = (k, cx, cy, v) => G.props.push({ kind: 'prop', k, x: cx * CELL, y: cy * CELL, v: v === undefined ? (r() * 4) | 0 : v, up: true });
+  const open = (cx, cy) => inMap(Math.floor(cx), Math.floor(cy)) && !taken[idx(Math.floor(cx), Math.floor(cy))] && !G.block[idx(Math.floor(cx), Math.floor(cy))];
+  for (const [x, y] of m.lamps || []) if (open(x, y)) add('lamp', x, y, 0);
+  if (m.square) {
+    const [a, b, c, d] = m.square, mx = (a + c + 1) / 2, my = (b + d + 1) / 2;
+    // Market stalls round the square's edge, clear of the streets coming in, and benches round the fountain.
+    for (const [sx, sy] of [[a + 1.5, b + 2.5], [a + 1.5, b + 5], [c - 0.5, b + 2.5], [c - 0.5, b + 5], [a + 1.5, d - 4], [a + 1.5, d - 1.5], [c - 0.5, d - 4], [c - 0.5, d - 1.5],
+      [a + 3, b + 1.2], [c - 2, b + 1.2], [a + 3, d - 0.2], [c - 2, d - 0.2]]) if (r() < 0.8) add('stall', sx, sy);
+    for (const [bx, by, v] of [[mx, my - 3.2, 0], [mx, my + 3.4, 0], [mx - 3.2, my, 1], [mx + 3.2, my, 1]]) add('bench', bx, by, v);
+  }
+  // By the houses: barrels, crates or hay in a yard corner.
+  for (const h of G.houses) {
+    if (h.cap === 0 || r() < 0.45) continue;
+    const k = ['barrels', 'crates', 'hay', 'barrels', 'crates'][(r() * 5) | 0], east = r() < 0.5;
+    const x = east ? h.cx + h.w + 0.45 : h.cx - 0.45, y = h.cy + 0.5 + r() * (h.h - 1);
+    if (open(x, y)) add(k, x, y);
+  }
+  // Carts left in the lanes, beside a lamp.
+  const lamps = G.props.filter((p) => p.k === 'lamp');
+  for (let i = 0; i < 5 && lamps.length; i++) {
+    const l = lamps[(r() * lamps.length) | 0], x = l.x / CELL + (r() - 0.5) * 2, y = l.y / CELL + (r() - 0.5) * 2;
+    if (open(x, y)) add('cart', x, y);
   }
 }
 // A house's look: the sprite key models.js builds it from (houseModel), as plain text so saves and copies keep it.
@@ -839,6 +872,14 @@ function houseBlast(x, y, rad, dmg, wh, attacker, skip) {
 function collapseHouse(h) {
   h.hp = 0;
   setHouse(h, false);
+  // Whoever held it is thrown out into the street, hurt.
+  for (const u of G.entities.slice()) {
+    if (!u.alive || u.inHouse !== h) continue;
+    leaveHouse(u); setGuard(u, u.x, u.y);
+    u.hp -= u.maxHp * GARRISON_FALL; u.hitT = G.t;
+    if (u.hp <= 0) kill(u, null, 'HE');
+  }
+  h.n = 0; h.team = -1;
   const seed = (h.id * 7919) | 0;
   hooks.sfx('explodeBig', h.x, h.y); hooks.sfx('collapse', h.x, h.y); hooks.shake(h.x, h.y, 2 + h.w * h.h * 0.4);
   const n = h.w * h.h + 1;
@@ -862,11 +903,184 @@ function houseFx(dt) {
     G.effects.push({ type: 'smoke', x, y: y - 14, r: 3, t: 0, life: 2.4, alpha: 0.5, color: '#3a3632', vy: -10, vx: 2 });
   }
 }
+// Garrisons. Infantry sent into a house (commandGarrison, or a tap on the house) walk to it and go in, up to its `cap`
+// (3 to 6, the church 10); one side holds a house at a time (`h.team`, `h.n`). Inside, a soldier is hidden in the house
+// (u.inHouse; still an entity, at the house's middle, so enemies can aim at him), cannot be run into, fires from the
+// windows with GARRISON_REACH more range, and takes GARRISON_COVER of each hit while the house takes it all. Any other
+// order brings him out; a house that falls throws its garrison out hurt (GARRISON_FALL of their health).
+const GARRISON_REACH = CELL, GARRISON_COVER = 0.3, GARRISON_FALL = 0.35;
+const canGarrison = (u) => !!u && u.kind === 'unit' && u.alive && u.cls === 'inf' && !!u.def.weapon && !u.def.engineer && !u.chute && !u.def.scripted;
+const houseOpen = (h, side) => !!h && h.kind === 'house' && h.alive && h.cap > 0 && (!h.n || h.team === side) && (h.n || 0) < h.cap;
+const garrisonOf = (h) => G.entities.filter((u) => u.alive && u.inHouse === h);
+function commandGarrison(units, h) {
+  if (!h || h.kind !== 'house' || !h.alive) return;
+  for (const u of units) {
+    if (!canGarrison(u) || u.inHouse === h) continue;
+    if (!houseOpen(h, u.team)) { if (!G.teams[u.team].isAI) say(u.team, 'Building full'); return; }
+    const p = u.inHouse ? houseDoor(u.inHouse) : besideSpot(u, h);
+    if (!p) { say(u.team, 'Cannot reach it'); continue; }
+    u.order = { type: 'garrison', target: h }; u.target = null; u.staged = false; u.defending = false; u.homeward = false; takeOver(u, 'move');
+    if (!u.inHouse) goTo(u, p.x, p.y);
+  }
+}
+// Out of whatever house they are in, standing in the doorway.
+function commandExit(units) {
+  for (const u of units) {
+    if (!u.alive || !u.inHouse) continue;
+    leaveHouse(u); setGuard(u, u.x, u.y); u.staged = false; takeOver(u, 'move');
+  }
+}
+// A free cell beside the house, the south side (its door) first.
+function houseDoor(h) {
+  const ring = [];
+  for (let y = h.cy - 1; y <= h.cy + h.h; y++) for (let x = h.cx - 1; x <= h.cx + h.w; x++) {
+    if (!inMap(x, y) || (x >= h.cx && x < h.cx + h.w && y >= h.cy && y < h.cy + h.h) || G.block[idx(x, y)]) continue;
+    ring.push([x, y, (y === h.cy + h.h ? 0 : 2) + Math.abs(x + 0.5 - h.cx - h.w / 2) / h.w + Math.random() * 0.8]);
+  }
+  ring.sort((a, b) => a[2] - b[2]);
+  const c = ring[0];
+  return c ? { x: (c[0] + 0.3 + Math.random() * 0.4) * CELL, y: (c[1] + 0.3 + Math.random() * 0.4) * CELL } : { x: h.x, y: (h.cy + h.h) * CELL + 4 };
+}
+function enterHouse(u, h) {
+  u.inHouse = h; h.team = u.team; h.n = (h.n || 0) + 1;
+  u.x = h.x; u.y = h.y; u.dest = null; u.path = null; u.target = null; u.stance = null; u.burst = null; u.moving = false;
+  u.order = { type: 'garrison', target: h };
+  hooks.sfx('place', h.x, h.y);
+}
+function leaveHouse(u) {
+  const h = u.inHouse;
+  if (!h) return;
+  u.inHouse = null;
+  h.n = Math.max(0, (h.n || 0) - 1);
+  if (!h.n) h.team = -1;
+  const p = houseDoor(h);
+  u.x = p.x; u.y = p.y; u.dest = null; u.path = null; u.burst = null;
+}
+function updateEnterHouse(u) {
+  const h = u.order.target;
+  if (!houseOpen(h, u.team)) {
+    if (h && h.alive && h.n >= h.cap && h.team === u.team && !G.teams[u.team].isAI) say(u.team, 'Building full');
+    setGuard(u, u.x, u.y); return;
+  }
+  const d = distTo(u, h), settled = !u.dest && !u.needPath;
+  if (d > CELL * 1.2 && !(settled && d <= CELL * 2.5)) {
+    if (settled) { const p = besideSpot(u, h); if (p) goTo(u, p.x, p.y); else setGuard(u, u.x, u.y); }
+    return;
+  }
+  enterHouse(u, h);
+}
+function updateGarrison(u, dt) {
+  const h = u.inHouse, w = u.def.weapon, w2 = u.def.weapon2, more = GARRISON_REACH + Math.max(h.w, h.h) * CELL / 2;
+  u.moving = false;
+  if (u.target && (!u.target.alive || !canTarget(u, u.target) || distTo(u, u.target) > w.range + more)) u.target = null;
+  if ((u.think -= dt) <= 0) {
+    u.think = 0.35 + Math.random() * 0.2;
+    if (!u.target || u.target.kind !== 'unit') u.target = acquire(u, w.range + more, [w]) || u.target;
+  }
+  const t = u.target;
+  if (t && u.cd <= 0 && canHit(w, t)) {
+    u.face = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
+    fireWeapon(u, w, t); u.cd = w.rof * VET.reload[u.rank || 0];
+  }
+  if (w2 && u.cd2 <= 0 && u.cd <= 0) {   // a Rocket Soldier's anti-aircraft missile, out of the window too
+    const t2 = acquire(u, w2.range + more, [w2]);
+    if (t2) { fireWeapon(u, w2, t2); u.cd2 = w2.rof * VET.reload[u.rank || 0]; u.cd = Math.max(u.cd, u.cd2); } else u.cd2 = 0.3;
+  }
+}
+
+// The village's life, looks only (each copy works it out from what it sees; the game server skips it): props knocked
+// over by blasts and passing vehicles, smoke from some chimneys, and pigeons on the square and the church roof that
+// take off when fighting comes near and come back once it is quiet.
+const knockSeen = new WeakSet();
+function knockProp(p) {
+  p.up = false;
+  G.effects.push({ type: 'smoke', x: p.x, y: p.y - 2, r: 3, t: 0, life: 0.9, alpha: 0.35, color: '#8a7a62', vy: -6 });
+  if (p.k === 'lamp') G.effects.push({ type: 'spark', x: p.x + 4, y: p.y - 16, t: 0, life: 0.15 });
+}
+function villageLife(dt) {
+  if (G.me < 0 || !G.houses || !G.houses.length) return;
+  const props = G.props || [];
+  // Blasts knock over what stands near them.
+  for (const fx of G.effects) {
+    if (fx.type !== 'expl' || fx.t < 0 || knockSeen.has(fx)) continue;
+    knockSeen.add(fx);
+    const rad = Math.max(10, (fx.size || 6) * 1.6);
+    for (const p of props) if (p.up && Math.abs(p.x - fx.x) < rad && Math.abs(p.y - fx.y) < rad && Math.hypot(p.x - fx.x, p.y - fx.y) < rad) knockProp(p);
+    for (const f of birdFlocks()) if (f.st !== 1 && Math.hypot(f.hx - fx.x, f.hy - fx.y) < 240) scareFlock(f, fx.x, fx.y);
+  }
+  if ((G.lifeT = (G.lifeT || 0) - dt) > 0) { flyBirds(dt); return; }
+  G.lifeT = 0.25;
+  // Vehicles drive them down; anyone near the pigeons sends them up.
+  const box = G.villageBox || (G.villageBox = props.concat(G.houses).reduce((b, p) => [Math.min(b[0], p.x), Math.min(b[1], p.y), Math.max(b[2], p.x), Math.max(b[3], p.y)], [1e9, 1e9, -1e9, -1e9]));
+  for (const u of G.entities) {
+    if (!u.alive || u.kind !== 'unit' || u.inHouse || isAirborne(u) || u.x < box[0] - 60 || u.y < box[1] - 60 || u.x > box[2] + 60 || u.y > box[3] + 60) continue;
+    if (u.cls === 'veh') for (const p of props) if (p.up && Math.abs(p.x - u.x) < 10 && Math.abs(p.y - u.y) < 10) { knockProp(p); hooks.sfx('hitSmall', p.x, p.y); }
+    for (const f of birdFlocks()) if (f.st === 0 && Math.hypot(f.hx - u.x, f.hy - u.y) < 75) scareFlock(f, u.x, u.y);
+  }
+  for (const f of birdFlocks()) if (f.st === 0) for (const p of G.projectiles) if (Math.abs(p.x - f.hx) < 90 && Math.abs(p.y - f.hy) < 90) { scareFlock(f, p.x, p.y); break; }
+  // Chimney smoke from about two houses in five that are not badly hurt.
+  for (const h of G.houses) {
+    if (!h.alive || h.cap === 0 || h.id % 5 > 1 || h.hp < h.maxHp * 0.6 || !G.seen[idx(h.cx, h.cy)]) continue;
+    if ((h.smokeT = (h.smokeT || Math.random() * 2) - 0.25) > 0) continue;
+    h.smokeT = 1.4 + Math.random();
+    const m = modelCache.get('S' + h.type + 'allies');
+    if (m && m.chim) G.effects.push({ type: 'smoke', x: h.cx * CELL + m.chim.x, y: h.cy * CELL + m.chim.y - m.chim.z * VK, r: 2.2, t: 0, life: 3.5, alpha: 0.32, color: '#bdb8ae', vy: -7, vx: 1.5 });
+  }
+  flyBirds(0.25 + dt);
+}
+// Two flocks: on the square round the fountain, and on the church's roof.
+function birdFlocks() {
+  if (G.birds) return G.birds;
+  G.birds = [];
+  const f = G.houses.find((h) => h.type.startsWith('hv:fountain')), c = G.houses.find((h) => h.type.startsWith('hv:church'));
+  const flock = (hx, hy, ha, n, spread) => {
+    const fl = { hx, hy, ha, st: 0, t: 0, birds: [] };
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, d = ha ? spread * (0.5 + Math.random() * 0.5) : spread + Math.random() * 30;
+      const b = { ox: Math.cos(a) * d, oy: Math.sin(a) * d * (ha ? 0.25 : 0.8), x: 0, y: 0, alt: ha, vx: 0, vy: 0, ph: Math.random() * 6, face: Math.random() < 0.5 ? 1 : -1 };
+      b.x = hx + b.ox; b.y = hy + b.oy; fl.birds.push(b);
+    }
+    G.birds.push(fl);
+  };
+  if (f) flock(f.x, f.y + 4, 0, 14, 54);   // round the basin's rim, not under it
+  if (c) flock(c.x, c.y, 34, 7, 26);
+  return G.birds;
+}
+function scareFlock(f, x, y) {
+  f.st = 1; f.t = 20 + Math.random() * 25;
+  const away = Math.atan2(f.hy - y, f.hx - x);
+  for (const b of f.birds) { const a = away + (Math.random() - 0.5) * 1.6, sp = 55 + Math.random() * 30; b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp; b.turn = (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.4); }
+}
+function flyBirds(dt) {
+  for (const f of birdFlocks()) {
+    for (const b of f.birds) {
+      b.ph += dt * (f.st ? 14 : 1.5);
+      if (f.st === 0) {   // pecking about, now and then a hop
+        if (Math.random() < dt * 0.4) { b.ox += (Math.random() - 0.5) * 6; b.oy += (Math.random() - 0.5) * 4; b.face = Math.random() < 0.5 ? 1 : -1; }
+        b.x = f.hx + b.ox; b.y = f.hy + b.oy; b.alt = f.ha;
+        continue;
+      }
+      if (f.st === 1) {   // away: up and wheeling round
+        const a = Math.atan2(b.vy, b.vx) + b.turn * dt, sp = Math.hypot(b.vx, b.vy);
+        b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp; b.alt = Math.min(60, b.alt + dt * 30);
+      } else {   // home again
+        const tx = f.hx + b.ox, ty = f.hy + b.oy, d = Math.hypot(tx - b.x, ty - b.y);
+        if (d < 4) { b.alt = Math.max(f.ha, b.alt - dt * 40); b.vx = b.vy = 0; continue; }
+        b.vx = (tx - b.x) / d * 60; b.vy = (ty - b.y) / d * 60; b.alt = Math.max(f.ha, Math.min(60, d * 0.3 + f.ha));
+      }
+      b.x += b.vx * dt; b.y += b.vy * dt; b.face = b.vx >= 0 ? 1 : -1;
+    }
+    if (f.st === 1 && (f.t -= dt) <= 0) f.st = 2;
+    if (f.st === 2 && f.birds.every((b) => Math.hypot(f.hx + b.ox - b.x, f.hy + b.oy - b.y) < 4 && b.alt <= f.ha + 0.5)) f.st = 0;
+  }
+}
+
 // An online copy: the houses' health as the host sent it (0: down).
 function applyHouses(list) {
   list.forEach((v, i) => {
     const h = G.houses && G.houses[i];
     if (!h) return;
+    if (Array.isArray(v)) { h.team = v[1]; h.n = v[2]; v = v[0]; }
     if (v < h.hp) h.hitT = G.t;
     h.hp = v;
     if ((v > 0) !== h.alive) setHouse(h, v > 0);
@@ -2302,6 +2516,11 @@ function damage(t, amount, wh, attacker, from) {
     if (t.wall !== undefined) { if (G.wall[t.wall]) hitWall(t.wall, amount * (WARHEADS[wh].bld || 0)); if (!G.wall[t.wall]) t.alive = false; }
     return;
   }   // (a PvP guest's copy only shows the host's battle)
+  if (t.inHouse) {   // a soldier in a house: the house takes the hit, he only a share of it
+    if (t.inHouse.alive) damage(t.inHouse, amount, wh, attacker, from);
+    amount *= GARRISON_COVER;
+    if (!t.alive) return;
+  }
   if (t.kind === 'bld' && t.def.camo && !(attacker && alliedSides(attacker.team, t.team))) t.revealT = CAMO_REVEAL;   // being hit gives it away
   // As in Red Alert: whoever fires at a support plane (Spy Plane, Paratroopers transport, bomber)
   // gives away where it stands, to either side.
@@ -2407,6 +2626,7 @@ function tickWipe(t) {
   t.wipe = keep.length ? keep : null;
 }
 function kill(e, attacker, wh, from) {
+  if (e.inHouse) leaveHouse(e);   // (falls in the doorway)
   e.alive = false;
   const team = teamOf(e);
   if (attacker && hostile(attacker.team, e.team)) {
@@ -2849,6 +3069,12 @@ function updateUnit(u, dt) {
   if (u.cls === 'air') { updateAir(u, dt); return; }
   if (u.order.type === 'repair') { updateRepairOrder(u, dt); followPath(u, dt); checkStuck(u, dt); return; }
   if (u.order.type === 'engineer') { updateEngineer(u); if (u.alive) { followPath(u, dt); checkStuck(u, dt); } return; }
+  if (u.inHouse) {   // garrisoned (village houses): fires from the windows until given another order
+    if (u.order.type === 'garrison' && u.order.target === u.inHouse) { updateGarrison(u, dt); return; }
+    const d = u.dest; leaveHouse(u);
+    if (d) goTo(u, d.x, d.y, true);
+  }
+  if (u.order.type === 'garrison') { updateEnterHouse(u); if (u.alive && !u.inHouse) { followPath(u, dt); checkStuck(u, dt); } return; }
   u.repairing = false;
   if (u.def.harvester) { updateHarvester(u, dt); followPath(u, dt); checkStuck(u, dt); return; }
 
@@ -4344,7 +4570,7 @@ function separate() {
   const buckets = new Map();
   const list = [];
   for (const e of G.entities) {
-    if (!e.alive || e.kind !== 'unit' || (e.cls === 'air' && e.def.fly === 'jet')) continue;
+    if (!e.alive || e.kind !== 'unit' || (e.cls === 'air' && e.def.fly === 'jet') || e.inHouse) continue;
     const air = isAirborne(e);
     if (e.cls === 'air' && !air) continue;
     const key = (air ? 100000 : 0) + Math.floor(e.x / 32) * 200 + Math.floor(e.y / 32);
@@ -4595,6 +4821,7 @@ function updateEffects(dt) {
   }
   structureDamageFx(dt);
   houseFx(dt);
+  villageLife(dt);
   plantSmoke(dt);
   treeFires(dt);
   updateSamPits(dt);

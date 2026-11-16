@@ -4801,6 +4801,7 @@ function houseStructure(type) {
 function houseModel(type) {
   const [, kind, ws, hs] = type.split(':'), W = +ws * CELL, H = +hs * CELL, r = rng(strSeed(type));
   if (kind.startsWith('church')) return churchModel(W, H, kind === 'church1', r);
+  if (kind === 'fountain') return fountainModel(W, H);
   const pick = (a) => a[(r() * a.length) | 0];
   const m = new VModel(-2, -2, W + 2, H + 2, 64);
   // The plot: a little yard to the south, the house behind it.
@@ -4857,6 +4858,7 @@ function houseModel(type) {
   if (r() < 0.7) {
     const cx = alongX ? Math.round(bx0 + 4 + r() * (bx1 - bx0 - 8)) : Math.round(mx + (r() - 0.5) * 6), cy = alongX ? Math.round(my + (r() - 0.5) * 6) : Math.round(by0 + 4 + r() * (by1 - by0 - 8));
     chimneyV(m, cx, cy, top, top + rise(cx, cy) + 6, 2.2);
+    m.chim = { x: cx, y: cy, z: top + rise(cx, cy) + 6 };   // where its smoke comes out (world.js villageLife)
   }
   // The yard: a fence along the front with a gate at the door, and a bush or a vegetable patch.
   if (r() < 0.6) {
@@ -4916,5 +4918,91 @@ function churchModel(W, H, far, r) {
   }
   m.box(tx0 + T / 2 - 0.5, ty0 + T / 2 - 0.5, TH + 40, tx0 + T / 2 + 1, ty0 + T / 2 + 1, TH + 50, '#c9a443', M_METAL);
   m.box(tx0 + T / 2 - 3, ty0 + T / 2 - 0.5, TH + 45, tx0 + T / 2 + 4, ty0 + T / 2 + 1, TH + 46, '#c9a443', M_METAL);
+  return m;
+}
+
+// The fountain in the village square: a round stone basin of water, a pedestal with a wide bowl and a small one above
+// it, and the spout on top (`m.spout`: its height; art.js drawHouse plays the water).
+function fountainModel(W, H) {
+  const m = new VModel(-2, -2, W + 2, H + 2, 36), cx = W / 2, cy = H / 2, R = W / 2 - 6;
+  const stone = '#aaa496', dark = '#8a8478';
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+    if (d < R + 4 && d >= R + 1) m.box(x, y, 0, x + 1, y + 1, 1, hash3(x, y, 2) > 0.5 ? '#948e82' : '#9d978a', M_ROUGH);   // the paving round it
+    else if (d < R + 1 && d >= R - 3) m.box(x, y, 0, x + 1, y + 1, 7, (Math.floor(Math.atan2(y - cy, x - cx) * 8) & 1) ? stone : dark, M_ROUGH);   // the rim
+    else if (d < R - 3) { m.box(x, y, 0, x + 1, y + 1, 3, '#33485a', M_ROUGH); m.box(x, y, 3, x + 1, y + 1, 4, hash3(x, y, 9) > 0.93 ? '#9cc4dc' : '#4e7fa6', M_GLASS); }   // water
+  }
+  m.cylZ(cx, cy, 0, 15, 5, stone, M_ROUGH);
+  m.ellipsoid(cx, cy, 15, 15, 15, 3.5, stone, M_ROUGH);
+  m.cylZ(cx, cy, 16, 18, 12.5, '#4e7fa6', M_GLASS);
+  m.cylZ(cx, cy, 16, 25, 2.5, stone, M_ROUGH);
+  m.ellipsoid(cx, cy, 25, 7, 7, 2, stone, M_ROUGH);
+  m.cylZ(cx, cy, 25.5, 27, 5, '#4e7fa6', M_GLASS);
+  m.cylZ(cx, cy, 26, 31, 1.3, '#8a7a4a', M_METAL);
+  m.spout = 31; m.bowl = 15; m.R = R - 3;
+  return m;
+}
+
+// Village bits and pieces (world.js villageProps): standing (`up`) and knocked over. Centred on their spot.
+const AWNINGS = [['#b8302a', '#e8e2d0'], ['#2f5f9a', '#e8e2d0'], ['#3f7a3a', '#e8e2d0'], ['#c9a227', '#6b3a20']];
+const GOODS = ['#c43c2a', '#e0a030', '#5a8a2a', '#8a4a8a', '#d8c070'];
+function propSprite(p) {
+  const v = p.v | 0, k = 'P' + p.k + v + (p.up ? 'u' : 'd');
+  return sprite(k, () => propModel(p.k, v, p.up), 0, 0);
+}
+function propModel(kind, v, up) {
+  const m = new VModel(-16, -16, 16, 16, 26), wood = '#7a5a3a', woodD = '#5a4028', iron = '#2b2d2f';
+  const alongY = v % 2 === 1;
+  const B = (x0, y0, z0, x1, y1, z1, c, mt) => (alongY ? m.box(y0, x0, z0, y1, x1, z1, c, mt) : m.box(x0, y0, z0, x1, y1, z1, c, mt));
+  if (kind === 'lamp') {
+    if (up) {
+      m.box(-1, -1, 0, 2, 2, 2, iron, M_METAL); m.box(0, 0, 2, 1, 1, 21, iron, M_METAL); m.box(0, 0, 20, 5, 1, 21, iron, M_METAL);
+      m.box(3, -1, 15, 6, 2, 19, '#ffe39a', M_GLOW); m.box(2, -2, 19, 7, 3, 20, iron, M_METAL);
+      m.lamp = { x: 4.5, y: 0.5, z: 17 };
+    } else {
+      m.box(-1, -1, 0, 2, 2, 2, iron, M_METAL); m.box(1, 0, 0, 20, 1, 1, iron, M_METAL); m.box(19, -1, 0, 22, 2, 2, '#6d6a5a', M_METAL);
+      m.set(23, 2, 0, '#cfc9a0', M_GLASS); m.set(21, -3, 0, '#cfc9a0', M_GLASS);
+    }
+  } else if (kind === 'stall') {
+    const [c0, c1] = AWNINGS[v % AWNINGS.length];
+    if (up) {
+      m.box(-11, -4, 4, 11, 5, 6, wood, M_ROUGH);
+      for (const [x, y] of [[-11, -4], [10, -4], [-11, 4], [10, 4]]) m.box(x, y, 0, x + 1, y + 1, 4, woodD, M_ROUGH);
+      for (let x = -10; x < 10; x += 2) for (let y = -3; y < 4; y += 2) m.ellipsoid(x + 0.5, y + 0.5, 7, 1.1, 1.1, 1, GOODS[(Math.abs(x * 7 + y * 3) >> 1) % GOODS.length], M_MATTE);
+      for (const [x, y] of [[-13, -7], [12, -7]]) m.box(x, y, 0, x + 1, y + 1, 16, woodD, M_ROUGH);
+      for (let y = -8; y < 8; y++) { const z = 16 - Math.round((y + 8) * 0.35); m.box(-14, y, z, 14, y + 1, z + 1, ((y + 8) >> 1) % 2 ? c1 : c0, M_MATTE); }
+    } else {
+      for (let y = -6; y < 7; y++) m.box(-13 + (y & 1), y, 0, 12 + (y & 1), y + 1, 1, ((y + 8) >> 1) % 2 ? c1 : c0, M_MATTE);
+      m.box(-9, 6, 0, 3, 8, 2, wood, M_ROUGH); m.box(4, -9, 0, 12, -7, 2, woodD, M_ROUGH);
+      for (let i = 0; i < 14; i++) m.set(((i * 37) % 26) - 13, ((i * 19) % 18) - 9, 1, GOODS[i % GOODS.length], M_MATTE);
+    }
+  } else if (kind === 'bench') {
+    if (up) { B(-8, -1, 3, 8, 2, 4, wood, M_ROUGH); B(-8, -2, 4, 8, -1, 8, wood, M_ROUGH); for (const x of [-7, 6]) B(x, -1, 0, x + 1, 2, 3, iron, M_METAL); }
+    else { B(-8, -1, 0, 1, 2, 1, wood, M_ROUGH); B(2, -3, 0, 9, 0, 1, wood, M_ROUGH); B(-7, 2, 0, -6, 4, 1, iron, M_METAL); }
+  } else if (kind === 'barrels') {
+    for (const [x, y] of [[-3, -2], [3, -1], [0, 4]]) {
+      if (up) { m.cylZ(x, y, 0, 8, 3.2, '#6b4a2a', M_ROUGH); m.cylZ(x, y, 2, 3, 3.4, '#3b3a36', M_METAL); m.cylZ(x, y, 6, 7, 3.4, '#3b3a36', M_METAL); }
+      else m.cylX(x - 4 + y, x + 4 + y, y * 1.6, 3, 3, '#6b4a2a', M_ROUGH);
+    }
+  } else if (kind === 'crates') {
+    if (up) { m.box(-7, -4, 0, 0, 3, 6, '#a07c4a', M_ROUGH); m.box(1, -3, 0, 7, 3, 6, '#94703f', M_ROUGH); m.box(-4, -3, 6, 2, 3, 11, '#a07c4a', M_ROUGH);
+      m.paint(-7, -4, 0, 7, 3, 11, (x, y, z) => (z % 5 === 0 || x === -7 || x === 6 ? '#6e5230' : undefined)); }
+    else for (let i = 0; i < 7; i++) m.box(-8 + i * 2, -6 + ((i * 5) % 11), 0, -8 + i * 2 + 6 - (i % 3), -5 + ((i * 5) % 11), 1, i % 2 ? '#a07c4a' : '#6e5230', M_ROUGH);
+  } else if (kind === 'hay') {
+    if (up) { m.box(-8, -4, 0, 4, 2, 5, '#c9a95a', M_ROUGH); m.box(-2, 1, 0, 9, 6, 5, '#bf9f50', M_ROUGH); m.box(-5, -2, 5, 6, 4, 9, '#d0b264', M_ROUGH);
+      m.paint(-8, -4, 0, 9, 6, 9, (x, y, z) => (hash3(x, y, z) > 0.8 ? '#a8893f' : undefined)); }
+    else m.ellipsoid(0, 0, 0, 11, 8, 2, '#c9a95a', M_ROUGH);
+  } else if (kind === 'cart') {
+    if (up) {
+      B(-10, -5, 4, 10, 5, 5, wood, M_ROUGH); B(-10, -5, 5, 10, -4, 8, woodD, M_ROUGH); B(-10, 4, 5, 10, 5, 8, woodD, M_ROUGH); B(-10, -5, 5, -9, 5, 8, woodD, M_ROUGH);
+      B(10, -3, 4, 18, -2, 5, woodD, M_ROUGH); B(10, 2, 4, 18, 3, 5, woodD, M_ROUGH);
+      for (const y of [-6, 5]) for (let x = -6; x <= 2; x++) for (let z = 0; z <= 8; z++) if (Math.abs(Math.hypot(x + 2, z - 4) - 3.6) < 0.8) B(x, y, z, x + 1, y + 1, z + 1, '#3b2c1e', M_ROUGH);
+      if (v & 2) for (let x = -9; x < 9; x++) for (let y = -4; y < 4; y++) { const hh = Math.round(4 - Math.hypot(x / 2.3, y / 1.2) * 0.9); if (hh > 0) B(x, y, 5, x + 1, y + 1, 5 + hh, '#c9a95a', M_ROUGH); }
+    } else {
+      B(-10, -5, 0, 10, -4, 9, wood, M_ROUGH); B(-10, -4, 0, 10, 3, 1, woodD, M_ROUGH);
+      for (let x = 2; x <= 10; x++) for (let y = 3; y <= 11; y++) if (Math.abs(Math.hypot(x - 6, y - 7) - 3.6) < 0.8) B(x, y, 0, x + 1, y + 1, 1, '#3b2c1e', M_ROUGH);
+      for (let i = 0; i < 10; i++) B(-12 + i * 2, -9 + (i * 7) % 6, 0, -11 + i * 2, -8 + (i * 7) % 6, 1, '#c9a95a', M_ROUGH);
+    }
+  }
   return m;
 }

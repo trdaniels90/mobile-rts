@@ -341,7 +341,7 @@
   }
   const seenAt = (x, y) => G.seen[cellOfPos(x, y)];
   const houseSeen = (h) => G.seen[idx(h.cx, h.cy)] || G.seen[idx(h.cx + h.w - 1, h.cy + h.h - 1)];
-  const visibleToPlayer = (e) => alliedSides(e.team, G.me) || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y));
+  const visibleToPlayer = (e) => !e.inHouse && (alliedSides(e.team, G.me) || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y)));
 
 const gateAnim = new Map();   // cell -> { v: how far a gate's barrier is down (0 to 1), t: when last drawn }
 function draw() {
@@ -417,11 +417,14 @@ function draw() {
     }
     // Village houses on explored ground (world.js genVillage), sorted in with everything else.
     for (const h of G.houses || []) if (h.alive && houseSeen(h) && h.x > x0 - 60 && h.x < x1 + 60 && h.y > y0 - 60 && h.y < y1 + 120) ground.push(h);
+    for (const p of G.props || []) if (inView(p) && G.seen[cellOfPos(p.x, p.y)]) ground.push(p);
+    if (G.birds) drawBirds(v, false, x0, y0, x1, y1);   // pigeons on the ground
     const baseY = (e) => e.kind === 'bld' || e.kind === 'house' ? (e.cy + e.h) * CELL : e.y;
     ground.sort((a, b) => baseY(a) - baseY(b));
     for (const e of ground) {
       if (e.kind === 'bld') drawStructure(v, e, G.t);
       else if (e.kind === 'house') drawHouse(v, e);
+      else if (e.kind === 'prop') drawProp(v, e);
       else drawUnit(v, e, G.t);
     }
     for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') flameJet(v, e);
@@ -460,13 +463,19 @@ function draw() {
     for (const fx of G.effects) if (fx.t >= 0 && fx.type !== 'husk' && fx.type !== 'corpse' && fx.x > x0 && fx.x < x1 && fx.y > y0 && fx.y < y1) drawEffect(v, fx);
     air.sort((a, b) => (a.alt || 0) - (b.alt || 0) || a.y - b.y);
     for (const e of air) drawUnit(v, e, G.t);
+    if (G.birds) drawBirds(v, true, x0, y0, x1, y1);   // pigeons in the air and on the church roof
 
     // Bridge spans: health while under fire or while a ground target is being picked.
     for (const s of G.spans || []) {
       if (!G.seen[idx(Math.floor(s.x / CELL), Math.floor(s.y / CELL))]) continue;
       if (s.alive && (G.t - s.hitT < 3 || aimSpan)) drawHealth(v, s, s.x, s.y - 2, 40);
     }
-    for (const h of G.houses || []) if (h.alive && (G.t - h.hitT < 3 || aimSpan) && houseSeen(h) && inView(h)) drawHealth(v, h, h.x, h.cy * CELL - 6, Math.min(40, h.w * 14));
+    for (const h of G.houses || []) {
+      if (!h.alive || !houseSeen(h) || !inView(h)) continue;
+      const held = h.n && G.selection.some((u) => u.inHouse === h);
+      if (held) brackets(v, h.cx * CELL - 1, h.cy * CELL - 1, (h.cx + h.w) * CELL, (h.cy + h.h) * CELL);
+      if (held || G.t - h.hitT < 3 || aimSpan) drawHealth(v, h, h.x, h.cy * CELL - 6, Math.min(40, h.w * 14));
+    }
     // Selection brackets and health bars.
     for (const e of G.entities) {
       if (!inView(e) || !visibleToPlayer(e)) continue;
@@ -599,8 +608,11 @@ function draw() {
     rctx.drawImage(miniTerrain, 0, 0, Wr, Hr);
     for (let i = 0; i < NCELLS; i++) if (G.ore[i] && G.seen[i]) { rctx.fillStyle = G.gem[i] ? '#a58cff' : '#c9a227'; rctx.fillRect(cellX(i) * k, cellY(i) * k, Math.ceil(k), Math.ceil(k)); }
     if (G.wallN) for (let i = 0; i < NCELLS; i++) if (G.wall[i] && G.seen[i]) { rctx.fillStyle = WALL_BY_ID[G.wall[i]].gate ? '#d8b024' : '#9a9c98'; rctx.fillRect(cellX(i) * k, cellY(i) * k, Math.ceil(k), Math.ceil(k)); }
-    rctx.fillStyle = '#b9ab8e';   // village houses
-    for (const h of G.houses || []) if (h.alive && houseSeen(h)) rctx.fillRect(h.cx * k, h.cy * k, h.w * k, h.h * k);
+    for (const h of G.houses || []) {   // village houses: in the colours of the side holding one
+      if (!h.alive || !houseSeen(h)) continue;
+      rctx.fillStyle = h.n && G.teams[h.team] ? G.teams[h.team].pal.main : '#b9ab8e';
+      rctx.fillRect(h.cx * k, h.cy * k, h.w * k, h.h * k);
+    }
     for (const e of G.entities) {
       if (!visibleToPlayer(e)) continue;
       rctx.fillStyle = G.teams[e.team].pal[e.kind === 'bld' ? 'main' : 'light'];
@@ -669,6 +681,19 @@ function draw() {
     const slop = (isTouch ? 16 : 6) / cam.z;
     const e = pick(w.x, w.y, slop);
     const mine = ownUnits();
+    // A village house under the tap: infantry selected go in (if it is free or yours); your own garrison is selected
+    // with nothing else to do; an enemy's is attacked.
+    const hh = !e && (houseAt(w.x, w.y) || houseAt(w.x, w.y + CELL * 0.8));
+    if (hh && houseSeen(hh)) {
+      const inf = mine.filter((u) => canGarrison(u) && u.inHouse !== hh);
+      if (inf.length && (!hh.n || hh.team === G.me)) {
+        if (houseOpen(hh, G.me)) { commandGarrison(inf, hh); marker(hh.x, hh.y, '#3ed04a'); Sound.ack('inf'); } else evaCalm('Building full', 3);
+        return;
+      }
+      if (hh.n && hh.team === G.me) { select(garrisonOf(hh)); Sound.play('click'); return; }
+      const able = mine.filter((u) => !u.def.harvester && canTarget(u, hh));
+      if (hh.n && hostile(hh.team, G.me) && able.length) { commandAttack(able, hh); marker(hh.x, hh.y, '#ff4a3a'); Sound.ack(able[0].cls === 'inf' ? 'attack' : able[0].cls); return; }
+    }
     // A wall or gate under the tap (and nothing else): an enemy's is attacked by the selected fighters; your own,
     // with nothing selected, is taken down on a second tap for half its price.
     const wc = cellOfPos(Math.max(0, Math.min(WORLD - 1, w.x)), Math.max(0, Math.min(WORLD - 1, w.y)));
@@ -726,7 +751,7 @@ function draw() {
 
   function boxSelect(sx0, sy0, sx1, sy1, add) {
     const a = s2w(Math.min(sx0, sx1), Math.min(sy0, sy1)), b = s2w(Math.max(sx0, sx1), Math.max(sy0, sy1));
-    const inBox = unitsOf(G.me).filter((u) => !u.def.scripted && u.x > a.x && u.x < b.x && u.y - (u.alt || 0) > a.y && u.y - (u.alt || 0) < b.y);
+    const inBox = unitsOf(G.me).filter((u) => !u.def.scripted && !u.inHouse && u.x > a.x && u.x < b.x && u.y - (u.alt || 0) > a.y && u.y - (u.alt || 0) < b.y);
     const fighters = inBox.filter((u) => !u.def.harvester);
     const chosen = fighters.length ? fighters : inBox;
     if (add) select(Array.from(new Set(ownUnits().concat(chosen))));
@@ -1320,6 +1345,7 @@ function draw() {
     if (fighters.length) btns.push(['hunt', 'ATTACK'], ['guard', 'GUARD']);
     if (fighters.length) btns.push(['span', 'ATTACK GROUND']);
     if (own.some((e) => e.kind === 'unit')) btns.push(['stop', 'STOP']);
+    if (own.some((e) => e.inHouse)) btns.push(['exit', 'EXIT']);
     if (own.some((e) => canService(e) && e.hp < e.maxHp) && hasBuilt(G.teams[G.me], 'depot')) btns.push(['svc', 'REPAIR']);
     if (bld) {
       if (canRally(bld)) {
@@ -1351,6 +1377,7 @@ function draw() {
       if (!enemyBaseKnown()) evaCalm('Enemy base not located', 4);   // pick a target, or scout first
       else { commandHunt(own.filter((u) => u.kind === 'unit' && (u.def.weapon || u.cls === 'air'))); eva('Attacking enemy base'); Sound.ack('attack'); }
     }
+    else if (act === 'exit') { commandExit(own.filter((u) => u.inHouse)); Sound.ack('inf'); }
     else if (act === 'span') { aimSpan = own.filter((u) => u.kind === 'unit' && !u.def.harvester && (u.def.weapon || u.cls === 'air')); evaCalm('Tap the ground to attack', 5); }
     else if (act === 'guard') beginGuard(own.filter((u) => u.kind === 'unit' && !u.def.harvester));
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));

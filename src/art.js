@@ -1613,8 +1613,85 @@ function drawStructure(g, b, t) {
 // structure; a fallen house is only rubble in the ground.
 function drawHouse(g, h) {
   drawVar = 0;
-  const type = houseStructure(h.type), stage = dmgStage(h);
-  blit(g, stage ? damagedSprite(type, 'allies', stage) : structureSprite(type, 'allies'), h.cx * CELL, h.cy * CELL);
+  const type = houseStructure(h.type), stage = dmgStage(h), s = structureSprite(type, 'allies');
+  blit(g, stage ? damagedSprite(type, 'allies', stage) : s, h.cx * CELL, h.cy * CELL);
+  if (type.startsWith('hv:fountain') && stage < 2) fountainWater(g, h);
+  // Held by a side: its flag on the roof, and for your own side's houses (and allies') a pip per soldier inside.
+  if (h.n && G.teams[h.team]) {
+    const t = G.teams[h.team], keep = drawVar; drawVar = t.variant | 0;
+    const col = palFor(t.faction).main; drawVar = keep;
+    const x = Math.round(h.x), y = Math.round(h.cy * CELL + (s.oy || -20) + 6), wave = Math.sin(G.t * 5 + h.id) > 0 ? 1 : 0;
+    g.fillStyle = '#1c1c1a'; g.fillRect(x, y - 16, 2, 18);
+    g.fillStyle = '#000'; g.fillRect(x + 2, y - 17, 12, 8);
+    g.fillStyle = col; g.fillRect(x + 2, y - 16, 11, 6); g.fillRect(x + 3 + wave, y - 10, 10, 1);
+    g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(x + 2, y - 16, 11, 1);
+    if (alliedSides(h.team, G.me) || G.watching) {
+      for (let i = 0; i < h.n; i++) { g.fillStyle = '#000'; g.fillRect(x - 1 + i * 3 - h.n * 1.5, y + 4, 3, 3); g.fillStyle = '#3ed04a'; g.fillRect(x + i * 3 - h.n * 1.5, y + 5, 1, 1); }
+    }
+  }
+}
+// The fountain's water: jets from the spout falling into the upper bowl, from the bowl's rim into the basin, and rings
+// spreading on the water.
+function fountainWater(g, h) {
+  const m = modelCache.get('S' + h.type + 'allies');
+  if (!m) return;
+  const cx = h.x, cy = h.y, t = G.t;
+  g.fillStyle = 'rgba(214,234,250,0.85)';
+  for (let i = 0; i < 10; i++) {   // the top jet
+    const k = (t * 1.3 + i / 10) % 1, a = i * 0.63;
+    const r = 2 + k * 6, z = m.spout + 6 * k - 10 * k * k;
+    g.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * 0.8 - z * VK), 1, 1);
+  }
+  g.fillStyle = 'rgba(190,220,245,0.7)';
+  for (let i = 0; i < 28; i++) {   // over the wide bowl's rim
+    const k = (t * 1.1 + i * 0.37) % 1, a = i * (Math.PI * 2 / 28);
+    const r = 15 + k * 6, z = m.bowl + 1 - 13 * k * k;
+    if (z < 3) continue;
+    g.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * 0.8 - z * VK), 1, 2);
+  }
+  g.strokeStyle = 'rgba(220,238,255,0.35)'; g.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {   // rings on the basin
+    const k = (t * 0.45 + i / 3) % 1, r = 22 + k * (m.R - 24);
+    g.globalAlpha = 1 - k; g.beginPath(); g.ellipse(cx, cy - 4 * VK, r, r * 0.8, 0, 0, Math.PI * 2); g.stroke();
+  }
+  g.globalAlpha = 1;
+}
+// Village props (world.js villageProps): a lamp's light is drawn over it.
+let lampGlowPic = null;
+function drawProp(g, p) {
+  const s = propSprite(p);
+  blit(g, s, p.x, p.y);
+  if (p.k === 'lamp' && p.up) {
+    if (!lampGlowPic) {
+      lampGlowPic = mkCanvas(40, 40);
+      const c = lampGlowPic.getContext('2d'), gr = c.createRadialGradient(20, 20, 0, 20, 20, 20);
+      gr.addColorStop(0, 'rgba(255,220,140,0.55)'); gr.addColorStop(0.35, 'rgba(255,200,110,0.18)'); gr.addColorStop(1, 'rgba(255,190,100,0)');
+      c.fillStyle = gr; c.fillRect(0, 0, 40, 40);
+    }
+    const flick = 0.75 + 0.25 * Math.sin(G.t * 9 + p.x) * Math.sin(G.t * 3.7 + p.y);
+    g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = flick;
+    g.drawImage(lampGlowPic, Math.round(p.x + 4.5 - 12), Math.round(p.y - 17 * VK - 12), 24, 24);
+    g.globalAlpha = 0.35 * flick; g.drawImage(lampGlowPic, Math.round(p.x - 14), Math.round(p.y - 9), 36, 20);   // the pool of light on the ground
+    g.restore();
+  }
+}
+// Pigeons (world.js villageLife): `air` false draws those sitting on the ground, true those flying or on a roof.
+function drawBirds(g, air, x0, y0, x1, y1) {
+  for (const f of G.birds || []) for (const b of f.birds) {
+    if ((b.alt > 0) !== air || b.x < x0 || b.y < y0 || b.x > x1 || b.y > y1 || !G.seen[cellOfPos(Math.max(0, Math.min(WORLD - 1, b.x)), Math.max(0, Math.min(WORLD - 1, b.y)))]) continue;
+    const x = Math.round(b.x), y = Math.round(b.y - b.alt * VK);
+    if (b.alt > 0 && f.st !== 0) {
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(Math.round(b.x), Math.round(b.y), 2, 1);   // its shadow on the ground
+      const up = Math.sin(b.ph) > 0;
+      g.fillStyle = '#d6d6d2'; g.fillRect(x - 2, y - (up ? 1 : 0), 2, 1); g.fillRect(x + 1, y - (up ? 1 : 0), 2, 1);
+      g.fillStyle = '#7d8088'; g.fillRect(x, y, 1, 1);
+    } else {
+      const peck = Math.sin(b.ph * 3) > 0.6 ? 1 : 0;
+      g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(x - 1, y + 1, 3, 1);
+      g.fillStyle = '#80838c'; g.fillRect(x - 1, y - 1, 3, 2);
+      g.fillStyle = '#5a5e66'; g.fillRect(x + (b.face > 0 ? 1 : -1), y - 2 + peck, 1, 1);
+    }
+  }
 }
 
 // A gun's recoil, 0 to 1 (shotAt, set in world.js fireWeapon): it kicks back at once, holds a

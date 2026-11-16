@@ -415,7 +415,25 @@ share globals. Read this file first; the commit history explains every change in
   The server must run the same version.
 - `node tools/sim/village.js <repo>`: same seed same village, blocking, reachability, no fire unasked, blast damage, ordered
   attack and collapse, the online copy and snapshot, a 14-minute computer 2 v 2. Save and continue checked in a browser.
-- Not done: infantry garrisoning houses (talked through with the owner, not agreed yet).
+- **Garrisons** (owner OK'd, both modes): `commandGarrison(units, house)` / `commandExit(units)` (netcore `COMMANDS`). Armed
+  infantry (not Engineers) walk to `besideSpot` and `enterHouse` (`updateEnterHouse`): `u.inHouse` = the house, `h.team` /
+  `h.n` (one side at a time, up to `h.cap`: 3-6 by size, church 10, fountain 0). Inside, the soldier stays an entity at the
+  house's middle (enemies can aim at him; grid, fog and saves as usual) but is hidden (ui `visibleToPlayer`, box select,
+  radar skip `inHouse`), skipped by `separate`, and runs `updateGarrison` instead of moving: fires with `GARRISON_REACH`
+  (1 cell + half the house) more range. `damage` on him hurts the house in full and him by `GARRISON_COVER` (0.3). Any
+  other order: `updateUnit` calls `leaveHouse` (out by `houseDoor`, south side first) and re-paths. `kill` leaves first (the
+  body falls in the doorway). `collapseHouse` throws the garrison out, `GARRISON_FALL` (35%) of their health lost.
+  UI: infantry selected + tap a house = go in; tap your held house = select its garrison; EXIT on the bar; enemy-held
+  house tapped with fighters = attack it. A flag in the side's colour on the roof, a pip per soldier for your alliance,
+  side colour on the radar. Snapshots: `hv` entries are `[health, side, count]`.
+- **Computer** (`aiGarrison` in ai.js, `AI_GARRISON` Normal 2 / Hard 3 houses, from minute 4, every 15 s): idle staged
+  infantry, 3 a house, in houses on its own half nearest the enemy. Its waves never take them (not staged).
+- **Village life** (looks only, no network; skipped on the server, `G.me < 0`): a fountain (`fountainModel`, 4x4 house kind
+  `fountain` in the middle of `square`, destructible, water drawn by `fountainWater`); `G.props` (`villageProps`): street
+  lamps from MAPS `lamps` (glow, `lampGlowPic`), market stalls and benches on the square, barrels, crates, hay, carts;
+  knocked over (`knockProp`) by blasts and passing vehicles (`villageLife`); chimney smoke from about 2 houses in 5
+  (`m.chim` of the house model); pigeons (`G.birds`, `birdFlocks`, `flyBirds`, art.js `drawBirds`) round the fountain and on
+  the church roof that take off at units, shots and blasts and come back after 20-45 s.
 
 ## Map "Twin Lakes" (contributor's map by JGFortanelli, owner OK'd, not released)
 

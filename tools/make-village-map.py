@@ -124,6 +124,21 @@ def main():
                 X0, X1 = (m(x1), m(x0)) if fx else (x0, x1)
                 Y0, Y1 = (m(y1), m(y0)) if fy else (y0, y1)
                 lots.append([X0, Y0, X1, Y1])
+    # Street lamps along the lanes (cells, at a lane's edge, alternating sides), none in crossings or on the square;
+    # four round the square's corners.
+    lanes = [(round(RING[0]), round(RING[0]) + 1), (round(SIDE[0]), round(SIDE[0]) + 1), (math.ceil(MAIN[0]), N - 1 - math.ceil(MAIN[0]))]
+    lanes += [(N - 1 - b, N - 1 - a) for a, b in lanes[:2]]
+    sq0, sq1 = s0, N - 1 - s0
+    lamps = []
+    for a, b in lanes:
+        main = b - a > 2
+        for i, t in enumerate(range(round(V0) + 3, N - round(V0) - 3, 6)):
+            if any(c0 - 1 <= t <= c1 + 1 for c0, c1 in lanes) or (main and sq0 - 1 <= t <= sq1 + 1): continue
+            e = a + 0.15 if i % 2 else b + 0.85
+            lamps += [[e, t + 0.5], [t + 0.5, e]]
+    lamps += [[sq0 + 0.4, sq0 + 0.4], [sq1 + 0.6, sq0 + 0.4], [sq0 + 0.4, sq1 + 0.6], [sq1 + 0.6, sq1 + 0.6]]
+    print('    square: ' + str([sq0, sq0, sq1, sq1]).replace(' ', '') + ',')
+    print('    lamps: ' + str([[round(x, 2), round(y, 2)] for x, y in lamps]).replace(' ', '') + ',')
     print('    spawns: ' + str(spawns).replace(' ', '') + ',')
     print('    gems: ' + str(gems).replace(' ', '') + ',')
     print('    lots: ' + str(lots).replace(' ', '') + ',')

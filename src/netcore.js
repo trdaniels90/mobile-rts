@@ -136,9 +136,9 @@ const NetCore = (() => {
       const sp = JSON.stringify(G.spans.map((x) => [Math.max(0, Math.ceil(x.hp)), x.alive ? 1 : 0]));
       if (sp !== P.spSent) { P.spSent = sp; s.sp = JSON.parse(sp); }
     }
-    // Village houses: the health of every one whenever one changes (0: down).
+    // Village houses: health (0: down), the side holding it and how many are in it, all of them whenever one changes.
     if (G.houses && G.houses.length) {
-      const hv = G.houses.map((x) => (x.alive ? Math.max(1, Math.ceil(x.hp)) : 0)), key = hv.join(',');
+      const hv = G.houses.map((x) => [x.alive ? Math.max(1, Math.ceil(x.hp)) : 0, x.team, x.n || 0]), key = hv.join(';');
       if (key !== P.hvSent) { P.hvSent = key; s.hv = hv; }
     }
     // The debrief's log as it grows (a sample every 15 s), so a phone that has to end the battle on its own
@@ -192,7 +192,7 @@ const NetCore = (() => {
   // Orders from a remote player, for their own side only.
   const COMMANDS = ['commandMove', 'commandAttack', 'commandHunt', 'commandGuard', 'commandStop', 'startProduction', 'cancelProduction',
     'placeStructure', 'launchPower', 'deployFob', 'setAuto', 'setAssist', 'recallAlly', 'setRepair', 'sellStructure', 'commandRepair', 'sendCredits',
-    'setPrimary', 'setRally', 'commandAttackGround', 'commandEngineer', 'placeWalls', 'sellWall'];
+    'setPrimary', 'setRally', 'commandAttackGround', 'commandEngineer', 'placeWalls', 'sellWall', 'commandGarrison', 'commandExit'];
   const ORIGC = {};
   for (const f of COMMANDS) ORIGC[f] = root[f];
   function applyCommand(side, m) {

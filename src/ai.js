@@ -290,6 +290,31 @@ function aiBridges(team) {
   if (down.some((s) => !taken.has(s)) && !friends.some((u) => u.team === team.id) && !team.queues.infantry.some((i) => i.type === 'engineer') &&
       team.credits >= UNIT_DEFS.engineer.cost + 300) startProduction(team, 'engineer');
 }
+// Village houses (Normal and Hard, from minute 4, every 15 s): the computer holds AI_GARRISON houses with up to three
+// idle soldiers each, picked from its own half of the village, nearest the middle (the front line). Easy ignores them.
+// Its waves never take these soldiers (they are not staged); its other orders bring them out like anyone's.
+const AI_GARRISON = { normal: 2, hard: 3 };
+function aiGarrison(team) {
+  const want = AI_GARRISON[G.diffKey];
+  if (!want || !G.houses || !G.houses.length || G.t < 240 || G.t < (team.garT || 0)) return;
+  team.garT = G.t + 15;
+  const mine = unitsOf(team.id), going = new Set(mine.filter((u) => u.order.type === 'garrison').map((u) => u.order.target));
+  let held = G.houses.filter((h) => h.alive && h.n && h.team === team.id).length + going.size;
+  if (held >= want) return;
+  const foes = G.teams.filter((t) => hostile(t.id, team.id) && !t.out).map((t) => t.start);
+  if (!foes.length) return;
+  const dFoe = (h) => Math.min(...foes.map((f) => Math.hypot(h.x / CELL - f.cx, h.y / CELL - f.cy)));
+  const dOwn = (h) => Math.hypot(h.x / CELL - team.start.cx, h.y / CELL - team.start.cy);
+  const spots = G.houses.filter((h) => h.cap > 0 && !h.n && houseOpen(h, team.id) && !going.has(h) && dOwn(h) < dFoe(h)).sort((a, b) => (dOwn(b) - dFoe(b)) - (dOwn(a) - dFoe(a)));
+  const idle = mine.filter((u) => canGarrison(u) && !u.inHouse && u.order.type === 'guard' && u.staged && !u.defending && !u.assisting && !u.homeGuard);
+  for (const h of spots) {
+    if (held >= want || idle.length < 2) break;
+    idle.sort((a, b) => Math.hypot(a.x - h.x, a.y - h.y) - Math.hypot(b.x - h.x, b.y - h.y));
+    const squad = idle.splice(0, Math.min(3, h.cap));
+    commandGarrison(squad, h);
+    if (squad.some((u) => u.order.type === 'garrison')) held++;
+  }
+}
 // Walls (Normal and Hard): a short line of wall in front of each ground defence, across the way the enemy comes
 // from. Five pieces, never a ring, so nothing of its own is shut in. Sandbags (Allies) or Barbed Wire (Soviets);
 // on Hard, Concrete once a War Factory stands. One defence at a time, while it has money to spare, up to a cap.
@@ -317,6 +342,7 @@ function aiWalls(team) {
 function aiThink(team) {
   aiBridges(team);
   aiWalls(team);
+  aiGarrison(team);
   const c = aiCount(team);
   aiPickFoe(team);
   aiCounter(team);
