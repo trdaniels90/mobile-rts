@@ -538,7 +538,7 @@ function ensureWalls() {
   if (G.wall && G.wall.length === NCELLS) return;
   G.wall = new Uint8Array(NCELLS); G.wallTeam = new Uint8Array(NCELLS); G.wallHp = new Uint16Array(NCELLS); G.wallN = 0;
 }
-const wallAvailable = (team, kind) => { const d = WALLS[kind]; return !!d && d.factions.includes(team.faction) && hasBuilt(team, 'cy') && hasBuilt(team, d.req); };
+const wallAvailable = (team, kind) => { const d = WALLS[kind]; return !!d && !d.part && d.factions.includes(team.faction) && hasBuilt(team, 'cy') && hasBuilt(team, d.req); };
 // Whether a piece may stand in this cell: open ground with nothing on it, near one of the side's own buildings.
 function wallOk(team, c, blds) {
   const x = cellX(c), y = cellY(c);
@@ -550,9 +550,23 @@ function wallOk(team, c, blds) {
   }
   return false;
 }
-// The cells of a straight line between two cells (at most WALL_LINE_MAX); a gate is one piece.
+// Every cell of the gate a gate cell belongs to: its middle and the ends that stand (a save from before gates were
+// three cells wide has middles alone).
+function gateCells(c) {
+  const id = G.wall[c], t = G.wallTeam[c], is = (k, want) => k >= 0 && k < NCELLS && G.wall[k] === want && G.wallTeam[k] === t;
+  if (id === 6) c = is(c - 1, 4) && cellX(c) > 0 ? c - 1 : is(c + 1, 4) && cellX(c) < MAP - 1 ? c + 1 : is(c - MAP, 5) ? c - MAP : is(c + MAP, 5) ? c + MAP : c;
+  const mid = G.wall[c];
+  if (mid !== 4 && mid !== 5) return [c];
+  const st = mid === 4 ? 1 : MAP;
+  return [c - st, c, c + st].filter((k) => k === c || is(k, 6));
+}
+// The cells of a straight line between two cells (at most WALL_LINE_MAX). A gate is three cells with the first cell
+// in the middle, lying north-south when the second cell is further off up or down than across, else west-east.
 function wallLine(kind, x0, y0, x1, y1) {
-  if (WALLS[kind] && WALLS[kind].gate) { x1 = x0; y1 = y0; }
+  if (WALLS[kind] && WALLS[kind].gate) {
+    const v = Math.abs(y1 - y0) > Math.abs(x1 - x0), dx = v ? 0 : 1, dy = v ? 1 : 0;
+    return inMap(x0 - dx, y0 - dy) && inMap(x0 + dx, y0 + dy) ? [idx(x0 - dx, y0 - dy), idx(x0, y0), idx(x0 + dx, y0 + dy)] : [];
+  }
   // (a slanted line steps along one axis at a time, so it has no corner gaps to slip through)
   const out = [], n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
   const add = (x, y) => { if (out.length < WALL_LINE_MAX && inMap(x, y)) out.push(idx(x, y)); };
@@ -579,7 +593,13 @@ function placeWalls(team, kind, x0, y0, x1, y1) {
   if (!team || team.out || !wallAvailable(team, kind) || ![x0, y0, x1, y1].every(Number.isInteger)) return 0;
   const d = WALLS[kind], blds = buildingsOf(team.id);
   let n = 0;
-  for (const c of wallLine(kind, x0, y0, x1, y1)) {
+  if (d.gate) {                                                            // all three cells or nothing, one price
+    const cs = wallLine(kind, x0, y0, x1, y1);
+    if (cs.length === 3 && team.credits >= d.cost && cs.every((c) => wallOk(team, c, blds))) {
+      team.credits -= d.cost; n = 1;
+      setWall(cs[0], 6, team.id, d.hp); setWall(cs[1], cs[1] - cs[0] === 1 ? 4 : 5, team.id, d.hp); setWall(cs[2], 6, team.id, d.hp);
+    }
+  } else for (const c of wallLine(kind, x0, y0, x1, y1)) {
     if (team.credits < d.cost) break;
     if (!wallOk(team, c, blds)) continue;
     team.credits -= d.cost; setWall(c, d.id, team.id, d.hp); n++;
@@ -597,15 +617,21 @@ function removeWall(c) {
 }
 function hitWall(c, dmg) {
   if (!G.wall[c] || !(dmg > 0)) return;
+  if (WALL_BY_ID[G.wall[c]].gate) {                                         // a gate's cells share one health and fall together
+    const cs = gateCells(c), hp = G.wallHp[c] > dmg ? Math.max(1, Math.round(G.wallHp[c] - dmg)) : 0;
+    for (const k of cs) { if (hp) G.wallHp[k] = hp; else removeWall(k); }
+    G.wallRev++;
+    return;
+  }
   if (G.wallHp[c] > dmg) { G.wallHp[c] = Math.max(1, Math.round(G.wallHp[c] - dmg)); G.wallRev++; }
   else removeWall(c);
 }
-// Taking down a piece of your own: half its price back.
+// Taking down a piece of your own (a gate: the whole of it): half its price back.
 function sellWall(team, x, y) {
   if (!team || !Number.isInteger(x) || !Number.isInteger(y) || !inMap(x, y)) return false;
   const c = idx(x, y), d = WALL_BY_ID[G.wall[c]];
   if (!d || G.wallTeam[c] !== team.id) return false;
-  setWall(c, 0, 0, 0);
+  for (const k of d.gate ? gateCells(c) : [c]) setWall(k, 0, 0, 0);
   team.credits += Math.floor(d.cost / 2);
   const p = cellCenter(c); hooks.sfx('place', p.x, p.y);
   return true;

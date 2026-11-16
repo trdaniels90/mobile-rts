@@ -342,7 +342,8 @@
   const seenAt = (x, y) => G.seen[cellOfPos(x, y)];
   const visibleToPlayer = (e) => alliedSides(e.team, G.me) || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y));
 
-  function draw() {
+const gateAnim = new Map();   // cell -> { v: how far a gate's barrier is down (0 to 1), t: when last drawn }
+function draw() {
     spriteSpend = 0;   // (models.js: sprites made this frame)
     const z = cam.z;
     const ox = Math.floor(cam.x), oy = Math.floor(cam.y);
@@ -384,9 +385,20 @@
         if (!id || !G.seen[c]) continue;
         const wt = G.wallTeam[c], d = WALL_BY_ID[id], tm = G.teams[wt];
         const mask = (cy > 0 && G.wall[c - MAP] ? 1 : 0) | (cx < MAP - 1 && G.wall[c + 1] ? 2 : 0) | (cy < MAP - 1 && G.wall[c + MAP] ? 4 : 0) | (cx > 0 && G.wall[c - 1] ? 8 : 0);
-        let open = false;
-        if (d.gate) { const gx = (cx + 0.5) * CELL, gy = (cy + 0.5) * CELL; open = G.entities.some((e) => e.alive && e.kind === 'unit' && !isAirborne(e) && Math.abs(e.x - gx) < 34 && Math.abs(e.y - gy) < 34 && alliedSides(e.team, wt)); }
-        v.drawImage(wallPic(id, mask, tm ? tm.pal.main : '#888', G.wallHp[c] < d.hp / 2, open), cx * CELL, cy * CELL - WALL_UP);
+        let open = 0, gm = 0;
+        if (d.gate) {                                                       // its barrier sinks and rises over about a third of a second (looks only)
+          // The three cells of a gate are drawn as one and open as one, when one of its alliance is beside any of it.
+          const cs = gateCells(c), a = cs[0], b = cs[cs.length - 1], st = b - a >= MAP ? MAP : 1;
+          gm = (cs.includes(c - st) ? (st === 1 ? 8 : 1) : 0) | (cs.includes(c + st) ? (st === 1 ? 2 : 4) : 0);
+          const bx0 = cellX(a) * CELL - 22, by0 = cellY(a) * CELL - 22, bx1 = (cellX(b) + 1) * CELL + 22, by1 = (cellY(b) + 1) * CELL + 22, now = performance.now();
+          const want = G.entities.some((e) => e.alive && e.kind === 'unit' && !isAirborne(e) && e.x > bx0 && e.x < bx1 && e.y > by0 && e.y < by1 && alliedSides(e.team, wt)) ? 1 : 0;
+          let s = gateAnim.get(c);
+          if (!s || now - s.t > 1000) gateAnim.set(c, s = { v: want, t: now });
+          const step = (now - s.t) / 350; s.t = now;
+          s.v = want > s.v ? Math.min(1, s.v + step) : Math.max(0, s.v - step);
+          open = Math.round(s.v * GATE_STEPS);
+        }
+        v.drawImage(wallPic(id, mask, tm ? tm.pal.main : '#888', G.wallHp[c] < d.hp / 2, open, gm), cx * CELL, cy * CELL - WALL_UP);
       }
     }
     // Destroyed bridge spans: water and broken ends over the painted bridge (art.js spanRuin).
@@ -766,11 +778,11 @@
   function wallBar() {
     const p = G.place, d = WALLS[p.wall], team = G.teams[G.me];
     let n = 0;
-    if (p.ax !== undefined) { const blds = buildingsOf(team.id); n = wallLine(p.wall, p.ax, p.ay, p.bx, p.by).filter((c) => wallOk(team, c, blds)).length; }
+    if (p.ax !== undefined) { const blds = buildingsOf(team.id); n = wallLine(p.wall, p.ax, p.ay, p.bx, p.by).filter((c) => wallOk(team, c, blds)).length; if (d.gate) n = n === 3 ? 1 : 0; }
     const can = Math.min(n, Math.floor(team.credits / d.cost));
     p.ok = can > 0;
-    ui.placeText.textContent = p.ax === undefined ? (d.gate ? `${isTouch ? 'Tap' : 'Click'} where the Gate goes, in a gap in your wall` : `${isTouch ? 'Tap' : 'Click'} where the ${d.name} start, then where they end`)
-      : !n ? `${d.name} cannot stand there` : d.gate ? `Gate: $${d.cost}` : `${d.name}: ${can} ${can === 1 ? 'piece' : 'pieces'}, $${can * d.cost}${can < n ? ' (all you can afford)' : p.ax === p.bx && p.ay === p.by ? '. Tap where the line ends' : ''}`;
+    ui.placeText.textContent = p.ax === undefined ? (d.gate ? `${isTouch ? 'Tap' : 'Click'} where the middle of the Gate goes: it is three cells wide` : `${isTouch ? 'Tap' : 'Click'} where the ${d.name} start, then where they end`)
+      : !n ? `${d.name} cannot stand there` : d.gate ? `Gate: $${d.cost}. ${isTouch ? 'Tap' : 'Click'} it again to turn it` : `${d.name}: ${can} ${can === 1 ? 'piece' : 'pieces'}, $${can * d.cost}${can < n ? ' (all you can afford)' : p.ax === p.bx && p.ay === p.by ? '. Tap where the line ends' : ''}`;
     refreshPlaceBtn();
   }
   function endPlace() { if (G) G.place = null; ui.placebar.hidden = true; ui.placeOk.textContent = 'PLACE'; clampCam(); }
@@ -820,7 +832,18 @@
     const p = G.place;
     if (p.wall) {
       const cx = Math.floor(w.x / CELL), cy = Math.floor(w.y / CELL);
-      if (p.ax === undefined || WALLS[p.wall].gate) { p.ax = p.bx = cx; p.ay = p.by = cy; } else { p.bx = cx; p.by = cy; }
+      if (WALLS[p.wall].gate) {
+        // A gate: the tap is its middle. It lies across the gap in a wall when there is one (or the way it fits);
+        // a second tap on the same cell turns it.
+        if (p.ax === cx && p.ay === cy) p.vert = !p.vert;
+        else {
+          const team = G.teams[G.me], blds = buildingsOf(team.id), W = (x, y) => inMap(x, y) && G.wall[idx(x, y)] > 0, fits = (dx, dy) => [-1, 0, 1].every((k) => inMap(cx + k * dx, cy + k * dy) && wallOk(team, idx(cx + k * dx, cy + k * dy), blds));
+          const h = W(cx - 2, cy) || W(cx + 2, cy), v = W(cx, cy - 2) || W(cx, cy + 2);
+          p.vert = v && !h ? true : h ? false : !fits(1, 0) && fits(0, 1);
+          p.ax = cx; p.ay = cy;
+        }
+        p.bx = p.ax + (p.vert ? 0 : 1); p.by = p.ay + (p.vert ? 1 : 0);
+      } else if (p.ax === undefined) { p.ax = p.bx = cx; p.ay = p.by = cy; } else { p.bx = cx; p.by = cy; }
       wallBar();
       return;
     }
