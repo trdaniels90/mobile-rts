@@ -1,4 +1,4 @@
-# Plan: Soviet radar dish turns, new construction animation
+# Plan: Soviet radar dish turns, new construction animation for every structure (iso camera)
 
 For a Sonnet session to code. Read `CLAUDE.md` first (branch rule: work on `claude/cross-platform-game-k2d9lb`,
 do not release or deploy; show the owner an MP4 and wait for their OK).
@@ -56,47 +56,74 @@ Defaults below are the planner's picks; the owner can change them (see "Owner de
 
 ---
 
-## Part 2: new construction (and selling) animation
+## Part 2: new construction (and selling) animation for every structure, made for the iso camera
 
-### Where things are now
-- `updateBuilding` (world.js about line 4293): `b.buildT` goes 0 to 1 over 1.4 s after placing, with clank sounds.
-  Selling sets `sellT = 1.2` and counts down.
-- `drawStructure` (art.js about line 1746): while `k < 1` it darkens the footprint and draws the bottom `k` of the
-  sprite with a 1 px gold line on top. That is the whole animation.
+Owner's report: building animations look wrong with the new camera angle. This covers every structure (all types,
+both factions), not one building.
 
-### Design (default; owner can change)
-Keep the 1.4 s (changing it is a gameplay change). Replace the `k < 1` branch with `drawBuildUp(g, b, s, x, y, k, selling)`
-in art.js, in four overlapping phases of `k`:
+### What is wrong now (art.js `drawStructure`, about line 1746)
+While `k = buildT < 1` it does three things, all written for the old straight-down view:
+1. `g.fillRect(x, y, b.w * CELL, b.h * CELL)` for the dark pad. `ui.js` draws structures with `v.upright = true`
+   (ui.js line 506), so `uprightCtx` turns this into an upright screen rectangle round the footprint's middle, not
+   the footprint's diamond.
+2. It draws the bottom `hh` screen rows of the sprite. In the iso view the bottom of the picture is the footprint's
+   front corner, so the building appears as a wipe from the front corner upward (left and right corners pop in half
+   way), not as something rising or being built.
+3. The gold line `fillRect(x, y + s.oy + H - hh, b.w * CELL, 1)` mixes a screen-row offset into world coordinates:
+   in the turned view it lands in the wrong place, and as an upright 1 px line it does not follow the building.
+Selling uses the same code backwards.
 
-| k | What shows |
-|---|---|
-| 0 - 0.15 | The footprint: a dark pad fades in, a dashed outline of the footprint in the faction colour (draw on the ground plane, so it is a diamond in the iso view: use `toView`/the same transform as other ground lines such as `drawRally`). Dust puffs at the four corners. |
-| 0.05 - 0.85 | Scaffold: a pole at each footprint corner rising ahead of the building to `min(1, k * 1.25)` of the sprite's top, with horizontal rails every 8 px between neighbouring poles (lines from `liftPt(corner, h)`). Allies yellow (`#d8b13a`), Soviets red-brown (`#9c3a2a`) with grey rails. |
-| 0.1 - 0.95 | The building rises out of the ground as now (bottom rows of the sprite), with a bright weld line at the top edge that flickers, and 6-10 spark pixels shooting off it (orange/white). |
-| 0.85 - 1 | Scaffold fades out; a short white sheen sweeps once across the sprite (draw the sprite again with `globalCompositeOperation = 'lighter'` and alpha `0.35 * (1 - (k - 0.85) / 0.15)`, clipped to a moving diagonal band). |
+### New design: built layer by layer (default; owner can change)
+Keep the 1.4 s (changing it is a gameplay change). Replace the `k < 1` block with `drawBuildUp(g, b, s, x, y, k, selling)`.
 
-Selling plays the same thing backwards from `k = sellT / 1.2` (the existing `Math.min(k, ...)`), without the sheen.
+1. **Layered sprites (the main look).** Like Tiberian Sun's build-up: the building's own voxel model cut off at a
+   height, so walls go up course by course with their cut tops showing. `BUILD_STEPS = 6` cut heights.
+   - models.js: `buildModel(m, step)` = `copyModel(m)` with every voxel above `ceil(m.d * step / BUILD_STEPS)` cleared;
+     the voxels on the new top layer that were inside a wall get a slightly darker, rough material so the cut reads
+     as unfinished (optional, only if cheap). `buildSprite(type, faction, step, camo)`: key `'S' + type + pal.key + 'b' + step`,
+     made like `damagedSprite`: queued (a `buildQueue` worked like `dmgQueue` / `pumpDamaged`, one sprite every 20 ms,
+     never in a frame), returns null until ready.
+   - When to make them: when the player's own item becomes ready to place (the sidebar's ready state) queue that type's
+     steps for `G.me`'s palette; and whenever any structure with `buildT < 1` is drawn (enemies, allies, computer).
+     Not on the game server (it draws nothing).
+   - Not baked (that would be 6 x the structure sheets). Let them go: drop a type's step sprites from the sprite
+     cache once no building of that type and palette has been under construction for 30 s (check how `sprite()`
+     caches in models.js and add a delete if there is none).
+   - Draw: step = `floor(k * BUILD_STEPS)` (0 = only the slab); while that step's sprite is not ready use the
+     fallback (2). Step 6 is the finished sprite.
+2. **Fallback, also the first moments: rising through the ground.** Draw the full finished sprite pushed down the
+   screen by `(1 - k) * H` and clipped (`g.save(); g.beginPath(); ... g.clip()`) to the region above the footprint's
+   front edges: the polygon through the footprint's left, front and right corners (world corners turned with the
+   view transform, so build it in world coordinates with `g.upright = false` or in screen coordinates with
+   `toView`), extended straight up to the top of the screen. It then sinks into its own pad in the iso view. This
+   replaces the row crop for good, so nothing depends on the layered sprites being ready.
+3. **Pad.** Draw the footprint in world coordinates with `upright` off (see `screenDraw` in ui.js line 207 for how
+   upright is switched), so it is the diamond: dark pad fading in over `k` 0 to 0.15, a dashed outline in the
+   faction colour, dust puffs at the four corners for the first 0.3 s.
+4. **Scaffold.** At each footprint corner a pole standing up the screen from `liftPt(cornerX, cornerY, 0)` to the
+   current build height (step height x `VK`, a little above it), and rails between neighbouring poles every 8 px of
+   height, drawn on the back two sides before the building and the front two after it, so the building is inside the
+   scaffold. Allies yellow (`#d8b13a`), Soviets red-brown (`#9c3a2a`) with grey rails. Fades out over k 0.85 to 1.
+5. **Welding sparks** at the current top: 6 to 10 spark pixels at points along the footprint's edges lifted to the
+   build height, flickering.
+6. **Finish:** a short white sheen sweeps once across the finished sprite (draw it again with
+   `globalCompositeOperation = 'lighter'`, alpha `0.35 * (1 - (k - 0.85) / 0.15)`, clipped to a moving diagonal band).
+7. **Selling** plays it backwards from `sellT / 1.2` (layers come off, scaffold goes back up), no sheen.
 
 ### Rules for the code
-- **No state, no effects.** Everything the animation draws is worked out from `k`, `b.id` and `G.t` (use a small hash
-  like `strSeed` or `hash3` for spark positions), so it costs nothing to keep and looks the same however often it
-  is drawn. Do not push into `G.effects` from drawing code (effects are part of the battle copy online).
-- **Iso view:** heights go through `liftPt(x, y, h * VK)`; things standing up (poles, sparks) use the same helpers
-  the flags use (`standAt`). The sprite crop must keep working with `uprightCtx`: the existing code calls
-  `g.drawImage(s.img, sx, sy, sw, sh, dx, dy, dw, dh)` with the 9-argument form, check `uprightCtx` in art.js
-  handles that form for a sprite (has `_ox`), and if it does not, draw through the same path `blit` uses.
-- Walls and gates (`wallPic`) and village houses are not structures here: leave them alone.
-- Defences that go up (turrets, SAM) must not show their head before `buildT` reaches 1 (check: today the head is
-  skipped because of the early `return`; keep that).
-- Keep it cheap: a few dozen `fillRect`/line calls per building going up. A Construction Yard placing walls of
-  structures should not cost more than about 0.2 ms a frame.
-
-### Steps
-1. Write `drawBuildUp` in art.js and call it from `drawStructure` in place of the current `k < 1` block.
-2. Optional extra, only if cheap: a soft "thunk" when it finishes is already the `build` sfx; do not add sounds.
-3. Check the Field Manual / debrief do not call `drawStructure` with `buildT < 1` (they draw sprites directly).
-
----
+- **No state, no effects.** Everything the animation draws is worked out from `k`, `b.id` and `G.t` (use `strSeed` or
+  `hash3` for spark spots), so it looks the same however often it is drawn. Do not push into `G.effects` from drawing
+  code (effects are part of the online battle copy). The only stored things are sprites in the cache.
+- Use the view helpers in voxel.js (`toView`, `fromView`, `liftPt`, `VK`) and `standAt` (art.js) for things standing up.
+  Do not mix screen-row offsets into world coordinates (bug 3 above).
+- Draw order: structures are sorted with units by their footprint's front corner; the scaffold's front rails must not
+  be drawn over units standing in front of the building (only draw within the building's own draw call).
+- Every footprint size (1x1 turret to 4x4 and the 3x3 Tech Center), both factions, the camouflaged Pillbox (its pad
+  colour from `groundColour`), and defences: no head (turret, SAM, Flame Tower, AA gun, dish spinner) before `buildT`
+  reaches 1 (today's early `return` does this: keep it).
+- Walls, gates and village houses are not structures here: leave them alone.
+- Keep it cheap: a few dozen draw calls per building going up, about 0.2 ms a frame for one building.
+- The sidebar, Field Manual and debrief draw sprites directly, not through `drawStructure`: unchanged.
 
 ## Testing (keep runs short: the owner's usage is limited)
 
@@ -105,11 +132,16 @@ Selling plays the same thing backwards from `k = sellT / 1.2` (the existing `Mat
    Soviets, place a Radar on open ground near the camera, then an Allied game the same way. Record about 8 s of
    each at phone size (390 x 844) with `recordVideo`, convert to **MP4** with ffmpeg (never GIF), and show the
    owner: a Soviet Radar going up, its dish turning, it stopping on low power (sell the power plants), and a sale.
+   Also record, zoomed in, a 1x1 (Gun Turret or Pillbox), a 2x2 (Barracks) and a big one (Construction Yard or War
+   Factory) of each faction going up and one being sold, with units walking past in front, the first build of a type
+   (fallback, then layers) and a second one (layers from the start).
 3. Look for console errors; run `node tools/sim/save-load.js .` once (a battle saved mid-construction continues).
 4. Commit on `claude/cross-platform-game-k2d9lb`, push, and wait for the owner's OK. Add a short note to `CLAUDE.md`
    (what `SPINNERS` and `drawBuildUp` are, "looks only, both modes, not released").
 
 ## Owner decisions (ask before or with the first video)
-- Construction time stays 1.4 s (looks only)? A longer build-up would be a gameplay change for both modes.
+- Construction time stays 1.4 s (looks only)? Six layers in 1.4 s is quick; a longer build-up (e.g. 2.5 s) would show
+  them better but is a gameplay change for both modes.
+- Layered build (default) or only the cheaper "rising through the ground" with scaffold?
 - Should the Allied Radar Dome's small dish turn too (Part 1 step 7)?
 - Dish speed (default one turn in about 7 s) and whether low power stops it.
