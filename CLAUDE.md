@@ -1171,3 +1171,14 @@ frame-time maths everywhere, so it is not deterministic.
 - Owner's request: attacking one computer always brought the other's army at once. In `defendAllies` (world.js) a computer ally now sends only idle units within `AI_ALLY_REACH` (35 cells of the raiders, was 70)
   and only after the ally's base has been under attack for `AI_ALLY_DELAY` (10 s, `team.allyT`, a host timer cleared once the area is calm; units already assisting are not held). Humans' Ally button is unchanged.
   Checked headless (2 v 2 of computers, three raiders at one base): an ally 14 cells off answers between 9 and 13 s, one 67 cells off never comes; `ally-defend.js` unchanged.
+
+## Defenders kept waiting for routes (after 2026.11.16.4, not released, both modes)
+
+- Owner's report (Crossroads Village): units sent to defend an ally, or leaving the base on Auto Attack, stopped in a pile and moved again after a while.
+  Cause: `defendAllies` / `defendBase` re-send `goTo` to every defender about once a second as the raider moves, and for a human's unit each call threw away
+  its route and put it at the back of `G.pathQueue` (the computer's units already kept theirs). Staged (Village, 70 units sent to an ally, raiders arriving):
+  30 to 46 units stood waiting for a route for about 26 s; now 0 to 9.
+- `goTo(u, x, y, force, auto)`: `auto` (the game's own re-sends in `defendAllies` and `defendBase`) gives a human's unit the computer's route-keeping rule.
+  Player orders still re-route at once. `processPaths` serves a human's unit first (within the first 64 queued) so a big computer wave cannot hold an army in the queue.
+- Ruled out: the infantry lanes (100 units leaving a base on Village: biggest group within a cell 17.7 with lanes, 19.2 without) and the fight fan (`approachSpot`),
+  which needs a target in sight. Not reproduced: a pile in front of the base after Auto Attack with no enemy in sight; a phone's slower route-finding is the guess.

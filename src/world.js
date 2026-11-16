@@ -1419,8 +1419,9 @@ function smoothPath(sx, sy, pts, rad) {
 // of 108). A computer unit that already has a route (or is queued for one) keeps it while its goal has moved less than
 // REROUTE_MIN cells, or REROUTE_FRAC of the way left; `force` (a stuck unit, a retry) always works a new one out.
 const REROUTE_MIN = 3, REROUTE_FRAC = 0.15, REROUTE_AGE = 4;   // (a route older than REROUTE_AGE s is worked out again: walls, buildings and bridges change)
-function goTo(u, x, y, force) {
-  if (!force && u.dest && (u.path || u.needPath) && G.teams[u.team].isAI && !u.def.harvester && !u.def.deploys) {
+function goTo(u, x, y, force, auto) {
+  // `auto`: a re-send by the game's own logic (defendAllies, ...) rather than a player's order: a human's unit keeps its route like the computer's.
+  if (!force && u.dest && (u.path || u.needPath) && (auto || G.teams[u.team].isAI) && !u.def.harvester && !u.def.deploys) {
     if ((u.needPath || G.t - (u.pathT || 0) < REROUTE_AGE) && Math.hypot(u.dest.x - x, u.dest.y - y) < Math.max(CELL * REROUTE_MIN, Math.hypot(u.x - x, u.y - y) * REROUTE_FRAC)) return;
   }
   u.dest = { x, y };
@@ -1470,7 +1471,10 @@ function processPaths() {
   let budget = 8;
   const t0 = clockMs();
   while (budget-- > 0 && G.pathQueue.length && (budget === 7 || clockMs() - t0 < PATH_MS)) {
-    const u = G.pathQueue.shift();
+    // A player's units are served before the computer's (a big computer wave must not hold a human's army in the queue).
+    let qi = 0;
+    for (let k = 0, n = Math.min(G.pathQueue.length, 64); k < n; k++) if (!G.teams[G.pathQueue[k].team].isAI) { qi = k; break; }
+    const u = qi ? G.pathQueue.splice(qi, 1)[0] : G.pathQueue.shift();
     if (!u.alive || !u.needPath || !u.dest) { u.needPath = false; continue; }
     u.needPath = false;
     MOVER = u;
@@ -1996,7 +2000,7 @@ function defendAllies(team) {
     if (!u.assisting) { const g = u.order.type === 'guard'; u.post = { x: g ? u.order.x : u.x, y: g ? u.order.y : u.y, staged: !!u.staged }; }
     u.assisting = true; u.staged = false;
     if (u.target === best || (u.target && u.target.alive && threats.includes(u.target))) continue;
-    setGuard(u, best.x, best.y); u.target = best; goTo(u, best.x, best.y);
+    setGuard(u, best.x, best.y); u.target = best; goTo(u, best.x, best.y, false, true);
   }
 }
 function launchGroups(only) {
@@ -2187,7 +2191,7 @@ function defendBase(team) {
     u.defending = true; u.staged = false;
     if (u.target === best || (u.target && u.target.alive && threats.includes(u.target))) continue;
     setGuard(u, best.x, best.y); u.target = best;
-    if (u.cls !== 'air') goTo(u, best.x, best.y);
+    if (u.cls !== 'air') goTo(u, best.x, best.y, false, true);
   }
 }
 
