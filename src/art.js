@@ -955,13 +955,13 @@ function drawNight(g, vx, vy, vw, vh, k, t) {
   if (!nightCv || nightCv.width !== W || nightCv.height !== H) nightCv = mkCanvas(W, H);
   const n = nightCv.getContext('2d'), lights = [];
   const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
-  const add = (x, y, r, a, warmLight) => { [x, y] = toView(x, y); if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };   // (vx, vy: the camera on the view plane)
+  const add = (x, y, r, a, warmLight, h) => { [x, y] = toView(...liftPt(x, y, h || 0)); if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };   // (vx, vy: the camera on the view plane)
   // Street lamps, lit windows, buildings' own lights, fires and blasts.
-  for (const p of G.props || []) if (p.k === 'lamp' && p.up) add(p.x + 4.5, p.y - 8, 52, 1, true);
+  for (const p of G.props || []) if (p.k === 'lamp' && p.up) add(p.x + 4.5, p.y, 52, 1, true, 8);
   for (const h of G.houses || []) {
     if (!h.alive || !G.seen[idx(h.cx, h.cy)]) continue;
     const fi = FORT_INFO.get(h.type);
-    if (fi && fi.wins) fi.wins.forEach((w, i) => { if ((h.id * 7 + i * 3) % 5 < 3) add(h.cx * CELL + (w.face === 's' ? w.x + 2 : w.x + 1), h.cy * CELL + (w.face === 's' ? w.y + 1 : w.y + 2) - (w.z + 2) * VK, 12, 0.8, true); });
+    if (fi && fi.wins) fi.wins.forEach((w, i) => { if ((h.id * 7 + i * 3) % 5 < 3) add(h.cx * CELL + (w.face === 's' ? w.x + 2 : w.x + 1), h.cy * CELL + (w.face === 's' ? w.y + 1 : w.y + 2), 12, 0.8, true, (w.z + 2) * VK); });
   }
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || !(G.seen[idx(e.cx, e.cy)])) continue;
@@ -1768,7 +1768,7 @@ function drawStructure(g, b, t) {
   if (b.type === 'pillbox' && b.fireT > 0) { const m = muzzle(b); flash(g, ...liftPt(m.x, m.y + m.h, m.h), 2); }
   const fs = FLAG_SPOTS[b.type] && FLAG_SPOTS[b.type][b.faction];
   if (b.faction === 'soviets' && BANNERS[b.type]) drawBanners(g, b, x, y, palFor(b.faction));
-  if (fs) { const pal = palFor(b.faction); drawFlag(g, x + fs[0], y + fs[1] - fs[2] * VK, fs[3], fs[4], pal.main, pal.dark || pal.main, b.id, fs[5]); }
+  if (fs) { const pal = palFor(b.faction); standAt(g, x + fs[0], y + fs[1], fs[2] * VK, () => drawFlag(g, x + fs[0], y + fs[1], fs[3], fs[4], pal.main, pal.dark || pal.main, b.id, fs[5])); }
   if (b.type === 'tesla' && b.charge > 0) {
     g.fillStyle = `rgba(140,190,255,${0.25 + 0.45 * b.charge})`;
     g.beginPath(); g.arc(x + 12, y + 35 - 50 * VK, 7 + Math.random() * 3, 0, 7); g.fill();
@@ -1792,13 +1792,16 @@ function drawHouse(g, h) {
   if (h.n && G.teams[h.team]) {
     const t = G.teams[h.team], keep = drawVar; drawVar = t.variant | 0;
     const col = palFor(t.faction).main; drawVar = keep;
-    const fi = FORT_INFO.get(type), fl = fi && fi.flag, x = Math.round(fl ? h.cx * CELL + fl.x : h.x), y = Math.round(fl ? h.cy * CELL + fl.y - fl.z * VK : h.cy * CELL + (s.oy || -20) + 6), wave = Math.sin(G.t * 5 + h.id) > 0 ? 1 : 0;
+    const fi = FORT_INFO.get(type), fl = fi && fi.flag, wx = fl ? h.cx * CELL + fl.x : h.x, wy = fl ? h.cy * CELL + fl.y : h.y, hz = fl ? fl.z * VK : 24;
+    standAt(g, wx, wy, hz, () => {
+    const x = Math.round(wx), y = Math.round(wy), wave = Math.sin(G.t * 5 + h.id) > 0 ? 1 : 0;
     g.fillStyle = '#1c1c1a'; g.fillRect(x, y - 16, 2, 18);
     const tp = G.teams[h.team]; drawVar = tp.variant | 0; const dark = palFor(tp.faction).dark || col; drawVar = keep;
     drawFlag(g, x + 1, y - 16, 11, 6, col, dark, h.id, false);
     if (alliedSides(h.team, G.me) || G.watching) {
       for (let i = 0; i < h.n; i++) { g.fillStyle = '#000'; g.fillRect(x - 1 + i * 3 - h.n * 1.5, y + 4, 3, 3); g.fillStyle = '#3ed04a'; g.fillRect(x + i * 3 - h.n * 1.5, y + 5, 1, 1); }
     }
+    });
   }
 }
 // The fountain's water: jets from the spout falling into the upper bowl, from the bowl's rim into the basin, and rings
@@ -1811,19 +1814,19 @@ function fountainWater(g, h) {
   for (let i = 0; i < 10; i++) {   // the top jet
     const k = (t * 1.3 + i / 10) % 1, a = i * 0.63;
     const r = 2 + k * 6, z = m.spout + 6 * k - 10 * k * k;
-    g.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * 0.8 - z * VK), 1, 1);
+    const [px, py] = liftPt(cx + Math.cos(a) * r, cy + Math.sin(a) * r, z * VK); g.fillRect(Math.round(px), Math.round(py), 1, 1);
   }
   g.fillStyle = 'rgba(190,220,245,0.7)';
   for (let i = 0; i < 28; i++) {   // over the wide bowl's rim
     const k = (t * 1.1 + i * 0.37) % 1, a = i * (Math.PI * 2 / 28);
     const r = 15 + k * 6, z = m.bowl + 1 - 13 * k * k;
     if (z < 3) continue;
-    g.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * 0.8 - z * VK), 1, 2);
+    const [px, py] = liftPt(cx + Math.cos(a) * r, cy + Math.sin(a) * r, z * VK); g.fillRect(Math.round(px), Math.round(py), 1, 2);
   }
   g.strokeStyle = 'rgba(220,238,255,0.35)'; g.lineWidth = 1;
   for (let i = 0; i < 3; i++) {   // rings on the basin
     const k = (t * 0.45 + i / 3) % 1, r = 22 + k * (m.R - 24);
-    g.globalAlpha = 1 - k; g.beginPath(); g.ellipse(cx, cy - 4 * VK, r, r * 0.8, 0, 0, Math.PI * 2); g.stroke();
+    g.globalAlpha = 1 - k; g.beginPath(); g.ellipse(...liftPt(cx, cy, 4 * VK), r, r, 0, 0, Math.PI * 2); g.stroke();   // (on the water: turned and squashed with the ground)
   }
   g.globalAlpha = 1;
 }
@@ -1842,8 +1845,9 @@ function drawProp(g, p) {
     }
     const flick = (0.75 + 0.25 * Math.sin(G.t * 9 + p.x) * Math.sin(G.t * 3.7 + p.y)) * (0.35 + 0.65 * nightLevel());   // faint by day
     g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = flick;
-    g.drawImage(lampGlowPic, Math.round(p.x + 4.5 - 12), Math.round(p.y - 17 * VK - 12), 24, 24);
-    g.globalAlpha = 0.35 * flick; g.drawImage(lampGlowPic, Math.round(p.x - 14), Math.round(p.y - 9), 36, 20);   // the pool of light on the ground
+    const [lx, ly] = liftPt(p.x + 4.5, p.y, 17 * VK);   // (pictures stand at their middle: uprightCtx)
+    g.drawImage(lampGlowPic, lx - 12, ly - 12, 24, 24);
+    g.globalAlpha = 0.35 * flick; g.drawImage(lampGlowPic, p.x + 4 - 18, p.y + 1 - 10, 36, 20);   // the pool of light on the ground
     g.restore();
   }
 }
@@ -1853,6 +1857,9 @@ const CLOTHES = ['#e8e4da', '#c9d8e8', '#b8302a', '#3a5a8a', '#e0c070', '#d8a8b8
 function drawLaundry(g, p) {
   const h = G.byId.get(p.h);
   if (!h || !h.alive || h.n) return;
+  standAt(g, p.x, p.y, 0, () => laundryPixels(g, p));
+}
+function laundryPixels(g, p) {
   const x0 = Math.round(p.x - p.w / 2), x1 = Math.round(p.x + p.w / 2), y = Math.round(p.y - 5), top = y - 11;
   if (!p.up) { for (let i = 0; i < 5; i++) { g.fillStyle = CLOTHES[(p.v + i * 3) % CLOTHES.length]; g.fillRect(x0 + 4 + i * 7 + ((p.v >> i) & 3), y - 1 + ((p.v >> (i + 2)) & 3), 4, 2); } return; }
   const wind = typeof windNow === 'function' ? windNow() : { x: 4, y: 0 }, k = Math.max(-2, Math.min(2, wind.x * 0.25));
@@ -1868,10 +1875,18 @@ function drawLaundry(g, p) {
     g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(Math.round(cx) + sway, top + 2 + sag + hh - 1, w, 1);
   }
 }
+// Old-style pixel drawing that stands up the screen (the iso view): fn draws in screen pixels laid out round world (x, y)
+// as before, and that spot is put where world (x, y), h pixels up, shows.
+function standAt(g, x, y, h, fn) {
+  const [wx, wy] = liftPt(x, y, h), m = g.getTransform(), up = g.upright;
+  g.save(); g.setTransform(1, 0, 0, 1, Math.round(m.a * wx + m.c * wy + m.e - x), Math.round(m.b * wx + m.d * wy + m.f - y)); g.upright = false;
+  try { fn(); } finally { g.upright = up; g.restore(); }
+}
 // A villager (world.js moveFolk), a small figure drawn in pixels: hair, face, shirt and trousers or a skirt, legs
 // stepping as they walk, arms up when they run.
 const FOLK_LEGS = ['#3b3a36', '#4a3826', '#2f4766', '#5a4632', '#5a5a52'], FOLK_HAIR = ['#2a1d14', '#5a3a22', '#a07c4a', '#cfcac0', '#1c1c1a'], FOLK_SKIN = ['#e0b08c', '#c38d66', '#9a6a48', '#e8c0a0'];
-function drawFolk(g, v) {
+function drawFolk(g, v) { standAt(g, v.x, v.y, 0, () => folkPixels(g, v)); }
+function folkPixels(g, v) {
   const L = v.look, x = Math.round(v.x), y = Math.round(v.y), f = v.face;
   const shirt = FOLK_SHIRTS[L % FOLK_SHIRTS.length], legs = FOLK_LEGS[(L >> 3) % FOLK_LEGS.length], hair = FOLK_HAIR[(L >> 6) % FOLK_HAIR.length], skin = FOLK_SKIN[(L >> 9) % FOLK_SKIN.length];
   const skirt = (L >> 12) % 3 === 0, hat = (L >> 14) % 4 === 0, run = v.st === 'flee', moving = v.st !== 'idle';
@@ -1888,7 +1903,8 @@ function drawFolk(g, v) {
   if (hat) { g.fillStyle = (L >> 16) & 1 ? '#c9a95a' : '#3b3a36'; g.fillRect(x - 2, y - 13 + bob, 5, 1); g.fillRect(x - 1, y - 14 + bob, 3, 1); }
 }
 // A hen (world.js moveHens): white or brown, a red comb, wings out when she runs.
-function drawHen(g, c) {
+function drawHen(g, c) { standAt(g, c.x, c.y, 0, () => henPixels(g, c)); }
+function henPixels(g, c) {
   const x = Math.round(c.x), y = Math.round(c.y), peck = !c.flap && Math.sin(c.ph * 2) > 0.7 ? 1 : 0, f = c.face;
   g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x - 1, y, 4, 1);
   g.fillStyle = c.white ? '#ece8de' : '#9a5a2a'; g.fillRect(x - 1, y - 3, 4, 3);
@@ -1901,9 +1917,14 @@ function drawHen(g, c) {
 function drawBirds(g, air, x0, y0, x1, y1) {
   for (const f of G.birds || []) for (const b of f.birds) {
     if ((b.alt > 0) !== air || b.x < x0 || b.y < y0 || b.x > x1 || b.y > y1 || !G.seen[cellOfPos(Math.max(0, Math.min(WORLD - 1, b.x)), Math.max(0, Math.min(WORLD - 1, b.y)))]) continue;
-    const x = Math.round(b.x), y = Math.round(b.y - b.alt * VK);
+    if (b.alt > 0 && f.st !== 0) { g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(Math.round(b.x), Math.round(b.y), 2, 1); }   // its shadow on the ground
+    standAt(g, b.x, b.y, b.alt * VK, () => birdPixels(g, f, b));
+  }
+}
+function birdPixels(g, f, b) {
+  {
+    const x = Math.round(b.x), y = Math.round(b.y);
     if (b.alt > 0 && f.st !== 0) {
-      g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(Math.round(b.x), Math.round(b.y), 2, 1);   // its shadow on the ground
       const up = Math.sin(b.ph) > 0;
       g.fillStyle = '#d6d6d2'; g.fillRect(x - 2, y - (up ? 1 : 0), 2, 1); g.fillRect(x + 1, y - (up ? 1 : 0), 2, 1);
       g.fillStyle = '#7d8088'; g.fillRect(x, y, 1, 1);
@@ -1948,16 +1969,21 @@ function drawBanners(g, b, x, y, pal) {
     for (let r = 0; r < len; r++) {
       const k = (r + 1) / len, z = top - 1 - r;
       const dx = (side * 1.6 * k * k + Math.sin(G.t * (2.2 + gust * 2.5) + ph - r * 0.55) * (0.35 + gust * 0.75) * k);
-      const sx = Math.round(x + x0 + dx), sy = Math.round(y + fy + 1 - (z + 1) * VK);
       const ripple = Math.cos(G.t * (2.2 + gust * 2.5) + ph - r * 0.55);
-      g.fillStyle = r === len - 1 ? (pal.dark || pal.main) : ripple > 0.5 ? shadeHex(pal.main, 1.12) : ripple < -0.5 ? shadeHex(pal.main, 0.88) : pal.main;
-      g.fillRect(sx, sy, x1 - x0, 1);
+      // Each row of cloth lies along its wall (the iso view turns the wall): a strip from its left to its right edge.
+      const strip = (u0, u1, col) => {
+        const m = g.getTransform(), P = (u, h) => { const [wx, wy] = liftPt(x + u + dx, y + fy + 1, h); return [m.a * wx + m.c * wy + m.e, m.b * wx + m.d * wy + m.f]; };
+        const q = [P(u0, (z + 1) * VK), P(u1, (z + 1) * VK), P(u1, z * VK), P(u0, z * VK)], up = g.upright;
+        g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.upright = false; g.fillStyle = col;
+        g.beginPath(); q.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath(); g.fill();
+        g.upright = up; g.restore();
+      };
+      strip(x0, x1, r === len - 1 ? (pal.dark || pal.main) : ripple > 0.5 ? shadeHex(pal.main, 1.12) : ripple < -0.5 ? shadeHex(pal.main, 0.88) : pal.main);
       // The gold star, 2.5 rows down: a small cross with a centre.
       const sr = r - 1.5;
       if (Math.abs(sr) <= 1.5) {
-        g.fillStyle = '#d0a426';
         const half = Math.abs(sr) < 0.6 ? 1.5 : 0.5;
-        g.fillRect(Math.round(x + cx - half + dx), sy, Math.max(1, Math.round(half * 2)), 1);
+        strip(cx - half, cx - half + Math.max(1, Math.round(half * 2)), '#d0a426');
       }
     }
   });

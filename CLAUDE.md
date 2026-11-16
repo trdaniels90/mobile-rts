@@ -152,8 +152,13 @@ share globals. Read this file first; the commit history explains every change in
   show on the turned screen (`tilesIn(.., pad)`). Past the map's edge: `edgePic` (ui.js), the edge cells' minimap colours
   carried out `EDGE_PAD` cells, blurred and fading into haze. Flame jets and the rally flag are drawn in screen pixels
   (`onScreen`, `screenDraw` in ui.js); the rally line stays on the ground.
-- **Known bugs:** not tried on a real phone or online; pedestrians, hens and birds untested; the debrief and Field Manual
-  pictures are unchanged.
+- **Village (after the 2026.11.16.3 merge):** `standAt(g, x, y, h, fn)` (art.js) stands old-style pixel drawing up the
+  screen at a world spot: villagers, hens, pigeons (in the air at their height), washing lines, a held house's flag and
+  pips, structure flags. Banners are drawn as strips along their (turned) wall; the fountain's water and the lamps' glow
+  and night lights are at their heights (`add(.., h)` in `drawNight`). The far-view tree blocks from that release
+  (`drawTreeBlocks`) are not used in the iso view (trees are drawn one at a time): watch zoomed-out speed on big screens.
+- **Known bugs:** not tried on a real phone or online; washing lines lie across the screen, not along their house; the
+  debrief and Field Manual pictures are unchanged.
 
 ## Recent mechanics (2026.10.31 and .31.1)
 
