@@ -429,6 +429,11 @@ share globals. Read this file first; the commit history explains every change in
   UI: infantry selected + tap a house = go in; tap your held house = select its garrison; EXIT on the bar; enemy-held
   house tapped with fighters = attack it. A flag in the side's colour on the roof, a pip per soldier for your alliance,
   side colour on the radar. Snapshots: `hv` entries are `[health, side, count]`.
+- **Shots from the windows** (owner's request, looks only): `muzzle(src, t)` for a garrisoned soldier is `windowSpot` (world.js):
+  a window on the wall facing the target (FORT_INFO `wins` on the south and east faces, mirrored to the north and west walls;
+  `box` = the walls), one of the two nearest by unit id, else the middle of that wall. Tracers, rockets and the MG Team's
+  smoke start there. The server builds `houseModel` once per house type to learn its windows. Incoming fire still aims at
+  the house's middle. MG Teams fire full bursts from a house (`shoot` in `updateGarrison`); other infantry single rounds.
 - **Fortified look** (owner's request, RA2 garrisons as reference only): a held house is drawn from `fortSprite(type, stage)`
   (models.js `fortifyModel`: the house's own model, damaged or not, padded by `FORT_PAD` 10 px, with a two-tier sandbag
   wall round the plot (gap at the door), two coils of barbed wire on posts outside, bags in the windows up to a slit,

@@ -2231,7 +2231,28 @@ const SAM_FUEL = 3;   // SAM Sites have the longest burn: they are the answer to
 const AA_FUEL = 1.5;   // anti-air missiles fly this many times their weapon's range, then burn out (a weapon's own `fuel` overrides it)
 const PROJ_SPEED = { shell: 430, rocket: 250, missile: 330, flak: 560, fireball: 230 };
 
-function muzzle(src) {
+// A garrisoned soldier's shots leave a window on the wall facing the target (models.js FORT_INFO: the house's windows on its
+// south and east faces, mirrored onto the north and west walls), not the middle of the roof. Each soldier keeps to one
+// of the two windows nearest the target (by id). Worked out on the host from the house's type, so the game server
+// builds the model once to learn its windows; without them, the middle of that wall.
+function windowSpot(h, t, salt) {
+  let fi = typeof FORT_INFO !== 'undefined' ? FORT_INFO.get(h.type) : null;
+  if (!fi && h.type && typeof houseModel === 'function') { try { houseModel(h.type); fi = FORT_INFO.get(h.type); } catch (_) {} }
+  const ox = h.cx * CELL, oy = h.cy * CELL, b = (fi && fi.box) || [4, 4, h.w * CELL - 4, h.h * CELL - 4];
+  const cx = ox + (b[0] + b[2]) / 2, cy = oy + (b[1] + b[3]) / 2, dx = t.x - cx, dy = t.y - cy;
+  const face = Math.abs(dx) / ((b[2] - b[0]) / 2) > Math.abs(dy) / ((b[3] - b[1]) / 2) ? (dx > 0 ? 'e' : 'w') : (dy > 0 ? 's' : 'n');
+  const spots = [];
+  for (const w of (fi && fi.wins) || []) {
+    if ((face === 's' || face === 'n') && w.face === 's') spots.push([w.x + 2, face === 's' ? w.y : b[1], w.z + 2.5]);
+    if ((face === 'e' || face === 'w') && w.face === 'e') spots.push([face === 'e' ? w.x : b[0], w.y + 2, w.z + 2.5]);
+  }
+  if (!spots.length) spots.push(face === 's' ? [(b[0] + b[2]) / 2, b[3], 7] : face === 'n' ? [(b[0] + b[2]) / 2, b[1], 7] : [face === 'e' ? b[2] : b[0], (b[1] + b[3]) / 2, 7]);
+  spots.sort((p, q) => Math.hypot(ox + p[0] - t.x, oy + p[1] - t.y) - Math.hypot(ox + q[0] - t.x, oy + q[1] - t.y));
+  const s = spots[(salt | 0) % Math.min(2, spots.length)];
+  return { x: ox + s[0], y: oy + s[1] - s[2] * VK };
+}
+function muzzle(src, t) {
+  if (src.inHouse && t && t.x !== undefined) return windowSpot(src.inHouse, t, src.id);
   if (src.kind === 'bld') {
     if (src.type === 'tesla') return { x: src.cx * CELL + 12, y: src.cy * CELL + 35 - 50 * VK };
     if (src.type === 'pillbox') {   // out of the firing slit nearest to where it aims (slits sit at 30 degrees plus 60 per side), low on the wall and in front of the roof
@@ -2343,7 +2364,7 @@ function fireWeapon(src, w, t, follow) {
     const fog = G.fog[t.team];
     if (fog && !fog[cellOfPos(src.x, src.y)]) revealCircle(src.x / CELL, src.y / CELL, SHOT_REVEAL, fog);
   }
-  const m = muzzle(src);
+  const m = muzzle(src, t);
   hooks.sfx(weaponSound(src, w), src.x, src.y);
   if (src.kind === 'bld' && (src.type === 'turret' || src.type === 'pillbox')) barrelSmoke(src, m);
   src.fireT = w.proj === 'grenade' ? 0.35 : 0.1;

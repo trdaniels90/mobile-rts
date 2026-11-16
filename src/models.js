@@ -4958,7 +4958,7 @@ function houseModel(type) {
     else if (r() < 0.5) { m.box(x - 4, y - 2, 0, x + 4, y + 2, 1, '#4e3a28', M_ROUGH); m.paintTop(x - 4, y - 2, x + 4, y + 2, (px, py) => (px % 2 === 0 && hash3(px, py, 3) > 0.3 ? '#4f7a33' : undefined)); }
   }
   m.ridge = ridge;
-  FORT_INFO.set(type, { W, H, door: dx, wins, flag: { x: Math.round(mx), y: Math.round(my), z: top + ridge } });
+  FORT_INFO.set(type, { W, H, door: dx, wins, box: [bx0, by0, bx1, by1], flag: { x: Math.round(mx), y: Math.round(my), z: top + ridge } });
   return m;
 }
 // The village church: a stone nave under a steep slate roof, tall windows, and a square bell tower with a spire at
