@@ -102,7 +102,7 @@ const UNIT_DEFS = {
   hmg: {
     name: 'MG Team', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
     cost: 400, hp: 150, armor: 'inf', speed: 26, sight: 7, r: 7, setup: 1.5, pack: 1.0,
-    weapon: { dmg: 12, rof: 1.4, range: 150, wh: 'SA', proj: 'bullet', burst: 6, gap: 0.09, splash: 10, air: true, heliOnly: true, sound: 'mg' },
+    weapon: { dmg: 12, rof: 1.4, range: 150, wh: 'SA', proj: 'bullet', burst: 6, gap: 0.09, splash: 10, air: true, heliOnly: true, sound: 'hmg' },
   },
   // Unarmed. Walks into a destroyed bridge span and it is rebuilt, or into a damaged friendly structure and it is
   // repaired in full; either way the Engineer is used up (world.js commandEngineer). Cost, health, speed and sight

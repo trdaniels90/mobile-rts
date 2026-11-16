@@ -2262,6 +2262,7 @@ function aimY(t) {
 }
 
 function weaponSound(src, w) {
+  if (w.sound === 'hmg') return src.faction === 'soviets' ? 'dshk' : 'cal50';   // the MG Team: the M2's deep thump, the DShK's harder crack
   if (w.sound) return w.sound;   // a weapon with a sound of its own (the RedEye)
   if (w.proj === 'bullet') return src.cls !== 'inf' ? 'mg' : src.faction === 'allies' ? 'm16' : 'rifle';   // each side's own rifle
   if (w.proj === 'grenade') return 'throw';
@@ -2347,7 +2348,12 @@ function fireWeapon(src, w, t, follow) {
   src.fireT = w.proj === 'grenade' ? 0.35 : 0.1;
   src.shots = (src.shots || 0) + 1;
   src.shotAt = G.t;   // the gun's recoil (art.js recoil)   // online copies light their own muzzle flash when this changes (net.js)
-  if (w.sound === 'redeye' && src.cls === 'inf') src.aaUntil = G.t + 1.1;   // shows the shoulder-fired RedEye launcher a moment
+  if (w.sound === 'redeye' && src.cls === 'inf') src.aaUntil = G.t + 1.1;
+  if (src.kind === 'unit' && src.def.setup) {   // MG Team: a puff of smoke from the muzzle every round, and the hot barrel smoking on after a burst
+    const fx = Math.cos(src.face), fy = Math.sin(src.face);
+    G.effects.push({ type: 'smoke', x: m.x, y: m.y, r: 3.5 + Math.random() * 1.5, t: 0, life: 1 + Math.random() * 0.6, alpha: 0.6, color: '#c9c7c0', vx: fx * 16, vy: fy * 9 - 7, drag: 1.6 });
+    if (Math.random() < 0.4) G.effects.push({ type: 'smoke', x: m.x - fx * (4 + Math.random() * 8), y: m.y - fy * 4 - 1, r: 2.5 + Math.random(), t: -0.2 - Math.random() * 0.4, life: 1.8 + Math.random() * 0.8, alpha: 0.45, color: '#9a968c', vx: (Math.random() - 0.5) * 3, vy: -10, drag: 0.6 });
+  }   // shows the shoulder-fired RedEye launcher a moment
   const ty = aimY(t);
   if (w.proj === 'grenade') {
     // Lobbed in an arc at where the target stands now; it can miss a moving target.

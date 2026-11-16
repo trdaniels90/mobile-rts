@@ -1094,6 +1094,10 @@ frame-time maths everywhere, so it is not deterministic.
   Sprites and ground rebaked. Field Manual entry; the computer trains some (`mgs` in ai.js: 12%, 30% against infantry).
 - `node tools/sim/mg-team.js <repo>`: first shot after about 1.5-1.9 s, half damage set up, no movement while packing. Tuned with a
   staged fight: 2 set-up teams against 8 riflemen (equal cost) won 6 of 8 (100 health / 9 damage won 0 of 8).
+- **Sound and smoke** (owner's request): `sound: 'hmg'` -> `weaponSound` plays `cal50` (Allies) or `dshk` (Soviets), recorded
+  layers in audio.js `COMBO` (the `mg` clip pitched down to 0.62 / 0.72 under a short pitched-up `cannon` thump; the DShK adds the
+  SKS crack), synthesised `FX.cal50` / `FX.dshk` if the recordings are missing. No new recordings, so CREDITS.md is unchanged.
+  `fireWeapon` puffs light smoke from the muzzle every round and, 40% of rounds, a slower wisp off the hot barrel.
 - Online: the server must run the same version.
 
 ## Computer allies answer calls later and from nearer (after 2026.11.15.7, not released, both modes)
