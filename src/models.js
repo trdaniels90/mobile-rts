@@ -36,6 +36,7 @@ let spriteSpend = 0;
 let spriteMs = 0, spriteN = 0, blankSprite = null;
 const spriteBlank = () => blankSprite || (blankSprite = { img: mkCanvas(1, 1), ox: 0, oy: 0 });   // sprites made this frame, marks' included: time and number (ui.js resets; Report: stats.frames)
 function sprite(mkey, build, angle, fkey, opts) {
+  if (FLAT_PASS) { mkey += '~flat'; opts = Object.assign({}, opts, { flat: true }); }   // (to be painted into the ground: voxel.js)
   const k = mkey + '|' + fkey;
   let s = spriteCache2.get(k);
   if (s) return s;
@@ -4863,7 +4864,7 @@ function buildScenery() {
   for (let i = 0; i < 6; i++) scenery.snowPines.push(renderVox(treeModel(i * 71 + 11, true, true), 0));
   for (let i = 0; i < 5; i++) scenery.burntTrees.push(renderVox(burntTreeModel(i * 97 + 3, false), 0));
   for (let i = 0; i < 5; i++) scenery.burntPines.push(renderVox(burntTreeModel(i * 71 + 11, true), 0));
-  for (let i = 0; i < 5; i++) scenery.rocks.push(renderVox(rockModel(i * 53 + 7), 0));
+  for (let i = 0; i < 5; i++) scenery.rocks.push(renderVox(rockModel(i * 53 + 7), 0, { flat: true }));   // (painted into the ground)
   for (let lv = 0; lv < 4; lv++) { scenery.ore[lv] = []; for (let v = 0; v < 4; v++) scenery.ore[lv].push(renderVox(oreModel(lv, v), 0)); }
   for (let lv = 0; lv < 4; lv++) { scenery.gem[lv] = []; for (let v = 0; v < 4; v++) scenery.gem[lv].push(renderVox(gemModel(lv, v), 0)); }
 }

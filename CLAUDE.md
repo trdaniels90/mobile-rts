@@ -119,6 +119,25 @@ share globals. Read this file first; the commit history explains every change in
   a 2.5 s fade out, 44.1 kHz stereo, 96 kbps.
 - Volume sliders (`musicVol`, `sfxVol` in `Sound.settings`, `setVolume`) scale the buses; full is the original mix.
 
+## Iso view (branch `claude/iso-view`, test only: not for players until the bugs are fixed, owner's call)
+
+- Tiberian Sun style camera: the world is turned 45 degrees (cells show as diamonds) and seen from about 33 degrees.
+  All in `VIEW` (voxel.js): `rot`, `elev`, `F` (ground squash), `VK` (height), `toView` / `fromView` (world to view plane and
+  back), `liftPt` (the world point that shows h px straight up), `viewDepth` (draw order). A "no turn" option later = `rot` 0
+  plus a sprite and ground bake for it.
+- `renderVox` renders from that camera; `opts.flat` / `FLAT_PASS` render from straight above for things painted into the
+  ground (rocks, wrecks), which the ground's transform then turns and squashes.
+- ui.js `draw`: the battle is drawn through a world-to-view transform; `uprightCtx` (art.js) stands sprites (pictures with
+  `_ox`/`_oy`) upright at their projected spot, and while `g.upright` (units onward) every picture, pixel and label too.
+  Bars, brackets and labels are drawn on the view plane (`bldBox`, `unitSpot`). `cam.x/y` are on the view plane; taps,
+  pinch, wheel, box select, double tap, radar outline, sounds and shakes convert. Saves keep `cam.view`; older saves are
+  converted. Sprites and ground rebaked.
+- **Known bugs:** smoke, fire and debris that move up in world y drift up-right; heights inside effects and `muzzle`
+  (world.js) go diagonal; trees no longer sway and are always drawn behind units; walls (`wallPic`) are flat squashed
+  pictures; the draw order beside big structures is a guess (0.4 into the footprint); flame jets, rally lines and the
+  Tesla bolt are flat on the ground; the ground draws the whole world box round the screen (about 3 times the tiles: watch
+  phones); the map shows its corners as black; pedestrians, hens and birds untested; not tried on a real phone or online.
+
 ## Recent mechanics (2026.10.31 and .31.1)
 
 - **Defending jets** (`defendBase`, `pickRaider`, `updateAir`): each defending jet takes a raider

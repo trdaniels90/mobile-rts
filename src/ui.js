@@ -88,6 +88,7 @@
   hooks.shake = (x, y, amp) => {
     if (calmMotion) amp *= 0.25;
     const hw = W / cam.z / 2, hh = H / cam.z / 2;
+    [x, y] = toView(x, y);
     const d = Math.max(Math.abs((x - (cam.x + hw)) / hw), Math.abs((y - (cam.y + hh)) / hh));
     const k = d <= 1 ? 1 : Math.max(0, 1 - (d - 1) * 0.8);
     shakeAmp = Math.min(12, Math.max(shakeAmp, amp * k));
@@ -95,6 +96,7 @@
   hooks.sfx = (name, x, y) => {
     if (!G) return;
     const hw = W / cam.z / 2, hh = H / cam.z / 2;
+    [x, y] = toView(x, y);
     const dx = (x - (cam.x + hw)) / hw, dy = (y - (cam.y + hh)) / hh;
     // d: 1 at the screen edge, 2 one screen beyond it, and so on. Off-screen fighting fades
     // but never goes silent, panned toward the side it is on.
@@ -136,12 +138,14 @@
   }
   function clampCam() {
     cam.z = snapZ(cam.z);
-    const vw = W / cam.z, vh = H / cam.z;
-    cam.x = vw >= WORLD ? (WORLD - vw) / 2 : Math.max(0, Math.min(WORLD - vw, cam.x));
-    // While placing, the camera may go past the top edge by the placement bar's height, so a base by the
-    // top of the map (Three Crossings' north-west start) is not stuck under the bar, which takes the taps.
-    const top = placeMargin() / cam.z;
-    cam.y = vh >= WORLD ? (WORLD - vh) / 2 : Math.max(-top, Math.min(WORLD - vh, cam.y));
+    // cam.x, cam.y: the top left of the screen on the view plane (voxel.js toView). The middle of the screen is kept
+    // over the map. While placing, it may go past the top edge by the placement bar's height, so a base by the top of
+    // the map (Three Crossings' north-west start) is not stuck under the bar, which takes the taps.
+    const vw = W / cam.z, vh = H / cam.z, top = placeMargin() / cam.z;
+    let [x, y] = fromView(cam.x + vw / 2, cam.y + vh / 2);
+    x = Math.max(0, Math.min(WORLD, x)); y = Math.max(-top, Math.min(WORLD, y));
+    const [X, Y] = toView(x, y);
+    cam.x = X - vw / 2; cam.y = Y - vh / 2;
   }
   function placeMargin() {
     if (!ui.placebar || ui.placebar.hidden) return 0;
@@ -197,8 +201,9 @@
     v.fillStyle = 'rgba(255,110,25,0.6)'; v.beginPath(); v.arc(ex, ey, r + 1.5, 0, 7); v.fill();
     v.fillStyle = '#ffb040'; v.beginPath(); v.arc(ex, ey, r, 0, 7); v.fill();
   }
-  function centerOn(x, y) { cam.x = x - W / cam.z / 2; cam.y = y - H / cam.z / 2; clampCam(); }
-  const s2w = (sx, sy) => ({ x: cam.x + sx / cam.z, y: cam.y + sy / cam.z });
+  function centerOn(x, y) { [x, y] = toView(x, y); cam.x = x - W / cam.z / 2; cam.y = y - H / cam.z / 2; clampCam(); }
+  // Screen point to the world point on the ground under it.
+  const s2w = (sx, sy) => { const [x, y] = fromView(cam.x + sx / cam.z, cam.y + sy / cam.z); return { x, y }; };
 
   // ---------------------------------------------------------------------------
   // Game start
@@ -279,7 +284,7 @@
   // The skirmish under way is saved when the menu opens (which it also does when the phone locks or
   // switches apps) and every two minutes; Continue on the menu picks it up again.
   function autosave() {
-    if (mission && G && !G.over && !Net.role) SaveGame.save({ faction, diffKey, cam: { x: cam.x, y: cam.y, z: cam.z }, match: Report.matchId }).then(showContinue);
+    if (mission && G && !G.over && !Net.role) SaveGame.save({ faction, diffKey, cam: { x: cam.x, y: cam.y, z: cam.z, view: VIEW.rot }, match: Report.matchId }).then(showContinue);
   }
   setInterval(() => { if (G && !G.paused) autosave(); }, 120 * 1000);
   function showContinue() {
@@ -300,7 +305,8 @@
     faction = FACTIONS[r.faction] ? r.faction : faction; diffKey = DIFFICULTY[r.diffKey] ? r.diffKey : diffKey;
     online = null; mission = true;
     afterNewWorld(faction, true);
-    if (r.cam) { cam.x = r.cam.x; cam.y = r.cam.y; cam.z = r.cam.z; clampCam(); }
+    if (r.cam && r.cam.view === VIEW.rot) { cam.x = r.cam.x; cam.y = r.cam.y; cam.z = r.cam.z; clampCam(); }
+    else if (r.cam) { cam.z = r.cam.z; centerOn(r.cam.x + W / r.cam.z / 2, r.cam.y + H / r.cam.z / 2); }   // (saved before the iso view: world coordinates)
     Report.resume(r.match, faction, diffKey);   // the same match as before it was saved
     hideMenu();
   }
@@ -317,7 +323,7 @@
   }
   // Veterancy: one gold chevron per rank at the unit's lower right; an elite unit wears a star.
   function drawRank(g, e) {
-    const r = e.def.r, x = Math.round(e.x + r - 1), y0 = Math.round(e.y - (e.alt || 0) + (e.cls === 'inf' ? -2 : r - 2));
+    const r = e.def.r, [ux, uy] = unitSpot(e), x = Math.round(ux + r - 1), y0 = Math.round(uy + (e.cls === 'inf' ? -2 : r - 2));
     if (e.rank >= VET.at.length) {
       g.fillStyle = '#000'; g.fillRect(x - 3, y0 - 3, 7, 7);
       g.fillStyle = '#ffd65a'; g.fillRect(x - 2, y0, 5, 1); g.fillRect(x, y0 - 2, 1, 5); g.fillRect(x - 1, y0 - 1, 3, 3);
@@ -347,13 +353,19 @@ const gateAnim = new Map();   // cell -> { v: how far a gate's barrier is down (
 function draw() {
     spriteSpend = 0;   // (models.js: sprites made this frame)
     const z = cam.z;
-    const ox = Math.floor(cam.x), oy = Math.floor(cam.y);
-    const bw = Math.ceil(W / z) + 2, bh = Math.ceil(H / z) + 2;
-    if (view.width < bw || view.height < bh) { view.width = bw + 64; view.height = bh + 64; }
-    const v = vctx;
+    // The view canvas holds the screen at zoom 1 (VW x VH); its top left is (vx, vy) on the view plane (voxel.js
+    // toView). The world is drawn through a transform that turns and squashes it (iso view); (ox, oy, bw, bh) is the
+    // world box round what is on screen, with room below for tall things standing just off the bottom edge.
+    const VW = Math.ceil(W / z) + 2, VH = Math.ceil(H / z) + 2, vx = Math.floor(cam.x), vy = Math.floor(cam.y);
+    const corners = [fromView(vx - 40, vy - 40), fromView(vx + VW + 40, vy - 40), fromView(vx - 40, vy + VH + 140), fromView(vx + VW + 40, vy + VH + 140)];
+    const ox = Math.floor(Math.min(...corners.map((c) => c[0]))), oy = Math.floor(Math.min(...corners.map((c) => c[1])));
+    const bw = Math.ceil(Math.max(...corners.map((c) => c[0]))) - ox, bh = Math.ceil(Math.max(...corners.map((c) => c[1]))) - oy;
+    if (view.width < VW || view.height < VH) { view.width = VW + 64; view.height = VH + 64; }
+    const v = uprightCtx(vctx);
+    v.upright = false;
     v.setTransform(1, 0, 0, 1, 0, 0);
     v.imageSmoothingEnabled = false;
-    v.fillStyle = '#000'; v.fillRect(0, 0, bw, bh);
+    v.fillStyle = '#000'; v.fillRect(0, 0, VW, VH);
     if (!G) return;
     // A bridge span destroyed or rebuilt: the minimap's terrain follows.
     const sig = (G.spans || []).map((s) => (s.alive ? 1 : 0)).join('');
@@ -367,8 +379,9 @@ function draw() {
     // The ground is painted in tiles as it comes into view (art.js makeGround): up to 6 ms a frame for what is on
     // screen, then 3 ms for the tiles round it.
     G.ground.update(sx, sy, sw, sh, 6, 3);
-    G.ground.draw(v, 't', sx, sy, sw, sh, sx - ox, sy - oy);
-    v.translate(-ox, -oy);
+    const toWorld = () => v.setTransform(VIEW.c, VIEW.s * VIEW.F, -VIEW.s, VIEW.c * VIEW.F, -vx, -vy);   // world -> view canvas
+    toWorld();
+    G.ground.draw(v, 't', sx, sy, sw, sh, sx, sy);
 
     // Ore
     const c0 = Math.max(0, Math.floor(ox / CELL)), c1 = Math.min(MAP - 1, Math.floor((ox + bw) / CELL));
@@ -421,8 +434,12 @@ function draw() {
     for (const f of G.folk || []) if (f.st !== 'in' && inView(f) && G.seen[cellOfPos(f.x, f.y)]) ground.push({ kind: 'folk', v: f, y: f.y });
     for (const c of G.hens || []) if (inView(c) && G.seen[cellOfPos(c.x, c.y)]) ground.push({ kind: 'hen', v: c, y: c.y });
     if (G.birds) drawBirds(v, false, x0, y0, x1, y1);   // pigeons on the ground
-    const baseY = (e) => e.kind === 'bld' || e.kind === 'house' ? (e.cy + e.h) * CELL : e.y;
+    // Back to front on the screen. A structure sorts by a point 0.4 of the way into its footprint, so a unit beside
+    // one of its front walls is drawn in front of it and one by its back walls behind it.
+    const baseY = (e) => e.kind === 'bld' || e.kind === 'house' ? viewDepth((e.cx + e.w * 0.4) * CELL, (e.cy + e.h * 0.4) * CELL)
+      : e.kind === 'folk' || e.kind === 'hen' ? viewDepth(e.v.x, e.v.y) : viewDepth(e.x, e.y);
     ground.sort((a, b) => baseY(a) - baseY(b));
+    v.upright = true;   // from here on, pictures, pixels and labels stand upright (art.js uprightCtx)
     for (const e of ground) {
       if (e.kind === 'bld') drawStructure(v, e, G.t);
       else if (e.kind === 'house') drawHouse(v, e);
@@ -432,8 +449,9 @@ function draw() {
       else drawUnit(v, e, G.t);
     }
     for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') flameJet(v, e);
-    for (const p of G.projectiles) {
+    for (let p of G.projectiles) {
       if (p.delay > 0) continue;
+      if (p.gy !== undefined) { const [lx, ly] = liftPt(p.gx, p.gy, p.gy - p.y); p = { ...p, x: lx, y: ly }; }   // a lobbed shell or grenade: its height up the screen
       const a = p.a || 0, ca = Math.cos(a), sa = Math.sin(a);
       if (p.kind === 'bomb') {
         v.fillStyle = 'rgba(0,0,0,0.35)'; v.fillRect(Math.round(p.tx - 1), Math.round(p.ty), 3, 2);
@@ -469,16 +487,20 @@ function draw() {
     for (const e of air) drawUnit(v, e, G.t);
     if (G.birds) drawBirds(v, true, x0, y0, x1, y1);   // pigeons in the air and on the church roof
 
+    // Bars, brackets and labels are drawn flat on the view plane (screen pixels), at their things' projected spots.
+    v.upright = false;
+    const onView = () => v.setTransform(1, 0, 0, 1, -vx, -vy);
+    onView();
     // Bridge spans: health while under fire or while a ground target is being picked.
     for (const s of G.spans || []) {
       if (!G.seen[idx(Math.floor(s.x / CELL), Math.floor(s.y / CELL))]) continue;
-      if (s.alive && (G.t - s.hitT < 3 || aimSpan)) drawHealth(v, s, s.x, s.y - 2, 40);
+      if (s.alive && (G.t - s.hitT < 3 || aimSpan)) drawHealth(v, s, ...toView(...liftPt(s.x, s.y, 2)), 40);
     }
     for (const h of G.houses || []) {
       if (!h.alive || !houseSeen(h) || !inView(h)) continue;
-      const held = h.n && G.selection.some((u) => u.inHouse === h);
-      if (held) brackets(v, h.cx * CELL - 1, h.cy * CELL - 1, (h.cx + h.w) * CELL, (h.cy + h.h) * CELL);
-      if (held || G.t - h.hitT < 3 || aimSpan) drawHealth(v, h, h.x, h.cy * CELL - 6, Math.min(40, h.w * 14));
+      const held = h.n && G.selection.some((u) => u.inHouse === h), bx = bldBox(h);
+      if (held) brackets(v, ...bx);
+      if (held || G.t - h.hitT < 3 || aimSpan) drawHealth(v, h, (bx[0] + bx[2]) / 2, bx[1] - 6, Math.min(40, h.w * 14));
     }
     // Selection brackets and health bars.
     for (const e of G.entities) {
@@ -488,21 +510,21 @@ function draw() {
       if (e.rank && e.kind === 'unit') drawRank(v, e);
       if (!sel && !recent) continue;
       if (e.kind === 'bld') {
-        const bx = e.cx * CELL, by = e.cy * CELL;
-        if (sel) brackets(v, bx - 1, by - 1, bx + e.w * CELL, by + e.h * CELL);
-        if (sel && e.team === G.me && e.rally && e.exitCell !== undefined) drawRally(v, e, e.rally);
-        drawHealth(v, e, bx + e.w * CELL / 2, by - 6, Math.min(48, e.w * CELL - 8));
+        const bx = bldBox(e);
+        if (sel) brackets(v, ...bx);
+        if (sel && e.team === G.me && e.rally && e.exitCell !== undefined) { toWorld(); drawRally(v, e, e.rally); onView(); }
+        drawHealth(v, e, (bx[0] + bx[2]) / 2, bx[1] - 6, Math.min(48, e.w * CELL - 8));
       } else {
-        const r = e.def.r + 2, yy = e.y - (e.alt || 0) - (e.cls === 'inf' ? 8 : 3);
-        if (sel) brackets(v, e.x - r, yy - r - (e.cls === 'inf' ? 5 : 0), e.x + r, yy + r + (e.cls === 'inf' ? 3 : 0));
-        drawHealth(v, e, e.x, yy - r - (e.cls === 'inf' ? 10 : 5), Math.max(10, r * 2));
+        const r = e.def.r + 2, [xx, yy] = unitSpot(e, e.cls === 'inf' ? 8 : 3);
+        if (sel) brackets(v, xx - r, yy - r - (e.cls === 'inf' ? 5 : 0), xx + r, yy + r + (e.cls === 'inf' ? 3 : 0));
+        drawHealth(v, e, xx, yy - r - (e.cls === 'inf' ? 10 : 5), Math.max(10, r * 2));
       }
     }
 
     // PRIMARY over the building new units come out of, when there is more than one of its type.
     for (const e of G.entities) {
       if (!e.alive || !e.primary || e.kind !== 'bld' || e.team !== G.me || !inView(e) || producersOfType(e).length < 2) continue;
-      const tx = e.cx * CELL + e.w * CELL / 2, ty = e.cy * CELL + e.h * CELL - 3;
+      const [tx, ty] = toView(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3);
       v.font = 'bold 7px monospace'; v.textAlign = 'center'; v.textBaseline = 'middle';
       v.fillStyle = 'rgba(0,0,0,0.65)'; v.fillRect(tx - 18, ty - 4.5, 36, 9);
       v.fillStyle = '#f2d24a'; v.fillText('PRIMARY', tx, ty + 0.5);
@@ -515,6 +537,7 @@ function draw() {
       for (let i = 0; i < NCELLS; i++) { d[i * 4 + 3] = G.seen[i] ? 0 : 255; }
       sctx.putImageData(shroudImg, 0, 0);
     }
+    toWorld();
     v.imageSmoothingEnabled = true;
     v.drawImage(shroudCanvas, ox / CELL, oy / CELL, bw / CELL, bh / CELL, ox, oy, bw, bh);
     v.imageSmoothingEnabled = false;
@@ -527,7 +550,7 @@ function draw() {
     const k = z * DPR;
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
-    ctx.drawImage(view, 0, 0, bw, bh, Math.round(-(cam.x - ox) * k + sx2), Math.round(-(cam.y - oy) * k + sy2), Math.round(bw * k), Math.round(bh * k));
+    ctx.drawImage(view, 0, 0, VW, VH, Math.round(-(cam.x - vx) * k + sx2), Math.round(-(cam.y - vy) * k + sy2), Math.round(VW * k), Math.round(VH * k));
     if (MAPS[validMap(G.mapId)].daynight) drawNight(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t);   // (art.js)
     if (G.weather) drawWeather(ctx, G.weather, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, G.paused || !!G.over);
     if (gesture && gesture.type === 'box' && gesture.moved) {
@@ -626,7 +649,9 @@ function draw() {
     }
     rctx.drawImage(shroudCanvas, 0, 0, Wr, Hr);
     rctx.strokeStyle = '#f2f2ea'; rctx.lineWidth = Math.max(1, DPR);
-    rctx.strokeRect(cam.x / CELL * k, cam.y / CELL * k, W / cam.z / CELL * k, H / cam.z / CELL * k);
+    rctx.beginPath();   // what the screen shows: a diamond on the map in the iso view
+    [[0, 0], [W, 0], [W, H], [0, H]].forEach(([sx, sy], i) => { const p = s2w(sx, sy); rctx[i ? 'lineTo' : 'moveTo'](p.x / CELL * k, p.y / CELL * k); });
+    rctx.closePath(); rctx.stroke();
   }
 
   // ---------------------------------------------------------------------------
@@ -635,18 +660,28 @@ function draw() {
   // What is under a tap or click. Structures count from their footprint up through the walls and
   // roof drawn above it. A unit in front of a structure wins the tap: structures rank a little
   // lower, but that never stops a tap squarely on one from picking it, at any zoom.
+  // (In the iso view the tap is measured on the view plane, where things are drawn.)
+  // A structure on the view plane: its footprint's outline and the walls and roof drawn above it.
+  function bldBox(e) {
+    const xs = [], ys = [];
+    for (const [x, y] of [[e.cx, e.cy], [e.cx + e.w, e.cy], [e.cx, e.cy + e.h], [e.cx + e.w, e.cy + e.h]]) { const p = toView(x * CELL, y * CELL); xs.push(p[0]); ys.push(p[1]); }
+    return [Math.min(...xs), Math.min(...ys) - CELL * 0.8 * VK, Math.max(...xs), Math.max(...ys)];
+  }
+  // A unit on the view plane, raised by its height and h more.
+  const unitSpot = (e, h) => toView(...liftPt(e.x, e.y, (e.alt || 0) + (h || 0)));
   function pick(wx, wy, slop) {
+    const [X, Y] = toView(wx, wy);
     let best = null, bd = Infinity;
     for (const e of G.entities) {
       if (!e.alive || !visibleToPlayer(e) || (e.def && e.def.scripted)) continue;
       let d, rank;
       if (e.kind === 'bld') {
-        const bx = e.cx * CELL, by = e.cy * CELL - CELL * 0.8;
-        const dx = Math.max(bx - wx, 0, wx - (bx + e.w * CELL)), dy = Math.max(by - wy, 0, wy - (e.cy * CELL + e.h * CELL));
+        const [bx0, by0, bx1, by1] = bldBox(e);
+        const dx = Math.max(bx0 - X, 0, X - bx1), dy = Math.max(by0 - Y, 0, Y - by1);
         d = Math.hypot(dx, dy); rank = d + 4;
       } else {
-        const ey = e.y - (e.alt || 0) - (e.cls === 'inf' ? 3 : 0);
-        d = rank = Math.max(0, Math.hypot(wx - e.x, wy - ey) - e.def.r);
+        const [ex, ey] = unitSpot(e, e.cls === 'inf' ? 3 : 0);
+        d = rank = Math.max(0, Math.hypot(X - ex, Y - ey) - e.def.r);
       }
       if (d <= slop && rank < bd) { bd = rank; best = e; }
     }
@@ -730,7 +765,7 @@ function draw() {
       }
       if (dbl && e.kind === 'unit') {
         const vx = cam.x, vy = cam.y, vw = W / cam.z, vh = H / cam.z;
-        select(unitsOf(G.me).filter((u) => u.type === e.type && !u.chute && u.x > vx && u.x < vx + vw && u.y > vy && u.y < vy + vh));
+        select(unitsOf(G.me).filter((u) => { const [x, y] = toView(u.x, u.y); return u.type === e.type && !u.chute && x > vx && x < vx + vw && y > vy && y < vy + vh; }));
         return;
       }
       if (shift && e.kind === 'unit') {
@@ -755,8 +790,9 @@ function draw() {
   }
 
   function boxSelect(sx0, sy0, sx1, sy1, add) {
-    const a = s2w(Math.min(sx0, sx1), Math.min(sy0, sy1)), b = s2w(Math.max(sx0, sx1), Math.max(sy0, sy1));
-    const inBox = unitsOf(G.me).filter((u) => !u.def.scripted && !u.inHouse && u.x > a.x && u.x < b.x && u.y - (u.alt || 0) > a.y && u.y - (u.alt || 0) < b.y);
+    const v = (sx, sy) => ({ x: cam.x + sx / cam.z, y: cam.y + sy / cam.z });   // (the box is on the view plane)
+    const a = v(Math.min(sx0, sx1), Math.min(sy0, sy1)), b = v(Math.max(sx0, sx1), Math.max(sy0, sy1));
+    const inBox = unitsOf(G.me).filter((u) => { const [x, y] = unitSpot(u); return !u.def.scripted && !u.inHouse && x > a.x && x < b.x && y > a.y && y < b.y; });
     const fighters = inBox.filter((u) => !u.def.harvester);
     const chosen = fighters.length ? fighters : inBox;
     if (add) select(Array.from(new Set(ownUnits().concat(chosen))));
@@ -941,7 +977,7 @@ function draw() {
     if (pointers.size === 2) {
       clearTimeout(longPress);
       const [a, b] = [...pointers.values()];
-      gesture = { type: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: cam.z, anchor: s2w((a.x + b.x) / 2, (a.y + b.y) / 2) };
+      gesture = { type: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: cam.z, anchor: { x: cam.x + (a.x + b.x) / 2 / cam.z, y: cam.y + (a.y + b.y) / 2 / cam.z } };   // (on the view plane)
       return;
     }
     if (pointers.size > 2) return;
@@ -987,7 +1023,7 @@ function draw() {
   canvas.addEventListener('pointercancel', (e) => endPointer(e, true));
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const p = local(e), w = s2w(p.x, p.y);
+    const p = local(e), w = { x: cam.x + p.x / cam.z, y: cam.y + p.y / cam.z };   // (on the view plane)
     cam.z = snapZ(cam.z + Math.sign(-e.deltaY) * Math.max(1 / DPR, cam.z * 0.12));
     cam.x = w.x - p.x / cam.z; cam.y = w.y - p.y / cam.z;
     clampCam();
@@ -1556,7 +1592,7 @@ function draw() {
     guard('sidebar', () => updateSidebar(1 / 60));
     guard('radar', () => drawRadar(1 / 60));
     guard('cameos', warmCameos);
-    if (G && !G.paused) guard('sprites', () => warmSprites(2, cam.x + W / cam.z / 2, cam.y + H / cam.z / 2));
+    if (G && !G.paused) guard('sprites', () => warmSprites(2, ...Object.values(s2w(W / 2, H / 2))));
     if (G && !G.paused && !(loadFor && loadFor.g === G && !loadFor.done)) {   // how smoothly this device runs the battle (Report: stats.frames)
       const jump = Math.abs(cam.x - camWas.x) > W / cam.z / 2 || Math.abs(cam.y - camWas.y) > H / cam.z / 2;
       Report.noteFrame(now, updMs, d1 - d0, jump, performance.now() - d1);

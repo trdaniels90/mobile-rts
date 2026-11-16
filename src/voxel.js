@@ -3,7 +3,27 @@
 // pre-rendered from above-and-south with one sun, ambient occlusion, metal and glass
 // highlights and a cast shadow: the "rendered in 3D Studio" look of 90s RTS sprites.
 
-const VK = 1.0;                    // screen pixels a voxel rises per unit of height (steep three-quarter view)
+// The camera (iso view, branch claude/iso-view): the world is turned VIEW.rot about the vertical (45 degrees: the cell
+// grid shows as diamonds, as in Tiberian Sun) and seen from VIEW.elev above the ground, so the ground is squashed to
+// VIEW.F of its depth and a unit of height rises VK pixels. Everything that turns world positions into screen positions
+// goes through toView / fromView / liftPt, so another angle (a "no turn" option, rot 0) is a matter of these numbers
+// (and a set of sprites baked for it).
+const VIEW = { rot: Math.PI / 4, elev: 33.4 * Math.PI / 180 };
+VIEW.F = Math.sin(VIEW.elev); VIEW.c = Math.cos(VIEW.rot); VIEW.s = Math.sin(VIEW.rot);
+const VK = Math.cos(VIEW.elev);   // screen pixels a voxel rises per unit of height
+const VIEW_VK = VK;
+// World (x, y) on the ground to the view plane (screen pixels at zoom 1, before the camera's offset), and back.
+function toView(x, y) { return [x * VIEW.c - y * VIEW.s, (x * VIEW.s + y * VIEW.c) * VIEW.F]; }
+function fromView(X, Y) { const v = Y / VIEW.F; return [X * VIEW.c + v * VIEW.s, v * VIEW.c - X * VIEW.s]; }
+// The world point that shows h pixels straight above world (x, y): for things drawn in world coordinates at a height
+// (aircraft, health bars, muzzles), which must rise up the screen, not toward the north.
+function liftPt(x, y, h) { const [dx, dy] = fromView(0, -h); return [x + dx, y + dy]; }
+// How far down the screen a world point lies: the drawing order (painter's) of things on the ground.
+function viewDepth(x, y) { return x * VIEW.s + y * VIEW.c; }
+// Pictures painted into the ground (rocks, wrecks) lie flat in it and are turned with it, so they are rendered from straight
+// above with a little height (renderVox opts.flat; models.js sprite() while FLAT_PASS is set).
+let FLAT_PASS = false;
+const FLAT_VK = 0.3;
 const SUPER = 2;                   // supersampling for soft, anti-aliased edges
 const LIGHT = (() => { const v = [-0.62, 0.22, 0.75], l = Math.hypot(...v); return v.map((x) => x / l); })();
 const HALF = (() => { const v = [LIGHT[0], LIGHT[1] + 0.6, LIGHT[2] + 0.8], l = Math.hypot(...v); return v.map((x) => x / l); })();
@@ -119,6 +139,8 @@ function renderVox(m, angle, opts) {
   opts = opts || {};
   const s = m.surf || (m.surf = surfaceOf(m));
   const scale = opts.scale || 1, S = SUPER * scale;
+  if (!opts.flat) angle += VIEW.rot;
+  const F = opts.flat ? 1 : VIEW.F, VK = opts.flat ? FLAT_VK : VIEW_VK;
   const ca = Math.cos(angle), sa = Math.sin(angle);
   const ext = 0.5 * (Math.abs(ca) + Math.abs(sa));
   const n = s.n;
@@ -127,12 +149,12 @@ function renderVox(m, angle, opts) {
   let sminX = Infinity, sminY = Infinity, smaxX = -Infinity, smaxY = -Infinity;
   for (let i = 0; i < n; i++) {
     const cx = s.xs[i] + 0.5, cy = s.ys[i] + 0.5 + (m.py || 0);   // py: a model built off its centre line by a fraction of a voxel (an odd-width turret) is turned about its true centre
-    const xr = cx * ca - cy * sa, yr = cx * sa + cy * ca;
+    const xr = cx * ca - cy * sa, yr = (cx * sa + cy * ca) * F;
     px[i] = xr; py[i] = yr;
     const z = s.zs[i];
     minX = Math.min(minX, xr - ext); maxX = Math.max(maxX, xr + ext);
-    minY = Math.min(minY, yr - ext - (z + 1) * VK); maxY = Math.max(maxY, yr + ext - z * VK);
-    const gx = xr + (z + 0.5) * SHADOW_DX, gy = yr + (z + 0.5) * SHADOW_DY;
+    minY = Math.min(minY, yr - ext * F - (z + 1) * VK); maxY = Math.max(maxY, yr + ext * F - z * VK);
+    const gx = xr + (z + 0.5) * SHADOW_DX, gy = yr + (z + 0.5) * SHADOW_DY * F;
     sminX = Math.min(sminX, gx - ext); smaxX = Math.max(smaxX, gx + ext);
     sminY = Math.min(sminY, gy - ext); smaxY = Math.max(smaxY, gy + ext);
   }
@@ -140,11 +162,11 @@ function renderVox(m, angle, opts) {
   const W = Math.max(1, Math.ceil((maxX - minX) * scale) + 1), H = Math.max(1, Math.ceil((maxY - minY) * scale) + 1);
   const BW = W * SUPER, BH = H * SUPER;
   const buf = new Uint32Array(BW * BH);
-  // Painter's order: lower voxels first, then north to south.
+  // Painter's order: furthest from the camera first (back to front along the line of sight).
   const order = new Uint32Array(n);
   for (let i = 0; i < n; i++) order[i] = i;
   const key = new Float64Array(n);
-  for (let i = 0; i < n; i++) key[i] = s.zs[i] * 10000 + py[i];
+  for (let i = 0; i < n; i++) key[i] = py[i] / F * VK + s.zs[i] * F;
   order.sort((a, b) => key[a] - key[b]);
   const tint = opts.tint;
   for (let k = 0; k < n; k++) {
@@ -169,7 +191,7 @@ function renderVox(m, angle, opts) {
     r = Math.min(255, r * lum + spec * 255); g = Math.min(255, g * lum + spec * 255); b = Math.min(255, b * lum + spec * 255);
     const pix = (255 << 24) | (b << 16) | (g << 8) | r;
     const x0 = Math.floor((px[i] - ext - minX) * S), x1 = Math.ceil((px[i] + ext - minX) * S);
-    const y0 = Math.floor((py[i] - ext - (z + 1) * VK - minY) * S), y1 = Math.ceil((py[i] + ext - z * VK - minY) * S);
+    const y0 = Math.floor((py[i] - ext * F - (z + 1) * VK - minY) * S), y1 = Math.ceil((py[i] + ext * F - z * VK - minY) * S);
     for (let yy = Math.max(0, y0); yy < Math.min(BH, y1); yy++) {
       const row = yy * BW;
       for (let xx = Math.max(0, x0); xx < Math.min(BW, x1); xx++) buf[row + xx] = pix;
@@ -177,19 +199,20 @@ function renderVox(m, angle, opts) {
   }
   const img = downsample(buf, BW, BH, W, H, false, opts.crisp);
   const out = { img, ox: minX, oy: minY };
+  img._ox = minX; img._oy = minY;   // (the sprite's origin: art.js uprightCtx stands it at the projected spot)
   if (opts.shadow !== false) {
     const SW = Math.max(1, Math.ceil((smaxX - sminX) * scale) + 1), SH = Math.max(1, Math.ceil((smaxY - sminY) * scale) + 1);
     const sb = new Uint32Array(SW * SUPER * SH * SUPER);
     const SBW = SW * SUPER, SBH = SH * SUPER;
     for (let i = 0; i < n; i++) {
       const z = s.zs[i];
-      const gx = px[i] + (z + 0.5) * SHADOW_DX, gy = py[i] + (z + 0.5) * SHADOW_DY;
+      const gx = px[i] + (z + 0.5) * SHADOW_DX, gy = py[i] + (z + 0.5) * SHADOW_DY * F;
       const x0 = Math.floor((gx - ext - 0.3 - sminX) * S), x1 = Math.ceil((gx + ext + 0.3 - sminX) * S);
       const y0 = Math.floor((gy - ext - 0.3 - sminY) * S), y1 = Math.ceil((gy + ext + 0.3 - sminY) * S);
       for (let yy = Math.max(0, y0); yy < Math.min(SBH, y1); yy++) for (let xx = Math.max(0, x0); xx < Math.min(SBW, x1); xx++) sb[yy * SBW + xx] = 0xff000000;
     }
     out.sh = downsample(sb, SBW, SBH, SW, SH, true);
-    out.sox = sminX; out.soy = sminY;
+    out.sox = sminX; out.soy = sminY; out.sh._ox = sminX; out.sh._oy = sminY;
   }
   return out;
 }

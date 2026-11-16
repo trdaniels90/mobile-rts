@@ -8,6 +8,42 @@ function rng(seed) {
   return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 }
 
+// The iso view (voxel.js VIEW): the battle is drawn on a context whose transform takes world coordinates to the
+// turned, squashed view plane, which is right for the ground and everything lying on it. A sprite must stand upright,
+// so uprightCtx(g) makes g draw any rendered sprite (a picture with _ox / _oy, set by renderVox and SpriteSheets)
+// untransformed, with its origin at the screen spot its world origin projects to. While g.upright is set (units,
+// effects, bars: everything that stands up), every other picture (stood at its middle), rectangle (pixels, bars,
+// tracers) and label is placed the same way. Lines, arcs and outlines stay on the ground.
+function uprightCtx(g) {
+  if (g._upright) return g;
+  g._upright = true; g.upright = false;
+  const P = CanvasRenderingContext2D.prototype, di = P.drawImage, fr = P.fillRect, ft = P.fillText;
+  const at = (x, y) => { const m = g.getTransform(); return [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]; };
+  g.drawImage = function (img, ...a) {
+    const sprite = img && img._ox !== undefined;
+    if (!sprite && !g.upright) return di.call(g, img, ...a);
+    const n = a.length, j = n === 8 ? 4 : 0, dx = a[j], dy = a[j + 1];
+    const w = n === 2 ? img.width : a[j + 2], h = n === 2 ? img.height : a[j + 3];
+    // The anchor: a sprite's origin (allowing for a part cut from the source, as a structure rising from its pad),
+    // anything else's middle.
+    const ax = sprite ? dx - img._ox - (n === 8 ? a[0] : 0) : dx + w / 2, ay = sprite ? dy - img._oy - (n === 8 ? a[1] : 0) : dy + h / 2;
+    const [px, py] = at(ax, ay), b = a.slice();
+    b[j] = Math.round(px + dx - ax); b[j + 1] = Math.round(py + dy - ay);
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); di.call(g, img, ...b); g.restore();
+  };
+  g.fillRect = function (x, y, w, h) {
+    if (!g.upright) return fr.call(g, x, y, w, h);
+    const [px, py] = at(x + w / 2, y + h / 2);
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); fr.call(g, Math.round(px - w / 2), Math.round(py - h / 2), w, h); g.restore();
+  };
+  g.fillText = function (t, x, y, ...m) {
+    if (!g.upright) return ft.call(g, t, x, y, ...m);
+    const [px, py] = at(x, y);
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); ft.call(g, t, px, py, ...m); g.restore();
+  };
+  return g;
+}
+
 // Draws a pre-rendered sprite (and its cast shadow) with its origin at world (x, y).
 function blit(g, s, x, y, shadow) {
   if (shadow !== false && s.sh) {
@@ -163,7 +199,8 @@ const SpriteSheets = (() => {
       await Promise.all(sh.sprites.slice(i, i + 64).map(async (e) => {
         if (spriteCache2.has(e[0])) return;
         const s = { img: await cut(e[1], e[2], e[3], e[4]), ox: e[5], oy: e[6] };
-        if (e.length > 7) { s.sh = await cut(e[7], e[8], e[9], e[10]); s.sox = e[11]; s.soy = e[12]; }
+        s.img._ox = e[5]; s.img._oy = e[6];   // (uprightCtx)
+        if (e.length > 7) { s.sh = await cut(e[7], e[8], e[9], e[10]); s.sox = e[11]; s.soy = e[12]; s.sh._ox = e[11]; s.sh._oy = e[12]; }
         if (spriteCache2.has(e[0])) return;
         spriteCache2.set(e[0], s);
         const mk = e[0].slice(0, e[0].lastIndexOf('|'));
@@ -516,11 +553,12 @@ function crater(tg, x, y, rad, seed) {
 // seed: the char pattern (given by the marks list, so a tile painted again shows the same wreck).
 function bakeWreck(tg, x, y, def, face, tface, noTurret, seed = (Math.random() * 1e6) | 0) {
   const fake = { def, face, tface, load: 0 };
-  const hs = hullSprite(fake, BURNT);
+  FLAT_PASS = true;   // (lying in the ground, which is turned and squashed with it: voxel.js)
+  let hs, ts;
+  try { hs = hullSprite(fake, BURNT); ts = !noTurret && turretSprite(fake, BURNT); } finally { FLAT_PASS = false; }
   if (hs.sh) { tg.globalAlpha = 0.45; tg.drawImage(hs.sh, Math.round(x + hs.sox), Math.round(y + hs.soy)); tg.globalAlpha = 1; }
   tg.drawImage(charred(hs.img, seed), Math.round(x + hs.ox), Math.round(y + hs.oy));
-  const ts = !noTurret && turretSprite(fake, BURNT);
-  if (ts) tg.drawImage(charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - turretZ(def) * VK + ts.oy));
+  if (ts) tg.drawImage(charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - turretZ(def) * FLAT_VK + ts.oy));
 }
 // A turret blown off by a cook-off, charred, at its height above the ground and turned by rot.
 function turretImg(fx) {
@@ -865,7 +903,7 @@ function drawNight(g, vx, vy, vw, vh, k, t) {
   if (!nightCv || nightCv.width !== W || nightCv.height !== H) nightCv = mkCanvas(W, H);
   const n = nightCv.getContext('2d'), lights = [];
   const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
-  const add = (x, y, r, a, warmLight) => { if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };
+  const add = (x, y, r, a, warmLight) => { [x, y] = toView(x, y); if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };   // (vx, vy: the camera on the view plane)
   // Street lamps, lit windows, buildings' own lights, fires and blasts.
   for (const p of G.props || []) if (p.k === 'lamp' && p.up) add(p.x + 4.5, p.y - 8, 52, 1, true);
   for (const h of G.houses || []) {
@@ -1518,14 +1556,15 @@ function drawUnit(g, u, t) {
   }
   if (u.cls === 'air') {
     const alt = u.alt || 0, hgt = alt / VK, s = hullSprite(u, pal);
-    if (s.sh) { g.globalAlpha = 0.38; g.drawImage(s.sh, Math.round(u.x + hgt * SHADOW_DX + s.sox), Math.round(u.y + hgt * SHADOW_DY + s.soy)); g.globalAlpha = 1; }
-    blit(g, s, u.x, u.y - alt, false);
+    const [shx, shy] = fromView(hgt * SHADOW_DX, hgt * SHADOW_DY * VIEW.F), [ux, uy] = liftPt(u.x, u.y, alt);   // (the shadow falls away from the sun, which is fixed to the camera)
+    if (s.sh) { g.globalAlpha = 0.38; g.drawImage(s.sh, Math.round(u.x + shx + s.sox), Math.round(u.y + shy + s.soy)); g.globalAlpha = 1; }
+    blit(g, s, ux, uy, false);
     if (u.def.fly === 'heli') {
       // The rotor turns faster than any screen can show, so each frame it advances as far as it
       // can without seeming to run backwards (under half the gap between blades, whatever the
       // frame rate) and the blur of the arc it swept fills in the rest.
       const n = u.type === 'hind' ? 5 : 4, gap = Math.PI * 2 / n, flying = alt > 1;
-      const rz = (u.type === 'hind' ? 10 : 9) * VK, rx = u.x, ry = u.y - alt - rz, R = u.type === 'hind' ? 15 : 13;
+      const rz = (u.type === 'hind' ? 10 : 9) * VK, [rx, ry] = liftPt(u.x, u.y, alt + rz), R = u.type === 'hind' ? 15 : 13;
       const dtf = u.rotT === undefined ? 0 : Math.min(0.1, Math.max(0, t - u.rotT));
       const step = Math.min((flying ? 80 : 6) * dtf, gap * 0.42);
       u.rotT = t; u.rotA = (u.rotA === undefined ? u.id : u.rotA) + step;
@@ -1576,7 +1615,7 @@ function drawUnit(g, u, t) {
   const ts = turretSprite(u, pal);
   if (ts) {
     const z = turretZ(u.def) * VK, off = u.def.draw === 'jeep' ? -3 : -1;
-    const tx = u.x + Math.cos(u.face) * off - Math.cos(u.tface) * kick, ty = u.y + Math.sin(u.face) * off - z - Math.sin(u.tface) * kick * 0.6;
+    const [lx, ly] = liftPt(u.x, u.y, z), tx = lx + Math.cos(u.face) * off - Math.cos(u.tface) * kick, ty = ly + Math.sin(u.face) * off - Math.sin(u.tface) * kick * 0.6;
     blit(g, ts, tx, ty, false);
     if (u.fireT > 0) {
       const len = u.def.size.tur ? u.def.size.tur + u.def.size.barrel : 8;
@@ -1661,7 +1700,7 @@ function drawStructure(g, b, t) {
   if (b.type === 'sam') drawSamHead(g, b, x, y, stage);
   else if (head) {
     const kick = b.type === 'turret' ? recoil(b) * 1.6 : 0;   // the Gun Turret's head kicks back when it fires
-    const hx = x + head[1] - Math.cos(b.tface) * kick, hy = y + head[2] - head[3] * VK - Math.sin(b.tface) * kick * 0.6;
+    const [lx, ly] = liftPt(x + head[1], y + head[2], head[3] * VK), hx = lx - Math.cos(b.tface) * kick, hy = ly - Math.sin(b.tface) * kick * 0.6;
     blit(g, headSprite(b.type, b.faction, b.tface, stage), hx, hy, false);
     if (b.type === 'ftur') {   // a burst of fire at the projector's mouth, not a gun flash
       if (b.fireT > 0) { g.fillStyle = 'rgba(255,140,40,0.85)'; g.beginPath(); g.arc(hx + Math.cos(b.tface) * 10, hy + Math.sin(b.tface) * 10 - 3, 4 + Math.random() * 2, 0, 7); g.fill(); }
