@@ -1387,8 +1387,7 @@ const STRUCTURES = {
     m.box(52, 34, 5, 60, 36, 7, IRON, M_METAL);
     // Drums beside the tank, a flag at the front corner
     for (const [x, y] of [[6, 18], [12, 21], [18, 20]]) { m.cylZ(x, y, 1, 7, 3, CONC, M_ROUGH); m.cylZ(x, y, 6, 7, 3.2, pal.main, M_METAL); }
-    m.box(3, 46, 1, 4, 47, 22, C.steel, M_METAL);
-    m.box(4, 46, 17, 11, 47, 22, pal.main, M_MATTE);
+    m.box(3, 46, 1, 4, 47, 22, C.steel, M_METAL);   // flag pole (the cloth is drawn live, art.js drawFlag)
     return m;
   },
   // Outpost: the unpacked shelter with a raised radar dish, sandbags and a flag.
@@ -1402,8 +1401,7 @@ const STRUCTURES = {
     m.box(18, 33, 2, 24, 34, 9, '#3a3a33');                             // door
     m.line(14, 18, 13, 14, 18, 26, C.steel, M_METAL);                    // radar mast and dish
     m.ellipsoid(14, 18, 26, 4.5, 4.5, 1.6, C.steel, M_METAL);
-    m.line(38, 10, 1, 38, 10, 22, C.steel, M_METAL);                     // flag
-    m.box(38, 10, 17, 45, 11, 22, pal.main);
+    m.line(38, 10, 1, 38, 10, 22, C.steel, M_METAL);                     // flag pole (the cloth: art.js drawFlag)
     for (const [x, y] of [[40, 34], [6, 38]]) m.box(x, y, 1, x + 4, y + 3, 4, '#4b4d3a', M_METAL);   // crates
     return m;
   },
@@ -4071,9 +4069,7 @@ const SOVIET = {
     starTop(m, 22, 24, 7, pal.main);
     m.box(18, 33, 2, 24, 34, 9, SV.oliveD);
     latticeV(m, 13, 16, 12, 27, SV.steel);
-    m.line(38, 10, 1, 38, 10, 24, C.steel, M_METAL);
-    m.box(38, 10, 18, 46, 11, 24, pal.main);
-    m.set(40, 10, 22, C.yellow);
+    m.line(38, 10, 1, 38, 10, 24, C.steel, M_METAL);   // flag pole (the cloth: art.js drawFlag)
     for (const [x, y] of [[40, 34], [6, 38]]) m.box(x, y, 1, x + 4, y + 3, 4, SV.olive, M_METAL);
     return m;
   },

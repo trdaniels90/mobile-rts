@@ -1598,6 +1598,8 @@ function drawStructure(g, b, t) {
     } else if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
   }
   if (b.type === 'pillbox' && b.fireT > 0) { const m = muzzle(b); flash(g, m.x, m.y, 2); }
+  const fs = FLAG_SPOTS[b.type] && FLAG_SPOTS[b.type][b.faction];
+  if (fs) { const pal = palFor(b.faction); drawFlag(g, x + fs[0], y + fs[1] - fs[2] * VK, fs[3], fs[4], pal.main, pal.dark || pal.main, b.id, fs[5]); }
   if (b.type === 'tesla' && b.charge > 0) {
     g.fillStyle = `rgba(140,190,255,${0.25 + 0.45 * b.charge})`;
     g.beginPath(); g.arc(x + 12, y + 35 - 50 * VK, 7 + Math.random() * 3, 0, 7); g.fill();
@@ -1623,9 +1625,8 @@ function drawHouse(g, h) {
     const col = palFor(t.faction).main; drawVar = keep;
     const fi = FORT_INFO.get(type), fl = fi && fi.flag, x = Math.round(fl ? h.cx * CELL + fl.x : h.x), y = Math.round(fl ? h.cy * CELL + fl.y - fl.z * VK : h.cy * CELL + (s.oy || -20) + 6), wave = Math.sin(G.t * 5 + h.id) > 0 ? 1 : 0;
     g.fillStyle = '#1c1c1a'; g.fillRect(x, y - 16, 2, 18);
-    g.fillStyle = '#000'; g.fillRect(x + 2, y - 17, 12, 8);
-    g.fillStyle = col; g.fillRect(x + 2, y - 16, 11, 6); g.fillRect(x + 3 + wave, y - 10, 10, 1);
-    g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(x + 2, y - 16, 11, 1);
+    const tp = G.teams[h.team]; drawVar = tp.variant | 0; const dark = palFor(tp.faction).dark || col; drawVar = keep;
+    drawFlag(g, x + 1, y - 16, 11, 6, col, dark, h.id, false);
     if (alliedSides(h.team, G.me) || G.watching) {
       for (let i = 0; i < h.n; i++) { g.fillStyle = '#000'; g.fillRect(x - 1 + i * 3 - h.n * 1.5, y + 4, 3, 3); g.fillStyle = '#3ed04a'; g.fillRect(x + i * 3 - h.n * 1.5, y + 5, 1, 1); }
     }
@@ -1744,6 +1745,34 @@ function drawBirds(g, air, x0, y0, x1, y1) {
       g.fillStyle = '#5a5e66'; g.fillRect(x + (b.face > 0 ? 1 : -1), y - 2 + peck, 1, 1);
     }
   }
+}
+
+// Flags that fly in the wind (world.js windNow): the cloth streams downwind, waves faster and harder in a gust, droops
+// when the wind drops, and swings round when it turns. Drawn live over the structure's sprite, whose model keeps only
+// the pole. FLAG_SPOTS: per structure and faction, [pole x, y, top height, cloth length, cloth height, star].
+const FLAG_SPOTS = {
+  refinery: { allies: [4, 46.5, 22, 8, 5] },
+  outpost: { allies: [39, 10.5, 22, 8, 5], soviets: [39, 10.5, 24, 9, 6, true] },
+};
+function drawFlag(g, px, py, len, hgt, col, dark, phase, star) {
+  const w = windNow(), sp = Math.hypot(w.x, w.y) || 1, st = Math.max(0.2, Math.min(1, sp / (WIND * 1.3)));
+  let ux = w.x / sp, uy = (w.y / sp) * 0.22;
+  if (Math.abs(ux) < 0.6) ux = ux < 0 ? -0.6 : 0.6;   // blowing up or down the screen it is foreshortened, never a stub
+  const droop = (1 - st) * 0.55, freq = 4 + st * 5, amp = 0.3 + st * 1.1;
+  for (let i = 0; i < len; i++) {
+    const k = i / len, wave = Math.sin(G.t * freq - i * 0.85 + phase) * amp * k, slope = Math.cos(G.t * freq - i * 0.85 + phase);
+    const x = Math.round(px + ux * i * (0.6 + 0.4 * st)), y = Math.round(py + uy * i + droop * i + wave);
+    g.fillStyle = slope > 0.35 ? shadeHex(col, 1.18) : slope < -0.35 ? dark : col;
+    g.fillRect(x, y, 1, hgt - (i === len - 1 && st < 0.6 ? 1 : 0));
+    if (star && i === 2) { g.fillStyle = '#e8c24a'; g.fillRect(x, y + (hgt >> 1) - 1, 1, 2); }
+    if (star && (i === 1 || i === 3)) { g.fillStyle = '#e8c24a'; g.fillRect(x, y + (hgt >> 1) - 1, 1, 1); }
+  }
+}
+const shadeCache = new Map();
+function shadeHex(hex, k) {
+  const key = hex + k; let v = shadeCache.get(key);
+  if (!v) { const c = parseInt(hex.slice(1), 16), f = (s) => Math.min(255, Math.round(((c >> s) & 255) * k)); v = `rgb(${f(16)},${f(8)},${f(0)})`; shadeCache.set(key, v); }
+  return v;
 }
 
 // A gun's recoil, 0 to 1 (shotAt, set in world.js fireWeapon): it kicks back at once, holds a

@@ -982,6 +982,14 @@ frame-time maths everywhere, so it is not deterministic.
   in models.js, `scenery.burntTrees` / `burntPines`), then leaves a scorch mark (14 px). `G.treeFire` (tree number -> time it caught) and
   `G.treeHot` are plain data, so saves keep burnt trees. Ground rebaked (`groundKey` has a `live-trees` token); sprites rebaked for the hash only.
 
+## Flags fly in the wind (after 2026.11.16, both modes, looks only)
+
+- The modelled flags (Allied Ore Refinery, Allied and Soviet Outposts) keep only their poles in models.js; the cloth is drawn
+  live by `drawFlag` (art.js) from `FLAG_SPOTS` (pole x, y, top, cloth length, height, Soviet star) in `drawStructure`. It
+  streams downwind with `windNow()` (world.js), waves faster and harder in a gust, droops when the wind drops, and is
+  foreshortened (never under 60% of its width) when the wind blows up or down the screen. The village garrison flags use it
+  too. Sprites rebaked (the Allied refinery; Outposts are not in the sheets). Wall banners (`bannerV`) are unchanged.
+
 ## Rain on Lakeside, lightning (after 2026.11.15.6, not released, both modes, looks and sound only)
 
 - Lakeside has `weather: { kind: 'rain', chance: 0.5 }` (A Bridge Too Far and Twin Lakes still have none, owner's call).
