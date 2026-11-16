@@ -2407,11 +2407,17 @@ function starTop(m, cx, cy, r, col) {
   m.paintTop(Math.floor(cx - r), Math.floor(cy - r), Math.ceil(cx + r), Math.ceil(cy + r), (x, y) => (inStar(x + 0.5 - cx, y + 0.5 - cy, r) ? col : undefined));
 }
 // A banner hanging down the front face from height top: the side's colour with a small gold star.
-function bannerV(m, x0, x1, y, top, len, pal) {
-  m.box(x0, y, top - len, x1, y + 1, top, pal.main, M_MATTE);
-  m.box(x0, y, top - len, x1, y + 1, top - len + 1, pal.dark, M_MATTE);
-  starFront(m, (x0 + x1) / 2, y, top - 2.5, Math.min(2, (x1 - x0) / 2 - 0.2), C.yellow);
-  m.box(x0 - 1, y, top, x1 + 1, y + 1, top + 1, SV.steel, M_METAL);
+// Banners hanging down the front faces of Soviet structures: [x0, x1, y (the face), top, length]. The models keep only the
+// steel rod each hangs from; the cloth is drawn live and sways in the wind (art.js drawBanners).
+const BANNERS = {
+  cy: [[8, 13, 53, 13, 10], [59, 64, 53, 13, 10]],
+  refinery: [[4, 9, 44, 14, 7]],
+  barracks: [[20, 28, 43, 16, 5]],
+  factory: [[6, 11, 45, 22, 8], [61, 66, 45, 22, 8]],
+  tech: [[18, 24, 64, 15, 7], [48, 54, 64, 15, 7]],
+};
+function bannersV(m, type) {
+  for (const [x0, x1, y, top] of BANNERS[type]) m.box(x0 - 1, y, top, x1 + 1, y + 1, top + 1, SV.steel, M_METAL);
 }
 // A smokestack banded in the side's colour and white, with a dark lip.
 function stackV(m, x, y, z0, z1, r, pal) {
@@ -2478,7 +2484,7 @@ const SOVIET = {
     hazardV(m, 19, 51, 1, 22, 55, 14); hazardV(m, 50, 51, 1, 53, 55, 14);
     starFront(m, 36, 53, 17.5, 4.2, C.yellow);
     m.box(30, 53, 13, 42, 54, 14, pal.main, M_MATTE);
-    bannerV(m, 8, 13, 53, 13, 10, pal); bannerV(m, 59, 64, 53, 13, 10, pal);
+    bannersV(m, 'cy');
     m.paintTop(28, 58, 44, 70, (x, y) => (y - 58) % 4 < 2 ? C.yellow : undefined);
     latticeV(m, 63, 2, 1, 44, C.yellow);                                 // tower crane
     m.box(30, 2, 43, 67, 5, 45, C.yellow, M_METAL);
@@ -4034,7 +4040,7 @@ const SOVIET = {
     m.box(3, 7, 53, 4, 8, 54, '#ff8a2a', M_GLOW);
     m.box(6, 7, 53, 7, 8, 54, '#ff8a2a', M_GLOW);
     m.box(4, 5, 54, 6, 7, 56, '#ffe08a', M_GLOW);
-    bannerV(m, 4, 9, 44, 14, 7, pal);
+    bannersV(m, 'refinery');
     starFront(m, 13.5, 44, 5, 2.4, pal.main);
     return m;
   },
@@ -4083,7 +4089,7 @@ const SOVIET = {
     starTop(m, 24, 25, 12, pal.main);
     m.box(19, 43, 1, 29, 44, 9, '#2a2420');
     m.box(18, 43, 9, 30, 44, 10, SV.conc, M_ROUGH);
-    bannerV(m, 20, 28, 43, 16, 5, pal);
+    bannersV(m, 'barracks');
     m.line(8, 8, 18, 8, 8, 30, C.steel, M_METAL);
     m.box(8, 8, 25, 15, 9, 30, pal.main);
     for (const x of [8, 34]) sandbagsV(m, x, 45, x + 7, 48, 3);
@@ -4104,7 +4110,7 @@ const SOVIET = {
     hazardV(m, 17, 44, 1, 20, 47, 17); hazardV(m, 52, 44, 1, 55, 47, 17);
     starFront(m, 36, 45, 20, 3.6, C.yellow);
     m.box(24, 45, 16, 48, 46, 17, pal.main, M_MATTE);
-    bannerV(m, 6, 11, 45, 22, 8, pal); bannerV(m, 61, 66, 45, 22, 8, pal);
+    bannersV(m, 'factory');
     stackV(m, 60, 9, 25, 39, 2.6, pal); stackV(m, 66, 9, 25, 37, 2.2, pal);
     return m;
   },
@@ -4214,7 +4220,7 @@ const SOVIET = {
     m.cylZ(DX, DY, 42, 44, 2.7, '#ffd27a', M_GLOW);
     m.line(DX, DY, 45, DX, DY, 56, SV.steel, M_METAL);
     for (let z = 56; z <= 59; z++) for (let x = DX - 2; x <= DX + 2; x++) if (inStar(x - DX, 57.5 - z, 2.4)) m.set(x, DY, z, C.yellow, M_GLOW);
-    bannerV(m, 18, 24, 64, 15, 7, pal); bannerV(m, 48, 54, 64, 15, 7, pal);
+    bannersV(m, 'tech');
     // A monument at the foot of the steps: a bronze worker in a long coat, fist raised, a banner in
     // the other hand, on a red granite plinth with a gold star.
     const BZ = '#6d5d3e', BZD = '#4a3f2a';

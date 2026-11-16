@@ -988,7 +988,11 @@ frame-time maths everywhere, so it is not deterministic.
   live by `drawFlag` (art.js) from `FLAG_SPOTS` (pole x, y, top, cloth length, height, Soviet star) in `drawStructure`. It
   streams downwind with `windNow()` (world.js), waves faster and harder in a gust, droops when the wind drops, and is
   foreshortened (never under 60% of its width) when the wind blows up or down the screen. The village garrison flags use it
-  too. Sprites rebaked (the Allied refinery; Outposts are not in the sheets). Wall banners (`bannerV`) are unchanged.
+  too. Sprites rebaked (the Allied refinery; Outposts are not in the sheets).
+- **Banners** (Soviet Construction Yard, Refinery, Barracks, War Factory, Tech Center): `BANNERS` in models.js holds each one
+  (`[x0, x1, face y, top, length]`); the models keep only the steel rod (`bannersV`) and `drawBanners` (art.js, from
+  `drawStructure`) draws the cloth: its lower end swings sideways with the wind's east-west push, a ripple runs down it
+  (faster in a gust), dark hem, gold star. Soviet sprites rebaked.
 
 ## Rain on Lakeside, lightning (after 2026.11.15.6, not released, both modes, looks and sound only)
 

@@ -1599,6 +1599,7 @@ function drawStructure(g, b, t) {
   }
   if (b.type === 'pillbox' && b.fireT > 0) { const m = muzzle(b); flash(g, m.x, m.y, 2); }
   const fs = FLAG_SPOTS[b.type] && FLAG_SPOTS[b.type][b.faction];
+  if (b.faction === 'soviets' && BANNERS[b.type]) drawBanners(g, b, x, y, palFor(b.faction));
   if (fs) { const pal = palFor(b.faction); drawFlag(g, x + fs[0], y + fs[1] - fs[2] * VK, fs[3], fs[4], pal.main, pal.dark || pal.main, b.id, fs[5]); }
   if (b.type === 'tesla' && b.charge > 0) {
     g.fillStyle = `rgba(140,190,255,${0.25 + 0.45 * b.charge})`;
@@ -1767,6 +1768,31 @@ function drawFlag(g, px, py, len, hgt, col, dark, phase, star) {
     if (star && i === 2) { g.fillStyle = '#e8c24a'; g.fillRect(x, y + (hgt >> 1) - 1, 1, 2); }
     if (star && (i === 1 || i === 3)) { g.fillStyle = '#e8c24a'; g.fillRect(x, y + (hgt >> 1) - 1, 1, 1); }
   }
+}
+// Banners on Soviet structures (models.js BANNERS): hung from a rod at the top, the cloth swings sideways with the wind,
+// more toward its free end, with a ripple running down it; dark hem, gold star near the top.
+function drawBanners(g, b, x, y, pal) {
+  const list = BANNERS[b.type];
+  if (!list) return;
+  const w = windNow(), side = Math.max(-1, Math.min(1, w.x / (WIND * 1.2))), gust = Math.min(1, Math.hypot(w.x, w.y) / (WIND * 1.3));
+  list.forEach(([x0, x1, fy, top, len], j) => {
+    const ph = b.id * 1.7 + j * 2.1, cx = (x0 + x1) / 2;
+    for (let r = 0; r < len; r++) {
+      const k = (r + 1) / len, z = top - 1 - r;
+      const dx = (side * 1.6 * k * k + Math.sin(G.t * (2.2 + gust * 2.5) + ph - r * 0.55) * (0.35 + gust * 0.75) * k);
+      const sx = Math.round(x + x0 + dx), sy = Math.round(y + fy + 1 - (z + 1) * VK);
+      const ripple = Math.cos(G.t * (2.2 + gust * 2.5) + ph - r * 0.55);
+      g.fillStyle = r === len - 1 ? (pal.dark || pal.main) : ripple > 0.5 ? shadeHex(pal.main, 1.12) : ripple < -0.5 ? shadeHex(pal.main, 0.88) : pal.main;
+      g.fillRect(sx, sy, x1 - x0, 1);
+      // The gold star, 2.5 rows down: a small cross with a centre.
+      const sr = r - 1.5;
+      if (Math.abs(sr) <= 1.5) {
+        g.fillStyle = '#d0a426';
+        const half = Math.abs(sr) < 0.6 ? 1.5 : 0.5;
+        g.fillRect(Math.round(x + cx - half + dx), sy, Math.max(1, Math.round(half * 2)), 1);
+      }
+    }
+  });
 }
 const shadeCache = new Map();
 function shadeHex(hex, k) {
