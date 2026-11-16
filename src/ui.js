@@ -563,7 +563,7 @@ function draw() {
       if (p.ax === undefined) return;
       const team = G.teams[G.me], blds = buildingsOf(team.id);
       for (const c of wallLine(p.wall, p.ax, p.ay, p.bx, p.by)) {
-        v.fillStyle = wallOk(team, c, blds) ? 'rgba(90,230,110,0.45)' : 'rgba(220,40,30,0.45)';
+        v.fillStyle = (WALLS[p.wall].gate ? gateCellOk(team, c, blds) : wallOk(team, c, blds)) ? 'rgba(90,230,110,0.45)' : 'rgba(220,40,30,0.45)';
         v.fillRect(cellX(c) * CELL, cellY(c) * CELL, CELL, CELL);
       }
       v.strokeStyle = '#f2f2ea'; v.lineWidth = 1; v.strokeRect(p.ax * CELL + 0.5, p.ay * CELL + 0.5, CELL - 1, CELL - 1);
@@ -814,12 +814,16 @@ function draw() {
   }
   function wallBar() {
     const p = G.place, d = WALLS[p.wall], team = G.teams[G.me];
-    let n = 0;
-    if (p.ax !== undefined) { const blds = buildingsOf(team.id); n = wallLine(p.wall, p.ax, p.ay, p.bx, p.by).filter((c) => wallOk(team, c, blds)).length; if (d.gate) n = n === 3 ? 1 : 0; }
-    const can = Math.min(n, Math.floor(team.credits / d.cost));
+    let n = 0, back = 0;
+    if (p.ax !== undefined) {
+      const blds = buildingsOf(team.id), cs = wallLine(p.wall, p.ax, p.ay, p.bx, p.by);
+      n = cs.filter((c) => (d.gate ? gateCellOk(team, c, blds) : wallOk(team, c, blds))).length;
+      if (d.gate) { n = n === 3 ? 1 : 0; back = gateRefund(team, cs); }   // over your own wall: those pieces come back at half price
+    }
+    const can = Math.min(n, Math.floor((team.credits + back) / d.cost));
     p.ok = can > 0;
     ui.placeText.textContent = p.ax === undefined ? (d.gate ? `${isTouch ? 'Tap' : 'Click'} where the middle of the Gate goes: it is three cells wide` : `${isTouch ? 'Tap' : 'Click'} where the ${d.name} start, then where they end`)
-      : !n ? `${d.name} cannot stand there` : d.gate ? `Gate: $${d.cost}. ${isTouch ? 'Tap' : 'Click'} it again to turn it` : `${d.name}: ${can} ${can === 1 ? 'piece' : 'pieces'}, $${can * d.cost}${can < n ? ' (all you can afford)' : p.ax === p.bx && p.ay === p.by ? '. Tap where the line ends' : ''}`;
+      : !n ? `${d.name} cannot stand there` : d.gate ? `Gate: $${d.cost}${back ? `, replacing your wall ($${back} back)` : ''}. ${isTouch ? 'Tap' : 'Click'} it again to turn it` : `${d.name}: ${can} ${can === 1 ? 'piece' : 'pieces'}, $${can * d.cost}${can < n ? ' (all you can afford)' : p.ax === p.bx && p.ay === p.by ? '. Tap where the line ends' : ''}`;
     refreshPlaceBtn();
   }
   function endPlace() { if (G) G.place = null; ui.placebar.hidden = true; ui.placeOk.textContent = 'PLACE'; clampCam(); }
@@ -870,13 +874,15 @@ function draw() {
     if (p.wall) {
       const cx = Math.floor(w.x / CELL), cy = Math.floor(w.y / CELL);
       if (WALLS[p.wall].gate) {
-        // A gate: the tap is its middle. It lies across the gap in a wall when there is one (or the way it fits);
-        // a second tap on the same cell turns it.
+        // A gate: the tap is its middle. Tapped on your own wall it lies along the wall, replacing those pieces; else
+        // across the gap in a wall when there is one (or the way it fits). A second tap on the same cell turns it.
         if (p.ax === cx && p.ay === cy) p.vert = !p.vert;
         else {
-          const team = G.teams[G.me], blds = buildingsOf(team.id), W = (x, y) => inMap(x, y) && G.wall[idx(x, y)] > 0, fits = (dx, dy) => [-1, 0, 1].every((k) => inMap(cx + k * dx, cy + k * dy) && wallOk(team, idx(cx + k * dx, cy + k * dy), blds));
+          const team = G.teams[G.me], blds = buildingsOf(team.id), W = (x, y) => inMap(x, y) && G.wall[idx(x, y)] > 0, fits = (dx, dy) => [-1, 0, 1].every((k) => inMap(cx + k * dx, cy + k * dy) && gateCellOk(team, idx(cx + k * dx, cy + k * dy), blds));
+          const own = (x, y) => inMap(x, y) && ownPiece(team, idx(x, y));
           const h = W(cx - 2, cy) || W(cx + 2, cy), v = W(cx, cy - 2) || W(cx, cy + 2);
-          p.vert = v && !h ? true : h ? false : !fits(1, 0) && fits(0, 1);
+          if (own(cx, cy)) { const oh = own(cx - 1, cy) || own(cx + 1, cy), ov = own(cx, cy - 1) || own(cx, cy + 1); p.vert = ov && !oh ? true : oh ? false : !fits(1, 0) && fits(0, 1); }
+          else p.vert = v && !h ? true : h ? false : !fits(1, 0) && fits(0, 1);
           p.ax = cx; p.ay = cy;
         }
         p.bx = p.ax + (p.vert ? 0 : 1); p.by = p.ay + (p.vert ? 1 : 0);

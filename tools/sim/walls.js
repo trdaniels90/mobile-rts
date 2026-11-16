@@ -105,5 +105,20 @@ ok('a remote order sells a piece', run('G.wall[idx(x0, y0)] === 0'));
 run(`T0.credits = 500; var lx = x0 + 3, ly = y0 + 1; NetCore.applyCommand(0, { f: 'placeWalls', a: [{ $t: 0 }, 'sandbag', lx, ly, lx, ly] }); 0`);
 ok('a remote order lays one', run('G.wall[idx(lx, ly)] === 1 && T0.credits === 475'));
 
+// A gate laid over a side's own wall: the pieces it covers are replaced, half their price back; never over an enemy's.
+run(`newWorld('allies', 'normal', 5, 0, true, 'twinlakes'); G.me = -1;
+  var A = G.teams[0], B = G.teams[1], yd = buildingsOf(0).find((b) => b.type === 'cy');
+  for (const t of ['barracks', 'factory']) { const b = addBuilding(t, A, yd.cx + (t === 'factory' ? -5 : 5), yd.cy); b.buildT = 1; }
+  var wx = yd.cx - 3, wy = yd.cy + yd.h + 3; A.credits = 5000;
+  var laid = placeWalls(A, 'concrete', wx, wy, wx + 6, wy); A.credits = 1000;
+  var gOk = placeWalls(A, 'gate', wx + 3, wy, wx + 4, wy), mid = idx(wx + 3, wy); 0`);
+ok('a gate goes over your own concrete', run('laid === 7 && gOk === 1 && G.wall[mid] === 4 && G.wall[mid - 1] === 6 && G.wall[mid + 1] === 6 && G.wall[mid - 2] === 3 && G.wall[mid + 2] === 3'), run('[laid, gOk]'));
+ok('it pays the gate less half the three pieces', run('A.credits === 1000 - WALLS.gate.cost + 3 * Math.floor(WALLS.concrete.cost / 2)'), run('A.credits'));
+ok('the gate cells no longer block the ground map', run('!G.block[mid - 1] && !G.block[mid] && !G.block[mid + 1] && G.wallN === 7'));
+run(`var sb = idx(wx, wy + 2); A.credits = 5000; placeWalls(A, 'sandbag', wx, wy + 2, wx + 2, wy + 2); setWall(idx(wx + 3, wy + 2), 3, 1, 300); A.credits = 1000; 0`);
+ok('not over an enemy piece', run(`placeWalls(A, 'gate', wx + 2, wy + 2, wx + 3, wy + 2) === 0 && G.wall[idx(wx + 3, wy + 2)] === 3 && A.credits === 1000`));
+ok('not over another gate', run(`placeWalls(A, 'gate', wx + 4, wy, wx + 5, wy) === 0`));
+ok('the refund can make up a short purse', run(`(A.credits = WALLS.gate.cost - 30, placeWalls(A, 'gate', wx + 1, wy + 2, wx + 2, wy + 2))`) === 1, run('A.credits'));
+
 console.log(fails ? fails + ' FAILED' : 'all passed');
 process.exit(fails ? 1 : 0);

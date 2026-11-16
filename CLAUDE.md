@@ -559,6 +559,11 @@ share globals. Read this file first; the commit history explains every change in
   gap in a wall, tap the same cell again to turn it. Drawn as one (`gm` in `wallPic`: pylons only at the ends), opens as
   one (ui.js `draw`). A save's old one-cell gates stay as they are (a middle alone). `walls.js` covers it; a phone-sized
   browser run bought one each way from the sidebar and took one down.
+- **A Gate over your own wall** (after 2026.11.16, owner OK'd, both modes; the server must match): `gateCellOk` (world.js) accepts a cell
+  holding the side's own non-gate piece (`ownPiece`) as well as `wallOk` ground; `placeWalls` replaces those pieces and refunds half
+  their price (`gateRefund`, owner's pick: as if sold), which also counts toward affording the Gate. Never over an enemy's piece or
+  another gate. UI: tapped on your own wall, the gate lies along it (`placeTap`); the bar says "replacing your wall ($N back)".
+  `walls.js` covers it.
 - **UI:** `wl:<kind>` items at the end of the structures strip (`wallCameo`); `beginWall` / `wallBar` / `placeTap`: tap the
   start, tap the end (tap again to move it), BUILD; it stays in wall mode for the next line. Tap an enemy wall with
   fighters selected to attack it; tap your own twice with nothing selected to take it down.

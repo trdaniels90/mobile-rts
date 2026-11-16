@@ -583,6 +583,11 @@ function wallLine(kind, x0, y0, x1, y1) {
   }
   return out;
 }
+// A gate may also be laid over pieces of the side's own wall (sandbags, wire, concrete; not another gate), so a player
+// need not leave a gap first: the pieces it covers are replaced, half their price back as if sold (owner's pick).
+const ownPiece = (team, c) => G.wall[c] > 0 && G.wallTeam[c] === team.id && !WALL_BY_ID[G.wall[c]].gate;
+const gateCellOk = (team, c, blds) => ownPiece(team, c) || wallOk(team, c, blds);
+const gateRefund = (team, cs) => cs.reduce((s, c) => s + (ownPiece(team, c) ? Math.floor(WALL_BY_ID[G.wall[c]].cost / 2) : 0), 0);
 function setWall(c, id, tid, hp) {
   const was = WALL_BY_ID[G.wall[c]], d = WALL_BY_ID[id];
   if (was && was.hard) G.block[c] = 0;
@@ -598,9 +603,9 @@ function placeWalls(team, kind, x0, y0, x1, y1) {
   const d = WALLS[kind], blds = buildingsOf(team.id);
   let n = 0;
   if (d.gate) {                                                            // all three cells or nothing, one price
-    const cs = wallLine(kind, x0, y0, x1, y1);
-    if (cs.length === 3 && team.credits >= d.cost && cs.every((c) => wallOk(team, c, blds))) {
-      team.credits -= d.cost; n = 1;
+    const cs = wallLine(kind, x0, y0, x1, y1), refund = gateRefund(team, cs);
+    if (cs.length === 3 && team.credits + refund >= d.cost && cs.every((c) => gateCellOk(team, c, blds))) {
+      team.credits += refund - d.cost; n = 1;
       setWall(cs[0], 6, team.id, d.hp); setWall(cs[1], cs[1] - cs[0] === 1 ? 4 : 5, team.id, d.hp); setWall(cs[2], 6, team.id, d.hp);
     }
   } else for (const c of wallLine(kind, x0, y0, x1, y1)) {
