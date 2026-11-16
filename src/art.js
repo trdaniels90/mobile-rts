@@ -1645,11 +1645,11 @@ function drawGhost(g, type, faction, cx, cy) {
 
 // Walls and gates (world.js placeWalls): one picture a piece, 24 px wide and 34 high (it stands up to 10 px above its
 // cell), made for its kind, the sides it joins on (mask: 1 north, 2 east, 4 south, 8 west), its side's colour, whether
-// it is battered and, for a gate, whether it stands open. Kept by key.
+// it is battered and, for a gate, how far its barrier has sunk into the ground (0 shut to GATE_STEPS). Kept by key.
 const wallPics = new Map();
-const WALL_UP = 10;
+const WALL_UP = 10, GATE_STEPS = 4;
 function wallPic(id, mask, colour, hurt, open) {
-  const key = id + '|' + mask + '|' + colour + '|' + (hurt ? 1 : 0) + '|' + (open ? 1 : 0);
+  const key = id + '|' + mask + '|' + colour + '|' + (hurt ? 1 : 0) + '|' + (open | 0);
   let c = wallPics.get(key);
   if (c) return c;
   c = mkCanvas(CELL, CELL + WALL_UP);
@@ -1674,22 +1674,29 @@ function wallPic(id, mask, colour, hurt, open) {
     return rects;
   };
   if (d.gate) {
-    // Two posts with the way between them: across the cell when the wall runs west-east (or stands alone), else down it.
-    const ns = !(E || Wt) && (N || S), posts = ns ? [[6, 0, 12, 5], [6, 19, 12, 5]] : [[0, 6, 5, 12], [19, 6, 5, 12]];
-    g.fillStyle = 'rgba(70,60,45,0.55)';                                   // the worn track through it
-    if (ns) g.fillRect(8, 5 + WALL_UP, 8, 14); else g.fillRect(5, 8 + WALL_UP, 14, 8);
-    raise(posts, 9, '#b4b7b2', '#74777a', '#d2d5d0');
-    g.fillStyle = colour;
-    for (const [x, y, w, hh] of posts) g.fillRect(x + 1, y + WALL_UP - 8, Math.max(1, w - 2), Math.max(1, hh - 2) > 3 ? 2 : 1);
-    if (!open) {                                                           // the barrier, in hazard stripes
-      const bar = ns ? [10, 5, 4, 14] : [5, 10, 14, 4];
-      raise([bar], 5, '#d8b024', '#8a6e12');
-      g.fillStyle = '#1c1c1a';
-      for (let k = 2; k < 14; k += 4) { if (ns) g.fillRect(10, 5 + k + WALL_UP - 5, 4, 2); else g.fillRect(5 + k, 10 + WALL_UP - 5, 2, 4); }
-    } else {                                                               // open: the barrier swung up against a post
-      g.fillStyle = '#d8b024';
-      if (ns) g.fillRect(10, WALL_UP - 9, 4, 6); else g.fillRect(1, 4 + WALL_UP - 9, 3, 6);
-    }
+    // Two concrete pylons with a ribbed steel barrier between them that sinks into a slot in the ground (open: 0 shut
+    // to GATE_STEPS fully down). Across the cell when the wall runs west-east (or stands alone), else down it.
+    const ns = !(E || Wt) && (N || S), up = Math.round(8 * (1 - (open || 0) / GATE_STEPS));
+    const T = (x, y, w, h) => (ns ? [y, x, h, w] : [x, y, w, h]);          // laid out for west-east, turned for north-south
+    const px = (col, x, y, w, h, z) => { const q = T(x, y, w, h); g.fillStyle = col; g.fillRect(q[0], q[1] + WALL_UP - (z || 0), q[2], q[3]); };
+    const pylon = (x) => {
+      raise([T(x, 5, 6, 14)], 9, '#b9bcb6', '#74777a', '#d6d9d3');
+      raise([T(x + 1, 7, 4, 10)], 11, '#c9ccc6', '#8b8e90', '#e2e5df');     // the stepped cap
+      const q = T(x + 1, 9, 4, 6); g.fillStyle = colour; g.fillRect(q[0], q[1] + WALL_UP - 11, q[2], q[3]);
+      const l = T(x + 2, 11, 2, 2); g.fillStyle = open >= GATE_STEPS ? '#58e070' : '#ffb028'; g.fillRect(l[0], l[1] + WALL_UP - 11, l[2], l[3]);
+    };
+    const th = ns ? 8 : 6, b0 = 12 - th / 2;                                // a little thicker seen end on, so it reads
+    const barrier = () => {
+      px('#1d1f21', 6, b0 - 1, 12, th + 2);                                 // the slot it sinks into
+      for (let k = 6; k < 18; k += 2) { px(k % 4 < 2 ? '#d8b024' : '#1c1c1a', k, b0 - 1, 2, 1); px(k % 4 < 2 ? '#1c1c1a' : '#d8b024', k, b0 + th, 2, 1); }
+      if (up > 0) { g.fillStyle = 'rgba(0,0,0,0.28)'; const q = T(6, b0, 12, th); g.fillRect(q[0] + 2, q[1] + WALL_UP + 1, q[2], q[3]); }
+      for (let k = 0; k < up; k++) px('#6a7077', 6, b0, 12, th, k);         // its face, ribbed
+      if (!ns) for (let k = 7; k < 18; k += 2) { g.fillStyle = '#474c52'; g.fillRect(k, b0 + th + WALL_UP - up + 1, 1, up); }
+      px('#9ba1a7', 6, b0, 12, th, up);                                     // its top: steel with a hazard strip
+      for (let k = 6; k < 18; k += 2) px(k % 4 < 2 ? '#e0b828' : '#26241c', k, 11, 2, 2, up);
+      px('#c4cad0', 6, b0, 12, 1, up);
+    };
+    if (ns) { pylon(0); barrier(); pylon(18); } else { barrier(); pylon(0); pylon(18); }
   } else if (d.wire) {
     // Posts and three strands of coiled wire along the run.
     const ew = E || Wt || !(N || S), ns = N || S;
@@ -1712,12 +1719,35 @@ function wallPic(id, mask, colour, hurt, open) {
     if (ew && !E) post(21, 11); if (ew && !Wt) post(1, 11);
     if (ns && !S) post(11, 21); if (ns && !N) post(11, 1);
   } else if (d.key === 'sandbag') {
-    const rects = run(12);
-    raise(rects, 5, '#b8a672', '#77673f', '#cdbc88');
-    g.fillStyle = 'rgba(70,58,30,0.55)';                                   // the seams between the bags
-    for (const [x, y, w, hh] of rects) {
-      for (let k = 3 + (r() * 2 | 0); k < w - 1; k += 5) g.fillRect(x + k, y + WALL_UP - 5, 1, hh);
-      for (let k = 3; k < hh - 1; k += 5) g.fillRect(x, y + k + WALL_UP - 5, w, 1);
+    // Bags laid like bricks: a wide course on the ground and a narrower one on top, half a bag along. Each bag is a
+    // rounded sack with its own shade of burlap, a lit edge and a seam.
+    const TOPS = ['#c6b580', '#b9a772', '#cfbf8c', '#bfad78'], SIDES = ['#8f7d4c', '#857344', '#978552', '#8a7848'];
+    const bags = [];                                                       // [x, y, w, h, z, lift]
+    const course = (horiz, a, b, t, z, lift, off, openA, openB) => {
+      const cuts = [a];
+      for (let k = off; k < b; k += 8) if (k > a + (openA ? 3 : 1) && k < b - (openB ? 3 : 1)) cuts.push(k);
+      cuts.push(b);
+      const o = (CELL - t) / 2;
+      for (let i = 0; i + 1 < cuts.length; i++) { const p = cuts[i], w = cuts[i + 1] - p; bags.push(horiz ? [p, o, w, t, z, lift] : [o, p, t, w, z, lift]); }
+    };
+    const ew = E || Wt || !(N || S), nsr = N || S;
+    if (ew) { const a = Wt ? 0 : (mask ? 5 : 2), b = E ? CELL : (mask ? 19 : 22); course(true, a, b, 14, 0, 3, 0, !Wt, !E); course(true, a + (Wt ? 0 : 2), b - (E ? 0 : 2), 8, 3, 3, 4, !Wt, !E); }
+    if (nsr) { const a = N ? 0 : 5, b = S ? CELL : 19; course(false, a, b, 14, 0, 3, 0, !N, !S); course(false, a + (N ? 0 : 2), b - (S ? 0 : 2), 8, 3, 3, 4, !N, !S); }
+    g.fillStyle = 'rgba(0,0,0,0.26)';
+    for (const [x, y, w, h, z] of bags) if (!z) g.fillRect(x + 2, y + WALL_UP + 1, w, h);
+    bags.sort((p, q) => p[4] - q[4] || (p[1] + p[3]) - (q[1] + q[3]) || p[0] - q[0]);
+    for (const [x, y, w, h, z, lift] of bags) {
+      const i = (r() * 4) | 0, ty = y + WALL_UP - z - lift, seam = 'rgba(52,42,20,0.8)', x1 = x + w - 1, yb = ty + h + lift - 1;
+      g.fillStyle = SIDES[i]; g.fillRect(x, ty + h, w, lift);              // the face toward the camera, sagging darker at the foot
+      g.fillStyle = 'rgba(40,32,14,0.4)'; g.fillRect(x, yb, w, 1);
+      g.fillStyle = TOPS[i]; g.fillRect(x, ty, w, h);
+      if (w > 4 && h > 4) { g.fillStyle = 'rgba(255,248,215,0.3)'; g.fillRect(x + 2, ty + 1, w - 4, h - 3); g.fillStyle = 'rgba(255,250,225,0.3)'; g.fillRect(x + 2, ty + 1, w - 5, 1); }   // the bulge of a full sack
+      g.fillStyle = 'rgba(60,48,22,0.28)'; g.fillRect(x, ty + h - 1, w, 1); g.fillRect(x1, ty, 1, h);
+      g.fillStyle = seam;                                                  // rounded corners, and the dark gap where bags meet
+      g.fillRect(x, ty, 1, 1); g.fillRect(x1, ty, 1, 1); g.fillRect(x, yb, 1, 1); g.fillRect(x1, yb, 1, 1);
+      g.fillStyle = 'rgba(52,42,20,0.45)';
+      g.fillRect(x1, ty + h - 1, 1, lift + 1); g.fillRect(x, ty + h - 1, 1, lift + 1);
+      if (r() < 0.35 && w > 5) { g.fillStyle = 'rgba(70,56,26,0.45)'; g.fillRect(x + 2 + ((r() * (w - 4)) | 0), ty + h, 1, lift - 1); }   // a crease
     }
   } else {
     const rects = run(10);
@@ -1743,7 +1773,7 @@ function wallCameo(kind, faction, key) {
   g.imageSmoothingEnabled = false;
   const col = palFor(faction).main, k = 1.25;
   const row = d.gate ? [[3, 2], [4, 10], [3, 8]] : [[d.id, 2], [d.id, 10], [d.id, 8]];
-  row.forEach(([id, mask], i) => g.drawImage(wallPic(id, mask, col, false, false), Math.round((W - 3 * CELL * k) / 2 + i * CELL * k), Math.round((H - (CELL + WALL_UP) * k) / 2 + 2), CELL * k, (CELL + WALL_UP) * k));
+  row.forEach(([id, mask], i) => g.drawImage(wallPic(id, mask, col, false, 0), Math.round((W - 3 * CELL * k) / 2 + i * CELL * k), Math.round((H - (CELL + WALL_UP) * k) / 2 + 2), CELL * k, (CELL + WALL_UP) * k));
   const url = c.toDataURL();
   cameoCache.set(key, url);
   return url;

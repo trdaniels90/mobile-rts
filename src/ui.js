@@ -342,7 +342,8 @@
   const seenAt = (x, y) => G.seen[cellOfPos(x, y)];
   const visibleToPlayer = (e) => alliedSides(e.team, G.me) || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y));
 
-  function draw() {
+const gateAnim = new Map();   // cell -> { v: how far a gate's barrier is down (0 to 1), t: when last drawn }
+function draw() {
     spriteSpend = 0;   // (models.js: sprites made this frame)
     const z = cam.z;
     const ox = Math.floor(cam.x), oy = Math.floor(cam.y);
@@ -384,8 +385,16 @@
         if (!id || !G.seen[c]) continue;
         const wt = G.wallTeam[c], d = WALL_BY_ID[id], tm = G.teams[wt];
         const mask = (cy > 0 && G.wall[c - MAP] ? 1 : 0) | (cx < MAP - 1 && G.wall[c + 1] ? 2 : 0) | (cy < MAP - 1 && G.wall[c + MAP] ? 4 : 0) | (cx > 0 && G.wall[c - 1] ? 8 : 0);
-        let open = false;
-        if (d.gate) { const gx = (cx + 0.5) * CELL, gy = (cy + 0.5) * CELL; open = G.entities.some((e) => e.alive && e.kind === 'unit' && !isAirborne(e) && Math.abs(e.x - gx) < 34 && Math.abs(e.y - gy) < 34 && alliedSides(e.team, wt)); }
+        let open = 0;
+        if (d.gate) {                                                       // its barrier sinks and rises over about a third of a second (looks only)
+          const gx = (cx + 0.5) * CELL, gy = (cy + 0.5) * CELL, now = performance.now();
+          const want = G.entities.some((e) => e.alive && e.kind === 'unit' && !isAirborne(e) && Math.abs(e.x - gx) < 34 && Math.abs(e.y - gy) < 34 && alliedSides(e.team, wt)) ? 1 : 0;
+          let s = gateAnim.get(c);
+          if (!s || now - s.t > 1000) gateAnim.set(c, s = { v: want, t: now });
+          const step = (now - s.t) / 350; s.t = now;
+          s.v = want > s.v ? Math.min(1, s.v + step) : Math.max(0, s.v - step);
+          open = Math.round(s.v * GATE_STEPS);
+        }
         v.drawImage(wallPic(id, mask, tm ? tm.pal.main : '#888', G.wallHp[c] < d.hp / 2, open), cx * CELL, cy * CELL - WALL_UP);
       }
     }

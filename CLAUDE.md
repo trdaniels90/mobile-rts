@@ -477,7 +477,9 @@ share globals. Read this file first; the commit history explains every change in
   carry `wl` (`[cell, kind, side, health]` for cells that changed, where the player can see or the wall is their
   alliance's, every fifth snapshot like ore); the copy applies it with `applyWalls`, and `clearWalls` on a resync.
 - **Looks:** `wallPic` in art.js draws each piece on a canvas (by kind, joined sides, side colour, battered, gate open),
-  no voxel models, so no sprite rebake. Drawn in ui.js `draw` after the wrecks layer, on explored ground. A gate shows
+  no voxel models, so no sprite rebake. Redrawn after 2026.11.15.7 (looks only, not released, owner's ideas): the gate is two
+  concrete pylons with a ribbed steel barrier that sinks into a slot in the ground (`open` is 0 to `GATE_STEPS`; ui.js
+  `gateAnim` moves it over 0.35 s; lamps amber, green when down); sandbags are two staggered courses of single sacks. Drawn in ui.js `draw` after the wrecks layer, on explored ground. A gate shows
   open while a ground unit of its alliance is beside it (looks only). Grey dots on the radar, gates yellow.
 - **UI:** `wl:<kind>` items at the end of the structures strip (`wallCameo`); `beginWall` / `wallBar` / `placeTap`: tap the
   start, tap the end (tap again to move it), BUILD; it stays in wall mode for the next line. Tap an enemy wall with
