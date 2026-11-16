@@ -397,6 +397,9 @@ share globals. Read this file first; the commit history explains every change in
   `python3 tools/make-village-map.py` (no design picture: one quarter worked out in code and mirrored both ways; it prints
   `spawns`, `gems`, `lots` and `rows` to paste over the entry). Big lakes on the north and south edges push west-east
   traffic through or beside the village (with plain ponds there, 14 minutes of computer play never fought in it).
+  **Ore** (owner: "add more ore", after 2026.11.16): four fields per start (three by the base, one forward toward the village),
+  about 449,000 ore in all (224,000 per alliance's half; Three Crossings 197,000), and 8 gem fields (4 at the village's north
+  and south gates, 4 beside the side ponds, moved off the water), about 48,000. Every field reachable from a start.
 - **Houses** (`village: true`, `lots` = building plots `[x0, y0, x1, y1]` between the lanes): `genVillage` (world.js, called
   from `genMap` after `genLayoutMap`) rolls them from the battle's seed, so every battle has its own village and every copy
   (online guest, server) the same one with the same ids. One church (`church0`/`church1`: tower toward the square) on a

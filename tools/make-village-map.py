@@ -45,8 +45,8 @@ BASE_CLEAR = 14
 # Village, in the quarter (cells up to the middle line): the lane round it, side lanes, a main street, the square.
 V0 = S(50)                      # outer edge of the ring lane
 RING, SIDE, MAIN, SQUARE = (S(50), S(51.9)), (S(58), S(59.9)), (S(69.5), N / 2), S(64)
-ORE = [(S(9), S(42), 6), (S(41), S(9), 5.5), (S(10), S(63), 4.6)]
-GEMS = [(S(63.5), S(44), 2.6)]
+ORE = [(S(9), S(42), 7), (S(41), S(9), 6), (S(10), S(63), 5.5), (S(31), S(51), 4.5)]   # (the last: forward, toward the village)
+GEMS = [(S(63.5), S(44), 2.6), (S(45.5), S(57), 2.6)]   # by the village's north (south) gates and its west (east) side
 ROADS = [   # dirt tracks: [points], half width
     ([BASE, (S(36), S(37)), (S(50), S(51))], 1.6),
     ([(S(36), S(37)), (S(50), S(41)), (S(71.5), S(41))], 1.4),   # along the lake shore to the base across (mirrored)
@@ -59,7 +59,7 @@ ROADS = [   # dirt tracks: [points], half width
 ]
 PONDS = [((N - 1) / 2, S(10), S(24), S(24)),   # the lakes in the north and south: west and east meet round the village
           (S(39), (N - 1) / 2, S(4), S(7.5))]   # centre x, y, radii
-ROCKS = [(S(44), S(44), 2.2), (S(31), S(55), 1.8), (S(55), S(31), 1.8)]
+ROCKS = [(S(44), S(44), 2.2), (S(55), S(31), 1.8)]
 
 
 def quarter(x, y):
@@ -110,7 +110,7 @@ def main():
     spawns = [[bx, by], [bx, m(by)], [m(bx), by], [m(bx), m(by)]]
     gems = []
     for (gx, gy, r) in GEMS:
-        for (x, y) in ((gx, gy), (m(gx), gy), (gx, m(gy)), (m(gx), m(gy)), (gy, gx), (m(gy), gx), (gy, m(gx)), (m(gy), m(gx))):
+        for (x, y) in ((gx, gy), (m(gx), gy), (gx, m(gy)), (m(gx), m(gy))):
             gems.append([round(x, 1), round(y, 1), r])
     # Building plots: the blocks between the lanes, in the quarter, then mirrored. [x0, y0, x1, y1] (inclusive cells).
     a0, a1 = math.ceil(RING[1] + 0.1), math.floor(SIDE[0]) - 1     # first row of blocks
