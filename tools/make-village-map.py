@@ -11,6 +11,7 @@ and mirrored both ways, so the four start positions are alike.
 Codes: '.' grass, ',' dirt, 'T' woods, '#' rock, '~' water, 'o' ore.
 """
 import math
+import os
 import sys
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 144
@@ -40,6 +41,9 @@ def seg_dist(px, py, ax, ay, bx, by):
 
 
 S = lambda v: v * K
+# VARIANT (env, for trying layouts; none is the shipped one): 'a' the lakes reach down to the village, 'b' the same with a
+# shallow ford across each, 'c' woods fill the strip between each lake and the village.
+VARIANT = os.environ.get('VARIANT', '')
 BASE = (S(22), S(24))
 BASE_CLEAR = 14
 # Village, in the quarter (cells up to the middle line): the lane round it, side lanes, a main street, the square.
@@ -49,9 +53,9 @@ ORE = [(S(9), S(42), 7), (S(41), S(9), 6), (S(10), S(63), 5.5), (S(31), S(51), 4
 GEMS = [(S(63.5), S(44), 2.6), (S(45.5), S(57), 2.6)]   # by the village's north (south) gates and its west (east) side
 ROADS = [   # dirt tracks: [points], half width
     ([BASE, (S(36), S(37)), (S(50), S(51))], 1.6),
-    ([(S(36), S(37)), (S(50), S(41)), (S(71.5), S(41))], 1.4),   # along the lake shore to the base across (mirrored)
+    *([([(S(36), S(37)), (S(50), S(41)), (S(71.5), S(41))], 1.4)] if not VARIANT else []),   # along the lake shore to the base across (mirrored)
     ([BASE, (S(21), S(46)), (S(22), S(71.5))], 1.4),   # to the ally's base
-    ([(S(71.5), S(41)), (S(70.5), S(50))], 1.5),        # the main street out to the lake road
+    *([([(S(71.5), S(41)), (S(70.5), S(50))], 1.5)] if not VARIANT else []),        # the main street out to the lake road
     ([(S(22), S(71.5)), (S(50), S(70.5))], 1.5),        # and out to the west road
     ([(S(9), S(42)), (S(21), S(40))], 1.2),             # out to the ore fields
     ([(S(41), S(9)), (S(36), S(25))], 1.2),
@@ -59,6 +63,7 @@ ROADS = [   # dirt tracks: [points], half width
 ]
 PONDS = [((N - 1) / 2, S(10), S(24), S(24)),   # the lakes in the north and south: west and east meet round the village
           (S(39), (N - 1) / 2, S(4), S(7.5))]   # centre x, y, radii
+if VARIANT in ('a', 'b'): PONDS.append(((N - 1) / 2, S(23), S(8), S(26)))   # the stub down to the village's outer lane
 ROCKS = [(S(44), S(44), 2.2), (S(55), S(31), 1.8)]
 
 
@@ -70,10 +75,12 @@ def quarter(x, y):
         if x >= SQUARE and y >= SQUARE: return ','
         if lane(*RING) or lane(*SIDE) or x >= MAIN[0] or y >= MAIN[0]: return ','
         return '.'
-    for (cx, cy, rx, ry) in PONDS:
-        d = math.hypot((x - cx) / rx, (y - cy) / ry) + (noise(x, y, 3, 5) - 0.5) * 0.35
-        if d < 1: return '~'
-        if d < 1.18: return ','
+    dd = [(math.hypot((x - cx) / rx, (y - cy) / ry) + (noise(x, y, 3, 5) - 0.5) * 0.35, cx, ry) for (cx, cy, rx, ry) in PONDS]
+    for d, cx, ry in dd:   # water first (of every pond), then the shores
+        if d < 1:
+            if VARIANT == 'b' and 37.5 <= y <= 41.5 and ry > S(24): return 'f'   # a shallow ford across the stub
+            return '~'
+    if any(d < 1.18 for d, _, _ in dd): return ','
     for (ox, oy, r) in ORE + GEMS:
         if math.hypot(x - ox, y - oy) < r + 1.5: return '.'
     wx, wy = x + (noise(x, y, 9, 21) - 0.5) * 5, y + (noise(x, y, 9, 22) - 0.5) * 5   # roads wander a little
@@ -84,6 +91,7 @@ def quarter(x, y):
     for (rx, ry, r) in ROCKS:
         if math.hypot(x - rx, y - ry) + (noise(x, y, 2, 11) - 0.5) * 1.6 < r: return '#'
     if x > V0 - 3 and y > V0 - 3: return '.'   # open ground round the village
+    if VARIANT == 'c' and 52 <= x <= 71.5 and 30 <= y <= 48.5 and not any(math.hypot(x - gx, y - gy) < r + 1.8 for gx, gy, r in GEMS): return 'T'
     if noise(x, y, 7, 1) * 0.75 + noise(x, y, 2.5, 2) * 0.25 > 0.6: return 'T'
     return '.'
 
