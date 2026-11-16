@@ -139,8 +139,12 @@ share globals. Read this file first; the commit history explains every change in
 - **Fixed (effects):** explosion debris, loose wreckage (`frag`), blown-off turrets, ragdolls, crashing aircraft (and rotor),
   ejection seats, parachutes (canopy drawn in screen pixels), husk turrets, flames (stand on their spot) are drawn at their
   height with `liftPt`; sparks, promotion rings and flares carry `lift` (flares sink, their trail points keep `l`).
-- **Known bugs:** shots, tracers, muzzle flashes, flak bursts and hit sparks use `muzzle` / `aimY` (world.js), which fold
-  height into y, so they sit a little off diagonally; walls (`wallPic`) are flat squashed
+- **Fixed (shots):** `muzzle` returns `h` (the height it folds into y) and `aimH(t)` mirrors `aimY`; shells, rockets and
+  missiles carry `x0, y0, h0` and `projH(p)` gives their height now (ui.js draws them at it); tracers and Tesla bolts carry
+  `h0`/`h2`; sparks, flak bursts, hit explosions (`impact(.., h)`, marks now on the ground under the target), muzzle and
+  barrel smoke and missile trails carry `lift`; muzzle flashes and bombs are lifted in art.js / ui.js. The game's own
+  positions, ranges and hits are unchanged. The server must run the same version (shots carry three more numbers).
+- **Known bugs:** walls (`wallPic`) are flat squashed
   pictures; the draw order beside big structures is a guess (0.4 into the footprint); flame jets, rally lines and the
   Tesla bolt are flat on the ground; the ground draws the whole world box round the screen (about 3 times the tiles: watch
   phones); the map shows its corners as black; pedestrians, hens and birds untested; not tried on a real phone or online.

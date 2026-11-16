@@ -454,6 +454,8 @@ function draw() {
     for (let p of G.projectiles) {
       if (p.delay > 0) continue;
       if (p.gy !== undefined) { const [lx, ly] = liftPt(p.gx, p.gy, p.gy - p.y); p = { ...p, x: lx, y: ly }; }   // a lobbed shell or grenade: its height up the screen
+      else if (p.kind === 'bomb') { const [lx, ly] = liftPt(p.tx, p.ty, p.ty - p.y); p = { ...p, x: lx, y: ly }; }   // falling on (tx, ty)
+      else if (p.h0 !== undefined && p.kind !== 'fireball') { const h = projH(p), [lx, ly] = liftPt(p.x, p.y + h, h); p = { ...p, x: lx, y: ly }; }   // a shell or missile between its gun's height and its target's (world.js projH)
       const a = p.a || 0, ca = Math.cos(a), sa = Math.sin(a);
       if (p.kind === 'bomb') {
         v.fillStyle = 'rgba(0,0,0,0.35)'; v.fillRect(Math.round(p.tx - 1), Math.round(p.ty), 3, 2);

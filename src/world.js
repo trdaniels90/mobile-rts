@@ -2249,29 +2249,32 @@ function windowSpot(h, t, salt) {
   if (!spots.length) spots.push(face === 's' ? [(b[0] + b[2]) / 2, b[3], 7] : face === 'n' ? [(b[0] + b[2]) / 2, b[1], 7] : [face === 'e' ? b[2] : b[0], (b[1] + b[3]) / 2, 7]);
   spots.sort((p, q) => Math.hypot(ox + p[0] - t.x, oy + p[1] - t.y) - Math.hypot(ox + q[0] - t.x, oy + q[1] - t.y));
   const s = spots[(salt | 0) % Math.min(2, spots.length)];
-  return { x: ox + s[0], y: oy + s[1] - s[2] * VK };
+  return { x: ox + s[0], y: oy + s[1] - s[2] * VK, h: s[2] * VK };
 }
+// Where a shot leaves a gun: (x, y) as the game has always used it, the gun's height above the ground folded into y,
+// and that height (h), so drawing (voxel.js liftPt) can put it straight up the screen.
 function muzzle(src, t) {
   if (src.inHouse && t && t.x !== undefined) return windowSpot(src.inHouse, t, src.id);
   if (src.kind === 'bld') {
-    if (src.type === 'tesla') return { x: src.cx * CELL + 12, y: src.cy * CELL + 35 - 50 * VK };
+    if (src.type === 'tesla') return { x: src.cx * CELL + 12, y: src.cy * CELL + 35 - 50 * VK, h: 50 * VK };
     if (src.type === 'pillbox') {   // out of the firing slit nearest to where it aims (slits sit at 30 degrees plus 60 per side), low on the wall and in front of the roof
       const sa = Math.round((src.tface - Math.PI / 6) / (Math.PI / 3)) * (Math.PI / 3) + Math.PI / 6;
-      return { x: src.x + Math.cos(sa) * 13, y: src.y + Math.sin(sa) * 13 - 4 };
+      return { x: src.x + Math.cos(sa) * 13, y: src.y + Math.sin(sa) * 13 - 4, h: 4 };
     }
-    if (src.type === 'ftur') return { x: src.cx * CELL + 12, y: src.cy * CELL + 13 - 25 * VK };
+    if (src.type === 'ftur') return { x: src.cx * CELL + 12, y: src.cy * CELL + 13 - 25 * VK, h: 25 * VK };
     const h = HEADS[src.type];
     const hx = src.cx * CELL + h[1], hy = src.cy * CELL + h[2] - (h[3] + 2) * VK;
-    return { x: hx + Math.cos(src.tface) * 13, y: hy + Math.sin(src.tface) * 13 };
+    return { x: hx + Math.cos(src.tface) * 13, y: hy + Math.sin(src.tface) * 13, h: (h[3] + 2) * VK };
   }
-  if (src.cls === 'air') return { x: src.x + Math.cos(src.face) * 9, y: src.y - (src.alt || 0) + Math.sin(src.face) * 9 };
-  if (src.cls === 'inf' && src.def.setup) { const r = src.faction === 'soviets' ? 21 : 19; return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - 8 }; }   // the MG Team's gun on its mount
+  if (src.cls === 'air') return { x: src.x + Math.cos(src.face) * 9, y: src.y - (src.alt || 0) + Math.sin(src.face) * 9, h: src.alt || 0 };
+  if (src.cls === 'inf' && src.def.setup) { const r = src.faction === 'soviets' ? 21 : 19; return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - 8, h: 8 }; }   // the MG Team's gun on its mount
   if (src.cls === 'inf') {
     const r = src.stance === 'prone' ? 12 : 10;
-    return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - (src.stance === 'prone' ? 2 : 11) };
+    const h = src.stance === 'prone' ? 2 : 11;
+    return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - h, h };
   }
   const s = src.def.size, len = s.tur ? s.tur + s.barrel : 8, z = (turretZ(src.def) + 1.5) * VK;
-  return { x: src.x + Math.cos(src.tface) * len, y: src.y + Math.sin(src.tface) * len - z };
+  return { x: src.x + Math.cos(src.tface) * len, y: src.y + Math.sin(src.tface) * len - z, h: z };
 }
 // Infantry under fire: seconds they stay prone after the last hit, the share of damage they take
 // while prone, and how fast they crawl (a share of walking speed).
@@ -2281,6 +2284,14 @@ function aimY(t) {
   if (t.kind === 'bld' || t.kind === 'house') return t.y - 6;
   if (t.cls === 'inf' && t.stance === 'prone') return t.y - 2;
   return t.y - (t.alt || 0) - (t.cls === 'inf' ? 8 : 4);
+}
+// The height aimY folds into y (for drawing: shots, sparks and bursts stand that high up the screen).
+function aimH(t) {
+  if (!t || t.x === undefined) return 0;
+  if (t.kind === 'bld' || t.kind === 'house') return 6;
+  if (t.kind === 'spot') return 0;
+  if (t.cls === 'inf' && t.stance === 'prone') return 2;
+  return (t.alt || 0) + (t.cls === 'inf' ? 8 : 4);
 }
 
 function weaponSound(src, w) {
@@ -2326,7 +2337,7 @@ function tickStrafe(u, dt) {
   const x = st.x0 + st.dx * st.n + (Math.random() - 0.5) * 6, y = st.y0 + st.dy * st.n + (Math.random() - 0.5) * 6;
   if (st.n % 3 === 0) hooks.sfx('mg', u.x, u.y);
   u.fireT = 0.1; u.shots = (u.shots || 0) + 1; u.shotAt = G.t;
-  G.effects.push({ type: 'tracer', x: m.x, y: m.y, x2: x, y2: y, t: 0, life: 0.07 });
+  G.effects.push({ type: 'tracer', x: m.x, y: m.y, x2: x, y2: y, h0: m.h, t: 0, life: 0.07 });
   G.effects.push({ type: 'spark', x, y, t: 0, life: 0.12 });
   if (st.n % 2 === 0) G.effects.push({ type: 'smoke', x, y, r: 3, t: 0, life: 0.6, alpha: 0.45, color: '#b8a888', vy: -6 });   // dust kicked up
   const once = new Set();
@@ -2347,12 +2358,12 @@ function barrelSmoke(src, m) {
     // Six puffs a shell: three roll out along the barrel, three hang about the muzzle and fade slowly.
     for (let i = 0; i < 6; i++) {
       const slow = i >= 3;
-      G.effects.push({ type: 'smoke', x: m.x + cx * i * 1.2 + (r() - 0.5) * 3, y: m.y + cy * i * 1.2 + (r() - 0.5) * 3,
+      G.effects.push({ type: 'smoke', x: m.x + cx * i * 1.2 + (r() - 0.5) * 3, y: m.y + m.h + cy * i * 1.2 + (r() - 0.5) * 3, lift: m.h,
         r: 5 + r() * 4, t: -i * 0.03, life: slow ? 2.6 + r() * 1.4 : 1.8 + r() * 1, alpha: 0.7, color: '#c9c7c0',
         vx: cx * (slow ? 3 + r() * 5 : 12 + r() * 14) + (r() - 0.5) * 6, vy: cy * (slow ? 2 + r() * 4 : 8 + r() * 10) * 0.7 - (slow ? 4 + r() * 4 : 7 + r() * 5), drag: slow ? 1.2 : 1.6 });
     }
   } else {
-    G.effects.push({ type: 'smoke', x: m.x + (r() - 0.5) * 2, y: m.y + (r() - 0.5) * 2, r: 2 + r() * 1.3, t: 0, life: 0.7 + r() * 0.5, alpha: 0.38, color: '#c9c7c0',
+    G.effects.push({ type: 'smoke', x: m.x + (r() - 0.5) * 2, y: m.y + m.h + (r() - 0.5) * 2, lift: m.h, r: 2 + r() * 1.3, t: 0, life: 0.7 + r() * 0.5, alpha: 0.38, color: '#c9c7c0',
       vx: cx * (5 + r() * 8) + (r() - 0.5) * 6, vy: cy * (4 + r() * 6) * 0.7 - (5 + r() * 3), drag: 1.2 });
   }
 }
@@ -2374,8 +2385,8 @@ function fireWeapon(src, w, t, follow) {
   if (w.sound === 'redeye' && src.cls === 'inf') src.aaUntil = G.t + 1.1;
   if (src.kind === 'unit' && src.def.setup) {   // MG Team: a puff of smoke from the muzzle every round, and the hot barrel smoking on after a burst
     const fx = Math.cos(src.face), fy = Math.sin(src.face);
-    G.effects.push({ type: 'smoke', x: m.x, y: m.y, r: 3.5 + Math.random() * 1.5, t: 0, life: 1 + Math.random() * 0.6, alpha: 0.6, color: '#c9c7c0', vx: fx * 16, vy: fy * 9 - 7, drag: 1.6 });
-    if (Math.random() < 0.4) G.effects.push({ type: 'smoke', x: m.x - fx * (4 + Math.random() * 8), y: m.y - fy * 4 - 1, r: 2.5 + Math.random(), t: -0.2 - Math.random() * 0.4, life: 1.8 + Math.random() * 0.8, alpha: 0.45, color: '#9a968c', vx: (Math.random() - 0.5) * 3, vy: -10, drag: 0.6 });
+    G.effects.push({ type: 'smoke', x: m.x, y: m.y + m.h, lift: m.h, r: 3.5 + Math.random() * 1.5, t: 0, life: 1 + Math.random() * 0.6, alpha: 0.6, color: '#c9c7c0', vx: fx * 16, vy: fy * 9 - 7, drag: 1.6 });
+    if (Math.random() < 0.4) G.effects.push({ type: 'smoke', x: m.x - fx * (4 + Math.random() * 8), y: m.y + m.h - fy * 4, lift: m.h + 1, r: 2.5 + Math.random(), t: -0.2 - Math.random() * 0.4, life: 1.8 + Math.random() * 0.8, alpha: 0.45, color: '#9a968c', vx: (Math.random() - 0.5) * 3, vy: -10, drag: 0.6 });
   }   // shows the shoulder-fired RedEye launcher a moment
   const ty = aimY(t);
   if (w.proj === 'grenade') {
@@ -2390,11 +2401,11 @@ function fireWeapon(src, w, t, follow) {
     const d = Math.hypot(tx - src.x, tgy - src.y), v2 = w.proj === 'v2';
     G.projectiles.push({ kind: 'lob', style: w.proj, x: m.x, y: m.y, sx: m.x, sy: src.y, tx, ty: tgy, t: 0, dur: Math.max(0.6, d / (v2 ? 150 : 230)),
       h: 30 + d * (v2 ? 0.5 : 0.32), z: src.y - m.y, w, from: src, team: src.team, smokeT: 0 });
-    if (!v2) G.effects.push({ type: 'smoke', x: m.x, y: m.y, r: 4, t: 0, life: 0.8, alpha: 0.5, color: '#c9c7c0', vy: -8 });   // muzzle smoke
+    if (!v2) G.effects.push({ type: 'smoke', x: m.x, y: m.y + m.h, lift: m.h, r: 4, t: 0, life: 0.8, alpha: 0.5, color: '#c9c7c0', vy: -8 });   // muzzle smoke
     else {
       // Launch: flame and a great cloud of exhaust billowing out behind and around the truck.
       const bx = Math.cos(src.face), by = Math.sin(src.face);
-      G.effects.push({ type: 'expl', x: src.x - bx * 10, y: src.y - by * 10 - 6, size: 7, t: 0, life: 0.35, seed: (Math.random() * 1e6) | 0 });
+      G.effects.push({ type: 'expl', x: src.x - bx * 10, y: src.y - by * 10, lift: 6, size: 7, t: 0, life: 0.35, seed: (Math.random() * 1e6) | 0 });
       for (let i = 0; i < 14; i++) {
         const a = Math.atan2(-by, -bx) + (Math.random() - 0.5) * 2.2, sp = 14 + Math.random() * 30;
         G.effects.push({ type: 'smoke', x: src.x - bx * 10 + (Math.random() - 0.5) * 6, y: src.y - by * 10 + (Math.random() - 0.5) * 4, r: 4 + Math.random() * 3, t: -i * 0.04,
@@ -2411,25 +2422,26 @@ function fireWeapon(src, w, t, follow) {
         if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, src, { x: t.x, y: t.y }, true);
       }
     }
-    G.effects.push({ type: 'tracer', x: m.x, y: m.y, x2: t.x + jx, y2: ty + jy, t: 0, life: 0.07 });
-    G.effects.push({ type: 'spark', x: t.x + jx, y: ty + jy, t: 0, life: 0.12 });
+    const H = aimH(t);
+    G.effects.push({ type: 'tracer', x: m.x, y: m.y, x2: t.x + jx, y2: ty + jy, h0: m.h, h2: H, t: 0, life: 0.07 });
+    G.effects.push({ type: 'spark', x: t.x + jx, y: ty + jy + H, lift: H, t: 0, life: 0.12 });
   } else if (w.proj === 'tesla') {
     src.charge = 1;
     damage(t, w.dmg, w.wh, src);
-    G.effects.push({ type: 'tesla', x: m.x, y: m.y, x2: t.x, y2: ty, t: 0, life: 0.35, seed: (Math.random() * 1e6) | 0 });
+    G.effects.push({ type: 'tesla', x: m.x, y: m.y, x2: t.x, y2: ty, h0: m.h, h2: aimH(t), t: 0, life: 0.35, seed: (Math.random() * 1e6) | 0 });
   } else {
     if (w.proj === 'flak') {
       // Most of a flak barrage bursts around the target rather than on it.
       const d = Math.hypot(t.x - m.x, ty - m.y), eta = d / PROJ_SPEED.flak;
-      for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, r = 12 + Math.random() * 18; flakBurst(t.x + Math.cos(a) * r, ty + Math.sin(a) * r * 0.7, eta + 0.05 + Math.random() * 0.25); }
+      for (let i = 0; i < 2; i++) { const a = Math.random() * Math.PI * 2, r = 12 + Math.random() * 18; flakBurst(t.x + Math.cos(a) * r, ty + Math.sin(a) * r * 0.7, eta + 0.05 + Math.random() * 0.25, aimH(t)); }
     }
     if (src.kind === 'bld' && src.type === 'sam') {
       // Backblast: smoke billows out behind the launcher as the missile leaves.
       const bx = Math.cos(src.tface), by = Math.sin(src.tface);
-      G.effects.push({ type: 'expl', x: m.x - bx * 6, y: m.y - by * 6, size: 5, t: 0, life: 0.25, seed: (Math.random() * 1e6) | 0 });
+      G.effects.push({ type: 'expl', x: m.x - bx * 6, y: m.y + m.h - by * 6, lift: m.h, size: 5, t: 0, life: 0.25, seed: (Math.random() * 1e6) | 0 });
       for (let i = 0; i < 10; i++) {
         const sp = 22 + Math.random() * 30, a = Math.atan2(-by, -bx) + (Math.random() - 0.5) * 1.3;
-        G.effects.push({ type: 'smoke', x: m.x - bx * 8, y: m.y - by * 8, r: 4 + Math.random() * 3, t: -i * 0.03, life: 1.8 + Math.random() * 1, alpha: 0.7, color: '#9a968c', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.7 - 4, drag: 1.5 });
+        G.effects.push({ type: 'smoke', x: m.x - bx * 8, y: m.y + m.h - by * 8, lift: m.h, r: 4 + Math.random() * 3, t: -i * 0.03, life: 1.8 + Math.random() * 1, alpha: 0.7, color: '#9a968c', vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.7 - 4, drag: 1.5 });
       }
     }
     // A twin gun fires both shells together, unless it staggers them: one barrel now, the other
@@ -2443,6 +2455,7 @@ function fireWeapon(src, w, t, follow) {
       const off = shots > 1 ? (i ? 2 : -2) : w.stagger ? src.barrel * 2 : 0;
       G.projectiles.push({ x: m.x + off * Math.sin(src.tface || 0), y: m.y - off * Math.cos(src.tface || 0), target: t, w, from: src, team: src.team,
         speed: PROJ_SPEED[w.proj] || 400, kind: w.proj, trail: 0, delay: i * 0.1, thick: src.kind === 'bld' && src.type === 'sam',
+        x0: m.x, y0: m.y, h0: m.h || 0,   // (for drawing it at its height: projH)
         ...(w.proj === 'fireball' ? { sx: m.x, sy: m.y } : null),   // where it left: the stream of fire is drawn from there (ui.js fireStream, when its tower's own jet is not showing)
         // A missile fired at an aircraft only has fuel for a little past its weapon's range, and
         // gives up if the aircraft lands: it cannot chase a jet across the map.
@@ -2451,6 +2464,13 @@ function fireWeapon(src, w, t, follow) {
   }
 }
 
+// How high a shell, rocket or missile is now (drawing only): from its gun's height to the target's, by how far it has come.
+function projH(p) {
+  if (p.h0 === undefined) return 0;
+  const t = p.target, d0 = Math.hypot(p.x - p.x0, p.y - p.y0), d1 = t ? Math.hypot(t.x - p.x, aimY(t) - p.y) : 0;
+  const k = d0 + d1 > 0 ? d0 / (d0 + d1) : 1;
+  return p.h0 + (aimH(t) - p.h0) * k;
+}
 function updateProjectiles(dt) {
   for (const p of G.projectiles) {
     if (p.delay > 0) { p.delay -= dt; continue; }
@@ -2469,7 +2489,7 @@ function updateProjectiles(dt) {
       p.a = Math.atan2(p.y - py, p.x - px);
       if ((p.smokeT -= dt) <= 0) {
         p.smokeT = p.style === 'v2' ? 0.025 : 0.07;
-        G.effects.push({ type: 'smoke', x: p.x, y: p.y, r: p.style === 'v2' ? 3.2 : 1.4, t: 0, life: p.style === 'v2' ? 2.6 : 0.6, alpha: p.style === 'v2' ? 0.55 : 0.3, color: '#c9c7c0', vx: p.style === 'v2' ? 2 : 0, vy: p.style === 'v2' ? -2 : 0 });
+        G.effects.push({ type: 'smoke', x: p.x, y: p.gy, lift: p.gy - p.y, r: p.style === 'v2' ? 3.2 : 1.4, t: 0, life: p.style === 'v2' ? 2.6 : 0.6, alpha: p.style === 'v2' ? 0.55 : 0.3, color: '#c9c7c0', vx: p.style === 'v2' ? 2 : 0, vy: p.style === 'v2' ? -2 : 0 });
       }
       if (k >= 1) { p.dead = true; lobBlast(p); }
       continue;
@@ -2500,21 +2520,22 @@ function updateProjectiles(dt) {
       p.trail -= dt;
       if (p.trail <= 0) {   // SAM missiles leave a thicker trail that hangs longer
         p.trail = 0.03;
-        G.effects.push(p.thick ? { type: 'smoke', x: p.x, y: p.y, r: 2.4, t: 0, life: 1.3, alpha: 0.5, color: '#c9c7c0', vx: 2, vy: -2 } : { type: 'smoke', x: p.x, y: p.y, r: 1.6, t: 0, life: 0.5, alpha: 0.5, color: '#9a968c' });
+        const h = projH(p);
+        G.effects.push(p.thick ? { type: 'smoke', x: p.x, y: p.y + h, lift: h, r: 2.4, t: 0, life: 1.3, alpha: 0.5, color: '#c9c7c0', vx: 2, vy: -2 } : { type: 'smoke', x: p.x, y: p.y + h, lift: h, r: 1.6, t: 0, life: 0.5, alpha: 0.5, color: '#9a968c' });
       }
     } else if (p.kind === 'fireball') {
       p.trail -= dt;
-      if (p.trail <= 0) { p.trail = 0.035; G.effects.push({ type: 'smoke', x: p.x, y: p.y, r: 2, t: 0, life: 0.45, alpha: 0.45, color: '#3a3733' }); }
+      if (p.trail <= 0) { p.trail = 0.035; const h = projH(p); G.effects.push({ type: 'smoke', x: p.x, y: p.y + h, lift: h, r: 2, t: 0, life: 0.45, alpha: 0.45, color: '#3a3733' }); }
     }
     // An anti-air missile burns out when its fuel is gone, or when its target has landed.
-    if (p.aa && !p.decoy && t.alive && (p.fuel <= 0 || !isAirborne(t))) { p.dead = true; impact('flak', p.x, p.y, true); continue; }
+    if (p.aa && !p.decoy && t.alive && (p.fuel <= 0 || !isAirborne(t))) { p.dead = true; impact('flak', p.x, p.y, true, projH(p)); continue; }
     if (p.aa) p.fuel -= step;
     if (d <= step + 3 || !t.alive) {
       p.dead = true;
-      if (p.decoy) { impact('flak', tx, ty, true); continue; }   // burst harmlessly on a flare
+      if (p.decoy) { impact('flak', tx, ty, true, aimH(t)); continue; }   // burst harmlessly on a flare
       if (p.kind === 'fireball') { fireBlast(p, t.alive ? t.x : p.x, t.alive ? t.y : p.y); continue; }
       if (t.alive) damage(t, p.w.dmg, p.w.wh, p.from || null, { x: p.x, y: p.y });
-      impact(p.kind, t.alive ? tx : p.x, t.alive ? ty : p.y, isAirborne(t));
+      impact(p.kind, t.alive ? tx : p.x, t.alive ? ty : p.y, isAirborne(t), t.alive ? aimH(t) : projH(p));
       if ((p.w.wh === 'HE' || p.w.wh === 'GR') && t.kind === 'unit' && !isAirborne(t)) splash(tx, ty, 14, p.w.dmg * 0.4, p.team, t, p.from);
       if (G.houses && G.houses.length && !p.aa && p.kind !== 'bullet' && !isAirborne(t)) houseBlast(tx, ty, HOUSE_SPLASH, p.w.dmg * 0.5, p.w.wh, p.from, t);
       continue;
@@ -2642,17 +2663,20 @@ function splash(x, y, rad, dmg, team, skip, attacker) {
 }
 
 // A flak burst: a flash, then a ragged cloud of black smoke that hangs in the air and drifts.
-function flakBurst(x, y, delay) {
-  G.effects.push({ type: 'flakburst', x, y, t: -(delay || 0), life: 1.8 + Math.random() * 0.6, seed: (Math.random() * 1e6) | 0, vx: 3 + Math.random() * 3, vy: -2 });
+function flakBurst(x, y, delay, h) {
+  G.effects.push({ type: 'flakburst', x, y: y + (h || 0), lift: h || 0, t: -(delay || 0), life: 1.8 + Math.random() * 0.6, seed: (Math.random() * 1e6) | 0, vx: 3 + Math.random() * 3, vy: -2 });
 }
-function impact(kind, x, y, inAir) {
+// (x, y): where the shot ended, with the target's height h folded into y as aimY does; the burst is drawn h up the
+// screen and the marks go on the ground under it.
+function impact(kind, x, y, inAir, h) {
+  h = h || 0; y += h;
   if (kind === 'flak') {
-    flakBurst(x, y);
-    G.effects.push({ type: 'spark', x, y, t: 0, life: 0.1 });
+    flakBurst(x, y - h, 0, h);
+    G.effects.push({ type: 'spark', x, y, lift: h, t: 0, life: 0.1 });
   } else {
     hooks.sfx(kind === 'shell' ? 'hitSmall' : 'hitMed', x, y);
     const size = kind === 'shell' ? 6 : 8;
-    G.effects.push({ type: 'expl', x, y, size, t: 0, life: 0.45, seed: (Math.random() * 1e6) | 0 });
+    G.effects.push({ type: 'expl', x, y, lift: h, size, t: 0, life: 0.45, seed: (Math.random() * 1e6) | 0 });
     if (!inAir) {
       if (Math.random() < 0.5) scorch(G.tctx, x, y, size * 0.8, (Math.random() * 1e6) | 0);
       if (kind !== 'shell' || Math.random() < 0.6) craterAt(x + (Math.random() - 0.5) * 3, y + (Math.random() - 0.5) * 3, kind === 'shell' ? 3 : 4.5);
@@ -5012,7 +5036,7 @@ function updateEffects(dt) {
     if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') {
       // Smoke and flames rise: their climb is kept as a height (fx.lift), drawn straight up the screen whatever the camera
       // (ui.js), while wind and vx carry them over the ground.
-      if (fx.type === 'smoke' || fx.type === 'fire') fx.lift = (fx.lift || 0) - fx.vy * dt; else fx.y += fx.vy * dt;
+      if (fx.type === 'smoke' || fx.type === 'fire' || fx.type === 'flakburst') fx.lift = (fx.lift || 0) - fx.vy * dt; else fx.y += fx.vy * dt;
       fx.x += (fx.vx || 0) * dt;
     }
   }

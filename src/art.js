@@ -1536,7 +1536,7 @@ function drawUnit(g, u, t) {
       const st = u.setup || 0, frame = st >= 1 ? 5 : st > 0 ? 4 : u.moving ? WALK[Math.floor(u.anim / 2.5) % 4] : 0;
       const rk = u.fireT > 0 && st >= 1 ? 0.6 : 0;
       blit(g, infSprite(u, pal, frame), u.x - Math.cos(u.face) * rk, u.y - Math.sin(u.face) * rk - (frame === 12 || frame === 13 ? 1 : 0));
-      if (u.fireT > 0 && st >= 1) { const r = u.faction === 'soviets' ? 21 : 19; flash(g, u.x + Math.cos(u.face) * r, u.y + Math.sin(u.face) * r - 8, 1); }
+      if (u.fireT > 0 && st >= 1) { const r = u.faction === 'soviets' ? 21 : 19; flash(g, ...liftPt(u.x + Math.cos(u.face) * r, u.y + Math.sin(u.face) * r, 8), 1); }
       return;
     }
     // As in Red Alert: a four-pose walk, the weapon brought up to the shoulder to shoot (and held
@@ -1559,7 +1559,7 @@ function drawUnit(g, u, t) {
     const rk = u.fireT > 0 && (frame === 7 || frame === 5 || (frame === 0 && u.type === 'rocket')) ? Math.min(1, u.fireT / 0.1) * 1.5 : 0;
     blit(g, infSprite(u, pal, frame), u.x - Math.cos(u.face) * rk, u.y - Math.sin(u.face) * rk - (frame === 12 || frame === 13 ? 1 : 0));
     const mh = frame === 11 ? 20 : frame === 7 ? 13 : stance === 'prone' ? 2 : stance === 'crouch' ? 6 : 11, mr = frame === 11 || frame === 7 ? 13 : stance === 'prone' ? 12 : 10;
-    if (u.fireT > 0) flash(g, u.x + Math.cos(u.face) * mr, u.y + Math.sin(u.face) * mr - mh, 1);
+    if (u.fireT > 0) flash(g, ...liftPt(u.x + Math.cos(u.face) * mr, u.y + Math.sin(u.face) * mr, mh), 1);
     return;
   }
   if (u.cls === 'air') {
@@ -1598,7 +1598,7 @@ function drawUnit(g, u, t) {
       g.fillStyle = Math.random() < 0.5 ? 'rgba(255,210,110,0.9)' : 'rgba(255,140,50,0.9)';
       g.beginPath(); g.arc(bx, by, 1.6, 0, 7); g.fill();
     }
-    if (u.fireT > 0) flash(g, u.x + Math.cos(u.face) * 10, u.y - alt + Math.sin(u.face) * 10, 2);
+    if (u.fireT > 0) flash(g, ...liftPt(u.x + Math.cos(u.face) * 10, u.y + Math.sin(u.face) * 10, alt), 2);
     // Parked: ammunition pips fill up as the ground crew rearms it.
     // Repairs under way: the same blinking green cross as structures.
     if (u.repairing && Math.floor(t * 3) % 2) {
@@ -1718,7 +1718,7 @@ function drawStructure(g, b, t) {
       if (b.fireT > 0) { g.fillStyle = 'rgba(255,140,40,0.85)'; g.beginPath(); g.arc(hx + Math.cos(b.tface) * 10, hy + Math.sin(b.tface) * 10 - 3, 4 + Math.random() * 2, 0, 7); g.fill(); }
     } else if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
   }
-  if (b.type === 'pillbox' && b.fireT > 0) { const m = muzzle(b); flash(g, m.x, m.y, 2); }
+  if (b.type === 'pillbox' && b.fireT > 0) { const m = muzzle(b); flash(g, ...liftPt(m.x, m.y + m.h, m.h), 2); }
   const fs = FLAG_SPOTS[b.type] && FLAG_SPOTS[b.type][b.faction];
   if (b.faction === 'soviets' && BANNERS[b.type]) drawBanners(g, b, x, y, palFor(b.faction));
   if (fs) { const pal = palFor(b.faction); drawFlag(g, x + fs[0], y + fs[1] - fs[2] * VK, fs[3], fs[4], pal.main, pal.dark || pal.main, b.id, fs[5]); }
@@ -2327,8 +2327,10 @@ function drawEffect(g, fx) {
     case 'tracer': {
       g.globalAlpha = 1 - k;
       g.strokeStyle = '#ffe48a'; g.lineWidth = 1;
-      g.beginPath(); g.moveTo(fx.x, fx.y); g.lineTo(fx.x2, fx.y2); g.stroke();
-      g.fillStyle = '#fffbe0'; g.fillRect(Math.round(fx.x2 - 1), Math.round(fx.y2 - 1), 2, 2);
+      // Each end at its height (world.js: the gun's h0, the target's h2, folded into y), straight up the screen.
+      const [ax, ay] = liftPt(fx.x, fx.y + (fx.h0 || 0), fx.h0 || 0), [bx, by] = liftPt(fx.x2, fx.y2 + (fx.h2 || 0), fx.h2 || 0);
+      g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
+      g.fillStyle = '#fffbe0'; g.fillRect(Math.round(bx - 1), Math.round(by - 1), 2, 2);
       g.globalAlpha = 1;
       break;
     }
@@ -2339,17 +2341,18 @@ function drawEffect(g, fx) {
     }
     case 'tesla': {
       const r = rng(fx.seed + Math.floor(fx.t * 30));
+      const [x1, y1] = liftPt(fx.x, fx.y + (fx.h0 || 0), fx.h0 || 0), [x2, y2] = liftPt(fx.x2, fx.y2 + (fx.h2 || 0), fx.h2 || 0);
       g.globalAlpha = 1 - k * 0.6;
       for (let pass = 0; pass < 3; pass++) {
         g.strokeStyle = pass === 2 ? '#ffffff' : pass === 1 ? 'rgba(150,200,255,0.9)' : 'rgba(80,130,255,0.35)';
         g.lineWidth = pass === 2 ? 1 : pass === 1 ? 2 : 5;
-        g.beginPath(); g.moveTo(fx.x, fx.y);
+        g.beginPath(); g.moveTo(x1, y1);
         const n = 9;
         for (let i = 1; i < n; i++) {
           const tt = i / n;
-          g.lineTo(fx.x + (fx.x2 - fx.x) * tt + (r() - 0.5) * 11, fx.y + (fx.y2 - fx.y) * tt + (r() - 0.5) * 11);
+          g.lineTo(x1 + (x2 - x1) * tt + (r() - 0.5) * 11, y1 + (y2 - y1) * tt + (r() - 0.5) * 11);
         }
-        g.lineTo(fx.x2, fx.y2); g.stroke();
+        g.lineTo(x2, y2); g.stroke();
       }
       g.globalAlpha = 1;
       break;
