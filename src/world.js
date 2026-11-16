@@ -990,7 +990,8 @@ function updateGarrison(u, dt) {
   const t = u.target;
   if (t && u.cd <= 0 && canHit(w, t)) {
     u.face = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
-    fireWeapon(u, w, t); u.cd = w.rof * VET.reload[u.rank || 0];
+    if (u.def.setup) shoot(u, w, t); else fireWeapon(u, w, t);   // the MG Team fires its full bursts from the window
+    u.cd = w.rof * VET.reload[u.rank || 0];
   }
   if (w2 && u.cd2 <= 0 && u.cd <= 0) {   // a Rocket Soldier's anti-aircraft missile, out of the window too
     const t2 = acquire(u, w2.range + more, [w2]);
