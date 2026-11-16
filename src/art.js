@@ -849,6 +849,50 @@ function drawTree(g, e) {
   }
   g.restore();
 }
+// Blocks of still trees for far views: TREE_BLOCK px squares of the map, each the shadows then the trees (living or
+// burnt, upright) of every tree that reaches into it, clipped to the square, so the blocks tile without seams. A block
+// is redrawn when one of its trees catches fire or burns out (its signature), and dropped once far views stop.
+const TREE_BLOCK = 512, TREE_FAR_N = 700;   // trees in view past which the view counts as far
+let treeBlocks = null;   // { trees, map: key -> { c, idx, sig, used } }
+function drawTreeBlocks(g, T, fire, t, x0, y0, x1, y1) {
+  if (!treeBlocks || treeBlocks.trees !== T) {
+    const map = new Map();
+    T.forEach((tr, i) => {   // every block the tree's picture or shadow reaches
+      const bx0 = Math.min(tr.x + tr.s.ox, tr.x + tr.s.sox), by0 = Math.min(tr.y + tr.s.oy, tr.y + tr.s.soy);
+      const bx1 = Math.max(tr.x + tr.s.ox + tr.s.img.width, tr.x + tr.s.sox + tr.s.sh.width), by1 = Math.max(tr.y + tr.s.oy + tr.s.img.height, tr.y + tr.s.soy + tr.s.sh.height) + 4;
+      for (let by = Math.floor(by0 / TREE_BLOCK); by <= Math.floor(by1 / TREE_BLOCK); by++) for (let bx = Math.floor(bx0 / TREE_BLOCK); bx <= Math.floor(bx1 / TREE_BLOCK); bx++) {
+        const k = by * 4096 + bx; let b = map.get(k);
+        if (!b) map.set(k, b = { bx, by, c: null, idx: [], sig: -1, used: 0 });
+        b.idx.push(i);   // in y order, as T is
+      }
+    });
+    treeBlocks = { trees: T, map };
+  }
+  const now = performance.now(), state = (i) => { const f = fire && fire[i] !== undefined ? fire[i] : null; return f === null ? 0 : t - f >= TREE_BURN ? 2 : 1; };
+  for (let by = Math.floor(y0 / TREE_BLOCK); by <= Math.floor(y1 / TREE_BLOCK); by++) for (let bx = Math.floor(x0 / TREE_BLOCK); bx <= Math.floor(x1 / TREE_BLOCK); bx++) {
+    const b = treeBlocks.map.get(by * 4096 + bx);
+    if (!b) continue;
+    let sig = 0;
+    if (fire) for (const i of b.idx) sig = (sig * 3 + state(i)) % 1000000007;
+    if (!b.c || sig !== b.sig) {
+      b.sig = sig;
+      if (!b.c) b.c = mkCanvas(TREE_BLOCK, TREE_BLOCK);
+      const c = b.c.getContext('2d'), X = bx * TREE_BLOCK, Y = by * TREE_BLOCK;
+      c.clearRect(0, 0, TREE_BLOCK, TREE_BLOCK);
+      c.globalAlpha = 0.45;
+      for (const i of b.idx) { const s = state(i), tr = T[i], src = s === 2 ? tr.burnt : tr.s; if (s !== 1) c.drawImage(src.sh, Math.round(tr.x + src.sox) - X, Math.round(tr.y + src.soy) - Y); }
+      c.globalAlpha = 1;
+      for (const i of b.idx) { const s = state(i), tr = T[i], src = s === 2 ? tr.burnt : tr.s; if (s !== 1) c.drawImage(src.img, Math.round(tr.x + src.ox) - X, Math.round(tr.y + src.oy) - Y); }
+    }
+    b.used = now;
+    g.drawImage(b.c, bx * TREE_BLOCK, by * TREE_BLOCK);
+  }
+}
+function dropTreeBlocks() {   // when no far view has used them for a while (called from drawTrees)
+  if (!treeBlocks) return;
+  const now = performance.now();
+  for (const b of treeBlocks.map.values()) if (b.c && now - b.used > 5000) b.c = null;
+}
 // Lightning in rain: now and then, more often the heavier it rains (none in a drizzle), the sky flashes and thunder
 // follows a moment later. When it strikes is worked out from the weather's seed and the battle clock, so every phone of
 // an online battle flashes at the same moment. About a third of strikes also come down as a bolt somewhere on the map
@@ -973,7 +1017,7 @@ function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {
     }
     g.stroke();
     // Splashes on the ground: a short-lived ring of dots.
-    if (dt) for (let n = Math.round(90 * L * dt * (vw * vh) / (800 * 450) * 4); n > 0; n--) F.splash.push({ x: vx + rnd() * vw, y: vy + rnd() * vh, t: 0 });
+    if (dt) for (let n = Math.round(90 * L * dt * Math.min(3, (vw * vh) / (800 * 450)) * 4); n > 0; n--) F.splash.push({ x: vx + rnd() * vw, y: vy + rnd() * vh, t: 0 });
     g.fillStyle = 'rgba(196,212,228,0.55)';
     const q = Math.max(1, Math.round(k));
     F.splash = F.splash.filter((s) => {
