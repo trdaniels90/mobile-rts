@@ -4,6 +4,18 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.16.4', date: '16 November 2026', title: 'A new camera angle', groups: [
+    ['New', [
+      'The battlefield is now seen at an angle, turned 45 degrees: the map is laid out in diamonds and you look down on units and buildings from the side, so walls, roofs and tanks stand out in 3D. Every unit and building has been redrawn from the new angle.',
+      'Walls and gates are now solid: concrete walls with your colour along the top, two layers of sandbags, barbed wire on posts, and gates with lamps and a barrier that sinks into the ground to open.',
+      'Past the edge of the map the land carries on and fades into haze instead of black.',
+    ]],
+    ['Changed', [
+      'Smoke, fire, debris, shots, tracers and muzzle flashes rise and fly straight up the screen, at the height of the gun and the target.',
+      'Units next to a building are drawn in front of it or behind it depending on which side they stand. Trees are drawn in order with units, so a tank in front of a wood is in front of it.',
+      'Older saved games still continue, with the camera on the same spot.',
+    ]],
+  ] },
   { v: '2026.11.16.3', date: '16 November 2026', title: 'Fights in the village, smoother zoom', groups: [
     ['Changed', [
       'Crossroads Village: the north and south lakes now run down to the village, so armies can no longer slip along the grass beside it. The computer\'s attacks now meet at the village gates and in its streets, and the houses see real fighting.',
