@@ -426,6 +426,11 @@ share globals. Read this file first; the commit history explains every change in
   UI: infantry selected + tap a house = go in; tap your held house = select its garrison; EXIT on the bar; enemy-held
   house tapped with fighters = attack it. A flag in the side's colour on the roof, a pip per soldier for your alliance,
   side colour on the radar. Snapshots: `hv` entries are `[health, side, count]`.
+- **Fortified look** (owner's request, RA2 garrisons as reference only): a held house is drawn from `fortSprite(type, stage)`
+  (models.js `fortifyModel`: the house's own model, damaged or not, padded by `FORT_PAD` 10 px, with a two-tier sandbag
+  wall round the plot (gap at the door), two coils of barbed wire on posts outside, bags in the windows up to a slit,
+  ammunition boxes by the gate). Made in the background (`pumpFort`); the plain house shows until it is ready.
+  `FORT_INFO` (filled by `houseModel` / `churchModel`) holds the door, windows and flag spot (roof ridge, church tower).
 - **Computer** (`aiGarrison` in ai.js, `AI_GARRISON` Normal 2 / Hard 3 houses, from minute 4, every 15 s): idle staged
   infantry, 3 a house, in houses on its own half nearest the enemy. Its waves never take them (not staged).
 - **Village life** (looks only, no network; skipped on the server, `G.me < 0`): a fountain (`fountainModel`, 4x4 house kind

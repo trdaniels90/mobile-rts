@@ -1614,13 +1614,14 @@ function drawStructure(g, b, t) {
 function drawHouse(g, h) {
   drawVar = 0;
   const type = houseStructure(h.type), stage = dmgStage(h), s = structureSprite(type, 'allies');
-  blit(g, stage ? damagedSprite(type, 'allies', stage) : s, h.cx * CELL, h.cy * CELL);
+  const fort = h.n ? fortSprite(type, stage) : null;   // held: sandbags and wire (models.js fortifyModel)
+  blit(g, fort || (stage ? damagedSprite(type, 'allies', stage) : s), h.cx * CELL, h.cy * CELL);
   if (type.startsWith('hv:fountain') && stage < 2) fountainWater(g, h);
   // Held by a side: its flag on the roof, and for your own side's houses (and allies') a pip per soldier inside.
   if (h.n && G.teams[h.team]) {
     const t = G.teams[h.team], keep = drawVar; drawVar = t.variant | 0;
     const col = palFor(t.faction).main; drawVar = keep;
-    const x = Math.round(h.x), y = Math.round(h.cy * CELL + (s.oy || -20) + 6), wave = Math.sin(G.t * 5 + h.id) > 0 ? 1 : 0;
+    const fi = FORT_INFO.get(type), fl = fi && fi.flag, x = Math.round(fl ? h.cx * CELL + fl.x : h.x), y = Math.round(fl ? h.cy * CELL + fl.y - fl.z * VK : h.cy * CELL + (s.oy || -20) + 6), wave = Math.sin(G.t * 5 + h.id) > 0 ? 1 : 0;
     g.fillStyle = '#1c1c1a'; g.fillRect(x, y - 16, 2, 18);
     g.fillStyle = '#000'; g.fillRect(x + 2, y - 17, 12, 8);
     g.fillStyle = col; g.fillRect(x + 2, y - 16, 11, 6); g.fillRect(x + 3 + wave, y - 10, 10, 1);

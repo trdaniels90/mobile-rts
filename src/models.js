@@ -4800,7 +4800,7 @@ function houseStructure(type) {
 }
 function houseModel(type) {
   const [, kind, ws, hs] = type.split(':'), W = +ws * CELL, H = +hs * CELL, r = rng(strSeed(type));
-  if (kind.startsWith('church')) return churchModel(W, H, kind === 'church1', r);
+  if (kind.startsWith('church')) { const c = churchModel(W, H, kind === 'church1', r); FORT_INFO.set(type, c.fort); return c; }
   if (kind === 'fountain') return fountainModel(W, H);
   const pick = (a) => a[(r() * a.length) | 0];
   const m = new VModel(-2, -2, W + 2, H + 2, 64);
@@ -4840,13 +4840,15 @@ function houseModel(type) {
   const ridge = Math.round(Math.min(hx, hy) * pitch);
   // Windows (south and east faces: the ones the camera sees), shutters, the door.
   const glass = '#33454f', frame = '#e8e4da', shutter = pick(['#3f5f3a', '#2f4766', '#7a3a2a', '#5a4632', null, null]);
-  const rows = two ? [4, 14] : [4];
+  const rows = two ? [4, 14] : [4], wins = [];
   for (const z of rows) {
     for (let x = bx0 + 4; x + 4 <= bx1 - 3; x += 10) {
+      wins.push({ face: 's', x, y: by1, z });
       m.box(x, by1 - 1, z, x + 4, by1, z + 5, frame, M_MATTE); m.box(x + 1, by1 - 1, z + 1, x + 3, by1, z + 4, glass, M_GLASS);
       if (shutter) { m.box(x - 1, by1 - 1, z, x, by1, z + 5, shutter, M_MATTE); m.box(x + 4, by1 - 1, z, x + 5, by1, z + 5, shutter, M_MATTE); }
     }
     for (let y = by0 + 4; y + 4 <= by1 - 3; y += 10) {
+      wins.push({ face: 'e', x: bx1, y, z });
       m.box(bx1 - 1, y, z, bx1, y + 4, z + 5, frame, M_MATTE); m.box(bx1 - 1, y + 1, z + 1, bx1, y + 3, z + 4, glass, M_GLASS);
     }
   }
@@ -4875,6 +4877,7 @@ function houseModel(type) {
     else if (r() < 0.5) { m.box(x - 4, y - 2, 0, x + 4, y + 2, 1, '#4e3a28', M_ROUGH); m.paintTop(x - 4, y - 2, x + 4, y + 2, (px, py) => (px % 2 === 0 && hash3(px, py, 3) > 0.3 ? '#4f7a33' : undefined)); }
   }
   m.ridge = ridge;
+  FORT_INFO.set(type, { W, H, door: dx, wins, flag: { x: Math.round(mx), y: Math.round(my), z: top + ridge } });
   return m;
 }
 // The village church: a stone nave under a steep slate roof, tall windows, and a square bell tower with a spire at
@@ -4912,6 +4915,7 @@ function churchModel(W, H, far, r) {
     m.box(ax, ay, 18, bx, by, 26, '#3a4960', M_GLASS);
   }
   m.box(tx0 + 11, ty0 + T - 1, 0, tx0 + 19, ty0 + T, 12, '#4b3424', M_MATTE);   // the door
+  m.fort = { W, H, door: tx0 + 13, wins: [{ face: 's', x: tx0 + 10, y: ty0 + T, z: 40, w: 10 }, { face: 'e', x: tx0 + T, y: ty0 + 10, z: 40, w: 10 }], flag: { x: tx0 + T - 4, y: ty0 + T - 4, z: TH } };   // sandbags in the belfry
   for (let z = 0; z < 40; z++) {
     const s = (T / 2 + 1) * (1 - z / 40);
     m.box(tx0 + T / 2 - s, ty0 + T / 2 - s, TH + z, tx0 + T / 2 + s, ty0 + T / 2 + s, TH + z + 1, z % 4 === 0 ? '#3e424a' : roof, M_ROUGH);
@@ -5002,6 +5006,73 @@ function propModel(kind, v, up) {
       B(-10, -5, 0, 10, -4, 9, wood, M_ROUGH); B(-10, -4, 0, 10, 3, 1, woodD, M_ROUGH);
       for (let x = 2; x <= 10; x++) for (let y = 3; y <= 11; y++) if (Math.abs(Math.hypot(x - 6, y - 7) - 3.6) < 0.8) B(x, y, 0, x + 1, y + 1, 1, '#3b2c1e', M_ROUGH);
       for (let i = 0; i < 10; i++) B(-12 + i * 2, -9 + (i * 7) % 6, 0, -11 + i * 2, -8 + (i * 7) % 6, 1, '#c9a95a', M_ROUGH);
+    }
+  }
+  return m;
+}
+
+
+// A garrisoned house (world.js enterHouse) is fortified: a wall of sandbags round its plot with a gap at the door,
+// sandbags piled in its windows up to a firing slit, and a ring of barbed-wire coils on posts outside. It is the
+// house's own model (damaged or not) with these added, drawn whole so everything hides behind everything else
+// properly; made in the background the first time (fortSprite gives null until then).
+const FORT_INFO = new Map(), FORT_PAD = 10, fortQueue = [];
+function fortSprite(type, stage) {
+  const k = 'S' + type + 'alliesf' + stage;
+  const s = spriteCache2.get(k + '|0');
+  if (s) return s;
+  if (!fortQueue.some((q) => q.k === k)) { fortQueue.push({ k, type, stage }); if (fortQueue.length === 1) setTimeout(pumpFort, 0); }
+  return null;
+}
+function pumpFort() {
+  const q = fortQueue[0];
+  if (!q) return;
+  const keep = spriteSpend; spriteSpend = -1e9;   // (made between frames)
+  const pal = palFor('allies'), baseKey = 'S' + q.type + pal.key, base = model(baseKey, () => STRUCTURES[q.type](pal, 'allies'));
+  const src = q.stage ? model(baseKey + 'd' + q.stage, () => damageModel(base, q.stage, q.type, 'allies')) : base;
+  sprite(q.k, () => fortifyModel(src, FORT_INFO.get(q.type) || { W: base.w - 4, H: base.h - 4, door: 0, wins: [] }), 0, 0);
+  spriteSpend = keep;
+  fortQueue.shift();
+  if (fortQueue.length) setTimeout(pumpFort, 20);
+}
+function fortifyModel(src, info) {
+  const P = FORT_PAD, { W, H } = info, m = new VModel(src.x0 - P, src.y0 - P, src.x0 + src.w + P, src.y0 + src.h + P, src.d);
+  for (let z = 0; z < src.d; z++) for (let y = 0; y < src.h; y++) for (let x = 0; x < src.w; x++) {
+    const i = (z * src.h + y) * src.w + x;
+    if (src.col[i] < 0) continue;
+    const j = m.idx(x + src.x0, y + src.y0, z);
+    m.col[j] = src.col[i]; m.mat[j] = src.mat[i];
+  }
+  const SAND = rgbInt('#b59a62'), SAND_L = rgbInt('#d6be86'), SAND_D = rgbInt('#6f5c38'), WIRE = rgbInt('#2e2f2d'), WIRE_L = rgbInt('#b4b6b0'), POST = rgbInt('#4a3826');
+  const put = (x, y, z, c, mt) => { const j = m.idx(x, y, z); if (j >= 0) { m.col[j] = c; m.mat[j] = mt; } };
+  // One bag: 5 voxels long, 2 high, courses staggered, light on top, dark seams; `along` runs round the wall.
+  const bag = (along, z) => { const k = (((along + (((z >> 1) & 1) ? 2 : 0)) % 5) + 5) % 5; return k === 0 ? SAND_D : (z & 1) ? SAND_L : SAND; };
+  const door0 = info.door - 3, door1 = info.door + 8;
+  for (let y = -P; y < H + P; y++) for (let x = -P; x < W + P; x++) {
+    const ox = x < 0 ? -x : x >= W ? x - W + 1 : 0, oy = y < 0 ? -y : y >= H ? y - H + 1 : 0, d = Math.hypot(ox, oy);
+    if (!d) continue;
+    const gate = y >= H && x >= door0 && x <= door1;
+    const along = oy ? x : y;
+    if (d >= 1 && d < 6 && !gate) {   // the sandbag wall: a high inner tier and a lower outer one
+      const hh = d < 3.6 ? 8 : 5;
+      for (let z = 0; z < hh; z++) put(x, y, z, z === hh - 1 && (d < 1.6 || (d > 2.9 && d < 3.6) || d > 5.3) ? SAND_D : bag(along, z), M_ROUGH);
+    } else if (d >= 7 && d < 10 && !(y >= H && x >= door0 - 3 && x <= door1 + 3)) {   // two coils of wire on posts
+      for (let z = 1; z <= 6; z++) {
+        const c1 = Math.abs(Math.sin(along * 0.8) * 2.6 + 3.5 - z) < 0.7, c2 = Math.abs(Math.cos(along * 0.8 + 1) * 2.6 + 3.5 - z) < 0.7;
+        if ((c1 && d < 8.5) || (c2 && d >= 8.5)) put(x, y, z, (along + z) % 3 ? WIRE_L : WIRE, M_METAL);
+      }
+      if (Math.abs(d - 8.5) < 0.5 && ((along % 9) + 9) % 9 === 0) for (let z = 0; z < 8; z++) put(x, y, z, POST, M_ROUGH);
+    }
+  }
+  // Ammunition boxes stacked beside the gate.
+  for (const [ax, ay, az] of [[door0 - 7, H - 7, 0], [door0 - 7, H - 3, 0], [door0 - 6, H - 5, 4]]) {
+    m.box(ax, ay, az, ax + 6, ay + 4, az + 4, '#4f5a2e', M_ROUGH); m.box(ax + 2, ay + 3, az + 1, ax + 4, ay + 4, az + 2, '#d0a426', M_MATTE);
+  }
+  // Windows: bags piled up to a slit.
+  for (const w of info.wins) {
+    const n = w.w || 4;
+    for (let z = w.z - 1; z < w.z + 3; z++) for (let a = -1; a < n + 1; a++) for (let o = 0; o < 2; o++) {
+      if (w.face === 's') put(w.x + a, w.y + o, z, bag(a + 1, z), M_ROUGH); else put(w.x + o, w.y + a, z, bag(a + 1, z), M_ROUGH);
     }
   }
   return m;
