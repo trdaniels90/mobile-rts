@@ -1529,6 +1529,7 @@ function followPath(u, dt) {
     }
     return false;
   }
+  if (u.def.setup && u.setup > 0) { u.setup = Math.max(0, u.setup - dt / u.def.pack); return false; }   // an MG Team packs its gun up before it walks
   const want = Math.atan2(dy, dx);
   let speed = u.def.speed * VET.speed[u.rank || 0], mx, my;
   // Infantry in a loose wave, and vehicles, each keep their own pace (paceMul).
@@ -2242,6 +2243,7 @@ function muzzle(src) {
     return { x: hx + Math.cos(src.tface) * 13, y: hy + Math.sin(src.tface) * 13 };
   }
   if (src.cls === 'air') return { x: src.x + Math.cos(src.face) * 9, y: src.y - (src.alt || 0) + Math.sin(src.face) * 9 };
+  if (src.cls === 'inf' && src.def.setup) { const r = src.faction === 'soviets' ? 21 : 19; return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - 8 }; }   // the MG Team's gun on its mount
   if (src.cls === 'inf') {
     const r = src.stance === 'prone' ? 12 : 10;
     return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - (src.stance === 'prone' ? 2 : 11) };
@@ -2680,7 +2682,8 @@ function damage(t, amount, wh, attacker, from) {
   // As in Red Alert: infantry under fire go prone and stay down (crawling if they have to move)
   // until they have not been hit for a while. Prone, they take PRONE_COVER of the damage.
   let cover = 1;
-  if (t.kind === 'unit' && t.cls === 'inf' && !t.chute) {
+  if (t.kind === 'unit' && t.def.setup) { if (t.setup >= 1) cover = PRONE_COVER; }   // an MG Team never goes prone: dug in behind its gun once it is set up
+  else if (t.kind === 'unit' && t.cls === 'inf' && !t.chute) {
     t.stance = 'prone';
     t.stanceUntil = G.t + PRONE_TIME;
     cover = PRONE_COVER;
@@ -2781,7 +2784,10 @@ function kill(e, attacker, wh, from) {
   const seed = (Math.random() * 1e6) | 0;
   if (e.kind === 'unit') {
     team.stats.lost++;
-    if (e.cls === 'inf') {
+    if (e.cls === 'inf' && e.def.setup) {   // the MG Team: both men go down
+      const ca = Math.cos(e.face), sa = Math.sin(e.face);
+      for (const [f, sd] of [[3, -3], [-6, 6]]) ragdoll({ ...e, type: 'rifle', x: e.x + f * ca - sd * sa, y: e.y + f * sa + sd * ca }, wh, from);
+    } else if (e.cls === 'inf') {
       ragdoll(e, wh, from);
     } else if (e.cls === 'veh') {
       const cook = e.def.draw === 'tank' && Math.random() < 0.35;   // ammunition cook-off
@@ -3264,6 +3270,7 @@ function updateUnit(u, dt) {
       fireWeapon(u, u.def.weapon2, t2); u.cd2 = u.def.weapon2.rof * VET.reload[u.rank || 0];
     } else u.cd2 = 0.3;   // nothing in reach: look again shortly (not every frame)
   }
+  if (u.def.setup && !u.target && !u.moving && !u.dest && !u.needPath) setUpGun(u, dt);   // an MG Team standing still digs in, ready for whatever comes
   checkStuck(u, dt);
 }
 
@@ -3274,11 +3281,12 @@ function engage(u, t, dt) {
   const ang = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
   if (d <= w.range) {
     u.dest = null; u.path = null;
-    if (slideOut(u, t, w, dt) && u.cls === 'inf') return;   // infantry find their place first, then fire
+    if (!(u.def.setup && u.setup > 0) && slideOut(u, t, w, dt) && u.cls === 'inf') return;   // infantry find their place first, then fire (an MG Team setting up stays put)
     let aligned = true;
     if (u.def.fixed) { u.face = u.tface = turnToward(u.face, ang, u.def.turn * dt); aligned = Math.abs(angDiff(ang, u.face)) < 0.08; }   // no turret: turn the vehicle
     else if (u.cls === 'veh') { u.tface = turnToward(u.tface, ang, 5 * dt); aligned = Math.abs(angDiff(ang, u.tface)) < 0.12; }
     else u.face = ang;
+    if (!setUpGun(u, dt)) return;
     if (aligned && u.cd <= 0 && w === u.def.weapon) { shoot(u, w, t); u.cd = w.rof * VET.reload[u.rank || 0]; if (u.cls === 'inf' && u.def.weapon2) u.cd2 = Math.max(u.cd2, u.cd); }
   } else {
     const p = approachSpot(u, t, w);
@@ -3329,7 +3337,7 @@ function fanAngle(u, t, R) {
 // firing, vehicles (and anything without a fixed gun) while they fire. True while it is stepping.
 const SLIDE_MAX = 4;
 function slideOut(u, t, w, dt) {
-  if (u.def.fixed || u.cls === 'air' || !u.def.speed || t.kind === 'unit' && t.cls === 'air') return false;
+  if (u.def.fixed || u.cls === 'air' || !u.def.speed || t.kind === 'unit' && t.cls === 'air' || u.setup > 0) return false;
   const R = fanR(t, w);
   fanAngle(u, t, R);
   if (u.slideT >= SLIDE_MAX) return false;
@@ -3347,6 +3355,15 @@ function slideOut(u, t, w, dt) {
   const step = Math.min(speed * dt, d);
   if (step > 0 && tryMove(u, Math.cos(u.cls === 'veh' ? u.face : want) * step, Math.sin(u.cls === 'veh' ? u.face : want) * step)) { u.anim += step; u.moving = true; }
   return true;
+}
+
+// An MG Team (def.setup): sets its gun up, standing still, before it can fire; true once it is up. followPath packs it
+// up again (def.pack) before the team walks off. u.setup runs 0 to 1, synced and saved as a plain field.
+function setUpGun(u, dt) {
+  if (!u.def.setup) return true;
+  if ((u.setup || 0) >= 1) return true;
+  u.setup = Math.min(1, (u.setup || 0) + dt / u.def.setup);
+  return false;
 }
 
 function checkStuck(u, dt) {
@@ -4730,7 +4747,8 @@ function separate() {
         const nx = d > 0.01 ? dx / d : Math.random() - 0.5, ny = d > 0.01 ? dy / d : Math.random() - 0.5;
         const push = Math.min(air ? 2 : 3, (rr - d) * 0.5);
         // Heavier, busier units shove lighter, idle ones.
-        const wa = (a.cls === 'inf' ? 1 : 0.4) * (a.moving ? 0.5 : 1), wo = (o.cls === 'inf' ? 1 : 0.4) * (o.moving ? 0.5 : 1), ws = wa + wo;
+        // A set-up MG Team is not shoved off its gun.
+        const wa = (a.setup >= 1 ? 0.02 : a.cls === 'inf' ? 1 : 0.4) * (a.moving ? 0.5 : 1), wo = (o.setup >= 1 ? 0.02 : o.cls === 'inf' ? 1 : 0.4) * (o.moving ? 0.5 : 1), ws = wa + wo;
         if (air) { a.x -= nx * push * wa / ws; a.y -= ny * push * wa / ws; o.x += nx * push * wo / ws; o.y += ny * push * wo / ws; }
         else { tryMove(a, -nx * push * 2 * wa / ws, -ny * push * 2 * wa / ws); tryMove(o, nx * push * 2 * wo / ws, ny * push * 2 * wo / ws); }
       }

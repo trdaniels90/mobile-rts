@@ -1005,6 +1005,7 @@ function tu22Model(pal) {
 // 10 stretching, 11 RedEye at the shoulder, 12-13 the passing poses of the walk (one foot off the
 // ground), 14-15 crawling.
 function infModel(pal, faction, type, frame) {
+  if (type === 'hmg') return hmgModel(pal, faction, frame);
   if (frame === 5 || frame === 14 || frame === 15) return proneModel(pal, faction, type, frame === 5 ? 0 : frame - 13);
   if (frame === 4) return crouched(infModel(pal, faction, type, 0));
   if (frame === 8 || frame === 9) return pushupModel(pal, faction, type, frame === 8);
@@ -1068,10 +1069,10 @@ function infModel(pal, faction, type, frame) {
     m.box(-2, 3, 10, 1, 4, 14, sleeve); m.box(1, 3, 10, 2, 4, 11, sleeve); hand(2, 3, 10);
     if (throwing) { m.box(-2, -4, 13, 0, -3, 20, sleeve); hand(-2, -4, 20); m.box(-3, -5, 20, -1, -3, 22, '#3f4a2a'); }
     else { m.box(-2, -4, 9, 1, -3, 14, sleeve); hand(0, -4, 9); m.box(0, -5, 8, 2, -4, 9.5, '#3f4a2a'); }
-  } else if (type === 'rocket') {
+  } else if (type === 'rocket' || type === 'hmgG') {
     m.box(-1, 3, 12, 1, 4, 14, sleeve); m.box(1, 3, 13, 3, 4, 14, sleeve); hand(3, 3, 14);      // right hand up on the grip
     m.box(-2, -4, 10, 1, -3, 14, sleeve); m.box(1, -4, 10, 3, -3, 11, sleeve); hand(3, -3, 10); // left hand steadying it
-  } else if (type === 'pilot' || E) {
+  } else if (type === 'pilot' || E || type === 'hmgL') {
     for (const y of [-4, 3]) { m.box(-1, y, 9, 1, y + 1, 14, sleeve); hand(0, y, 8); }
   } else {
     // Rifle held ready across the body: right hand at the hip on the grip, left forward on the stock.
@@ -1132,7 +1133,7 @@ function infModel(pal, faction, type, frame) {
     m.set(0, 6, tz + 2, '#2a2a24');                                          // latch
   }
   // Weapons.
-  const RIF = !['rocket', 'grenadier', 'pilot', 'engineer'].includes(type);
+  const RIF = !['rocket', 'grenadier', 'pilot', 'engineer', 'hmgG', 'hmgL'].includes(type);
   const tube = sovRk ? '#5f6a3c' : '#c3c4b8', tubeD = sovRk ? '#2f3520' : '#5d5f58';   // Soviet: olive RPG-style launcher
   if (pose === 'stretch') {                                                  // slung on the back
     if (type === 'rocket') { m.cylY(-6, 6, -6, 13, 1.4, tube); m.box(-7, 5, 12, -5, 6, 15, tubeD); }
@@ -1173,6 +1174,84 @@ function infModel(pal, faction, type, frame) {
     m.box(-1, 2, 9, 2, 4, 11, wood);                                         // stock at the hip
     if (R) { m.line(3, 1.2, 10, 7, -0.6, 11.4, wood); m.line(3, 1.2, 11, 7, -0.6, 12.4, wood); m.box(4, 0, 8, 5, 1, 10.5, C.gun, M_METAL); m.box(5, 0, 8, 6, 1, 9, C.gun, M_METAL); }   // wooden handguard, curved magazine
     else m.box(4, 0, 9, 5, 1, 10.5, C.gun, M_METAL);                        // magazine
+  }
+  return m;
+}
+// The MG Team: a gunner and a loader drawn as one model (the team is one unit). Frames: walking (1, 2, 12, 13; crawls
+// 14, 15 walk too) and standing (0, the rest) carrying the gun; 4 setting up or packing (both crouched, the gun on the
+// ground); 5 and 7 set up and firing (the gun on its mount, the gunner crouched on the grips, the loader feeding the
+// belt). Allies: an M2 .50 cal on a low tripod. Soviets: a DShK 12.7 mm on its two-wheeled carriage behind a shield.
+// Both are the game's own drawings, not copied from any game.
+function stampModel(dst, src, dx, dy, dz) {
+  for (let z = 0; z < src.d; z++) for (let y = 0; y < src.h; y++) for (let x = 0; x < src.w; x++) {
+    const i = (z * src.h + y) * src.w + x, c = src.col[i];
+    if (c >= 0) dst.set(src.x0 + x + dx, src.y0 + y + dy, z + (dz || 0), c, src.mat[i]);
+  }
+}
+// The gun pointing along +x: x the back of the receiver, (y, z) the bore. can: the ammunition box hung on its left.
+function hmgGun(m, sov, x, y, z, can) {
+  const steel = C.gun, dk = '#2a2a26';
+  m.box(x - 2, y - 1, z - 1, x, y + 1, z + 1, dk, M_METAL);                               // back plate
+  m.set(x - 3, y - 1, z, dk, M_METAL); m.set(x - 3, y, z, dk, M_METAL);                  // spade grips
+  if (!sov) {
+    m.box(x, y - 1, z - 1, x + 6, y + 1, z + 1.5, steel, M_METAL);                       // receiver
+    m.box(x + 1, y - 1, z + 1.5, x + 5, y + 1, z + 2, shadeInt(rgbInt(steel), 1.2), M_METAL);   // feed cover
+    m.cylX(x + 6, x + 9, y, z, 1.2, '#3a3c38', M_METAL);                                  // barrel support
+    m.cylX(x + 9, x + 19, y, z, 0.7, steel, M_METAL);                                     // heavy barrel
+    m.box(x + 8, y - 0.5, z + 1, x + 10, y + 0.5, z + 2.2, dk, M_METAL);                  // carrying handle
+  } else {
+    m.box(x, y - 1, z - 1, x + 7, y + 1, z + 1.5, steel, M_METAL);                       // receiver
+    m.box(x + 1, y - 1.5, z + 1.5, x + 5, y + 1.5, z + 2.5, '#4a4f3a', M_METAL);         // feed cover
+    for (let i = 7; i < 19; i++) m.cylX(x + i, x + i + 1, y, z, i % 2 ? 1.2 : 0.8, i % 2 ? dk : steel, M_METAL);   // finned barrel
+    m.cylX(x + 19, x + 21, y, z, 1.4, dk, M_METAL);                                      // muzzle brake
+  }
+  if (can) {
+    m.box(x + 1, y - 4, z - 2, x + 5, y - 1, z + 1, '#4f5a33');                         // ammunition box
+    m.line(x + 3, y - 1.5, z + 1, x + 3, y - 0.5, z + 1.5, '#b8962e', M_METAL);          // the belt going in
+  }
+}
+function hmgModel(pal, faction, frame) {
+  const sov = faction === 'soviets', m = new VModel(-15, -11, 25, 13, 24);
+  const can = '#4f5a33', shield = '#56603a', tyre = '#2b2b27';
+  if (frame === 5 || frame === 7 || frame === 4) {
+    const up = frame !== 4;
+    // Gunner crouched behind the grips, loader kneeling at the gun's side with the box.
+    stampModel(m, crouched(infModel(pal, faction, 'hmgG', up ? 7 : 0)), -6, 0);
+    stampModel(m, crouched(infModel(pal, faction, 'hmgL', 0)), -3, 7);
+    if (up) {
+      if (sov) {
+        for (const y of [-5.5, 4]) m.cylY(y, y + 1.5, 3, 2.5, 2.5, tyre, M_METAL);    // carriage wheels
+        m.box(2, -4, 2, 4, 4, 3, '#3a3f2a', M_METAL);                                    // axle
+        m.line(2, 0, 3, -5, 0, 0.5, '#3a3f2a', M_METAL);                                 // trail
+        m.box(2, -1, 3, 4, 1, 6, '#3a3f2a', M_METAL);                                    // pivot
+        m.box(10, -5, 4, 11, 5, 12, shield, M_METAL); m.box(10, -5, 11, 11, 5, 12, shadeInt(rgbInt(shield), 1.2), M_METAL);   // shield
+      } else {
+        m.line(3, 0, 6, 12, 0, 0, '#3a3c38', M_METAL);                                   // tripod: front leg
+        for (const y of [-4, 4]) m.line(3, 0, 6, -2, y, 0, '#3a3c38', M_METAL);          // rear legs
+        m.box(2, -1, 5, 4, 1, 6, '#2a2a26', M_METAL);                                    // cradle
+      }
+      hmgGun(m, sov, 0, 0, 7, true);
+      m.box(-1, 5, 0, 3, 7, 3, can); m.line(1, 5, 3, 1, 1, 6, '#b8962e', M_METAL);      // spare box, belt to the gun
+    } else {
+      hmgGun(m, sov, 0, 0, 1.5, false);                                                  // laid on the ground
+      m.box(-1, 5, 0, 3, 7, 3, can);
+      if (sov) m.box(9, -5, 0, 14, 5, 1, shield, M_METAL);                               // shield set down flat
+    }
+    return m;
+  }
+  // Carrying: the gunner with the gun on his right shoulder, the loader a pace behind with the mount and the boxes.
+  const walk = { 1: [1, 2], 2: [2, 1], 12: [12, 13], 13: [13, 12], 14: [1, 2], 15: [2, 1] }[frame] || [0, 0];
+  const gx = 3, gy = -3, lx = -6, ly = 5;
+  stampModel(m, infModel(pal, faction, 'hmgG', walk[0]), gx, gy);
+  hmgGun(m, sov, gx - 4, gy + 3.5, 15.5, false);
+  const L = infModel(pal, faction, 'hmgL', walk[1]);
+  stampModel(m, L, lx, ly);
+  m.box(lx - 1, ly + 4, 4, lx + 3, ly + 6, 7, can); m.box(lx - 1, ly - 6, 4, lx + 3, ly - 4, 7, can);   // a box in each hand
+  if (sov) m.box(lx - 7, ly - 4, 7, lx - 6, ly + 4, 15, shield, M_METAL);                // the shield on his back
+  else {
+    m.line(lx - 6, ly - 3, 7, lx - 6, ly + 3, 19, '#3a3c38', M_METAL);                   // the tripod on his back
+    m.line(lx - 6, ly + 3, 7, lx - 6, ly - 3, 19, '#3a3c38', M_METAL);
+    m.line(lx - 7, ly, 6, lx - 7, ly, 19, '#3a3c38', M_METAL);
   }
   return m;
 }

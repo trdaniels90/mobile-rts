@@ -862,6 +862,7 @@ Supabase.
 | `walls.js` | Headless: walls and gates: laying a line (rules, prices), what each kind stops, gates and alliances, wire under tracks, ordered fire only, selling, Auto Attack units shooting a way through, online snapshot and orders |
 | `rally.js` | Headless: units from an Outpost Barracks stay there, PRIMARY picks the Barracks, a rally point gathers new units, fallback when the primary is lost |
 | `village.js` | Headless: Crossroads Village houses: seeded layout, blocking, blast and ordered damage, collapse, online snapshot, a computer 2 v 2 |
+| `mg-team.js` | Headless: the MG Team sets up before firing, packs before moving, is dug in once set up, and a staged fight against riflemen |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
@@ -1076,6 +1077,21 @@ frame-time maths everywhere, so it is not deterministic.
   recovery cannot help (it was already heading for its scatter spot). Not reproduced a second time.
 - **PR #11 (walls and gates, JGFortanelli) is merged into this branch** (merge commit). `tools/sim/walls.js` is flaky on its own, with or without this branch: 'a line of wire' fails about
   half the runs (placement depends on trees), 'hunters shoot a way through' 2 in 16.
+
+## MG Team: heavy machine gun infantry (after 2026.11.16, not released, owner OK'd for both modes)
+
+- `hmg` in UNIT_DEFS (both factions, Barracks, $400, 150 health, speed 26, sight 7, `r` 7): one unit drawn as two men. Allies carry an
+  M2 .50 cal (low tripod), Soviets a DShK 12.7 mm (two-wheeled carriage, shield). Weapon: SA bursts of 6 x 12, range 150, splash 10,
+  `air` + `heliOnly` (helicopters, not jets), sound `mg`.
+- **Set up to fire** (`setup` 1.5 s, `pack` 1 s; `u.setup` 0 to 1, a plain synced and saved field): `setUpGun` (world.js) in `engage`
+  before firing, and whenever it stands still with no target (it digs in on its own). `followPath` packs it up before it walks;
+  `slideOut` is skipped once it has begun. Set up it takes `PRONE_COVER` damage (never goes prone) and `separate` hardly pushes it.
+- Drawn by `hmgModel` (models.js; `stampModel` merges two `infModel` figures, internal types `hmgG` gunner and `hmgL` loader):
+  frames 0 and walks carrying, 4 setting up or packing, 5/7 set up. art.js `drawUnit` picks by `u.setup`. Dies as two ragdolls.
+  Sprites and ground rebaked. Field Manual entry; the computer trains some (`mgs` in ai.js: 12%, 30% against infantry).
+- `node tools/sim/mg-team.js <repo>`: first shot after about 1.5-1.9 s, half damage set up, no movement while packing. Tuned with a
+  staged fight: 2 set-up teams against 8 riflemen (equal cost) won 6 of 8 (100 health / 9 damage won 0 of 8).
+- Online: the server must run the same version.
 
 ## Computer allies answer calls later and from nearer (after 2026.11.15.7, not released, both modes)
 

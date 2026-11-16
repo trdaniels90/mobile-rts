@@ -1486,6 +1486,13 @@ function drawUnit(g, u, t) {
   const pal = palFor(u.faction);
   if (u.cls === 'inf') {
     if (u.chute > 0) { drawChute(g, u, pal, t); return; }
+    if (u.def.setup) {   // the MG Team: carrying the gun, setting it up (or packing it), or set up on its mount
+      const st = u.setup || 0, frame = st >= 1 ? 5 : st > 0 ? 4 : u.moving ? WALK[Math.floor(u.anim / 2.5) % 4] : 0;
+      const rk = u.fireT > 0 && st >= 1 ? 0.6 : 0;
+      blit(g, infSprite(u, pal, frame), u.x - Math.cos(u.face) * rk, u.y - Math.sin(u.face) * rk - (frame === 12 || frame === 13 ? 1 : 0));
+      if (u.fireT > 0 && st >= 1) { const r = u.faction === 'soviets' ? 21 : 19; flash(g, u.x + Math.cos(u.face) * r, u.y + Math.sin(u.face) * r - 8, 1); }
+      return;
+    }
     // As in Red Alert: a four-pose walk, the weapon brought up to the shoulder to shoot (and held
     // there a moment), dropping prone under fire through a crouch, crawling, and getting up again.
     const prone = u.stance === 'prone', gun = u.type !== 'rocket' && u.type !== 'grenadier' && u.type !== 'pilot' && u.type !== 'engineer';
@@ -2432,7 +2439,7 @@ function makeCameo(type, faction, key) {
     scale = Math.min(1.3, (W - 2) / fw, (H - 2) / fh);
   } else {
     const d = UNIT_DEFS[type];
-    if (d.cls === 'inf') mdl = infModel(pal, faction, type, 0);
+    if (d.cls === 'inf') mdl = infModel(pal, faction, type, d.setup ? 5 : 0);   // the MG Team shown set up
     else if (d.draw === 'tank') mdl = tankHull(pal, d.size);
     else if (d.draw === 'jeep') mdl = jeepModel(pal);
     else if (d.draw === 'harv') mdl = harvModel(pal, true);
@@ -2442,7 +2449,7 @@ function makeCameo(type, faction, key) {
     else if (d.draw === 'v2') mdl = v2Model(pal, true);
     else if (d.fly === 'heli') mdl = type === 'hind' ? hindModel(pal) : heliModel(pal);
     else mdl = jetModel(pal, type === 'mig');
-    scale = d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.fly ? 1.7 : d.size && d.size.len > 22 ? 1.9 : 2.3;
+    scale = d.setup ? 2 : d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.fly ? 1.7 : d.size && d.size.len > 22 ? 1.9 : 2.3;
   }
   const s = renderVox(mdl, angle, { scale, shadow: false });
   const dx = Math.round((W - s.img.width) / 2), dy = Math.round((H - s.img.height) / 2 + (BUILD_DEFS[type] ? 0 : 3) - (power ? 6 : 0));

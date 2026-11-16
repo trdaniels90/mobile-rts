@@ -93,6 +93,17 @@ const UNIT_DEFS = {
     cost: 160, hp: 50, armor: 'inf', speed: 40, sight: 5, r: 5,
     weapon: { dmg: 42, rof: 2.0, range: 100, wh: 'GR', proj: 'grenade', splash: 14 },
   },
+  // Heavy machine gun team: two men, a gunner and a loader, with a crew-served gun (Allies an M2 .50 cal on a tripod,
+  // Soviets a DShK 12.7 mm on its wheeled carriage with a shield). Carried while walking; must stop and set it up
+  // (`setup` s) before it can fire, and pack it up (`pack` s) before moving again (world.js hmgReady). Set up, the
+  // team is dug in (takes PRONE_COVER of the damage) and is not shoved aside; standing still it sets up on its own.
+  // Staged (tools/sim/mg-team.js): 2 set-up teams beat 8 riflemen (equal cost) 6 of 8 times, killing 7.5 on average. Shreds infantry, hurts light vehicles,
+  // reaches helicopters (not jets), weak against tanks and buildings.
+  hmg: {
+    name: 'MG Team', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
+    cost: 400, hp: 150, armor: 'inf', speed: 26, sight: 7, r: 7, setup: 1.5, pack: 1.0,
+    weapon: { dmg: 12, rof: 1.4, range: 150, wh: 'SA', proj: 'bullet', burst: 6, gap: 0.09, splash: 10, air: true, heliOnly: true, sound: 'mg' },
+  },
   // Unarmed. Walks into a destroyed bridge span and it is rebuilt, or into a damaged friendly structure and it is
   // repaired in full; either way the Engineer is used up (world.js commandEngineer). Cost, health, speed and sight
   // as Red Alert's (its speed 4 is the Rifle Infantry's).
