@@ -3,7 +3,8 @@
 For a Sonnet session to code. Read `CLAUDE.md` first (branch rule: work on `claude/cross-platform-game-k2d9lb`,
 do not release or deploy; show the owner an MP4 and wait for their OK).
 
-**Looks only, both modes.** Nothing in the simulation, saves or snapshots changes. `buildT`, `sellT` and `team.low`
+**Looks only, both modes, except one owner-approved gameplay change:** a structure now takes **2.5 s** to go up
+after it is placed (was 1.4 s), both modes (owner's pick, 2026-11-16). Otherwise nothing in the simulation, saves or snapshots changes. `buildT`, `sellT` and `team.low`
 are already synced to online guests, so the server needs no change. Keep every new per-building value in a `Map`
 in art.js keyed by `b.id`, never as a field on `b` (fields on entities are saved and sent over the network).
 
@@ -74,7 +75,13 @@ While `k = buildT < 1` it does three things, all written for the old straight-do
 Selling uses the same code backwards.
 
 ### New design: built layer by layer (default; owner can change)
-Keep the 1.4 s (changing it is a gameplay change). Replace the `k < 1` block with `drawBuildUp(g, b, s, x, y, k, selling)`.
+**Build-up time 2.5 s (owner's pick).** world.js `updateBuilding`: replace `dt / 1.4` with a constant
+`BUILD_UP = 2.5` (data.js or next to `REPAIR_STEP`), and use it wherever the 1.4 is assumed (grep `1.4` near `buildT`
+and in the clank sound timing). Online the server must run the same version. The structure cannot fire, produce,
+give power or count as built until `buildT` reaches 1, as today, so check the computer is not upset by the longer wait
+(ai.js tests `buildT >= 1`): run `node tools/sim/teams.js . 1 8 bridge 1v1` once before and after and compare when the
+first refinery, factory and wave come. The Field Manual should not mention a time; check it does not.
+Layered build (owner's pick). Replace the `k < 1` block with `drawBuildUp(g, b, s, x, y, k, selling)`.
 
 1. **Layered sprites (the main look).** Like Tiberian Sun's build-up: the building's own voxel model cut off at a
    height, so walls go up course by course with their cut tops showing. `BUILD_STEPS = 6` cut heights.
@@ -137,11 +144,9 @@ Keep the 1.4 s (changing it is a gameplay change). Replace the `k < 1` block wit
    (fallback, then layers) and a second one (layers from the start).
 3. Look for console errors; run `node tools/sim/save-load.js .` once (a battle saved mid-construction continues).
 4. Commit on `claude/cross-platform-game-k2d9lb`, push, and wait for the owner's OK. Add a short note to `CLAUDE.md`
-   (what `SPINNERS` and `drawBuildUp` are, "looks only, both modes, not released").
+   (what `SPINNERS`, `drawBuildUp`, the layered sprites and `BUILD_UP` 2.5 s are; "both modes, not released, the server must match").
 
 ## Owner decisions (ask before or with the first video)
-- Construction time stays 1.4 s (looks only)? Six layers in 1.4 s is quick; a longer build-up (e.g. 2.5 s) would show
-  them better but is a gameplay change for both modes.
-- Layered build (default) or only the cheaper "rising through the ground" with scaffold?
+- Decided: build-up 2.5 s, both modes; layered build.
 - Should the Allied Radar Dome's small dish turn too (Part 1 step 7)?
 - Dish speed (default one turn in about 7 s) and whether low power stops it.
