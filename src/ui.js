@@ -528,6 +528,7 @@ function draw() {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
     ctx.drawImage(view, 0, 0, bw, bh, Math.round(-(cam.x - ox) * k + sx2), Math.round(-(cam.y - oy) * k + sy2), Math.round(bw * k), Math.round(bh * k));
+    if (MAPS[validMap(G.mapId)].daynight) drawNight(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t);   // (art.js)
     if (G.weather) drawWeather(ctx, G.weather, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, G.paused || !!G.over);
     if (gesture && gesture.type === 'box' && gesture.moved) {
       const bx = Math.min(gesture.sx, gesture.ex) * DPR, by = Math.min(gesture.sy, gesture.ey) * DPR;

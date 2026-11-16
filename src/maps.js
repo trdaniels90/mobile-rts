@@ -785,7 +785,7 @@ const MAPS = {
   village: {
     name: 'Crossroads Village',
     img: 'maps/village.png',
-    blurb: 'Open farmland with a village where the roads meet. West fights east for the streets, the square and the gem fields at its gates. The houses are different every battle, block the way like any building and fall to the fighting round them.',
+    blurb: 'Open farmland with a village where the roads meet. West fights east for the streets, the square and the gem fields at its gates. The houses are different every battle, block the way like any building and fall to the fighting round them. Day turns to night, and some battles are fought in the rain.',
     info: '144 × 144 cells · 4 start positions · made for 2 v 2',
     // West (start positions 0-1) against east (2-3); a 1 v 1 starts one player on each side (newWorld).
     teams: [[0, 1], [2, 3]],
@@ -793,6 +793,8 @@ const MAPS = {
     // Village houses (world.js genVillage): rolled from the battle's seed on the plots in `lots`, so every battle has
     // its own village. Neutral; hurt by blasts near them and by an ordered attack (ATTACK GROUND), down to rubble.
     village: true,
+    weather: { kind: 'rain', chance: 0.5 },   // as Lakeside: rain in half the battles, with lightning (art.js drawWeather, world.js lightningStrikes)
+    daynight: true,   // day and night come round (art.js dayNight; looks only)
     // A fixed layout, made by python3 tools/make-village-map.py (mirrored both ways, so the four starts are alike).
     square: [64,64,79,79],
     lamps: [[51.85,53.5],[53.5,51.85],[51.85,65.5],[65.5,51.85],[51.85,77.5],[77.5,51.85],[51.85,89.5],[89.5,51.85],[59.85,53.5],[53.5,59.85],[59.85,65.5],[65.5,59.85],[59.85,77.5],[77.5,59.85],[59.85,89.5],[89.5,59.85],[73.85,53.5],[53.5,73.85],[73.85,89.5],[89.5,73.85],[93.85,53.5],[53.5,93.85],[93.85,65.5],[65.5,93.85],[93.85,77.5],[77.5,93.85],[93.85,89.5],[89.5,93.85],[85.85,53.5],[53.5,85.85],[85.85,65.5],[65.5,85.85],[85.85,77.5],[77.5,85.85],[85.85,89.5],[89.5,85.85],[64.4,64.4],[79.6,64.4],[64.4,79.6],[79.6,79.6]],

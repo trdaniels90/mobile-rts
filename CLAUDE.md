@@ -448,6 +448,18 @@ share globals. Read this file first; the commit history explains every change in
   every 2-3 minutes while calm and not held (`bell` in audio.js), sparrows chirp in the square (`chirp`). All looks and
   sound only, worked out on each phone (effects pass, `G.inFx`, so the host relays nothing).
 
+## Crossroads Village: day and night, rain (after 2026.11.16, both modes)
+
+- `daynight: true` in `MAPS.village`. **Looks only:** `dayNight(t)` (art.js) gives `night` and `warm` (dusk/dawn) from the battle
+  clock, a `DAY_LEN` (720 s, owner: "a little faster" than 900) day starting at `DAY_START` (0.3, morning): dusk about 5 min in, about 5 min of night, then dawn.
+  Every phone has the same hour. `drawNight` (from ui.js `draw`, before the weather) multiplies an amber tint at dusk and
+  dawn, and at night lays a dark blue layer (`nightCv`, up to 62%) with holes cut where there is light (`lightPic`): street
+  lamps, about 3 in 5 house windows (`FORT_INFO` windows), every finished building, fires, blasts, bolts and bolt fires, then
+  a faint warm glow over them. Lamps glow faintly by day (`nightLevel`). Sight, fog and combat are unchanged.
+- Villagers walk home at nightfall (`dark` in `moveFolk`, `v.slow`) and stay in until morning; sparrows only by day.
+- `weather: { kind: 'rain', chance: 0.5 }` as on Lakeside: rain, lightning and the bolts that land (gameplay, both modes,
+  server must match). `boltStrike` can now hit a village house too (it burns for 10% of its health like a building).
+
 ## Map "Twin Lakes" (contributor's map by JGFortanelli, owner OK'd, not released)
 
 - `MAPS.twinlakes` in maps.js: **132 x 132** cells, 4 start positions, `teamSize: 2` (1 v 1, 2 v 2, co-op). Two lakes run from the

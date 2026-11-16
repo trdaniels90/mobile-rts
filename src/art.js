@@ -838,6 +838,69 @@ function lightning(g, w, t, k, paused) {
 // pixels, k screen pixels a world pixel. Drops and flakes live in the world (they stay put as the camera moves) and
 // wrap round the view.
 const weatherFx = { parts: [], splash: [], last: 0, kind: null };
+// Day and night (maps with `daynight`, looks only): a day of DAY_LEN seconds of battle clock, so every phone has the same
+// hour. A battle starts in the morning; dusk comes after about 5 minutes, the night lasts about 5, then dawn.
+const DAY_LEN = 720, DAY_START = 0.3;   // DAY_START: the hour a battle begins, as a share of the day (0 midnight, 0.5 noon)
+function dayNight(t) {
+  if (!G || !MAPS[validMap(G.mapId)].daynight) return { night: 0, warm: 0 };
+  const p = (t / DAY_LEN + DAY_START) % 1, sun = Math.sin((p - 0.25) * Math.PI * 2);   // 1 at noon, -1 at midnight
+  return { night: Math.max(0, Math.min(1, (0.12 - sun) / 0.42)), warm: Math.max(0, 1 - Math.abs(sun - 0.02) / 0.3) };
+}
+const nightLevel = () => dayNight(G ? G.t : 0).night;
+// Darkness over the view, with holes where there is light, then the lights' warm glow on top. Dusk and dawn tint it amber.
+let nightCv = null, lightPic = null;
+function drawNight(g, vx, vy, vw, vh, k, t) {
+  const { night, warm } = dayNight(t);
+  const W = g.canvas.width, H = g.canvas.height;
+  if (warm > 0.01) {
+    g.save(); g.globalCompositeOperation = 'multiply'; g.fillStyle = `rgba(255,170,110,${(0.32 * warm).toFixed(3)})`; g.fillRect(0, 0, W, H); g.restore();
+  }
+  if (night < 0.01) return;
+  if (!lightPic) {
+    lightPic = mkCanvas(64, 64);
+    const c = lightPic.getContext('2d'), gr = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = gr; c.fillRect(0, 0, 64, 64);
+  }
+  if (!nightCv || nightCv.width !== W || nightCv.height !== H) nightCv = mkCanvas(W, H);
+  const n = nightCv.getContext('2d'), lights = [];
+  const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
+  const add = (x, y, r, a, warmLight) => { if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };
+  // Street lamps, lit windows, buildings' own lights, fires and blasts.
+  for (const p of G.props || []) if (p.k === 'lamp' && p.up) add(p.x + 4.5, p.y - 8, 52, 1, true);
+  for (const h of G.houses || []) {
+    if (!h.alive || !G.seen[idx(h.cx, h.cy)]) continue;
+    const fi = FORT_INFO.get(h.type);
+    if (fi && fi.wins) fi.wins.forEach((w, i) => { if ((h.id * 7 + i * 3) % 5 < 3) add(h.cx * CELL + (w.face === 's' ? w.x + 2 : w.x + 1), h.cy * CELL + (w.face === 's' ? w.y + 1 : w.y + 2) - (w.z + 2) * VK, 12, 0.8, true); });
+  }
+  for (const e of G.entities) {
+    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || !(G.seen[idx(e.cx, e.cy)])) continue;
+    add((e.cx + e.w / 2) * CELL, (e.cy + e.h) * CELL - 4, 26 + e.w * 10, 0.75, true);
+  }
+  for (const fx of G.effects) {
+    if (fx.t < 0) continue;
+    if (fx.type === 'fire') add(fx.x, fx.y, 34, 0.9, true);
+    else if (fx.type === 'expl' && fx.t < fx.life) add(fx.x, fx.y, (fx.size || 8) * 5, 1 - fx.t / fx.life, true);
+    else if (fx.type === 'bolt') add(fx.x, fx.y, 260, 1, false);
+  }
+  for (const b of G.bolts || []) add(b.x, b.y, 50, Math.min(1, b.t / 3), true);
+  n.globalCompositeOperation = 'source-over'; n.clearRect(0, 0, W, H);
+  n.fillStyle = `rgba(6,12,34,${(0.62 * night).toFixed(3)})`; n.fillRect(0, 0, W, H);
+  n.globalCompositeOperation = 'destination-out';
+  for (const [x, y, r, a] of lights) {
+    const flick = 0.92 + Math.random() * 0.08;
+    n.globalAlpha = Math.min(1, a * flick); n.drawImage(lightPic, (x - vx - r) * k, (y - vy - r) * k, r * 2 * k, r * 2 * k);
+  }
+  n.globalAlpha = 1; n.globalCompositeOperation = 'source-over';
+  g.drawImage(nightCv, 0, 0);
+  // The warm light itself, faintly, over what it lights.
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (const [x, y, r, a, w] of lights) {
+    if (!w) continue;
+    g.globalAlpha = 0.12 * a * night; g.drawImage(lampGlowPic || lightPic, (x - vx - r * 0.6) * k, (y - vy - r * 0.6) * k, r * 1.2 * k, r * 1.2 * k);
+  }
+  g.restore();
+}
 function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {
   const F = weatherFx, now = performance.now(), dt = paused ? 0 : Math.min(0.05, (now - F.last) / 1000 || 0);
   F.last = now;
@@ -1672,7 +1735,7 @@ function drawProp(g, p) {
       gr.addColorStop(0, 'rgba(255,220,140,0.55)'); gr.addColorStop(0.35, 'rgba(255,200,110,0.18)'); gr.addColorStop(1, 'rgba(255,190,100,0)');
       c.fillStyle = gr; c.fillRect(0, 0, 40, 40);
     }
-    const flick = 0.75 + 0.25 * Math.sin(G.t * 9 + p.x) * Math.sin(G.t * 3.7 + p.y);
+    const flick = (0.75 + 0.25 * Math.sin(G.t * 9 + p.x) * Math.sin(G.t * 3.7 + p.y)) * (0.35 + 0.65 * nightLevel());   // faint by day
     g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = flick;
     g.drawImage(lampGlowPic, Math.round(p.x + 4.5 - 12), Math.round(p.y - 17 * VK - 12), 24, 24);
     g.globalAlpha = 0.35 * flick; g.drawImage(lampGlowPic, Math.round(p.x - 14), Math.round(p.y - 9), 36, 20);   // the pool of light on the ground

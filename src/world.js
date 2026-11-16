@@ -1134,29 +1134,31 @@ function scareFolk(v, x, y) {
   let best = null, bd = Infinity;
   for (const h of open) { const d = doorOf(h), dd = Math.hypot(d.x - v.x, d.y - v.y) + (Math.hypot(d.x - x, d.y - y) < 60 ? 400 : 0); if (dd < bd) { bd = dd; best = h; } }
   if (!best) return;
-  v.st = 'flee'; v.house = best.id; v.via = net[v.to] ? { x: net[v.to].x, y: net[v.to].y } : null;
+  v.st = 'flee'; v.slow = false; v.house = best.id; v.via = net[v.to] ? { x: net[v.to].x, y: net[v.to].y } : null;
   if (v.via && Math.hypot(v.via.x - v.x, v.via.y - v.y) > Math.hypot(doorOf(best).x - v.x, doorOf(best).y - v.y)) v.via = null;
 }
 function moveFolk(dt) {
   if (!G.folk) { if (G.props && G.props.length) villagers(); else return; }
-  const net = streetNet(), calm = G.t > (G.calmAt || 0);
+  const net = streetNet(), dark = nightLevel() > 0.5, calm = G.t > (G.calmAt || 0) && !dark;   // at night they stay in
   const step = (v, tx, ty, sp) => { const dx = tx - v.x, dy = ty - v.y, d = Math.hypot(dx, dy); if (d < sp * dt + 0.5) { v.x = tx; v.y = ty; return true; } v.x += dx / d * sp * dt; v.y += dy / d * sp * dt; if (Math.abs(dx) > 0.5) v.face = dx > 0 ? 1 : -1; v.ph += dt * sp * 0.6; return false; };
   for (const v of G.folk) {
     if (v.st === 'in') {   // indoors: out again once it is calm, or at once if the house is coming down
       const h = G.byId.get(v.house);
       if (h && h.alive && ((v.t -= dt) > 0 || !calm) && !h.n) continue;
-      const d = h ? doorOf(h) : v; v.x = d.x; v.y = d.y; v.st = h && h.alive ? 'home' : 'walk';
+      const d = h ? doorOf(h) : v; v.x = d.x; v.y = d.y; v.st = h && h.alive ? 'home' : 'walk'; v.slow = false;
       let bi = 0, bd = Infinity; net.forEach((p, i) => { const dd = Math.hypot(p.x - v.x, p.y - v.y); if (p.n.length && dd < bd) { bd = dd; bi = i; } });
       v.to = bi; continue;
     }
     if (v.st === 'flee') {
       const h = G.byId.get(v.house);
       if (!h || !h.alive || h.n) { v.st = 'walk'; continue; }
-      if (v.via) { if (step(v, v.via.x, v.via.y, 48)) v.via = null; continue; }
+      const sp = v.slow ? 20 : 48;   // (home for the night at a walk; from danger at a run)
+      if (v.via) { if (step(v, v.via.x, v.via.y, sp)) v.via = null; continue; }
       const d = doorOf(h);
-      if (step(v, d.x, d.y, 48)) { v.st = 'in'; v.t = 25 + Math.random() * 30; }
+      if (step(v, d.x, d.y, sp)) { v.st = 'in'; v.t = 25 + Math.random() * 30; }
       continue;
     }
+    if (dark) { scareFolk(v, -1e5, -1e5); v.slow = true; continue; }   // nightfall: everyone walks home
     if (v.st === 'idle') { if ((v.t -= dt) <= 0) v.st = 'walk'; continue; }
     const p = net[v.to];
     if (!p) continue;
@@ -1199,7 +1201,7 @@ function villageSounds(dt) {
     if (G.bellN > 0 && G.t >= G.bellAt) { hooks.sfx('bell', church.x, church.y); G.bellN--; G.bellAt = G.t + 1.9; }
     else if (!(G.bellN > 0) && G.t >= (G.bellNext || (G.bellNext = G.t + 20 + Math.random() * 40))) { G.bellN = 3 + ((Math.random() * 3) | 0); G.bellAt = G.t; G.bellNext = G.t + 110 + Math.random() * 90; }
   }
-  if (fountain && calm && G.birds && G.birds[0] && G.birds[0].st === 0 && G.t >= (G.chirpAt || 0)) {
+  if (fountain && calm && nightLevel() < 0.3 && G.birds && G.birds[0] && G.birds[0].st === 0 && G.t >= (G.chirpAt || 0)) {
     G.chirpAt = G.t + 2.5 + Math.random() * 5;
     hooks.sfx('chirp', fountain.x + (Math.random() - 0.5) * 120, fountain.y + (Math.random() - 0.5) * 120);
   }
@@ -4916,7 +4918,8 @@ function boltStrike() {
   if (c < 0) return;
   const x = (cellX(c) + Math.random()) * CELL, y = (cellY(c) + Math.random()) * CELL;
   const tgt = G.entities.find((e) => e.alive && e.kind === 'bld' && e.buildT >= 1 && cellX(c) >= e.cx && cellX(c) < e.cx + e.w && cellY(c) >= e.cy && cellY(c) < e.cy + e.h)
-    || (G.spans || []).find((s) => s.alive && s.cells.includes(c)) || null;
+    || (G.spans || []).find((s) => s.alive && s.cells.includes(c))
+    || (G.houses || []).find((h) => h.alive && cellX(c) >= h.cx && cellX(c) < h.cx + h.w && cellY(c) >= h.cy && cellY(c) < h.cy + h.h) || null;   // a village house burns too
   const seed = (Math.random() * 1e6) | 0;
   G.effects.push({ type: 'bolt', x, y, t: 0, life: 0.45, seed });
   G.effects.push({ type: 'expl', x, y: y - 2, size: 12, t: 0.02, life: 0.6, seed: seed + 1 });   // sets trees round it alight (updateEffects)
