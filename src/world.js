@@ -990,7 +990,7 @@ function updateGarrison(u, dt) {
   const t = u.target;
   if (t && u.cd <= 0 && canHit(w, t)) {
     u.face = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
-    if (u.def.setup) shoot(u, w, t); else fireWeapon(u, w, t);   // the MG Team fires its full bursts from the window
+    shoot(u, w, t);   // full bursts from the window (rifles 3, the MG Team 6)
     u.cd = w.rof * VET.reload[u.rank || 0];
   }
   if (w2 && u.cd2 <= 0 && u.cd <= 0) {   // a Rocket Soldier's anti-aircraft missile, out of the window too
@@ -2329,9 +2329,10 @@ function tickStrafe(u, dt) {
   G.effects.push({ type: 'tracer', x: m.x, y: m.y, x2: x, y2: y, t: 0, life: 0.07 });
   G.effects.push({ type: 'spark', x, y, t: 0, life: 0.12 });
   if (st.n % 2 === 0) G.effects.push({ type: 'smoke', x, y, r: 3, t: 0, life: 0.6, alpha: 0.45, color: '#b8a888', vy: -6 });   // dust kicked up
+  const once = new Set();
   if (!G.remote) for (const e of G.entities) {
     if (!e.alive || !hostile(e.team, u.team) || isAirborne(e)) continue;
-    if (e.kind === 'bld' ? (x >= e.cx * CELL && x < (e.cx + e.w) * CELL && y >= e.cy * CELL && y < (e.cy + e.h) * CELL) : Math.hypot(e.x - x, e.y - y) < g.splash + (e.def.r || 0)) damage(e, g.dmg, g.wh, u, { x, y });
+    if (e.kind === 'bld' ? (x >= e.cx * CELL && x < (e.cx + e.w) * CELL && y >= e.cy * CELL && y < (e.cy + e.h) * CELL) : Math.hypot(e.x - x, e.y - y) < g.splash + (e.def.r || 0)) damage(e, g.dmg, g.wh, u, { x, y }, once);
   }
   st.n++; st.t = g.gap;
   if (--st.left <= 0) u.strafe = null;
@@ -2405,9 +2406,9 @@ function fireWeapon(src, w, t, follow) {
     damage(t, w.dmg, w.wh, src);
     if (w.splash && !isAirborne(t)) {   // rifle bullets: a little splash on hostile ground units next to the target (full at the target, half at the edge)
       for (const e of G.entities) {
-        if (!e.alive || e === t || e.kind !== 'unit' || isAirborne(e) || !hostile(e.team, src.team)) continue;
+        if (!e.alive || e === t || e.kind !== 'unit' || isAirborne(e) || !hostile(e.team, src.team) || e.inHouse) continue;   // walls stop bullet splash
         const d = Math.hypot(e.x - t.x, e.y - t.y);
-        if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, src, { x: t.x, y: t.y });
+        if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, src, { x: t.x, y: t.y }, true);
       }
     }
     G.effects.push({ type: 'tracer', x: m.x, y: m.y, x2: t.x + jx, y2: ty + jy, t: 0, life: 0.07 });
@@ -2533,7 +2534,7 @@ function fireBlast(p, x, y) {
   for (const e of G.entities) {
     if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, from, { x, y });
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, from, { x, y }, true);
   }
   houseBlast(x, y, w.splash, w.dmg, w.wh, from);
 }
@@ -2548,7 +2549,7 @@ function grenadeBlast(p) {
   for (const e of G.entities) {
     if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.6), w.wh, from, { x, y });
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.6), w.wh, from, { x, y }, true);
   }
   houseBlast(x, y, w.splash, w.dmg, w.wh, from);
 }
@@ -2565,7 +2566,7 @@ function lobBlast(p) {
   for (const e of G.entities) {
     if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * (v2 ? V2_FALLOFF : 0.65)), w.wh, from, { x, y });
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * (v2 ? V2_FALLOFF : 0.65)), w.wh, from, { x, y }, true);
   }
   houseBlast(x, y, w.splash, w.dmg, w.wh, from);
 }
@@ -2580,7 +2581,7 @@ function bombBlast(p) {
   for (const e of G.entities) {
     if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, p.from || null, { x, y });
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, p.from || null, { x, y }, true);
   }
   houseBlast(x, y, w.splash, w.dmg, w.wh, p.from || null);
 }
@@ -2636,7 +2637,7 @@ function smoulder(x, y, life) { G.effects.push({ type: 'smoulder', x, y, t: 0, l
 function splash(x, y, rad, dmg, team, skip, attacker) {
   for (const e of G.entities) {
     if (!e.alive || e === skip || !hostile(e.team, team) || e.kind !== 'unit' || isAirborne(e)) continue;
-    if (Math.hypot(e.x - x, e.y - y) < rad) damage(e, dmg, 'HE', attacker || null, { x, y });
+    if (Math.hypot(e.x - x, e.y - y) < rad) damage(e, dmg, 'HE', attacker || null, { x, y }, true);
   }
 }
 
@@ -2677,14 +2678,19 @@ function vetHeal(u, dt) {   // an elite unit mends itself when it has not been h
   if (u.healT >= VET.healEvery) { u.healT = 0; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * VET.heal); }
 }
 
-function damage(t, amount, wh, attacker, from) {
+// splashed: this soldier was caught in a blast or a splash that hits the house on its own (houseBlast, or the shot at the
+// soldier it was aimed at), so a garrisoned soldier passes nothing on to his house. Without it, every soldier inside
+// passed the whole blast on and a house of 4 took one grenade 5 times. A Set instead: pass each house on once (events
+// with no houseBlast of their own: strafing shells, falling debris, the Flame Tower's jet).
+function damage(t, amount, wh, attacker, from, splashed) {
   if (!t.alive || G.remote) return;
   if (t.kind === 'spot') {   // a point on the ground: only a wall or gate standing there is hurt
     if (t.wall !== undefined) { if (G.wall[t.wall]) hitWall(t.wall, amount * (WARHEADS[wh].bld || 0)); if (!G.wall[t.wall]) t.alive = false; }
     return;
   }   // (a PvP guest's copy only shows the host's battle)
   if (t.inHouse) {   // a soldier in a house: the house takes the hit, he only a share of it
-    if (t.inHouse.alive) damage(t.inHouse, amount, wh, attacker, from);
+    const relay = !splashed || (splashed instanceof Set && !splashed.has(t.inHouse) && splashed.add(t.inHouse));
+    if (t.inHouse.alive && relay) damage(t.inHouse, amount, wh, attacker, from);
     amount *= GARRISON_COVER;
     if (!t.alive) return;
   }
@@ -3065,7 +3071,7 @@ function crashLanding(x, y, face, def, faction, seed) {
     smoulder(x, y - 3, 30);
   }
   for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: x + (Math.random() - 0.5) * 12, y: y + (Math.random() - 0.5) * 8, t: -i * 0.3, life: 3 + Math.random() * 3 });
-  for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - x, e.y - y) < 14) damage(e, 30, 'HE', null);
+  { const once = new Set(); for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - x, e.y - y) < 14) damage(e, 30, 'HE', null, null, once); }   // a held house takes it once
 }
 // A downed aircraft falls as a small rigid body: gravity (a jet's wings still hold it up a
 // little at first), air drag, and a spin that winds up as control is lost; a jet's yaw bends
@@ -3110,7 +3116,7 @@ function updateCrash(fx, dt) {
     hooks.sfx('explodeVeh', fx.x, fx.y); hooks.shake(fx.x, fx.y, 4);
     G.effects.push({ type: 'expl', x: fx.x, y: fx.y - 3, size: 11, t: 0, life: 0.7, seed, debris: true });
     for (let i = 0; i < 3; i++) shed(fx.x, fx.y, 2, fx.vx, fx.vy, fx.faction, i === 0);
-    for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - fx.x, e.y - fx.y) < 12) damage(e, 20, 'HE', null);
+    { const once = new Set(); for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - fx.x, e.y - fx.y) < 12) damage(e, 20, 'HE', null, null, once); }   // a held house takes it once
     if (!fx.bounced && sp > 45 && fx.vz > 25) { fx.bounced = true; fx.vz = -fx.vz * 0.3; fx.alt = 0.5; fx.vx *= 0.6; fx.vy *= 0.6; fx.rollV *= 0.5; return; }
     fx.ground = true; fx.vz = 0; fx.rollV = 0;
     fx.roll = Math.round(fx.roll / Math.PI) * Math.PI;   // settles on its belly or its back
@@ -3131,7 +3137,7 @@ function updateCrash(fx, dt) {
     G.effects.push({ type: 'smoke', x: fx.x - fx.vx * 0.05, y: fx.y, r: 3, t: 0, life: 0.9, alpha: 0.5, color: '#7a6a52', vy: -8, vx: 0 });
     if (Math.random() < 0.25) shed(fx.x, fx.y, 1, fx.vx * 0.5, fx.vy * 0.5, fx.faction, false);
   }
-  for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && !fx.hit.includes(e.id) && Math.hypot(e.x - fx.x, e.y - fx.y) < 10) { fx.hit.push(e.id); damage(e, 35, 'HE', null); }
+  for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && !fx.hit.includes(e.id) && Math.hypot(e.x - fx.x, e.y - fx.y) < 10) { fx.hit.push(e.id); damage(e, 35, 'HE', null, null, !!e.inHouse && fx.hit.some((id) => id !== e.id && G.byId.get(id) && G.byId.get(id).inHouse === e.inHouse)); }
   if (blocked || Math.hypot(fx.vx, fx.vy) < 6) { fx.t = fx.life; crashLanding(fx.x, fx.y, fx.face, fx.def, fx.faction, (Math.random() * 1e6) | 0); }
 }
 // Loose pieces: thrown, tumbling, bouncing and sliding to rest; burning ones trail smoke.
@@ -4301,14 +4307,15 @@ function flameBurn(b, w, t, dt) {
   const ca = Math.cos(b.tface), sa = Math.sin(b.tface), amt = w.jet.dps * JET_TICK;
   const mx = b.x + ca * len / 2, my = b.y + sa * len / 2;
   let hitT = false;
+  const once = new Set();
   for (const bucket of nearBuckets(mx, my, len / 2 + w.jet.width + 12)) for (const e of bucket) {
     if (!e.alive || e.kind !== 'unit' || isAirborne(e) || !hostile(b.team, e.team)) continue;
     const dx = e.x - b.x, dy = e.y - b.y, along = dx * ca + dy * sa;
     if (along < 6 || along > len + 6 || Math.abs(dx * sa - dy * ca) > w.jet.width + (e.def.r || 0)) continue;
     if (e === t) hitT = true;
-    damage(e, amt, w.wh, b);
+    damage(e, amt, w.wh, b, null, once);
   }
-  if (!hitT && t.alive && hostile(b.team, t.team) && !isAirborne(t)) damage(t, amt, w.wh, b);
+  if (!hitT && t.alive && hostile(b.team, t.team) && !isAirborne(t)) damage(t, amt, w.wh, b, null, once);
 }
 
 // How far (in cells) from one of its own structures a side may place a new one; Outposts reach further.

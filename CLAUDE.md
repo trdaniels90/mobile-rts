@@ -433,7 +433,15 @@ share globals. Read this file first; the commit history explains every change in
   a window on the wall facing the target (FORT_INFO `wins` on the south and east faces, mirrored to the north and west walls;
   `box` = the walls), one of the two nearest by unit id, else the middle of that wall. Tracers, rockets and the MG Team's
   smoke start there. The server builds `houseModel` once per house type to learn its windows. Incoming fire still aims at
-  the house's middle. MG Teams fire full bursts from a house (`shoot` in `updateGarrison`); other infantry single rounds.
+  the house's middle.
+- **Garrison fixes** (owner OK'd, both modes; the server must match): soldiers inside fire full bursts (`shoot` in `updateGarrison`).
+  `damage(.., splashed)`: a garrisoned soldier caught in a blast passes nothing on to his house when the house is hit on its own
+  (`houseBlast` after shell, grenade, artillery and V2 blasts, `splash`), or a `Set` so each house is passed on once (jet strafing,
+  falling debris, the Flame Tower's jet); before, a house of 4 took one grenade 5 times. Bullet splash (rifles, MG Team) skips
+  soldiers in houses (the walls), since all of them stand on the house's middle. Staged (Crossroads Village, 3 riflemen and a
+  Rocket Soldier inside, 6 runs, 90 s): 7 riflemen + a Grenadier attacking left 7.2 alive and killed the whole garrison before;
+  now none left, 3.7 of 4 inside survive. 4 riflemen + 4 Grenadiers: 0.8 attackers left, 1.8 inside, the house fell once;
+  8 Grenadiers take the house 4 of 6 times. Grenadiers, artillery and ATTACK GROUND are the answer to a held house.
 - **Fortified look** (owner's request, RA2 garrisons as reference only): a held house is drawn from `fortSprite(type, stage)`
   (models.js `fortifyModel`: the house's own model, damaged or not, padded by `FORT_PAD` 10 px, with a two-tier sandbag
   wall round the plot (gap at the door), two coils of barbed wire on posts outside, bags in the windows up to a slit,
