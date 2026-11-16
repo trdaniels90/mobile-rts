@@ -876,6 +876,16 @@ share globals. Read this file first; the commit history explains every change in
   together: older Mac apps then show "download the new app" instead of updating.
 - Tested here only with a stubbed Electron (`pickBase`, staging, restart offer, unconfirmed-boot fallback); the packaged app is untested.
 
+## Claude token tracker (2026.11.16)
+
+- A Stop hook (`.claude/settings.json`) runs `node tools/claude-usage.js` after every Claude turn: it reads the session's
+  transcript (and subagent transcripts), one row per Claude reply (input, output, cache read, cache write, model, branch),
+  and upserts them by message id into Supabase `claude_usage` via `log_claude_usage` (`supabase/claude-usage.sql`). Never fails
+  the hook. `node tools/claude-usage.js <transcript.jsonl> --dry` prints a session summary.
+- The table is not readable through the API; `claude_usage_report(days)` returns totals only (per day, last 40 sessions, per model).
+- Dashboard: https://claude.ai/artifact/SBZjzKFR33gmneBDGY3su4 (slug `cbee14e8-11b5-4a4a-bd7d-ec0a90da7d73`, source
+  `tools/claude-usage.html`), live through the owner's Supabase connector (`execute_sql`), else the snapshot baked into the page.
+
 ## Supabase
 
 - **Project:** `yorrgemlhoxbxvyvzcwe`. The Supabase MCP tools work in these sessions.

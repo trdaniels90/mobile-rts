@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Token Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout: a field ledger. Summary tiles, one daily chart, then a session log. */
+  --bg: #f4f5f2; --panel: #ffffff; --ink: #1d2320; --muted: #5f6a64; --line: #dde1dc;
+  --out: #b4402a; --write: #c98a1c; --in: #2f6f8f; --read: #9fb3a8;
+  --display: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141815; --panel: #1c211e; --ink: #e6ebe7; --muted: #9aa69f; --line: #2c332f;
+    --out: #e0694f; --write: #e0a83c; --in: #5aa4c7; --read: #56685e; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141815; --panel: #1c211e; --ink: #e6ebe7; --muted: #9aa69f; --line: #2c332f;
+  --out: #e0694f; --write: #e0a83c; --in: #5aa4c7; --read: #56685e; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 var(--body); }
+main { max-width: 980px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+h1 { font: 600 20px var(--display); margin: 0; text-wrap: balance; }
+h2 { font: 600 13px var(--display); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+.status { font: 12px var(--display); color: var(--muted); display: flex; gap: 10px; align-items: center; }
+button { font: 600 12px var(--display); background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--in); outline-offset: 2px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.tile, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.tile .k { font: 12px var(--display); color: var(--muted); }
+.tile .v { font: 600 26px var(--display); font-variant-numeric: tabular-nums; margin: 2px 0 6px; }
+.tile .s { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; display: grid; gap: 1px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.chartwrap { overflow-x: auto; }
+svg text { fill: var(--muted); font: 11px var(--display); }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+th { font: 600 11px var(--display); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+td.br { font-family: var(--display); font-size: 12px; color: var(--muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.note { font-size: 12.5px; color: var(--muted); max-width: 70ch; }
+.warn { color: var(--out); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Claude Token Tracker · Red Horizon</h1>
+    <div class="status"><span id="fresh">Snapshot from 16 Nov 2026</span><button id="reload" type="button">Refresh</button></div>
+  </header>
+  <section class="tiles" id="tiles"></section>
+  <section class="panel">
+    <h2>Tokens per day (UTC)</h2>
+    <div class="legend">
+      <span><i style="background:var(--out)"></i>Output</span>
+      <span><i style="background:var(--write)"></i>Cache write</span>
+      <span><i style="background:var(--in)"></i>Fresh input</span>
+      <span><i style="background:var(--read)"></i>Cache read (cheapest)</span>
+    </div>
+    <div class="chartwrap" id="chart"></div>
+  </section>
+  <section class="panel">
+    <h2>Recent sessions</h2>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Started</th><th>Branch</th><th>Replies</th><th>Output</th><th>Cache write</th><th>Input</th><th>Cache read</th><th>Length</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </section>
+  <p class="note">Every Claude Code session on this repo sends its token counts to Supabase when Claude finishes a turn (the Stop hook in <code>.claude/settings.json</code>). Cache reads are the context Claude re-reads each reply and cost about a tenth of fresh input; output and cache writes are what grow the bill fastest. Refresh reads live figures through your Supabase connector.</p>
+</main>
+<script>
+let DATA = {"days":[{"day":"2026-11-16","input":21,"output":8258,"replies":10,"sessions":1,"cache_read":1159562,"cache_write":77650}],"models":[{"input":21,"model":"claude-opus-5-5","output":8258,"replies":10,"cache_read":1159562,"cache_write":77650}],"sessions":[{"last":"2026-11-16T14:30:53.677+00:00","first":"2026-11-16T14:28:34.132+00:00","input":21,"model":"claude-opus-5-5","branch":"claude/exciting-darwin-1ujlyz","output":8258,"replies":10,"cache_read":1159562,"session_id":"ebaec9c4-367c-53e4-b8f6-1262f563d2b9","cache_write":77650}]};
+const KINDS = [['output', 'out'], ['cache_write', 'write'], ['input', 'in'], ['cache_read', 'read']];
+const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : String(Math.round(n));
+const sum = (rows, k) => rows.reduce((a, r) => a + (+r[k] || 0), 0);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function tile(label, rows) {
+  const total = KINDS.reduce((a, [k]) => a + sum(rows, k), 0);
+  return `<div class="tile"><div class="k">${label}</div><div class="v">${fmt(sum(rows, 'output'))} <span style="font-size:13px;color:var(--muted)">out</span></div>
+    <div class="s"><span>${fmt(sum(rows, 'cache_write'))} cache write · ${fmt(sum(rows, 'input'))} input</span>
+    <span>${fmt(sum(rows, 'cache_read'))} cache read · ${fmt(total)} total</span>
+    <span>${sum(rows, 'replies')} replies${rows.length && rows[0].sessions != null ? ' · ' + sum(rows, 'sessions') + ' session-days' : ''}</span></div></div>`;
+}
+
+function render() {
+  const days = DATA.days || [];
+  const today = new Date().toISOString().slice(0, 10);
+  const since = d => days.filter(r => r.day >= new Date(Date.now() - d * 864e5).toISOString().slice(0, 10));
+  document.getElementById('tiles').innerHTML =
+    tile('Today', days.filter(r => r.day === today)) + tile('Last 7 days', since(6)) + tile('Last 60 days', days);
+
+  // Stacked daily bars, one shared scale.
+  const W = Math.max(560, days.length * 22 + 60), H = 200, L = 46, B = 22, T = 8;
+  const tot = r => KINDS.reduce((a, [k]) => a + (+r[k] || 0), 0);
+  const max = Math.max(1, ...days.map(tot));
+  const step = Math.pow(10, Math.floor(Math.log10(max)));
+  const tick = max / step > 5 ? step * 2 : max / step > 2 ? step : step / 2;
+  const top = Math.ceil(max / tick) * tick, y = v => T + (H - T - B) * (1 - v / top);
+  const bw = Math.min(28, (W - L - 10) / Math.max(1, days.length) - 4);
+  let s = `<svg width="${W}" height="${H}" role="img" aria-label="Tokens per day">`;
+  for (let v = 0; v <= top + 1e-9; v += tick)
+    s += `<line x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${fmt(v)}</text>`;
+  days.forEach((r, i) => {
+    const x = L + 6 + i * (bw + 4);
+    let acc = 0;
+    for (const [k, c] of KINDS) {
+      const v = +r[k] || 0; if (!v) continue;
+      s += `<rect x="${x}" y="${y(acc + v)}" width="${bw}" height="${Math.max(1, y(acc) - y(acc + v))}" fill="var(--${c})"><title>${r.day} ${k.replace('_', ' ')}: ${v.toLocaleString()}</title></rect>`;
+      acc += v;
+    }
+    if (days.length <= 14 || i % Math.ceil(days.length / 10) === 0 || i === days.length - 1)
+      s += `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${r.day.slice(5)}</text>`;
+  });
+  document.getElementById('chart').innerHTML = s + '</svg>';
+
+  document.getElementById('rows').innerHTML = (DATA.sessions || []).map(r => {
+    const a = new Date(r.first), b = new Date(r.last), mins = Math.round((b - a) / 6e4);
+    return `<tr><td>${a.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} ${a.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</td>
+      <td class="br" title="${esc(r.branch)}">${esc((r.branch || '').replace(/^claude\//, ''))}</td><td>${r.replies}</td>
+      <td>${fmt(+r.output)}</td><td>${fmt(+r.cache_write)}</td><td>${fmt(+r.input)}</td><td>${fmt(+r.cache_read)}</td>
+      <td>${mins < 60 ? mins + ' min' : (mins / 60).toFixed(1) + ' h'}</td></tr>`;
+  }).join('') || '<tr><td colspan="8">No sessions logged yet.</td></tr>';
+}
+
+function parse(payload) {
+  const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  let t = text;
+  try { const o = JSON.parse(text); if (o && typeof o.result === 'string') t = o.result; } catch (e) {}
+  const m = t.match(/\[\{[\s\S]*\}\]/);
+  if (!m) throw new Error('no rows');
+  const r = JSON.parse(m[0])[0].r;
+  return typeof r === 'string' ? JSON.parse(r) : r;
+}
+
+let mcp = null;
+const fresh = document.getElementById('fresh');
+async function load() {
+  if (!mcp) { fresh.textContent = 'Snapshot (open on claude.ai with Supabase connected for live figures)'; return; }
+  fresh.textContent = 'Loading…';
+  try {
+    const res = await mcp.callTool('Supabase', 'execute_sql',
+      { project_id: 'yorrgemlhoxbxvyvzcwe', query: 'select claude_usage_report(60) as r' });
+    DATA = parse(res.payload !== undefined ? res.payload : res);
+    render();
+    fresh.textContent = 'Live · ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    fresh.classList.remove('warn');
+  } catch (e) {
+    fresh.textContent = 'Could not refresh (' + (e && (e.code || e.message) || 'error') + '); showing last figures';
+    fresh.classList.add('warn');
+  }
+}
+document.getElementById('reload').addEventListener('click', load);
+render();
+if (window.claude && claude.use) claude.use('mcp').then(m => { mcp = m; load(); }).catch(() => load());
+</script>
+</body>
+</html>

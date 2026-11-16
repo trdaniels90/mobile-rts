@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-usage.js\"", "timeout": 20 }
+        ]
+      }
+    ]
+  }
+}
