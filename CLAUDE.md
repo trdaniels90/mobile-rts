@@ -397,6 +397,12 @@ share globals. Read this file first; the commit history explains every change in
   `python3 tools/make-village-map.py` (no design picture: one quarter worked out in code and mirrored both ways; it prints
   `spawns`, `gems`, `lots` and `rows` to paste over the entry). Big lakes on the north and south edges push west-east
   traffic through or beside the village (with plain ponds there, 14 minutes of computer play never fought in it).
+  **The lakes reach the village** (owner's pick of A, after the first test: the computer hugged the water and almost never fought in the
+  village): each lake has a stub down to the village's outer lane (`VARIANT=a`, now the generator's default; `old`, `b`, `c` for the other
+  layouts), and the shore road is gone. Before, west-east armies took the open strip between lake and village; C (woods in the strip) did
+  not work because the shore stays walkable. 12-minute 4-computer Hard games, units killed inside the village: seed 21 8 of 269 (3%) to
+  165 of 327 (50%), seed 22 151 of 335 (45%) to 181 of 373 (49%); houses hurt 6 / 16 to 19 / 24. The routes along the north and south
+  edges now run along the village's outer lane and the gate gems.
   **Ore** (owner: "add more ore", after 2026.11.16): four fields per start (three by the base, one forward toward the village),
   about 449,000 ore in all (224,000 per alliance's half; Three Crossings 197,000), and 8 gem fields (4 at the village's north
   and south gates, 4 beside the side ponds, moved off the water), about 48,000. Every field reachable from a start.

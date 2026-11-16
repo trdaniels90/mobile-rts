@@ -41,9 +41,10 @@ def seg_dist(px, py, ax, ay, bx, by):
 
 
 S = lambda v: v * K
-# VARIANT (env, for trying layouts; none is the shipped one): 'a' the lakes reach down to the village, 'b' the same with a
-# shallow ford across each, 'c' woods fill the strip between each lake and the village.
-VARIANT = os.environ.get('VARIANT', '')
+# VARIANT (env): 'a' (the default, shipped) the lakes reach down to the village's outer lane, so west-east armies cannot pass
+# along the open strip between lake and village; 'b' the same with a shallow ford across each; 'c' woods fill the strip (the
+# shore stays open, so it does not work); 'old' the first layout, an open strip.
+VARIANT = os.environ.get('VARIANT', 'a')
 BASE = (S(22), S(24))
 BASE_CLEAR = 14
 # Village, in the quarter (cells up to the middle line): the lane round it, side lanes, a main street, the square.
@@ -53,9 +54,9 @@ ORE = [(S(9), S(42), 7), (S(41), S(9), 6), (S(10), S(63), 5.5), (S(31), S(51), 4
 GEMS = [(S(63.5), S(44), 2.6), (S(45.5), S(57), 2.6)]   # by the village's north (south) gates and its west (east) side
 ROADS = [   # dirt tracks: [points], half width
     ([BASE, (S(36), S(37)), (S(50), S(51))], 1.6),
-    *([([(S(36), S(37)), (S(50), S(41)), (S(71.5), S(41))], 1.4)] if not VARIANT else []),   # along the lake shore to the base across (mirrored)
+    *([([(S(36), S(37)), (S(50), S(41)), (S(71.5), S(41))], 1.4)] if VARIANT == 'old' else []),   # along the lake shore to the base across (mirrored)
     ([BASE, (S(21), S(46)), (S(22), S(71.5))], 1.4),   # to the ally's base
-    *([([(S(71.5), S(41)), (S(70.5), S(50))], 1.5)] if not VARIANT else []),        # the main street out to the lake road
+    *([([(S(71.5), S(41)), (S(70.5), S(50))], 1.5)] if VARIANT == 'old' else []),        # the main street out to the lake road
     ([(S(22), S(71.5)), (S(50), S(70.5))], 1.5),        # and out to the west road
     ([(S(9), S(42)), (S(21), S(40))], 1.2),             # out to the ore fields
     ([(S(41), S(9)), (S(36), S(25))], 1.2),
