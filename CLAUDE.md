@@ -978,3 +978,9 @@ frame-time maths everywhere, so it is not deterministic.
   recovery cannot help (it was already heading for its scatter spot). Not reproduced a second time.
 - **PR #11 (walls and gates, JGFortanelli) is merged into this branch** (merge commit). `tools/sim/walls.js` is flaky on its own, with or without this branch: 'a line of wire' fails about
   half the runs (placement depends on trees), 'hunters shoot a way through' 2 in 16.
+
+## Computer allies answer calls later and from nearer (after 2026.11.15.7, not released, both modes)
+
+- Owner's request: attacking one computer always brought the other's army at once. In `defendAllies` (world.js) a computer ally now sends only idle units within `AI_ALLY_REACH` (35 cells of the raiders, was 70)
+  and only after the ally's base has been under attack for `AI_ALLY_DELAY` (10 s, `team.allyT`, a host timer cleared once the area is calm; units already assisting are not held). Humans' Ally button is unchanged.
+  Checked headless (2 v 2 of computers, three raiders at one base): an ally 14 cells off answers between 9 and 13 s, one 67 cells off never comes; `ally-defend.js` unchanged.

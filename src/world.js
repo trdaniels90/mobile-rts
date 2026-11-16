@@ -1443,6 +1443,8 @@ function recallAlly(team, garrisonOnly) {
     setGuard(u, s.x, s.y); u.staged = true; u.assisting = false; u.defending = false; u.focus = null; u.huntTarget = null; goTo(u, s.x, s.y);
   }
 }
+const AI_ALLY_REACH = 35;   // cells: a computer ally sends only idle units this close to the raiders (was 70)
+const AI_ALLY_DELAY = 10;   // seconds an ally's base must be under attack before another computer comes to help
 function defendAllies(team) {
   if (!teamGame()) return;
   if (!alliesOf(team).length && unitsOf(team.id).some((u) => u.garrison)) recallAlly(team, true);   // nobody left to help
@@ -1467,6 +1469,7 @@ function defendAllies(team) {
   const threats = helping ? enemyUnitsOf(team.id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute && allies.some((a) => hit(a, u))) : [];
   if (!threats.length) {
     if (++team.allyCalm < DEFEND_CALM) return;
+    team.allyT = undefined;
     for (const u of unitsOf(team.id)) {
       if (!u.assisting || (u.target && u.target.alive)) continue;
       u.assisting = false;
@@ -1476,9 +1479,14 @@ function defendAllies(team) {
     return;
   }
   team.allyCalm = 0;
+  // A computer ally only answers once the base has been under attack for AI_ALLY_DELAY s, so a quick strike gets a window.
+  if (team.isAI) {
+    if (team.allyT === undefined) team.allyT = G.t;
+    if (G.t - team.allyT < AI_ALLY_DELAY && !unitsOf(team.id).some((u) => u.assisting)) return;
+  }
   const nearC = new Map();   // each unit's distance to the nearest threat, worked out once (it is used in sorts)
   const near = (u) => { let d = nearC.get(u); if (d === undefined) { d = Infinity; for (const t of threats) d = Math.min(d, Math.hypot(u.x - t.x, u.y - t.y)); nearC.set(u, d); } return d; };
-  let army = unitsOf(team.id).filter((u) => u.assisting).concat(idleGround(team).filter((u) => (team.isAI ? near(u) < CELL * 70 : u.garrison)))
+  let army = unitsOf(team.id).filter((u) => u.assisting).concat(idleGround(team).filter((u) => (team.isAI ? near(u) < CELL * AI_ALLY_REACH : u.garrison)))
     .filter((u) => threats.some((t) => canTarget(u, t)));
   army.sort((a, b) => (!!b.assisting - !!a.assisting) || near(a) - near(b));
   // A human's garrison units all go; the computer sends worth half again what the raiders are.
