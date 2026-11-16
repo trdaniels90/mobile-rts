@@ -765,11 +765,19 @@ function drawTrees(g, x0, y0, x1, y1) {
   const fire = G.treeFire || null, t = G.t, w = windNow(), ws = Math.hypot(w.x, w.y) || 1;
   const storm = G.weather ? weatherLevel(G.weather, t) : 0, force = ws / WIND * (1 + 1.6 * storm);
   const lean = w.x / WIND * 0.045 * (1 + storm), ux = w.x / ws, uy = w.y / ws;
+  // Far out (a big screen zoomed right out: over TREE_FAR_N trees in view) the sway is a pixel or less, so still and burnt
+  // trees come from cached blocks of the map and only burning ones are drawn one by one (below).
+  let hi2 = lo; while (hi2 < T.length && T[hi2].y < y1) hi2++;
+  let n = 0; for (let i = lo; i < hi2 && n <= TREE_FAR_N; i++) if (T[i].x >= x0 && T[i].x <= x1) n++;
+  const far = n > TREE_FAR_N;
+  if (far) drawTreeBlocks(g, T, fire, t, x0, y0, x1, y1);
+  else if (treeBlocks && (G.t | 0) % 5 === 0) dropTreeBlocks();
   const tf = g.getTransform(), list = [];
   for (let i = lo; i < T.length && T[i].y < y1; i++) {
     const tr = T[i];
     if (tr.x < x0 || tr.x > x1) continue;
     const f = fire && fire[i] !== undefined ? fire[i] : null, p = f === null ? 0 : Math.max(0, Math.min(1, (t - f) / TREE_BURN));
+    if (far && (p === 0 || p === 1)) continue;   // in a block
     list.push(tr, p, i);
   }
   // Shadows first (they stay put), the living tree's fading as it burns.
@@ -802,6 +810,50 @@ function drawTrees(g, x0, y0, x1, y1) {
   }
   g.globalAlpha = 1;
   g.setTransform(tf);
+}
+// Blocks of still trees for far views: TREE_BLOCK px squares of the map, each the shadows then the trees (living or
+// burnt, upright) of every tree that reaches into it, clipped to the square, so the blocks tile without seams. A block
+// is redrawn when one of its trees catches fire or burns out (its signature), and dropped once far views stop.
+const TREE_BLOCK = 512, TREE_FAR_N = 700;   // trees in view past which the view counts as far
+let treeBlocks = null;   // { trees, map: key -> { c, idx, sig, used } }
+function drawTreeBlocks(g, T, fire, t, x0, y0, x1, y1) {
+  if (!treeBlocks || treeBlocks.trees !== T) {
+    const map = new Map();
+    T.forEach((tr, i) => {   // every block the tree's picture or shadow reaches
+      const bx0 = Math.min(tr.x + tr.s.ox, tr.x + tr.s.sox), by0 = Math.min(tr.y + tr.s.oy, tr.y + tr.s.soy);
+      const bx1 = Math.max(tr.x + tr.s.ox + tr.s.img.width, tr.x + tr.s.sox + tr.s.sh.width), by1 = Math.max(tr.y + tr.s.oy + tr.s.img.height, tr.y + tr.s.soy + tr.s.sh.height) + 4;
+      for (let by = Math.floor(by0 / TREE_BLOCK); by <= Math.floor(by1 / TREE_BLOCK); by++) for (let bx = Math.floor(bx0 / TREE_BLOCK); bx <= Math.floor(bx1 / TREE_BLOCK); bx++) {
+        const k = by * 4096 + bx; let b = map.get(k);
+        if (!b) map.set(k, b = { bx, by, c: null, idx: [], sig: -1, used: 0 });
+        b.idx.push(i);   // in y order, as T is
+      }
+    });
+    treeBlocks = { trees: T, map };
+  }
+  const now = performance.now(), state = (i) => { const f = fire && fire[i] !== undefined ? fire[i] : null; return f === null ? 0 : t - f >= TREE_BURN ? 2 : 1; };
+  for (let by = Math.floor(y0 / TREE_BLOCK); by <= Math.floor(y1 / TREE_BLOCK); by++) for (let bx = Math.floor(x0 / TREE_BLOCK); bx <= Math.floor(x1 / TREE_BLOCK); bx++) {
+    const b = treeBlocks.map.get(by * 4096 + bx);
+    if (!b) continue;
+    let sig = 0;
+    if (fire) for (const i of b.idx) sig = (sig * 3 + state(i)) % 1000000007;
+    if (!b.c || sig !== b.sig) {
+      b.sig = sig;
+      if (!b.c) b.c = mkCanvas(TREE_BLOCK, TREE_BLOCK);
+      const c = b.c.getContext('2d'), X = bx * TREE_BLOCK, Y = by * TREE_BLOCK;
+      c.clearRect(0, 0, TREE_BLOCK, TREE_BLOCK);
+      c.globalAlpha = 0.45;
+      for (const i of b.idx) { const s = state(i), tr = T[i], src = s === 2 ? tr.burnt : tr.s; if (s !== 1) c.drawImage(src.sh, Math.round(tr.x + src.sox) - X, Math.round(tr.y + src.soy) - Y); }
+      c.globalAlpha = 1;
+      for (const i of b.idx) { const s = state(i), tr = T[i], src = s === 2 ? tr.burnt : tr.s; if (s !== 1) c.drawImage(src.img, Math.round(tr.x + src.ox) - X, Math.round(tr.y + src.oy) - Y); }
+    }
+    b.used = now;
+    g.drawImage(b.c, bx * TREE_BLOCK, by * TREE_BLOCK);
+  }
+}
+function dropTreeBlocks() {   // when no far view has used them for a while (called from drawTrees)
+  if (!treeBlocks) return;
+  const now = performance.now();
+  for (const b of treeBlocks.map.values()) if (b.c && now - b.used > 5000) b.c = null;
 }
 // Lightning in rain: now and then, more often the heavier it rains (none in a drizzle), the sky flashes and thunder
 // follows a moment later. When it strikes is worked out from the weather's seed and the battle clock, so every phone of
@@ -927,7 +979,7 @@ function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {
     }
     g.stroke();
     // Splashes on the ground: a short-lived ring of dots.
-    if (dt) for (let n = Math.round(90 * L * dt * (vw * vh) / (800 * 450) * 4); n > 0; n--) F.splash.push({ x: vx + rnd() * vw, y: vy + rnd() * vh, t: 0 });
+    if (dt) for (let n = Math.round(90 * L * dt * Math.min(3, (vw * vh) / (800 * 450)) * 4); n > 0; n--) F.splash.push({ x: vx + rnd() * vw, y: vy + rnd() * vh, t: 0 });
     g.fillStyle = 'rgba(196,212,228,0.55)';
     const q = Math.max(1, Math.round(k));
     F.splash = F.splash.filter((s) => {
@@ -1486,6 +1538,13 @@ function drawUnit(g, u, t) {
   const pal = palFor(u.faction);
   if (u.cls === 'inf') {
     if (u.chute > 0) { drawChute(g, u, pal, t); return; }
+    if (u.def.setup) {   // the MG Team: carrying the gun, setting it up (or packing it), or set up on its mount
+      const st = u.setup || 0, frame = st >= 1 ? 5 : st > 0 ? 4 : u.moving ? WALK[Math.floor(u.anim / 2.5) % 4] : 0;
+      const rk = u.fireT > 0 && st >= 1 ? 0.6 : 0;
+      blit(g, infSprite(u, pal, frame), u.x - Math.cos(u.face) * rk, u.y - Math.sin(u.face) * rk - (frame === 12 || frame === 13 ? 1 : 0));
+      if (u.fireT > 0 && st >= 1) { const r = u.faction === 'soviets' ? 21 : 19; flash(g, u.x + Math.cos(u.face) * r, u.y + Math.sin(u.face) * r - 8, 1); }
+      return;
+    }
     // As in Red Alert: a four-pose walk, the weapon brought up to the shoulder to shoot (and held
     // there a moment), dropping prone under fire through a crouch, crawling, and getting up again.
     const prone = u.stance === 'prone', gun = u.type !== 'rocket' && u.type !== 'grenadier' && u.type !== 'pilot' && u.type !== 'engineer';
@@ -2432,7 +2491,7 @@ function makeCameo(type, faction, key) {
     scale = Math.min(1.3, (W - 2) / fw, (H - 2) / fh);
   } else {
     const d = UNIT_DEFS[type];
-    if (d.cls === 'inf') mdl = infModel(pal, faction, type, 0);
+    if (d.cls === 'inf') mdl = infModel(pal, faction, type, d.setup ? 5 : 0);   // the MG Team shown set up
     else if (d.draw === 'tank') mdl = tankHull(pal, d.size);
     else if (d.draw === 'jeep') mdl = jeepModel(pal);
     else if (d.draw === 'harv') mdl = harvModel(pal, true);
@@ -2442,7 +2501,7 @@ function makeCameo(type, faction, key) {
     else if (d.draw === 'v2') mdl = v2Model(pal, true);
     else if (d.fly === 'heli') mdl = type === 'hind' ? hindModel(pal) : heliModel(pal);
     else mdl = jetModel(pal, type === 'mig');
-    scale = d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.fly ? 1.7 : d.size && d.size.len > 22 ? 1.9 : 2.3;
+    scale = d.setup ? 2 : d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.fly ? 1.7 : d.size && d.size.len > 22 ? 1.9 : 2.3;
   }
   const s = renderVox(mdl, angle, { scale, shadow: false });
   const dx = Math.round((W - s.img.width) / 2), dy = Math.round((H - s.img.height) / 2 + (BUILD_DEFS[type] ? 0 : 3) - (power ? 6 : 0));

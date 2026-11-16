@@ -428,7 +428,10 @@ function aiThink(team) {
     const k = team.counter || {}, rockets = anti ? 0.6 : k.armor ? 0.65 : k.inf ? 0.25 : 0.4;
     // Soviets: Rocket Soldiers once the enemy flies or fields armour, otherwise rifles and grenadiers.
     const sovRockets = anti ? 0.45 : k.armor ? 0.3 : k.inf ? 0 : 0.15;
-    if (sov && Math.random() < sovRockets) startProduction(team, 'rocket');
+    // MG Teams against infantry-heavy enemies (and a few always): every difficulty.
+    const mgs = k.inf ? 0.3 : 0.12;
+    if (Math.random() < mgs) startProduction(team, 'hmg');
+    else if (sov && Math.random() < sovRockets) startProduction(team, 'rocket');
     else startProduction(team, sov ? (r < (k.armor ? 0.3 : 0.55) ? 'rifle' : 'grenadier') : r < rockets ? 'rocket' : 'rifle');
   }
   if (!capped && c.factory && vq.length < A.queue && money > 500 && !truckDue) {

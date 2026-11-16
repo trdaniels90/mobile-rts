@@ -429,6 +429,19 @@ share globals. Read this file first; the commit history explains every change in
   UI: infantry selected + tap a house = go in; tap your held house = select its garrison; EXIT on the bar; enemy-held
   house tapped with fighters = attack it. A flag in the side's colour on the roof, a pip per soldier for your alliance,
   side colour on the radar. Snapshots: `hv` entries are `[health, side, count]`.
+- **Shots from the windows** (owner's request, looks only): `muzzle(src, t)` for a garrisoned soldier is `windowSpot` (world.js):
+  a window on the wall facing the target (FORT_INFO `wins` on the south and east faces, mirrored to the north and west walls;
+  `box` = the walls), one of the two nearest by unit id, else the middle of that wall. Tracers, rockets and the MG Team's
+  smoke start there. The server builds `houseModel` once per house type to learn its windows. Incoming fire still aims at
+  the house's middle.
+- **Garrison fixes** (owner OK'd, both modes; the server must match): soldiers inside fire full bursts (`shoot` in `updateGarrison`).
+  `damage(.., splashed)`: a garrisoned soldier caught in a blast passes nothing on to his house when the house is hit on its own
+  (`houseBlast` after shell, grenade, artillery and V2 blasts, `splash`), or a `Set` so each house is passed on once (jet strafing,
+  falling debris, the Flame Tower's jet); before, a house of 4 took one grenade 5 times. Bullet splash (rifles, MG Team) skips
+  soldiers in houses (the walls), since all of them stand on the house's middle. Staged (Crossroads Village, 3 riflemen and a
+  Rocket Soldier inside, 6 runs, 90 s): 7 riflemen + a Grenadier attacking left 7.2 alive and killed the whole garrison before;
+  now none left, 3.7 of 4 inside survive. 4 riflemen + 4 Grenadiers: 0.8 attackers left, 1.8 inside, the house fell once;
+  8 Grenadiers take the house 4 of 6 times. Grenadiers, artillery and ATTACK GROUND are the answer to a held house.
 - **Fortified look** (owner's request, RA2 garrisons as reference only): a held house is drawn from `fortSprite(type, stage)`
   (models.js `fortifyModel`: the house's own model, damaged or not, padded by `FORT_PAD` 10 px, with a two-tier sandbag
   wall round the plot (gap at the door), two coils of barbed wire on posts outside, bags in the windows up to a slit,
@@ -865,6 +878,7 @@ Supabase.
 | `walls.js` | Headless: walls and gates: laying a line (rules, prices), what each kind stops, gates and alliances, wire under tracks, ordered fire only, selling, Auto Attack units shooting a way through, online snapshot and orders |
 | `rally.js` | Headless: units from an Outpost Barracks stay there, PRIMARY picks the Barracks, a rally point gathers new units, fallback when the primary is lost |
 | `village.js` | Headless: Crossroads Village houses: seeded layout, blocking, blast and ordered damage, collapse, online snapshot, a computer 2 v 2 |
+| `mg-team.js` | Headless: the MG Team sets up before firing, packs before moving, is dug in once set up, and a staged fight against riflemen |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
@@ -1002,6 +1016,12 @@ frame-time maths everywhere, so it is not deterministic.
   in models.js, `scenery.burntTrees` / `burntPines`), then leaves a scorch mark (14 px). `G.treeFire` (tree number -> time it caught) and
   `G.treeHot` are plain data, so saves keep burnt trees. Ground rebaked (`groundKey` has a `live-trees` token); sprites rebaked for the hash only.
 
+- **Far views (after 2026.11.16.2, both modes, looks only):** on a big PC screen zoomed right out, Crossroads Village had about 2,900
+  trees in view, each drawn with its own sway transform (about 12,000 draw calls, 23 ms a frame); rain was 0.6 ms. Past `TREE_FAR_N`
+  (700) trees in view, `drawTreeBlocks` (art.js) draws still and burnt trees, upright, from cached `TREE_BLOCK` (512 px) blocks, redrawn
+  when one of their trees catches fire or burns out and dropped 5 s after the last far view; burning trees are still drawn one by one.
+  Rain splashes are capped with the view like the drops. Phones never get that many trees in view.
+
 ## Flags fly in the wind (after 2026.11.16, both modes, looks only)
 
 - The modelled flags (Allied Ore Refinery, Allied and Soviet Outposts) keep only their poles in models.js; the cloth is drawn
@@ -1079,6 +1099,25 @@ frame-time maths everywhere, so it is not deterministic.
   recovery cannot help (it was already heading for its scatter spot). Not reproduced a second time.
 - **PR #11 (walls and gates, JGFortanelli) is merged into this branch** (merge commit). `tools/sim/walls.js` is flaky on its own, with or without this branch: 'a line of wire' fails about
   half the runs (placement depends on trees), 'hunters shoot a way through' 2 in 16.
+
+## MG Team: heavy machine gun infantry (after 2026.11.16, not released, owner OK'd for both modes)
+
+- `hmg` in UNIT_DEFS (both factions, Barracks, $400, 150 health, speed 26, sight 7, `r` 7): one unit drawn as two men. Allies carry an
+  M2 .50 cal (low tripod), Soviets a DShK 12.7 mm (two-wheeled carriage, shield). Weapon: SA bursts of 6 x 12, range 150, splash 10,
+  `air` + `heliOnly` (helicopters, not jets), sound `mg`.
+- **Set up to fire** (`setup` 1.5 s, `pack` 1 s; `u.setup` 0 to 1, a plain synced and saved field): `setUpGun` (world.js) in `engage`
+  before firing, and whenever it stands still with no target (it digs in on its own). `followPath` packs it up before it walks;
+  `slideOut` is skipped once it has begun. Set up it takes `PRONE_COVER` damage (never goes prone) and `separate` hardly pushes it.
+- Drawn by `hmgModel` (models.js; `stampModel` merges two `infModel` figures, internal types `hmgG` gunner and `hmgL` loader):
+  frames 0 and walks carrying, 4 setting up or packing, 5/7 set up. art.js `drawUnit` picks by `u.setup`. Dies as two ragdolls.
+  Sprites and ground rebaked. Field Manual entry; the computer trains some (`mgs` in ai.js: 12%, 30% against infantry).
+- `node tools/sim/mg-team.js <repo>`: first shot after about 1.5-1.9 s, half damage set up, no movement while packing. Tuned with a
+  staged fight: 2 set-up teams against 8 riflemen (equal cost) won 6 of 8 (100 health / 9 damage won 0 of 8).
+- **Sound and smoke** (owner's request): `sound: 'hmg'` -> `weaponSound` plays `cal50` (Allies) or `dshk` (Soviets), recorded
+  layers in audio.js `COMBO` (the `mg` clip pitched down to 0.62 / 0.72 under a short pitched-up `cannon` thump; the DShK adds the
+  SKS crack), synthesised `FX.cal50` / `FX.dshk` if the recordings are missing. No new recordings, so CREDITS.md is unchanged.
+  `fireWeapon` puffs light smoke from the muzzle every round and, 40% of rounds, a slower wisp off the hot barrel.
+- Online: the server must run the same version.
 
 ## Computer allies answer calls later and from nearer (after 2026.11.15.7, not released, both modes)
 

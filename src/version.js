@@ -4,6 +4,17 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.16.2', date: '16 November 2026', title: 'MG Team', groups: [
+    ['New', [
+      'MG Team: a two-man heavy machine gun team for both sides, trained at the Barracks for $400. The Allies carry an M2 .50 cal on a tripod, the Soviets a DShK 12.7 mm on a wheeled carriage behind a shield. It cannot fire on the move: it takes 1.5 seconds to set the gun up and a second to pack it, and it digs in whenever it stands still. Set up it outranges rifles, cuts down infantry in long bursts, hits light vehicles and helicopters, and takes half damage. Weak against tanks. Each gun has its own deep sound, and the barrel smokes.',
+    ]],
+    ['Changed', [
+      'Soldiers in a house now fire from the windows facing the enemy, and fire full bursts.',
+    ]],
+    ['Fixed', [
+      'Held houses fell far too fast: one grenade or shell hurt the house once for every soldier inside, and every rifle round hurt the whole garrison. A house now takes each blast once and its walls stop bullet splash. Grenadiers, artillery and ATTACK GROUND are the way to clear a held house.',
+    ]],
+  ] },
   { v: '2026.11.16.1', date: '16 November 2026', title: 'Crossroads Village', groups: [
     ['New', [
       'New 2 v 2 map, Crossroads Village: farmland with a village where the roads meet, west against east. The village is different every battle, with houses, a church and a fountain in the square.',

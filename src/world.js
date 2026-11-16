@@ -990,7 +990,8 @@ function updateGarrison(u, dt) {
   const t = u.target;
   if (t && u.cd <= 0 && canHit(w, t)) {
     u.face = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
-    fireWeapon(u, w, t); u.cd = w.rof * VET.reload[u.rank || 0];
+    shoot(u, w, t);   // full bursts from the window (rifles 3, the MG Team 6)
+    u.cd = w.rof * VET.reload[u.rank || 0];
   }
   if (w2 && u.cd2 <= 0 && u.cd <= 0) {   // a Rocket Soldier's anti-aircraft missile, out of the window too
     const t2 = acquire(u, w2.range + more, [w2]);
@@ -1529,6 +1530,7 @@ function followPath(u, dt) {
     }
     return false;
   }
+  if (u.def.setup && u.setup > 0) { u.setup = Math.max(0, u.setup - dt / u.def.pack); return false; }   // an MG Team packs its gun up before it walks
   const want = Math.atan2(dy, dx);
   let speed = u.def.speed * VET.speed[u.rank || 0], mx, my;
   // Infantry in a loose wave, and vehicles, each keep their own pace (paceMul).
@@ -2229,7 +2231,28 @@ const SAM_FUEL = 3;   // SAM Sites have the longest burn: they are the answer to
 const AA_FUEL = 1.5;   // anti-air missiles fly this many times their weapon's range, then burn out (a weapon's own `fuel` overrides it)
 const PROJ_SPEED = { shell: 430, rocket: 250, missile: 330, flak: 560, fireball: 230 };
 
-function muzzle(src) {
+// A garrisoned soldier's shots leave a window on the wall facing the target (models.js FORT_INFO: the house's windows on its
+// south and east faces, mirrored onto the north and west walls), not the middle of the roof. Each soldier keeps to one
+// of the two windows nearest the target (by id). Worked out on the host from the house's type, so the game server
+// builds the model once to learn its windows; without them, the middle of that wall.
+function windowSpot(h, t, salt) {
+  let fi = typeof FORT_INFO !== 'undefined' ? FORT_INFO.get(h.type) : null;
+  if (!fi && h.type && typeof houseModel === 'function') { try { houseModel(h.type); fi = FORT_INFO.get(h.type); } catch (_) {} }
+  const ox = h.cx * CELL, oy = h.cy * CELL, b = (fi && fi.box) || [4, 4, h.w * CELL - 4, h.h * CELL - 4];
+  const cx = ox + (b[0] + b[2]) / 2, cy = oy + (b[1] + b[3]) / 2, dx = t.x - cx, dy = t.y - cy;
+  const face = Math.abs(dx) / ((b[2] - b[0]) / 2) > Math.abs(dy) / ((b[3] - b[1]) / 2) ? (dx > 0 ? 'e' : 'w') : (dy > 0 ? 's' : 'n');
+  const spots = [];
+  for (const w of (fi && fi.wins) || []) {
+    if ((face === 's' || face === 'n') && w.face === 's') spots.push([w.x + 2, face === 's' ? w.y : b[1], w.z + 2.5]);
+    if ((face === 'e' || face === 'w') && w.face === 'e') spots.push([face === 'e' ? w.x : b[0], w.y + 2, w.z + 2.5]);
+  }
+  if (!spots.length) spots.push(face === 's' ? [(b[0] + b[2]) / 2, b[3], 7] : face === 'n' ? [(b[0] + b[2]) / 2, b[1], 7] : [face === 'e' ? b[2] : b[0], (b[1] + b[3]) / 2, 7]);
+  spots.sort((p, q) => Math.hypot(ox + p[0] - t.x, oy + p[1] - t.y) - Math.hypot(ox + q[0] - t.x, oy + q[1] - t.y));
+  const s = spots[(salt | 0) % Math.min(2, spots.length)];
+  return { x: ox + s[0], y: oy + s[1] - s[2] * VK };
+}
+function muzzle(src, t) {
+  if (src.inHouse && t && t.x !== undefined) return windowSpot(src.inHouse, t, src.id);
   if (src.kind === 'bld') {
     if (src.type === 'tesla') return { x: src.cx * CELL + 12, y: src.cy * CELL + 35 - 50 * VK };
     if (src.type === 'pillbox') {   // out of the firing slit nearest to where it aims (slits sit at 30 degrees plus 60 per side), low on the wall and in front of the roof
@@ -2242,6 +2265,7 @@ function muzzle(src) {
     return { x: hx + Math.cos(src.tface) * 13, y: hy + Math.sin(src.tface) * 13 };
   }
   if (src.cls === 'air') return { x: src.x + Math.cos(src.face) * 9, y: src.y - (src.alt || 0) + Math.sin(src.face) * 9 };
+  if (src.cls === 'inf' && src.def.setup) { const r = src.faction === 'soviets' ? 21 : 19; return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - 8 }; }   // the MG Team's gun on its mount
   if (src.cls === 'inf') {
     const r = src.stance === 'prone' ? 12 : 10;
     return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - (src.stance === 'prone' ? 2 : 11) };
@@ -2260,6 +2284,7 @@ function aimY(t) {
 }
 
 function weaponSound(src, w) {
+  if (w.sound === 'hmg') return src.faction === 'soviets' ? 'dshk' : 'cal50';   // the MG Team: the M2's deep thump, the DShK's harder crack
   if (w.sound) return w.sound;   // a weapon with a sound of its own (the RedEye)
   if (w.proj === 'bullet') return src.cls !== 'inf' ? 'mg' : src.faction === 'allies' ? 'm16' : 'rifle';   // each side's own rifle
   if (w.proj === 'grenade') return 'throw';
@@ -2304,9 +2329,10 @@ function tickStrafe(u, dt) {
   G.effects.push({ type: 'tracer', x: m.x, y: m.y, x2: x, y2: y, t: 0, life: 0.07 });
   G.effects.push({ type: 'spark', x, y, t: 0, life: 0.12 });
   if (st.n % 2 === 0) G.effects.push({ type: 'smoke', x, y, r: 3, t: 0, life: 0.6, alpha: 0.45, color: '#b8a888', vy: -6 });   // dust kicked up
+  const once = new Set();
   if (!G.remote) for (const e of G.entities) {
     if (!e.alive || !hostile(e.team, u.team) || isAirborne(e)) continue;
-    if (e.kind === 'bld' ? (x >= e.cx * CELL && x < (e.cx + e.w) * CELL && y >= e.cy * CELL && y < (e.cy + e.h) * CELL) : Math.hypot(e.x - x, e.y - y) < g.splash + (e.def.r || 0)) damage(e, g.dmg, g.wh, u, { x, y });
+    if (e.kind === 'bld' ? (x >= e.cx * CELL && x < (e.cx + e.w) * CELL && y >= e.cy * CELL && y < (e.cy + e.h) * CELL) : Math.hypot(e.x - x, e.y - y) < g.splash + (e.def.r || 0)) damage(e, g.dmg, g.wh, u, { x, y }, once);
   }
   st.n++; st.t = g.gap;
   if (--st.left <= 0) u.strafe = null;
@@ -2339,13 +2365,18 @@ function fireWeapon(src, w, t, follow) {
     const fog = G.fog[t.team];
     if (fog && !fog[cellOfPos(src.x, src.y)]) revealCircle(src.x / CELL, src.y / CELL, SHOT_REVEAL, fog);
   }
-  const m = muzzle(src);
+  const m = muzzle(src, t);
   hooks.sfx(weaponSound(src, w), src.x, src.y);
   if (src.kind === 'bld' && (src.type === 'turret' || src.type === 'pillbox')) barrelSmoke(src, m);
   src.fireT = w.proj === 'grenade' ? 0.35 : 0.1;
   src.shots = (src.shots || 0) + 1;
   src.shotAt = G.t;   // the gun's recoil (art.js recoil)   // online copies light their own muzzle flash when this changes (net.js)
-  if (w.sound === 'redeye' && src.cls === 'inf') src.aaUntil = G.t + 1.1;   // shows the shoulder-fired RedEye launcher a moment
+  if (w.sound === 'redeye' && src.cls === 'inf') src.aaUntil = G.t + 1.1;
+  if (src.kind === 'unit' && src.def.setup) {   // MG Team: a puff of smoke from the muzzle every round, and the hot barrel smoking on after a burst
+    const fx = Math.cos(src.face), fy = Math.sin(src.face);
+    G.effects.push({ type: 'smoke', x: m.x, y: m.y, r: 3.5 + Math.random() * 1.5, t: 0, life: 1 + Math.random() * 0.6, alpha: 0.6, color: '#c9c7c0', vx: fx * 16, vy: fy * 9 - 7, drag: 1.6 });
+    if (Math.random() < 0.4) G.effects.push({ type: 'smoke', x: m.x - fx * (4 + Math.random() * 8), y: m.y - fy * 4 - 1, r: 2.5 + Math.random(), t: -0.2 - Math.random() * 0.4, life: 1.8 + Math.random() * 0.8, alpha: 0.45, color: '#9a968c', vx: (Math.random() - 0.5) * 3, vy: -10, drag: 0.6 });
+  }   // shows the shoulder-fired RedEye launcher a moment
   const ty = aimY(t);
   if (w.proj === 'grenade') {
     // Lobbed in an arc at where the target stands now; it can miss a moving target.
@@ -2375,9 +2406,9 @@ function fireWeapon(src, w, t, follow) {
     damage(t, w.dmg, w.wh, src);
     if (w.splash && !isAirborne(t)) {   // rifle bullets: a little splash on hostile ground units next to the target (full at the target, half at the edge)
       for (const e of G.entities) {
-        if (!e.alive || e === t || e.kind !== 'unit' || isAirborne(e) || !hostile(e.team, src.team)) continue;
+        if (!e.alive || e === t || e.kind !== 'unit' || isAirborne(e) || !hostile(e.team, src.team) || e.inHouse) continue;   // walls stop bullet splash
         const d = Math.hypot(e.x - t.x, e.y - t.y);
-        if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, src, { x: t.x, y: t.y });
+        if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, src, { x: t.x, y: t.y }, true);
       }
     }
     G.effects.push({ type: 'tracer', x: m.x, y: m.y, x2: t.x + jx, y2: ty + jy, t: 0, life: 0.07 });
@@ -2503,7 +2534,7 @@ function fireBlast(p, x, y) {
   for (const e of G.entities) {
     if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, from, { x, y });
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, from, { x, y }, true);
   }
   houseBlast(x, y, w.splash, w.dmg, w.wh, from);
 }
@@ -2518,7 +2549,7 @@ function grenadeBlast(p) {
   for (const e of G.entities) {
     if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.6), w.wh, from, { x, y });
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.6), w.wh, from, { x, y }, true);
   }
   houseBlast(x, y, w.splash, w.dmg, w.wh, from);
 }
@@ -2535,7 +2566,7 @@ function lobBlast(p) {
   for (const e of G.entities) {
     if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * (v2 ? V2_FALLOFF : 0.65)), w.wh, from, { x, y });
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * (v2 ? V2_FALLOFF : 0.65)), w.wh, from, { x, y }, true);
   }
   houseBlast(x, y, w.splash, w.dmg, w.wh, from);
 }
@@ -2550,7 +2581,7 @@ function bombBlast(p) {
   for (const e of G.entities) {
     if (!e.alive || !hostile(e.team, p.team) || isAirborne(e)) continue;
     const d = distTo({ x, y }, e);
-    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, p.from || null, { x, y });
+    if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, p.from || null, { x, y }, true);
   }
   houseBlast(x, y, w.splash, w.dmg, w.wh, p.from || null);
 }
@@ -2606,7 +2637,7 @@ function smoulder(x, y, life) { G.effects.push({ type: 'smoulder', x, y, t: 0, l
 function splash(x, y, rad, dmg, team, skip, attacker) {
   for (const e of G.entities) {
     if (!e.alive || e === skip || !hostile(e.team, team) || e.kind !== 'unit' || isAirborne(e)) continue;
-    if (Math.hypot(e.x - x, e.y - y) < rad) damage(e, dmg, 'HE', attacker || null, { x, y });
+    if (Math.hypot(e.x - x, e.y - y) < rad) damage(e, dmg, 'HE', attacker || null, { x, y }, true);
   }
 }
 
@@ -2647,14 +2678,19 @@ function vetHeal(u, dt) {   // an elite unit mends itself when it has not been h
   if (u.healT >= VET.healEvery) { u.healT = 0; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * VET.heal); }
 }
 
-function damage(t, amount, wh, attacker, from) {
+// splashed: this soldier was caught in a blast or a splash that hits the house on its own (houseBlast, or the shot at the
+// soldier it was aimed at), so a garrisoned soldier passes nothing on to his house. Without it, every soldier inside
+// passed the whole blast on and a house of 4 took one grenade 5 times. A Set instead: pass each house on once (events
+// with no houseBlast of their own: strafing shells, falling debris, the Flame Tower's jet).
+function damage(t, amount, wh, attacker, from, splashed) {
   if (!t.alive || G.remote) return;
   if (t.kind === 'spot') {   // a point on the ground: only a wall or gate standing there is hurt
     if (t.wall !== undefined) { if (G.wall[t.wall]) hitWall(t.wall, amount * (WARHEADS[wh].bld || 0)); if (!G.wall[t.wall]) t.alive = false; }
     return;
   }   // (a PvP guest's copy only shows the host's battle)
   if (t.inHouse) {   // a soldier in a house: the house takes the hit, he only a share of it
-    if (t.inHouse.alive) damage(t.inHouse, amount, wh, attacker, from);
+    const relay = !splashed || (splashed instanceof Set && !splashed.has(t.inHouse) && splashed.add(t.inHouse));
+    if (t.inHouse.alive && relay) damage(t.inHouse, amount, wh, attacker, from);
     amount *= GARRISON_COVER;
     if (!t.alive) return;
   }
@@ -2680,7 +2716,8 @@ function damage(t, amount, wh, attacker, from) {
   // As in Red Alert: infantry under fire go prone and stay down (crawling if they have to move)
   // until they have not been hit for a while. Prone, they take PRONE_COVER of the damage.
   let cover = 1;
-  if (t.kind === 'unit' && t.cls === 'inf' && !t.chute) {
+  if (t.kind === 'unit' && t.def.setup) { if (t.setup >= 1) cover = PRONE_COVER; }   // an MG Team never goes prone: dug in behind its gun once it is set up
+  else if (t.kind === 'unit' && t.cls === 'inf' && !t.chute) {
     t.stance = 'prone';
     t.stanceUntil = G.t + PRONE_TIME;
     cover = PRONE_COVER;
@@ -2781,7 +2818,10 @@ function kill(e, attacker, wh, from) {
   const seed = (Math.random() * 1e6) | 0;
   if (e.kind === 'unit') {
     team.stats.lost++;
-    if (e.cls === 'inf') {
+    if (e.cls === 'inf' && e.def.setup) {   // the MG Team: both men go down
+      const ca = Math.cos(e.face), sa = Math.sin(e.face);
+      for (const [f, sd] of [[3, -3], [-6, 6]]) ragdoll({ ...e, type: 'rifle', x: e.x + f * ca - sd * sa, y: e.y + f * sa + sd * ca }, wh, from);
+    } else if (e.cls === 'inf') {
       ragdoll(e, wh, from);
     } else if (e.cls === 'veh') {
       const cook = e.def.draw === 'tank' && Math.random() < 0.35;   // ammunition cook-off
@@ -3031,7 +3071,7 @@ function crashLanding(x, y, face, def, faction, seed) {
     smoulder(x, y - 3, 30);
   }
   for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: x + (Math.random() - 0.5) * 12, y: y + (Math.random() - 0.5) * 8, t: -i * 0.3, life: 3 + Math.random() * 3 });
-  for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - x, e.y - y) < 14) damage(e, 30, 'HE', null);
+  { const once = new Set(); for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - x, e.y - y) < 14) damage(e, 30, 'HE', null, null, once); }   // a held house takes it once
 }
 // A downed aircraft falls as a small rigid body: gravity (a jet's wings still hold it up a
 // little at first), air drag, and a spin that winds up as control is lost; a jet's yaw bends
@@ -3076,7 +3116,7 @@ function updateCrash(fx, dt) {
     hooks.sfx('explodeVeh', fx.x, fx.y); hooks.shake(fx.x, fx.y, 4);
     G.effects.push({ type: 'expl', x: fx.x, y: fx.y - 3, size: 11, t: 0, life: 0.7, seed, debris: true });
     for (let i = 0; i < 3; i++) shed(fx.x, fx.y, 2, fx.vx, fx.vy, fx.faction, i === 0);
-    for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - fx.x, e.y - fx.y) < 12) damage(e, 20, 'HE', null);
+    { const once = new Set(); for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - fx.x, e.y - fx.y) < 12) damage(e, 20, 'HE', null, null, once); }   // a held house takes it once
     if (!fx.bounced && sp > 45 && fx.vz > 25) { fx.bounced = true; fx.vz = -fx.vz * 0.3; fx.alt = 0.5; fx.vx *= 0.6; fx.vy *= 0.6; fx.rollV *= 0.5; return; }
     fx.ground = true; fx.vz = 0; fx.rollV = 0;
     fx.roll = Math.round(fx.roll / Math.PI) * Math.PI;   // settles on its belly or its back
@@ -3097,7 +3137,7 @@ function updateCrash(fx, dt) {
     G.effects.push({ type: 'smoke', x: fx.x - fx.vx * 0.05, y: fx.y, r: 3, t: 0, life: 0.9, alpha: 0.5, color: '#7a6a52', vy: -8, vx: 0 });
     if (Math.random() < 0.25) shed(fx.x, fx.y, 1, fx.vx * 0.5, fx.vy * 0.5, fx.faction, false);
   }
-  for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && !fx.hit.includes(e.id) && Math.hypot(e.x - fx.x, e.y - fx.y) < 10) { fx.hit.push(e.id); damage(e, 35, 'HE', null); }
+  for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && !fx.hit.includes(e.id) && Math.hypot(e.x - fx.x, e.y - fx.y) < 10) { fx.hit.push(e.id); damage(e, 35, 'HE', null, null, !!e.inHouse && fx.hit.some((id) => id !== e.id && G.byId.get(id) && G.byId.get(id).inHouse === e.inHouse)); }
   if (blocked || Math.hypot(fx.vx, fx.vy) < 6) { fx.t = fx.life; crashLanding(fx.x, fx.y, fx.face, fx.def, fx.faction, (Math.random() * 1e6) | 0); }
 }
 // Loose pieces: thrown, tumbling, bouncing and sliding to rest; burning ones trail smoke.
@@ -3264,6 +3304,7 @@ function updateUnit(u, dt) {
       fireWeapon(u, u.def.weapon2, t2); u.cd2 = u.def.weapon2.rof * VET.reload[u.rank || 0];
     } else u.cd2 = 0.3;   // nothing in reach: look again shortly (not every frame)
   }
+  if (u.def.setup && !u.target && !u.moving && !u.dest && !u.needPath) setUpGun(u, dt);   // an MG Team standing still digs in, ready for whatever comes
   checkStuck(u, dt);
 }
 
@@ -3274,11 +3315,12 @@ function engage(u, t, dt) {
   const ang = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
   if (d <= w.range) {
     u.dest = null; u.path = null;
-    if (slideOut(u, t, w, dt) && u.cls === 'inf') return;   // infantry find their place first, then fire
+    if (!(u.def.setup && u.setup > 0) && slideOut(u, t, w, dt) && u.cls === 'inf') return;   // infantry find their place first, then fire (an MG Team setting up stays put)
     let aligned = true;
     if (u.def.fixed) { u.face = u.tface = turnToward(u.face, ang, u.def.turn * dt); aligned = Math.abs(angDiff(ang, u.face)) < 0.08; }   // no turret: turn the vehicle
     else if (u.cls === 'veh') { u.tface = turnToward(u.tface, ang, 5 * dt); aligned = Math.abs(angDiff(ang, u.tface)) < 0.12; }
     else u.face = ang;
+    if (!setUpGun(u, dt)) return;
     if (aligned && u.cd <= 0 && w === u.def.weapon) { shoot(u, w, t); u.cd = w.rof * VET.reload[u.rank || 0]; if (u.cls === 'inf' && u.def.weapon2) u.cd2 = Math.max(u.cd2, u.cd); }
   } else {
     const p = approachSpot(u, t, w);
@@ -3329,7 +3371,7 @@ function fanAngle(u, t, R) {
 // firing, vehicles (and anything without a fixed gun) while they fire. True while it is stepping.
 const SLIDE_MAX = 4;
 function slideOut(u, t, w, dt) {
-  if (u.def.fixed || u.cls === 'air' || !u.def.speed || t.kind === 'unit' && t.cls === 'air') return false;
+  if (u.def.fixed || u.cls === 'air' || !u.def.speed || t.kind === 'unit' && t.cls === 'air' || u.setup > 0) return false;
   const R = fanR(t, w);
   fanAngle(u, t, R);
   if (u.slideT >= SLIDE_MAX) return false;
@@ -3347,6 +3389,15 @@ function slideOut(u, t, w, dt) {
   const step = Math.min(speed * dt, d);
   if (step > 0 && tryMove(u, Math.cos(u.cls === 'veh' ? u.face : want) * step, Math.sin(u.cls === 'veh' ? u.face : want) * step)) { u.anim += step; u.moving = true; }
   return true;
+}
+
+// An MG Team (def.setup): sets its gun up, standing still, before it can fire; true once it is up. followPath packs it
+// up again (def.pack) before the team walks off. u.setup runs 0 to 1, synced and saved as a plain field.
+function setUpGun(u, dt) {
+  if (!u.def.setup) return true;
+  if ((u.setup || 0) >= 1) return true;
+  u.setup = Math.min(1, (u.setup || 0) + dt / u.def.setup);
+  return false;
 }
 
 function checkStuck(u, dt) {
@@ -4256,14 +4307,15 @@ function flameBurn(b, w, t, dt) {
   const ca = Math.cos(b.tface), sa = Math.sin(b.tface), amt = w.jet.dps * JET_TICK;
   const mx = b.x + ca * len / 2, my = b.y + sa * len / 2;
   let hitT = false;
+  const once = new Set();
   for (const bucket of nearBuckets(mx, my, len / 2 + w.jet.width + 12)) for (const e of bucket) {
     if (!e.alive || e.kind !== 'unit' || isAirborne(e) || !hostile(b.team, e.team)) continue;
     const dx = e.x - b.x, dy = e.y - b.y, along = dx * ca + dy * sa;
     if (along < 6 || along > len + 6 || Math.abs(dx * sa - dy * ca) > w.jet.width + (e.def.r || 0)) continue;
     if (e === t) hitT = true;
-    damage(e, amt, w.wh, b);
+    damage(e, amt, w.wh, b, null, once);
   }
-  if (!hitT && t.alive && hostile(b.team, t.team) && !isAirborne(t)) damage(t, amt, w.wh, b);
+  if (!hitT && t.alive && hostile(b.team, t.team) && !isAirborne(t)) damage(t, amt, w.wh, b, null, once);
 }
 
 // How far (in cells) from one of its own structures a side may place a new one; Outposts reach further.
@@ -4730,7 +4782,8 @@ function separate() {
         const nx = d > 0.01 ? dx / d : Math.random() - 0.5, ny = d > 0.01 ? dy / d : Math.random() - 0.5;
         const push = Math.min(air ? 2 : 3, (rr - d) * 0.5);
         // Heavier, busier units shove lighter, idle ones.
-        const wa = (a.cls === 'inf' ? 1 : 0.4) * (a.moving ? 0.5 : 1), wo = (o.cls === 'inf' ? 1 : 0.4) * (o.moving ? 0.5 : 1), ws = wa + wo;
+        // A set-up MG Team is not shoved off its gun.
+        const wa = (a.setup >= 1 ? 0.02 : a.cls === 'inf' ? 1 : 0.4) * (a.moving ? 0.5 : 1), wo = (o.setup >= 1 ? 0.02 : o.cls === 'inf' ? 1 : 0.4) * (o.moving ? 0.5 : 1), ws = wa + wo;
         if (air) { a.x -= nx * push * wa / ws; a.y -= ny * push * wa / ws; o.x += nx * push * wo / ws; o.y += ny * push * wo / ws; }
         else { tryMove(a, -nx * push * 2 * wa / ws, -ny * push * 2 * wa / ws); tryMove(o, nx * push * 2 * wo / ws, ny * push * 2 * wo / ws); }
       }
