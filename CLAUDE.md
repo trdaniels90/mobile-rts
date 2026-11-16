@@ -454,7 +454,7 @@ share globals. Read this file first; the commit history explains every change in
   `G.wallN` (how many stand), made by `ensureWalls()` (newWorld; save.js for older saves). Nothing that loops over
   buildings sees them: no power, no win rule, no base alarms, no auto targeting.
 - **Kinds:** Sandbags (Allies, Barracks, $25, 100 health), Barbed Wire (Soviets, Barracks, $20, 40), Concrete Wall (both,
-  War Factory, $100, 300), Gate (both, War Factory, $250, 300, one cell). All need a Construction Yard (`wallAvailable`).
+  War Factory, $100, 300), Gate (both, War Factory, $500, 600, three cells bought as one: see below). All need a Construction Yard (`wallAvailable`).
 - **Blocking:** hard pieces (sandbags, concrete) set `G.block`, so every terrain test sees them. Wire and gates do not:
   `freeCell` asks `softBlocks(c)`, which goes by `MOVER`, the unit a path (`processPaths`) or a step (`tryMove`) is being
   worked out for: wire stops infantry, a gate stops whoever is not of its alliance, and with no unit named both stop
@@ -479,7 +479,8 @@ share globals. Read this file first; the commit history explains every change in
 - **Looks:** `wallPic` in art.js draws each piece on a canvas (by kind, joined sides, side colour, battered, gate open),
   no voxel models, so no sprite rebake. Redrawn after 2026.11.15.7 (looks only, not released, owner's ideas): the gate is two
   concrete pylons with a ribbed steel barrier that sinks into a slot in the ground (`open` is 0 to `GATE_STEPS`; ui.js
-  `gateAnim` moves it over 0.35 s; lamps amber, green when down); sandbags are two staggered courses of single sacks.
+  `gateAnim` moves it over 0.35 s; lamps amber, green when down); sandbags are two staggered courses of single sacks. Drawn in ui.js `draw` after the wrecks layer, on explored ground. A gate shows
+  open while a ground unit of its alliance is beside it (looks only). Grey dots on the radar, gates yellow.
 - **The Gate is three cells, one purchase** (after 2026.11.15.7, owner OK'd for both modes, not released; the server must
   run the same version): $500, 600 health (was one cell, $250, 300). Its cells are kinds 4 (middle, west-east), 5 (middle,
   north-south: `gateV`) and 6 (an end: `gateEnd`); 5 and 6 are `part` kinds, never offered. `gateCells(c)` gives the whole
@@ -488,8 +489,7 @@ share globals. Read this file first; the commit history explains every change in
   and takes them down together; `sellWall` removes all three for $250. UI (`placeTap`): tap the middle, it turns to fit a
   gap in a wall, tap the same cell again to turn it. Drawn as one (`gm` in `wallPic`: pylons only at the ends), opens as
   one (ui.js `draw`). A save's old one-cell gates stay as they are (a middle alone). `walls.js` covers it; a phone-sized
-  browser run bought one each way from the sidebar and took one down. Drawn in ui.js `draw` after the wrecks layer, on explored ground. A gate shows
-  open while a ground unit of its alliance is beside it (looks only). Grey dots on the radar, gates yellow.
+  browser run bought one each way from the sidebar and took one down.
 - **UI:** `wl:<kind>` items at the end of the structures strip (`wallCameo`); `beginWall` / `wallBar` / `placeTap`: tap the
   start, tap the end (tap again to move it), BUILD; it stays in wall mode for the next line. Tap an enemy wall with
   fighters selected to attack it; tap your own twice with nothing selected to take it down.
