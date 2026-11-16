@@ -1048,7 +1048,7 @@ function villageLife(dt) {
     if ((h.smokeT = (h.smokeT || Math.random() * 2) - 0.25) > 0) continue;
     h.smokeT = 1.4 + Math.random();
     const m = modelCache.get('S' + h.type + 'allies');
-    if (m && m.chim) G.effects.push({ type: 'smoke', x: h.cx * CELL + m.chim.x, y: h.cy * CELL + m.chim.y - m.chim.z * VK, r: 2.2, t: 0, life: 3.5, alpha: 0.32, color: '#bdb8ae', vy: -7, vx: 1.5 });
+    if (m && m.chim) G.effects.push({ type: 'smoke', x: h.cx * CELL + m.chim.x, y: h.cy * CELL + m.chim.y, lift: m.chim.z * VK, r: 2.2, t: 0, life: 3.5, alpha: 0.32, color: '#bdb8ae', vy: -7, vx: 1.5 });
   }
 }
 // Two flocks: on the square round the fountain, and on the church's roof.
@@ -2613,7 +2613,7 @@ function updateTurret(fx, dt) {
   }
   if (!fx.down) {
     fx.vz -= 420 * dt; fx.z += fx.vz * dt; fx.x += fx.vx * dt; fx.y += fx.vy * dt; fx.rot += fx.spin * dt;
-    if ((fx.smokeT -= dt) <= 0) { fx.smokeT = 0.05; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y - fx.z, r: 2 + r(), t: 0, life: 1.1, alpha: 0.5, color: '#3a3631', vy: -6 }); }
+    if ((fx.smokeT -= dt) <= 0) { fx.smokeT = 0.05; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, lift: fx.z, r: 2 + r(), t: 0, life: 1.1, alpha: 0.5, color: '#3a3631', vy: -6 }); }
     if (fx.z <= 0 && fx.vz < 0) {
       fx.z = 0;
       if (!fx.bounced && fx.vz < -60) {
@@ -4887,7 +4887,7 @@ function windNow() {
   const g = 1 + 0.4 * Math.sin(G.t * 0.35) + 0.2 * Math.sin(G.t * 0.9 + 1.3);
   return { x: Math.cos(a) * WIND * g, y: Math.sin(a) * WIND * g * 0.6, a };
 }
-// Trees on fire (drawn by drawTrees in art.js). An explosion sets the trees round it alight; a burning tree may
+// Trees on fire (drawn by drawTree in art.js). An explosion sets the trees round it alight; a burning tree may
 // catch a neighbour or two a few seconds later, then the fire dies out and leaves burnt trees. G.treeFire holds
 // when each burning or burnt tree (its number in G.ground.trees) caught, G.treeHot those still burning. It runs in
 // the effects pass from the explosions each copy sees, so nothing goes over the network. Looks only.
@@ -5008,7 +5008,12 @@ function updateEffects(dt) {
     fx.t += dt;
     if (fx.drag && fx.t > 0) { const k = Math.exp(-fx.drag * dt); fx.vx *= k; fx.vy = fx.vy * k - 3 * (1 - k); }   // billowing smoke slows, then rises
     if (fx.type === 'smoke' && fx.t > 0) { const carry = Math.min(1, fx.t / 1.2) * dt; fx.x += wind.x * carry; fx.y += wind.y * carry; }
-    if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
+    if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') {
+      // Smoke and flames rise: their climb is kept as a height (fx.lift), drawn straight up the screen whatever the camera
+      // (ui.js), while wind and vx carry them over the ground.
+      if (fx.type === 'smoke' || fx.type === 'fire') fx.lift = (fx.lift || 0) - fx.vy * dt; else fx.y += fx.vy * dt;
+      fx.x += (fx.vx || 0) * dt;
+    }
   }
   structureDamageFx(dt);
   houseFx(dt);
@@ -5035,16 +5040,16 @@ function plantSmoke(dt) {
     if ((b.plumeT = (b.plumeT || 0) - dt) > 0) continue;
     b.plumeT = style === 'coal' ? 0.14 + Math.random() * 0.05 : style === 'steam' ? 0.16 + Math.random() * 0.06 : style === 'grey' ? 0.22 + Math.random() * 0.06 : 0.4 + Math.random() * 0.2;
     for (const [tx, ty, h] of plantStacks(b.type, b.faction)) {
-      const x = b.cx * CELL + tx + (Math.random() - 0.5) * 1.5, y = b.cy * CELL + ty - h * VK;
-      if (style === 'coal') G.effects.push({ type: 'smoke', x, y, r: big ? 5 : 4.2, t: 0, life: 4.2 + Math.random() * 1, alpha: 0.85, color: '#2a2724', vy: -17 - Math.random() * 4, vx: (Math.random() - 0.5) * 3, drag: 0.45 });
-      else if (style === 'steam') G.effects.push({ type: 'smoke', x: x + (Math.random() - 0.5) * 6, y, r: big ? 6 : 5.4, t: 0, life: 3.4 + Math.random() * 0.8, alpha: 0.7, color: '#eceeee', vy: -14 - Math.random() * 4, vx: 4 + Math.random() * 3, drag: 0.4 });
-      else if (style === 'grey') G.effects.push({ type: 'smoke', x, y, r: 3.6 + Math.random() * 1.2, t: 0, life: 3.8 + Math.random() * 0.8, alpha: 0.75, color: '#5a5856', vy: -15 - Math.random() * 4, vx: 5 + Math.random() * 3, drag: 0.4 });
-      else if (Math.random() < 0.6) G.effects.push({ type: 'smoke', x, y, r: 2.4, t: 0, life: 1.8, alpha: 0.3, color: '#dcdcd8', vy: -12, vx: 5 });
+      const x = b.cx * CELL + tx + (Math.random() - 0.5) * 1.5, y = b.cy * CELL + ty, lift = h * VK;
+      if (style === 'coal') G.effects.push({ type: 'smoke', x, y, lift, r: big ? 5 : 4.2, t: 0, life: 4.2 + Math.random() * 1, alpha: 0.85, color: '#2a2724', vy: -17 - Math.random() * 4, vx: (Math.random() - 0.5) * 3, drag: 0.45 });
+      else if (style === 'steam') G.effects.push({ type: 'smoke', x: x + (Math.random() - 0.5) * 6, y, lift, r: big ? 6 : 5.4, t: 0, life: 3.4 + Math.random() * 0.8, alpha: 0.7, color: '#eceeee', vy: -14 - Math.random() * 4, vx: 4 + Math.random() * 3, drag: 0.4 });
+      else if (style === 'grey') G.effects.push({ type: 'smoke', x, y, lift, r: 3.6 + Math.random() * 1.2, t: 0, life: 3.8 + Math.random() * 0.8, alpha: 0.75, color: '#5a5856', vy: -15 - Math.random() * 4, vx: 5 + Math.random() * 3, drag: 0.4 });
+      else if (Math.random() < 0.6) G.effects.push({ type: 'smoke', x, y, lift, r: 2.4, t: 0, life: 1.8, alpha: 0.3, color: '#dcdcd8', vy: -12, vx: 5 });
     }
     // the Soviet refinery's flare stack burns
     if (ref && sov && (b.flareT = (b.flareT || 0) - 0.15) < 0) {
       b.flareT = 0;
-      G.effects.push({ type: 'fire', x: b.cx * CELL + 5 + (Math.random() - 0.5), y: b.cy * CELL + 6 - 54 * VK, t: 0, life: 0.5 + Math.random() * 0.3, s: 1.1, vy: -6 });
+      G.effects.push({ type: 'fire', x: b.cx * CELL + 5 + (Math.random() - 0.5), y: b.cy * CELL + 6, lift: 54 * VK, t: 0, life: 0.5 + Math.random() * 0.3, s: 1.1, vy: -6 });
     }
   }
 }
@@ -5094,9 +5099,9 @@ function structureDamageFx(dt) {
     };
     if (stage > b.dmgSeen) {   // a chunk gives way
       const fresh = live.filter((p) => p.s === stage), p = fresh.length ? fresh[0] : spot();
-      G.effects.push({ type: 'expl', x: ox + p.x, y: oy + p.y - p.z * VK, size: 9, t: 0, life: 0.6, seed: (Math.random() * 1e6) | 0, debris: true });
+      G.effects.push({ type: 'expl', x: ox + p.x, y: oy + p.y, lift: p.z * VK, size: 9, t: 0, life: 0.6, seed: (Math.random() * 1e6) | 0, debris: true });
       for (let i = 0; i < 7; i++) piece(p, 26);
-      for (let i = 0; i < 4; i++) G.effects.push({ type: 'smoke', x: ox + p.x + (Math.random() - 0.5) * 10, y: oy + p.y - p.z * VK * 0.5, r: 4, t: -i * 0.05, life: 1.4, alpha: 0.6, color: '#8a7a62', vy: -10, vx: (Math.random() - 0.5) * 20, drag: 1.5 });
+      for (let i = 0; i < 4; i++) G.effects.push({ type: 'smoke', x: ox + p.x + (Math.random() - 0.5) * 10, y: oy + p.y, lift: p.z * VK * 0.5, r: 4, t: -i * 0.05, life: 1.4, alpha: 0.6, color: '#8a7a62', vy: -10, vx: (Math.random() - 0.5) * 20, drag: 1.5 });
       hooks.sfx('hitMed', ox + p.x, oy + p.y);
     }
     b.dmgSeen = stage;
@@ -5106,12 +5111,12 @@ function structureDamageFx(dt) {
     if ((b.dmgFxT = (b.dmgFxT || 0) - dt) > 0) continue;
     b.dmgFxT = stage === 2 ? 0.12 : 0.2;
     // Thick black smoke rolling away on the wind, from one of the holes each tick.
-    const p = spot(), px = ox + p.x + (Math.random() - 0.5) * p.r, py = oy + p.y - p.z * VK;
-    G.effects.push({ type: 'smoke', x: px, y: py - 2, vy: -20 - Math.random() * 6, vx: 7 + Math.random() * 3, r: (stage === 2 ? 6.5 : 4.5) + Math.random() * 2.5, t: 0,
+    const p = spot(), px = ox + p.x + (Math.random() - 0.5) * p.r, py = oy + p.y;
+    G.effects.push({ type: 'smoke', x: px, y: py, lift: p.z * VK + 2, vy: -20 - Math.random() * 6, vx: 7 + Math.random() * 3, r: (stage === 2 ? 6.5 : 4.5) + Math.random() * 2.5, t: 0,
       life: stage === 2 ? 3.6 : 2.8, alpha: stage === 2 ? 0.85 : 0.7, color: '#2e2b28' });
     // Flames: in every hole at stage 2, in the first one at stage 1.
     const fp = stage === 2 ? spot() : live[0];
-    if (Math.random() < (stage === 2 ? 0.6 : 0.35)) G.effects.push({ type: 'fire', x: ox + fp.x + (Math.random() - 0.5) * fp.r, y: oy + fp.y - fp.z * VK + 3 + Math.random() * 2, t: 0,
+    if (Math.random() < (stage === 2 ? 0.6 : 0.35)) G.effects.push({ type: 'fire', x: ox + fp.x + (Math.random() - 0.5) * fp.r, y: oy + fp.y, lift: fp.z * VK - 3 - Math.random() * 2, t: 0,
       life: 0.5 + Math.random() * 0.3, s: stage === 2 ? 1.3 + Math.random() * 0.5 : 1, vy: -5 });
   }
 }

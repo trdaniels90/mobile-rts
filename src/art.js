@@ -274,7 +274,7 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
             const pine = rs() < 0.4;
             const set = snow ? scenery.snowPines : pine ? scenery.pines : scenery.trees;   // winter woods are all snowy pines
             const v = Math.floor(rs() * set.length);
-            // Trees are not painted into the ground: they sway in the wind and can burn (drawTrees).
+            // Trees are not painted into the ground: they sway in the wind and can burn (treesInView, drawTree).
             trees.push({ s: set[v], burnt: (snow || pine ? scenery.burntPines : scenery.burntTrees)[v % 5], pine: snow || pine, x: x0 + 4 + rs() * 16, y: y0 + 6 + rs() * 14 });
           }
         } else if (t === 5 && fords && fords[cy * MAP + cx]) {
@@ -795,51 +795,58 @@ function treeFlames(spr) {
   treeFlameCache.set(spr, fr);
   return fr;
 }
-function drawTrees(g, x0, y0, x1, y1) {
-  const T = G.ground && G.ground.trees;
-  if (!T || !T.length) return;
+// Trees (iso view): treesInView draws the shadows of the trees in the world box and returns the trees, which ui.js sorts
+// in with the units and draws one at a time with drawTree, so a tank in front of a wood is in front of it.
+let treeFrame = null;   // what every tree drawn this frame shares (wind, gusts, the camera's transform)
+function treesInView(g, x0, y0, x1, y1) {
+  const T = G.ground && G.ground.trees, out = [];
+  if (!T || !T.length) return out;
   let lo = 0, hi = T.length;   // the first tree at y0 or below (they are sorted by y)
   while (lo < hi) { const m = (lo + hi) >> 1; if (T[m].y < y0) lo = m + 1; else hi = m; }
   const fire = G.treeFire || null, t = G.t, w = windNow(), ws = Math.hypot(w.x, w.y) || 1;
   const storm = G.weather ? weatherLevel(G.weather, t) : 0, force = ws / WIND * (1 + 1.6 * storm);
-  const lean = w.x / WIND * 0.045 * (1 + storm), ux = w.x / ws, uy = w.y / ws;
-  const tf = g.getTransform(), list = [];
+  // The lean is across the screen: the part of the wind that blows left or right as the camera sees it.
+  const sx = toView(w.x, w.y)[0], lean = sx / WIND * 0.045 * (1 + storm), ux = w.x / ws, uy = w.y / ws;
+  treeFrame = { t, force, lean, ux, uy, tf: g.getTransform() };
   for (let i = lo; i < T.length && T[i].y < y1; i++) {
     const tr = T[i];
     if (tr.x < x0 || tr.x > x1) continue;
     const f = fire && fire[i] !== undefined ? fire[i] : null, p = f === null ? 0 : Math.max(0, Math.min(1, (t - f) / TREE_BURN));
-    list.push(tr, p, i);
+    out.push({ kind: 'tree', x: tr.x, y: tr.y, tr, p, i });
   }
   // Shadows first (they stay put), the living tree's fading as it burns.
-  for (let k = 0; k < list.length; k += 3) {
-    const tr = list[k], p = list[k + 1];
+  for (const { tr, p } of out) {
     if (p < 1) { g.globalAlpha = 0.45 * (1 - p); g.drawImage(tr.s.sh, Math.round(tr.x + tr.s.sox), Math.round(tr.y + tr.s.soy)); }
     if (p > 0) { g.globalAlpha = 0.45 * p; g.drawImage(tr.burnt.sh, Math.round(tr.x + tr.burnt.sox), Math.round(tr.y + tr.burnt.soy)); }
   }
-  for (let k = 0; k < list.length; k += 3) {
-    const tr = list[k], p = list[k + 1], i = list[k + 2];
-    // The lean: a steady bend downwind, a gust rolling across the woods with the wind, and a little flutter.
-    const ph = (i * 2.399) % 6.283, along = (tr.x * ux + tr.y * uy) * 0.025;
-    const sway = lean + force * (0.045 * Math.sin(t * 1.9 - along + ph * 0.3) + 0.01 * Math.sin(t * 5.1 + ph));
-    const stiff = (tr.pine ? 0.7 : 1) * (1 - 0.65 * p), c = -sway * stiff;   // burnt trees hardly move
-    // A shear about the tree's base: the top moves, the foot stays.
-    g.setTransform(tf.a, tf.b, tf.c + c * tf.a, tf.d, tf.e - c * tf.a * tr.y, tf.f);
-    if (p < 1) { g.globalAlpha = 1 - p * p; g.drawImage(tr.s.img, Math.round(tr.x + tr.s.ox), Math.round(tr.y + tr.s.oy)); }
-    if (p > 0) { g.globalAlpha = Math.min(1, p * 1.6); g.drawImage(tr.burnt.img, Math.round(tr.x + tr.burnt.ox), Math.round(tr.y + tr.burnt.oy)); }
-    if (p > 0 && p < 1) {   // engulfed: the tree's own shape in flickering flame, then a glow round it
-      const heat = treeHeat(p), src = p < 0.5 ? tr.s : tr.burnt, fr = treeFlames(src)[Math.floor(t * 12 + ph * 3) % TREE_FLAME_FRAMES];
-      g.globalAlpha = 0.95 * heat;
-      g.drawImage(fr, Math.round(tr.x + src.ox), Math.round(tr.y + src.oy));
-      g.globalCompositeOperation = 'lighter';
-      g.globalAlpha = 0.18 * heat; g.drawImage(fr, Math.round(tr.x + src.ox), Math.round(tr.y + src.oy) - 1);
-      g.setTransform(tf);
-      g.globalAlpha = 0.12 * heat * (0.8 + 0.2 * Math.sin(t * 13 + ph)); g.fillStyle = '#ff6a18';
-      g.beginPath(); g.ellipse(tr.x, tr.y - 14, 14, 15, 0, 0, 7); g.fill();
-      g.globalCompositeOperation = 'source-over';
-    }
-  }
   g.globalAlpha = 1;
-  g.setTransform(tf);
+  return out;
+}
+function drawTree(g, e) {
+  const { tr, p, i } = e, F = treeFrame, t = F.t, tf = F.tf;
+  // The lean: a steady bend downwind, a gust rolling across the woods with the wind, and a little flutter.
+  const ph = (i * 2.399) % 6.283, along = (tr.x * F.ux + tr.y * F.uy) * 0.025;
+  const sway = F.lean + F.force * (0.045 * Math.sin(t * 1.9 - along + ph * 0.3) + 0.01 * Math.sin(t * 5.1 + ph));
+  const stiff = (tr.pine ? 0.7 : 1) * (1 - 0.65 * p), c = -sway * stiff;   // burnt trees hardly move
+  // A shear on the screen about the tree's foot: the top moves, the foot stays. Drawn with the canvas's own drawImage,
+  // so the shear is kept (uprightCtx would set it aside).
+  const fx = Math.round(tf.a * tr.x + tf.c * tr.y + tf.e), fy = Math.round(tf.b * tr.x + tf.d * tr.y + tf.f);
+  const draw = (img, ox, oy, dy) => CanvasRenderingContext2D.prototype.drawImage.call(g, img, fx + Math.round(ox), fy + Math.round(oy) + (dy || 0));
+  g.save();
+  g.setTransform(1, 0, c, 1, -c * fy, 0);
+  if (p < 1) { g.globalAlpha = 1 - p * p; draw(tr.s.img, tr.s.ox, tr.s.oy); }
+  if (p > 0) { g.globalAlpha = Math.min(1, p * 1.6); draw(tr.burnt.img, tr.burnt.ox, tr.burnt.oy); }
+  if (p > 0 && p < 1) {   // engulfed: the tree's own shape in flickering flame, then a glow round it
+    const heat = treeHeat(p), src = p < 0.5 ? tr.s : tr.burnt, fr = treeFlames(src)[Math.floor(t * 12 + ph * 3) % TREE_FLAME_FRAMES];
+    g.globalAlpha = 0.95 * heat;
+    draw(fr, src.ox, src.oy);
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = 0.18 * heat; draw(fr, src.ox, src.oy, -1);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 0.12 * heat * (0.8 + 0.2 * Math.sin(t * 13 + ph)); g.fillStyle = '#ff6a18';
+    g.beginPath(); g.ellipse(fx, fy - 14, 14, 15, 0, 0, 7); g.fill();
+  }
+  g.restore();
 }
 // Lightning in rain: now and then, more often the heavier it rains (none in a drizzle), the sky flashes and thunder
 // follows a moment later. When it strikes is worked out from the weather's seed and the battle clock, so every phone of
@@ -1428,7 +1435,7 @@ function newGround(g, legacy) {
   const painter = groundPainter(g.terr, groundSeed(g), g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[id].bridge);
   g.ground = makeGround(painter, legacy, baked);
   g.ground.baked = !!baked;
-  // The trees, drawn live over the ground (drawTrees); an old save's ground pictures have them painted in.
+  // The trees, drawn live over the ground (treesInView, drawTree); an old save's ground pictures have them painted in.
   g.ground.trees = legacy || (typeof HEADLESS !== 'undefined' && HEADLESS) ? [] : painter.trees();
   const G0 = G; G = g;   // (add reads G.marks)
   try { for (let i = 0; i < g.marks.length; i++) g.ground.add(i); } finally { G = G0; }

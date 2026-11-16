@@ -132,8 +132,12 @@ share globals. Read this file first; the commit history explains every change in
   Bars, brackets and labels are drawn on the view plane (`bldBox`, `unitSpot`). `cam.x/y` are on the view plane; taps,
   pinch, wheel, box select, double tap, radar outline, sounds and shakes convert. Saves keep `cam.view`; older saves are
   converted. Sprites and ground rebaked.
-- **Known bugs:** smoke, fire and debris that move up in world y drift up-right; heights inside effects and `muzzle`
-  (world.js) go diagonal; trees no longer sway and are always drawn behind units; walls (`wallPic`) are flat squashed
+- **Fixed:** rising smoke and flames keep their climb as `fx.lift` (world.js `updateEffects`; spawn heights from chimneys,
+  stacks and damage holes too) and ui.js draws them that high straight up the screen. Trees: `treesInView` (shadows, the
+  list) and `drawTree` (art.js), sorted in with the units; the sway is a shear on the screen about the foot, leaning with
+  the wind's left-right part as the camera sees it.
+- **Known bugs:** debris and other effects that move in world y still drift diagonally; heights inside effects and `muzzle`
+  (world.js) go diagonal; walls (`wallPic`) are flat squashed
   pictures; the draw order beside big structures is a guess (0.4 into the footprint); flame jets, rally lines and the
   Tesla bolt are flat on the ground; the ground draws the whole world box round the screen (about 3 times the tiles: watch
   phones); the map shows its corners as black; pedestrians, hens and birds untested; not tried on a real phone or online.

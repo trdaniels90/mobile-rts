@@ -420,7 +420,7 @@ function draw() {
     const x0 = ox - 80, y0 = oy - 80, x1 = ox + bw + 80, y1 = oy + bh + 80;
     const inView = (e) => e.x > x0 && e.x < x1 && e.y > y0 && e.y < y1;
     for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0) drawEffect(v, fx);
-    drawTrees(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40);   // swaying in the wind, burning (art.js)
+    const trees = treesInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40);   // swaying in the wind, burning (art.js): sorted in with the units below
 
     const ground = [], air = [];
     for (const e of G.entities) {
@@ -429,6 +429,7 @@ function draw() {
       if (e.kind === 'unit' && e.cls === 'air') air.push(e); else ground.push(e);
     }
     // Village houses on explored ground (world.js genVillage), sorted in with everything else.
+    for (const t of trees) ground.push(t);
     for (const h of G.houses || []) if (h.alive && houseSeen(h) && h.x > x0 - 60 && h.x < x1 + 60 && h.y > y0 - 60 && h.y < y1 + 120) ground.push(h);
     for (const p of G.props || []) if (inView(p) && G.seen[cellOfPos(p.x, p.y)]) ground.push(p);
     for (const f of G.folk || []) if (f.st !== 'in' && inView(f) && G.seen[cellOfPos(f.x, f.y)]) ground.push({ kind: 'folk', v: f, y: f.y });
@@ -446,6 +447,7 @@ function draw() {
       else if (e.kind === 'prop') drawProp(v, e);
       else if (e.kind === 'folk') drawFolk(v, e.v);
       else if (e.kind === 'hen') drawHen(v, e.v);
+      else if (e.kind === 'tree') drawTree(v, e);
       else drawUnit(v, e, G.t);
     }
     for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') flameJet(v, e);
@@ -482,7 +484,14 @@ function draw() {
         v.fillStyle = '#ff9a2a'; v.fillRect(Math.round(p.x - ca * 4), Math.round(p.y - sa * 4), 1, 1);
       }
     }
-    for (const fx of G.effects) if (fx.t >= 0 && fx.type !== 'husk' && fx.type !== 'corpse' && fx.x > x0 && fx.x < x1 && fx.y > y0 && fx.y < y1) drawEffect(v, fx);
+    for (const fx of G.effects) {
+      if (!(fx.t >= 0 && fx.type !== 'husk' && fx.type !== 'corpse' && fx.x > x0 && fx.x < x1 && fx.y > y0 && fx.y < y1)) continue;
+      if (!fx.lift) { drawEffect(v, fx); continue; }
+      // Up in the air (rising smoke and flames, world.js updateEffects): drawn that high straight up the screen.
+      const gx = fx.x, gy = fx.y;
+      [fx.x, fx.y] = liftPt(gx, gy, fx.lift);
+      try { drawEffect(v, fx); } finally { fx.x = gx; fx.y = gy; }
+    }
     air.sort((a, b) => (a.alt || 0) - (b.alt || 0) || a.y - b.y);
     for (const e of air) drawUnit(v, e, G.t);
     if (G.birds) drawBirds(v, true, x0, y0, x1, y1);   // pigeons in the air and on the church roof
