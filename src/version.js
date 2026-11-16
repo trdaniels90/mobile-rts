@@ -4,6 +4,19 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.16.1', date: '16 November 2026', title: 'Crossroads Village', groups: [
+    ['New', [
+      'New 2 v 2 map, Crossroads Village: farmland with a village where the roads meet, west against east. The village is different every battle, with houses, a church and a fountain in the square.',
+      'Houses block the way like buildings. Shells, rockets and blasts beside them wear them down, ATTACK GROUND brings one down on purpose, and a fallen house leaves rubble anyone can cross.',
+      'Garrisons: select infantry and tap a house to send them in (3 to 6 soldiers, 10 in the church). They fire from the windows a little further than usual and the house takes the hits. Sandbags, barbed wire and the side\'s flag mark a held house. Tap a house you hold to select its soldiers; EXIT or any other order brings them out. The computer holds houses too on Normal and Hard.',
+      'The village is alive: villagers walk the streets and run indoors when fighting comes near, pigeons and hens scatter, washing hangs out, lamps glow, chimneys smoke, the church bell rings.',
+      'Day and night on Crossroads Village: dusk, a dark night lit by lamps, windows and fires, then dawn. Some battles there are fought in the rain, with lightning.',
+      'You can place a Gate straight onto your own wall: it replaces those pieces and gives back half their price.',
+    ]],
+    ['Changed', [
+      'Flags and the Soviet banners now flutter and sway in the wind.',
+    ]],
+  ] },
   { v: '2026.11.16', date: '16 November 2026', title: 'Wider gates, slower ally help', groups: [
     ['Changed', [
       'The Gate (by JGFortanelli) is now three cells wide and bought as one for $500 with 600 health. Tap where its middle goes; it turns to fit a gap in your wall, and tapping the same spot again turns it. Its barrier sinks into the ground when your own side is beside it. Taking it down gives back $250. Gates already standing in a saved game stay as they were.',
