@@ -29,9 +29,10 @@ ok('not another side to sell', run(`sellWall(T1, bx, by)`) === false);
 
 // Concrete, a gate, and who passes.
 run(`var fa = addBuilding('factory', T0, cy0.cx - 5, cy0.cy); fa.buildT = 1; T0.credits = 5000;
-  var gy = by + 3; placeWalls(T0, 'concrete', bx - 3, gy, bx - 1, gy); placeWalls(T0, 'gate', bx, gy, bx + 5, gy); placeWalls(T0, 'concrete', bx + 1, gy, bx + 3, gy);
+  var gy = by + 3; placeWalls(T0, 'concrete', bx - 4, gy, bx - 2, gy); var c0 = T0.credits, gn = placeWalls(T0, 'gate', bx, gy, bx + 5, gy), gpaid = c0 - T0.credits; placeWalls(T0, 'concrete', bx + 2, gy, bx + 4, gy);
   var gate = idx(bx, gy); 0`);
-ok('a gate is one piece', run('G.wall[gate] === 4 && G.wall[idx(bx + 1, gy)] === 3'));
+ok('a gate is three cells for one price', run('gn === 1 && gpaid === WALLS.gate.cost && G.wall[gate] === 4 && G.wall[gate - 1] === 6 && G.wall[gate + 1] === 6 && G.wall[idx(bx + 2, gy)] === 3'), run('[gn, gpaid]'));
+ok('a gate needs all three cells free', run(`placeWalls(T0, 'gate', bx - 2, gy, bx - 2, gy) + placeWalls(T0, 'gate', bx + 1, gy - 1, bx + 1, gy + 3)`) === 0);
 ok('the gate does not block the ground map, but stops the unnamed', run('G.block[gate] === 0 && !freeCell(gate)'));
 run(`var mine = addUnit('rifle', T0, 0, 0), foe = addUnit('rifle', T1, 0, 0); 0`);
 ok('its own side passes a gate, the enemy does not', run(`(MOVER = mine, freeCell(gate)) && !(MOVER = foe, freeCell(gate))`) && run('(MOVER = null, true)'));
@@ -45,6 +46,14 @@ ok('a friendly tank drives through the gate', run(`mtk.y > (gy + 2) * CELL`), ru
 run(`foe.x = (bx + 0.5) * CELL; foe.y = (gy + 3) * CELL; commandMove([foe], (bx + 0.5) * CELL, (gy - 2) * CELL); 0`);
 step(14);
 ok('an enemy soldier cannot walk in through it', run(`foe.y > gy * CELL`), run('[Math.round(foe.y / CELL), gy]'));
+
+// A gate is one thing: one health, taken down whole.
+run(`hitWall(gate - 1, 100); 0`);
+ok('a hit on one cell of a gate hurts all of it', run('[gate - 1, gate, gate + 1].every((c) => G.wallHp[c] === WALLS.gate.hp - 100)'));
+run(`var c1 = T0.credits, sold = sellWall(T0, bx + 1, gy); 0`);
+ok('taking a gate down removes all three cells for half its price', run('sold && T0.credits - c1 === WALLS.gate.cost / 2 && [gate - 1, gate, gate + 1].every((c) => G.wall[c] === 0)'));
+run(`placeWalls(T0, 'gate', bx, gy, bx, gy); hitWall(gate + 1, 5000); 0`);
+ok('a gate shot down falls whole', run('[gate - 1, gate, gate + 1].every((c) => G.wall[c] === 0)'));
 
 // Barbed wire: infantry stopped, vehicles through, flattening it.
 run(`var cy1 = buildingsOf(1).find((b) => b.type === 'cy'), bk1 = addBuilding('barracks', T1, cy1.cx + 5, cy1.cy); bk1.buildT = 1; T1.credits = 3000;
