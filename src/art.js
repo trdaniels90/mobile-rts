@@ -1648,8 +1648,8 @@ function drawGhost(g, type, faction, cx, cy) {
 // it is battered and, for a gate, how far its barrier has sunk into the ground (0 shut to GATE_STEPS). Kept by key.
 const wallPics = new Map();
 const WALL_UP = 10, GATE_STEPS = 4;
-function wallPic(id, mask, colour, hurt, open) {
-  const key = id + '|' + mask + '|' + colour + '|' + (hurt ? 1 : 0) + '|' + (open | 0);
+function wallPic(id, mask, colour, hurt, open, gm) {
+  const key = id + '|' + mask + '|' + colour + '|' + (hurt ? 1 : 0) + '|' + (open | 0) + '|' + (gm | 0);
   let c = wallPics.get(key);
   if (c) return c;
   c = mkCanvas(CELL, CELL + WALL_UP);
@@ -1676,7 +1676,9 @@ function wallPic(id, mask, colour, hurt, open) {
   if (d.gate) {
     // Two concrete pylons with a ribbed steel barrier between them that sinks into a slot in the ground (open: 0 shut
     // to GATE_STEPS fully down). Across the cell when the wall runs west-east (or stands alone), else down it.
-    const ns = !(E || Wt) && (N || S), up = Math.round(8 * (1 - (open || 0) / GATE_STEPS));
+    // Gates side by side (gm: the sides it meets another gate of its own on) make one wide gate: pylons only at its ends.
+    const ns = gm ? !(gm & 10) : !(E || Wt) && (N || S), up = Math.round(8 * (1 - (open || 0) / GATE_STEPS));
+    const jA = gm & (ns ? 1 : 8), jB = gm & (ns ? 4 : 2), x0 = jA ? 0 : 6, x1 = jB ? CELL : 18, bw = x1 - x0;
     const T = (x, y, w, h) => (ns ? [y, x, h, w] : [x, y, w, h]);          // laid out for west-east, turned for north-south
     const px = (col, x, y, w, h, z) => { const q = T(x, y, w, h); g.fillStyle = col; g.fillRect(q[0], q[1] + WALL_UP - (z || 0), q[2], q[3]); };
     const pylon = (x) => {
@@ -1687,16 +1689,16 @@ function wallPic(id, mask, colour, hurt, open) {
     };
     const th = ns ? 8 : 6, b0 = 12 - th / 2;                                // a little thicker seen end on, so it reads
     const barrier = () => {
-      px('#1d1f21', 6, b0 - 1, 12, th + 2);                                 // the slot it sinks into
-      for (let k = 6; k < 18; k += 2) { px(k % 4 < 2 ? '#d8b024' : '#1c1c1a', k, b0 - 1, 2, 1); px(k % 4 < 2 ? '#1c1c1a' : '#d8b024', k, b0 + th, 2, 1); }
-      if (up > 0) { g.fillStyle = 'rgba(0,0,0,0.28)'; const q = T(6, b0, 12, th); g.fillRect(q[0] + 2, q[1] + WALL_UP + 1, q[2], q[3]); }
-      for (let k = 0; k < up; k++) px('#6a7077', 6, b0, 12, th, k);         // its face, ribbed
-      if (!ns) for (let k = 7; k < 18; k += 2) { g.fillStyle = '#474c52'; g.fillRect(k, b0 + th + WALL_UP - up + 1, 1, up); }
-      px('#9ba1a7', 6, b0, 12, th, up);                                     // its top: steel with a hazard strip
-      for (let k = 6; k < 18; k += 2) px(k % 4 < 2 ? '#e0b828' : '#26241c', k, 11, 2, 2, up);
-      px('#c4cad0', 6, b0, 12, 1, up);
+      px('#1d1f21', x0, b0 - 1, bw, th + 2);                                 // the slot it sinks into
+      for (let k = x0; k < x1; k += 2) { px(k % 4 < 2 ? '#d8b024' : '#1c1c1a', k, b0 - 1, 2, 1); px(k % 4 < 2 ? '#1c1c1a' : '#d8b024', k, b0 + th, 2, 1); }
+      if (up > 0) { g.fillStyle = 'rgba(0,0,0,0.28)'; const q = T(x0, b0, bw, th); g.fillRect(q[0] + 2, q[1] + WALL_UP + 1, q[2], q[3]); }
+      for (let k = 0; k < up; k++) px('#6a7077', x0, b0, bw, th, k);         // its face, ribbed
+      if (!ns) for (let k = x0 + 1; k < x1; k += 2) { g.fillStyle = '#474c52'; g.fillRect(k, b0 + th + WALL_UP - up + 1, 1, up); }
+      px('#9ba1a7', x0, b0, bw, th, up);                                     // its top: steel with a hazard strip
+      for (let k = x0; k < x1; k += 2) px(k % 4 < 2 ? '#e0b828' : '#26241c', k, 11, 2, 2, up);
+      px('#c4cad0', x0, b0, bw, 1, up);
     };
-    if (ns) { pylon(0); barrier(); pylon(18); } else { barrier(); pylon(0); pylon(18); }
+    if (ns) { if (!jA) pylon(0); barrier(); if (!jB) pylon(18); } else { barrier(); if (!jA) pylon(0); if (!jB) pylon(18); }
   } else if (d.wire) {
     // Posts and three strands of coiled wire along the run.
     const ew = E || Wt || !(N || S), ns = N || S;

@@ -385,17 +385,23 @@ function draw() {
         if (!id || !G.seen[c]) continue;
         const wt = G.wallTeam[c], d = WALL_BY_ID[id], tm = G.teams[wt];
         const mask = (cy > 0 && G.wall[c - MAP] ? 1 : 0) | (cx < MAP - 1 && G.wall[c + 1] ? 2 : 0) | (cy < MAP - 1 && G.wall[c + MAP] ? 4 : 0) | (cx > 0 && G.wall[c - 1] ? 8 : 0);
-        let open = 0;
+        let open = 0, gm = 0;
         if (d.gate) {                                                       // its barrier sinks and rises over about a third of a second (looks only)
-          const gx = (cx + 0.5) * CELL, gy = (cy + 0.5) * CELL, now = performance.now();
-          const want = G.entities.some((e) => e.alive && e.kind === 'unit' && !isAirborne(e) && Math.abs(e.x - gx) < 34 && Math.abs(e.y - gy) < 34 && alliedSides(e.team, wt)) ? 1 : 0;
+          // Gates of one side in a row are one wide gate: it opens as a whole when one of its alliance is beside any of it.
+          const same = (k) => G.wall[k] === id && G.wallTeam[k] === wt;
+          gm = (cx > 0 && same(c - 1) ? 8 : 0) | (cx < MAP - 1 && same(c + 1) ? 2 : 0);
+          if (!gm) gm = (cy > 0 && same(c - MAP) ? 1 : 0) | (cy < MAP - 1 && same(c + MAP) ? 4 : 0);
+          const st = gm & 10 ? 1 : MAP; let a = c, b = c;
+          if (gm) { while (b - a < 12 && same(a - st) && (st > 1 || cellX(a) > 0)) a -= st; while (b - a < 12 * st && same(b + st) && (st > 1 || cellX(b) < MAP - 1)) b += st; }
+          const bx0 = cellX(a) * CELL - 22, by0 = cellY(a) * CELL - 22, bx1 = (cellX(b) + 1) * CELL + 22, by1 = (cellY(b) + 1) * CELL + 22, now = performance.now();
+          const want = G.entities.some((e) => e.alive && e.kind === 'unit' && !isAirborne(e) && e.x > bx0 && e.x < bx1 && e.y > by0 && e.y < by1 && alliedSides(e.team, wt)) ? 1 : 0;
           let s = gateAnim.get(c);
           if (!s || now - s.t > 1000) gateAnim.set(c, s = { v: want, t: now });
           const step = (now - s.t) / 350; s.t = now;
           s.v = want > s.v ? Math.min(1, s.v + step) : Math.max(0, s.v - step);
           open = Math.round(s.v * GATE_STEPS);
         }
-        v.drawImage(wallPic(id, mask, tm ? tm.pal.main : '#888', G.wallHp[c] < d.hp / 2, open), cx * CELL, cy * CELL - WALL_UP);
+        v.drawImage(wallPic(id, mask, tm ? tm.pal.main : '#888', G.wallHp[c] < d.hp / 2, open, gm), cx * CELL, cy * CELL - WALL_UP);
       }
     }
     // Destroyed bridge spans: water and broken ends over the painted bridge (art.js spanRuin).
