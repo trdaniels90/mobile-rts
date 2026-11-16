@@ -1676,7 +1676,7 @@ function wallPic(id, mask, colour, hurt, open, gm) {
   if (d.gate) {
     // Two concrete pylons with a ribbed steel barrier between them that sinks into a slot in the ground (open: 0 shut
     // to GATE_STEPS fully down). Across the cell when the wall runs west-east (or stands alone), else down it.
-    // Gates side by side (gm: the sides it meets another gate of its own on) make one wide gate: pylons only at its ends.
+    // A gate is three cells (gm: the sides this cell meets the rest of its gate on): pylons only at its two ends.
     const ns = gm ? !(gm & 10) : !(E || Wt) && (N || S), up = Math.round(8 * (1 - (open || 0) / GATE_STEPS));
     const jA = gm & (ns ? 1 : 8), jB = gm & (ns ? 4 : 2), x0 = jA ? 0 : 6, x1 = jB ? CELL : 18, bw = x1 - x0;
     const T = (x, y, w, h) => (ns ? [y, x, h, w] : [x, y, w, h]);          // laid out for west-east, turned for north-south
@@ -1774,8 +1774,8 @@ function wallCameo(kind, faction, key) {
   g.fillStyle = grd; g.fillRect(0, 0, W, H);
   g.imageSmoothingEnabled = false;
   const col = palFor(faction).main, k = 1.25;
-  const row = d.gate ? [[3, 2], [4, 10], [3, 8]] : [[d.id, 2], [d.id, 10], [d.id, 8]];
-  row.forEach(([id, mask], i) => g.drawImage(wallPic(id, mask, col, false, 0), Math.round((W - 3 * CELL * k) / 2 + i * CELL * k), Math.round((H - (CELL + WALL_UP) * k) / 2 + 2), CELL * k, (CELL + WALL_UP) * k));
+  const row = d.gate ? [[6, 2, 2], [4, 10, 10], [6, 8, 8]] : [[d.id, 2], [d.id, 10], [d.id, 8]];
+  row.forEach(([id, mask, gm], i) => g.drawImage(wallPic(id, mask, col, false, 0, gm), Math.round((W - 3 * CELL * k) / 2 + i * CELL * k), Math.round((H - (CELL + WALL_UP) * k) / 2 + 2), CELL * k, (CELL + WALL_UP) * k));
   const url = c.toDataURL();
   cameoCache.set(key, url);
   return url;

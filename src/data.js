@@ -49,7 +49,11 @@ const WALLS = {
   sandbag:  { id: 1, name: 'Sandbags', cost: 25, hp: 100, factions: ['allies'], req: 'barracks', hard: true },
   wire:     { id: 2, name: 'Barbed Wire', cost: 20, hp: 40, factions: ['soviets'], req: 'barracks', wire: true },
   concrete: { id: 3, name: 'Concrete Wall', cost: 100, hp: 300, factions: ['allies', 'soviets'], req: 'factory', hard: true },
-  gate:     { id: 4, name: 'Gate', cost: 250, hp: 300, factions: ['allies', 'soviets'], req: 'factory', gate: true },
+  // The Gate is three cells bought as one: its middle (id 4 lying west-east, 5 north-south) and an end either side (6).
+  // The cells share one health and fall together (world.js gateCells). `part` kinds are never bought on their own.
+  gate:     { id: 4, name: 'Gate', cost: 500, hp: 600, factions: ['allies', 'soviets'], req: 'factory', gate: true },
+  gateV:    { id: 5, name: 'Gate', cost: 500, hp: 600, factions: ['allies', 'soviets'], req: 'factory', gate: true, part: true },
+  gateEnd:  { id: 6, name: 'Gate', cost: 500, hp: 600, factions: ['allies', 'soviets'], req: 'factory', gate: true, part: true },
 };
 const WALL_BY_ID = [null];
 for (const k in WALLS) { WALLS[k].key = k; WALL_BY_ID[WALLS[k].id] = WALLS[k]; }
