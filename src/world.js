@@ -4843,7 +4843,7 @@ function update(dt) {
   if ((T.grp = (T.grp === undefined ? 0 : T.grp) - dt) <= 0) { T.grp += 1 / nT; if (T.grp <= 0) T.grp = 1 / nT; T.grpI = ((T.grpI || 0) + 1) % nT; if (!G.over) { launchGroups(G.teams[T.grpI]); T.brN = (T.brN || 0) + 1; if (G.wallN && Math.floor(T.brN / nT) % 4 === 0 && !G.teams[T.grpI].out) breachWalls(G.teams[T.grpI]); } }
   if ((T.win -= dt) <= 0) { T.win = 1; if (!G.remote) updateReserves(); checkWin(); }
   if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); for (const t of G.teams) if (!t.isAI) adviseTrucks(t); }
-  if (!G.over && (T.stuck = (T.stuck === undefined ? 5 : T.stuck) - dt) <= 0) { T.stuck = 5; stuckWatch(); }
+  if (!G.over && (T.stuck = (T.stuck === undefined ? 5 : T.stuck) - dt) <= 0) { T.stuck = 5; stuckWatch(); pileWatch(); }
   lightningStrikes(dt);
   updateEffects(dt);
   sweepDead();
@@ -4869,6 +4869,43 @@ function unstick(u) {
   const sp = scatterSpot(G.teams[u.team], u);
   u.assisting = false; u.defending = false; u.focus = null;
   setGuard(u, sp.x, sp.y); u.staged = true; goTo(u, sp.x, sp.y);
+}
+// Pile diagnostic (after 2026.11.16.4, reports only: nothing in the game changes). Owner's reports: a human's army stopped in a heap, then moved on
+// after a while (route queue, shore strips on Crossroads Village). Every 5 s a human side's ground units with nothing to shoot are looked at: a
+// heap is PILE_MIN of them within PILE_R px of one of them, 70% of them not moving, seen on every look for 10 s. The first 3 a match (60 s apart) go to
+// `Report.oops('pile1'..'pile3')`: `stack` holds JSON: n units, cell, how many are waiting for a route (`np`), moving (`mv`), have a destination (`dd`),
+// the orders (`ord`), types (`ty`), path queue length (`q`), nearest blocked-looking neighbours (`rock`: impassable cells within 3 cells), seconds it has lasted.
+const PILE_MIN = 20, PILE_R = 40;
+let PILE_SEEN = null;
+function pileWatch() {
+  if (G.remote) return;
+  if (!PILE_SEEN || PILE_SEEN.g !== G) PILE_SEEN = { g: G, n: 0, last: -999, since: new Map() };
+  if (PILE_SEEN.n >= 3 || G.t - PILE_SEEN.last < 60) return;
+  for (const team of G.teams) {
+    if (team.isAI || team.out) continue;
+    const us = unitsOf(team.id).filter((u) => u.cls !== 'air' && !u.def.harvester && !u.def.scripted && u.def.speed && !u.inHouse && !(u.target && u.target.alive));
+    if (us.length < PILE_MIN) continue;
+    let best = null;
+    for (const a of us) {
+      const c = us.filter((o) => Math.abs(o.x - a.x) < PILE_R && Math.abs(o.y - a.y) < PILE_R && Math.hypot(o.x - a.x, o.y - a.y) < PILE_R);
+      if (c.length >= PILE_MIN && (!best || c.length > best.length)) best = c;
+    }
+    if (!best) { PILE_SEEN.since.delete(team.id); continue; }
+    const still = best.filter((u) => !u.moving), going = best.filter((u) => u.dest || u.needPath);
+    if (still.length < best.length * 0.7 || !going.length) { PILE_SEEN.since.delete(team.id); continue; }   // a parked army is not a heap
+    const since = PILE_SEEN.since.get(team.id);
+    if (since === undefined) { PILE_SEEN.since.set(team.id, G.t); continue; }
+    if (G.t - since < 10) continue;
+    PILE_SEEN.n++; PILE_SEEN.last = G.t; PILE_SEEN.since.delete(team.id);
+    const count = (f) => { const o = {}; for (const u of best) { const k = f(u); o[k] = (o[k] || 0) + 1; } return o; };
+    const a = best[0], c0 = cellOfPos(a.x, a.y);
+    let rock = 0; for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) { const x = cellX(c0) + dx, y = cellY(c0) + dy; if (inMap(x, y) && !freeCell(idx(x, y))) rock++; }
+    if (typeof Report !== 'undefined' && Report.oops) Report.oops('pile' + PILE_SEEN.n, { message: 'a heap of ' + best.length + ' stopped for ' + Math.round(G.t - since) + ' s', stack: JSON.stringify({
+      n: best.length, tm: team.id, t: Math.round(G.t), c: [cellX(c0), cellY(c0)], np: best.filter((u) => u.needPath).length, mv: best.length - still.length, dd: going.length,
+      ord: count((u) => u.order.type + (u.assisting ? '/asst' : '') + (u.staged ? '/staged' : '')), ty: count((u) => u.type), q: G.pathQueue.length, rock, auto: !!team.auto, assist: !!team.assist,
+      old: Math.round(Math.max(...best.map((u) => (u.nearBest ? G.t - u.nearBest.t : 0)))), sn: best.filter((u) => u.stuckN > 0).length }) });
+    return;
+  }
 }
 function stuckWatch() {
   if (G.remote) return;

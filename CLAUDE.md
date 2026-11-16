@@ -1182,3 +1182,7 @@ frame-time maths everywhere, so it is not deterministic.
   Player orders still re-route at once. `processPaths` serves a human's unit first (within the first 64 queued) so a big computer wave cannot hold an army in the queue.
 - Ruled out: the infantry lanes (100 units leaving a base on Village: biggest group within a cell 17.7 with lanes, 19.2 without) and the fight fan (`approachSpot`),
   which needs a target in sight. Not reproduced: a pile in front of the base after Auto Attack with no enemy in sight; a phone's slower route-finding is the guess.
+- **Pile diagnostic** (`pileWatch` in world.js, every 5 s with `stuckWatch`, host only, reports only, both modes): 20+ of a human side's ground units with no target within 40 px, 70% not moving, some with a destination or waiting for a route, for 10 s.
+  The first 3 a match (60 s apart) go to `stats.errors` as `pile1..3`; `stack` is JSON: `n`, `c` cell, `np` waiting for a route, `mv`, `dd`, `ord`, `ty`, `q` path queue length, `rock` blocked cells within 3 cells, `auto`, `assist`, `old`, `sn`.
+  Query: `select id, stats->'errors' from matches where stats->'errors' @> '[{"where":"pile1"}]'`. Staged: a forced heap reports (all 23 waiting for a route); a 100-unit Auto Attack march and a defend-and-return of 70 units report nothing.
+- The owner's piles were on Crossroads Village (2026.11.16.3), on the land strips between a lake and the village, which the lakes reaching the village (2026.11.16.3) funnel armies through; a Lakeside run with 150 units showed no heap.
