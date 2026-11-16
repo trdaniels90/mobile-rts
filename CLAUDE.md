@@ -1186,3 +1186,10 @@ frame-time maths everywhere, so it is not deterministic.
   The first 3 a match (60 s apart) go to `stats.errors` as `pile1..3`; `stack` is JSON: `n`, `c` cell, `np` waiting for a route, `mv`, `dd`, `ord`, `ty`, `q` path queue length, `rock` blocked cells within 3 cells, `auto`, `assist`, `old`, `sn`.
   Query: `select id, stats->'errors' from matches where stats->'errors' @> '[{"where":"pile1"}]'`. Staged: a forced heap reports (all 23 waiting for a route); a 100-unit Auto Attack march and a defend-and-return of 70 units report nothing.
 - The owner's piles were on Crossroads Village (2026.11.16.3), on the land strips between a lake and the village, which the lakes reaching the village (2026.11.16.3) funnel armies through; a Lakeside run with 150 units showed no heap.
+- **The real cause of the piles: route corners** (after 2026.11.16.4, both modes). A column shares its route's corner points, and `followPath` needed a unit within 7 px of
+  each before it turned, while `separate` keeps friends 1.4 radii apart: in a crowd units could not reach the point and milled round it, moving but going nowhere, until
+  the others had gone (staged Auto Attack on Village: 11 of 24 piled units on one corner at 10-30 px, the pile in the same 2 cells for 10-15 s, on open ground). Now
+  within `CORNER_R` (1.5 cells) of a corner a unit with a clear `los` to the next point takes the corner (`u.cornerT`, checked every 4 steps; netcore `SKIP`).
+  100 units on Auto Attack with three computer sides marching, 75 s, 2 seeds: worst pile within 40 px 31-33 to 19-22, average 20 to 14, the army 56 to 74 cells out.
+  `bunching.js` 4 x 90 s unchanged (3.32, 7.7% six or more, worst 10), `rally.js` and `village.js` pass. Slowing `findPath` to phone speed did not change the piles,
+  so the route queue (above) was a smaller part of it.

@@ -1519,13 +1519,24 @@ function arriveRadius(u, p, d) {
 }
 
 // Follows the current path. Returns true once there is nowhere left to go.
+const CORNER_R = CELL * 1.5;
 function followPath(u, dt) {
   if (!u.dest) return true;
   if (u.needPath || !u.path) return false;
   if (u.pathIdx >= u.path.length) { u.dest = null; return true; }
   const p = u.path[u.pathIdx], last = u.pathIdx === u.path.length - 1;
   const dx = p.x - u.x, dy = p.y - u.y, d = Math.hypot(dx, dy);
-  if (d < (last ? arriveRadius(u, p, d) : 7)) {
+  let reached = d < (last ? arriveRadius(u, p, d) : 7);
+  // A column shares its route's corners, and friends stand on the exact point, so in a crowd a unit could not get within 7 px of
+  // a corner and milled round it until the others had gone (owner's piles: 11 of 24 units round one corner, moving but going nowhere
+  // for 10 s+). Within CORNER_R of a corner, a unit with a clear straight line to the point after it takes the corner from there.
+  if (!reached && !last && d < CORNER_R && (u.cornerT = (u.cornerT || 0) - 1) <= 0) {
+    u.cornerT = 4;   // (a look every few steps)
+    const q = u.path[u.pathIdx + 1];
+    MOVER = u;
+    try { reached = los(u.x, u.y, q.x, q.y, u.def.r * 0.8); } finally { MOVER = null; }
+  }
+  if (reached) {
     u.pathIdx++;
     if (u.pathIdx >= u.path.length) {
       // Settled short of the exact point (beside a crowd): guard from here, not from the point.
