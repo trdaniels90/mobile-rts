@@ -1016,6 +1016,12 @@ frame-time maths everywhere, so it is not deterministic.
   in models.js, `scenery.burntTrees` / `burntPines`), then leaves a scorch mark (14 px). `G.treeFire` (tree number -> time it caught) and
   `G.treeHot` are plain data, so saves keep burnt trees. Ground rebaked (`groundKey` has a `live-trees` token); sprites rebaked for the hash only.
 
+- **Far views (after 2026.11.16.2, both modes, looks only):** on a big PC screen zoomed right out, Crossroads Village had about 2,900
+  trees in view, each drawn with its own sway transform (about 12,000 draw calls, 23 ms a frame); rain was 0.6 ms. Past `TREE_FAR_N`
+  (700) trees in view, `drawTreeBlocks` (art.js) draws still and burnt trees, upright, from cached `TREE_BLOCK` (512 px) blocks, redrawn
+  when one of their trees catches fire or burns out and dropped 5 s after the last far view; burning trees are still drawn one by one.
+  Rain splashes are capped with the view like the drops. Phones never get that many trees in view.
+
 ## Flags fly in the wind (after 2026.11.16, both modes, looks only)
 
 - The modelled flags (Allied Ore Refinery, Allied and Soviet Outposts) keep only their poles in models.js; the cloth is drawn
