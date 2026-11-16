@@ -1006,7 +1006,7 @@ const knockSeen = new WeakSet(), folkSeen = new WeakSet();
 function knockProp(p) {
   p.up = false;
   G.effects.push({ type: 'smoke', x: p.x, y: p.y - 2, r: 3, t: 0, life: 0.9, alpha: 0.35, color: '#8a7a62', vy: -6 });
-  if (p.k === 'lamp') G.effects.push({ type: 'spark', x: p.x + 4, y: p.y - 16, t: 0, life: 0.15 });
+  if (p.k === 'lamp') G.effects.push({ type: 'spark', x: p.x + 4, y: p.y, lift: 16, t: 0, life: 0.15 });
 }
 function villageLife(dt) {
   if (G.me < 0 || !G.houses || !G.houses.length) return;
@@ -2669,7 +2669,7 @@ function promote(u) {
   while (r < VET.at.length && u.killWorth >= VET.at[r] * u.def.cost) r++;
   if (r === (u.rank || 0)) return;
   u.rank = r;
-  G.effects.push({ type: 'ring', x: u.x, y: u.y - (u.alt || 0), t: 0, life: 1.2, color: 'rgba(255,214,90,0.95)' });
+  G.effects.push({ type: 'ring', x: u.x, y: u.y, lift: u.alt || 0, t: 0, life: 1.2, color: 'rgba(255,214,90,0.95)' });
   notify(G.teams[u.team], 'promo', r >= VET.at.length ? 'Unit promoted to elite' : 'Unit promoted', 12);
 }
 function vetHeal(u, dt) {   // an elite unit mends itself when it has not been hit for a while
@@ -2918,7 +2918,7 @@ function ragdoll(e, wh, from) {
       fx.burnt = true;
       if (r() < 0.45) fx.stagger = { t: 0.8 + r() * 0.8, a: r() * Math.PI * 2 };
     }
-    if (wh === 'TESLA') { G.effects.push({ type: 'spark', x: e.x, y: e.y - 8, t: 0, life: 0.3 }); fx.burnt = true; fx.shock = 0.5 + r() * 0.3; }
+    if (wh === 'TESLA') { G.effects.push({ type: 'spark', x: e.x, y: e.y, lift: 8, t: 0, life: 0.3 }); fx.burnt = true; fx.shock = 0.5 + r() * 0.3; }
   }
   // The weapon, flung loose from the hands.
   const wl = e.type === 'rocket' ? 12 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'engineer' ? 0 : 8;
@@ -2976,7 +2976,7 @@ function updateRagdoll(fx, dt) {
     if (fx.pool.t >= fx.pool.dur) { fx.t = fx.life; bakeRagdoll(G.dctx, fx); }
     return;
   }
-  if (fx.shock > 0) { fx.shock -= dt; if (r() < dt * 8) G.effects.push({ type: 'spark', x: fx.x + (r() - 0.5) * 6, y: fx.y - 6 - r() * 6, t: 0, life: 0.15 }); return; }
+  if (fx.shock > 0) { fx.shock -= dt; if (r() < dt * 8) G.effects.push({ type: 'spark', x: fx.x + (r() - 0.5) * 6, y: fx.y, lift: 6 + r() * 6, t: 0, life: 0.15 }); return; }
   const h = 1 / 60, P = fx.P, Q = fx.Q, nS = RAG_STICKS.length;
   fx.acc += dt;
   while (fx.acc >= h) {
@@ -3792,7 +3792,7 @@ function dropFlare(t) {
   hooks.sfx('throw', t.x, t.y);
   // Each keeps some of the jet's speed at first, then drags to a halt and sinks.
   const a = t.face + Math.PI + q.side * (0.5 + Math.random() * 0.4), sp = (t.speedCur || t.def.speed) * 0.45;
-  G.effects.push({ type: 'flare', x: t.x - Math.cos(t.face) * 10, y: t.y - (t.alt || 0) - Math.sin(t.face) * 10,
+  G.effects.push({ type: 'flare', x: t.x - Math.cos(t.face) * 10, y: t.y - Math.sin(t.face) * 10, lift: t.alt || 0,   // (drawn at its height: ui.js)
     vx: Math.cos(a) * 34 + Math.cos(t.face) * sp, vy: Math.sin(a) * 20 + Math.sin(t.face) * sp, t: 0, life: 2.8, trail: [] });
 }
 
@@ -4999,7 +4999,8 @@ function updateEffects(dt) {
     else if (fx.type === 'expl' && fx.t >= 0 && fx.size >= 9 && !litFx.has(fx)) { litFx.add(fx); igniteTrees(fx.x, fx.y + 3, Math.max(12, fx.size * 1.4)); }
     else if (fx.type === 'flare' && fx.t >= 0) {
       fx.vx *= Math.exp(-1.4 * dt); fx.vy += (14 - fx.vy) * (1 - Math.exp(-1.2 * dt));   // drag, then a slow fall
-      if ((fx.trailT = (fx.trailT || 0) - dt) <= 0) { fx.trailT = 0.05; fx.trail.push({ x: fx.x, y: fx.y }); if (fx.trail.length > 18) fx.trail.shift(); }
+      if (fx.lift) fx.lift = Math.max(0, fx.lift - 14 * dt);   // (dropping toward the ground)
+      if ((fx.trailT = (fx.trailT || 0) - dt) <= 0) { fx.trailT = 0.05; fx.trail.push({ x: fx.x, y: fx.y, l: fx.lift || 0 }); if (fx.trail.length > 18) fx.trail.shift(); }
     }
     else if (fx.type === 'smoulder' && (fx.puffT -= dt) <= 0) {
       fx.puffT = 0.35 + fx.t / fx.life * 0.6;

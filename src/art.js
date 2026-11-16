@@ -567,7 +567,8 @@ function turretImg(fx) {
 }
 function drawTurretAt(g, fx, z) {
   const img = turretImg(fx);
-  g.save(); g.translate(Math.round(fx.x), Math.round(fx.y - z - 3)); g.rotate(fx.rot);
+  const [tx, ty] = liftPt(fx.x, fx.y, z + 3);
+  g.save(); g.translate(Math.round(tx), Math.round(ty)); g.rotate(fx.rot);
   g.drawImage(img, -Math.round(img.width / 2), -Math.round(img.height / 2));
   g.restore();
 }
@@ -599,14 +600,14 @@ function drawRagBody(g, fx) {
   const tunic = burnt ? BURNT.main : pal.main, sleeve = burnt ? BURNT.dark : cssOf(shadeInt(pal.main, 0.86));
   const pants = burnt ? BURNT.deep : cssOf(K.pants), skin = burnt ? '#3a2e26' : K.skin;
   const head = fx.unitType === 'pilot' ? '#cfcab8' : fx.unitType === 'grenadier' ? '#5d6236' : cssOf(K.helm);
-  const X = (i) => P[i * 3], Y = (i) => P[i * 3 + 1] - P[i * 3 + 2], Zk = (i) => P[i * 3 + 2] * 4 + P[i * 3 + 1];
+  const L = (i) => liftPt(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]), X = (i) => L(i)[0], Y = (i) => L(i)[1], Zk = (i) => P[i * 3 + 2] * 4 + P[i * 3 + 1];
   const parts = [];
   const seg = (i, j, w, col) => parts.push({ k: (Zk(i) + Zk(j)) / 2, f: (dark) => pxLine(g, X(i), Y(i), X(j), Y(j), dark ? w + 1 : w, dark ? '#16120e' : col) });
   seg(2, 7, 2, pants); seg(7, 9, 2, pants); seg(2, 8, 2, pants); seg(8, 10, 2, pants);
   seg(1, 2, 3, tunic); seg(3, 4, 2, tunic); seg(3, 5, 1, sleeve); seg(4, 6, 1, sleeve);
   if (fx.gun) {
     const q = fx.gun.P, rk = fx.unitType === 'rocket';
-    parts.push({ k: (q[2] + q[5]) * 2 + (q[1] + q[4]) / 2, f: (dark) => pxLine(g, q[0], q[1] - q[2], q[3], q[4] - q[5], (rk ? 2 : 1) + (dark ? 1 : 0), dark ? '#16120e' : rk ? '#56603a' : C.gun) });
+    parts.push({ k: (q[2] + q[5]) * 2 + (q[1] + q[4]) / 2, f: (dark) => pxLine(g, ...liftPt(q[0], q[1], q[2]), ...liftPt(q[3], q[4], q[5]), (rk ? 2 : 1) + (dark ? 1 : 0), dark ? '#16120e' : rk ? '#56603a' : C.gun) });
   }
   parts.sort((a, b) => a.k - b.k);
   for (const p of parts) p.f(true);
@@ -1643,10 +1644,13 @@ function drawUnit(g, u, t) {
 
 // Paratrooper on the way down: shadow on the ground, swaying canopy above.
 function drawChute(g, u, pal, t) {
-  const h = u.chute * 26, sway = Math.sin(t * 2.4 + u.id) * 2, x = u.x + sway, y = u.y - h;
+  const h = u.chute * 26, sway = Math.sin(t * 2.4 + u.id) * 2, [wx, wy] = liftPt(u.x, u.y, h);
   g.fillStyle = 'rgba(0,0,0,0.25)';
   g.beginPath(); g.ellipse(u.x, u.y, 6, 3, 0, 0, 7); g.fill();
-  blit(g, infSprite(u, pal, 0), x, y);
+  blit(g, infSprite(u, pal, 0), wx + sway, wy);
+  // The canopy and lines, upright on the screen above him (the iso view: drawn in screen pixels from his spot).
+  const m = g.getTransform(), x = Math.round(m.a * wx + m.c * wy + m.e) + sway, y = Math.round(m.b * wx + m.d * wy + m.f);
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0); const up = g.upright; g.upright = false;
   const cy = y - 31;
   g.strokeStyle = '#2a2620'; g.lineWidth = 0.8;
   g.beginPath();
@@ -1657,6 +1661,7 @@ function drawChute(g, u, pal, t) {
   g.fillStyle = '#a69d82';
   g.beginPath(); g.ellipse(x, cy, 10, 2, 0, 0, Math.PI); g.fill();
   g.fillRect(Math.round(x - 1), Math.round(cy - 7), 2, 7);
+  g.upright = up; g.restore();
 }
 
 // Burnt-out wreck: the same model with charred paint.
@@ -1665,7 +1670,7 @@ function drawHusk(g, fx) {
   g.globalAlpha = Math.min(1, (1 - fx.t / fx.life) * 4);
   blit(g, hullSprite(fake, BURNT), fx.x, fx.y);
   const ts = turretSprite(fake, BURNT);
-  if (ts) blit(g, ts, fx.x, fx.y - turretZ(fx.def) * VK, false);
+  if (ts) blit(g, ts, ...liftPt(fx.x, fx.y, turretZ(fx.def) * VK), false);
   g.globalAlpha = 1;
 }
 
@@ -2258,7 +2263,8 @@ function drawEffect(g, fx) {
         g.fillStyle = '#2a2622';
         for (let i = 0; i < 10; i++) {
           const a = r() * Math.PI * 2, v = (0.5 + r()) * fx.size * 1.8;
-          g.fillRect(Math.round(fx.x + Math.cos(a) * v * k), Math.round(fx.y + Math.sin(a) * v * k * 0.7 - Math.sin(k * Math.PI) * fx.size), 2, 1);
+          const [px, py] = liftPt(fx.x + Math.cos(a) * v * k, fx.y + Math.sin(a) * v * k * 0.7, Math.sin(k * Math.PI) * fx.size);   // out over the ground, up and down again
+          g.fillRect(Math.round(px), Math.round(py), 2, 1);
         }
       }
       break;
@@ -2308,11 +2314,13 @@ function drawEffect(g, fx) {
       if (sc > 1.3) {   // a big blaze lights up what is around it
         g.globalCompositeOperation = 'lighter';
         g.fillStyle = `rgba(255,120,30,${0.12 * Math.min(1, (1 - k) * 3)})`;
-        g.beginPath(); g.arc(fx.x, fx.y - 4 * sc, 6 * sc, 0, 7); g.fill();
+        g.beginPath(); g.arc(...liftPt(fx.x, fx.y, 4 * sc), 6 * sc, 0, 7); g.fill();
         g.globalCompositeOperation = 'source-over';
       }
-      if (sc === 1) g.drawImage(f, Math.round(fx.x - 3), Math.round(fx.y - 11));
-      else { const w = Math.round(7 * sc * (1 - k * 0.4)), h = Math.round(12 * sc * (1 - k * 0.5)); g.drawImage(f, Math.round(fx.x - w / 2), Math.round(fx.y - h + 1), w, h); }
+      // The flame's foot on its spot: placed by its middle (art.js uprightCtx), half its height up the screen.
+      const w = sc === 1 ? f.width : Math.round(7 * sc * (1 - k * 0.4)), h = sc === 1 ? f.height : Math.round(12 * sc * (1 - k * 0.5)), foot = sc === 1 ? 11 - f.height : -1;
+      const [cx, cy] = liftPt(fx.x, fx.y, h / 2 + foot);
+      g.drawImage(f, cx - w / 2, cy - h / 2, w, h);
       g.globalAlpha = 1;
       break;
     }
@@ -2385,7 +2393,7 @@ function drawEffect(g, fx) {
       for (let i = 1; i < tr.length; i++) {
         const q = i / tr.length;
         g.strokeStyle = `rgba(214,210,200,${0.5 * q * (0.4 + 0.6 * a)})`; g.lineWidth = 1 + (1 - q) * 1.5;
-        g.beginPath(); g.moveTo(tr[i - 1].x, tr[i - 1].y); g.lineTo(tr[i].x, tr[i].y); g.stroke();
+        g.beginPath(); g.moveTo(...liftPt(tr[i - 1].x, tr[i - 1].y, tr[i - 1].l || 0)); g.lineTo(...liftPt(tr[i].x, tr[i].y, tr[i].l || 0)); g.stroke();
       }
       if (a <= 0) break;
       const fl = 0.75 + Math.random() * 0.25;
@@ -2399,22 +2407,23 @@ function drawEffect(g, fx) {
       // line of flight (wings edge-on), upside down it shows its darker belly.
       const fake = { def: fx.def, face: fx.face, faction: fx.faction }, s = hullSprite(fake, palFor(fx.faction)), hgt = fx.alt / VK;
       const sq = Math.max(0.2, Math.abs(Math.cos(fx.roll || 0))), inv = Math.cos(fx.roll || 0) < 0;
+      const [shx, shy] = fromView(hgt * SHADOW_DX, hgt * SHADOW_DY * VIEW.F), [bx, by] = liftPt(fx.x, fx.y, fx.alt), [rx, ry] = liftPt(fx.x, fx.y, fx.alt + 9 * VK);
       const squash = (x, y) => { g.translate(x, y); g.rotate(fx.face); g.scale(1, sq); g.rotate(-fx.face); };
       if (s.sh) {
-        g.save(); squash(fx.x + hgt * SHADOW_DX, fx.y + hgt * SHADOW_DY);
+        g.save(); squash(fx.x + shx, fx.y + shy);
         g.globalAlpha = 0.3; g.drawImage(s.sh, Math.round(s.sox), Math.round(s.soy)); g.restore();
       }
-      g.save(); squash(fx.x, fx.y - fx.alt);
+      g.save(); squash(bx, by);
       if (inv) g.filter = 'brightness(0.55)';
       g.drawImage(s.img, Math.round(s.ox), Math.round(s.oy)); g.restore();
       if (!fx.jet && !fx.ground) {   // the rotor still turning, losing speed
-        const rz = 9 * VK, ra = fx.t * 25;
+        const ra = fx.t * 25;
         g.strokeStyle = 'rgba(28,28,24,0.75)'; g.lineWidth = 1.2; g.beginPath();
-        for (let i = 0; i < 2; i++) { const a = ra + i * Math.PI / 2; g.moveTo(fx.x - Math.cos(a) * 13, fx.y - fx.alt - rz - Math.sin(a) * 12); g.lineTo(fx.x + Math.cos(a) * 13, fx.y - fx.alt - rz + Math.sin(a) * 12); }
+        for (let i = 0; i < 2; i++) { const a = ra + i * Math.PI / 2; g.moveTo(rx - Math.cos(a) * 13, ry - Math.sin(a) * 12); g.lineTo(rx + Math.cos(a) * 13, ry + Math.sin(a) * 12); }
         g.stroke();
       }
       g.fillStyle = Math.random() < 0.5 ? 'rgba(255,170,60,0.85)' : 'rgba(255,110,30,0.85)';
-      g.beginPath(); g.arc(fx.x + (Math.random() - 0.5) * 6, fx.y - fx.alt + (Math.random() - 0.5) * 4, 2.5 + Math.random() * 2, 0, 7); g.fill();
+      g.beginPath(); g.arc(bx + (Math.random() - 0.5) * 6, by + (Math.random() - 0.5) * 4, 2.5 + Math.random() * 2, 0, 7); g.fill();
       if (fx.ground) {   // sparks off the belly as it scrapes along
         g.fillStyle = 'rgba(255,220,140,0.9)';
         for (let i = 0; i < 3; i++) g.fillRect(Math.round(fx.x - fx.vx * 0.04 * (1 + i) + (Math.random() - 0.5) * 8), Math.round(fx.y - fx.vy * 0.04 * (1 + i) + (Math.random() - 0.5) * 4), 1, 1);
@@ -2423,21 +2432,23 @@ function drawEffect(g, fx) {
     }
     case 'eject': {
       // The seat and pilot riding the rocket up, flame beneath.
-      const hgt = fx.alt / VK, y = fx.y - fx.alt;
-      g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(fx.x + hgt * SHADOW_DX, fx.y + hgt * SHADOW_DY, 3, 2, 0, 0, 7); g.fill();
+      const hgt = fx.alt / VK, [shx, shy] = fromView(hgt * SHADOW_DX, hgt * SHADOW_DY * VIEW.F), at = (h) => liftPt(fx.x, fx.y, fx.alt + h);
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(fx.x + shx, fx.y + shy, 3, 2, 0, 0, 7); g.fill();
       if (fx.t < 0.3) {
-        g.fillStyle = 'rgba(255,200,90,0.9)'; g.beginPath(); g.ellipse(fx.x, y + 6, 1.6, 3.5 + Math.random() * 2, 0, 0, 7); g.fill();
+        g.fillStyle = 'rgba(255,200,90,0.9)'; g.beginPath(); g.ellipse(...at(-6), 1.6, 3.5 + Math.random() * 2, 0, 0, 7); g.fill();
       }
-      g.fillStyle = '#2b2b27'; g.fillRect(Math.round(fx.x - 2.5), Math.round(y - 1), 5, 5);
-      blit(g, infSprite({ type: 'pilot', faction: fx.faction, face: fx.face }, palFor(fx.faction), 4), fx.x, y + 3, false);
+      const [sx, sy] = at(-1.5);
+      g.fillStyle = '#2b2b27'; g.fillRect(Math.round(sx - 2.5), Math.round(sy - 2.5), 5, 5);
+      blit(g, infSprite({ type: 'pilot', faction: fx.faction, face: fx.face }, palFor(fx.faction), 4), ...at(-3), false);
       break;
     }
     case 'frag': {
       // A loose piece of wreckage: shadow below, the piece turning as it flies.
       const hgt = fx.alt / VK, fade = Math.min(1, (fx.life - fx.t) / 1.5);
       g.globalAlpha = fade;
-      if (fx.alt > 0.5) { g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(Math.round(fx.x + hgt * SHADOW_DX - fx.w / 2), Math.round(fx.y + hgt * SHADOW_DY), Math.ceil(fx.w), 1); }
-      g.save(); g.translate(fx.x, fx.y - fx.alt); g.rotate(fx.rot); g.scale(1, 0.6 + 0.4 * Math.abs(Math.cos(fx.rot * 1.7)));
+      const [shx, shy] = fromView(hgt * SHADOW_DX, hgt * SHADOW_DY * VIEW.F);
+      if (fx.alt > 0.5) { g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(Math.round(fx.x + shx - fx.w / 2), Math.round(fx.y + shy), Math.ceil(fx.w), 1); }
+      g.save(); g.translate(...liftPt(fx.x, fx.y, fx.alt)); g.rotate(fx.rot); g.scale(1, 0.6 + 0.4 * Math.abs(Math.cos(fx.rot * 1.7)));
       g.fillStyle = fx.color; g.fillRect(-fx.w / 2, -fx.h / 2, fx.w, fx.h);
       if (fx.burning && fx.t < 3) { g.fillStyle = Math.random() < 0.5 ? 'rgba(255,170,60,0.9)' : 'rgba(255,110,30,0.9)'; g.fillRect(-1, -1, 2, 2); }
       g.restore(); g.globalAlpha = 1;
