@@ -529,17 +529,17 @@ function draw() {
       if (p.kind === 'lob') {
         v.fillStyle = 'rgba(0,0,0,0.3)'; v.fillRect(Math.round(p.gx - 1), Math.round(p.gy), 3, 2);   // shadow on the ground
         if (p.style === 'v2') {
-          // The rocket, pointing along its flight, with a flame at the tail.
-          // Pointing along its flight as the camera sees it: the screen direction between two moments of the climb and dive (the old world-plane
-          // angle p.a pointed it sideways or upside down once the view was turned and squashed).
-          const L = 6, k0 = Math.min(1, p.t / p.dur), pos = (k) => {
-            const hh = p.z * (1 - k) + p.h * 4 * k * (1 - k);
-            return toView(...liftPt(p.sx + (p.tx - p.sx) * k, p.sy + (p.ty - p.sy) * k, hh));
-          };
-          const A = pos(Math.max(0, k0 - 0.03)), B = pos(Math.min(1, k0 + 0.03)), dl = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1;
-          const bx = (B[0] - A[0]) / dl, by = (B[1] - A[1]) / dl;
-          v.fillStyle = 'rgba(255,170,60,0.8)'; v.fillRect(Math.round(p.x - bx * (L + 2) - 1), Math.round(p.y - by * (L + 2) - 1), 3, 3);
-          for (let i = -L; i <= L; i++) { v.fillStyle = i > L - 2 ? '#b8302a' : '#c9c7bd'; v.fillRect(Math.round(p.x + bx * i), Math.round(p.y + by * i), 2, 2); }
+          // The rocket, pointing along its flight as the camera sees it, with a flame at the tail. Drawn in screen pixels (standAt):
+          // upright pixels have their positions turned and squashed like the ground, which laid the rocket on its side.
+          const L = 6, k0 = Math.min(1, p.t / p.dur), m = v.getTransform();
+          const hAt = (k) => p.z * (1 - k) + p.h * 4 * k * (1 - k);
+          const scr = (k) => { const [wx, wy] = liftPt(p.sx + (p.tx - p.sx) * k, p.sy + (p.ty - p.sy) * k, hAt(k)); return [m.a * wx + m.c * wy, m.b * wx + m.d * wy]; };
+          const A = scr(Math.max(0, k0 - 0.03)), B = scr(Math.min(1, k0 + 0.03)), dl = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1;
+          const bx = (B[0] - A[0]) / dl, by = (B[1] - A[1]) / dl, x = p.gx, y = p.gy;
+          standAt(v, x, y, hAt(k0), () => {
+            v.fillStyle = 'rgba(255,170,60,0.8)'; v.fillRect(Math.round(x - bx * (L + 2) - 1), Math.round(y - by * (L + 2) - 1), 3, 3);
+            for (let i = -L; i <= L; i++) { v.fillStyle = i > L - 2 ? '#b8302a' : '#c9c7bd'; v.fillRect(Math.round(x + bx * i), Math.round(y + by * i), 2, 2); }
+          });
         } else { v.fillStyle = '#2a2a24'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 2); }
         continue;
       }
