@@ -1609,6 +1609,14 @@ function drawStructure(g, b, t) {
   }
 }
 
+// A village house (world.js genVillage; models.js houseModel): neutral, so no side colours. Damaged copies as for any
+// structure; a fallen house is only rubble in the ground.
+function drawHouse(g, h) {
+  drawVar = 0;
+  const type = houseStructure(h.type), stage = dmgStage(h);
+  blit(g, stage ? damagedSprite(type, 'allies', stage) : structureSprite(type, 'allies'), h.cx * CELL, h.cy * CELL);
+}
+
 // A gun's recoil, 0 to 1 (shotAt, set in world.js fireWeapon): it kicks back at once, holds a
 // moment, then eases home, slowing as it settles, within 0.3 s.
 function recoil(e) {

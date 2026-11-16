@@ -4786,3 +4786,135 @@ function buildScenery() {
   for (let lv = 0; lv < 4; lv++) { scenery.ore[lv] = []; for (let v = 0; v < 4; v++) scenery.ore[lv].push(renderVox(oreModel(lv, v), 0)); }
   for (let lv = 0; lv < 4; lv++) { scenery.gem[lv] = []; for (let v = 0; v < 4; v++) scenery.gem[lv].push(renderVox(gemModel(lv, v), 0)); }
 }
+
+// ---------------------------------------------------------------------------
+// Village houses (world.js genVillage). A house's type is 'hv:<kind>:<w>:<h>:<look>' and its whole design is rolled
+// from that text: walls (plaster, brick, stone or timber frame), one or two storeys, a gabled or hipped roof of tile,
+// slate or thatch, windows with or without shutters, a door to the south, a chimney, a fence and a garden. The church
+// ('church0': tower at the north or west end, 'church1': south or east) is stone with a bell tower and spire.
+// It is registered as a structure the first time it is drawn, so the damaged copies (damagedSprite) work as for any
+// structure. Neutral: no side colours.
+function houseStructure(type) {
+  if (!STRUCTURES[type]) STRUCTURES[type] = () => houseModel(type);
+  return type;
+}
+function houseModel(type) {
+  const [, kind, ws, hs] = type.split(':'), W = +ws * CELL, H = +hs * CELL, r = rng(strSeed(type));
+  if (kind.startsWith('church')) return churchModel(W, H, kind === 'church1', r);
+  const pick = (a) => a[(r() * a.length) | 0];
+  const m = new VModel(-2, -2, W + 2, H + 2, 64);
+  // The plot: a little yard to the south, the house behind it.
+  const bx0 = 4, by0 = 4, bx1 = W - 4, by1 = H - (H > 50 ? 12 : 9);
+  const walls = pick(['plaster', 'plaster', 'plaster', 'brick', 'stone', 'timber', 'timber']);
+  const plaster = pick(['#ddd3bb', '#e6e1d3', '#cfb48a', '#d8bfae', '#c9c2a8', '#e2d6a8']);
+  const two = r() < (W * H > 48 * 48 ? 0.45 : 0.2), top = two ? 21 + ((r() * 3) | 0) : 11 + ((r() * 3) | 0);
+  // Walls.
+  if (walls === 'brick') brickBox(m, bx0, by0, 0, bx1, by1, top);
+  else {
+    const base = walls === 'stone' ? '#9c968a' : plaster;
+    m.box(bx0, by0, 0, bx1, by1, top, base, M_ROUGH);
+    m.paint(bx0, by0, 0, bx1, by1, top, (x, y, z) => {
+      if (z < 2) return '#6f6a61';   // plinth
+      if (walls === 'stone') return z % 4 === 0 || ((x + y + (z >> 2) * 3) % 7 === 0) ? '#7f7a70' : hash3(x, y, z) > 0.8 ? '#aaa597' : undefined;
+      if (walls === 'timber' && (z === top - 1 || z === 2 || (two && z === 11) || ((x - bx0) % 8 === 0 && (y === by0 || y === by1 - 1)) || ((y - by0) % 8 === 0 && (x === bx0 || x === bx1 - 1)))) return '#4a3826';
+      if (hash3(x, y, z) > 0.9) return shadeInt(base, 0.92);
+    });
+  }
+  // The roof: along the longer side (now and then across, or hipped), a shell over walls filled up to it.
+  const roofCol = pick([['#a3492f', '#86382a'], ['#a3492f', '#86382a'], ['#4e535c', '#3e424a'], ['#6e4b33', '#583b28'], ['#a88d52', '#8c7340'], ['#8e3b28', '#732f20']]);
+  const thatch = roofCol[0] === '#a88d52', hip = r() < 0.3, alongX = (bx1 - bx0 >= by1 - by0) !== (r() < 0.12);
+  const pitch = thatch ? 0.95 : 0.75, mx = (bx0 + bx1) / 2, my = (by0 + by1) / 2;
+  const hx = (bx1 - bx0) / 2 + 1, hy = (by1 - by0) / 2 + 1;
+  const rise = (x, y) => {
+    const ax = (hx - Math.abs(x + 0.5 - mx)) * pitch, ay = (hy - Math.abs(y + 0.5 - my)) * pitch;
+    return Math.max(0, Math.round(hip ? Math.min(ax, ay) : alongX ? ay : ax));
+  };
+  const wallCol = walls === 'brick' ? C.brick : walls === 'stone' ? '#9c968a' : plaster;
+  for (let y = by0 - 1; y < by1 + 1; y++) for (let x = bx0 - 1; x < bx1 + 1; x++) {
+    const k = rise(x, y), inside = x >= bx0 && x < bx1 && y >= by0 && y < by1;
+    if (inside && k > 1) m.box(x, y, top, x + 1, y + 1, top + k - 1, wallCol, M_ROUGH);   // gable ends and loft
+    const course = Math.floor(k / (thatch ? 4 : 3)) % 2, col = hash3(x, y, 5) > (thatch ? 0.7 : 0.88) ? shadeInt(roofCol[0], 1.1) : course ? roofCol[1] : roofCol[0];
+    m.box(x, y, top + Math.max(0, k - 1), x + 1, y + 1, top + k + 1, col, M_ROUGH);
+  }
+  const ridge = Math.round(Math.min(hx, hy) * pitch);
+  // Windows (south and east faces: the ones the camera sees), shutters, the door.
+  const glass = '#33454f', frame = '#e8e4da', shutter = pick(['#3f5f3a', '#2f4766', '#7a3a2a', '#5a4632', null, null]);
+  const rows = two ? [4, 14] : [4];
+  for (const z of rows) {
+    for (let x = bx0 + 4; x + 4 <= bx1 - 3; x += 10) {
+      m.box(x, by1 - 1, z, x + 4, by1, z + 5, frame, M_MATTE); m.box(x + 1, by1 - 1, z + 1, x + 3, by1, z + 4, glass, M_GLASS);
+      if (shutter) { m.box(x - 1, by1 - 1, z, x, by1, z + 5, shutter, M_MATTE); m.box(x + 4, by1 - 1, z, x + 5, by1, z + 5, shutter, M_MATTE); }
+    }
+    for (let y = by0 + 4; y + 4 <= by1 - 3; y += 10) {
+      m.box(bx1 - 1, y, z, bx1, y + 4, z + 5, frame, M_MATTE); m.box(bx1 - 1, y + 1, z + 1, bx1, y + 3, z + 4, glass, M_GLASS);
+    }
+  }
+  const dx = Math.round(mx - 2 + (r() - 0.5) * (bx1 - bx0 - 12));
+  m.clear(dx, by1 - 1, 2, dx + 5, by1, 10);
+  m.box(dx, by1 - 1, 0, dx + 5, by1, 10, '#4b3424', M_MATTE); m.box(dx + 1, by1 - 1, 2, dx + 4, by1, 9, pick(['#5d3f2a', '#2f4a3a', '#6b2a22']), M_MATTE);
+  m.box(dx - 1, by1, 0, dx + 6, by1 + 2, 1, '#77726a', M_ROUGH);   // the step
+  // A chimney through the roof.
+  if (r() < 0.7) {
+    const cx = alongX ? Math.round(bx0 + 4 + r() * (bx1 - bx0 - 8)) : Math.round(mx + (r() - 0.5) * 6), cy = alongX ? Math.round(my + (r() - 0.5) * 6) : Math.round(by0 + 4 + r() * (by1 - by0 - 8));
+    chimneyV(m, cx, cy, top, top + rise(cx, cy) + 6, 2.2);
+  }
+  // The yard: a fence along the front with a gate at the door, and a bush or a vegetable patch.
+  if (r() < 0.6) {
+    const fence = r() < 0.5 ? '#d8d4c8' : '#7a5a3a', fy = H - 2;
+    for (let x = 1; x < W - 1; x++) {
+      if (x >= dx - 1 && x < dx + 6) continue;
+      if (x % 4 === 1) m.box(x, fy, 0, x + 1, fy + 1, 5, fence, M_MATTE);
+      m.box(x, fy, 2, x + 1, fy + 1, 3, fence, M_MATTE); m.box(x, fy, 4, x + 1, fy + 1, 5, fence, M_MATTE);
+    }
+  }
+  const spots = [[bx0 + 4, H - 5], [bx1 - 4, H - 5]].filter(([x]) => Math.abs(x - dx - 2) > 8);
+  for (const [x, y] of spots) {
+    if (r() < 0.4) m.ellipsoid(x, y, 2, 3.5, 2.5, 3.5, pick(C.leaf), M_ROUGH);
+    else if (r() < 0.5) { m.box(x - 4, y - 2, 0, x + 4, y + 2, 1, '#4e3a28', M_ROUGH); m.paintTop(x - 4, y - 2, x + 4, y + 2, (px, py) => (px % 2 === 0 && hash3(px, py, 3) > 0.3 ? '#4f7a33' : undefined)); }
+  }
+  m.ridge = ridge;
+  return m;
+}
+// The village church: a stone nave under a steep slate roof, tall windows, and a square bell tower with a spire at
+// the end facing the square (`far`: the south or east end).
+function churchModel(W, H, far, r) {
+  const m = new VModel(-2, -2, W + 2, H + 2, 112);
+  const long = H > W, stone = '#a19b8e', dark = '#7d776b', roof = '#4b5059';
+  const T = 30;   // the tower's side
+  // The tower's place: middle of the end facing the square.
+  const tx0 = long ? (W - T) / 2 : far ? W - T - 2 : 2, ty0 = long ? (far ? H - T - 2 : 2) : (H - T) / 2;
+  const nx0 = long ? 8 : far ? 4 : T, nx1 = long ? W - 8 : far ? W - T : W - 4, ny0 = long ? (far ? 4 : T) : 8, ny1 = long ? (far ? H - T : H - 4) : H - 8;
+  const top = 22;
+  m.box(nx0, ny0, 0, nx1, ny1, top, stone, M_ROUGH);
+  m.paint(nx0, ny0, 0, nx1, ny1, top, (x, y, z) => (z < 2 ? '#6f6a61' : z % 4 === 0 || (x + y + (z >> 2) * 3) % 9 === 0 ? dark : undefined));
+  const mx = (nx0 + nx1) / 2, my = (ny0 + ny1) / 2, half = (long ? nx1 - nx0 : ny1 - ny0) / 2 + 1;
+  for (let y = ny0 - 1; y < ny1 + 1; y++) for (let x = nx0 - 1; x < nx1 + 1; x++) {
+    const k = Math.max(0, Math.round((half - Math.abs((long ? x : y) + 0.5 - (long ? mx : my))) * 1.05));
+    if (x >= nx0 && x < nx1 && y >= ny0 && y < ny1 && k > 1) m.box(x, y, top, x + 1, y + 1, top + k - 1, stone, M_ROUGH);
+    m.box(x, y, top + Math.max(0, k - 1), x + 1, y + 1, top + k + 1, Math.floor(k / 3) % 2 ? '#3e424a' : roof, M_ROUGH);
+  }
+  // Tall arched windows along the nave's south or east side.
+  for (let a = (long ? ny0 : nx0) + 6; a + 4 < (long ? ny1 : nx1) - 4; a += 12) {
+    for (let z = 5; z < 17; z++) {
+      const wdt = z > 14 ? 1 : 2;
+      if (long) m.box(nx1 - 1, a + 2 - wdt, z, nx1, a + 2 + wdt, z + 1, z > 15 ? '#c9a443' : '#3a4960', M_GLASS);
+      else m.box(a + 2 - wdt, ny1 - 1, z, a + 2 + wdt, ny1, z + 1, '#3a4960', M_GLASS);
+    }
+  }
+  // The tower, its belfry openings, a pyramid spire and a cross.
+  const TH = 56;
+  m.box(tx0, ty0, 0, tx0 + T, ty0 + T, TH, stone, M_ROUGH);
+  m.paint(tx0, ty0, 0, tx0 + T, ty0 + T, TH, (x, y, z) => (z < 2 ? '#6f6a61' : z % 5 === 0 || z === TH - 1 ? dark : undefined));
+  for (const [ax, ay, bx, by] of [[tx0 + 10, ty0 + T - 1, tx0 + 20, ty0 + T], [tx0 + T - 1, ty0 + 10, tx0 + T, ty0 + 20]]) {
+    m.box(ax, ay, 40, bx, by, 50, '#1e1c1a', M_MATTE);
+    m.box(ax, ay, 18, bx, by, 26, '#3a4960', M_GLASS);
+  }
+  m.box(tx0 + 11, ty0 + T - 1, 0, tx0 + 19, ty0 + T, 12, '#4b3424', M_MATTE);   // the door
+  for (let z = 0; z < 40; z++) {
+    const s = (T / 2 + 1) * (1 - z / 40);
+    m.box(tx0 + T / 2 - s, ty0 + T / 2 - s, TH + z, tx0 + T / 2 + s, ty0 + T / 2 + s, TH + z + 1, z % 4 === 0 ? '#3e424a' : roof, M_ROUGH);
+  }
+  m.box(tx0 + T / 2 - 0.5, ty0 + T / 2 - 0.5, TH + 40, tx0 + T / 2 + 1, ty0 + T / 2 + 1, TH + 50, '#c9a443', M_METAL);
+  m.box(tx0 + T / 2 - 3, ty0 + T / 2 - 0.5, TH + 45, tx0 + T / 2 + 4, ty0 + T / 2 + 1, TH + 46, '#c9a443', M_METAL);
+  return m;
+}

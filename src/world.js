@@ -164,7 +164,8 @@ function spawnPoints(mapId) {
 
 function genMap(seed) {
   G.spans = [];   // bridge spans that can be destroyed (genLayoutMap, maps with `breakable`)
-  if (MAPS[G.mapId].rows) { genLayoutMap(MAPS[G.mapId]); return; }
+  G.houses = [];   // village houses (genVillage, maps with `village`)
+  if (MAPS[G.mapId].rows) { genLayoutMap(MAPS[G.mapId]); genVillage(MAPS[G.mapId], seed); return; }
   const r = rng(seed ^ 0x5bd1e995);
   const T = G.terr;
   const spawns = G.spawns, half = spawns.slice(0, 4);
@@ -498,7 +499,10 @@ function addSpan(cells, x0, y0, x1, y1, bi) {
   G.spans.push(s); G.byId.set(s.id, s);
 }
 // After G.byId is rebuilt (a loaded game, an online copy starting afresh).
-function registerSpans() { for (const s of G.spans || []) { s.def = SPAN; G.byId.set(s.id, s); } }
+function registerSpans() {
+  for (const s of G.spans || []) { s.def = SPAN; G.byId.set(s.id, s); }
+  for (const h of G.houses || []) { h.def = HOUSE; G.byId.set(h.id, h); }
+}
 const spanAt = (x, y) => { const c = cellOfPos(x, y); return (G.spans || []).find((s) => s.cells.includes(c)) || null; };
 // The terrain under a span: deck (walkable) or open water.
 function setSpan(s, up) {
@@ -524,7 +528,7 @@ function breakSpan(s, attacker) {
 // they are given another order.
 function commandAttackGround(units, x, y) {
   if (!(x >= 0 && y >= 0 && x < WORLD && y < WORLD)) return;
-  const s = spanAt(x, y), c = cellOfPos(x, y);
+  const s = spanAt(x, y) || houseAt(x, y), c = cellOfPos(x, y);
   const spot = { kind: 'spot', type: 'spot', def: SPOT, team: -1, x, y, hp: 1, maxHp: 1, alive: true, hitT: -99 };
   if (G.wall[c]) { const p = cellCenter(c); spot.wall = c; spot.x = p.x; spot.y = p.y; }   // a wall or gate: fire until it is down
   commandAttack(units, s && s.alive ? s : spot);
@@ -754,6 +758,118 @@ function applySpans(list) {
     if (v[0] < s.hp) s.hitT = G.t;
     s.hp = v[0];
     if (!!v[1] !== s.alive) setSpan(s, !!v[1]);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Village houses (maps with `village` in MAPS). Each battle rolls its own village from its seed on the map's plots
+// (`lots`), so every copy of an online battle (and the game server) lays out the same houses with the same ids. Like a
+// bridge span, a house is not in G.entities (nothing looks for it, counts it or sends it as an entity) but it is in
+// G.byId, so an attack order can name it. Neutral: never chosen as a target, hurt only by blasts near it (houseBlast)
+// and by an ordered attack (ATTACK GROUND on it). Standing, its cells block like a building; down, they are rubble
+// anyone can cross. Plain data, so saves keep it; an online copy is sent the health of every house when one changes.
+const HOUSE_SPLASH = 12;   // px round a shell, rocket or missile hitting the ground that reaches a house
+const HOUSE_LOOKS = 6;     // designs per footprint in a battle (models.js houseModel), so a village has a few dozen looks
+function genVillage(m, seed) {
+  if (!m.village || !m.lots) return;
+  const r = rng(seed ^ 0x1f0a77e5), taken = new Uint8Array(NCELLS), look = () => (seed * 31 + ((r() * HOUSE_LOOKS) | 0)) >>> 0;
+  const free = (x0, y0, w, h, L) => {
+    if (x0 < L[0] || y0 < L[1] || x0 + w - 1 > L[2] || y0 + h - 1 > L[3]) return false;
+    for (let y = y0 - 1; y <= y0 + h; y++) for (let x = x0 - 1; x <= x0 + w; x++) {   // a cell of yard all round
+      if (!inMap(x, y)) return false;
+      const inside = x >= x0 && y >= y0 && x < x0 + w && y < y0 + h;
+      if (taken[idx(x, y)] || (inside && (G.terr[idx(x, y)] > 1 || G.ore[idx(x, y)]))) return false;
+    }
+    return true;
+  };
+  const put = (x0, y0, w, h, kind) => {
+    for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) taken[idx(x, y)] = 1;
+    const church = kind.startsWith('church'), hp = church ? 1400 : Math.min(1000, 150 + 70 * w * h);
+    const h1 = { id: G.nextId++, kind: 'house', type: houseType(kind, w, h, church ? seed >>> 0 : look()), def: HOUSE, team: -1,
+      cx: x0, cy: y0, w, h, x: (x0 + w / 2) * CELL, y: (y0 + h / 2) * CELL, hp, maxHp: hp, alive: true, hitT: -99 };
+    G.houses.push(h1); G.byId.set(h1.id, h1);
+    setHouse(h1, true);
+  };
+  // The church: on one of the long plots beside the square, its tower toward the square.
+  const longLots = m.lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) === 3);
+  if (longLots.length) {
+    const L = longLots[(r() * longLots.length) | 0], tall = L[3] - L[1] > L[2] - L[0];
+    const w = tall ? 4 : 6, h = tall ? 6 : 4, mx = (L[0] + L[2]) / 2, my = (L[1] + L[3]) / 2;
+    const toward = tall ? (my < (MAP - 1) / 2 ? L[3] - h + 1 : L[1]) : (mx < (MAP - 1) / 2 ? L[2] - w + 1 : L[0]);
+    put(tall ? L[0] : toward, tall ? toward : L[1], w, h, 'church' + ((tall ? my : mx) < (MAP - 1) / 2 ? 1 : 0));
+  }
+  const SIZES = [[2, 2], [2, 2], [3, 2], [2, 3], [3, 2], [2, 3], [3, 3], [4, 2], [2, 4]];
+  for (const L of m.lots) {
+    const fill = 0.6 + r() * 0.4, area = (L[2] - L[0] + 1) * (L[3] - L[1] + 1);
+    let used = 0;
+    for (let tries = 0; tries < 160 && used < area * fill * 0.8; tries++) {
+      const [w, h] = SIZES[(r() * SIZES.length) | 0];
+      // Mostly along the plot's edges, facing the lanes.
+      const edge = r() < 0.8, sx = L[2] - L[0] - w + 1, sy = L[3] - L[1] - h + 1;
+      if (sx < 0 || sy < 0) continue;
+      let x0 = L[0] + Math.round(r() * sx), y0 = L[1] + Math.round(r() * sy);
+      if (edge) { if (r() < 0.5) x0 = r() < 0.5 ? L[0] : L[0] + sx; else y0 = r() < 0.5 ? L[1] : L[1] + sy; }
+      if (!free(x0, y0, w, h, L)) continue;
+      put(x0, y0, w, h, 'house');
+      used += w * h;
+    }
+  }
+}
+// A house's look: the sprite key models.js builds it from (houseModel), as plain text so saves and copies keep it.
+const houseType = (kind, w, h, look) => `hv:${kind}:${w}:${h}:${look}`;
+const houseAt = (x, y) => {
+  if (!G.houses || !G.houses.length) return null;
+  const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+  return G.houses.find((h) => h.alive && cx >= h.cx && cy >= h.cy && cx < h.cx + h.w && cy < h.cy + h.h) || null;
+};
+function setHouse(h, up) {
+  h.alive = up;
+  for (let y = h.cy; y < h.cy + h.h; y++) for (let x = h.cx; x < h.cx + h.w; x++) G.block[idx(x, y)] = up ? 1 : 0;
+}
+// A blast at (x, y): every standing house within `rad` px of it takes a share, less toward the edge. `skip`: the
+// target hit directly (already hurt by the shot itself).
+function houseBlast(x, y, rad, dmg, wh, attacker, skip) {
+  if (!G.houses || !G.houses.length || G.remote || !dmg) return;
+  for (const h of G.houses) {
+    if (!h.alive || h === skip) continue;
+    const d = distTo({ x, y }, h);
+    if (d < rad) damage(h, dmg * (1 - d / rad * 0.6), wh, attacker, { x, y });
+  }
+}
+function collapseHouse(h) {
+  h.hp = 0;
+  setHouse(h, false);
+  const seed = (h.id * 7919) | 0;
+  hooks.sfx('explodeBig', h.x, h.y); hooks.sfx('collapse', h.x, h.y); hooks.shake(h.x, h.y, 2 + h.w * h.h * 0.4);
+  const n = h.w * h.h + 1;
+  for (let i = 0; i < n; i++) {
+    G.effects.push({ type: 'expl', x: (h.cx + Math.random() * h.w) * CELL, y: (h.cy + Math.random() * h.h) * CELL, size: 8 + Math.random() * 7,
+      t: -i * 0.15, life: 0.8, seed: seed + i, debris: i % 2 === 0 });
+  }
+  for (let i = 0; i < 3; i++) smoulder((h.cx + 0.3 + Math.random() * (h.w - 0.6)) * CELL, (h.cy + 0.3 + Math.random() * (h.h - 0.6)) * CELL, 14 + Math.random() * 10);
+  rubble(G.tctx, h.cx * CELL, h.cy * CELL, h.w * CELL, h.h * CELL, seed);
+  scorch(G.tctx, h.x, h.y, Math.min(h.w, h.h) * CELL * 0.45, seed + 3);
+}
+// Fire and smoke from a badly damaged house (below 30% health), run with the effects on every copy.
+function houseFx(dt) {
+  if (!G.houses || !G.houses.length) return;
+  for (const h of G.houses) {
+    if (!h.alive || h.hp > h.maxHp * DMG_AT[1]) continue;
+    if ((h.fxT = (h.fxT || 0) - dt) > 0) continue;
+    h.fxT = 0.25 + Math.random() * 0.35;
+    const x = (h.cx + 0.25 + Math.random() * (h.w - 0.5)) * CELL, y = (h.cy + 0.25 + Math.random() * (h.h - 0.5)) * CELL;
+    if (Math.random() < 0.5) G.effects.push({ type: 'fire', x, y: y - 10, t: 0, life: 0.6 + Math.random() * 0.5, vy: -14 });
+    G.effects.push({ type: 'smoke', x, y: y - 14, r: 3, t: 0, life: 2.4, alpha: 0.5, color: '#3a3632', vy: -10, vx: 2 });
+  }
+}
+// An online copy: the houses' health as the host sent it (0: down).
+function applyHouses(list) {
+  list.forEach((v, i) => {
+    const h = G.houses && G.houses[i];
+    if (!h) return;
+    if (v < h.hp) h.hitT = G.t;
+    h.hp = v;
+    if ((v > 0) !== h.alive) setHouse(h, v > 0);
   });
 }
 
@@ -1139,7 +1255,7 @@ const unitsOf = (tid) => G.entities.filter((e) => e.alive && e.kind === 'unit' &
 const isAirborne = (e) => e.cls === 'air' && e.as !== 'landed';
 
 function distTo(a, e) {
-  if (e.kind === 'bld' || e.kind === 'span') {
+  if (e.kind === 'bld' || e.kind === 'span' || e.kind === 'house') {
     const x0 = e.cx * CELL, y0 = e.cy * CELL;
     const dx = Math.max(x0 - a.x, 0, a.x - (x0 + e.w * CELL)), dy = Math.max(y0 - a.y, 0, a.y - (y0 + e.h * CELL));
     return Math.hypot(dx, dy);
@@ -1195,7 +1311,7 @@ function nearBuckets(x, y, r) {
 // Helicopters favour what their weapon is made for: the Hind's chain gun goes for infantry, the
 // Hellfires for tanks and vehicles. A favoured target is one the warhead hits at least 80% as hard as
 // its best kind of ground unit; anything else is only picked when nothing favoured is in sight.
-const armorOf = (e) => e.kind === 'bld' || e.kind === 'span' ? 'bld' : isAirborne(e) ? 'air' : e.def.armor === 'air' ? 'light' : e.def.armor;
+const armorOf = (e) => e.kind === 'bld' || e.kind === 'span' || e.kind === 'house' ? 'bld' : isAirborne(e) ? 'air' : e.def.armor === 'air' ? 'light' : e.def.armor;
 function favoured(w, e) {
   const t = WARHEADS[w.wh];
   return isAirborne(e) || t[armorOf(e)] >= 0.8 * Math.max(t.inf, t.light, t.heavy);
@@ -1787,7 +1903,7 @@ function muzzle(src) {
 const PRONE_TIME = 6, PRONE_COVER = 0.5, CRAWL_SPEED = 0.6;
 // Where shots should land on a target (its body, not its feet).
 function aimY(t) {
-  if (t.kind === 'bld') return t.y - 6;
+  if (t.kind === 'bld' || t.kind === 'house') return t.y - 6;
   if (t.cls === 'inf' && t.stance === 'prone') return t.y - 2;
   return t.y - (t.alt || 0) - (t.cls === 'inf' ? 8 : 4);
 }
@@ -2018,6 +2134,7 @@ function updateProjectiles(dt) {
       if (t.alive) damage(t, p.w.dmg, p.w.wh, p.from || null, { x: p.x, y: p.y });
       impact(p.kind, t.alive ? tx : p.x, t.alive ? ty : p.y, isAirborne(t));
       if ((p.w.wh === 'HE' || p.w.wh === 'GR') && t.kind === 'unit' && !isAirborne(t)) splash(tx, ty, 14, p.w.dmg * 0.4, p.team, t, p.from);
+      if (G.houses && G.houses.length && !p.aa && p.kind !== 'bullet' && !isAirborne(t)) houseBlast(tx, ty, HOUSE_SPLASH, p.w.dmg * 0.5, p.w.wh, p.from, t);
       continue;
     }
     p.x += (dx / d) * step; p.y += (dy / d) * step;
@@ -2037,6 +2154,7 @@ function fireBlast(p, x, y) {
     const d = distTo({ x, y }, e);
     if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, from, { x, y });
   }
+  houseBlast(x, y, w.splash, w.dmg, w.wh, from);
 }
 
 function grenadeBlast(p) {
@@ -2051,6 +2169,7 @@ function grenadeBlast(p) {
     const d = distTo({ x, y }, e);
     if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.6), w.wh, from, { x, y });
   }
+  houseBlast(x, y, w.splash, w.dmg, w.wh, from);
 }
 
 // An artillery shell or V2 rocket coming down: a big blast that hurts everything around it.
@@ -2067,6 +2186,7 @@ function lobBlast(p) {
     const d = distTo({ x, y }, e);
     if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * (v2 ? V2_FALLOFF : 0.65)), w.wh, from, { x, y });
   }
+  houseBlast(x, y, w.splash, w.dmg, w.wh, from);
 }
 // How much of a V2's damage is lost at the edge of its blast (artillery: 0.65). A direct hit is full damage.
 const V2_FALLOFF = 0.85;   // 2026.11.05.3: was 0.65 (35% at the edge, now 15%)
@@ -2081,6 +2201,7 @@ function bombBlast(p) {
     const d = distTo({ x, y }, e);
     if (d < w.splash) damage(e, w.dmg * (1 - d / w.splash * 0.5), w.wh, p.from || null, { x, y });
   }
+  houseBlast(x, y, w.splash, w.dmg, w.wh, p.from || null);
 }
 
 // Craters only on open ground: not in water or under a structure.
@@ -2191,6 +2312,11 @@ function damage(t, amount, wh, attacker, from) {
   if (t.kind === 'span') {   // a bridge span: no side, no alarms
     t.hp -= amount * mult * (0.9 + Math.random() * 0.2); t.hitT = G.t;
     if (t.hp <= 0) breakSpan(t, attacker);
+    return;
+  }
+  if (t.kind === 'house') {   // a village house: neutral, no alarms
+    t.hp -= amount * mult * (0.9 + Math.random() * 0.2); t.hitT = G.t;
+    if (t.hp <= 0) collapseHouse(t);
     return;
   }
   if (attacker && attacker.rank) amount *= VET.fire[attacker.rank];
@@ -2820,7 +2946,7 @@ function approachSpot(u, t, w) {
 // The widest arc (radians either side of the unit's own bearing: 2.4 is most of the way round) and the room
 // each unit gets on it (px).
 const FAN_MAX = 1.95, FAN_GAP_INF = 16, FAN_GAP_VEH = 31;
-const fanR = (t, w) => Math.max(12, w.range * 0.85) + (t.kind === 'bld' || t.kind === 'span' ? Math.max(t.w, t.h) * CELL / 2 : 0);
+const fanR = (t, w) => Math.max(12, w.range * 0.85) + (t.kind === 'bld' || t.kind === 'span' || t.kind === 'house' ? Math.max(t.w, t.h) * CELL / 2 : 0);
 function fanAngle(u, t, R) {
   const key = t.id !== undefined ? t.id : t.x + ',' + t.y;   // a ground spot has no id: its place is its key
   if (u.apT === key) return;
@@ -4468,6 +4594,7 @@ function updateEffects(dt) {
     if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') { fx.y += fx.vy * dt; fx.x += (fx.vx || 0) * dt; }
   }
   structureDamageFx(dt);
+  houseFx(dt);
   plantSmoke(dt);
   treeFires(dt);
   updateSamPits(dt);

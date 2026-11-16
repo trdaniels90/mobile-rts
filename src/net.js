@@ -610,6 +610,7 @@ const Net = (() => {
     if (s.fog) { const fog = G.fog[G.me]; for (const i of s.fog) fog[i] = 1; G.shroudDirty = true; }
     if (s.ore) for (let i = 0; i < s.ore.length; i += 3) { G.ore[s.ore[i]] = s.ore[i + 1]; G.gem[s.ore[i]] = s.ore[i + 2]; }
     if (s.sp) applySpans(s.sp);
+    if (s.hv) applyHouses(s.hv);
     if (s.wl) applyWalls(s.wl);
     if (s.ev) for (const ev of s.ev) playEvent(ev);
     if (s.log) {   // the host's debrief log, as it grows

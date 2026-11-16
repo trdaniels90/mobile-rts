@@ -391,6 +391,32 @@ share globals. Read this file first; the commit history explains every change in
 - Snapshots also carry the debrief log as it grows (`s.log` in netcore.js `snapshot`, applied in net.js `applySnapshot`),
   so a phone that ends a battle on its own (it could not reconnect) still has its graphs.
 
+## Map "Crossroads Village" and village houses (after 2026.11.16, not released, both modes)
+
+- `MAPS.village` in maps.js: grassland, **144 x 144**, `teamSize: 2`, 4 starts (west 0-1 against east 2-3), laid out by
+  `python3 tools/make-village-map.py` (no design picture: one quarter worked out in code and mirrored both ways; it prints
+  `spawns`, `gems`, `lots` and `rows` to paste over the entry). Big lakes on the north and south edges push west-east
+  traffic through or beside the village (with plain ponds there, 14 minutes of computer play never fought in it).
+- **Houses** (`village: true`, `lots` = building plots `[x0, y0, x1, y1]` between the lanes): `genVillage` (world.js, called
+  from `genMap` after `genLayoutMap`) rolls them from the battle's seed, so every battle has its own village and every copy
+  (online guest, server) the same one with the same ids. One church (`church0`/`church1`: tower toward the square) on a
+  plot beside the square, then houses of 2x2 to 4x2 along plot edges with a cell of yard all round.
+- Like a bridge span: `kind: 'house'`, `team: -1`, `def: HOUSE` (data.js), **not in `G.entities`**, in `G.byId`
+  (`registerSpans` and save.js put them back). Standing, its cells are `G.block`; down (`collapseHouse`), open, with
+  rubble and smoulder marks. Hurt only by `houseBlast` (shells, rockets and missiles hitting the ground within
+  `HOUSE_SPLASH` 12 px; artillery, V2, grenade, flame and bomb blasts within their splash) and by ATTACK GROUND on it
+  (`commandAttackGround` picks `houseAt`). Never auto-targeted. Health 150 + 70 per cell (max 1000), church 1400.
+- **Looks:** `type` is `'hv:<kind>:<w>:<h>:<look>'`; `houseModel` (models.js) rolls the whole design from that text
+  (plaster, brick, stone or timber walls, one or two storeys, gabled or hipped tile, slate or thatch roof, windows,
+  shutters, door, chimney, fence, garden) and `houseStructure` registers it in `STRUCTURES`, so `damagedSprite` works as
+  for any structure. `HOUSE_LOOKS` (6) looks per footprint a battle. Not baked (made at run time). `houseFx` adds fire and
+  smoke below 30%. Drawn in ui.js `draw` sorted with units, on explored ground (`houseSeen`), and on the radar.
+- **Online:** snapshots carry `hv` (every house's health, 0 = down) whenever one changes; `applyHouses` on the copy.
+  The server must run the same version.
+- `node tools/sim/village.js <repo>`: same seed same village, blocking, reachability, no fire unasked, blast damage, ordered
+  attack and collapse, the online copy and snapshot, a 14-minute computer 2 v 2. Save and continue checked in a browser.
+- Not done: infantry garrisoning houses (talked through with the owner, not agreed yet).
+
 ## Map "Twin Lakes" (contributor's map by JGFortanelli, owner OK'd, not released)
 
 - `MAPS.twinlakes` in maps.js: **132 x 132** cells, 4 start positions, `teamSize: 2` (1 v 1, 2 v 2, co-op). Two lakes run from the
@@ -787,6 +813,7 @@ Supabase.
 | `bridges.js` | Headless: attack ground, destroyable bridge spans on Twin Lakes (hurt only by an ordered attack, collapse, routes go round), Engineers rebuilding a span and repairing a structure, online snapshot and orders, the computer training and sending an Engineer |
 | `walls.js` | Headless: walls and gates: laying a line (rules, prices), what each kind stops, gates and alliances, wire under tracks, ordered fire only, selling, Auto Attack units shooting a way through, online snapshot and orders |
 | `rally.js` | Headless: units from an Outpost Barracks stay there, PRIMARY picks the Barracks, a rally point gathers new units, fallback when the primary is lost |
+| `village.js` | Headless: Crossroads Village houses: seeded layout, blocking, blast and ordered damage, collapse, online snapshot, a computer 2 v 2 |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP

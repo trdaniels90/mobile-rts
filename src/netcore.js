@@ -136,6 +136,11 @@ const NetCore = (() => {
       const sp = JSON.stringify(G.spans.map((x) => [Math.max(0, Math.ceil(x.hp)), x.alive ? 1 : 0]));
       if (sp !== P.spSent) { P.spSent = sp; s.sp = JSON.parse(sp); }
     }
+    // Village houses: the health of every one whenever one changes (0: down).
+    if (G.houses && G.houses.length) {
+      const hv = G.houses.map((x) => (x.alive ? Math.max(1, Math.ceil(x.hp)) : 0)), key = hv.join(',');
+      if (key !== P.hvSent) { P.hvSent = key; s.hv = hv; }
+    }
     // The debrief's log as it grows (a sample every 15 s), so a phone that has to end the battle on its own
     // (it could not reconnect) still has its graphs. Each list goes from where this player's copy is.
     const L = G.log, ls = P.logSent || (P.logSent = [0, 0, 0]);

@@ -340,6 +340,7 @@
     g.fillRect(x1 - L + 1, y1, L, 1); g.fillRect(x1, y1 - L + 1, 1, L);
   }
   const seenAt = (x, y) => G.seen[cellOfPos(x, y)];
+  const houseSeen = (h) => G.seen[idx(h.cx, h.cy)] || G.seen[idx(h.cx + h.w - 1, h.cy + h.h - 1)];
   const visibleToPlayer = (e) => alliedSides(e.team, G.me) || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y));
 
 const gateAnim = new Map();   // cell -> { v: how far a gate's barrier is down (0 to 1), t: when last drawn }
@@ -414,10 +415,13 @@ function draw() {
       // Parked aircraft too, so they show on top of their Helipad or Airfield.
       if (e.kind === 'unit' && e.cls === 'air') air.push(e); else ground.push(e);
     }
-    const baseY = (e) => e.kind === 'bld' ? (e.cy + e.h) * CELL : e.y;
+    // Village houses on explored ground (world.js genVillage), sorted in with everything else.
+    for (const h of G.houses || []) if (h.alive && houseSeen(h) && h.x > x0 - 60 && h.x < x1 + 60 && h.y > y0 - 60 && h.y < y1 + 120) ground.push(h);
+    const baseY = (e) => e.kind === 'bld' || e.kind === 'house' ? (e.cy + e.h) * CELL : e.y;
     ground.sort((a, b) => baseY(a) - baseY(b));
     for (const e of ground) {
       if (e.kind === 'bld') drawStructure(v, e, G.t);
+      else if (e.kind === 'house') drawHouse(v, e);
       else drawUnit(v, e, G.t);
     }
     for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') flameJet(v, e);
@@ -462,6 +466,7 @@ function draw() {
       if (!G.seen[idx(Math.floor(s.x / CELL), Math.floor(s.y / CELL))]) continue;
       if (s.alive && (G.t - s.hitT < 3 || aimSpan)) drawHealth(v, s, s.x, s.y - 2, 40);
     }
+    for (const h of G.houses || []) if (h.alive && (G.t - h.hitT < 3 || aimSpan) && houseSeen(h) && inView(h)) drawHealth(v, h, h.x, h.cy * CELL - 6, Math.min(40, h.w * 14));
     // Selection brackets and health bars.
     for (const e of G.entities) {
       if (!inView(e) || !visibleToPlayer(e)) continue;
@@ -594,6 +599,8 @@ function draw() {
     rctx.drawImage(miniTerrain, 0, 0, Wr, Hr);
     for (let i = 0; i < NCELLS; i++) if (G.ore[i] && G.seen[i]) { rctx.fillStyle = G.gem[i] ? '#a58cff' : '#c9a227'; rctx.fillRect(cellX(i) * k, cellY(i) * k, Math.ceil(k), Math.ceil(k)); }
     if (G.wallN) for (let i = 0; i < NCELLS; i++) if (G.wall[i] && G.seen[i]) { rctx.fillStyle = WALL_BY_ID[G.wall[i]].gate ? '#d8b024' : '#9a9c98'; rctx.fillRect(cellX(i) * k, cellY(i) * k, Math.ceil(k), Math.ceil(k)); }
+    rctx.fillStyle = '#b9ab8e';   // village houses
+    for (const h of G.houses || []) if (h.alive && houseSeen(h)) rctx.fillRect(h.cx * k, h.cy * k, h.w * k, h.h * k);
     for (const e of G.entities) {
       if (!visibleToPlayer(e)) continue;
       rctx.fillStyle = G.teams[e.team].pal[e.kind === 'bld' ? 'main' : 'light'];

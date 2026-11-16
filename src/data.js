@@ -64,6 +64,8 @@ const WALL_LINE_MAX = 40;   // pieces in one line
 // SPOT: a point on the ground units were told to fire at (commandAttackGround).
 const SPOT = { name: 'Ground', armor: 'bld', r: 0 };
 const SPAN = { name: 'Bridge', hp: 6000, armor: 'bld', r: 20 };
+// A village house (maps with `village`; world.js genVillage): neutral, hurt by blasts near it and by an ordered attack.
+const HOUSE = { name: 'House', armor: 'bld', r: 20 };
 const WARHEADS = {
   SA:    { inf: 1.0, light: 0.55, heavy: 0.25, bld: 0.3, air: 0.6 },   // small arms
   AP:    { inf: 0.3, light: 0.9,  heavy: 1.0,  bld: 0.7, air: 1.0 },   // tank shells
