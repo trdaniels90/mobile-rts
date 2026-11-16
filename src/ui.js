@@ -418,6 +418,8 @@ function draw() {
     // Village houses on explored ground (world.js genVillage), sorted in with everything else.
     for (const h of G.houses || []) if (h.alive && houseSeen(h) && h.x > x0 - 60 && h.x < x1 + 60 && h.y > y0 - 60 && h.y < y1 + 120) ground.push(h);
     for (const p of G.props || []) if (inView(p) && G.seen[cellOfPos(p.x, p.y)]) ground.push(p);
+    for (const f of G.folk || []) if (f.st !== 'in' && inView(f) && G.seen[cellOfPos(f.x, f.y)]) ground.push({ kind: 'folk', v: f, y: f.y });
+    for (const c of G.hens || []) if (inView(c) && G.seen[cellOfPos(c.x, c.y)]) ground.push({ kind: 'hen', v: c, y: c.y });
     if (G.birds) drawBirds(v, false, x0, y0, x1, y1);   // pigeons on the ground
     const baseY = (e) => e.kind === 'bld' || e.kind === 'house' ? (e.cy + e.h) * CELL : e.y;
     ground.sort((a, b) => baseY(a) - baseY(b));
@@ -425,6 +427,8 @@ function draw() {
       if (e.kind === 'bld') drawStructure(v, e, G.t);
       else if (e.kind === 'house') drawHouse(v, e);
       else if (e.kind === 'prop') drawProp(v, e);
+      else if (e.kind === 'folk') drawFolk(v, e.v);
+      else if (e.kind === 'hen') drawHen(v, e.v);
       else drawUnit(v, e, G.t);
     }
     for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') flameJet(v, e);

@@ -439,6 +439,14 @@ share globals. Read this file first; the commit history explains every change in
   knocked over (`knockProp`) by blasts and passing vehicles (`villageLife`); chimney smoke from about 2 houses in 5
   (`m.chim` of the house model); pigeons (`G.birds`, `birdFlocks`, `flyBirds`, art.js `drawBirds`) round the fountain and on
   the church roof that take off at units, shots and blasts and come back after 20-45 s.
+  More (after 2026.11.16, owner's "more life"): **villagers** (`G.folk`, `villagers`, `moveFolk`, art.js `drawFolk`: up to 16
+  pixel figures walking `streetNet`, a graph of the lamps plus a ring round the fountain and points along the square's
+  edges, joined where the straight line is clear) who run into the nearest free house (`scareFolk`) when an armed unit
+  comes within 200 px or a blast within 260 px, and come out 25-55 s later once `G.calmAt` has passed; **hens** in four
+  yards (`hens`, `moveHens`, `drawHen`) that scatter and come back; **washing lines** (`laundry` props in front of about
+  3 houses in 10, swaying with `windNow`, hidden while the house is held); **sounds**: the church bell tolls 3-5 times
+  every 2-3 minutes while calm and not held (`bell` in audio.js), sparrows chirp in the square (`chirp`). All looks and
+  sound only, worked out on each phone (effects pass, `G.inFx`, so the host relays nothing).
 
 ## Map "Twin Lakes" (contributor's map by JGFortanelli, owner OK'd, not released)
 

@@ -317,6 +317,17 @@ const Sound = (() => {
     // Fallbacks for the recorded construction clank and collapse.
     build(t, o) { noiseHit(t, 0.12, 'bandpass', 2200, 1600, 3, 0.4, o); tone(t, 'square', 330, 300, 0.08, 0.12, o); },
     // Thunder: a sharp crack, then a long low rumble that rolls a few times as it dies away.
+    // The village church bell (world.js villageSounds): a struck bell's partials, the hum and the strike tone ringing on.
+    bell(t, o) {
+      const f = 392;
+      for (const [k, v, d] of [[0.5, 0.35, 3.2], [1, 0.5, 2.6], [1.19, 0.3, 2.0], [1.5, 0.22, 1.6], [2, 0.25, 1.4], [2.51, 0.12, 0.9], [3.01, 0.1, 0.7]]) tone(t, 'sine', f * k, f * k, d, v, o, 0.004);
+      noiseHit(t, 0.05, 'bandpass', 2400, 2000, 1.5, 0.15, o);
+    },
+    // Sparrows chirping in the square.
+    chirp(t, o) {
+      const n = 2 + ((Math.random() * 3) | 0), base = 3200 + Math.random() * 1400;
+      for (let i = 0; i < n; i++) tone(t + i * (0.09 + Math.random() * 0.05), 'sine', base * (1.15 + Math.random() * 0.2), base * (0.8 + Math.random() * 0.1), 0.06, 0.25, o, 0.004);
+    },
     thunder(t, o) {
       noiseHit(t, 0.3, 'bandpass', 2400, 500, 0.7, 0.55, o, 0.004);
       const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true;
@@ -350,11 +361,11 @@ const Sound = (() => {
   const HOLD = { thunder: 4, explodeBig: 1.6, collapse: 1.6, explodeVeh: 1.1, cannonHeavy: 0.9, cannon: 0.6, turretGun: 0.6, hitMed: 0.6, tesla: 0.8, flame: 0.9, fireHit: 0.8, missile: 0.9, rocket: 0.9, redeye: 0.9, build: 0.5, die: 0.5, dieBlast: 0.7, dieFire: 0.8, rifle: 0.3, m16: 0.3, mg: 0.22, pillbox: 0.22, hitSmall: 0.3, flak: 0.5, throw: 0.5 };
   const UI_SOUNDS = new Set(['click', 'ready', 'denied', 'sell', 'place', 'cashUp', 'cashDown']);
   // Rough loudness of each effect so distant battles do not drown nearby ones.
-  const LEVEL = { rifle: 0.7, m16: 0.7, mg: 0.95, pillbox: 0.95, throw: 0.8, cannon: 0.8, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, redeye: 0.65, missile: 0.7, flak: 0.75, tesla: 0.85,
+  const LEVEL = { bell: 0.45, chirp: 0.22, rifle: 0.7, m16: 0.7, mg: 0.95, pillbox: 0.95, throw: 0.8, cannon: 0.8, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, redeye: 0.65, missile: 0.7, flak: 0.75, tesla: 0.85,
     hitSmall: 0.7, hitMed: 0.8, explodeVeh: 0.9, explodeBig: 1.0, flame: 0.8, fireHit: 0.8, build: 0.55, collapse: 1.0, die: 0.7, dieBlast: 0.75, dieFire: 0.7 };
 
   // How far each sound carries: the quietest it gets however far away the fighting is.
-  const CARRY = { die: 0.04, dieBlast: 0.05, dieFire: 0.04, collapse: 0.26, build: 0.05, explodeBig: 0.3, explodeVeh: 0.24, cannon: 0.18, cannonHeavy: 0.2, turretGun: 0.18, hitMed: 0.18, tesla: 0.18,
+  const CARRY = { bell: 0.035, chirp: 0.001, die: 0.04, dieBlast: 0.05, dieFire: 0.04, collapse: 0.26, build: 0.05, explodeBig: 0.3, explodeVeh: 0.24, cannon: 0.18, cannonHeavy: 0.2, turretGun: 0.18, hitMed: 0.18, tesla: 0.18,
     rocket: 0.14, redeye: 0.14, missile: 0.14, flak: 0.12, hitSmall: 0.12, mg: 0.12, pillbox: 0.12, fireHit: 0.1, flame: 0.1, rifle: 0.09, m16: 0.09, throw: 0.06 };
 
   // dist: screens from the camera (1 = screen edge). Near and far sounds have separate voice
@@ -509,7 +520,7 @@ registerProcessor('sfx-mix', SfxMix);
     const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const entry = synthCache[name] = { ready: false, list: [] };
     if (!OAC || !FX[name]) return null;
-    const ui = UI_SOUNDS.has(name), len = ui ? 0.6 : name === 'thunder' ? 4.2 : 1.6;
+    const ui = UI_SOUNDS.has(name), len = ui ? 0.6 : name === 'thunder' ? 4.2 : name === 'bell' ? 3.4 : 1.6;
     let pending = 2;
     for (let k = 0; k < 2; k++) {
       let off;

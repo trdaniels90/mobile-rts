@@ -1660,6 +1660,7 @@ function fountainWater(g, h) {
 // Village props (world.js villageProps): a lamp's light is drawn over it.
 let lampGlowPic = null;
 function drawProp(g, p) {
+  if (p.k === 'laundry') { drawLaundry(g, p); return; }
   const s = propSprite(p);
   blit(g, s, p.x, p.y);
   if (p.k === 'lamp' && p.up) {
@@ -1675,6 +1676,56 @@ function drawProp(g, p) {
     g.globalAlpha = 0.35 * flick; g.drawImage(lampGlowPic, Math.round(p.x - 14), Math.round(p.y - 9), 36, 20);   // the pool of light on the ground
     g.restore();
   }
+}
+// Washing on a line in front of a house, swaying in the wind; gone while the house is held or down, on the ground
+// once knocked over.
+const CLOTHES = ['#e8e4da', '#c9d8e8', '#b8302a', '#3a5a8a', '#e0c070', '#d8a8b8', '#f2f0ea', '#6a8a4a'];
+function drawLaundry(g, p) {
+  const h = G.byId.get(p.h);
+  if (!h || !h.alive || h.n) return;
+  const x0 = Math.round(p.x - p.w / 2), x1 = Math.round(p.x + p.w / 2), y = Math.round(p.y - 5), top = y - 11;
+  if (!p.up) { for (let i = 0; i < 5; i++) { g.fillStyle = CLOTHES[(p.v + i * 3) % CLOTHES.length]; g.fillRect(x0 + 4 + i * 7 + ((p.v >> i) & 3), y - 1 + ((p.v >> (i + 2)) & 3), 4, 2); } return; }
+  const wind = typeof windNow === 'function' ? windNow() : { x: 4, y: 0 }, k = Math.max(-2, Math.min(2, wind.x * 0.25));
+  g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(x0, y + 1, x1 - x0, 1);   // the line's shadow
+  g.fillStyle = '#5a4632'; g.fillRect(x0, top, 1, y - top + 1); g.fillRect(x1, top, 1, y - top + 1);   // posts
+  const n = Math.max(3, Math.floor((x1 - x0) / 7));
+  for (let i = 0; i <= x1 - x0; i++) { const sag = Math.round(Math.sin(i / (x1 - x0) * Math.PI) * 2); g.fillStyle = '#d8d4c8'; g.fillRect(x0 + i, top + 1 + sag, 1, 1); }
+  for (let i = 0; i < n; i++) {
+    const cx = x0 + 3 + i * ((x1 - x0 - 6) / n), sag = Math.round(Math.sin((cx - x0) / (x1 - x0) * Math.PI) * 2);
+    const sway = Math.round(k + Math.sin(G.t * 3 + i * 1.7 + p.v) * 0.8), w = 3 + ((p.v >> i) & 1), hh = 4 + ((p.v >> (i + 1)) & 3);
+    g.fillStyle = CLOTHES[(p.v + i * 5) % CLOTHES.length];
+    g.fillRect(Math.round(cx), top + 2 + sag, w, 2); g.fillRect(Math.round(cx) + sway, top + 4 + sag, w, hh - 2);
+    g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(Math.round(cx) + sway, top + 2 + sag + hh - 1, w, 1);
+  }
+}
+// A villager (world.js moveFolk), a small figure drawn in pixels: hair, face, shirt and trousers or a skirt, legs
+// stepping as they walk, arms up when they run.
+const FOLK_LEGS = ['#3b3a36', '#4a3826', '#2f4766', '#5a4632', '#5a5a52'], FOLK_HAIR = ['#2a1d14', '#5a3a22', '#a07c4a', '#cfcac0', '#1c1c1a'], FOLK_SKIN = ['#e0b08c', '#c38d66', '#9a6a48', '#e8c0a0'];
+function drawFolk(g, v) {
+  const L = v.look, x = Math.round(v.x), y = Math.round(v.y), f = v.face;
+  const shirt = FOLK_SHIRTS[L % FOLK_SHIRTS.length], legs = FOLK_LEGS[(L >> 3) % FOLK_LEGS.length], hair = FOLK_HAIR[(L >> 6) % FOLK_HAIR.length], skin = FOLK_SKIN[(L >> 9) % FOLK_SKIN.length];
+  const skirt = (L >> 12) % 3 === 0, hat = (L >> 14) % 4 === 0, run = v.st === 'flee', moving = v.st !== 'idle';
+  const s = moving ? Math.sin(v.ph * (run ? 2.2 : 1.6)) : 0, a = s > 0.3 ? 1 : s < -0.3 ? -1 : 0, bob = moving && Math.abs(s) > 0.7 ? -1 : 0;
+  g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(x - 2, y, 5, 1);
+  if (skirt) { g.fillStyle = legs === '#3b3a36' ? '#7a3a4a' : legs; g.fillRect(x - 2, y - 5 + bob, 5, 4); g.fillStyle = '#2a2622'; g.fillRect(x - 1 + a, y - 1, 1, 1); g.fillRect(x + 1 - a, y - 1, 1, 1); }
+  else { g.fillStyle = legs; g.fillRect(x - 1 + a, y - 5 + bob, 1, 5 - bob); g.fillRect(x + 1 - a, y - 5 + bob, 1, 5 - bob); g.fillRect(x - 1, y - 5 + bob, 3, 1); }
+  g.fillStyle = shirt; g.fillRect(x - 2, y - 9 + bob, 5, 4);
+  g.fillStyle = skin;
+  if (run) { g.fillRect(x - 3, y - 11 + bob, 1, 3); g.fillRect(x + 3, y - 11 + bob, 1, 3); }   // arms up
+  else { g.fillRect(x - 3, y - 8 + bob - a, 1, 3); g.fillRect(x + 3, y - 8 + bob + a, 1, 3); }
+  g.fillRect(x - 1, y - 12 + bob, 3, 3);
+  g.fillStyle = hair; g.fillRect(x - 1, y - 12 + bob, 3, 1); g.fillRect(x - (f > 0 ? 1 : -1), y - 11 + bob, 1, 1);
+  if (hat) { g.fillStyle = (L >> 16) & 1 ? '#c9a95a' : '#3b3a36'; g.fillRect(x - 2, y - 13 + bob, 5, 1); g.fillRect(x - 1, y - 14 + bob, 3, 1); }
+}
+// A hen (world.js moveHens): white or brown, a red comb, wings out when she runs.
+function drawHen(g, c) {
+  const x = Math.round(c.x), y = Math.round(c.y), peck = !c.flap && Math.sin(c.ph * 2) > 0.7 ? 1 : 0, f = c.face;
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x - 1, y, 4, 1);
+  g.fillStyle = c.white ? '#ece8de' : '#9a5a2a'; g.fillRect(x - 1, y - 3, 4, 3);
+  if (c.flap && Math.sin(c.ph) > 0) { g.fillRect(x - 2, y - 4, 1, 2); g.fillRect(x + 3, y - 4, 1, 2); }
+  g.fillRect(x + (f > 0 ? 2 : -1), y - 4 + peck, 1, 2);
+  g.fillStyle = '#c42a1a'; g.fillRect(x + (f > 0 ? 2 : -1), y - 5 + peck, 1, 1);
+  g.fillStyle = '#d0a426'; g.fillRect(x + (f > 0 ? 3 : -2), y - 3 + peck, 1, 1);
 }
 // Pigeons (world.js villageLife): `air` false draws those sitting on the ground, true those flying or on a roof.
 function drawBirds(g, air, x0, y0, x1, y1) {

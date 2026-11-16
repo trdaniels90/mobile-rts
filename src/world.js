@@ -164,7 +164,7 @@ function spawnPoints(mapId) {
 
 function genMap(seed) {
   G.spans = [];   // bridge spans that can be destroyed (genLayoutMap, maps with `breakable`)
-  G.houses = []; G.props = []; G.birds = null;   // village houses, props and pigeons (genVillage, maps with `village`)
+  G.houses = []; G.props = []; G.birds = null; G.folk = null; G.hens = null;   // village houses, props and pigeons (genVillage, maps with `village`)
   if (MAPS[G.mapId].rows) { genLayoutMap(MAPS[G.mapId]); genVillage(MAPS[G.mapId], seed); return; }
   const r = rng(seed ^ 0x5bd1e995);
   const T = G.terr;
@@ -841,6 +841,11 @@ function villageProps(m, r, taken) {
     const x = east ? h.cx + h.w + 0.45 : h.cx - 0.45, y = h.cy + 0.5 + r() * (h.h - 1);
     if (open(x, y)) add(k, x, y);
   }
+  // Washing hung out in front of some houses (drawn by art.js drawProp; not while the house is held or gone).
+  for (const h of G.houses) {
+    if (h.cap === 0 || h.cap >= 10 || r() > 0.3) continue;
+    G.props.push({ kind: 'prop', k: 'laundry', x: (h.cx + h.w / 2) * CELL, y: (h.cy + h.h) * CELL + 1, v: (r() * 1000) | 0, up: true, h: h.id, w: h.w * CELL - 14 });
+  }
   // Carts left in the lanes, beside a lamp.
   const lamps = G.props.filter((p) => p.k === 'lamp');
   for (let i = 0; i < 5 && lamps.length; i++) {
@@ -991,7 +996,7 @@ function updateGarrison(u, dt) {
 // The village's life, looks only (each copy works it out from what it sees; the game server skips it): props knocked
 // over by blasts and passing vehicles, smoke from some chimneys, and pigeons on the square and the church roof that
 // take off when fighting comes near and come back once it is quiet.
-const knockSeen = new WeakSet();
+const knockSeen = new WeakSet(), folkSeen = new WeakSet();
 function knockProp(p) {
   p.up = false;
   G.effects.push({ type: 'smoke', x: p.x, y: p.y - 2, r: 3, t: 0, life: 0.9, alpha: 0.35, color: '#8a7a62', vy: -6 });
@@ -1008,7 +1013,15 @@ function villageLife(dt) {
     for (const p of props) if (p.up && Math.abs(p.x - fx.x) < rad && Math.abs(p.y - fx.y) < rad && Math.hypot(p.x - fx.x, p.y - fx.y) < rad) knockProp(p);
     for (const f of birdFlocks()) if (f.st !== 1 && Math.hypot(f.hx - fx.x, f.hy - fx.y) < 240) scareFlock(f, fx.x, fx.y);
   }
-  if ((G.lifeT = (G.lifeT || 0) - dt) > 0) { flyBirds(dt); return; }
+  flyBirds(dt); moveFolk(dt); moveHens(dt); villageSounds(dt);
+  for (const fx of G.effects) {   // (blasts scare the villagers and the hens too)
+    if (fx.type !== 'expl' || fx.t < 0 || folkSeen.has(fx)) continue;
+    folkSeen.add(fx);
+    for (const v of villagers()) if (v.st !== 'in' && Math.abs(v.x - fx.x) < 260 && Math.abs(v.y - fx.y) < 260) scareFolk(v, fx.x, fx.y);
+    for (const c of hens()) if (Math.abs(c.hx - fx.x) < 160 && Math.abs(c.hy - fx.y) < 160) scareHen(c, fx.x, fx.y);
+    G.calmAt = G.t + 30;
+  }
+  if ((G.lifeT = (G.lifeT || 0) - dt) > 0) return;
   G.lifeT = 0.25;
   // Vehicles drive them down; anyone near the pigeons sends them up.
   const box = G.villageBox || (G.villageBox = props.concat(G.houses).reduce((b, p) => [Math.min(b[0], p.x), Math.min(b[1], p.y), Math.max(b[2], p.x), Math.max(b[3], p.y)], [1e9, 1e9, -1e9, -1e9]));
@@ -1016,6 +1029,11 @@ function villageLife(dt) {
     if (!u.alive || u.kind !== 'unit' || u.inHouse || isAirborne(u) || u.x < box[0] - 60 || u.y < box[1] - 60 || u.x > box[2] + 60 || u.y > box[3] + 60) continue;
     if (u.cls === 'veh') for (const p of props) if (p.up && Math.abs(p.x - u.x) < 10 && Math.abs(p.y - u.y) < 10) { knockProp(p); hooks.sfx('hitSmall', p.x, p.y); }
     for (const f of birdFlocks()) if (f.st === 0 && Math.hypot(f.hx - u.x, f.hy - u.y) < 75) scareFlock(f, u.x, u.y);
+    if (u.def.weapon) {   // soldiers and guns send the villagers indoors
+      for (const v of villagers()) if (v.st !== 'in' && v.st !== 'flee' && Math.abs(v.x - u.x) < 200 && Math.abs(v.y - u.y) < 200) scareFolk(v, u.x, u.y);
+      G.calmAt = Math.max(G.calmAt || 0, G.t + 20);
+    }
+    for (const c of hens()) if (Math.abs(c.hx - u.x) < 50 && Math.abs(c.hy - u.y) < 50) scareHen(c, u.x, u.y);
   }
   for (const f of birdFlocks()) if (f.st === 0) for (const p of G.projectiles) if (Math.abs(p.x - f.hx) < 90 && Math.abs(p.y - f.hy) < 90) { scareFlock(f, p.x, p.y); break; }
   // Chimney smoke from about two houses in five that are not badly hurt.
@@ -1026,7 +1044,6 @@ function villageLife(dt) {
     const m = modelCache.get('S' + h.type + 'allies');
     if (m && m.chim) G.effects.push({ type: 'smoke', x: h.cx * CELL + m.chim.x, y: h.cy * CELL + m.chim.y - m.chim.z * VK, r: 2.2, t: 0, life: 3.5, alpha: 0.32, color: '#bdb8ae', vy: -7, vx: 1.5 });
   }
-  flyBirds(0.25 + dt);
 }
 // Two flocks: on the square round the fountain, and on the church's roof.
 function birdFlocks() {
@@ -1072,6 +1089,119 @@ function flyBirds(dt) {
     }
     if (f.st === 1 && (f.t -= dt) <= 0) f.st = 2;
     if (f.st === 2 && f.birds.every((b) => Math.hypot(f.hx + b.ox - b.x, f.hy + b.oy - b.y) < 4 && b.alt <= f.ha + 0.5)) f.st = 0;
+  }
+}
+
+// Villagers (looks only, like the pigeons): a dozen or so walk the lanes from lamp to lamp (the lamps stand in the
+// streets, so the lines between them in a row are streets), stop to chat, and run into the nearest house that is still
+// standing and not held when soldiers, shots or blasts come near; they come out again once it has been calm a while.
+let folkNet = null, folkNetFor = null;
+const FOLK_SHIRTS = ['#a33a2a', '#3a5a8a', '#d8cfa8', '#5a7a3a', '#8a5a8a', '#c9a227', '#e2ddd0', '#6b4a2a'];
+function streetNet() {
+  if (folkNetFor === G && folkNet) return folkNet;
+  const pts = (G.props || []).filter((p) => p.k === 'lamp').map((p) => ({ x: p.x, y: p.y + 6, n: [] }));
+  // The square: a ring round the fountain and points along its edges, so people cross it and stroll round.
+  const sq = MAPS[G.mapId] && MAPS[G.mapId].square;
+  if (sq) {
+    const [a, b, c, d] = sq, mx = (a + c + 1) / 2 * CELL, my = (b + d + 1) / 2 * CELL;
+    for (let i = 0; i < 10; i++) pts.push({ x: mx + Math.cos(i * Math.PI / 5) * CELL * 3.3, y: my + Math.sin(i * Math.PI / 5) * CELL * 3.1, n: [] });
+    for (const t of [0.25, 0.5, 0.75]) for (const [x, y] of [[a + 3 + (c - a - 5) * t, b + 3], [a + 3 + (c - a - 5) * t, d - 1], [a + 3, b + 3 + (d - b - 5) * t], [c - 1, b + 3 + (d - b - 5) * t]]) pts.push({ x: x * CELL, y: y * CELL, n: [] });
+  }
+  const clear = (a, b) => { const n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 8); for (let i = 0; i <= n; i++) { const x = a.x + (b.x - a.x) * i / n, y = a.y + (b.y - a.y) * i / n; if (G.block[cellOfPos(x, y)]) return false; } return true; };
+  for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+    const a = pts[i], b = pts[j], dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y);
+    const dd = Math.hypot(dx, dy);
+    if ((((dx < 40 || dy < 40) && dd < CELL * 17) || dd < CELL * 6) && clear(a, b)) { a.n.push(j); b.n.push(i); }
+  }
+  folkNet = pts; folkNetFor = G;
+  return pts;
+}
+function villagers() {
+  if (G.folk) return G.folk;
+  G.folk = [];
+  const net = streetNet().map((p, i) => [p, i]).filter(([p]) => p.n.length);
+  for (let k = 0; k < Math.min(16, net.length); k++) {
+    const [p, i] = net[(Math.random() * net.length) | 0];
+    G.folk.push({ x: p.x + (Math.random() - 0.5) * 8, y: p.y, node: i, to: p.n[(Math.random() * p.n.length) | 0], st: 'walk', t: 0, sp: 13 + Math.random() * 7,
+      look: (Math.random() * 1e6) | 0, face: 1, ph: Math.random() * 6, side: (Math.random() - 0.5) * 10 });
+  }
+  return G.folk;
+}
+const doorOf = (h) => ({ x: h.x, y: (h.cy + h.h) * CELL + 3 });
+function scareFolk(v, x, y) {
+  if (v.st === 'in' || v.st === 'flee') return;
+  const net = streetNet(), open = G.houses.filter((h) => h.alive && h.cap > 0 && !h.n);
+  let best = null, bd = Infinity;
+  for (const h of open) { const d = doorOf(h), dd = Math.hypot(d.x - v.x, d.y - v.y) + (Math.hypot(d.x - x, d.y - y) < 60 ? 400 : 0); if (dd < bd) { bd = dd; best = h; } }
+  if (!best) return;
+  v.st = 'flee'; v.house = best.id; v.via = net[v.to] ? { x: net[v.to].x, y: net[v.to].y } : null;
+  if (v.via && Math.hypot(v.via.x - v.x, v.via.y - v.y) > Math.hypot(doorOf(best).x - v.x, doorOf(best).y - v.y)) v.via = null;
+}
+function moveFolk(dt) {
+  if (!G.folk) { if (G.props && G.props.length) villagers(); else return; }
+  const net = streetNet(), calm = G.t > (G.calmAt || 0);
+  const step = (v, tx, ty, sp) => { const dx = tx - v.x, dy = ty - v.y, d = Math.hypot(dx, dy); if (d < sp * dt + 0.5) { v.x = tx; v.y = ty; return true; } v.x += dx / d * sp * dt; v.y += dy / d * sp * dt; if (Math.abs(dx) > 0.5) v.face = dx > 0 ? 1 : -1; v.ph += dt * sp * 0.6; return false; };
+  for (const v of G.folk) {
+    if (v.st === 'in') {   // indoors: out again once it is calm, or at once if the house is coming down
+      const h = G.byId.get(v.house);
+      if (h && h.alive && ((v.t -= dt) > 0 || !calm) && !h.n) continue;
+      const d = h ? doorOf(h) : v; v.x = d.x; v.y = d.y; v.st = h && h.alive ? 'home' : 'walk';
+      let bi = 0, bd = Infinity; net.forEach((p, i) => { const dd = Math.hypot(p.x - v.x, p.y - v.y); if (p.n.length && dd < bd) { bd = dd; bi = i; } });
+      v.to = bi; continue;
+    }
+    if (v.st === 'flee') {
+      const h = G.byId.get(v.house);
+      if (!h || !h.alive || h.n) { v.st = 'walk'; continue; }
+      if (v.via) { if (step(v, v.via.x, v.via.y, 48)) v.via = null; continue; }
+      const d = doorOf(h);
+      if (step(v, d.x, d.y, 48)) { v.st = 'in'; v.t = 25 + Math.random() * 30; }
+      continue;
+    }
+    if (v.st === 'idle') { if ((v.t -= dt) <= 0) v.st = 'walk'; continue; }
+    const p = net[v.to];
+    if (!p) continue;
+    if (step(v, p.x + v.side * (Math.abs(p.x - v.x) < 30 ? 1 : 0), p.y + v.side * (Math.abs(p.y - v.y) < 30 ? 0.6 : 0), v.st === 'home' ? 20 : v.sp)) {
+      const back = v.node; v.node = v.to; v.st = 'walk';
+      const next = p.n.filter((j) => j !== back);
+      v.to = (next.length ? next : p.n)[(Math.random() * (next.length || p.n.length)) | 0];
+      if (Math.random() < 0.3) { v.st = 'idle'; v.t = 1.5 + Math.random() * 5; }
+    }
+  }
+}
+// Hens in a few yards: pecking about, scattering from anyone who comes near, and back.
+function hens() {
+  if (G.hens) return G.hens;
+  G.hens = [];
+  const yards = G.houses.filter((h) => h.alive && h.cap > 0 && h.cap < 10);
+  for (let k = 0; k < 4 && yards.length; k++) {
+    const h = yards[(Math.random() * yards.length) | 0], hx = (h.cx - 0.5) * CELL, hy = (h.cy + h.h / 2) * CELL;
+    for (let i = 0; i < 4 + ((Math.random() * 3) | 0); i++) G.hens.push({ hx: hx + (Math.random() - 0.5) * 10, hy: hy + (Math.random() - 0.5) * 20, x: hx, y: hy, vx: 0, vy: 0, run: 0, ph: Math.random() * 6, face: 1, white: Math.random() < 0.6 });
+  }
+  return G.hens;
+}
+function scareHen(c, x, y) { const a = Math.atan2(c.y - y, c.x - x) + (Math.random() - 0.5); c.vx = Math.cos(a) * 55; c.vy = Math.sin(a) * 55; c.run = 0.8 + Math.random() * 0.6; }
+function moveHens(dt) {
+  if (!G.hens) { if (G.houses.length && G.props && G.props.length) hens(); else return; }
+  for (const c of G.hens) {
+    c.ph += dt * (c.run > 0 ? 20 : 2);
+    if (c.run > 0) { c.run -= dt; c.x += c.vx * dt; c.y += c.vy * dt; c.face = c.vx > 0 ? 1 : -1; c.flap = true; continue; }
+    c.flap = false;
+    const dx = c.hx - c.x, dy = c.hy - c.y, d = Math.hypot(dx, dy);
+    if (d > 6) { c.x += dx / d * 12 * dt; c.y += dy / d * 12 * dt; c.face = dx > 0 ? 1 : -1; }
+    else if (Math.random() < dt * 0.5) { c.hx += (Math.random() - 0.5) * 8; c.hy += (Math.random() - 0.5) * 6; }
+  }
+}
+// The church bell now and then while the village is quiet, and birdsong from the square.
+function villageSounds(dt) {
+  const church = G.houses.find((h) => h.alive && h.type.startsWith('hv:church')), fountain = G.houses.find((h) => h.alive && h.type.startsWith('hv:fountain'));
+  const calm = G.t > (G.calmAt || 0);
+  if (church && calm && !church.n) {
+    if (G.bellN > 0 && G.t >= G.bellAt) { hooks.sfx('bell', church.x, church.y); G.bellN--; G.bellAt = G.t + 1.9; }
+    else if (!(G.bellN > 0) && G.t >= (G.bellNext || (G.bellNext = G.t + 20 + Math.random() * 40))) { G.bellN = 3 + ((Math.random() * 3) | 0); G.bellAt = G.t; G.bellNext = G.t + 110 + Math.random() * 90; }
+  }
+  if (fountain && calm && G.birds && G.birds[0] && G.birds[0].st === 0 && G.t >= (G.chirpAt || 0)) {
+    G.chirpAt = G.t + 2.5 + Math.random() * 5;
+    hooks.sfx('chirp', fountain.x + (Math.random() - 0.5) * 120, fountain.y + (Math.random() - 0.5) * 120);
   }
 }
 
