@@ -1545,7 +1545,7 @@ function followPath(u, dt) {
     }
     return false;
   }
-  if (u.def.setup && u.setup > 0) { u.setup = Math.max(0, u.setup - dt / u.def.pack); return false; }   // an MG Team packs its gun up before it walks
+  if (u.def.setup && u.setup > 0) { u.setup = Math.max(0, u.setup - dt / u.def.pack); return false; }   // an MG Team packs its gun up (a V2 lowers its rocket) before it moves
   const want = Math.atan2(dy, dx);
   let speed = u.def.speed * VET.speed[u.rank || 0], mx, my;
   // Infantry in a loose wave, and vehicles, each keep their own pace (paceMul).
@@ -2755,7 +2755,7 @@ function damage(t, amount, wh, attacker, from, splashed) {
   // As in Red Alert: infantry under fire go prone and stay down (crawling if they have to move)
   // until they have not been hit for a while. Prone, they take PRONE_COVER of the damage.
   let cover = 1;
-  if (t.kind === 'unit' && t.def.setup) { if (t.setup >= 1) cover = PRONE_COVER; }   // an MG Team never goes prone: dug in behind its gun once it is set up
+  if (t.kind === 'unit' && t.cls === 'inf' && t.def.setup) { if (t.setup >= 1) cover = PRONE_COVER; }   // an MG Team never goes prone: dug in behind its gun once it is set up
   else if (t.kind === 'unit' && t.cls === 'inf' && !t.chute) {
     t.stance = 'prone';
     t.stanceUntil = G.t + PRONE_TIME;
@@ -3343,7 +3343,11 @@ function updateUnit(u, dt) {
       fireWeapon(u, u.def.weapon2, t2); u.cd2 = u.def.weapon2.rof * VET.reload[u.rank || 0];
     } else u.cd2 = 0.3;   // nothing in reach: look again shortly (not every frame)
   }
-  if (u.def.setup && !u.target && !u.moving && !u.dest && !u.needPath) setUpGun(u, dt);   // an MG Team standing still digs in, ready for whatever comes
+  if (u.def.setup && u.cls === 'inf' && !u.target && !u.moving && !u.dest && !u.needPath) setUpGun(u, dt);   // an MG Team standing still digs in, ready for whatever comes
+  if (u.def.setup && u.cls !== 'inf') {   // a V2 lowers its rocket onto the bed again 3 s after its last target
+    if (u.target) u.lowT = 0;
+    else if (u.setup > 0 && (u.lowT = (u.lowT || 0) + dt) > 3) u.setup = Math.max(0, u.setup - dt / u.def.pack);
+  }
   checkStuck(u, dt);
 }
 
@@ -3430,7 +3434,7 @@ function slideOut(u, t, w, dt) {
   return true;
 }
 
-// An MG Team (def.setup): sets its gun up, standing still, before it can fire; true once it is up. followPath packs it
+// An MG Team or a V2 (def.setup): sets its gun up (raises its rocket), standing still, before it can fire; true once it is up. followPath packs it
 // up again (def.pack) before the team walks off. u.setup runs 0 to 1, synced and saved as a plain field.
 function setUpGun(u, dt) {
   if (!u.def.setup) return true;

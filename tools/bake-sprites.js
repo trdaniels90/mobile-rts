@@ -50,7 +50,7 @@ const outDir = path.join(root, 'sprites');
           for (const [type, def] of Object.entries(UNIT_DEFS)) {
             if (!def.factions.includes(f)) continue;
             if (def.cls === 'inf') { for (let pose = 0; pose < 16; pose++) for (let i = 0; i < 16; i++) infSprite({ type, faction: f, face: i * T / 16 }, pal(), pose); continue; }
-            const looks = def.draw === 'v2' ? [{ cd: 0 }, { cd: 2 }] : def.draw === 'harv' ? [{ load: 0 }, { load: def.capacity }] : [{}];
+            const looks = def.draw === 'v2' ? [0, 1, 2, 3].flatMap((k) => [{ cd: 0, setup: k / 3 }, { cd: 2, setup: k / 3 }]) : def.draw === 'harv' ? [{ load: 0 }, { load: def.capacity }] : [{}];
             for (let i = 0; i < FACINGS; i++) {
               const a = i * T / FACINGS;
               for (const l of looks) hullSprite({ def, faction: f, face: a, ...l }, pal());

@@ -1193,3 +1193,13 @@ frame-time maths everywhere, so it is not deterministic.
   100 units on Auto Attack with three computer sides marching, 75 s, 2 seeds: worst pile within 40 px 31-33 to 19-22, average 20 to 14, the army 56 to 74 cells out.
   `bunching.js` 4 x 90 s unchanged (3.32, 7.7% six or more, worst 10), `rally.js` and `village.js` pass. Slowing `findPath` to phone speed did not change the piles,
   so the route queue (above) was a smaller part of it.
+
+## V2 rocket raised to fire (after 2026.11.16.4, not released, owner OK'd for both modes)
+
+- The rocket lies flat on the truck's bed and is raised on its rail before it fires, like the MG Team's set-up: `setup: 1.5`, `pack: 1` on
+  `v2rl` (data.js), the same `u.setup` field (0 to 1, synced and saved) and `setUpGun` in `engage`; `followPath` lowers it before the truck
+  moves. It lowers on its own 3 s after its last target (`u.lowT`, a host timer in netcore `SKIP`). The MG-only parts stay infantry-only
+  (digging in when idle, `PRONE_COVER`, the cameo scale). First shot 1.5 s after the order (was as soon as the truck faced the target).
+- `v2Model(pal, loaded, up)` (models.js): the rail pivots on its rear end up to `V2_RAISE` (0.85 rad), with a ram; `V2_STEPS` (3) + 1 looks,
+  keyed `'W' + key + loaded + step` in `hullSprite`, all baked (`looks` in bake-sprites.js and `warmSprites`). Sprites and ground key rebaked.
+  The server must run the same version.

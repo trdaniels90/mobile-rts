@@ -1557,7 +1557,7 @@ function warmSprites(budgetMs, cx, cy) {
           for (let i = 0; i < 16; i++) warmJobs.push({ v, run: () => infSprite({ type: best.type, faction: f, face: i * Math.PI / 8 }, palFor(f), pose) });
         }
       } else {
-        const looks = def.draw === 'v2' ? [{ cd: 0 }, { cd: 2 }] : def.draw === 'harv' ? [{ load: 0 }, { load: def.capacity }] : [{}];
+        const looks = def.draw === 'v2' ? [0, 1, 2, 3].flatMap((k) => [{ cd: 0, setup: k / 3 }, { cd: 2, setup: k / 3 }]) : def.draw === 'harv' ? [{ load: 0 }, { load: def.capacity }] : [{}];
         const wreck = !warmDone.has('burnt' + best.type) && def.cls !== 'air';   // its wreck too (bakeWreck), once per type
         if (wreck) warmDone.add('burnt' + best.type);
         for (let i = 0; i < FACINGS; i++) {
@@ -2579,10 +2579,10 @@ function makeCameo(type, faction, key) {
     else if (d.draw === 'fob') mdl = fobModel(pal);
     else if (d.draw === 'mcv') mdl = mcvModel(pal);
     else if (d.draw === 'arty') mdl = artyModel(pal);
-    else if (d.draw === 'v2') mdl = v2Model(pal, true);
+    else if (d.draw === 'v2') mdl = v2Model(pal, true, 1);   // shown raised
     else if (d.fly === 'heli') mdl = type === 'hind' ? hindModel(pal) : heliModel(pal);
     else mdl = jetModel(pal, type === 'mig');
-    scale = d.setup ? 2 : d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.fly ? 1.7 : d.size && d.size.len > 22 ? 1.9 : 2.3;
+    scale = d.setup && d.cls === 'inf' ? 2 : d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.fly ? 1.7 : d.size && d.size.len > 22 ? 1.9 : 2.3;
   }
   const s = renderVox(mdl, angle, { scale, shadow: false });
   const dx = Math.round((W - s.img.width) / 2), dy = Math.round((H - s.img.height) / 2 + (BUILD_DEFS[type] ? 0 : 3) - (power ? 6 : 0));

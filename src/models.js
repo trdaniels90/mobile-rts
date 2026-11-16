@@ -748,22 +748,34 @@ function artyModel(pal) {
 }
 // V2 rocket launcher: a six-wheeled truck with a cab up front and a launch rail on the back,
 // carrying the rocket raised for launch (not while it reloads).
-function v2Model(pal, loaded) {
-  const m = new VModel(-14, -8, 14, 8, 20);
+// The V2 launcher: a truck with the rocket on an erector rail. up 0 to 1: lying flat on the bed (driving) to raised for
+// firing (V2_RAISE radians), pivoting on the rail's rear end; V2_STEPS + 1 looks (hullSprite rounds u.setup).
+const V2_RAISE = 0.85, V2_STEPS = 3;
+function v2Model(pal, loaded, up = 0) {
+  const m = new VModel(-14, -8, 14, 8, 26);
   for (const x of [-8, -3, 7]) for (const y of [-5, 4]) m.cylY(y, y + 1.6, x, 2.4, 2.4, C.track);          // wheels
   m.box(-11, -4, 2, 11, 4, 4, pal.dark, M_METAL);                                 // chassis
   m.box(5, -4, 4, 11, 4, 9, pal.main, M_METAL);                                   // cab
   m.box(9, -3, 7, 11, 3, 9, C.glass, M_GLASS);
   m.box(-11, -4, 4, 4, 4, 6, pal.main, M_METAL);                                  // bed
-  for (let x = -10; x < 6; x++) m.box(x, -1, 6 + (x + 10) * 0.42, x + 1, 1, 7 + (x + 10) * 0.42, '#3d3f38', M_METAL);   // launch rail
-  m.box(-1, -2, 6, 1, 2, 10, '#3d3f38', M_METAL);                                 // its strut
+  const RAIL = '#3d3f38', th = up * V2_RAISE, cx = Math.cos(th), cz = Math.sin(th), px = -11, pz = 6.4, L = 15.5;
+  const at = (s, off) => [px + s * cx - off * cz, pz + s * cz + off * cx];         // along the rail s, off above it
+  m.box(-12, -2, 4, -10, 2, 7, RAIL, M_METAL);                                    // the pivot bracket at the rear
+  for (const y of [-1, 0.6]) { const [x0, z0] = at(0, 0), [x1, z1] = at(L - 1, 0); m.line(x0, y, z0, x1, y, z1, RAIL, M_METAL); }   // the rail
+  if (up > 0) {   // the ram that lifts it, from the bed to the rail's middle
+    const [x1, z1] = at(L * 0.55, 0);
+    for (const y of [-1.5, 1]) m.line(-1, y, 6, x1, y, z1, '#55574e', M_METAL);
+  } else m.box(-2, -2, 6, 0, 2, 7, RAIL, M_METAL);                                // a cradle under the rocket
   if (loaded) {
-    for (let x = -10; x < 6; x++) {
-      const z = 8 + (x + 10) * 0.42;
-      m.cylX(x, x + 1, 0, z, 1.6, x > 3 ? C.red : x > 1 ? '#c9c7bd' : '#7d8650', M_METAL);   // body, band, warhead
+    for (let s = 0; s <= L; s += 0.35) {
+      const [x, z] = at(s, 1.9);
+      m.ellipsoid(x, 0, z, 1.6, 1.6, 1.6, s > L - 2.5 ? C.red : s > L - 4.5 ? '#c9c7bd' : '#7d8650', M_METAL);   // body, band, warhead
     }
-    m.box(6, -0.5, 14.5, 7, 0.5, 15.5, C.red, M_METAL);                           // nose
-    for (const [y, z] of [[-3, 8], [3, 8], [0, 11]]) m.box(-10, y - 0.5, z - 0.5, -7, y + 0.5, z + 0.5, '#5a6238', M_METAL);   // fins
+    { const [x, z] = at(L + 0.9, 1.9); m.ellipsoid(x, 0, z, 0.9, 0.9, 0.9, C.red, M_METAL); }   // nose
+    for (const [y, off] of [[-2.8, 1.9], [2.8, 1.9], [0, 4.6]]) {   // fins
+      const [x0, z0] = at(0, off), [x1, z1] = at(3, off);
+      m.line(x0, y, z0, x1, y, z1, '#5a6238', M_METAL);
+    }
   }
   return m;
 }
@@ -4661,7 +4673,7 @@ function hullSprite(u, pal) {
   if (d.draw === 'fob') return facingSprite('F' + key, () => fobModel(pal), u.face);
   if (d.draw === 'mcv') return facingSprite('M' + key, () => mcvModel(pal), u.face);
   if (d.draw === 'arty') return facingSprite('R' + key, () => artyModel(pal), u.face);
-  if (d.draw === 'v2') { const loaded = !(u.cd > 1.2); return facingSprite('W' + key + loaded, () => v2Model(pal, loaded), u.face); }
+  if (d.draw === 'v2') { const loaded = !(u.cd > 1.2), st = Math.round((u.setup || 0) * V2_STEPS); return facingSprite('W' + key + loaded + st, () => v2Model(pal, loaded, st / V2_STEPS), u.face); }
   if (d.draw === 'harv') { const full = (u.load || 0) > d.capacity * 0.3; return facingSprite('V' + key + full, () => harvModel(pal, full), u.face); }
   if (d.fly === 'heli') return facingSprite('A' + key, () => d.type === 'hind' ? hindModel(pal) : heliModel(pal), u.face);
   if (d.draw === 'cargo') {
