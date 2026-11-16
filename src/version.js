@@ -4,6 +4,18 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.16.5', date: '16 November 2026', title: 'V2 raises its rocket, fewer traffic jams', groups: [
+    ['New', [
+      'V2 Rocket Launcher: the rocket now lies flat on the truck. When ordered to attack, it raises on its rail (about 1.5 seconds) before it fires, stays up while it reloads, and lowers again a few seconds after the fight (or before the truck drives off).',
+    ]],
+    ['Changed', [
+      'Units marching in a crowd no longer pile up at the corners of their route: they take the corner from a little further away, so columns keep flowing.',
+      'Units sent to defend an ally, or leaving the base on Auto Attack, keep their route instead of stopping to wait for a new one.',
+    ]],
+    ['Fixed', [
+      'V2 rockets in flight pointed sideways or upside down in the new camera view. They now point along their flight.',
+    ]],
+  ] },
   { v: '2026.11.16.4', date: '16 November 2026', title: 'A new camera angle', groups: [
     ['New', [
       'The battlefield is now seen at an angle, turned 45 degrees: the map is laid out in diamonds and you look down on units and buildings from the side, so walls, roofs and tanks stand out in 3D. Every unit and building has been redrawn from the new angle.',
