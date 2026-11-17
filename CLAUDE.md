@@ -1036,7 +1036,7 @@ frame-time maths everywhere, so it is not deterministic.
   `u.bayHold`), a lock builds while it faces the target (`u.lock`, `u.lockOn`, host timers in netcore `SKIP`), one missile per `rof` (cd2). `fireWeapon`'s `bay`
   branch launches from the side bays in turn (`bayN`), the missile falls clear for `BAY_DROP` (0.22 s, `dropStep`, also run by the guest's `flyShots`) and lights
   with a puff, then flies as any missile. No nose flash for those (`shots` is put back).
-- **Looks:** `comancheModel(pal, bay)` (models.js: faceted body, gold-tinted stepped canopy, chain gun, engine hump, fenestron fin, T-tail; doors flat out
+- **Looks:** `comancheModel(pal, bay)` (models.js, reworked from photos of the real RAH-66 at the owner's request: stealth grey tinted with the side's colour, faceted body with a dark chine line, flat wedge nose and long chain gun, big angular tandem canopy, wide engine hump with intakes and a tall hub fairing, thick boom, big round fan shroud, tall fin with T-tail and end fins; rotor drawn higher; doors flat out
   with a missile on each when open), `BAY_STEPS` 2, key `'A' + key + 'b' + step` in `hullSprite`; baked (`looks` in bake-sprites.js) and warmed; five-blade
   rotor (art.js); cameo with the bays open. Sprites and ground key rebaked.
 - **Computer** (ai.js, Normal and Hard: `aiOf(team).planner`): researches any upgrade it can once it has a Tech Center and 2,500 to spare; Allied

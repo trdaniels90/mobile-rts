@@ -1634,7 +1634,7 @@ function drawUnitBody(g, u, t) {
       // can without seeming to run backwards (under half the gap between blades, whatever the
       // frame rate) and the blur of the arc it swept fills in the rest.
       const five = u.type === 'hind' || u.type === 'comanche', n = five ? 5 : 4, gap = Math.PI * 2 / n, flying = alt > 1;
-      const rz = (five ? 10 : 9) * VK, [rx, ry] = liftPt(u.x, u.y, alt + rz), R = u.type === 'hind' ? 15 : 13;
+      const rz = (u.type === 'comanche' ? 12 : five ? 10 : 9) * VK, [rx, ry] = liftPt(u.x, u.y, alt + rz), R = u.type === 'hind' ? 15 : 13;
       const dtf = u.rotT === undefined ? 0 : Math.min(0.1, Math.max(0, t - u.rotT));
       const step = Math.min((flying ? 80 : 6) * dtf, gap * 0.42);
       u.rotT = t; u.rotA = (u.rotA === undefined ? u.id : u.rotA) + step;
