@@ -4,6 +4,16 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.18', date: '17 November 2026', title: 'Close air support, tougher turtles', groups: [
+    ['New', [
+      'Close Air Support: three new Tech Center upgrades (need an Airfield). The first adds an Airfield power that calls in an A-10 Warthog (Allies) or Su-25 Frogfoot (Soviets) over an area you choose: missiles at vehicles on the way in, then an anti-tank cannon run, two passes. The second and third upgrades send two and three planes. The computer uses it too.',
+    ]],
+    ['Changed', [
+      'Defensive computer opponents no longer sit at home all game: at least every 8 minutes they come out with a big push of everything they have gathered, then dig in again.',
+      'Defensive computer opponents now come to their allies\' aid from anywhere on the map, sooner and in greater strength.',
+      'Computer opponents may build one more Ore Refinery than you have, so they no longer fall far behind on ore.',
+    ]],
+  ] },
   { v: '2026.11.17.17', date: '17 November 2026', title: 'Defences build separately', groups: [
     ['Changed', [
       'Defensive structures (Pillbox, Gun Turret, AA Gun, Tesla Coil, Flame Tower, SAM Site) now build in their own queue, like walls, so you can build a power plant and a defence at the same time. The computer does too.',

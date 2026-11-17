@@ -1555,7 +1555,7 @@ frame-time maths everywhere, so it is not deterministic.
   Tech Center is destroyed or sold ("Upgrades lost", text only). Queued Comanches / Tesla Tanks wait until re-researched; units already built stay.
   Field Manual updated; `comanche.js` checks the new rule.
 
-## Close Air Support: A-10 Warthog / Su-25 Frogfoot (after 2026.11.17.17, not released, owner's picks for both modes; the server must match)
+## Close Air Support: A-10 Warthog / Su-25 Frogfoot (2026.11.17.18, owner's picks for both modes; the server must match)
 
 - Three Tech Center upgrades in order (`UPGRADES` cas1 $2000 60 s, cas2 $3000 90 s, cas3 $4000 120 s; `needs` the tier before, `req: 'airfield'`, checked in
   `canResearch`; the upgrade card shows "Needs ..." while locked; `desc` may be per faction). cas1 adds the Airfield power `POWERS.cas` (240 s, `upgrade: 'cas1'`:
@@ -1579,7 +1579,7 @@ frame-time maths everywhere, so it is not deterministic.
   until credits plus pending sales cover it, then builds the chain in that order before anything else (`team.rebuild`). The refinery brings a free Ore Truck.
   `node tools/sim/rebuild.js <repo> [diff] [factory|refinery|both]`: Normal, 0 credits, trucks gone at 10 min: factory back in 73 s, refinery 85 s, both 118 s.
 
-## Turtles: a late big push and help for allies; refinery cap +1 (not released, owner's picks for both modes; the server must match)
+## Turtles: a late big push and help for allies; refinery cap +1 (2026.11.17.18, owner's picks for both modes; the server must match)
 
 - From the owner's 8 latest Normal wins (0 buildings lost in 5, enemy turtles sent no wave in 5 of 7 games, enemy computers mined about 60% of his ore).
 - **Refinery cap** (`REF_CAP_OVER` 1 in ai.js `aiRefCap`): the computer may have one refinery more than the human sides' average.
