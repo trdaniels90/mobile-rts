@@ -681,12 +681,15 @@ function breachWalls(team) {
 }
 // The enemy wall or gate to shoot through for a unit to reach a structure, or -1 when it can walk there (or no wall
 // is to blame). Two floods from the unit: one as it walks, one that also goes through enemy walls and gates.
+// A way round that is BREACH_DETOUR times longer than the way through (plus BREACH_SLACK cells) counts as shut too:
+// a ring with a one-cell gap at the back of the base (ore it could not wall) is shot through at the front.
+const BREACH_DETOUR = 1.6, BREACH_SLACK = 12;
 function wallInTheWay(u, goal) {
-  const s = cellOfPos(u.x, u.y), n = NCELLS, from = new Int32Array(n).fill(-2);
+  const s = cellOfPos(u.x, u.y), n = NCELLS, from = new Int32Array(n).fill(-2), dist = new Int32Array(n);
   const atGoal = (x, y) => x >= goal.cx - 1 && x <= goal.cx + goal.w && y >= goal.cy - 1 && y <= goal.cy + goal.h;
   const enemyWall = (c) => G.wall[c] && hostile(u.team, G.wallTeam[c]);
   const flood = (through) => {
-    from.fill(-2); from[s] = -1;
+    from.fill(-2); from[s] = -1; dist[s] = 0;
     const q = [s];
     for (let i = 0; i < q.length; i++) {
       const c = q[i], cx = cellX(c), cy = cellY(c);
@@ -697,15 +700,16 @@ function wallInTheWay(u, goal) {
         const m = idx(nx, ny);
         if (from[m] !== -2) continue;
         if (!(freeCell(m) || (through && enemyWall(m) && !G.bld[m]))) continue;
-        from[m] = c; q.push(m);
+        from[m] = c; dist[m] = dist[c] + 1; q.push(m);
       }
     }
     return -1;
   };
   MOVER = u;
   try {
-    if (flood(false) >= 0) return -1;
+    const walk = flood(false), dWalk = walk >= 0 ? dist[walk] : -1;
     let c = flood(true), wall = -1;
+    if (walk >= 0 && (c < 0 || dWalk <= dist[c] * BREACH_DETOUR + BREACH_SLACK)) return -1;
     for (; c >= 0; c = from[c]) if (enemyWall(c)) wall = c;   // (walking back from the goal: the last one found is the first met)
     return wall;
   } finally { MOVER = null; }

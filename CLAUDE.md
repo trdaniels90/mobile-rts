@@ -1207,6 +1207,21 @@ frame-time maths everywhere, so it is not deterministic.
   (rusher, raider, turtle, turtle); 3 v 3 Lakeside 678 (rusher), 811, 832 (balanced), 956 (raider), 1010 (turtle). Allies' styles differed every run.
   Balanced's first wave is now 12:45-15:45 on Normal (was 12:00 exactly). The server must run the same version.
 
+## Computer base rings, breaching a long way round (after 2026.11.16.5, not released, Normal and Hard, both modes)
+
+- Owner's pick (by personality): `aiRing` / `aiPlanRing` in ai.js. A turtle from minute 6, a balanced computer from minute 12 once it holds
+  3,000 credits (with a War Factory) plans `team.ring` once (plain data, saved): a rectangle `RING_MARGIN` (3) cells round its main base's
+  buildings (within 16 cells of its start), skipped past `RING_MAX` (200) cells. Sides facing the enemy first; each side's Gate first (middle
+  cell nearest the side's middle with open ground in front and behind, `mids`), then Concrete runs either side of it, paid from what it holds
+  above `RING_KEEP` (turtle 800, balanced 2,000), every 15 s. Ring builders lay no `aiWalls` short lines; rushers and raiders keep them.
+  Cells it cannot wall (ore, water, rock, buildings, units standing there until they move) stay open, so most rings have a gap or two.
+- **Breaching a long way round** (`wallInTheWay` in world.js, both modes, human Auto Attack and computer waves): besides a shut way, a way round
+  longer than `BREACH_DETOUR` (1.6) x the way through enemy walls + `BREACH_SLACK` (12) cells counts as walled off (BFS steps of both floods).
+- Measured (headless, Normal): 1 v 1 `bridge` turtle 70 pieces + 4 gates by minute 9, income unhurt; 2 v 2 `twinlakes` (2 turtles, 2 balanced)
+  all four ringed by minute 14 (69-90 pieces). Staged: a turtle's ring (83 pieces, guns and units removed), 24 Soviet units on a human's Auto
+  Attack outside it: 21 breaching at 20 s, 16 inside by 40 s, base gone by 120 s. `walls.js` passes. With computers alone, turtles and
+  balanced sides attack little in 24 minutes (2 v 2: 0-3 waves each; turtles late to scout since they scout only after `firstWave`).
+
 ## Computer allies answer calls later and from nearer (after 2026.11.15.7, not released, both modes)
 
 - Owner's request: attacking one computer always brought the other's army at once. In `defendAllies` (world.js) a computer ally now sends only idle units within `AI_ALLY_REACH` (35 cells of the raiders, was 70)

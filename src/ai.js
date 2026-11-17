@@ -320,6 +320,7 @@ function aiGarrison(team) {
 // on Hard, Concrete once a War Factory stands. One defence at a time, while it has money to spare, up to a cap.
 const AI_WALL_CAP = { normal: 20, hard: 36 };
 function aiWalls(team) {
+  if (team.ring && !team.ring.skip) return;   // a ring builder (aiRing) lays no short lines
   const cap = AI_WALL_CAP[G.diffKey] && Math.round(AI_WALL_CAP[G.diffKey] * (aiOf(team).wallMul || 1));
   if (!cap || G.t < 300 || G.t < (team.wallT || 0)) return;
   team.wallT = G.t + 15;
@@ -339,8 +340,83 @@ function aiWalls(team) {
   const mx = bx + dx * 2.6, my = by + dy * 2.6;   // the middle of the line, out in front
   placeWalls(team, kind, Math.floor(mx - dy * 2), Math.floor(my + dx * 2), Math.floor(mx + dy * 2), Math.floor(my - dx * 2));
 }
+// Base ring (Normal and Hard; the turtle from minute 6, the balanced computer from minute 12 once it holds 3,000 credits):
+// a Concrete Wall round its main base, RING_MARGIN cells out from its buildings, with a Gate in the middle of each side
+// (its own and its allies' units pass, enemies have to shoot a way in: breachWalls). Planned once (team.ring, plain data,
+// saved), then built a piece at a time from what it can spare above RING_KEEP, the side facing the enemy first; a side's
+// walls only once its Gate stands, so its own units are never shut in. Cells it cannot wall (ore, water, rock, buildings)
+// stay open. Rushers and raiders keep the short lines of aiWalls.
+const RING_MARGIN = 3, RING_MAX = 200, RING_FROM = { turtle: 360, balanced: 720 }, RING_KEEP = { turtle: 800, balanced: 2000 };
+function aiRing(team) {
+  const A = aiOf(team), from = RING_FROM[team.style];
+  if (!A.planner || from === undefined || G.t < from || G.t < (team.ringT || 0)) return;
+  team.ringT = G.t + 15;
+  if (!wallAvailable(team, 'concrete') || !wallAvailable(team, 'gate')) return;
+  const cy = buildingsOf(team.id).find((b) => b.type === 'cy');
+  if (!cy) return;
+  let R = team.ring;
+  if (!R) {
+    if (team.style === 'balanced' && team.credits < 3000) return;
+    R = team.ring = aiPlanRing(team, cy);
+  }
+  if (R.skip) return;
+  const keep = RING_KEEP[team.style], gate = WALLS.gate, wall = WALLS.concrete;
+  for (const sd of R.sides) {
+    if (team.credits - keep < (sd.gate < 0 ? gate.cost : wall.cost)) return;
+    if (sd.gate < 0) {                                   // the side's Gate first: the middle cell nearest the side's middle that fits
+      for (const m of sd.mids) {
+        const x = cellX(m), y = cellY(m), [dx, dy] = sd.ns ? [0, 1] : [1, 0];
+        if (placeWalls(team, 'gate', x, y, x + dx, y + dy)) { sd.gate = m; break; }
+      }
+      if (sd.gate < 0) continue;                         // nowhere fits yet (units in the way): this side waits
+    }
+    const skip = new Set(sd.ns ? [sd.gate - MAP, sd.gate, sd.gate + MAP] : [sd.gate - 1, sd.gate, sd.gate + 1]);
+    const blds = buildingsOf(team.id);
+    let run = [];
+    const lay = () => {
+      while (run.length) {
+        const n = Math.min(run.length, WALL_LINE_MAX, Math.floor((team.credits - keep) / wall.cost));
+        if (n <= 0) { run = []; return; }
+        const a = run[0], b = run[n - 1];
+        placeWalls(team, 'concrete', cellX(a), cellY(a), cellX(b), cellY(b));
+        run = run.slice(n);
+      }
+    };
+    for (const c of sd.cells) {
+      if (!skip.has(c) && !G.wall[c] && wallOk(team, c, blds)) run.push(c);
+      else lay();
+    }
+    lay();
+  }
+}
+// The ring's four sides round the main base's buildings (within 16 cells of its start), facing the enemy first.
+function aiPlanRing(team, cy) {
+  const near = buildingsOf(team.id).filter((b) => Math.hypot(b.cx - team.start.cx, b.cy - team.start.cy) < 16);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const b of near.length ? near : [cy]) { x0 = Math.min(x0, b.cx); y0 = Math.min(y0, b.cy); x1 = Math.max(x1, b.cx + b.w - 1); y1 = Math.max(y1, b.cy + b.h - 1); }
+  x0 = Math.max(2, x0 - RING_MARGIN); y0 = Math.max(2, y0 - RING_MARGIN); x1 = Math.min(MAP - 3, x1 + RING_MARGIN); y1 = Math.min(MAP - 3, y1 + RING_MARGIN);
+  if (2 * (x1 - x0 + y1 - y0) > RING_MAX) return { skip: true };
+  const foe = enemyOf(team).start, mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+  const line = (ax, ay, bx, by) => { const l = []; for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) l.push(idx(x, y)); return l; };
+  const side = (cells, ns, nx, ny) => {
+    // Gate middles: along the side, nearest its middle first, with open ground in front and behind.
+    const mid = cells[cells.length >> 1], mids = cells.slice(2, -2).filter((c) => {
+      const x = cellX(c), y = cellY(c);
+      const [ox, oy] = ns ? [1, 0] : [0, 1];
+      return inMap(x + ox, y + oy) && inMap(x - ox, y - oy) && !G.block[idx(x + ox, y + oy)] && !G.block[idx(x - ox, y - oy)];
+    }).sort((a, b) => Math.hypot(cellX(a) - cellX(mid), cellY(a) - cellY(mid)) - Math.hypot(cellX(b) - cellX(mid), cellY(b) - cellY(mid)));
+    return { cells, ns, gate: -1, mids, face: (foe.cx - mx) * nx + (foe.cy - my) * ny };
+  };
+  const sides = [
+    side(line(x0, y0, x1, y0), false, 0, -1), side(line(x0, y1, x1, y1), false, 0, 1),
+    side(line(x0, y0 + 1, x0, y1 - 1), true, -1, 0), side(line(x1, y0 + 1, x1, y1 - 1), true, 1, 0),
+  ].sort((a, b) => b.face - a.face);
+  for (const s of sides) delete s.face;
+  return { sides, box: [x0, y0, x1, y1] };
+}
 function aiThink(team) {
   aiBridges(team);
+  aiRing(team);
   aiWalls(team);
   aiGarrison(team);
   const c = aiCount(team);
