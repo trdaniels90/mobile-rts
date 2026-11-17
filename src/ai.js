@@ -922,8 +922,13 @@ function aiLaunch(team, ready) {
   const A = aiOf(team), r = Math.random;
   if (!team.plan) team.plan = aiPlanWave(team);
   // No attacks until it has found the enemy base: once the first-wave timer is up, it scouts.
-  if (!enemyBaseKnown(team.id)) { if (G.t >= Math.max(Math.min(A.firstWave, G.diff.ai.firstWave), 60)) aiScout(team, ready); return; }   // (a late style still scouts on the difficulty's time)
-  aiScoutDone(team);
+  const scoutT = G.t >= Math.max(Math.min(A.firstWave, G.diff.ai.firstWave), 60);   // (a late style still scouts on the difficulty's time)
+  if (!enemyBaseKnown(team.id)) { if (scoutT) aiScout(team, ready); return; }
+  // Team games: one base found is not all of them. It keeps one scout out until it has found every enemy base (its
+  // waves go meanwhile), so aiPickFoe has more than one enemy to share out (before, every computer stopped at the first
+  // base it found, often the same player's, and all of them attacked only that player all game).
+  if (foesOf(team.id).some((f) => !G.teams[f].out && inTheFight(f) && !enemyBaseKnown(team.id, f))) { if (scoutT) aiScout(team, [], true); }
+  else aiScoutDone(team);
   // Planner: the clock starts once the base is found and the first-wave wait is over, then each attack
   // comes after a random wait (AI_GAP: never under a minute, never over ten).
   if (A.planner && team.attackAt === undefined && G.t >= A.firstWave) { team.attackAt = G.t + aiGap(team); }
@@ -1116,28 +1121,43 @@ function aiSquads(team) {
 // first-wave timer is up (a minute in on Hard) it sends a scout to the map's other starting spots
 // in turn, nearest first, then to whatever ground it has not seen: the Spy Plane if it is charged,
 // else a helicopter, else its fastest ground unit. Its waves wait until the base is found.
-function aiScout(team, ready) {
+// more: a base is found already (team games), so this is one scout looking for the others. It takes no unit
+// waiting for a wave (its own fastest idle unit instead), and a lost scout is replaced at most once a minute.
+const SCOUT_AGAIN = 60;
+function aiScout(team, ready, more) {
   const s = team.scout || (team.scout = { u: null, until: 0 });
   if (G.t < s.until) return;                                         // a Spy Plane is on its way
   if (s.u && s.u.alive && s.u.order.type === 'move') return;          // the scout is on its way
   const seen = (x, y) => G.fog[team.id][idx(Math.round(x), Math.round(y))];
   const home = team.start;
-  let spots = G.spawns.filter((p) => !(p.cx === home.cx && p.cy === home.cy) && !seen(p.cx, p.cy));
+  // Not its own or an ally's start (nothing to find there).
+  const friend = (p) => G.teams.some((t) => !hostile(team.id, t.id) && t.start && t.start.cx === p.cx && t.start.cy === p.cy);
+  let spots = G.spawns.filter((p) => !friend(p) && !seen(p.cx, p.cy));
   if (!spots.length) for (let y = 4; y < MAP - 4; y += 8) for (let x = 4; x < MAP - 4; x += 8) if (!seen(x, y)) spots.push({ cx: x, cy: y });
   if (!spots.length) return;
   // The scout carries on to the nearest spot from where it is; a new one sets out from home.
   const kept = s.u && s.u.alive && !s.u.retreat && !(s.u.cls === 'air' && airEmpty(s.u)) ? s.u : null;
+  if (more && !kept && G.t < (s.again || 0)) return;
   const from = kept ? { cx: kept.x / CELL, cy: kept.y / CELL } : home;
-  const to = spots.reduce((a, b) => (Math.hypot(a.cx - from.cx, a.cy - from.cy) <= Math.hypot(b.cx - from.cx, b.cy - from.cy) ? a : b));
+  const near = (p) => Math.hypot(p.cx - from.cx, p.cy - from.cy);
+  let to = spots.reduce((a, b) => (near(a) <= near(b) ? a : b));
+  // A scout setting out from home: the computers of an alliance each try a different start first (the k-th computer
+  // its k-th nearest), so they do not all find the same base and stop there.
+  if (!kept && spots.length > 1) {
+    const k = G.teams.filter((t) => t.isAI && t.ally === team.ally && t.id < team.id).length;
+    to = spots.slice().sort((a, b) => near(a) - near(b))[k % spots.length];
+  }
   const x = (to.cx + 0.5) * CELL, y = (to.cy + 0.5) * CELL;
   if (powerReady(team, 'spy')) { launchPower(team, 'spy', x, y); s.until = G.t + 20; return; }
   const heli = unitsOf(team.id).find((u) => u.def.fly === 'heli' && !u.interceptor && !u.repairHold && (u.as === 'landed' || u.order.type === 'guard'));
-  const runner = ready.filter((u) => !u.def.harvester).sort((a, b) => b.def.speed - a.def.speed)[0];
+  const pool = more ? idleGround(team).filter((u) => u.staged && u.def.weapon && !u.def.harvester && !u.def.deploys && !u.manual && !u.defending && !u.assisting) : ready;
+  const runner = pool.filter((u) => !u.def.harvester).sort((a, b) => b.def.speed - a.def.speed)[0];
   // Something faster than the scout (a helicopter, or a vehicle over half as fast again) takes over.
   const faster = (heli && kept && kept.cls !== 'air') || (runner && kept && kept.cls !== 'air' && runner.def.speed > kept.def.speed * 1.5);
   const u = kept && !faster ? kept : heli || runner;
   if (!u) return;
   if (kept && u !== kept) aiScoutDone(team);
+  if (more && u !== kept) s.again = G.t + SCOUT_AGAIN;
   if (u.cls === 'air' && u.as === 'landed') u.as = 'takeoff';
   commandMove([u], x, y);
   s.u = u;

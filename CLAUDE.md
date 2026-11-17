@@ -1416,6 +1416,12 @@ frame-time maths everywhere, so it is not deterministic.
   20 extra Medium Tanks on one side made it 62% of picks), and **a breather**: a side that lost a Construction Yard in the last `BREATHER`
   (150 s, `team.cyLostT` set in `kill`) is not picked while anyone else can be, and a gang on it breaks up at the next look (within 30 s). Easy now spreads too (was nearest). Headless Normal 2 v 2 on Twin Lakes: four different targets until minute 28,
   then one alliance on one foe. The server must run the same version.
+- **Scouting every base** (after 2026.11.17.18, both modes; the server must match; owner's match b76bd95e, 3 v 3: all three enemy computers attacked only him for 33 min,
+  his allies lost no building): a computer stopped scouting at the first enemy base it found, and the spread / gang picks only count found bases, so an alliance
+  that had found one player sent everything at that player. Now `aiLaunch` keeps one scout out (`aiScout(team, [], true)`: an idle staged unit, not one waiting
+  for a wave; a lost one replaced at most every `SCOUT_AGAIN` 60 s) until every enemy base is found, waves going meanwhile; scouts skip allies' starts, and a
+  scout leaving home goes to its k-th nearest start (k = its rank among its alliance's computers). Headless Normal 3 v 3 on Snowbound: before, all three of an
+  alliance on side 0 from minute 10 to 14; after, every base found by minute 14 and each computer on its own foe.
 - Match reports now record each side's `ally`, `style` and `waves` in `stats.teams` (and `style` in the server's `players`).
 - Fire effects lifted past x < 0 picked `flameFrames[-n]` (art.js `drawEffect`): 631 draw errors in that match's last 80 s. Fixed.
 
