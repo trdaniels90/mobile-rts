@@ -1346,7 +1346,8 @@ frame-time maths everywhere, so it is not deterministic.
   with no wave, a turtle goes with whatever has gathered if that is 18 units or more.
 - **More guns:** `defAdd` 3 to 5, and it tops them up from 800 credits (`defRich`; others 1,500). Second base: 4 guns (`guns2`; others 2).
 - **Second base ring** (`ring2`): `aiRing` also plans `team.ring2` (`aiPlanRing(team, yard, at, reach)` round the buildings within 12 cells of the
-  second yard, `yard` = its id, replanned for a new yard) once `aiBase2Next` wants nothing more there, after the main ring is paid for
+  second yard, `yard` = its id, replanned for a new yard) once `aiBase2Next` wants nothing more there or `RING2_AFTER` (240 s) after the yard
+  unpacked (`team.b2At`; one structure at a time shared with the main base is slow), after the main ring is paid for
   (`aiBuildRing` returns false when money runs short).
 - **Army cap** (owner): `ARMY_UNITS` 80 to 100 (Easy, Hard), Normal `armyUnits` 90 to 100. Wave sizes that are shares of it grow with it.
 - The server must run the same version.

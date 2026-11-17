@@ -395,7 +395,7 @@ function aiWalls(team) {
 // saved), then built a piece at a time from what it can spare above RING_KEEP, the side facing the enemy first; a side's
 // walls only once its Gate stands, so its own units are never shut in. Cells it cannot wall (ore, water, rock, buildings)
 // stay open. Rushers and raiders keep the short lines of aiWalls.
-const RING_MARGIN = 3, RING_MAX = 200, RING_FROM = { turtle: 360, balanced: 720 }, RING_KEEP = { turtle: 800, balanced: 2000 };
+const RING_MARGIN = 3, RING_MAX = 200, RING_FROM = { turtle: 360, balanced: 720 }, RING_KEEP = { turtle: 800, balanced: 2000 }; const RING2_AFTER = 240;
 function aiRing(team) {
   const A = aiOf(team), from = RING_FROM[team.style];
   if (!A.planner || from === undefined || G.t < from || G.t < (team.ringT || 0)) return;
@@ -410,11 +410,13 @@ function aiRing(team) {
     }
     if (!team.ring.skip && !aiBuildRing(team, team.ring, keep)) return;   // out of money: the second ring waits
   }
-  // A turtle also rings its second base (team.ring2, for that yard's id), once that base has all it wants.
+  // A turtle also rings its second base (team.ring2, for that yard's id), once that base has all it wants or
+  // RING2_AFTER after the yard unpacked (one structure at a time, shared with the main base, takes long).
   const b2 = A.ring2 && aiBase2(team);
   if (!b2 || b2.buildT < 1) return;
   if (!team.ring2 || team.ring2.yard !== b2.id) {
-    if (aiBase2Next(team, b2, aiCount(team))) return;
+    if (!team.b2At || team.b2At.yard !== b2.id) team.b2At = { yard: b2.id, t: G.t };
+    if (G.t - team.b2At.t < RING2_AFTER && aiBase2Next(team, b2, aiCount(team))) return;
     team.ring2 = Object.assign(aiPlanRing(team, b2, b2, 12), { yard: b2.id });
   }
   if (!team.ring2.skip) aiBuildRing(team, team.ring2, keep);
