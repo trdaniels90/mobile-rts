@@ -1535,9 +1535,10 @@ frame-time maths everywhere, so it is not deterministic.
   Tech Center is destroyed or sold ("Upgrades lost", text only). Queued Comanches / Tesla Tanks wait until re-researched; units already built stay.
   Field Manual updated; `comanche.js` checks the new rule.
 
-## Computer comeback: sells off to rebuild its War Factory (after 2026.11.17.13, not released, Normal and Hard, both modes; the server must match)
+## Computer comeback: sells off to rebuild its Ore Refinery and War Factory (after 2026.11.17.13, not released, Normal and Hard, both modes; the server must match)
 
-- `aiRebuild` (ai.js, from `aiThink`): a computer that once had a War Factory (`team.hadFactory`), has lost every one, still has a Construction Yard and cannot
-  pay for the missing chain (refinery if none, then War Factory) sells a building every 3 s (`sellStructure`; defences first, then the dearest of the rest; never the
-  yard, power, refineries, Outposts or any production building) until credits plus pending sales cover it, then builds it before anything else (`team.rebuild`).
-  `node tools/sim/rebuild.js <repo> [diff]`: Normal, factory and trucks destroyed at 10 min with 0 credits, sold a Tesla Coil and the Tech Center, new factory 77 s later.
+- `aiRebuild` / `aiRebuildChain` (ai.js, from `aiThink`): a computer that once had a refinery (`team.hadRef`) or a War Factory (`team.hadFactory`), has none now, still has
+  a Construction Yard and cannot pay for the missing chain (power if it has none, the refinery, then the War Factory) sells a building every 3 s (`sellStructure`; defences
+  first, then the dearest of the rest, its Barracks, Helipads and Airfields only when nothing else is left; never the yard, power, refineries, Outposts or War Factories)
+  until credits plus pending sales cover it, then builds the chain in that order before anything else (`team.rebuild`). The refinery brings a free Ore Truck.
+  `node tools/sim/rebuild.js <repo> [diff] [factory|refinery|both]`: Normal, 0 credits, trucks gone at 10 min: factory back in 73 s, refinery 85 s, both 118 s.
