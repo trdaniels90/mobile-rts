@@ -2838,8 +2838,8 @@ function makeCameo(type, faction, key) {
   let mdl, angle = -0.55, scale;
   const power = type.startsWith('pw:') && type.slice(3);
   if (power) {
-    mdl = power === 'spy' ? jetModel(pal, faction === 'soviets') : power === 'para' ? (faction === 'allies' ? c130Model(pal) : il76Model(pal)) : power === 'bomb' ? (faction === 'allies' ? b1Model(pal) : tu22Model(pal)) : cargoModel(pal, power === 'bomb');
-    scale = power === 'spy' ? 1.6 : 1.05;
+    mdl = power === 'spy' ? jetModel(pal, faction === 'soviets') : power === 'para' ? (faction === 'allies' ? c130Model(pal) : il76Model(pal)) : power === 'bomb' ? (faction === 'allies' ? b1Model(pal) : tu22Model(pal)) : power === 'cas' ? (faction === 'allies' ? a10Model(pal) : su25Model(pal)) : cargoModel(pal, power === 'bomb');
+    scale = power === 'spy' ? 1.6 : power === 'cas' ? 1.4 : 1.05;
   } else if (BUILD_DEFS[type]) {
     mdl = STRUCTURES[type](pal, faction, true);
     angle = 0;

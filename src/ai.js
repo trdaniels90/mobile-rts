@@ -348,6 +348,15 @@ function aiFindSpot(team, type, at) {
   return null;
 }
 
+function aiCasTarget(team) {
+  const seen = G.fog[team.id], vehs = enemyUnitsOf(team.id).filter((u) => u.cls === 'veh' && !u.def.harvester && seen && seen[cellOfPos(u.x, u.y)]);
+  let best = null, bn = 2;
+  for (const v of vehs) {
+    const n = vehs.filter((o) => Math.hypot(o.x - v.x, o.y - v.y) < POWERS.cas.r).length;
+    if (n > bn) { bn = n; best = v; }
+  }
+  return best && { x: best.x, y: best.y };
+}
 function aiPowerTarget(team, cluster) {
   const theirs = buildingsOf(enemyOf(team).id).filter((b) => targetable(team.id, b));
   if (!theirs.length) return null;
@@ -880,6 +889,8 @@ function aiThink(team) {
   aiStrike(team);
   const held = (k) => team.holdFor && team.holdFor.keys.includes(k) && G.t - team.holdFor.since < 180;
   if (powerReady(team, 'bomb') && !held('bomb')) { const t = aiPowerTarget(team, true); if (t) launchPower(team, 'bomb', t.x, t.y); }
+  // Close air support: at the biggest group of the enemy's vehicles it can see (at least 3), else the thickest part of its base.
+  if (powerReady(team, 'cas') && !held('cas')) { const t = aiCasTarget(team) || aiPowerTarget(team, true); if (t) launchPower(team, 'cas', t.x, t.y); }
   if (powerReady(team, 'para') && !held('para')) { const t = aiPowerTarget(team, false); if (t) launchPower(team, 'para', t.x, t.y); }
   aiAirAssault(team);
 

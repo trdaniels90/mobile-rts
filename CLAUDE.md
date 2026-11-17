@@ -1024,6 +1024,7 @@ Supabase.
 | `comanche.js` | Headless: Tech Center research (cost, refund, kept, one at a time), the Comanche's pads, bays, lock-on, missiles for tanks only, gun after, stand-off, staged fights |
 | `ai-lift.js` | Headless: a Normal 1 v 1 per personality (first air assault, how many, kind, soldiers landed and alive 60 s later), and a turtle reinforcing an outlying refinery |
 | `transport.js` | Headless: transport helicopters (board, drop, park, UNLOAD HERE), Air Assault's balanced pick, shot down with troops aboard, a forged online order, the computer's air assault |
+| `cas.js` | Headless: Close Air Support tiers (needs Tech Center, Airfield, the tier before), the power, strikes by 1-3 planes on a tank column |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
@@ -1553,6 +1554,22 @@ frame-time maths everywhere, so it is not deterministic.
 - **Upgrades are lost with the last Tech Center** (owner's rule, replaces "kept for the battle"): `kill` clears `team.upgrades` when a side's last
   Tech Center is destroyed or sold ("Upgrades lost", text only). Queued Comanches / Tesla Tanks wait until re-researched; units already built stay.
   Field Manual updated; `comanche.js` checks the new rule.
+
+## Close Air Support: A-10 Warthog / Su-25 Frogfoot (after 2026.11.17.17, not released, owner's picks for both modes; the server must match)
+
+- Three Tech Center upgrades in order (`UPGRADES` cas1 $2000 60 s, cas2 $3000 90 s, cas3 $4000 120 s; `needs` the tier before, `req: 'airfield'`, checked in
+  `canResearch`; the upgrade card shows "Needs ..." while locked; `desc` may be per faction). cas1 adds the Airfield power `POWERS.cas` (240 s, `upgrade: 'cas1'`:
+  `hasPower` gates the sidebar, charging and `powerReady`); cas2 / cas3 send 2 / 3 planes (`casPlanes`), 60 px to either side and 45 px behind the lead.
+  Lost with the last Tech Center like every upgrade.
+- Planes (`a10` Allies, `su25` Soviets via `CAS_PLANE`; scripted, 520 / 480 health, can be shot down): `updateCas` (world.js, from `updateFlight`). Each makes
+  `passes` (2) runs over its spot: on the way in, from `msl.range` (340 px), `perPass` (2) homing missiles (HF, 110 / 115) at vehicles in the area (`r` 150 px;
+  `casPick`: heavy vehicles, other vehicles, defences, other buildings, infantry; a different one each where it can), then one gun run (`startStrafe` /
+  `tickStrafe` with its own `gun`: 26 AT shells of 28-30, splash 11, walked 96 px) at the best target nearly dead ahead within 170 px; then `CAS_OUT` px on,
+  turns (`flyJet`) and comes back; after the last run it flies off. Camouflaged Pillboxes not exposed and garrisoned soldiers are skipped.
+- Computer: researches the tiers like any upgrade (Normal and Hard); fires at the biggest seen group of 3+ enemy vehicles (`aiCasTarget`), else the thickest part of the base.
+- Looks: `a10Model` / `su25Model` (models.js, sprite keys 'G' / 'U', not baked: scripted); power cameo. Sprites rebaked for the hash only. "Air support ready" is text only (no voice clip).
+- `node tools/sim/cas.js <repo> [allies|soviets]`: rules, then 1 / 2 / 3 planes against 6 tanks + 3 riflemen in the open (Allies: 1,170 / 1,615 / 2,400 vehicle damage
+  of 2,500, 0 / 3 / 4 of 6 killed), and 3 planes beside a SAM Site.
 
 ## Computer comeback: sells off to rebuild its Ore Refinery and War Factory (after 2026.11.17.13, not released, Normal and Hard, both modes; the server must match)
 

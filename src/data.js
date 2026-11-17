@@ -236,6 +236,14 @@ const UNIT_DEFS = {
   // Support aircraft called in from the Airfield (see POWERS); they fly a set route and cannot be ordered.
   spyplane: { name: 'Spy Plane', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 150, armor: 'air', speed: 343, sight: 8, r: 9 },
   transport: { name: 'Transport', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 420, armor: 'air', speed: 105, sight: 5, r: 14 },
+  // Close air support planes (POWERS.cas): `gun` an anti-tank cannon walked along the flight line (tickStrafe), `msl` homing air-to-ground missiles
+  // (fired at vehicles first, then defences and buildings in the area), `perPass` of them each pass.
+  a10:  { name: 'A-10 Warthog', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 520, armor: 'air', speed: 118, turn: 1.6, sight: 6, r: 11,
+          gun: { dmg: 30, wh: 'AT', range: 170, rounds: 26, gap: 0.035, splash: 11, walk: 96 },
+          msl: { dmg: 110, rof: 0.35, range: 340, wh: 'HF', proj: 'missile', ammo: 4, perPass: 2 } },
+  su25: { name: 'Su-25 Frogfoot', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 125, turn: 1.7, sight: 6, r: 11,
+          gun: { dmg: 28, wh: 'AT', range: 170, rounds: 26, gap: 0.035, splash: 11, walk: 96 },
+          msl: { dmg: 115, rof: 0.35, range: 340, wh: 'HF', proj: 'missile', ammo: 4, perPass: 2 } },
   bomber: { name: 'Bomber', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 164, sight: 5, r: 14 },
   mig: {
     name: 'MiG Fighter', cls: 'air', fly: 'jet', cat: 'jet', producer: 'airfield', factions: ['soviets'],
@@ -288,7 +296,12 @@ const POWERS = {
           squad: { allies: ['rifle', 'rifle', 'rifle', 'rifle', 'rifle', 'rifle', 'rifle', 'rocket', 'rocket', 'rocket'],
                    soviets: ['rifle', 'rifle', 'rifle', 'rifle', 'rifle', 'grenadier', 'grenadier', 'grenadier', 'rocket', 'rocket'] } },
   bomb: { name: 'Bombing Run',  charge: 200, ready: 'Bombing run ready', bomb: { dmg: 90, wh: 'HE', splash: 26 }, bombs: 10 },
+  // Close air support (Tech Center upgrade cas1, then cas2 / cas3 for 2 or 3 planes): A-10 Warthogs (Allies) or Su-25 Frogfoots (Soviets) fly in,
+  // fire homing missiles at vehicles in the area (r px round the target), then make gun runs with their anti-tank cannon; `passes` runs each.
+  cas:  { name: 'Close Air Support', charge: 240, ready: 'Air support ready', upgrade: 'cas1', r: 150, passes: 2 },
 };
+// The power's plane by faction, and how many fly in (the highest close air support tier researched).
+const CAS_PLANE = { allies: 'a10', soviets: 'su25' };
 
 // `ai`: how the computer attacks and defends.
 //   wave / big: size ranges of a normal wave and of a big push, bigChance: share of big pushes
@@ -361,6 +374,14 @@ const UPGRADES = {
                desc: 'Unlocks the Tesla Tank at the War Factory: a tank carrying a Tesla coil. Its bolt kills infantry outright and hurts vehicles badly at short range; it cannot hit aircraft.' },
   para2: { name: 'Airborne division', cost: 1500, time: 60, factions: ['allies', 'soviets'],
            desc: 'Paratroopers come in two transport planes instead of one: twenty soldiers a drop.' },
+  // Close air support, three tiers in order (`needs` the tier before, `req` a finished building besides the Tech Center).
+  cas1: { name: 'Close air support I', cost: 2000, time: 60, factions: ['allies', 'soviets'], req: 'airfield',
+          desc: { allies: 'Adds the Close Air Support power at the Airfield: an A-10 Warthog flies in on the area you pick, fires homing missiles at vehicles there and strafes them with its 30 mm anti-tank cannon. Recharges in 240 s.',
+                  soviets: 'Adds the Close Air Support power at the Airfield: an Su-25 Frogfoot flies in on the area you pick, fires homing missiles at vehicles there and strafes them with its 30 mm anti-tank cannon. Recharges in 240 s.' } },
+  cas2: { name: 'Close air support II', cost: 3000, time: 90, factions: ['allies', 'soviets'], req: 'airfield', needs: 'cas1',
+          desc: 'Close Air Support sends two planes together.' },
+  cas3: { name: 'Close air support III', cost: 4000, time: 120, factions: ['allies', 'soviets'], req: 'airfield', needs: 'cas2',
+          desc: 'Close Air Support sends three planes together.' },
 };
 for (const k in UPGRADES) UPGRADES[k].id = k;
 

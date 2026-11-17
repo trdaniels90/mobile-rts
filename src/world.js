@@ -121,7 +121,7 @@ function makeTeam(id, faction, isAI) {
     power: { prod: 0, use: 0 }, low: false, auto: !!isAI, focusSide: null,
     queues: { structure: null, defense: null, infantry: [], vehicle: [], heli: [], jet: [] },
     stats: { built: 0, units: 0, lost: 0, killed: 0, bldKilled: 0, bldLost: 0, harvested: 0 },
-    cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, upgrades: {}, research: null, defending: false, calm: 0, allyCalm: 0, assist: false, assistSide: null, harvHit: null,
+    cool: {}, powers: { spy: 0, para: 0, bomb: 0, cas: 0 }, upgrades: {}, research: null, defending: false, calm: 0, allyCalm: 0, assist: false, assistSide: null, harvHit: null,
   };
 }
 
@@ -4760,12 +4760,17 @@ function orbit(u, cx, cy, dt) {
 function clampAir(u) { u.x = Math.max(8, Math.min(WORLD - 8, u.x)); u.y = Math.max(8, Math.min(WORLD - 8, u.y)); }
 
 // --- Airfield support powers ---------------------------------------------------
-function powerReady(team, key) { return hasBuilt(team, 'airfield') && team.powers[key] >= POWERS[key].charge; }
+// A power with `upgrade` (Close Air Support) is only there once that Tech Center upgrade is researched; it charges from then on.
+const hasPower = (team, key) => !POWERS[key].upgrade || hasUpgrade(team, POWERS[key].upgrade);
+function powerReady(team, key) { return hasBuilt(team, 'airfield') && hasPower(team, key) && (team.powers[key] || 0) >= POWERS[key].charge; }
+// How many close air support planes fly in: the highest tier researched (cas1 to cas3).
+const casPlanes = (team) => hasUpgrade(team, 'cas3') ? 3 : hasUpgrade(team, 'cas2') ? 2 : 1;
 function updatePowers(team, dt) {
   if (!hasBuilt(team, 'airfield')) return;
   for (const [key, p] of Object.entries(POWERS)) {
-    if (team.powers[key] >= p.charge) continue;
-    team.powers[key] = Math.min(p.charge, team.powers[key] + dt * (team.low ? 0.5 : 1));
+    if (!hasPower(team, key)) continue;
+    if ((team.powers[key] || 0) >= p.charge) continue;
+    team.powers[key] = Math.min(p.charge, (team.powers[key] || 0) + dt * (team.low ? 0.5 : 1));
     if (team.powers[key] >= p.charge) notify(team, 'pw' + key, p.ready, 1);
   }
 }
@@ -4773,21 +4778,86 @@ function updatePowers(team, dt) {
 function launchPower(team, key, x, y) {
   if (!powerReady(team, key)) return false;
   team.powers[key] = 0;
-  const type = key === 'spy' ? 'spyplane' : key === 'para' ? 'transport' : 'bomber';
+  const type = key === 'spy' ? 'spyplane' : key === 'para' ? 'transport' : key === 'cas' ? CAS_PLANE[team.faction] : 'bomber';
   const hx = (team.start.cx + 0.5) * CELL, hy = (team.start.cy + 0.5) * CELL;
   const a = Math.atan2(y - hy, x - hx), back = Math.hypot(x - hx, y - hy) + 260;
   // With the Airborne division upgrade (para2) a second transport flies alongside, 70 px to one side and a little behind.
-  const planes = key === 'para' && hasUpgrade(team, 'para2') ? [0, 1] : [0];
+  // Close air support: 1 to 3 planes by tier, the lead in the middle and the others 60 px to either side, a little behind; each works its own part of the area.
+  const planes = key === 'para' && hasUpgrade(team, 'para2') ? [0, 1] : key === 'cas' ? [0, 1, 2].slice(0, casPlanes(team)) : [0];
   for (const i of planes) {
-    const side = i ? 70 : 0, lag = i ? 50 : 0, nx = -Math.sin(a) * side, ny = Math.cos(a) * side;
+    const cas = key === 'cas', side = cas ? [0, 60, -60][i] : i ? 70 : 0, lag = cas ? (i ? 45 : 0) : i ? 50 : 0, nx = -Math.sin(a) * side, ny = Math.cos(a) * side;
     const u = addUnit(type, team, x + nx - Math.cos(a) * (back + lag), y + ny - Math.sin(a) * (back + lag));
     u.face = u.tface = a; u.alt = JET_ALT; u.as = 'fly';
     u.order = { type: 'flight' };
     u.flight = { key, tx: x + nx, ty: y + ny, done: false, bombs: 0, bombT: 0 };
+    if (cas) Object.assign(u.flight, { ax: x + nx, ay: y + ny, pass: 0, msl: u.def.msl.ammo, fired: 0, mslT: 0, gunDone: false, phase: 'in' });
   }
   return true;
 }
+// --- Close air support (POWERS.cas): each plane makes POWERS.cas.passes runs over the area, then leaves the way it came.
+// A run: on the way in, from about the missiles' range, it fires msl.perPass homing missiles (rof apart) at what it finds in the area
+// (casPick: vehicles first, then defences, then other buildings, then infantry); then, when a ground target lies nearly dead ahead within
+// the gun's range, one gun run (startStrafe / tickStrafe with its own gun: anti-tank shells walked along the flight line). Past the area it
+// flies on CAS_OUT px, turns round (flyJet) and comes back for the next run. Host only (the guest gets the planes and shots in snapshots).
+const CAS_OUT = 230, CAS_AHEAD = 0.45;
+function casFoes(u, x, y, r) {
+  const out = [];
+  for (const e of G.entities) {
+    if (!e.alive || !hostile(e.team, u.team) || isAirborne(e) || e.inHouse || e.chute) continue;
+    if (e.kind === 'bld' ? camoHidden(e, u.team) : e.kind !== 'unit') continue;
+    if (Math.hypot(e.x - x, e.y - y) <= r + (e.kind === 'bld' ? CELL : 0)) out.push(e);
+  }
+  return out;
+}
+const casRank = (e) => e.kind === 'unit' ? (e.cls === 'veh' ? (e.def.armor === 'heavy' ? 0 : 1) : 4) : e.def.defense ? 2 : 3;
+function casPick(u, list, avoid) {
+  let best = null, bs = Infinity;
+  for (const e of list) {
+    const s = casRank(e) * 1000 + Math.hypot(e.x - u.x, e.y - u.y) * 0.5 + (avoid && avoid.has(e) ? 600 : 0);
+    if (s < bs) { bs = s; best = e; }
+  }
+  return best;
+}
+function updateCas(u, dt) {
+  const f = u.flight, P = POWERS.cas, d = u.def;
+  u.alt = JET_ALT;
+  tickStrafe(u, dt);
+  if (f.phase === 'turn') {   // coming round for the next run
+    flyJet(u, f.ax, f.ay, dt);
+    const want = Math.atan2(f.ay - u.y, f.ax - u.x);
+    if (Math.abs(angDiff(u.face, want)) < 0.12) { f.phase = 'in'; f.fired = 0; f.gunDone = false; f.mslT = 0; }
+    return;
+  }
+  u.speedCur = d.speed; u.moving = true;
+  const ca = Math.cos(u.face), sa = Math.sin(u.face);
+  let past = (u.x - f.ax) * ca + (u.y - f.ay) * sa;   // how far beyond the middle of the area (along its heading)
+  if (f.phase === 'in' && past < -80) u.face = turnToward(u.face, Math.atan2(f.ay - u.y, f.ax - u.x), d.turn * 0.4 * dt);   // lines up on the area as it comes in
+  u.x += Math.cos(u.face) * d.speed * dt; u.y += Math.sin(u.face) * d.speed * dt;
+  past = (u.x - f.ax) * Math.cos(u.face) + (u.y - f.ay) * Math.sin(u.face);
+  if (f.phase === 'in' && !G.remote) {
+    const foes = past > -d.msl.range && past < 40 ? casFoes(u, f.ax, f.ay, P.r) : null;
+    // Missiles: perPass a run, at targets ahead of it, a different one each where it can.
+    if (foes && f.msl > 0 && f.fired < d.msl.perPass && (f.mslT -= dt) <= 0) {
+      const ahead = foes.filter((e) => Math.abs(angDiff(u.face, Math.atan2(e.y - u.y, e.x - u.x))) < 1.1 && Math.hypot(e.x - u.x, e.y - u.y) <= d.msl.range);
+      const shot = f.shot || (f.shot = []);
+      const t = casPick(u, ahead.filter((e) => e.kind === 'bld' || e.cls === 'veh'), new Set(shot.map((id) => G.byId.get(id)).filter(Boolean)));
+      if (t) { fireWeapon(u, d.msl, t); f.msl--; f.fired++; f.mslT = d.msl.rof; shot.push(t.id); if (shot.length > 6) shot.shift(); }
+    }
+    // The gun: one run a pass, at the best target nearly dead ahead and within reach.
+    if (foes && !f.gunDone && !u.strafe) {
+      const ahead = foes.filter((e) => { const dd = Math.hypot(e.x - u.x, e.y - u.y); return dd <= d.gun.range && dd > 40 && Math.abs(angDiff(u.face, Math.atan2(e.y - u.y, e.x - u.x))) < CAS_AHEAD; });
+      const t = casPick(u, ahead);
+      if (t) { startStrafe(u, t); f.gunDone = true; }
+    }
+  }
+  if (f.phase === 'in' && past > CAS_OUT) {
+    if (++f.pass < P.passes) f.phase = 'turn';
+    else f.phase = 'out';
+  }
+  if (f.phase === 'out' && (past > CAS_OUT + 700 || u.x < -200 || u.y < -200 || u.x > WORLD + 200 || u.y > WORLD + 200)) u.alive = false;   // gone without a wreck
+}
 function updateFlight(u, dt) {
+  if (u.flight.key === 'cas') { updateCas(u, dt); return; }
   const f = u.flight, ca = Math.cos(u.face), sa = Math.sin(u.face);
   u.alt = JET_ALT; u.moving = true; u.speedCur = u.def.speed;
   u.x += ca * u.def.speed * dt; u.y += sa * u.def.speed * dt;
@@ -4980,9 +5050,11 @@ function available(team, type) {
 // team.upgrades: { id: true } once researched (lost with the side's last Tech Center, see kill). team.research: { id, progress, spent } while one is under
 // way, paid as it goes like production (half speed on low power). Plain data: saved, and sent to online players (netcore TEAM).
 function hasUpgrade(team, id) { return !!(team.upgrades && team.upgrades[id]); }
+// `needs`: an upgrade researched first (the tiers of Close Air Support); `req`: a building it also needs (the Airfield).
 function canResearch(team, id) {
   const u = UPGRADES[id];
-  return !!u && u.factions.includes(team.faction) && !hasUpgrade(team, id) && hasBuilt(team, 'tech');
+  return !!u && u.factions.includes(team.faction) && !hasUpgrade(team, id) && hasBuilt(team, 'tech')
+    && (!u.needs || hasUpgrade(team, u.needs)) && (!u.req || hasBuilt(team, u.req));
 }
 function startResearch(team, id) {
   if (!canResearch(team, id)) return 'Not available';

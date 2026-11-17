@@ -1184,6 +1184,80 @@ function tu22Model(pal) {
   return m;
 }
 
+// Close air support planes (POWERS.cas). The Allied A-10 Warthog: a long, slim body with the 30 mm cannon's barrels poking out of the
+// nose, a bubble canopy well forward, straight, thick wings set low with missiles under them, two big engine pods high on the rear body,
+// and a low tailplane with a fin at each end (the fins in the side's colour). Grey-green.
+function a10Model(pal) {
+  const m = new VModel(-18, -16, 20, 16, 11);
+  const body = mixHex(pal.main, '#7b8478', 0.75), hull = shadeInt(body, 0.85), dark = shadeInt(body, 0.62), lite = shadeInt(body, 1.1);
+  for (let x = -16; x < 16; x++) {                                                  // fuselage, tapering at the tail and to a blunt nose
+    const r = x > 10 ? 1.9 - (x - 10) * 0.18 : x < -9 ? 1.9 - (-9 - x) * 0.13 : 1.9;
+    m.cylX(x, x + 1, 0, 3.2, r, x > 12 ? hull : body, M_METAL);
+  }
+  m.box(-14, -0.5, 4.4, 8, 0.5, 5, lite, M_METAL);                                  // spine
+  m.box(15, -0.5, 2, 19, 0.5, 3, '#2a2a28', M_METAL);                               // the cannon's barrels
+  m.set(19, 0, 2, '#141413');
+  m.ellipsoid(10, 0, 4.6, 2.6, 1.3, 1.2, C.glass, M_GLASS);                         // bubble canopy
+  m.set(10, 0, 5, '#9fd2f2', M_GLASS);
+  for (let k = 1; k <= 15; k++) {                                                   // straight wings, slightly tapered, low on the body
+    const lead = 3 - Math.round(k * 0.08), trail = -4 + Math.round(k * 0.12);
+    for (const sgn of [-1, 1]) {
+      const y = sgn < 0 ? -k - 1 : k;
+      for (let x = trail; x <= lead; x++) m.set(x, y, 2, k >= 14 ? pal.main : x === trail ? hull : body, M_METAL);
+    }
+  }
+  for (const y of [-6, -9, 5, 8]) { m.box(-2, y, 1, 3, y + 1, 2, '#c8c6bc', M_METAL); m.set(3, y, 1, '#5a5850'); }   // missiles under the wings
+  for (const y of [-3.6, 3.6]) {                                                    // engine pods high on the rear body
+    m.cylX(-12, -4, y, 6, 1.7, hull, M_METAL);
+    m.cylX(-4, -3, y, 6, 1.7, '#1b1b1a');                                           // intake
+    m.cylX(-13, -12, y, 6, 1.2, '#2a2a28', M_METAL);                                // exhaust
+    m.box(-10, y < 0 ? -2.5 : 1.5, 4, -6, y < 0 ? -1.5 : 2.5, 6, body, M_METAL);      // pylon to the body
+  }
+  for (let y = -7; y <= 6; y++) m.box(-17, y, 3.5, -13, y + 1, 4.2, body, M_METAL);   // tailplane
+  for (const y of [-7, 6]) for (let z = 3; z < 9; z++) {                            // a fin at each end
+    const lead = -13 - Math.round((z - 3) * 0.3), trail = -17;
+    m.box(trail, y, z, lead + 1, y + 1, z + 1, z > 7 ? pal.dark : pal.main, M_METAL);
+  }
+  m.paintTop(-12, 0, 8, 1, (x) => (x % 4 === 0 ? dark : undefined));
+  return m;
+}
+// The Soviet Su-25 Frogfoot: a slim body with a pointed nose, a framed canopy, long engine nacelles along both sides of the body under
+// shoulder-mounted, gently swept wings with missiles on pylons, a single tall fin and low tailplanes. Camouflage green and sand.
+function su25Model(pal) {
+  const m = new VModel(-17, -16, 19, 16, 11);
+  const body = mixHex(pal.main, '#7d8a5c', 0.7), sand = mixHex(pal.main, '#a8956a', 0.7), hull = shadeInt(body, 0.85), dark = shadeInt(body, 0.62);
+  for (let x = -15; x < 18; x++) {                                                  // fuselage with a long, pointed nose
+    const r = x > 8 ? Math.max(0.45, 1.6 - (x - 8) * 0.12) : x < -10 ? 1.6 - (-10 - x) * 0.15 : 1.6;
+    m.cylX(x, x + 1, 0, 3.4, r, x > 15 ? dark : (x >> 2) % 2 ? body : sand, M_METAL);
+  }
+  m.box(16, -0.5, 1.8, 19, 0.5, 2.6, '#2a2a28', M_METAL);                          // the twin cannon under the nose
+  m.ellipsoid(8.5, 0, 4.8, 2.4, 1.1, 1.1, C.glass, M_GLASS);                        // canopy
+  m.set(8, 0, 5, hull, M_METAL);
+  for (const y of [-2.7, 2.7]) {                                                    // engine nacelles along the body
+    m.cylX(-13, 5, y, 2.9, 1.5, hull, M_METAL);
+    m.cylX(5, 6, y, 2.9, 1.5, '#1b1b1a');                                           // intakes
+    m.cylX(-14, -13, y, 2.9, 1.1, '#2a2a28', M_METAL);                              // exhausts
+  }
+  for (let k = 3; k <= 15; k++) {                                                   // shoulder wings, gently swept and tapered
+    const lead = 3 - Math.round((k - 3) * 0.32), trail = -4 - Math.round((k - 3) * 0.1);
+    for (const sgn of [-1, 1]) {
+      const y = sgn < 0 ? -k - 1 : k;
+      for (let x = trail; x <= lead; x++) m.set(x, y, 4, k >= 14 ? pal.main : x === trail ? hull : (k >> 2) % 2 ? sand : body, M_METAL);
+    }
+  }
+  for (const y of [-7, -10, 6, 9]) { m.box(-3, y, 2, 2, y + 1, 3, '#c8c6bc', M_METAL); m.set(2, y, 2, '#5a5850'); m.set(0, y, 3, hull, M_METAL); }   // missiles on pylons
+  for (let k = 1; k <= 6; k++) for (const sgn of [-1, 1]) {                         // low tailplanes
+    const y = sgn < 0 ? -k - 1 : k;
+    m.box(-16, y, 3, -12 - Math.round(k * 0.3), y + 1, 4, body, M_METAL);
+  }
+  for (let z = 4; z < 11; z++) {                                                    // a single tall swept fin
+    const lead = -9 - Math.round((z - 4) * 0.8), trail = -16 + Math.round((z - 4) * 0.2);
+    m.box(trail, 0, z, lead + 1, 1, z + 1, z > 9 ? pal.dark : pal.main, M_METAL);
+  }
+  starTop(m, -2.5, 11, 2.2, pal.main); starTop(m, -2.5, -11, 2.2, pal.main);
+  return m;
+}
+
 // ---------------------------------------------------------------------------
 // Infantry: 16 facings x 3 frames (standing, two walking poses)
 // ---------------------------------------------------------------------------
@@ -4944,6 +5018,8 @@ function hullSprite(u, pal) {
     if (d.type === 'bomber') return u.faction === 'allies' ? facingSprite('B' + key, () => b1Model(pal), u.face) : facingSprite('K' + key, () => tu22Model(pal), u.face);
     return facingSprite('C' + key, () => cargoModel(pal, d.type === 'bomber'), u.face);
   }
+  if (d.type === 'a10') return facingSprite('G' + key, () => a10Model(pal), u.face);
+  if (d.type === 'su25') return facingSprite('U' + key, () => su25Model(pal), u.face);
   const mig = d.type === 'mig' || (d.type === 'spyplane' && u.faction === 'soviets');
   return facingSprite('A' + key + mig, () => jetModel(pal, mig), u.face);
 }

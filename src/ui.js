@@ -825,7 +825,7 @@ function draw() {
     const p = G.place;
     if (p && p.rally && p.x !== undefined) { drawRally(v, p.rally, p); return; }
     if (p && (p.power || p.guard) && p.x !== undefined) {
-      const r = p.guard ? Math.max(...p.guard.filter((u) => u.alive).map(guardReach), CELL) : p.power === 'spy' ? POWERS.spy.reveal * CELL : p.power === 'para' || p.power === 'assault' ? 40 : 60;
+      const r = p.guard ? Math.max(...p.guard.filter((u) => u.alive).map(guardReach), CELL) : p.power === 'spy' ? POWERS.spy.reveal * CELL : p.power === 'cas' ? POWERS.cas.r : p.power === 'para' || p.power === 'assault' ? 40 : 60;
       v.strokeStyle = p.guard ? '#5ee060' : '#ff5a4a'; v.lineWidth = 1;
       v.setLineDash([4, 3]); v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.stroke(); v.setLineDash([]);
       v.beginPath(); v.moveTo(p.x - 8, p.y); v.lineTo(p.x + 8, p.y); v.moveTo(p.x, p.y - 8); v.lineTo(p.x, p.y + 8); v.stroke();
@@ -1332,7 +1332,7 @@ function draw() {
   const UNIT_ORDER = ['infantry', 'vehicle', 'heli', 'jet'];
   function stripTypes(team, side) {
     if (side === 'L') {
-      const powers = (hasBuilt(team, 'airfield') ? Object.keys(POWERS).map((k) => 'pw:' + k) : [])
+      const powers = (hasBuilt(team, 'airfield') ? Object.keys(POWERS).filter((k) => hasPower(team, k)).map((k) => 'pw:' + k) : [])   // (Close Air Support once researched)
         .concat(unitsOf(team.id).some((u) => u.def.lift) ? ['as:assault'] : []);   // Air Assault: once the side has a transport helicopter
       // (a queued structure stays on the list after a building it needs is lost, so it can be placed or cancelled)
       const q = team.queues.structure, qd = team.queues.defense;
@@ -1552,11 +1552,14 @@ function draw() {
   function upFill() {
     const me = G.teams[G.me], r = me.research, ids = Object.keys(UPGRADES).filter((k) => UPGRADES[k].factions.includes(me.faction));
     const html = ids.map((k) => {
-      const u = UPGRADES[k], done = hasUpgrade(me, k), busy = r && r.id === k;
+      const u = UPGRADES[k], done = hasUpgrade(me, k), busy = r && r.id === k, desc = typeof u.desc === 'string' ? u.desc : u.desc[me.faction];
+      // Still locked: the tier before it, or the building it needs (Close Air Support needs an Airfield).
+      const lock = !done && !busy && (u.needs && !hasUpgrade(me, u.needs) ? `Needs ${UPGRADES[u.needs].name}` : u.req && !hasBuilt(me, u.req) ? `Needs an ${BUILD_DEFS[u.req].name}` : '');
       const btn = done ? '<span class="up-done">Researched ✓</span>'
         : busy ? `<span class="up-pct">${Math.floor(r.progress * 100)}%${r.stalled ? ' · on hold' : ''}</span><button type="button" class="pf-btn" data-cancel="${k}">Cancel</button>`
+        : lock ? `<span class="up-pct">${lock}</span>`
         : `<button type="button" class="pf-btn" data-up="${k}"${r ? ' disabled' : ''}>${u.unlocks ? UNIT_DEFS[u.unlocks].name : u.name} · $${u.cost} · ${u.time} s</button>`;
-      return `<div class="up-item"><p class="up-name">${u.name}</p><p class="up-desc">${u.desc}</p><div class="up-row">${btn}</div></div>`;
+      return `<div class="up-item"><p class="up-name">${u.name}</p><p class="up-desc">${desc}</p><div class="up-row">${btn}</div></div>`;
     }).join('') || '<p class="up-desc">No upgrades for this side yet.</p>';
     if (html !== upSig) { upSig = html; upEl.querySelector('.up-list').innerHTML = html; }
   }
@@ -1667,7 +1670,7 @@ function draw() {
         dim = !ready;
       } else if (cat === 'power') {
         const key = type.slice(3);
-        p = team.powers[key] / POWERS[key].charge;
+        p = (team.powers[key] || 0) / POWERS[key].charge;
         st = p >= 1 ? 'READY' : '';
       } else if (cat === 'wall') {
         st = G.place && G.place.wall === type.slice(3) ? 'READY' : '';
