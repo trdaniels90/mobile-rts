@@ -571,16 +571,12 @@ function wallLine(kind, x0, y0, x1, y1) {
     const v = Math.abs(y1 - y0) > Math.abs(x1 - x0), dx = v ? 0 : 1, dy = v ? 1 : 0;
     return inMap(x0 - dx, y0 - dy) && inMap(x0 + dx, y0 + dy) ? [idx(x0 - dx, y0 - dy), idx(x0, y0), idx(x0 + dx, y0 + dy)] : [];
   }
-  // (a slanted line steps along one axis at a time, so it has no corner gaps to slip through)
+  // A slanted line steps diagonally where it must (one piece a step, so a diagonal wall looks straight in the iso view):
+  // nothing slips between two pieces that touch at a corner (findPath, tryMove and los treat such a corner as shut).
   const out = [], n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
   const add = (x, y) => { if (out.length < WALL_LINE_MAX && inMap(x, y)) out.push(idx(x, y)); };
-  let px = x0, py = y0;
   add(x0, y0);
-  for (let i = 1; i <= n; i++) {
-    const x = Math.round(x0 + (x1 - x0) * i / n), y = Math.round(y0 + (y1 - y0) * i / n);
-    if (x !== px && y !== py) add(x, py);
-    add(x, y); px = x; py = y;
-  }
+  for (let i = 1; i <= n; i++) add(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n));
   return out;
 }
 // A gate may also be laid over pieces of the side's own wall (sandbags, wire, concrete; not another gate), so a player
@@ -1307,6 +1303,14 @@ function passableAt(x, y) {
   if (x < 2 || y < 2 || x > WORLD - 2 || y > WORLD - 2) return false;
   return freeCell(cellOfPos(x, y));
 }
+// A step from one cell to a diagonal neighbour is shut when both cells between them are blocked: two wall pieces that
+// touch at a corner (a diagonal wall), or two buildings or rocks. findPath never routes through one; this keeps a unit's
+// own steps (tryMove) and straight-line shortcuts (los) from slipping through it either.
+function cornerShut(a, b) {
+  const ax = cellX(a), ay = cellY(a), bx = cellX(b), by = cellY(b);
+  if (Math.abs(ax - bx) !== 1 || Math.abs(ay - by) !== 1) return false;
+  return !freeCell(idx(bx, ay)) && !freeCell(idx(ax, by));
+}
 
 function nearestFreeCell(c, maxR) {
   if (freeCell(c)) return c;
@@ -1433,9 +1437,11 @@ function findPath(sx, sy, tx, ty, rad) {
 function los(ax, ay, bx, by, rad) {
   const d = Math.hypot(bx - ax, by - ay), n = Math.ceil(d / 6);
   const px = d ? -(by - ay) / d * rad : 0, py = d ? (bx - ax) / d * rad : 0;
+  let pc = cellOfPos(ax, ay);
   for (let i = 1; i <= n; i++) {
-    const x = ax + (bx - ax) * i / n, y = ay + (by - ay) * i / n;
-    if (!passableAt(x, y) || !passableAt(x + px, y + py) || !passableAt(x - px, y - py)) return false;
+    const x = ax + (bx - ax) * i / n, y = ay + (by - ay) * i / n, c = cellOfPos(x, y);
+    if (!passableAt(x, y) || !passableAt(x + px, y + py) || !passableAt(x - px, y - py) || cornerShut(pc, c)) return false;
+    pc = c;
   }
   return true;
 }
@@ -1528,7 +1534,7 @@ function tryMove(u, dx, dy) {
   try {
     const nx = u.x + dx, ny = u.y + dy;
     let ok = false;
-    if (passableAt(nx, ny)) { u.x = nx; u.y = ny; ok = true; }
+    if (passableAt(nx, ny) && !cornerShut(cellOfPos(u.x, u.y), cellOfPos(nx, ny))) { u.x = nx; u.y = ny; ok = true; }
     else if (dx && passableAt(nx, u.y)) { u.x = nx; ok = true; }
     else if (dy && passableAt(u.x, ny)) { u.y = ny; ok = true; }
     // A vehicle flattens the barbed wire it drives over.
@@ -2214,7 +2220,7 @@ function defendBase(team) {
   const ecy = buildingsOf(enemyOf(team).id).find((b) => b.type === 'cy'), own = mine.find((b) => b.type === 'cy');
   const homeHalf = (u) => !ecy || !own || dist(u, own) < dist(u, ecy);
   let army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward && !u.manual &&
-    (u.cls !== 'air' || (!airEmpty(u) && !u.rearming && u.order.type === 'guard' && !u.order.hold)) &&
+    (u.cls !== 'air' || (!airEmpty(u) && (u.as === 'landed' && u.def.fly !== 'jet' ? padReady(u) : !u.rearming) && u.order.type === 'guard' && !u.order.hold)) &&
     (u.defending || idle(u) || (team.isAI && !G.diff.ai.planner && u.cls !== 'air' && !truckOnly && homeHalf(u))));
   if (!threats.length) {
     team.raiders = []; team.defShort = 0;
@@ -2250,7 +2256,7 @@ function defendBase(team) {
   const need = threats.reduce((a, t) => a + worth(t), 0) * 1.5;
   const nearC = new Map();   // each unit's distance to the nearest threat, worked out once (it is used in sorts)
   const near = (u) => { let d = nearC.get(u); if (d === undefined) { d = Infinity; for (const t of threats) d = Math.min(d, Math.hypot(u.x - t.x, u.y - t.y)); nearC.set(u, d); } return d; };
-  army = army.filter((u) => threats.some((t) => canTarget(u, t)));
+  army = army.filter((u) => threats.some((t) => (u.cls === 'air' ? airWeapons(u).some((w) => canHit(w, t)) : canTarget(u, t))));
   army.sort((a, b) => (b.defending - a.defending) || ((b.cls === 'air') - (a.cls === 'air')) || near(a) - near(b));
   let got = 0, picked = [];
   for (const u of army) {
@@ -2266,7 +2272,7 @@ function defendBase(team) {
     else for (const t of threats) { const d = Math.hypot(u.x - t.x, u.y - t.y) + (t !== u.target && overkill(t) ? OVERKILL : 0); if (d < bd && canTarget(u, t)) { bd = d; best = t; } }
     if (!best) continue;
     if (best !== u.target) pledge(u, best);   // so the next defenders spread over the raiders
-    if (u.cls === 'air' && u.as === 'landed') { u.as = 'takeoff'; u.repairHold = false; }   // part-rearmed or part-repaired: good enough for a fight at home
+    if (u.cls === 'air' && u.as === 'landed') { u.as = 'takeoff'; u.repairHold = false; u.rearming = false; }   // part-rearmed or part-repaired: good enough for a fight at home
     if (!u.defending) {
       // Remember where to return: the guard spot, or for attack groups already out, the rally point.
       const r = rallyPoint(team), g = u.order.type === 'guard';
@@ -2279,6 +2285,14 @@ function defendBase(team) {
   }
 }
 
+// A helicopter rearming on its pad still answers a raid on its own base (the Comanche sat out whole raids while it loaded
+// missiles it had no use for against infantry): landed, at least half its health, and (checked in defendBase) carrying
+// something that can hit one of the raiders; half a load of gun or missiles. Jets still make one pass and rearm fully.
+function padReady(u) {
+  if (u.hp < u.maxHp * 0.5) return false;
+  const L = airLoad(u.def);   // half a load of its gun or of its missiles, so it does not bob up and down with one burst
+  return (L.ammo > 0 && u.ammo >= L.ammo / 2) || (L.aam > 0 && (u.aam || 0) >= L.aam / 2);
+}
 // A defending jet's next raider: the nearest one no other defending aircraft is already after.
 function pickRaider(u) {
   const claims = new Map();
@@ -3588,7 +3602,7 @@ function walkDistances(start) {
       const nx = cx + DIRS8[i][0], ny = cy + DIRS8[i][1];
       if (!inMap(nx, ny)) continue;
       const n = idx(nx, ny);
-      if (dist[n] < 0 && freeCell(n)) { dist[n] = dist[c] + 1; q.push(n); }
+      if (dist[n] < 0 && freeCell(n) && !cornerShut(c, n)) { dist[n] = dist[c] + 1; q.push(n); }
     }
   }
   return dist;
@@ -3671,7 +3685,7 @@ function findOre(u) {
       const nx = cx + DIRS8[i][0], ny = cy + DIRS8[i][1];
       if (!inMap(nx, ny)) continue;
       const n = idx(nx, ny);
-      if (!seen[n] && freeCell(n)) { seen[n] = 1; q.push(n); }
+      if (!seen[n] && freeCell(n) && !cornerShut(c, n)) { seen[n] = 1; q.push(n); }
     }
   }
   return best >= 0 ? best : fallback;

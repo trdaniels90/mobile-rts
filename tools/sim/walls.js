@@ -22,7 +22,7 @@ ok('they block the ground', run(`[0,1,2,3,4,5,6].every((i) => G.block[idx(bx - 2
 ok('no second piece on the same cell', run(`placeWalls(T0, 'sandbag', bx - 2, by, bx + 4, by)`) === 0);
 ok('not far from the base', run(`placeWalls(T0, 'sandbag', bx, by + 30, bx + 3, by + 30)`) === 0);
 ok('money runs out mid-line', run(`(T0.credits = 60, placeWalls(T0, 'sandbag', bx - 2, by + 2, bx + 4, by + 2))`) === 2 && run('T0.credits') === 10);
-ok('a slanted line has no corner gaps', run(`(() => { const l = wallLine('sandbag', 5, 5, 9, 8); for (let i = 1; i < l.length; i++) if (Math.abs(cellX(l[i]) - cellX(l[i - 1])) + Math.abs(cellY(l[i]) - cellY(l[i - 1])) !== 1) return false; return l.length === 8; })()`));
+ok('a slanted line steps diagonally, one piece a step', run(`(() => { const l = wallLine('sandbag', 5, 5, 9, 8); for (let i = 1; i < l.length; i++) if (Math.max(Math.abs(cellX(l[i]) - cellX(l[i - 1])), Math.abs(cellY(l[i]) - cellY(l[i - 1]))) !== 1) return false; return l.length === 5 && wallLine('sandbag', 5, 5, 9, 9).length === 5; })()`));
 ok('a line stops at ' + run('WALL_LINE_MAX') + ' pieces', run(`wallLine('sandbag', 2, 2, 100, 2).length`) === run('WALL_LINE_MAX'));
 ok('selling gives half back', run(`(T0.credits = 0, sellWall(T0, bx - 2, by + 2))`) === true && run('T0.credits') === 12 && run(`G.wall[idx(bx - 2, by + 2)]`) === 0 && run(`G.block[idx(bx - 2, by + 2)]`) === 0);
 ok('not another side to sell', run(`sellWall(T1, bx, by)`) === false);
@@ -119,6 +119,27 @@ run(`var sb = idx(wx, wy + 2); A.credits = 5000; placeWalls(A, 'sandbag', wx, wy
 ok('not over an enemy piece', run(`placeWalls(A, 'gate', wx + 2, wy + 2, wx + 3, wy + 2) === 0 && G.wall[idx(wx + 3, wy + 2)] === 3 && A.credits === 1000`));
 ok('not over another gate', run(`placeWalls(A, 'gate', wx + 4, wy, wx + 5, wy) === 0`));
 ok('the refund can make up a short purse', run(`(A.credits = WALLS.gate.cost - 30, placeWalls(A, 'gate', wx + 1, wy + 2, wx + 2, wy + 2))`) === 1, run('A.credits'));
+
+// A diagonal wall: pieces touch only at their corners, and nothing slips between them (route, steps or a straight shortcut).
+run(`G.wall.fill(0); G.wallTeam.fill(0); G.wallHp.fill(0); G.wallN = 0;
+  var dg = null;
+  for (let y = 10; y < MAP - 30 && !dg; y++) for (let x = 10; x < MAP - 30 && !dg; x++) {
+    let ok = true; for (let k = -2; k < 22 && ok; k++) for (const o of [-2, -1, 0, 1, 2]) if (!freeCell(idx(x + k, y + k + o)) || G.bld[idx(x + k, y + k + o)]) ok = false;
+    if (ok) dg = [x, y];
+  }
+  0`);
+ok('open ground for a diagonal wall', run('!!dg'));
+const nd = run(`(() => { let n = 0; for (let k = 0; k < 20; k++) { const c = idx(dg[0] + k, dg[1] + k); setWall(c, WALLS.concrete.id, 0, WALLS.concrete.hp); n++; } return n; })()`);
+ok('twenty pieces on a diagonal', nd === 20 && run('wallLine("concrete", dg[0], dg[1], dg[0] + 19, dg[1] + 19).length') === 20);
+ok('the corner between two pieces is shut', run('cornerShut(idx(dg[0] + 6, dg[1] + 5), idx(dg[0] + 5, dg[1] + 6))') && !run('los((dg[0] + 6.5) * CELL, (dg[1] + 5.5) * CELL, (dg[0] + 5.5) * CELL, (dg[1] + 6.5) * CELL, 1)'));
+run(`var wk = addUnit('rifle', T0, (dg[0] + 10.5) * CELL, (dg[1] + 9.5) * CELL), wv = addUnit('mtank', T0, (dg[0] + 13.5) * CELL, (dg[1] + 12.3) * CELL);
+  var side = (u) => Math.sign(u.x - u.y - (dg[0] - dg[1]) * CELL);
+  var s0 = [side(wk), side(wv)], crossed = 0;
+  commandMove([wk], (dg[0] + 9.5) * CELL, (dg[1] + 10.5) * CELL); commandMove([wv], (dg[0] + 12.5) * CELL, (dg[1] + 14.5) * CELL);
+  // pushed straight at the corner every step as well, as a crowd would
+  0`);
+for (let i = 0; i < 20 * 30; i++) { run(`tryMove(wk, -0.7, 0.7); tryMove(wv, -0.7, 0.7); if (side(wk) !== s0[0] && wk.x > dg[0] * CELL + 20 && wk.x < (dg[0] + 19) * CELL) crossed++; if (side(wv) !== s0[1] && wv.x > dg[0] * CELL + 20 && wv.x < (dg[0] + 19) * CELL) crossed++; 0`); ctx.get('update')(1 / 30); }
+ok('a soldier and a tank pushed at it never slip through', run('crossed') === 0, run('[crossed, side(wk), side(wv), s0]'));
 
 console.log(fails ? fails + ' FAILED' : 'all passed');
 process.exit(fails ? 1 : 0);
