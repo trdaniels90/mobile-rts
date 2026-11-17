@@ -1574,7 +1574,17 @@ function warmSprites(budgetMs, cx, cy) {
   }
 }
 const INF_ANIM = new WeakMap(), WALK = [1, 12, 2, 13];   // per soldier: when they last changed stance and last fired (drawing only)
+// A vehicle just out of the War Factory (world.js updateDoors) is drawn rolling from the doorway to where it stands,
+// coming out of the dark over EMERGE.
 function drawUnit(g, u, t) {
+  const ek = u.outT == null ? 1 : (G.t - u.outT) / EMERGE;
+  if (!(ek >= 0 && ek < 1)) return drawUnitBody(g, u, t);
+  const x = u.x, y = u.y, e = ek * (2 - ek), a = g.globalAlpha;
+  u.x = u.outX + (x - u.outX) * e; u.y = u.outY + (y - u.outY) * e;
+  g.globalAlpha = a * Math.min(1, 0.25 + ek * 1.5);
+  try { drawUnitBody(g, u, t); } finally { u.x = x; u.y = y; g.globalAlpha = a; }
+}
+function drawUnitBody(g, u, t) {
   drawVar = G.teams[u.team].variant | 0;
   const pal = palFor(u.faction);
   if (u.cls === 'inf') {
@@ -1997,16 +2007,6 @@ function shadeHex(hex, k) {
   const key = hex + k; let v = shadeCache.get(key);
   if (!v) { const c = parseInt(hex.slice(1), 16), f = (s) => Math.min(255, Math.round(((c >> s) & 255) * k)); v = `rgb(${f(16)},${f(8)},${f(0)})`; shadeCache.set(key, v); }
   return v;
-}
-
-// How far the War Factory's door is open, 0 to 1, t seconds after a unit came out: it rolls up in DOOR_UP,
-// stays open DOOR_HOLD while the unit drives clear, then rolls down in DOOR_DOWN.
-const DOOR_UP = 0.5, DOOR_HOLD = 1.4, DOOR_DOWN = 0.7;
-function doorOpen(t) {
-  if (t < 0 || t >= DOOR_UP + DOOR_HOLD + DOOR_DOWN) return 0;
-  if (t < DOOR_UP) return t / DOOR_UP;
-  if (t < DOOR_UP + DOOR_HOLD) return 1;
-  return 1 - (t - DOOR_UP - DOOR_HOLD) / DOOR_DOWN;
 }
 
 // A gun's recoil, 0 to 1 (shotAt, set in world.js fireWeapon): it kicks back at once, holds a
