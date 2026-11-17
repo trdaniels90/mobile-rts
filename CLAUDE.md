@@ -998,6 +998,7 @@ Supabase.
 | `mg-team.js` | Headless: the MG Team sets up before firing, packs before moving, is dug in once set up, and a staged fight against riflemen |
 | `tesla-tank.js` | Headless: the Tesla Tank's upgrade, bolt, damage, and no shots at aircraft |
 | `comanche.js` | Headless: Tech Center research (cost, refund, kept, one at a time), the Comanche's pads, bays, lock-on, missiles for tanks only, gun after, stand-off, staged fights |
+| `ai-lift.js` | Headless: a Normal 1 v 1 per personality (first air assault, how many, kind, soldiers landed and alive 60 s later), and a turtle reinforcing an outlying refinery |
 | `transport.js` | Headless: transport helicopters (board, drop, park, UNLOAD HERE), Air Assault's balanced pick, shot down with troops aboard, a forged online order, the computer's air assault |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
@@ -1153,8 +1154,16 @@ frame-time maths everywhere, so it is not deterministic.
   up to 8 of them dealt round-robin by kind (`assaultCrew`: no Engineers, nobody busy or ordered to hold), at least `ASSAULT_MIN` (4). It lands below
   the Barracks, waits up to `LIFT_WAIT` (25 s), flies, unloads (player's troops guard the spot, `manual`; the computer's hunt) and goes home.
   No recharge. Online both commands are in netcore `COMMANDS`; the guest checks `assaultPlan` locally for the button.
-- **Computer** (Normal and Hard, `aiAirAssault` in ai.js): keeps one transport (built from 0.6 x `firstWave`), and from `firstWave` with 6+ idle infantry
-  lands them by an enemy refinery or power plant not under known anti-air, every `AI_ASSAULT_GAP` (150 s) or so.
+- **Computer, by personality** (owner's picks, Normal and Hard; `lift` in `AI_STYLES`, `aiAirAssault` in ai.js; Easy has none). A transport is queued
+  first while a pad is free; with every pad taken it builds another Helicopter Base (`aiLiftPad`, up to 3; owner: attack helicopters are never held back). **Rusher:** 1 transport from 0.4 x `firstWave`; every wave takes a drop behind its
+  target (`aiLiftWithWave`, `pair: 'behind'`) plus drops of its own every ~100 s (`aiLiftSolo`), rifle-heavy (`prefer`). **Raider:** 2 transports,
+  drops every ~90 s behind refineries, power, Outposts and Ore Trucks it can see, landing on the far side from its base, never crossing known
+  anti-air's reach and 1.25 x clear of it where it lands (`aaWide`), rockets and grenadiers first. **Balanced:** a drop with each planned wave on its
+  flank, full loads only. **Turtle:** `aiLiftDefend` flies idle infantry from the main base to an outlying building (18+ cells from its main yard)
+  with raiders at it; they hold there (`unloadOne` mode `guard`); attacks by air only with a wave its stall rule sent (`stallOnly`). Paired drops
+  board at launch (taken out of the wave) and wait on the ground (`order.goAt`, kept up by `aiLiftTiming`) to land as the wave's lead gets within
+  `LIFT_LAND` (6) cells; spots are tried round the target until one is clear of known anti-air. Hard: a quarter less between drops of their own.
+  Allies: no drop within `LIFT_ALLY_R` (10 cells) of an ally's drop of the last minute (`G.liftDrops`). `node tools/sim/ai-lift.js <repo> [minutes]`.
 - Owner's choice: everyone gets both controls (no PC / phone split). `node tools/sim/transport.js <repo>` (boarding, drop, parking, Air Assault mix,
   shot down, a forged online order, a Normal computer flying one: 8 men at about 11 min). Not yet tried: two real phones online, save and continue
   with soldiers aboard in a browser.
