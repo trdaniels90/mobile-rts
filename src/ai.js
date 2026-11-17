@@ -706,7 +706,7 @@ function aiGap(team) {
 //   firstWave: added to the difficulty's first-wave time; hold / full: share of the army cap that must be waiting
 //   before a wave goes / that halves the wait; gapMul: the random wait between waves; airGap: AIR_STRIKE_GAP;
 //   defAdd / gunsAdd: ground defences at home / guns at each Outpost; wallMul, garAdd: walls and held houses;
-//   defRich: credits above which it keeps adding guns (default 1500); guns2: guns at a second base (default 2);
+//   aaAdd: more anti-air sites (both the starting count and the cap); defRich: credits above which it keeps adding guns (default 1500); guns2: guns at a second base (default 2);
 //   ring2: also rings its second base; stallAfter / stallMin: once the wave timer is this many seconds past with no
 //   wave (the army never reaches `hold`), it goes with whatever has gathered if that is at least stallMin units;
 //   splitAt / split3: wave sizes that split into 3 or 2 squads and the chance of 3; eco: the raider's taste for
@@ -714,7 +714,7 @@ function aiGap(team) {
 const AI_STYLES = {
   balanced: {},
   rusher: { firstWave: -180, hold: 0.3, full: 0.4, gapMul: 0.6, defAdd: -2, wallMul: 0.5, garAdd: -1 },
-  turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, defAdd: 5, defRich: 800, guns2: 4, ring2: true, stallAfter: 240, stallMin: 18, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18] },
+  turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, defAdd: 5, aaAdd: 2, defRich: 800, guns2: 4, ring2: true, stallAfter: 240, stallMin: 18, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18] },
   raider: { hold: 0.4, airGap: 0.6, splitAt: [12, 8], split3: 0.75, eco: true },
 };
 const AI_STYLE_KEYS = Object.keys(AI_STYLES);
@@ -739,6 +739,7 @@ function aiOf(team) {
     A = Object.assign({}, base, s, {
       firstWave: Math.max(240, base.firstWave + (s.firstWave || 0)), hold: s.hold || WAVE_HOLD, full: s.full || ARMY_FULL,
       defMax: Math.max(2, base.defMax + (s.defAdd || 0)), outpostGuns: (base.outpostGuns || 1) + (s.gunsAdd || 0),
+      aa: base.aa + (s.aaAdd || 0), aaMax: base.aaMax + (s.aaAdd || 0),
     });
     aiOfCache.set(key, A);
   }

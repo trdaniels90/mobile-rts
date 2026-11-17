@@ -1344,6 +1344,7 @@ frame-time maths everywhere, so it is not deterministic.
   army cap, and the player kept killing its units (185 lost), so it never got there; its army piled up by its outlying Barracks and War Factory.
 - **Stall release** (`stallAfter` 240 s, `stallMin` 18 in `AI_STYLES.turtle`, `aiLaunch`): once the wave timer (`team.attackAt`) is 4 minutes past
   with no wave, a turtle goes with whatever has gathered if that is 18 units or more.
+- **More anti-air** (owner): `aaAdd` 2 on both the starting count and the cap (`aa`, `aaMax` in `aiOf`): a Normal turtle 3 SAMs / AA Guns from the start, up to 5 once it sees aircraft; Hard 4 to 7.
 - **More guns:** `defAdd` 3 to 5, and it tops them up from 800 credits (`defRich`; others 1,500). Second base: 4 guns (`guns2`; others 2).
 - **Second base ring** (`ring2`): `aiRing` also plans `team.ring2` (`aiPlanRing(team, yard, at, reach)` round the buildings within 12 cells of the
   second yard, `yard` = its id, replanned for a new yard) once `aiBase2Next` wants nothing more there or `RING2_AFTER` (240 s) after the yard
