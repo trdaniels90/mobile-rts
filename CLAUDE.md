@@ -1393,7 +1393,7 @@ frame-time maths everywhere, so it is not deterministic.
   random `aiGap` timer; after that, waves went whenever the army refilled (6 of 7 before their timer), so the timer never mattered.
 - **Timer fix (all styles):** a full army now halves what is left of the wait once (`team.fullCut`) instead of skipping it.
 - **Styles** (`AI_STYLES`, `aiStyle`, `aiOf(team)` in ai.js): each computer side rolls `team.style` (rusher, turtle, raider, balanced) the first
-  time it thinks (also a side the server hands over) and keeps it (saved). **Computer sides of the same alliance never share a style**; enemies may.
+  time it thinks (also a side the server hands over) and keeps it (saved). **A pick is completely random** (since 2026.11.17.14: `STYLE_DUP_CHANCE` 0.1 keeps a roll that matches an ally's style, else it is rolled again among the unused ones, so allies rarely share one); enemies may too.
   `aiOf(team)` is the difficulty's `ai` settings with the style applied (cached per difficulty and style); every team-scoped `G.diff.ai` in
   ai.js (and the air-strike gate in world.js `launchGroups`) reads it. Easy (no planner) has no styles. Hidden from players; Field Manual says they exist.
   Rusher: first wave -180 s, waves at 30% of the cap, waits x 0.6, 2 fewer defences, half the walls, one held house fewer.

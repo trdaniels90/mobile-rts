@@ -944,8 +944,8 @@ function aiGap(team) {
   return Math.max(AI_GAP_MIN, Math.min(900, (a + Math.random() * (b - a)) * (A.gapMul || 1)));
 }
 // --- Personalities (Normal and Hard, both modes) ----------------------------------------
-// Each computer side rolls one style the first time it thinks (aiStyle) and keeps it all battle; computer sides of
-// the same alliance never share one, so allies do not attack in step. Hidden from the players. Each style changes
+// Each computer side rolls one style the first time it thinks (aiStyle) and keeps it all battle; a pick is completely random, and
+// an ally can rarely have the same one (STYLE_DUP_CHANCE of the rolls that match an ally's; otherwise it is rolled again among the unused). Hidden from the players. Each style changes
 // the difficulty's own settings (DIFFICULTY ai), so a Hard rusher is still harder than a Normal one. Easy (fixed
 // waves) has none.
 //   firstWave: added to the difficulty's first-wave time; hold / full: share of the army cap that must be waiting
@@ -972,12 +972,16 @@ const AI_STYLES = {
     lift: { from: 0.5, n: 2, min: 6, prefer: { rocket: 2, grenadier: 2 }, solo: 90, eco: true, aaWide: 1.25 } },
 };
 const AI_STYLE_KEYS = Object.keys(AI_STYLES);
+const STYLE_DUP_CHANCE = 0.1;   // a roll that lands on an ally's style is kept only this often; otherwise it is rolled again among the unused ones
 function aiStyle(team) {
   if (!team.style) {
     const taken = new Set(G.teams.filter((t) => t !== team && t.isAI && t.style && !hostile(t.id, team.id)).map((t) => t.style));
-    const free = AI_STYLE_KEYS.filter((k) => !taken.has(k));
-    const pool = free.length ? free : AI_STYLE_KEYS;
-    team.style = pool[Math.floor(Math.random() * pool.length)];
+    let pick = AI_STYLE_KEYS[Math.floor(Math.random() * AI_STYLE_KEYS.length)];
+    if (taken.has(pick) && Math.random() >= STYLE_DUP_CHANCE) {
+      const free = AI_STYLE_KEYS.filter((k) => !taken.has(k));
+      if (free.length) pick = free[Math.floor(Math.random() * free.length)];
+    }
+    team.style = pick;
   }
   return team.style;
 }
