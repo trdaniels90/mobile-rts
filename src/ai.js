@@ -27,25 +27,33 @@ function aiLiftPad(team, c) {
   return !!L && (c.helipad || 0) >= 1 && (c.helipad || 0) < 3 && (c[lift] || 0) < L.n && G.t > aiOf(team).firstWave * L.from &&
     padRoom(team, 'helipad') <= 0 && team.credits > BUILD_DEFS.helipad.cost + 500;
 }
-function aiNextStructure(team, c) {
+// slot: 'structure' (the main queue) or 'defense' (guns and anti-air, their own queue, so both build at once).
+function aiNextStructure(team, c, slot = 'structure') {
   const p = team.power, defense = team.faction === 'allies' ? 'turret' : 'tesla', aa = team.faction === 'allies' ? 'aagun' : 'sam';
   const antiInf = team.faction === 'allies' ? 'pillbox' : 'ftur';
-  const pending = pendingStructure(team);
-  if (pending) return null;
+  if (team.queues[slot]) return null;
+  c = Object.assign({}, c);
+  for (const s of ['structure', 'defense']) { const q = team.queues[s]; if (q) c[q.type] = (c[q.type] || 0) + 1; }   // what is being built counts
   const n = (t) => c[t] || 0;
   const powerNeed = (t) => -Math.min(0, BUILD_DEFS[t].power);
   const pwr = available(team, 'apower') ? 'apower' : 'power';
   const build = (type) => (p.prod - p.use < powerNeed(type) + 10 && available(team, pwr) ? pwr : type);   // power first if needed
+  // Which queue a pick is for: a defence goes in the defence queue, and when power is short the main queue builds the power plant first.
+  const take = (type) => {
+    const r = build(type), def = catOf(type) === 'defense';
+    if (slot === 'defense') return def && r === type ? r : null;
+    return def && r === type ? null : r;
+  };
   // Normal and Hard: one AA site from 2:00 (up by about 2:30) whether or not it has seen aircraft (beside the
   // Construction Yard), and a second as soon as enemy aircraft turn up. These come before anything else.
   const A = aiOf(team);
   if (enemyUnitsOf(team.id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
-  if (A.adapt && available(team, aa) && n(aa) < (team.sawAir ? 2 : G.t >= 120 ? 1 : 0)) return build(aa);
+  if (A.adapt && available(team, aa) && n(aa) < (team.sawAir ? 2 : G.t >= 120 ? 1 : 0)) { const r = take(aa); if (r) return r; }
   // An Outpost with no refinery beside it yet comes first: that is what it was sent out for.
   const outpostRef = aiOutpostForRefinery(team);
   const refCap = aiRefCap(team);   // an Outpost's first refinery may go one over: that is what it was sent out for
   if (outpostRef && outpostRef.got === 0 && available(team, 'refinery') && n('refinery') < Math.min(8, refCap + 1)) {
-    return p.prod - p.use < powerNeed('refinery') + 10 && available(team, pwr) ? pwr : 'refinery';
+    if (slot === 'structure') return p.prod - p.use < powerNeed('refinery') + 10 && available(team, pwr) ? pwr : 'refinery';
   }
   // How many defences it may have depends on the difficulty; more AA once the enemy flies.
   const capMain = Math.round(A.defMax * 0.6), capInf = A.defMax - capMain;
@@ -63,23 +71,23 @@ function aiNextStructure(team, c) {
   for (const [type, want] of wants) {
     const count = type === 'refinery' ? Math.min(want, refCap) : want;
     if (n(type) >= count || !available(team, type)) continue;
-    return build(type);
+    { const r = take(type); if (r) return r; }
   }
   // The rest of an Outpost's refineries (it wants 1 to 3, rolled when it deploys).
-  if (outpostRef && available(team, 'refinery') && n('refinery') < Math.min(8, refCap)) return build('refinery');
+  if (outpostRef && available(team, 'refinery') && n('refinery') < Math.min(8, refCap)) { const r = take('refinery'); if (r) return r; }
   // Money piling up: more Barracks and War Factories, so it can build faster.
   if (team.credits > 5000) {
-    if (n('factory') < 3 && available(team, 'factory')) return build('factory');
-    if (n('barracks') < 2 && available(team, 'barracks')) return build('barracks');
+    if (n('factory') < 3 && available(team, 'factory')) { const r = take('factory'); if (r) return r; }
+    if (n('barracks') < 2 && available(team, 'barracks')) { const r = take('barracks'); if (r) return r; }
   }
   // Then a gun at each Outpost (and on Hard each outlying refinery), and more defences while rich.
-  if (available(team, defense) && aiGuardSite(team) && n(defense) < capMain) return build(defense);
+  if (available(team, defense) && aiGuardSite(team) && n(defense) < capMain) { const r = take(defense); if (r) return r; }
   if (team.credits > (A.defRich || 1500)) {   // a turtle tops its guns up from less money (defRich)
     const t = n(defense) / Math.max(1, capMain) <= n(antiInf) / Math.max(1, capInf) ? defense : antiInf;
     const other = t === defense ? antiInf : defense, cap = (x) => (x === defense ? capMain : capInf);
-    for (const x of [t, other]) if (n(x) < cap(x) && available(team, x)) return build(x);
+    for (const x of [t, other]) if (n(x) < cap(x) && available(team, x)) { const r = take(x); if (r) return r; }
   }
-  if (p.prod - p.use < 40) return pwr;
+  if (slot === 'structure' && p.prod - p.use < 40) return pwr;
   return null;
 }
 // Where the next AA site goes: beside whichever refinery, power plant, Outpost or other key
@@ -712,28 +720,38 @@ function aiThink(team) {
   aiPincer(team);
   aiSquads(team);
   if (enemyUnitsOf(team.id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
-  const q = pendingStructure(team);
   const b2 = aiOf(team).planner ? aiBase2(team) : null;
   const rebuilding = aiRebuild(team, c);
-  if (q && q.ready) {
+  const SLOTS = ['structure', 'defense'];   // the main queue and the defence queue build side by side
+  for (const slot of SLOTS) {
+    const q = team.queues[slot];
+    if (!q || !q.ready) continue;
     // A building ordered for the second base goes up there (team.buildAt: its yard's id and the type).
     const at = b2 && team.buildAt && team.buildAt.id === b2.id && team.buildAt.type === q.type ? b2 : null;
     const spot = aiFindSpot(team, q.type, at);
     if (spot && at) team.buildAt = null;
     const lone = q.type === 'refinery' && aiOutpostForRefinery(team);
     const b = spot && placeStructure(team, q.type, spot.cx, spot.cy);
-    if (b && lone) (lone.refineries = lone.refineries || []).push(b);
+    if (b && lone) (lone.refineries || (lone.refineries = [])).push(b);
     else if (!spot && Math.random() < 0.05) cancelProduction(team, q.type);
-  } else if (!q && rebuilding) {
+  }
+  const free = SLOTS.filter((s) => !team.queues[s]);
+  if (rebuilding) {
     // Comeback: the missing power, refinery or War Factory is paid for first and nothing else is started.
-    const t = aiRebuildChain(team, c).find((x) => available(team, x));
-    if (t && team.credits >= BUILD_DEFS[t].cost) startProduction(team, t);
-  } else if (!q) {
+    if (free.includes('structure')) {
+      const t = aiRebuildChain(team, c).find((x) => available(team, x));
+      if (t && team.credits >= BUILD_DEFS[t].cost) startProduction(team, t);
+    }
+  } else if (free.length) {
     // Every other building goes to the second base while it still wants something (and money allows).
     const want2 = b2 && b2.buildT >= 1 && (team.alt2 = !team.alt2) && team.credits > 1200 ? aiBase2Next(team, b2, c) : null;
-    if (want2) { team.buildAt = { id: b2.id, type: want2 }; startProduction(team, want2); }
-    const next = want2 ? null : aiLiftPad(team, c) ? 'helipad' : aiNextStructure(team, c);
-    if (next && team.credits >= Math.min(BUILD_DEFS[next].cost * 0.25, 500)) startProduction(team, next);
+    const used2 = want2 && free.includes(catOf(want2));
+    if (used2) { team.buildAt = { id: b2.id, type: want2 }; startProduction(team, want2); }
+    for (const slot of free) {
+      if (used2 && slot === catOf(want2)) continue;
+      const next = slot === 'structure' && !want2 && aiLiftPad(team, c) ? 'helipad' : used2 && slot === 'structure' ? null : aiNextStructure(team, c, slot);
+      if (next && team.credits >= Math.min(BUILD_DEFS[next].cost * 0.25, 500)) startProduction(team, next);
+    }
   }
 
   // Construction Yard lost: build a Mobile Construction Yard and unpack it at home.
