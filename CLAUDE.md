@@ -160,8 +160,7 @@ share globals. Read this file first; the commit history explains every change in
 - **Village (after the 2026.11.16.3 merge):** `standAt(g, x, y, h, fn)` (art.js) stands old-style pixel drawing up the
   screen at a world spot: villagers, hens, pigeons (in the air at their height), washing lines, a held house's flag and
   pips, structure flags. Banners are drawn as strips along their (turned) wall; the fountain's water and the lamps' glow
-  and night lights are at their heights (`add(.., h)` in `drawNight`). The far-view tree blocks from that release
-  (`drawTreeBlocks`) are not used in the iso view (trees are drawn one at a time): watch zoomed-out speed on big screens.
+  and night lights are at their heights (`add(.., h)` in `drawNight`). Far-view tree blocks: see "Still trees in far views" below.
 - **Draw cost on big screens (after 2026.11.17.4, looks only; match a90f56b1, 2560 x 1370 desktop, draw 5 to 13 ms a frame over
   33 min with bursts of 90-110 ms in big fights):** `uprightCtx` did a full `save()` / `restore()` for every upright picture, pixel and
   label (24,000 a frame in a zoomed-out fight); now it only swaps the transform and puts it back, and `drawTree` puts back only what it
@@ -169,6 +168,15 @@ share globals. Read this file first; the commit history explains every change in
   only by the world box round the turned screen (about twice the screen's area), and draws the edge haze, rim and mist only when the
   screen itself shows past the map's edge (`past`). Village, widest zoom, mid-fight: trees drawn 7,700 to 3,400, effects 1,100 to 440.
   Same picture (checked culled against unculled, pixel for pixel on a still scene).
+- **Still trees in far views** (after 2026.11.17.7, both modes, looks only; owner: zoomed out on the 2560 x 1370 desktop the game lags all the
+  time): past `TREE_FAR_N` (700) trees on screen (back below `TREE_NEAR_N` 550), `isoTreeBlocks` (art.js, from ui.js `draw` after the tree lists)
+  draws still trees from cached `TREE_BLOCK` (512 px) blocks of the view plane (the same at every zoom), each the shadows then the trees (living or
+  burnt, upright, no sway) whose foot is in it, back to front, made with the game's own `treeShadows` / `drawTree` (`treeFrame` set to still), rim
+  woods included. Blocks are drawn before the units, so in a far view a unit behind a tree shows in front of it, and a burning tree (still drawn one by
+  one, out of its block) shows its flames over the trees in front of it. A block is redrawn when one of its trees catches fire or burns out; at most
+  `TREE_BLOCK_BUILD` (3) are made a frame (the rest's trees drawn one by one meanwhile); unused for 5 s, dropped. `treesInView` / `rimInView` take
+  `noShadow`; shadows are drawn by `isoTreeBlocks`. Village at 2560 x 1370, widest zoom: trees drawn one by one 3,266 to 0 (burning ones only), trees'
+  share of drawing 64 to 12 ms here (software drawing); with the wind stilled the picture differs only round burning trees.
 - **Known bugs:** not tried on a real phone or online; washing lines lie across the screen, not along their house; the
   debrief and Field Manual pictures are unchanged.
 

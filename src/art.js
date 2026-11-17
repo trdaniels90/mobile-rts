@@ -803,7 +803,7 @@ function treeFlames(spr) {
 // Trees (iso view): treesInView draws the shadows of the trees in the world box and returns the trees, which ui.js sorts
 // in with the units and draws one at a time with drawTree, so a tank in front of a wood is in front of it.
 let treeFrame = null;   // what every tree drawn this frame shares (wind, gusts, the camera's transform)
-function treesInView(g, x0, y0, x1, y1, keep) {   // keep(x, y): whether a tree shows on the screen
+function treesInView(g, x0, y0, x1, y1, keep, noShadow) {   // keep(x, y): whether a tree shows on the screen; noShadow: the caller draws them (isoTreeBlocks)
   const T = G.ground && G.ground.trees, out = [];
   let lo = 0, hi = T ? T.length : 0;   // the first tree at y0 or below (they are sorted by y)
   while (lo < hi) { const m = (lo + hi) >> 1; if (T[m].y < y0) lo = m + 1; else hi = m; }
@@ -819,12 +819,7 @@ function treesInView(g, x0, y0, x1, y1, keep) {   // keep(x, y): whether a tree 
     const f = fire && fire[i] !== undefined ? fire[i] : null, p = f === null ? 0 : Math.max(0, Math.min(1, (t - f) / TREE_BURN));
     out.push({ kind: 'tree', x: tr.x, y: tr.y, tr, p, i });
   }
-  // Shadows first (they stay put), the living tree's fading as it burns.
-  for (const { tr, p } of out) {
-    if (p < 1) { g.globalAlpha = 0.45 * (1 - p); g.drawImage(tr.s.sh, Math.round(tr.x + tr.s.sox), Math.round(tr.y + tr.s.soy)); }
-    if (p > 0) { g.globalAlpha = 0.45 * p; g.drawImage(tr.burnt.sh, Math.round(tr.x + tr.burnt.sox), Math.round(tr.y + tr.burnt.soy)); }
-  }
-  g.globalAlpha = 1;
+  if (!noShadow) treeShadows(g, out);   // shadows first (they stay put)
   return out;
 }
 function drawTree(g, e) {
@@ -855,46 +850,81 @@ function drawTree(g, e) {
   }
   g.globalAlpha = 1; g.setTransform(tf);
 }
-// Blocks of still trees for far views: TREE_BLOCK px squares of the map, each the shadows then the trees (living or
-// burnt, upright) of every tree that reaches into it, clipped to the square, so the blocks tile without seams. A block
-// is redrawn when one of its trees catches fire or burns out (its signature), and dropped once far views stop.
-const TREE_BLOCK = 512, TREE_FAR_N = 700;   // trees in view past which the view counts as far
-let treeBlocks = null;   // { trees, map: key -> { c, idx, sig, used } }
-function drawTreeBlocks(g, T, fire, t, x0, y0, x1, y1) {
-  if (!treeBlocks || treeBlocks.trees !== T) {
-    const map = new Map();
-    T.forEach((tr, i) => {   // every block the tree's picture or shadow reaches
-      const bx0 = Math.min(tr.x + tr.s.ox, tr.x + tr.s.sox), by0 = Math.min(tr.y + tr.s.oy, tr.y + tr.s.soy);
-      const bx1 = Math.max(tr.x + tr.s.ox + tr.s.img.width, tr.x + tr.s.sox + tr.s.sh.width), by1 = Math.max(tr.y + tr.s.oy + tr.s.img.height, tr.y + tr.s.soy + tr.s.sh.height) + 4;
-      for (let by = Math.floor(by0 / TREE_BLOCK); by <= Math.floor(by1 / TREE_BLOCK); by++) for (let bx = Math.floor(bx0 / TREE_BLOCK); bx <= Math.floor(bx1 / TREE_BLOCK); bx++) {
-        const k = by * 4096 + bx; let b = map.get(k);
-        if (!b) map.set(k, b = { bx, by, c: null, idx: [], sig: -1, used: 0 });
-        b.idx.push(i);   // in y order, as T is
-      }
-    });
-    treeBlocks = { trees: T, map };
+// Far views (many trees on screen, as on a big PC screen zoomed out): still trees are drawn from cached blocks of the view
+// plane instead of one at a time. Each TREE_BLOCK px square of the view plane holds the shadows, then the trees (living
+// or burnt, upright, without the sway) of every tree whose foot is in it, back to front, drawn with the game's own code
+// (the shadow the way treesInView draws it, the tree with drawTree), so a block looks as the trees would standing still.
+// Blocks are drawn before the units (so a unit passing behind a tree shows in front of it: only in far views). A
+// burning tree stays out of its block and is drawn one by one as before; a block is redrawn when one of its trees catches
+// fire or burns out. At most TREE_BLOCK_BUILD blocks are made a frame; the trees of one not made yet are drawn one by one.
+// Blocks unused for 5 s are dropped. The view plane is the same at every zoom (ui.js draws it at zoom 1, then scales).
+const TREE_BLOCK = 512, TREE_BLOCK_PAD = 64, TREE_FAR_N = 700, TREE_NEAR_N = 550, TREE_BLOCK_BUILD = 3;
+let treeBlocks = null, treeFar = false;   // { trees, rim, map: key -> { idx: [[list, i]], c, sig, used } }
+function treeKey(x, y) { const [X, Y] = toView(x, y); return Math.floor(Y / TREE_BLOCK) * 65536 + Math.floor(X / TREE_BLOCK) + 32768; }
+// The shadows of a list of trees (from treesInView / rimInView), the living tree's fading as it burns.
+function treeShadows(g, list) {
+  for (const { tr, p } of list) {
+    if (p < 1) { g.globalAlpha = 0.45 * (1 - p); g.drawImage(tr.s.sh, Math.round(tr.x + tr.s.sox), Math.round(tr.y + tr.s.soy)); }
+    if (p > 0) { g.globalAlpha = 0.45 * p; g.drawImage(tr.burnt.sh, Math.round(tr.x + tr.burnt.sox), Math.round(tr.y + tr.burnt.soy)); }
   }
-  const now = performance.now(), state = (i) => { const f = fire && fire[i] !== undefined ? fire[i] : null; return f === null ? 0 : t - f >= TREE_BURN ? 2 : 1; };
-  for (let by = Math.floor(y0 / TREE_BLOCK); by <= Math.floor(y1 / TREE_BLOCK); by++) for (let bx = Math.floor(x0 / TREE_BLOCK); bx <= Math.floor(x1 / TREE_BLOCK); bx++) {
-    const b = treeBlocks.map.get(by * 4096 + bx);
+  g.globalAlpha = 1;
+}
+// list: the trees on screen (treesInView, rimInView). Draws the shadows of the trees it does not hand back; returns the
+// trees still to be drawn one by one (sorted in with the units). g is the view canvas in its world transform; (vx, vy)
+// its top left on the view plane.
+function isoTreeBlocks(g, list, rim, vx, vy, VW, VH) {
+  const n = list.length;
+  treeFar = treeFar ? n > TREE_NEAR_N : n > TREE_FAR_N;
+  const T = G.ground && G.ground.trees;
+  if (!treeFar || !T) { treeShadows(g, list); dropTreeBlocks(); return list; }
+  if (!treeBlocks || treeBlocks.trees !== T || treeBlocks.rim !== rim) {
+    const map = new Map(), add = (src, tr, i, k) => { let b = map.get(k); if (!b) map.set(k, b = { idx: [], c: null, sig: -1, used: 0 }); b.idx.push([src, i]); };
+    T.forEach((tr, i) => add(T, tr, i, treeKey(tr.x, tr.y)));
+    (rim || []).forEach((tr, i) => add(rim, tr, i, treeKey(tr.x, tr.y)));
+    for (const b of map.values()) b.idx.sort((a, b2) => { const ta = a[0][a[1]], tb = b2[0][b2[1]]; return viewDepth(ta.x, ta.y) - viewDepth(tb.x, tb.y); });
+    treeBlocks = { trees: T, rim, map };
+  }
+  const fire = G.treeFire || null, t = G.t, now = performance.now();
+  const state = (src, i) => { if (src !== T || !fire || fire[i] === undefined) return 0; return t - fire[i] >= TREE_BURN ? 2 : 1; };
+  let built = 0;
+  const ready = new Set(), m = g.getTransform();
+  const bx0 = Math.floor((vx - TREE_BLOCK_PAD) / TREE_BLOCK), bx1 = Math.floor((vx + VW + TREE_BLOCK_PAD) / TREE_BLOCK);
+  const by0 = Math.floor((vy - TREE_BLOCK_PAD) / TREE_BLOCK), by1 = Math.floor((vy + VH + TREE_BLOCK_PAD * 3) / TREE_BLOCK);
+  const order = [];
+  for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++) {
+    const key = by * 65536 + bx + 32768, b = treeBlocks.map.get(key);
     if (!b) continue;
     let sig = 0;
-    if (fire) for (const i of b.idx) sig = (sig * 3 + state(i)) % 1000000007;
+    if (fire) for (const [src, i] of b.idx) sig = (sig * 3 + state(src, i)) % 1000000007;
     if (!b.c || sig !== b.sig) {
+      if (built >= TREE_BLOCK_BUILD) continue;   // not made yet: its trees are drawn one by one this frame
+      built++;
       b.sig = sig;
-      if (!b.c) b.c = mkCanvas(TREE_BLOCK, TREE_BLOCK);
-      const c = b.c.getContext('2d'), X = bx * TREE_BLOCK, Y = by * TREE_BLOCK;
-      c.clearRect(0, 0, TREE_BLOCK, TREE_BLOCK);
-      c.globalAlpha = 0.45;
-      for (const i of b.idx) { const s = state(i), tr = T[i], src = s === 2 ? tr.burnt : tr.s; if (s !== 1) c.drawImage(src.sh, Math.round(tr.x + src.sox) - X, Math.round(tr.y + src.soy) - Y); }
-      c.globalAlpha = 1;
-      for (const i of b.idx) { const s = state(i), tr = T[i], src = s === 2 ? tr.burnt : tr.s; if (s !== 1) c.drawImage(src.img, Math.round(tr.x + src.ox) - X, Math.round(tr.y + src.oy) - Y); }
+      const S = TREE_BLOCK + 2 * TREE_BLOCK_PAD;
+      if (!b.c) b.c = mkCanvas(S, S);
+      const c = uprightCtx(b.c.getContext('2d')), ox = bx * TREE_BLOCK - TREE_BLOCK_PAD, oy = by * TREE_BLOCK - TREE_BLOCK_PAD;
+      c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, S, S);
+      c.setTransform(VIEW.c, VIEW.s * VIEW.F, -VIEW.s, VIEW.c * VIEW.F, -ox, -oy);   // world -> this block (as ui.js toWorld)
+      c.upright = false; c.imageSmoothingEnabled = false;
+      const still = b.idx.filter(([src, i]) => state(src, i) !== 1).map(([src, i]) => ({ tr: src[i], p: state(src, i) === 2 ? 1 : 0, i: src === T ? i : 90000 + i }));
+      treeShadows(c, still);
+      const keep = treeFrame;
+      treeFrame = { t, force: 0, lean: 0, ux: 1, uy: 0, tf: c.getTransform() };   // standing still
+      for (const e of still) drawTree(c, e);
+      treeFrame = keep;
     }
-    b.used = now;
-    g.drawImage(b.c, bx * TREE_BLOCK, by * TREE_BLOCK);
+    b.used = now; ready.add(key); order.push(b, bx, by);
   }
+  g.setTransform(1, 0, 0, 1, -vx, -vy);   // view plane
+  for (let k = 0; k < order.length; k += 3) CanvasRenderingContext2D.prototype.drawImage.call(g, order[k].c, order[k + 1] * TREE_BLOCK - TREE_BLOCK_PAD, order[k + 2] * TREE_BLOCK - TREE_BLOCK_PAD);
+  g.setTransform(m);
+  // The rest: burning trees, and trees of blocks not made yet.
+  const rest = list.filter((e) => e.p > 0 && e.p < 1 || !ready.has(treeKey(e.x, e.y)));
+  treeShadows(g, rest);
+  dropTreeBlocks();
+  return rest;
 }
-function dropTreeBlocks() {   // when no far view has used them for a while (called from drawTrees)
+function dropTreeBlocks() {   // blocks no far view has used for 5 s
   if (!treeBlocks) return;
   const now = performance.now();
   for (const b of treeBlocks.map.values()) if (b.c && now - b.used > 5000) b.c = null;

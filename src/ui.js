@@ -249,7 +249,7 @@
     return out;
   }
   // The rim's trees in the world box: their shadows drawn now, the trees returned to be sorted in with the units.
-  function rimInView(g, x0, y0, x1, y1, keep) {
+  function rimInView(g, x0, y0, x1, y1, keep, noShadow) {
     const T = rimTrees(), out = [];
     if (x0 > 0 && y0 > 0 && x1 < WORLD && y1 < WORLD) return out;
     let lo = 0, hi = T.length;
@@ -258,7 +258,7 @@
     for (let i = lo; i < T.length && T[i].y < y1; i++) {
       const tr = T[i];
       if (tr.x < x0 || tr.x > x1 || (keep && !keep(tr.x, tr.y))) continue;
-      g.drawImage(tr.s.sh, Math.round(tr.x + tr.s.sox), Math.round(tr.y + tr.s.soy));
+      if (!noShadow) g.drawImage(tr.s.sh, Math.round(tr.x + tr.s.sox), Math.round(tr.y + tr.s.soy));
       out.push({ kind: 'tree', x: tr.x, y: tr.y, tr, p: 0, i: 90000 + i });
     }
     g.globalAlpha = 1;
@@ -593,8 +593,9 @@ function draw() {
     for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0 && onScr(fx.x, fx.y)) drawEffect(v, fx);
     const treeShows = (x, y) => onScr(x, y, 60, 30, 90);
     lap('gnd');   // the ground, ore, walls' list, wrecks and bodies
-    const trees = treesInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows);   // swaying in the wind, burning (art.js): sorted in with the units below
-    if (past) for (const t of rimInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows)) trees.push(t);   // the woods past the map's edge
+    let trees = treesInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows, true);   // swaying in the wind, burning (art.js): sorted in with the units below
+    if (past) for (const t of rimInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows, true)) trees.push(t);   // the woods past the map's edge
+    trees = isoTreeBlocks(v, trees, rimTrees(), vx, vy, VW, VH);   // their shadows; in a far view still trees come from cached blocks (art.js)
 
     // An effect on the screen: tracers and Tesla bolts by either end or their middle (a gun just off the screen firing into
     // it), a lightning bolt by its landing spot with room for its top, which is drawn up to about 230 px to the side.
