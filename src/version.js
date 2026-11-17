@@ -4,6 +4,16 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.14', date: '17 November 2026', title: 'Forward bases and fortresses', groups: [
+    ['Changed', [
+      'Units shooting a way through a wall now fight the defences, buildings and units in reach first, and fire back when shot at. Before, they drove past guns that were shooting them to reach the wall.',
+      'Defensive computer opponents keep a bigger army: an extra 30 units stay at home to defend while the rest attack. They also build more ground defences and anti-air.',
+      'Aggressive computer opponents now build a forward base near you once they have found your base, with a Barracks and a War Factory, so their units arrive sooner.',
+      'Computer opponents that lose their Ore Refinery or War Factory sell other buildings to rebuild it.',
+      'Tesla Coils and Tesla Tanks do more damage to vehicles: 130 a bolt to tanks (it was 90).',
+      'The V2 Rocket Launcher reaches a little further, to make up for the time it takes to raise its rocket.',
+    ]],
+  ] },
   { v: '2026.11.17.13', date: '17 November 2026', title: 'Bigger paratrooper drops', groups: [
     ['New', [
       'Airborne division, a Tech Center upgrade for both sides: Paratroopers come in two planes, twenty soldiers a drop.',
