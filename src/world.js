@@ -4504,12 +4504,43 @@ function updateProduction(team, dt) {
   }
 }
 
-function spawnUnit(team, type) {
+// The War Factory's door (looks, both modes): a new vehicle waits inside while the door rolls up (DOOR_UP), then
+// rolls out of the doorway (EMERGE; art.js drawUnit draws it from u.outX/outY to where it stands). The door stays
+// open DOOR_HOLD and rolls down in DOOR_DOWN (doorOpen). G.doorQ holds the vehicles waiting (plain data, saved).
+const DOOR_UP = 0.5, DOOR_HOLD = 1.4, DOOR_DOWN = 0.7, EMERGE = 0.6;
+// How far the War Factory's door is open, 0 to 1, t seconds after it began to open: it rolls up in DOOR_UP,
+// stays open DOOR_HOLD while the unit drives clear, then rolls down in DOOR_DOWN.
+function doorOpen(t) {
+  if (t < 0 || t >= DOOR_UP + DOOR_HOLD + DOOR_DOWN) return 0;
+  if (t < DOOR_UP) return t / DOOR_UP;
+  if (t < DOOR_UP + DOOR_HOLD) return 1;
+  return 1 - (t - DOOR_UP - DOOR_HOLD) / DOOR_DOWN;
+}
+function updateDoors() {
+  const q = G.doorQ;
+  if (!q || !q.length) return;
+  for (let i = q.length - 1; i >= 0; i--) {
+    const w = q[i];
+    if (G.t < w.at) continue;
+    q.splice(i, 1);
+    const team = G.teams[w.team], p = G.byId.get(w.p);
+    if (team && !team.out) spawnUnit(team, w.type, p && p.alive && p.sellT <= 0 ? p : null);
+  }
+}
+
+function spawnUnit(team, type, from) {
   const d = UNIT_DEFS[type];
   const producers = G.entities.filter((e) => e.alive && e.kind === 'bld' && e.team === team.id && e.type === d.producer && e.sellT <= 0);
   // Ground units come out of the side's primary building of that type (setPrimary), else the newest.
-  const p = d.cls === 'air' ? leastBusyPad(team.id, d.producer) : producers.find((e) => e.primary) || producers[producers.length - 1];
+  const p = from || (d.cls === 'air' ? leastBusyPad(team.id, d.producer) : producers.find((e) => e.primary) || producers[producers.length - 1]);
   if (!p) return null;
+  if (!from && d.cls !== 'air' && p.type === 'factory' && p.buildT >= 1) {   // open the door first (updateDoors)
+    // From wherever the door is: rising or closing, it goes on up from there; already up, it stays up a while longer.
+    const k = p.doorAt == null ? 0 : doorOpen(G.t - p.doorAt);
+    p.doorAt = G.t - k * DOOR_UP;
+    (G.doorQ || (G.doorQ = [])).push({ at: p.doorAt + DOOR_UP, team: team.id, type, p: p.id });
+    return null;
+  }
   let u;
   if (d.cls === 'air') {
     u = addUnit(type, team, 0, 0);
@@ -4528,6 +4559,9 @@ function spawnUnit(team, type) {
     const pos = cellCenter(c);
     u = addUnit(type, team, pos.x + (Math.random() - 0.5) * 6, pos.y + (Math.random() - 0.5) * 4);
     u.face = u.tface = Math.PI / 2;
+    if (p.type === 'factory' && from) {   // rolls out of the open door (art.js drawUnit)
+      u.outT = G.t; u.outX = p.cx * CELL + 36; u.outY = p.cy * CELL + 40;
+    }
   }
   if (d.harvester) return u;
   if (team.isAI && aiHomeGuard(team, u)) return u;
@@ -4847,6 +4881,7 @@ function update(dt) {
   updateProjectiles(dt);
   processPaths();
   if (!G.over) for (const team of G.teams) { updateProduction(team, dt); updatePowers(team, dt); }
+  if (!G.over) updateDoors();
   const T = G.timers;
   if ((T.power -= dt) <= 0) { T.power = 0.5; updatePower(); }
   if ((T.shroud -= dt) <= 0) { T.shroud = 0.25; revealAround(); }

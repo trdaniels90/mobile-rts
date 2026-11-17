@@ -1574,7 +1574,17 @@ function warmSprites(budgetMs, cx, cy) {
   }
 }
 const INF_ANIM = new WeakMap(), WALK = [1, 12, 2, 13];   // per soldier: when they last changed stance and last fired (drawing only)
+// A vehicle just out of the War Factory (world.js updateDoors) is drawn rolling from the doorway to where it stands,
+// coming out of the dark over EMERGE.
 function drawUnit(g, u, t) {
+  const ek = u.outT == null ? 1 : (G.t - u.outT) / EMERGE;
+  if (!(ek >= 0 && ek < 1)) return drawUnitBody(g, u, t);
+  const x = u.x, y = u.y, e = ek * (2 - ek), a = g.globalAlpha;
+  u.x = u.outX + (x - u.outX) * e; u.y = u.outY + (y - u.outY) * e;
+  g.globalAlpha = a * Math.min(1, 0.25 + ek * 1.5);
+  try { drawUnitBody(g, u, t); } finally { u.x = x; u.y = y; g.globalAlpha = a; }
+}
+function drawUnitBody(g, u, t) {
   drawVar = G.teams[u.team].variant | 0;
   const pal = palFor(u.faction);
   if (u.cls === 'inf') {
@@ -1755,6 +1765,10 @@ function drawStructure(g, b, t) {
   }
   const stage = dmgStage(b);
   blit(g, stage ? damagedSprite(b.type, b.faction, stage, camo) : s, x, y);
+  if (b.type === 'factory' && b.doorAt != null) {   // the door rolls up for a new unit (world.js spawnUnit)
+    const k = doorOpen(G.t - b.doorAt), step = Math.round(k * DOOR_STEPS);
+    if (step > 0) blit(g, factoryDoorSprite(b.faction, step), x, y, false);
+  }
   const head = HEADS[b.type];
   if (b.type === 'sam') drawSamHead(g, b, x, y, stage);
   else if (head) {
