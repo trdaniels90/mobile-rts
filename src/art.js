@@ -1754,7 +1754,7 @@ function dishAngle(b, stage) {
     d = { a: b.id * 1.7, t: G.t }; dishAngles.set(b.id, d);
   }
   const low = G.teams[b.team] && G.teams[b.team].low;
-  if (!(b.buildT < 1 || b.sellT > 0 || stage >= 2 || low)) d.a += DISH_SPEED * Math.max(0, Math.min(0.25, G.t - d.t));
+  if (!(stage >= 2 || low)) d.a += DISH_SPEED * Math.max(0, Math.min(0.25, G.t - d.t));
   d.t = G.t;
   return d.a;
 }
@@ -1809,6 +1809,9 @@ function drawBuildUp(g, b, s, x, y, k, selling, camo) {
     blit(g, s, ...liftPt(x, y, -(1 - k) * H), false);
     g.restore();
   }
+  // The dish goes on its pedestal once the walls are above it (half way up) and starts turning at once.
+  const sp = SPINNERS[b.type] && SPINNERS[b.type][b.faction];
+  if (sp && k >= 0.5) { const [lx, ly] = liftPt(x + sp[1], y + sp[2], sp[3] * VK); blit(g, spinnerSprite(b.type, b.faction, dishAngle(b, 0), 0), lx, ly, false); }
   scaffold([D], [[B, D], [C, D]]);
   // Welding sparks along the top edge.
   if (!selling || k < 1) {
