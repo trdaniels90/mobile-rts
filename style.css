@@ -68,7 +68,7 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
 #menuBtn { position: relative; }
 body.touch #menuBtn::after { content: ''; position: absolute; left: -6px; right: -16px; top: calc(0px - var(--safe-t)); bottom: -22px; }
 /* Battle clock in the middle of the strip; it ignores taps so the map below it stays usable. */
-.clock {
+#clock {
   position: absolute; left: 50%; top: var(--safe-t); bottom: 0; transform: translateX(-50%);
   display: flex; align-items: center; padding: 0 10px; pointer-events: none;
   font-family: var(--font-term); font-size: 20px; line-height: 1; letter-spacing: 0.08em;
