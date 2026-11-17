@@ -635,6 +635,11 @@ share globals. Read this file first; the commit history explains every change in
   on the shortest way in (two floods: as the unit walks, then also through enemy walls), up to 3 groups a turn, units
   within `BREACH_REACH` 15 cells join. `u.breach` sends them back to the hunt after; `manual` is cleared (not a player's
   order). Direct orders are left alone.
+- **Breaching units still fight** (after 2026.11.17.12, both modes; the server must match; owner's report: after beating one side, an Auto Attack army
+  walked past the next side's defences and buildings to shoot a wall): a unit on a breach order (`u.breach`) takes anything hostile within its main gun's
+  reach (`breachReach`) first, defences and structures included, and answers fire from within that reach; the wall only when nothing else is. Only in-reach
+  targets, so the base behind the wall does not pull it round looking for a way in. A breacher whose wall falls goes back to the hunt even if its attack
+  order is still up (before, it could be left standing guard). Staged (6 Heavy Tanks sent at a far wall, a Pillbox beside the way): first shot at it 22 s to 4 s.
 - **Widening a gap** (after 2026.11.17.4, owner's request, both modes; the server must match): a hunting group of `BREACH_CROWD` (8)+ whose
   open way in squeezes through a gap (`wallInTheWay(u, goal, out)`: `out.choke`, an enemy wall within 2 cells on both sides of a cell of the
   way, within `CHOKE_NEAR` 25 cells) sends its nearest half that can hurt walls (warhead `bld` >= 0.25, so not rifles) to shoot the wall beside
