@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.4', date: '17 November 2026', title: 'The map edge: woods fading into haze', groups: [
+    ['New', [
+      'The edge of the map no longer shows endless flat green. A band of woods (snowy pines on winter maps) runs round the map and fades into a soft haze with slow drifting mist. Where the edge is water, the water fades out instead.',
+      'The camera keeps a little further inside the map, so less of the haze shows.',
+    ]],
+  ] },
   { v: '2026.11.17.3', date: '17 November 2026', title: 'Yard crane, aircraft lights at night', groups: [
     ['New', [
       'The Construction Yard\'s crane swings round to each structure you place, works its hook while it goes up, then swings back.',
