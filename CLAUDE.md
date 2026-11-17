@@ -1048,8 +1048,8 @@ frame-time maths everywhere, so it is not deterministic.
 - Field Manual: Comanche entry (Aircraft), Tech Center text, "Needs" shows the upgrade.
 - **Tesla Tank** (Soviets, owner's pick for their upgrade; `ttank` in UNIT_DEFS, War Factory; upgrade `teslatank` "Tesla program" $1500, 60 s): OpenRA's
   TTNK numbers ($1350, 450 health, light armour, speed 50), `draw: 'tank'` (so it counts as a tank: the Comanche's missiles go for it), size `tesla`.
-  Weapon: Tesla bolt, 75 TESLA, every 2.4 s, range 140, ground only, no power needed. `teslaTurret` (models.js: armoured drum, copper windings on a
-  mast, blue insulators, glowing ball); `muzzle` fires from the ball (`TESLA_TOP` 13). The computer adds it to its Soviet vehicle picks once researched.
+  Weapon: Tesla bolt, 75 TESLA, every 2.4 s, range 140, ground only, no power needed. `teslaTurret` (models.js, reworked at the owner's request: a big steel dome with a copper band and a glowing cap on a low armoured drum, blue insulators; was copper windings on a
+  mast, blue insulators, glowing ball); `muzzle` fires from the cap (`TESLA_TOP` 10). The computer adds it to its Soviet vehicle picks once researched.
   `node tools/sim/tesla-tank.js <repo>`: Soviets only, locked until researched, kills a rifleman, 132 damage to a Heavy Tank in 5 s, never fires at a helicopter.
 
 ## Unit veterancy (after 2026.11.14.12, not released, both modes)

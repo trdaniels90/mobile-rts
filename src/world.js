@@ -2300,7 +2300,7 @@ function muzzle(src, t) {
   const len = s.tur ? s.tur + s.barrel : 8, z = (turretZ(src.def) + 1.5) * VK;
   return { x: src.x + Math.cos(src.tface) * len, y: src.y + Math.sin(src.tface) * len - z, h: z };
 }
-const TESLA_TOP = 13;   // height of the Tesla Tank's ball above its turret's base (models.js teslaTurret)
+const TESLA_TOP = 10;   // height of the glowing cap on the Tesla Tank's dome above its turret's base (models.js teslaTurret)
 // Infantry under fire: seconds they stay prone after the last hit, the share of damage they take
 // while prone, and how fast they crawl (a share of walking speed).
 const PRONE_TIME = 6, PRONE_COVER = 0.5, CRAWL_SPEED = 0.6;

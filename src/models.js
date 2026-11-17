@@ -427,18 +427,19 @@ function tankHull(pal, s) {
   if (s.pods) for (const y of [-hw + 1, hw - 3]) { m.box(-hl + 2, y, 7, -hl + 9, y + 2, 9, C.metal, M_METAL); m.box(-hl + 8, y, 7, -hl + 9, y + 2, 9, C.red); }
   return m;
 }
-// The Tesla Tank's turret: a squat armoured drum carrying a Tesla coil: copper windings up a mast between two blue insulator
-// stacks, and the glowing ball on top that the bolt leaves from (world.js muzzle: TESLA_TOP).
+// The Tesla Tank's turret: a low armoured drum under a big steel dome wound with copper bands, a glowing cap at its crown that
+// the bolt leaves from (world.js muzzle: TESLA_TOP), and blue insulators either side.
 function teslaTurret(pal, s) {
-  const r = s.tur, m = new VModel(-r - 2, -r - 2, r + 4, r + 2, 15);
-  m.cylZ(0, 0, 0, 3, r, pal.main, M_METAL);
-  m.cylZ(0, 0, 3, 4, r - 1, pal.dark, M_METAL);
-  m.box(r - 2, -2, 0, r + 2, 2, 2, pal.dark, M_METAL);                         // mantlet
-  m.cylZ(0, 0, 4, 12, 1, '#3a3c38', M_METAL);                                  // mast
-  for (const z of [5, 7, 9]) m.cylZ(0, 0, z, z + 1, 2.3, '#b9763e', M_METAL);  // copper windings
-  for (const y of [-r + 1, r - 1]) { m.cylZ(-2, y, 3, 7, 0.9, '#3f78b4', M_METAL); m.set(-3, Math.floor(y), 7, '#cfe9ff', M_GLOW); }   // insulators
-  m.ellipsoid(0, 0, 13, 2, 2, 1.7, '#a6dcff', M_GLOW);                         // the ball
-  m.line(-r + 1, r - 2, 3, -r + 1, r - 2, 6, C.black);                         // aerial
+  const r = s.tur, R = r + 1.6, m = new VModel(-R - 2, -R - 2, R + 4, R + 2, 13);
+  const steel = '#60666b', copper = '#b9763e';
+  m.ellipsoid(0, 0, 2, R, R, 7.2, steel, M_METAL);                              // the dome
+  m.paint(-R - 1, -R - 1, 3, R + 1, R + 1, 10, (x, y, z) => (z === 4 ? copper : z === 7 ? '#3a3e42' : undefined));   // a copper band and a seam
+  m.cylZ(0, 0, 0, 3, R + 0.4, pal.main, M_METAL);                            // drum
+  m.cylZ(0, 0, 2, 3, R + 0.4, pal.dark, M_METAL);
+  m.box(R - 1, -2, 0, R + 2, 2, 2, pal.dark, M_METAL);                         // mantlet
+  m.ellipsoid(0, 0, 9.6, 1.8, 1.8, 1.3, '#a6dcff', M_GLOW);                       // glowing cap
+  for (const y of [-R - 0.5, R - 0.5]) { m.box(-2, y, 2, -1, y + 1, 5, '#3f78b4', M_METAL); m.set(-2, y, 5, '#cfe9ff', M_GLOW); }   // insulators
+  m.line(-R + 1, R - 2, 3, -R + 1, R - 2, 7, C.black);                         // aerial
   return m;
 }
 function tankTurret(pal, s) {
