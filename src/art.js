@@ -1697,19 +1697,27 @@ function drawUnitBody(g, u, t) {
     if (u.fireT > 0) flash(g, ...liftPt(u.x + Math.cos(u.face) * 10, u.y + Math.sin(u.face) * 10, alt), 2);
     // Parked: ammunition pips fill up as the ground crew rearms it.
     // Repairs under way: the same blinking green cross as structures.
-    if (u.repairing && Math.floor(t * 3) % 2) {
+    // Both drawn standing up at the aircraft's spot (standAt): on the turned view a row of pixels laid out in world
+    // coordinates would run off along the diagonal while its backing stayed level (a stray black bar).
+    if (u.repairing && Math.floor(t * 3) % 2) standAt(g, u.x, u.y, 0, () => {
       const cx = Math.round(u.x), cy = Math.round(u.y - 14);
       g.fillStyle = '#000'; g.fillRect(cx - 4, cy - 4, 9, 9);
       g.fillStyle = '#3ed04a'; g.fillRect(cx - 3, cy - 1, 7, 3); g.fillRect(cx - 1, cy - 3, 3, 7);
-    }
-    // Yellow: main weapon, blue: air-to-air missiles, grey: gun runs.
-    if (u.as === 'landed' && u.def.weapon) {
-      const loads = [[u.def.weapon.ammo, u.ammo, '#e8c64a'], [u.def.weapon2 ? u.def.weapon2.ammo : 0, u.aam || 0, '#9cc8ff'], [u.def.gun ? u.def.gun.runs : 0, u.guns || 0, '#b8b6aa']];
-      const n = loads.reduce((s, l) => s + l[0], 0), x0 = Math.round(u.x - n * 1.5), y0 = Math.round(u.y + 9);
-      g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x0 - 1, y0 - 1, n * 3 + 1, 4);
-      let i = 0;
-      for (const [max, have, col] of loads) for (let j = 0; j < max; j++, i++) { g.fillStyle = j < have ? col : '#4a4436'; g.fillRect(x0 + i * 3, y0, 2, 2); }
-    }
+    });
+    // Yellow: main weapon, blue: air-to-air missiles, grey: gun runs. A load of more than 6 (the Comanche's 15 gun
+    // bursts) is a gauge 6 pips long, filled in proportion.
+    if (u.as === 'landed' && u.def.weapon) standAt(g, u.x, u.y, 0, () => {
+      const loads = [[u.def.weapon.ammo, u.ammo, '#e8c64a'], [u.def.weapon2 ? u.def.weapon2.ammo : 0, u.aam || 0, '#9cc8ff'], [u.def.gun ? u.def.gun.runs : 0, u.guns || 0, '#b8b6aa']].filter((l) => l[0] > 0);
+      const len = (l) => Math.min(6, l[0]) * 3;
+      const w = loads.reduce((s, l) => s + len(l), 0) + (loads.length - 1), x0 = Math.round(u.x - w / 2), y0 = Math.round(u.y + 9);
+      g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x0 - 1, y0 - 1, w + 1, 4);
+      let x = x0;
+      for (const [max, have, col] of loads) {
+        if (max <= 6) for (let j = 0; j < max; j++) { g.fillStyle = j < have ? col : '#4a4436'; g.fillRect(x + j * 3, y0, 2, 2); }
+        else { const full = Math.round((len([max]) - 1) * Math.max(0, have) / max); g.fillStyle = '#4a4436'; g.fillRect(x, y0, len([max]) - 1, 2); g.fillStyle = col; g.fillRect(x, y0, full, 2); }
+        x += len([max]) + 1;
+      }
+    });
     return;
   }
   // A tank gun firing kicks the turret back along the barrel (recoil); the hull stays put.

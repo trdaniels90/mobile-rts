@@ -1037,8 +1037,8 @@ frame-time maths everywhere, so it is not deterministic.
   `upFill` in ui.js): Research (the button names what it unlocks, e.g. "Comanche · $1500 · 60 s") / Cancel / Researched. A blue bar under each Tech Center while research runs. "Upgrade complete" is text only (no voice clip yet).
 - **Comanche** (`comanche` in UNIT_DEFS, Allies, Helicopter Base, $1500, 180 health, speed 100, sight 8, `standoff`; upgrade "Comanche program" $1500, 60 s):
   needs a free pad like any helicopter (`padRoom`). `standoffFight` (world.js) instead of the plain helicopter attack: it holds near the edge of the
-  weapon's reach (`STANDOFF_FAR` 0.92), backs away nose-on below `STANDOFF_NEAR` (0.6) at `BACK_SPEED` (0.55 x speed). Looks as far as its missiles
-  reach (`airTarget`). **Chain gun** (`weapon`: 4-round bursts of 11, range 150, splash 8, warhead `CG`, 15 bursts a sortie): `spareTanks`, so `canHit`
+  weapon's reach (`STANDOFF_FAR` 0.92), backs away nose-on below `STANDOFF_NEAR` (0.8; was 0.6) at `BACK_SPEED` (0.55 x speed). Looks as far as its missiles
+  reach (`airTarget`). **Chain gun** (`weapon`: 4-round bursts of 11, range 190 (was 150; owner: outrange the MG Team's 150 and the Rocket Soldier's 180), splash 8, warhead `CG`, 15 bursts a sortie): `spareTanks`, so `canHit`
   skips tanks (`isTank`: `draw === 'tank'`) while it has missiles; `airWeapons` swaps in `anyTarget(w)` (the same gun without the flag) once they are spent.
   **Missiles** (`weapon2`: 4, 120 HF, range 210, `tanksOnly`, `lock` 1 s, `bay`): the bays open (`u.bay` 0 to 1 over `BAY_OPEN` 0.4 s, synced, while
   `u.bayHold`), a lock builds while it faces the target (`u.lock`, `u.lockOn`, host timers in netcore `SKIP`), one missile per `rof` (cd2). `fireWeapon`'s `bay`
@@ -1053,6 +1053,11 @@ frame-time maths everywhere, so it is not deterministic.
   reach), no gun at tanks while missiles last, missiles 471 of 480 damage, the gun on tanks after (6 bursts, 53 damage), gun only on infantry from 138 px,
   backing off. Staged (2 Comanches, 45 s): 9 of 10 riflemen, 1 of 3 Heavy Tanks killed, no losses; against 6 riflemen + 3 Rocket Soldiers both
   Comanches are lost (RedEye reach 180 is past the gun's 150) for one kill. Balance not tuned further: owner's call.
+- **Hunting fixes** (after 2026.11.17.4, both modes; the server must match): with its gun spent and no tank in missile reach it flies home to
+  rearm (`gunSpent` in `updateAir`; before, it flew on to the enemy base with only tank missiles and hung there without a shot), and on Auto
+  Attack it fights every unit it meets, even under known anti-air (`open` in `airTarget`). Scratch hunt run (2 Comanches, 8 units on the way):
+  5 of 8 killed and both lost before, 8 of 8 and none lost after. Landed aircraft's ammunition pips are drawn with `standAt` (a stray black
+  bar on the turned view) and a load over 6 is a gauge.
 - Field Manual: Comanche entry (Aircraft), Tech Center text, "Needs" shows the upgrade.
 - **Tesla Tank** (Soviets, owner's pick for their upgrade; `ttank` in UNIT_DEFS, War Factory; upgrade `teslatank` "Tesla program" $1500, 60 s): OpenRA's
   TTNK numbers ($1350, 450 health, light armour, speed 50), `draw: 'tank'` (so it counts as a tank: the Comanche's missiles go for it), size `tesla`.

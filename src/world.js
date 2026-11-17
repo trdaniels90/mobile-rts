@@ -4023,7 +4023,8 @@ function airTarget(u) {
   const src = o.type === 'guard' ? { x: o.x, y: o.y, team: u.team } : u;
   // On the attack with an open target to go for (airPick), it leaves targets covered by detected anti-air alone.
   let open = null;
-  if (o.type === 'hunt' && u.aaClear) { const aa = knownAA(u.team, u.def.fly === 'jet'); if (aa.length) open = (e) => isAirborne(e) || !aaCover(aa, e); }
+  // (Not the Comanche's units: it outranges most anti-air, so it takes on every unit it meets on the way.)
+  if (o.type === 'hunt' && u.aaClear) { const aa = knownAA(u.team, u.def.fly === 'jet'), units = u.def.standoff; if (aa.length) open = (e) => isAirborne(e) || (units && e.kind === 'unit') || !aaCover(aa, e); }
   if (!ws.length) return null;
   // A stand-off helicopter (the Comanche) looks as far as its missiles lock on.
   const reach = u.def.standoff ? Math.max(sight, ...ws.map((w) => w.range)) : sight;
@@ -4093,7 +4094,10 @@ function updateAir(u, dt) {
   // air-to-air missiles for enemy aircraft met on the way (or for an air target the player picked).
   const o0 = u.order, huntingAir = o0.type === 'attack' && o0.target.alive && isAirborne(o0.target) && u.aam > 0;
   const strikeSpent = jet && u.ammo <= 0 && !(u.guns > 0) && !(u.aam > 0) && !huntingAir;
-  if (airEmpty(u) || strikeSpent || u.retreat || u.rearming || (u.order.type === 'guard' && u.order.pad)) {
+  // The Comanche with its gun spent goes home to rearm unless a tank is in reach of its missiles: those hit
+  // tanks alone, so it would otherwise fly on to the enemy base and hang there without a shot.
+  const gunSpent = u.def.standoff && u.ammo <= 0 && !(u.aam > 0 && ((u.target && u.target.alive && isTank(u.target)) || acquire(u, u.def.weapon2.range, [u.def.weapon2])));
+  if (airEmpty(u) || strikeSpent || gunSpent || u.retreat || u.rearming || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {
       const spot = padSpot(pad, u);
@@ -4208,7 +4212,7 @@ function strikeOver(u) {
 // closer than STANDOFF_NEAR of it. Tanks get the anti-tank missiles while it has them: the bays open (BAY_OPEN s), it holds a
 // lock for the weapon's `lock` seconds (kept while the target stays the same and in reach) and fires one missile per `rof`.
 // Everything else, and tanks once the missiles are spent, gets the chain gun.
-const BAY_OPEN = 0.4, STANDOFF_FAR = 0.92, STANDOFF_NEAR = 0.6, BACK_SPEED = 0.55;
+const BAY_OPEN = 0.4, STANDOFF_FAR = 0.92, STANDOFF_NEAR = 0.8, BACK_SPEED = 0.55;
 function standoffFight(u, t, dt) {
   const mw = u.def.weapon2, missile = u.aam > 0 && canHit(mw, t);
   const w = missile ? mw : airWeapons(u).find((x) => x !== mw && canHit(x, t));
