@@ -4707,10 +4707,11 @@ function cancelProduction(team, type) {
 // Each extra Barracks, War Factory, Helicopter Base or Airfield speeds up its queue: 1.5x with two,
 // 2x with three, at most 2.5x. Production still runs one unit at a time per queue.
 const PRODUCER_BOOST = [1, 1, 1.5, 2, 2.5];
-const BOOSTED = new Set(['barracks', 'factory', 'helipad', 'airfield']);
-function producerBoost(team, def) {
-  if (!BOOSTED.has(def.producer)) return 1;
-  const n = G.entities.filter((e) => e.alive && e.kind === 'bld' && e.team === team.id && e.type === def.producer && e.sellT <= 0).length;
+const BOOSTED = new Set(['barracks', 'factory', 'helipad', 'airfield', 'cy']);   // structures count Construction Yards
+function producerBoost(team, def, cat) {
+  const by = cat === 'structure' ? 'cy' : def.producer;
+  if (!BOOSTED.has(by)) return 1;
+  const n = G.entities.filter((e) => e.alive && e.kind === 'bld' && e.team === team.id && e.type === by && e.sellT <= 0).length;
   return PRODUCER_BOOST[Math.min(n, PRODUCER_BOOST.length - 1)];
 }
 // The item a queue is working on: the first one whose producer still stands, so a jet queued
@@ -4727,7 +4728,7 @@ function updateProduction(team, dt) {
     if (!available(team, item.type)) continue;
     const def = defOf(item.type);
     if (padRoom(team, def.producer) < 0) continue;   // an Airfield was lost: queued aircraft wait for room
-    const dp = Math.min(dt * speed * producerBoost(team, def) / buildTime(def), 1 - item.progress);
+    const dp = Math.min(dt * speed * producerBoost(team, def, cat) / buildTime(def), 1 - item.progress);
     const cost = def.cost * dp;
     if (team.credits < cost) { item.stalled = true; notify(team, 'funds', 'Insufficient funds', 30); continue; }
     item.stalled = false;

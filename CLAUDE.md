@@ -293,7 +293,7 @@ share globals. Read this file first; the commit history explains every change in
 
 ## More Airfields and Helicopter Bases build faster (2026.11.14.2, both modes)
 
-- `producerBoost` (world.js) now covers every producer in `BOOSTED` (barracks, factory, helipad, airfield): `PRODUCER_BOOST`
+- `producerBoost` (world.js) now covers every producer in `BOOSTED` (barracks, factory, helipad, airfield; since after 2026.11.17.9, owner's pick for both modes, Construction Yards for the structure queue, `cat`): `PRODUCER_BOOST`
   1x, 1.5x, 2x, 2.5x with 1 to 4+ of that building. Applies to the computer too. The Field Manual says so for all four.
 
 ## Units spread out in a fight (after 2026.11.13, not released, both modes)
