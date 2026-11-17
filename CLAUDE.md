@@ -1347,6 +1347,20 @@ frame-time maths everywhere, so it is not deterministic.
   `bunching.js` 4 x 90 s unchanged (3.32, 7.7% six or more, worst 10), `rally.js` and `village.js` pass. Slowing `findPath` to phone speed did not change the piles,
   so the route queue (above) was a smaller part of it.
 
+## Defenders running back and forth (after 2026.11.17.4, not released, both modes; the server must match)
+
+- Owner's screenshot (Crossroads Village, night): a computer side's units in a strip between woods by its Helipad and Tesla Coils, running back and
+  forth; match a90f56b1 reported `stuck1..3` there (staged and assisting units, moving but no further on in 10 s, 17-25 friends within 2 cells).
+- **Main cause:** `defendBase` gives a defender a raider up to 32 cells off every second; the unit's own look round (`updateUnit` think) dropped any
+  target past 1.5 x sight (or far from its guard spot), took a nearer enemy and `engage` routed it there; next second the raider again. Each switch
+  threw the route away, so defenders turned round every second. Now a target that is in `team.raiders` is kept by a `defending` unit (`told`).
+  `flip.js`-style count (goTos alternating between defence and engage within 1.5 s, 20-min Normal 2 v 2s on Village): 8,464 to 2,007 and 15,160 to 1,240.
+- **Crowds:** a unit that gets no nearer its next route point for `SQUEEZE_AFTER` (1.5 s) walks through its allies for `SQUEEZE_FOR` (3 s)
+  (`u.prog`, `u.squeezeT`, skipped in `separate`; friends in its way are moved aside); a waiting unit (guard order) stuck within 4 cells of its spot
+  settles where it is; a guard unit shoved off its spot does not walk back when a friend stands there now (`spotTaken`); `scatterSpot` only uses
+  `roomyCell`s (3 x 3 free, not in a gap under 4 cells wide), so waiting units no longer park in the gaps between woods.
+- `ally-defend.js`, `rally.js` pass; `bunching.js` 4 x 90 s: 3.28 average, 10% six or more, worst 9 (unchanged).
+
 ## V2 rocket raised to fire (after 2026.11.16.4, not released, owner OK'd for both modes)
 
 - The rocket lies flat on the truck's bed and is raised on its rail before it fires, like the MG Team's set-up: `setup: 1.5`, `pack: 1` on

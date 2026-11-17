@@ -1558,6 +1558,7 @@ function arriveRadius(u, p, d) {
 
 // Follows the current path. Returns true once there is nowhere left to go.
 const CORNER_R = CELL * 1.5;
+const SQUEEZE_AFTER = 1.5, SQUEEZE_FOR = 3;
 function followPath(u, dt) {
   if (!u.dest) return true;
   if (u.needPath || !u.path) return false;
@@ -1574,8 +1575,20 @@ function followPath(u, dt) {
     MOVER = u;
     try { reached = los(u.x, u.y, q.x, q.y, u.def.r * 0.8); } finally { MOVER = null; }
   }
+  // Squeezing past friends: a unit that has got no nearer its next point for SQUEEZE_AFTER s (a crowd in a one-cell gap between woods,
+  // two columns meeting head-on: the spacing push between friends is stronger than an infantryman's step, so it was shoved back, stepped
+  // forward, shoved back again, for minutes) walks through its allies for SQUEEZE_FOR s (separate skips it), as OpenRA's infantry share cells.
+  if (!reached) {
+    const pr = u.prog;
+    if (!pr || pr.i !== u.pathIdx || d < pr.d - 4) u.prog = { i: u.pathIdx, d, t: G.t };
+    else if (G.t - pr.t > SQUEEZE_AFTER) {
+      // A waiting unit (guard order) that cannot get into the crowd at its spot settles where it is instead.
+      if (u.order.type === 'guard' && !u.defending && Math.hypot(u.dest.x - u.x, u.dest.y - u.y) < CELL * 4) { u.order.x = u.x; u.order.y = u.y; u.dest = null; u.prog = null; return true; }
+      u.squeezeT = G.t + SQUEEZE_FOR; u.prog = { i: u.pathIdx, d, t: G.t };
+    }
+  }
   if (reached) {
-    u.pathIdx++;
+    u.pathIdx++; u.prog = null;
     if (u.pathIdx >= u.path.length) {
       // Settled short of the exact point (beside a crowd): guard from here, not from the point.
       if (d > 3 && u.order.type === 'guard' && Math.hypot(u.order.x - p.x, u.order.y - p.y) < CELL) { u.order.x = u.x; u.order.y = u.y; }
@@ -1897,6 +1910,7 @@ function scatterSpot(team, near) {
     const reach = (Math.max(b.w, b.h) / 2 + 1 + Math.random() * 4) * CELL;
     const x = b.x + Math.cos(a) * reach, y = b.y + Math.sin(a) * reach, c = cellOfPos(x, y);
     if (!inMap(cellX(c), cellY(c)) || !freeCell(c) || G.ore[c] || G.resv[c]) continue;
+    if (!roomyCell(c)) continue;   // never in a gap between woods or buildings: a crowd waiting there blocks the way through
     let crowded = false;
     for (const e of mine) if (e.def.exit && e.exitCell !== undefined && Math.hypot(cellX(c) - cellX(e.exitCell), cellY(c) - cellY(e.exitCell)) < 2.5) crowded = true;
     if (crowded) continue;
@@ -1906,6 +1920,22 @@ function scatterSpot(team, near) {
     if (n === 0 && k >= 4) break;
   }
   return best || rallyPoint(team);
+}
+// A friend (no route of its own) stands on (x, y), closer than units keep apart.
+function spotTaken(u, x, y) {
+  for (const b of nearBuckets(x, y, CELL)) for (const e of b) {
+    if (e === u || !e.alive || e.kind !== 'unit' || e.cls === 'air' || e.dest || !alliedSides(e.team, u.team)) continue;
+    if (Math.hypot(e.x - x, e.y - y) < (e.def.r + u.def.r) * 1.4) return true;
+  }
+  return false;
+}
+// Open ground round a cell: its 3 x 3 is free and it is not in a gap under 4 cells wide (woods, rock, water or buildings 2 cells off on
+// both sides, straight or across), so units waiting there leave the way through open.
+function roomyCell(c) {
+  const cx = cellX(c), cy = cellY(c), shut = (x, y) => !inMap(x, y) || !freeCell(idx(x, y));
+  for (let y = cy - 1; y <= cy + 1; y++) for (let x = cx - 1; x <= cx + 1; x++) if (shut(x, y)) return false;
+  for (const [dx, dy] of [[2, 0], [0, 2], [2, 2], [2, -2]]) if (shut(cx + dx, cy + dy) && shut(cx - dx, cy - dy)) return false;
+  return true;
 }
 const inBase = (team, u) => buildingsOf(team.id).some((b) => distTo(u, b) < CELL * 12);
 function rallyPoint(team) {
@@ -3381,8 +3411,12 @@ function updateUnit(u, dt) {
       const far = o.type === 'guard' && o.hold && w && w.range > sight;
       const avenging = u.target && u.target === u.avenge;
       const reach = avenging ? Math.max(sight * 1.5, ((u.target.def.weapon && u.target.def.weapon.range) || 0) + CELL * 3) : far ? w.range : sight * 1.5;
-      if (u.target && distTo(u, u.target) > reach) u.target = null;
-      if (o.type === 'guard' && u.target && !avenging && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : sight * 1.6)) u.target = null;
+      // A raider base defence gave this unit (defendBase picks one up to 32 cells off) is kept however far while it is still raiding:
+      // dropping it here and taking a nearer enemy, then being given the raider again a second later, turned defenders round every
+      // second (they ran back and forth without getting anywhere).
+      const told = u.defending && u.target && u.target.kind === 'unit' && (teamOf(u).raiders || []).includes(u.target.id);
+      if (u.target && !told && distTo(u, u.target) > reach) u.target = null;
+      if (o.type === 'guard' && u.target && !avenging && !told && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : sight * 1.6)) u.target = null;
       if (!u.target || u.target.kind === 'bld') {
         const t = far ? acquire(u, w.range, [w, u.def.weapon2], teamOf(u).isAI ? null : inViewOf(u.team)) : acquire(u, sight, [w, u.def.weapon2]);
         if (t && (!u.target || t.kind === 'unit')) u.target = t;
@@ -3393,7 +3427,11 @@ function updateUnit(u, dt) {
           const b = nearestEnemyBuilding(u);
           if (!b) nothingKnown(u);
           else if (u.huntTarget !== b || (!u.dest && !u.needPath)) { u.huntTarget = b; goTo(u, b.x, b.y); }
-        } else if (!u.dest && !u.needPath && Math.hypot(u.x - o.x, u.y - o.y) > 24) goTo(u, o.x, o.y);
+        } else if (!u.dest && !u.needPath && Math.hypot(u.x - o.x, u.y - o.y) > 24) {
+          // Shoved off its spot by friends: if one of them stands there now, it guards from where it is (walking back shoved that one
+          // off in turn, and a crowd of waiting units ran back and forth for minutes: 234 such units in a 30-minute 2 v 2).
+          if (spotTaken(u, o.x, o.y)) { o.x = u.x; o.y = u.y; } else goTo(u, o.x, o.y);
+        }
       }
     }
   }
@@ -5002,6 +5040,9 @@ function separate() {
         if (o.id <= a.id) continue;
         // Ground units keep a little more than their own size apart (they used to overlap by 15%,
         // and a fight became one ball), allies more than strangers.
+        // A unit squeezing past (followPath) is not pushed by its allies, and does not push them: the friend in its way is moved aside instead.
+        const sa = !air && a.squeezeT > G.t, so = !air && o.squeezeT > G.t;
+        if (sa && so && alliedSides(a.team, o.team)) continue;
         const rr = (a.def.r + o.def.r) * (air ? 1.2 : a.team === o.team ? 1.4 : 1);
         const dx = o.x - a.x, dy = o.y - a.y, d = Math.hypot(dx, dy);
         if (d >= rr) continue;
@@ -5009,7 +5050,9 @@ function separate() {
         const push = Math.min(air ? 2 : 3, (rr - d) * 0.5);
         // Heavier, busier units shove lighter, idle ones.
         // A set-up MG Team is not shoved off its gun.
-        const wa = (a.setup >= 1 ? 0.02 : a.cls === 'inf' ? 1 : 0.4) * (a.moving ? 0.5 : 1), wo = (o.setup >= 1 ? 0.02 : o.cls === 'inf' ? 1 : 0.4) * (o.moving ? 0.5 : 1), ws = wa + wo;
+        let wa = (a.setup >= 1 ? 0.02 : a.cls === 'inf' ? 1 : 0.4) * (a.moving ? 0.5 : 1), wo = (o.setup >= 1 ? 0.02 : o.cls === 'inf' ? 1 : 0.4) * (o.moving ? 0.5 : 1);
+        if ((sa || so) && alliedSides(a.team, o.team)) { if (sa) wa = 0; else wo = 0; }
+        const ws = wa + wo;
         if (air) { a.x -= nx * push * wa / ws; a.y -= ny * push * wa / ws; o.x += nx * push * wo / ws; o.y += ny * push * wo / ws; }
         else { tryMove(a, -nx * push * 2 * wa / ws, -ny * push * 2 * wa / ws); tryMove(o, nx * push * 2 * wo / ws, ny * push * 2 * wo / ws); }
       }
