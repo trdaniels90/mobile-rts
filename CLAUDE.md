@@ -1060,6 +1060,9 @@ frame-time maths everywhere, so it is not deterministic.
   Attack it fights every unit it meets, even under known anti-air (`open` in `airTarget`). Scratch hunt run (2 Comanches, 8 units on the way):
   5 of 8 killed and both lost before, 8 of 8 and none lost after. Landed aircraft's ammunition pips are drawn with `standAt` (a stray black
   bar on the turned view) and a load over 6 is a gauge.
+- **Missiles at Ore Trucks** (owner's request, both modes; the server must match): `missileMark` (world.js) = tanks and Ore Trucks; `tanksOnly`
+  missiles fire at both and the `spareTanks` gun leaves both to them while it has missiles. A Comanche against a parked Ore Truck: all 4 missiles,
+  then the gun, 600 to 70 health in 12 s. Field Manual says so.
 - Field Manual: Comanche entry (Aircraft), Tech Center text, "Needs" shows the upgrade.
 - **Tesla Tank** (Soviets, owner's pick for their upgrade; `ttank` in UNIT_DEFS, War Factory; upgrade `teslatank` "Tesla program" $1500, 60 s): OpenRA's
   TTNK numbers ($1350, 450 health, light armour, speed 50), `draw: 'tank'` (so it counts as a tank: the Comanche's missiles go for it), size `tesla`.

@@ -195,7 +195,7 @@ const UNIT_DEFS = {
   },
   // RAH-66 Comanche (Allies, after the Tech Center upgrade `comanche`): a stealthy stand-off helicopter. It hangs back at the
   // edge of its reach: the chain gun for infantry and light vehicles (tanks only once its missiles are spent: `spareTanks`), and
-  // four anti-tank missiles for tanks alone (`tanksOnly`), fired from bays in its sides after holding a lock (`lock` s).
+  // four missiles for tanks and Ore Trucks alone (`tanksOnly`, world.js missileMark), fired from bays in its sides after holding a lock (`lock` s).
   // The gun outranges the MG Team (150) and the Rocket Soldier (180): it holds at 0.92 of 190 and backs off inside 0.8.
   comanche: {
     name: 'Comanche', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', upgrade: 'comanche', factions: ['allies'], standoff: true,

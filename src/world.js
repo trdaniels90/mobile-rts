@@ -1636,11 +1636,13 @@ function distTo(a, e) {
 }
 
 const isTank = (t) => t.kind === 'unit' && t.def.draw === 'tank';
+// What the Comanche's missiles are for (and its gun leaves to them while it has any): tanks and Ore Trucks.
+const missileMark = (t) => isTank(t) || (t.kind === 'unit' && !!t.def.harvester);
 function canHit(w, t) {
   if (!w) return false;
   if (t.kind === 'unit' && isAirborne(t)) return !!w.air && !(w.heliOnly && t.def.fly === 'jet');   // heliOnly weapons cannot reach jets
-  if (w.tanksOnly && !isTank(t)) return false;    // the Comanche's anti-tank missiles
-  if (w.spareTanks && isTank(t)) return false;    // its chain gun leaves tanks to the missiles (airWeapons lifts this once they are spent)
+  if (w.tanksOnly && !missileMark(t)) return false;    // the Comanche's missiles: tanks and Ore Trucks
+  if (w.spareTanks && missileMark(t)) return false;    // its chain gun leaves those to the missiles (airWeapons lifts this once they are spent)
   return w.ground !== false;
 }
 function canTarget(u, t) { return canHit(u.def.weapon, t) || canHit(u.def.weapon2, t); }
@@ -4094,9 +4096,9 @@ function updateAir(u, dt) {
   // air-to-air missiles for enemy aircraft met on the way (or for an air target the player picked).
   const o0 = u.order, huntingAir = o0.type === 'attack' && o0.target.alive && isAirborne(o0.target) && u.aam > 0;
   const strikeSpent = jet && u.ammo <= 0 && !(u.guns > 0) && !(u.aam > 0) && !huntingAir;
-  // The Comanche with its gun spent goes home to rearm unless a tank is in reach of its missiles: those hit
+  // The Comanche with its gun spent goes home to rearm unless a tank or Ore Truck is in reach of its missiles: those hit
   // tanks alone, so it would otherwise fly on to the enemy base and hang there without a shot.
-  const gunSpent = u.def.standoff && u.ammo <= 0 && !(u.aam > 0 && ((u.target && u.target.alive && isTank(u.target)) || acquire(u, u.def.weapon2.range, [u.def.weapon2])));
+  const gunSpent = u.def.standoff && u.ammo <= 0 && !(u.aam > 0 && ((u.target && u.target.alive && missileMark(u.target)) || acquire(u, u.def.weapon2.range, [u.def.weapon2])));
   if (airEmpty(u) || strikeSpent || gunSpent || u.retreat || u.rearming || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {
