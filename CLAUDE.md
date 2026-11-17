@@ -1085,7 +1085,7 @@ frame-time maths everywhere, so it is not deterministic.
   before and after: same 25 buildings at minute 8, so the computer is not held up.
 - **`SPINNERS`** (models.js, next to `HEADS`, same layout, kept apart because `HEADS` is keyed by type only and world.js `muzzle` reads it): the Soviet Radar's mesh antenna
   and feed horn (`radarDish`) are no longer in the building's model (the cameo still has them, still). `spinnerSprite(type, faction, angle, stage)`; art.js `drawStructure` draws it on
-  its pedestal. `dishAngle` (art.js; a `Map` by building id, never a field on `b`): `DISH_SPEED` 0.9 rad/s, stops while building or selling, at damage stage 2 and on low power.
+  its pedestal. `dishAngle` (art.js; a `Map` by building id, never a field on `b`): `DISH_SPEED` 0.9 rad/s, starts turning once it is on its pedestal (half way up the build), stops at damage stage 2 and on low power.
   Not baked. The Allied Radar Dome's small dish does not turn yet (owner's call).
 - **`drawBuildUp`** (art.js) replaces the old row crop for `buildT < 1` and selling (`sellT / 1.2`, backwards): the footprint's diamond as a pad with a dashed outline, a scaffold of poles
   and rails at the corners (Allies yellow, Soviets red-brown; back sides before the building, front after), the structure's own model cut at a rising height (`buildSprite`,
