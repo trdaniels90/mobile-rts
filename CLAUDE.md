@@ -1245,8 +1245,10 @@ frame-time maths everywhere, so it is not deterministic.
   computer side (in side order) the nearest found enemy no earlier one has taken, so each player base gets its own attacker; an enemy
   whose base is still hidden is not counted, so two may share the one found meanwhile. **Gang:** once the alliance's computers have sent
   `SPREAD_WAVES` (3) waves each on average (`team.waves`; a turtle sends few, so the total counts), `aiGangPlan` rolls one enemy for the
-  whole alliance at random (weaker in what it has seen up to twice as likely), kept `GANG_HOLD` (360 s) or until beaten, in `G.gang[ally]`
-  (plain data, saved). Easy now spreads too (was nearest). Headless Normal 2 v 2 on Twin Lakes: four different targets until minute 28,
+  whole alliance at random, kept `GANG_HOLD` (360 s) or until beaten, in `G.gang[ally]` (plain data, saved). Owner's picks:
+  **the leader** is more likely (weight 1 + strength / strongest's; strength = all armed units' and buildings' cost, not just what it has seen:
+  20 extra Medium Tanks on one side made it 62% of picks), and **a breather**: a side that lost a Construction Yard in the last `BREATHER`
+  (150 s, `team.cyLostT` set in `kill`) is not picked while anyone else can be, and a gang on it breaks up at the next look (within 30 s). Easy now spreads too (was nearest). Headless Normal 2 v 2 on Twin Lakes: four different targets until minute 28,
   then one alliance on one foe. The server must run the same version.
 - Match reports now record each side's `ally`, `style` and `waves` in `stats.teams` (and `style` in the server's `players`).
 - Fire effects lifted past x < 0 picked `flameFrames[-n]` (art.js `drawEffect`): 631 draw errors in that match's last 80 s. Fixed.

@@ -963,8 +963,8 @@ function aiPincer(team) {
 //   alliance do not gang up on one player (aiSpreadPlan). Only enemies whose base has been found count: while a
 //   base is still hidden, two computers may go for the same one meanwhile.
 // - Gang (once the alliance's computer sides have sent SPREAD_WAVES waves each on average: a turtle sends few): the alliance picks one enemy
-//   together at random (weaker ones a little more likely) and all its computers go for it; picked again every
-//   GANG_HOLD seconds or when it is beaten (aiGangPlan, G.gang[ally]).
+//   together at random (the strongest more likely, one that just lost its Construction Yard left alone for a while)
+//   and all its computers go for it; picked again every GANG_HOLD seconds or when it is beaten (aiGangPlan, G.gang[ally]).
 const FOE_PICK_EVERY = 30, SPREAD_WAVES = 3, GANG_HOLD = 360;
 function aiPickFoe(team) {
   const foes = G.teams.filter((t) => hostile(team.id, t.id));
@@ -995,24 +995,28 @@ function aiSpreadPlan(team, mates, known) {
   }
   return null;
 }
-// Later on: one enemy for the whole alliance, rolled at random (an enemy weak in what this side has seen is up to
-// twice as likely), kept GANG_HOLD seconds or until it is beaten or lost from sight. G.gang is plain data (saved).
+// Later on: one enemy for the whole alliance, rolled at random, the strongest more likely (up to twice as likely as
+// the weakest: army worth plus buildings, all of it, so a player who is ahead feels it). An enemy that lost a
+// Construction Yard in the last BREATHER seconds is left alone if anyone else can be picked, and a gang on it
+// breaks up at once. Kept GANG_HOLD seconds or until it is beaten. G.gang is plain data (saved).
+const BREATHER = 150;
 function aiGangPlan(team, known) {
   G.gang = G.gang || {};
+  const resting = (f) => f.cyLostT !== undefined && G.t - f.cyLostT < BREATHER;
+  const pool = known.filter((f) => !resting(f)).length ? known.filter((f) => !resting(f)) : known;
   const g = G.gang[team.ally];
-  const cur = g && known.find((f) => f.id === g.side);
+  const cur = g && pool.find((f) => f.id === g.side);
   if (cur && G.t < g.until) return cur;
-  const seen = inViewOf(team.id);
-  const might = (tid) => {
+  const strength = (tid) => {
     let v = 0;
-    for (const u of unitsOf(tid)) if (u.def.weapon && !u.def.harvester && !u.def.scripted && seen(u)) v += u.def.cost || 300;
-    for (const b of buildingsOf(tid)) if (b.def.defense && targetable(team.id, b)) v += (b.def.cost || 600) * 0.7;
+    for (const u of unitsOf(tid)) if (u.def.weapon && !u.def.scripted) v += u.def.cost || 300;
+    for (const b of buildingsOf(tid)) v += b.def.cost || 600;
     return v;
   };
-  const m = known.map((f) => might(f.id)), top = Math.max(1, ...m);
-  const w = m.map((v) => 2 - v / top);
-  let r = Math.random() * w.reduce((a, b) => a + b, 0), pick = known[known.length - 1];
-  for (let i = 0; i < known.length; i++) if ((r -= w[i]) < 0) { pick = known[i]; break; }
+  const m = pool.map((f) => strength(f.id)), top = Math.max(1, ...m);
+  const w = m.map((v) => 1 + v / top);
+  let r = Math.random() * w.reduce((a, b) => a + b, 0), pick = pool[pool.length - 1];
+  for (let i = 0; i < pool.length; i++) if ((r -= w[i]) < 0) { pick = pool[i]; break; }
   G.gang[team.ally] = { side: pick.id, until: G.t + GANG_HOLD };
   return pick;
 }
