@@ -121,7 +121,7 @@ function makeTeam(id, faction, isAI) {
     power: { prod: 0, use: 0 }, low: false, auto: !!isAI, focusSide: null,
     queues: { structure: null, infantry: [], vehicle: [], heli: [], jet: [] },
     stats: { built: 0, units: 0, lost: 0, killed: 0, bldKilled: 0, bldLost: 0, harvested: 0 },
-    cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, defending: false, calm: 0, allyCalm: 0, assist: false, assistSide: null, harvHit: null,
+    cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, upgrades: {}, research: null, defending: false, calm: 0, allyCalm: 0, assist: false, assistSide: null, harvHit: null,
   };
 }
 
@@ -1635,9 +1635,12 @@ function distTo(a, e) {
   return Math.max(0, Math.hypot(a.x - e.x, a.y - e.y) - (e.def.r || 0) * 0.5);
 }
 
+const isTank = (t) => t.kind === 'unit' && t.def.draw === 'tank';
 function canHit(w, t) {
   if (!w) return false;
   if (t.kind === 'unit' && isAirborne(t)) return !!w.air && !(w.heliOnly && t.def.fly === 'jet');   // heliOnly weapons cannot reach jets
+  if (w.tanksOnly && !isTank(t)) return false;    // the Comanche's anti-tank missiles
+  if (w.spareTanks && isTank(t)) return false;    // its chin gun leaves tanks to the missiles (airWeapons lifts this once they are spent)
   return w.ground !== false;
 }
 function canTarget(u, t) { return canHit(u.def.weapon, t) || canHit(u.def.weapon2, t); }
@@ -2470,6 +2473,15 @@ function fireWeapon(src, w, t, follow) {
       src.barrel = follow ? 1 : -1;
       if (!follow) { src.twinNext = G.t + w.stagger; src.twinTarget = t; }
     }
+    // The Comanche's missiles leave its side bays, left and right in turn, drop clear and then light up (updateProjectiles).
+    if (w.bay) {
+      src.fireT = 0; src.shots--;   // no flash at the nose (an online copy lights one when `shots` changes)
+      const side = (src.bayN = (src.bayN || 0) + 1) % 2 ? 1 : -1, c = Math.cos(src.face), sn = Math.sin(src.face), alt = src.alt || 0;
+      const bx = src.x - sn * side * 5 + c, by = src.y + c * side * 5 + sn;
+      G.projectiles.push({ x: bx, y: by - alt + 3, target: t, w, from: src, team: src.team, speed: PROJ_SPEED.missile || 400, kind: 'missile', trail: 0, delay: 0,
+        x0: bx, y0: by - alt + 3, h0: Math.max(0, alt - 3), drop: BAY_DROP, dropV: { x: c * src.def.speed * 0.4 - sn * side * 14, y: sn * src.def.speed * 0.4 + c * side * 14 }, aa: false, fuel: w.range * 2 });
+      return;
+    }
     for (let i = 0; i < shots; i++) {
       const off = shots > 1 ? (i ? 2 : -2) : w.stagger ? src.barrel * 2 : 0;
       G.projectiles.push({ x: m.x + off * Math.sin(src.tface || 0), y: m.y - off * Math.cos(src.tface || 0), target: t, w, from: src, team: src.team,
@@ -2483,6 +2495,22 @@ function fireWeapon(src, w, t, follow) {
   }
 }
 
+// A missile dropped from the Comanche's bay (p.drop seconds): it falls away beside the helicopter, carried along by its speed,
+// then its motor lights with a puff of smoke and it flies on to its target as any missile. Looks only (the guest runs it too,
+// net.js flyShots). Returns true while still falling.
+const BAY_DROP = 0.22;
+function dropStep(p, dt) {
+  p.drop -= dt;
+  p.x += p.dropV.x * dt; p.y += p.dropV.y * dt;
+  const fall = 40 * dt;
+  p.h0 = Math.max(0, p.h0 - fall); p.y += fall;   // (h folds into y on the screen: lower in the air is further down)
+  p.x0 = p.x; p.y0 = p.y;
+  p.a = Math.atan2(p.dropV.y, p.dropV.x);
+  if (p.drop > 0) return true;
+  p.drop = 0;
+  if (!G.remote) G.effects.push({ type: 'smoke', x: p.x, y: p.y + p.h0, lift: p.h0, r: 3, t: 0, life: 0.7, alpha: 0.6, color: '#c9c7c0', vy: -4 });
+  return false;
+}
 // How high a shell, rocket or missile is now (drawing only): from its gun's height to the target's, by how far it has come.
 function projH(p) {
   if (p.h0 === undefined) return 0;
@@ -2522,6 +2550,7 @@ function updateProjectiles(dt) {
       if (k >= 1) { p.dead = true; grenadeBlast(p); }
       continue;
     }
+    if (p.drop > 0) { if (dropStep(p, dt)) continue; }
     const t = p.target;
     if ((p.kind === 'missile' || p.kind === 'rocket') && !p.flareChecked && t.alive && t.def && t.def.flares && isAirborne(t) &&
         Math.hypot(t.x - p.x, aimY(t) - p.y) < 90) {
@@ -3814,9 +3843,11 @@ function rearmStep(u) {
   else if ((u.guns || 0) < L.guns) u.guns = (u.guns || 0) + 1;
   u.flares = u.def.flares || 0;
 }
+// The Comanche's chin gun takes on tanks too once its missiles are spent: the same gun without `spareTanks`.
+function anyTarget(w) { return w.all || (w.all = Object.assign({}, w, { spareTanks: false, all: null })); }
 function airWeapons(u) {
   const ws = [];
-  if (u.ammo > 0 || u.guns > 0) ws.push(u.def.weapon);
+  if (u.ammo > 0 || u.guns > 0) ws.push(u.def.weapon.spareTanks && !(u.aam > 0) ? anyTarget(u.def.weapon) : u.def.weapon);
   if (u.aam > 0 && u.def.weapon2) ws.push(u.def.weapon2);
   return ws;
 }
@@ -3989,7 +4020,9 @@ function airTarget(u) {
   let open = null;
   if (o.type === 'hunt' && u.aaClear) { const aa = knownAA(u.team, u.def.fly === 'jet'); if (aa.length) open = (e) => isAirborne(e) || !aaCover(aa, e); }
   if (!ws.length) return null;
-  const pick = acquire(src, sight, ws, open, heli);
+  // A stand-off helicopter (the Comanche) looks as far as its missiles lock on.
+  const reach = u.def.standoff ? Math.max(sight, ...ws.map((w) => w.range)) : sight;
+  const pick = acquire(src, reach, ws, open, heli);
   // Nothing new in sight: carry on with the unfavoured target it had.
   if (heli && !pick && u.target && u.target.alive && ws.some((w) => canHit(w, u.target)) && distTo(u, u.target) < sight * 1.4) return u.target;
   return pick;
@@ -3998,6 +4031,10 @@ function airTarget(u) {
 function updateAir(u, dt) {
   const w = u.def.weapon, jet = u.def.fly === 'jet';
   if (u.leaving) { flyAway(u, dt); return; }   // off to reserve: nothing else matters
+  if (u.def.standoff) {   // the Comanche's side bays: open while it has a missile target in reach (standoffFight), shut after
+    const want = G.t < (u.bayHold || 0) ? 1 : 0, b = u.bay || 0;
+    if (b !== want) u.bay = want > b ? Math.min(1, b + dt / BAY_OPEN) : Math.max(0, b - dt / BAY_OPEN);
+  }
   if (u.flareSeq) dropFlare(u);
   if (u.target && !u.target.alive) u.target = null;
   if (u.order.type === 'attack' && !u.order.target.alive) setGuard(u);   // its target is gone: hold here
@@ -4131,7 +4168,8 @@ function updateAir(u, dt) {
     if (Math.hypot(o.x - u.x, o.y - u.y) < 6) setGuard(u, o.x, o.y);
     else { flyHeli(u, o.x, o.y, dt); return; }
   }
-  if (t) {
+  if (t && u.def.standoff) standoffFight(u, t, dt);
+  else if (t) {
     const d = distTo(u, t), ang = Math.atan2(t.y - u.y, t.x - u.x);
     if (d > w.range * 0.9) flyHeli(u, t.x, t.y, dt);
     else {
@@ -4160,6 +4198,31 @@ function strikeOver(u) {
   if (!u.oneStrike) return;
   u.oneStrike = false;
   setGuard(u); u.order.pad = true; u.staged = false;
+}
+// The Comanche's fight: it holds near the edge of its reach and backs away (still facing the target) from anything that comes
+// closer than STANDOFF_NEAR of it. Tanks get the anti-tank missiles while it has them: the bays open (BAY_OPEN s), it holds a
+// lock for the weapon's `lock` seconds (kept while the target stays the same and in reach) and fires one missile per `rof`.
+// Everything else, and tanks once the missiles are spent, gets the chin gun.
+const BAY_OPEN = 0.4, STANDOFF_FAR = 0.92, STANDOFF_NEAR = 0.6, BACK_SPEED = 0.55;
+function standoffFight(u, t, dt) {
+  const mw = u.def.weapon2, missile = u.aam > 0 && canHit(mw, t);
+  const w = missile ? mw : airWeapons(u).find((x) => x !== mw && canHit(x, t));
+  if (!w) { u.target = null; return; }
+  const d = distTo(u, t), ang = Math.atan2(t.y - u.y, t.x - u.x);
+  if (missile && d <= mw.range * 1.15) u.bayHold = G.t + 0.8;
+  if (u.lockOn !== t.id || !missile || d > mw.range) { u.lockOn = missile && d <= mw.range ? t.id : null; u.lock = 0; }
+  if (d > w.range * STANDOFF_FAR) { flyHeli(u, t.x, t.y, dt); return; }
+  if (d < w.range * STANDOFF_NEAR) {   // too close: back off, nose still on the target
+    const step = u.def.speed * BACK_SPEED * dt;
+    u.x -= Math.cos(ang) * step; u.y -= Math.sin(ang) * step; u.moving = true;
+    clampAir(u);
+  }
+  u.face = turnToward(u.face, ang, 4 * dt);
+  const facing = Math.abs(angDiff(ang, u.face)) < 0.2;
+  if (missile) {
+    if (facing) u.lock = (u.lock || 0) + dt;
+    if (u.lock >= mw.lock && (u.bay || 0) >= 1 && !(u.cd2 > 0)) { shoot(u, mw, t); u.cd2 = mw.rof * VET.reload[u.rank || 0]; u.aam--; u.bayHold = G.t + 1.5; }
+  } else if (facing && u.cd <= 0) { shoot(u, w, t); u.cd = w.rof * VET.reload[u.rank || 0]; u.ammo--; }
 }
 function flyHeli(u, x, y, dt) {
   const ang = Math.atan2(y - u.y, x - u.x), d = Math.hypot(x - u.x, y - u.y);
@@ -4436,8 +4499,45 @@ function hasBuilt(team, type) { return G.entities.some((e) => e.alive && e.kind 
 function available(team, type) {
   const d = defOf(type);
   if (!d.factions.includes(team.faction)) return false;
+  if (d.upgrade && !hasUpgrade(team, d.upgrade)) return false;   // a unit a Tech Center upgrade unlocks (the Comanche)
   if (UNIT_DEFS[type]) return hasBuilt(team, d.producer) && (d.req || []).every((r) => hasBuilt(team, r));
   return hasBuilt(team, 'cy') && d.req.every((r) => hasBuilt(team, r));
+}
+
+// --- Tech Center upgrades (UPGRADES in data.js) ------------------------------------
+// team.upgrades: { id: true } once researched (kept for the battle). team.research: { id, progress, spent } while one is under
+// way, paid as it goes like production (half speed on low power). Plain data: saved, and sent to online players (netcore TEAM).
+function hasUpgrade(team, id) { return !!(team.upgrades && team.upgrades[id]); }
+function canResearch(team, id) {
+  const u = UPGRADES[id];
+  return !!u && u.factions.includes(team.faction) && !hasUpgrade(team, id) && hasBuilt(team, 'tech');
+}
+function startResearch(team, id) {
+  if (!canResearch(team, id)) return 'Not available';
+  if (team.research) return team.research.id === id ? 'busy-same' : 'busy';
+  team.research = { id, progress: 0, spent: 0 };
+  return null;
+}
+function cancelResearch(team, id) {
+  const r = team.research;
+  if (!r || (id && r.id !== id)) return false;
+  team.credits += r.spent; team.research = null;
+  return true;
+}
+function updateResearch(team, dt) {
+  const r = team.research;
+  if (!r) return;
+  if (!hasBuilt(team, 'tech')) { cancelResearch(team); notify(team, 'research', 'Research cancelled', 4); return; }   // the last Tech Center is gone: money back
+  const up = UPGRADES[r.id], speed = (team.low ? 0.5 : 1) * (team.isAI ? G.diff.speed : 1);
+  const dp = Math.min(dt * speed / up.time, 1 - r.progress), cost = up.cost * dp;
+  if (team.credits < cost) { r.stalled = true; notify(team, 'funds', 'Insufficient funds', 30); return; }
+  r.stalled = false;
+  team.credits -= cost; r.spent += cost; r.progress += dp;
+  if (r.progress >= 0.9999) {
+    (team.upgrades || (team.upgrades = {}))[r.id] = true;
+    team.research = null;
+    notify(team, 'upgrade', 'Upgrade complete', 2);
+  }
 }
 
 function startProduction(team, type) {
@@ -4884,7 +4984,7 @@ function update(dt) {
   if (!G.remote) for (const t of G.teams) if (t.wipe) tickWipe(t);
   updateProjectiles(dt);
   processPaths();
-  if (!G.over) for (const team of G.teams) { updateProduction(team, dt); updatePowers(team, dt); }
+  if (!G.over) for (const team of G.teams) { updateProduction(team, dt); updateResearch(team, dt); updatePowers(team, dt); }
   if (!G.over) updateDoors();
   const T = G.timers;
   if ((T.power -= dt) <= 0) { T.power = 0.5; updatePower(); }

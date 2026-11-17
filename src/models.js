@@ -629,6 +629,65 @@ function heliModel(pal) {
   m.box(-16, 0, 2, -15, 1, 4, gun);                                        // tail wheel
   return m;
 }
+// RAH-66 Comanche: a stealthy, faceted body (diamond section, the chine where the side's colour meets its darker
+// underside), a sharp nose with the three-barrel 20 mm gun in a chin turret, a stepped tandem canopy, an engine
+// hump with flush intakes, a slim tail boom and the shrouded fan (fenestron) in the fin under a T-tail. Its missiles
+// ride inside weapon bays in the lower sides: the doors hinge at the top and swing out to lie flat, the missiles
+// hanging under them (`bay` 0 shut, 1 open, in BAY_STEPS). A five-blade rotor (art.js).
+const BAY_STEPS = 2;
+function comancheModel(pal, bay) {
+  const m = new VModel(-22, -9, 14, 9, 12);
+  const body = pal.main, lo = shadeInt(pal.main, 0.74), dark = pal.dark, gun = C.gun, GL = '#c9a54a', HOLE = '#16191b';   // (its canopy's gold tint)
+  // Fuselage, slice by slice: widest at the chine (z 3), narrowing above and below, the nose drawn to a point.
+  const half = (x) => (x < 6 ? 3 : Math.max(1, 3 - (x - 6) * 0.42));
+  for (let x = -5; x < 12; x++) {
+    const hw = half(x), top = x < 7 ? 6 : Math.max(4, 6 - (x - 7) * 0.5), bot = x < 7 ? 1 : 1 + (x - 7) * 0.45;
+    for (let z = Math.floor(bot); z < top; z++) {
+      const w = Math.max(1, Math.round(hw - (z < 3 ? (3 - z) * 0.7 : (z - 3) * 0.55)));
+      m.box(x, -w, z, x + 1, w, z + 1, z < 3 ? lo : body, M_METAL);
+    }
+  }
+  m.box(7, -1, 5, 10, 1, 6, GL, M_GLASS);                                    // gunner's canopy, low in front
+  m.box(2, -1, 6, 7, 1, 7, GL, M_GLASS);                                     // pilot's, stepped up behind
+  m.box(3, -2, 5, 7, 2, 6, body, M_METAL);
+  m.paint(2, -2, 5, 10, 2, 7, (x, y, z, c) => (c === rgbInt(GL) && (x === 7 || x === 4) ? dark : undefined));   // canopy frames
+  m.ellipsoid(9, 0, 1.2, 1.3, 1.1, 1, gun, M_METAL);                         // chin turret
+  m.box(9, -1, 1, 14, 0, 2, gun, M_METAL);                                   // its three barrels, as one
+  m.box(-5, -2, 6, 3, 2, 8, body, M_METAL);                                  // engine hump
+  for (const y of [-3, 2]) m.box(0, y, 6, 2, y + 1, 7, HOLE);               // flush intakes
+  m.box(-6, -1, 6, -5, 1, 7, '#262624', M_METAL);                            // exhaust, buried in the hump
+  m.cylZ(0, 0, 8, 10, 1, gun, M_METAL);                                      // mast
+  for (let x = -18; x < -5; x++) {                                           // tail boom
+    const z1 = x < -12 ? 5 : 6;
+    m.box(x, -1, 3, x + 1, 1, 4, lo, M_METAL); m.box(x, -1, 4, x + 1, 1, z1, body, M_METAL);
+  }
+  for (let z = 2; z < 10; z++) m.box(Math.round(-21 - (z - 2) * 0.2), -1, z, Math.round(-16 - (z - 2) * 0.35), 1, z + 1, body, M_METAL);   // the fin round the fan
+  m.paint(-22, -1, 2, -15, 1, 10, (x, y, z) => {                             // the fan in its shroud
+    const dx = x + 0.5 + 18.6, dz = z + 0.5 - 5.5, r = Math.hypot(dx, dz);
+    return r < 1.9 ? (Math.abs(dx) < 0.6 || Math.abs(dz) < 0.6 ? '#4a4c48' : HOLE) : r < 2.6 ? dark : undefined;
+  });
+  m.box(-23, -4, 10, -19, 4, 11, dark, M_METAL);                              // T-tail
+  m.box(3, -3, 0, 4, -2, 1, gun); m.box(3, 2, 0, 4, 3, 1, gun); m.box(-16, -1, 2, -15, 0, 3, gun);   // wheels
+  // Weapon bays in the lower sides (x -2 to 4).
+  for (const s of [-1, 1]) {
+    const yIn = s < 0 ? -3 : 2, yOut = s < 0 ? -4 : 3;                     // the side's last voxel and the first outside it
+    if (bay <= 0) { m.paint(-2, yIn, 1, 5, yIn + 1, 3, (x) => (x === -2 || x === 4 ? dark : undefined)); continue; }   // shut: just the seams
+    m.box(-2, yIn, 1, 5, yIn + 1, 3, HOLE);                                   // open: the dark bay
+    if (bay < 1) {                                                            // swinging out, half way
+      m.box(-2, yOut, 2, 5, yOut + 1, 3, lo, M_METAL);
+      m.box(-2, yOut + s, 1, 5, yOut + s + 1, 2, lo, M_METAL);
+    } else {                                                                  // flat out from the hinge, a missile on its rail along each door
+      m.box(-2, s < 0 ? yOut - 2 : yOut, 2, 5, s < 0 ? yOut + 1 : yOut + 3, 3, lo, M_METAL);
+      for (const k of [0, 2]) {
+        const y = yOut + s * k;
+        m.box(-2, y, 3, 4, y + 1, 4, '#e2dfd2', M_METAL);
+        m.set(4, y, 3, '#3a3c38', M_METAL);                                   // seeker
+        m.set(-2, y, 3, '#8a8c84', M_METAL);                                  // fins
+      }
+    }
+  }
+  return m;
+}
 // Hind-D: a big armoured body with the "double bubble" cockpit (gunner low in front, pilot raised
 // behind), a chin gun turret, twin engines on top with their intakes forward, drooping stub wings
 // with rocket pods and missile rails at the tips, cabin windows, and a camouflage of the side's
@@ -4747,6 +4806,7 @@ function hullSprite(u, pal) {
   if (d.draw === 'arty') return facingSprite('R' + key, () => artyModel(pal), u.face);
   if (d.draw === 'v2') { const loaded = !(u.cd > 1.2), st = Math.round((u.setup || 0) * V2_STEPS); return facingSprite('W' + key + loaded + st, () => v2Model(pal, loaded, st / V2_STEPS), u.face); }
   if (d.draw === 'harv') { const full = (u.load || 0) > d.capacity * 0.3; return facingSprite('V' + key + full, () => harvModel(pal, full), u.face); }
+  if (d.type === 'comanche') { const st = Math.round((u.bay || 0) * BAY_STEPS); return facingSprite('A' + key + 'b' + st, () => comancheModel(pal, st / BAY_STEPS), u.face); }
   if (d.fly === 'heli') return facingSprite('A' + key, () => d.type === 'hind' ? hindModel(pal) : heliModel(pal), u.face);
   if (d.draw === 'cargo') {
     if (d.type === 'transport') return u.faction === 'allies' ? facingSprite('H' + key, () => c130Model(pal), u.face) : facingSprite('I' + key, () => il76Model(pal), u.face);

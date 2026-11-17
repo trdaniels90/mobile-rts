@@ -552,7 +552,7 @@ const Net = (() => {
   }
   function order(f, a) {
     const go = () => send({ k: 'c', f, a: a.map(packArg) });
-    if (f === 'startProduction' || f === 'cancelProduction') { go(); return ORIGC[f](...a); }
+    if (f === 'startProduction' || f === 'cancelProduction' || f === 'startResearch' || f === 'cancelResearch') { go(); return ORIGC[f](...a); }
     if (f === 'placeStructure') {
       const [team, type, cx, cy] = a, q = team.queues.structure;
       const ok = !!(q && q.ready && q.type === type && canPlace(team, type, cx, cy, 0));
@@ -657,6 +657,7 @@ const Net = (() => {
         p.a = p.kind === 'grenade' ? (p.a || 0) + dt * 14 : Math.atan2(p.y - py, p.x - px);
         continue;
       }
+      if (p.drop > 0 && p.dropV && dropStep(p, dt)) continue;   // a Comanche missile still falling from its bay
       const t = p.target;
       if (!t || !(p.speed > 0) || typeof t.x !== 'number') continue;
       const ty = aimY(t), dx = t.x - p.x, dy = ty - p.y, d = Math.hypot(dx, dy), step = p.speed * dt;

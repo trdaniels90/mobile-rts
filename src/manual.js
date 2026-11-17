@@ -15,7 +15,7 @@ const Manual = (() => {
     barracks: ['Trains infantry. More Barracks train faster (1.5x with two, 2x with three, up to 2.5x with four), and losing one does not stop training if you have another. New soldiers come out of your PRIMARY Barracks (double-tap one to choose), else the newest.', '', ''],
     factory: ['Builds tanks, support vehicles, Ore Trucks and the Mobile Outpost. Unlocks the Helicopter Base and Advanced Power Plant. More War Factories build faster (1.5x with two, 2x with three, up to 2.5x with four). Vehicles come out of your PRIMARY War Factory (double-tap one to choose), else the newest.', '', ''],
     dome: ['Turns on the radar minimap (it goes offline on low power) and unlocks the Airfield, the Tech Center and, for the Soviets, the V2 Rocket Launcher.', '', 'Without it you fight blind'],
-    tech: ['A research centre that unlocks your side\'s top-tier units: the Mammoth Tank for the Soviets, Artillery and the Attack Helicopter for the Allies. Lose it and you cannot build them until you rebuild it. Needs a Radar Dome and plenty of power.', '', 'Costly, and a prime target'],
+    tech: ['A research centre that unlocks your side\'s top-tier units: the Mammoth Tank for the Soviets, Artillery and the Attack Helicopter for the Allies. Lose it and you cannot build them until you rebuild it. Select it and tap UPGRADES to research upgrades, one at a time (Allies: the Comanche program). A finished upgrade is yours for the rest of the battle even if the Tech Center falls; research still under way when your last one falls is refunded. Needs a Radar Dome and plenty of power.', '', 'Costly, and a prime target'],
     depot: ['Repairs ground vehicles: tanks, support vehicles, Ore Trucks and the Mobile Outpost. Select damaged vehicles and tap REPAIR, or tap the depot. One vehicle at a time is repaired on the pad in front of it while the rest wait beside it. A full repair costs half the vehicle\'s price. Needs a War Factory.', '', 'Vehicles on the pad do not fire back'],
     helipad: ['Four landing pads in one base: each base holds four helicopters, so build another base for more. Builds and rearms helicopters, each parked on its own pad, and comes with one free helicopter (for the Allies only once a Tech Center stands). Aircraft are repaired on their pad for credits. More bases build helicopters faster (1.5x with two, 2x with three, up to 2.5x with four).', '', ''],
     airfield: ['Builds and rearms jets and charges the Spy Plane, Paratrooper and Bombing Run powers. Parks up to 4 jets, so build more Airfields for a bigger air force. If one is lost and the rest have no room, the surplus jets fly off the map into reserve and come back and land when there is room again. Comes with one free jet. More Airfields build jets faster (1.5x with two, 2x with three, up to 2.5x with four).', '', ''],
@@ -45,6 +45,7 @@ const Manual = (() => {
     fob: ['Drive it to a distant ore field and tap DEPLOY: it unpacks into an Outpost you can build around.', '', 'Unarmed while driving'],
     // Aircraft
     heli: ['A fast gunship with six Hellfire missiles a sortie: armour-piercing, deadly to tanks but poor against infantry. Flies home to rearm. Needs a Tech Center.', 'Tanks, vehicles', 'Infantry, AA Guns, SAM sites, rocket soldiers'],
+    comanche: ['A stealthy Allied stand-off helicopter, unlocked by the Comanche program upgrade at the Tech Center. It hangs back at the edge of its reach and backs away from anything that closes in. Its chin gun cuts down infantry and light vehicles; its four anti-tank missiles, fired from bays in its sides, lock on to tanks from long range (a second to lock). Once the missiles are spent the gun takes on tanks too, for little damage. Needs a free pad at a Helicopter Base like any helicopter.', 'Tanks (missiles), infantry, light vehicles', 'AA Guns, SAM sites, rocket soldiers'],
     hind: ['An armoured Soviet gunship whose chain gun tears through infantry, with twelve bursts a sortie.', 'Infantry, light vehicles', 'AA defences, rockets'],
     jet: ['Styled after the F-15E Strike Eagle: two ground-attack missiles, two air-to-air missiles (fired at ground targets too once the others are spent), three cannon gun runs and two bursts of flares per sortie.', 'Structures, aircraft, infantry', 'SAM sites, flak, rockets'],
     mig: ['A fast Soviet delta-wing fighter with missiles for ground and air targets (the air-to-air pair also strikes the ground), a cannon for strafing runs and flares.', 'Structures, aircraft, infantry', 'AA Guns, rockets'],
@@ -52,7 +53,7 @@ const Manual = (() => {
   const WEAPON = {
     rifle: 'Rifle (small splash)', grenadier: 'Grenades (arcing, splash)', rocket: 'Dragon rockets; RedEye missiles (air)', hmg: 'Heavy machine gun (sets up to fire; hits helicopters, not jets)', pilot: 'Pistol',
     ranger: 'Machine gun (hits helicopters, not jets)', ltank: 'Light cannon', mtank: 'Cannon', htank: 'Twin cannons', mammoth: 'Twin cannons + anti-air missile pods',
-    arty: 'Howitzer (arcing, splash)', v2rl: 'V2 rocket (arcing, huge splash)', heli: 'Hellfire missiles (anti-armour)', hind: 'Chain gun',
+    arty: 'Howitzer (arcing, splash)', v2rl: 'V2 rocket (arcing, huge splash)', heli: 'Hellfire missiles (anti-armour)', hind: 'Chain gun', comanche: '20 mm chin gun; 4 anti-tank missiles (tanks only, lock-on)',
     jet: 'Missiles (ground and air), cannon', mig: 'Missiles (ground and air), cannon',
     pillbox: 'Machine gun', turret: 'Cannon', aagun: 'Flak (aircraft only)', ftur: 'Flamethrower', tesla: 'Tesla bolt', sam: 'SAM missiles (aircraft only)',
   };
@@ -87,11 +88,11 @@ const Manual = (() => {
     } else {
       rows += stat('Speed', speed(d));
       rows += stat('Built at', d.producer ? nameOf(d.producer) : '');
-      rows += stat('Needs', req(d.req));
+      rows += stat('Needs', d.upgrade ? `${UPGRADES[d.upgrade].name} (Tech Center upgrade)` : req(d.req));
     }
     if (w || WEAPON[type]) {
       rows += stat('Weapon', WEAPON[type] || '');
-      if (w) rows += stat('Range', w2 && w2.range > w.range ? `${cells(w.range)}, air ${cells(w2.range)}` : cells(w.range));
+      if (w) rows += stat('Range', w2 && w2.range > w.range ? `${cells(w.range)}, ${w2.tanksOnly ? 'missiles' : 'air'} ${cells(w2.range)}` : cells(w.range));
     }
     const strong = t[1] ? `<p class="fm-vs"><b>Strong against:</b> ${t[1]}</p>` : '', weak = t[2] ? `<p class="fm-vs"><b>Weak against:</b> ${t[2]}</p>` : '';
     return `<article class="fm-entry">
@@ -181,7 +182,7 @@ const Manual = (() => {
     { ch: 'Infantry', title: 'Infantry', html: () => entries(['rifle', 'grenadier', 'rocket', 'hmg', 'engineer', 'pilot']) },
     { ch: 'Vehicles', title: 'Armour', html: () => entries(['ranger', 'ltank', 'mtank', 'htank', 'mammoth']) },
     { ch: 'Vehicles', title: 'Support Vehicles', html: () => entries(['arty', 'v2rl', 'harv', 'fob', 'mcv']) },
-    { ch: 'Aircraft', title: 'Aircraft', html: () => entries(['heli', 'hind', 'jet', 'mig']) },
+    { ch: 'Aircraft', title: 'Aircraft', html: () => entries(['heli', 'comanche', 'hind', 'jet', 'mig']) },
     { ch: 'Powers', title: 'Airfield Support Powers', html: powers },
     { ch: 'Intel', title: 'The Enemy Commander', html: () => `
       <p>The computer plays by your rules: the same buildings, costs and units. How it fights depends on the difficulty.</p>

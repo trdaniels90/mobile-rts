@@ -1561,7 +1561,8 @@ function warmSprites(budgetMs, cx, cy) {
           for (let i = 0; i < 16; i++) warmJobs.push({ v, run: () => infSprite({ type: best.type, faction: f, face: i * Math.PI / 8 }, palFor(f), pose) });
         }
       } else {
-        const looks = def.draw === 'v2' ? [0, 1, 2, 3].flatMap((k) => [{ cd: 0, setup: k / 3 }, { cd: 2, setup: k / 3 }]) : def.draw === 'harv' ? [{ load: 0 }, { load: def.capacity }] : [{}];
+        const looks = def.draw === 'v2' ? [0, 1, 2, 3].flatMap((k) => [{ cd: 0, setup: k / 3 }, { cd: 2, setup: k / 3 }]) : def.draw === 'harv' ? [{ load: 0 }, { load: def.capacity }]
+          : def.type === 'comanche' ? [0, 1, 2].map((k) => ({ bay: k / 2 })) : [{}];
         const wreck = !warmDone.has('burnt' + best.type) && def.cls !== 'air';   // its wreck too (bakeWreck), once per type
         if (wreck) warmDone.add('burnt' + best.type);
         for (let i = 0; i < FACINGS; i++) {
@@ -1632,8 +1633,8 @@ function drawUnitBody(g, u, t) {
       // The rotor turns faster than any screen can show, so each frame it advances as far as it
       // can without seeming to run backwards (under half the gap between blades, whatever the
       // frame rate) and the blur of the arc it swept fills in the rest.
-      const n = u.type === 'hind' ? 5 : 4, gap = Math.PI * 2 / n, flying = alt > 1;
-      const rz = (u.type === 'hind' ? 10 : 9) * VK, [rx, ry] = liftPt(u.x, u.y, alt + rz), R = u.type === 'hind' ? 15 : 13;
+      const five = u.type === 'hind' || u.type === 'comanche', n = five ? 5 : 4, gap = Math.PI * 2 / n, flying = alt > 1;
+      const rz = (five ? 10 : 9) * VK, [rx, ry] = liftPt(u.x, u.y, alt + rz), R = u.type === 'hind' ? 15 : 13;
       const dtf = u.rotT === undefined ? 0 : Math.min(0.1, Math.max(0, t - u.rotT));
       const step = Math.min((flying ? 80 : 6) * dtf, gap * 0.42);
       u.rotT = t; u.rotA = (u.rotA === undefined ? u.id : u.rotA) + step;
@@ -2688,7 +2689,7 @@ function makeCameo(type, faction, key) {
     else if (d.draw === 'mcv') mdl = mcvModel(pal);
     else if (d.draw === 'arty') mdl = artyModel(pal);
     else if (d.draw === 'v2') mdl = v2Model(pal, true, 1);   // shown raised
-    else if (d.fly === 'heli') mdl = type === 'hind' ? hindModel(pal) : heliModel(pal);
+    else if (d.fly === 'heli') mdl = type === 'hind' ? hindModel(pal) : type === 'comanche' ? comancheModel(pal, 1) : heliModel(pal);   // (the Comanche with its bays open)
     else mdl = jetModel(pal, type === 'mig');
     scale = d.setup && d.cls === 'inf' ? 2 : d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.fly ? 1.7 : d.size && d.size.len > 22 ? 1.9 : 2.3;
   }

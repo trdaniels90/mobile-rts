@@ -592,10 +592,13 @@ function aiThink(team) {
     const pick = opts[Math.floor(Math.random() * opts.length)];
     startProduction(team, available(team, pick) ? pick : pick === 'mammoth' ? 'htank' : 'mtank');
   }
+  // Tech Center upgrades (Normal and Hard): researched once there is money to spare (the Allies' Comanche program).
+  if (aiOf(team).planner && !team.research && c.tech && money > 2500) for (const id in UPGRADES) if (canResearch(team, id)) { startResearch(team, id); break; }
   // Helicopters and jets have their own queues; against aircraft it leans on fighters.
   const air = G.entities.filter((e) => e.alive && e.team === team.id && e.cls === 'air').length + team.queues.heli.length + team.queues.jet.length;
   if (!capped && money > (anti ? 600 : 900) && air < 6 && !truckDue) {
-    const heli = team.faction === 'allies' ? 'heli' : 'hind', jet = team.faction === 'allies' ? 'jet' : 'mig';
+    const comanche = available(team, 'comanche') && Math.random() < ((team.counter || {}).armor ? 0.65 : 0.45);   // more of them against tanks
+    const heli = team.faction === 'allies' ? (comanche ? 'comanche' : 'heli') : 'hind', jet = team.faction === 'allies' ? 'jet' : 'mig';
     if (c.airfield && !team.queues.jet.length && padRoom(team, 'airfield') > 0 && (anti || Math.random() < 0.5)) startProduction(team, jet);
     else if (c.helipad && available(team, heli) && !team.queues.heli.length && (!anti || !c.airfield || Math.random() < 0.25)) startProduction(team, heli);
   }

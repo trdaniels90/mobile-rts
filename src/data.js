@@ -79,6 +79,7 @@ const WARHEADS = {
   GR:    { inf: 0.6, light: 0.25, heavy: 0.25, bld: 1.0, air: 1.0 },  // grenades: OpenRA's Grenade
   AT:    { inf: 0.3, light: 0.75, heavy: 1.0,  bld: 0.6, air: 1.0 },   // Rocket Soldier: Red Alert's AP
   HF:    { inf: 0.15, light: 0.9, heavy: 1.0,  bld: 0.7, air: 1.0 },   // Hellfire: a tank killer, wasted on infantry
+  CG:    { inf: 1.0, light: 0.8,  heavy: 0.2,  bld: 0.25, air: 0.6 },  // the Comanche's 20 mm chin gun: infantry and light vehicles, little against tanks
 };
 
 // cls: inf | veh | air.  cat: which sidebar tab builds it.  speed in px/s, sight in cells.
@@ -185,6 +186,15 @@ const UNIT_DEFS = {
     cost: 1200, hp: 220, armor: 'air', speed: 87, sight: 6, r: 9,
     weapon: { dmg: 55, rof: 0.9, range: 96, wh: 'HF', proj: 'rocket', ammo: 6, prefersArmor: true },
   },
+  // RAH-66 Comanche (Allies, after the Tech Center upgrade `comanche`): a stealthy stand-off helicopter. It hangs back at the
+  // edge of its reach: the chin gun for infantry and light vehicles (tanks only once its missiles are spent: `spareTanks`), and
+  // four anti-tank missiles for tanks alone (`tanksOnly`), fired from bays in its sides after holding a lock (`lock` s).
+  comanche: {
+    name: 'Comanche', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', upgrade: 'comanche', factions: ['allies'], standoff: true,
+    cost: 1500, hp: 180, armor: 'air', speed: 100, sight: 8, r: 9,
+    weapon: { dmg: 11, rof: 1.0, range: 150, wh: 'CG', proj: 'bullet', ammo: 15, burst: 4, gap: 0.08, splash: 8, spareTanks: true, sound: 'mg' },
+    weapon2: { dmg: 120, rof: 1.2, range: 210, wh: 'HF', proj: 'missile', ammo: 4, tanksOnly: true, lock: 1.0, bay: true },
+  },
   hind: {
     name: 'Hind Gunship', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', factions: ['soviets'],
     cost: 1200, hp: 240, armor: 'air', speed: 66, sight: 6, r: 10,
@@ -230,8 +240,8 @@ const BUILD_DEFS = {
   depot:    { name: 'Service Depot', w: 3, h: 2, hp: 800, power: -30, cost: 1200, req: ['factory'], factions: ['allies', 'soviets'], exit: true, depot: true },
   dome:     { name: 'Radar Dome',   w: 2, h: 2, hp: 1000, power: -40, cost: 1000, req: ['refinery'], factions: ['allies', 'soviets'], sight: 10 },
   airfield: { name: 'Airfield',     w: 4, h: 3, hp: 500,  power: -30, cost: 1000, req: ['dome'],     factions: ['allies', 'soviets'] },
-  // Unlocks each side's top-tier units: the Mammoth Tank (Soviets), Artillery and the Attack Helicopter (Allies).
-  // Later it is meant to sell upgrades and unlock new units.
+  // Unlocks each side's top-tier units: the Mammoth Tank (Soviets), Artillery and the Attack Helicopter (Allies),
+  // and researches UPGRADES (below).
   tech:     { name: 'Tech Center',  w: 3, h: 3, hp: 1000, power: -100, cost: 1500, req: ['dome'],    factions: ['allies', 'soviets'], sight: 5 },
   turret:   { name: 'Gun Turret',   w: 1, h: 1, hp: 450,  power: -40, cost: 600,  req: ['barracks'], factions: ['allies'], defense: true,
               weapon: { dmg: 40, rof: 1.4, range: 165, wh: 'AP', proj: 'shell', needsPower: true } },
@@ -305,6 +315,16 @@ const DIFFICULTY = {
 const CATEGORIES = ['structure', 'infantry', 'vehicle', 'heli', 'jet'];
 
 function defOf(type) { return UNIT_DEFS[type] || BUILD_DEFS[type]; }
+// Tech Center upgrades: researched at a Tech Center (UPGRADES on its selection bar), one at a time per side, paid for as the
+// research goes like production. Kept for the rest of the battle once finished, even if every Tech Center is lost; research
+// under way when the side's last Tech Center goes is cancelled and its money given back. An upgrade either unlocks a unit (that
+// unit's `upgrade` names it) or, later, changes existing units' stats.
+const UPGRADES = {
+  comanche: { name: 'Comanche program', unlocks: 'comanche', cost: 1500, time: 60, factions: ['allies'],
+              desc: 'Unlocks the Comanche at the Helicopter Base: a stand-off helicopter with a chin gun for infantry and light vehicles, and four anti-tank missiles fired from its side bays.' },
+};
+for (const k in UPGRADES) UPGRADES[k].id = k;
+
 function buildTime(def) { return Math.max(3, def.cost / 1000 * 24); }
 function catOf(type) { return UNIT_DEFS[type] ? UNIT_DEFS[type].cat : 'structure'; }
 

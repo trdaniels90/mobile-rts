@@ -43,7 +43,7 @@ const NetCore = (() => {
   // Fields a remote player never needs: the host's own timers and bookkeeping. `anim` (the walk
   // cycle) the remote copy keeps itself.
   const SKIP = new Set(['def', 'healT', 'lowT', 'strafe', 'path', 'pathIdx', 'needPath', 'lastX', 'lastY', 'stuckN', 'stuckT', 'think', 'cd', 'cd2', 'extT', 'sent', 'fan', 'apT', 'apA', 'slideT', 'dockU', 'qSpot', 'qRef', 'dockBest', 'dockBan', 'aiMove', 'stallN', 'pathT', 'waitLeader', 'waitSince', 'waitBan',
-    'smokeT', 'revealT', 'dmgSeen', 'dmgHp', 'dropT', 'dmgFxT', 'popK', 'popHold', 'anim', 'htimer', 'hcell', 'crowdT', 'cornerT', 'nearBest', 'clankT', 'final', 'roll', 'rollTo', 'fireT', 'shotAt', 'twinNext', 'twinTarget', 'plumeT', 'flareT', 'jetOn', 'jetD', 'jetSeen', 'burnT']);   // fireT: the copy lights the flash itself from `shots`
+    'smokeT', 'revealT', 'dmgSeen', 'dmgHp', 'dropT', 'dmgFxT', 'popK', 'popHold', 'anim', 'htimer', 'hcell', 'crowdT', 'cornerT', 'nearBest', 'clankT', 'final', 'roll', 'rollTo', 'fireT', 'shotAt', 'twinNext', 'twinTarget', 'plumeT', 'flareT', 'jetOn', 'jetD', 'jetSeen', 'burnT', 'bayHold', 'lockOn', 'bayN', 'lock']);   // fireT: the copy lights the flash itself from `shots`
   const COARSE = new Set(['x', 'y', 'alt']);   // to a tenth of a pixel
   const OBJ = '\u0000';   // marks an object field, kept as JSON for comparing
   function field(v) {
@@ -53,7 +53,7 @@ const NetCore = (() => {
     return OBJ + JSON.stringify(v, rep);
   }
   // What a remote sidebar and debrief use of each side.
-  const TEAM = ['id', 'faction', 'isAI', 'ally', 'credits', 'power', 'low', 'auto', 'focusSide', 'assist', 'assistSide', 'waiting', 'queues', 'stats', 'powers', 'name', 'out'];
+  const TEAM = ['id', 'faction', 'isAI', 'ally', 'credits', 'power', 'low', 'auto', 'focusSide', 'assist', 'assistSide', 'waiting', 'queues', 'stats', 'powers', 'name', 'out', 'upgrades', 'research'];
   const teamJSON = (t) => JSON.stringify(Object.fromEntries(TEAM.map((k) => [k, k === 'credits' ? Math.round(t[k]) : t[k]])), rep);
 
   // A remote player: side is the side they command. full: the next snapshot carries everything and
@@ -192,7 +192,7 @@ const NetCore = (() => {
   // Orders from a remote player, for their own side only.
   const COMMANDS = ['commandMove', 'commandAttack', 'commandHunt', 'commandGuard', 'commandStop', 'startProduction', 'cancelProduction',
     'placeStructure', 'launchPower', 'deployFob', 'setAuto', 'setAssist', 'recallAlly', 'setRepair', 'sellStructure', 'commandRepair', 'sendCredits',
-    'setPrimary', 'setRally', 'commandAttackGround', 'commandEngineer', 'placeWalls', 'sellWall', 'commandGarrison', 'commandExit'];
+    'setPrimary', 'setRally', 'commandAttackGround', 'commandEngineer', 'placeWalls', 'sellWall', 'commandGarrison', 'commandExit', 'startResearch', 'cancelResearch'];
   const ORIGC = {};
   for (const f of COMMANDS) ORIGC[f] = root[f];
   function applyCommand(side, m) {

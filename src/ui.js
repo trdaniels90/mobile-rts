@@ -603,6 +603,14 @@ function draw() {
       }
     }
 
+    // Research under way: a bar under each of this side's Tech Centers.
+    const rs = G.teams[G.me].research;
+    if (rs) for (const e of G.entities) {
+      if (!e.alive || e.kind !== 'bld' || e.type !== 'tech' || e.team !== G.me || e.buildT < 1 || !inView(e)) continue;
+      const [tx, ty] = toView(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3);
+      v.fillStyle = 'rgba(0,0,0,0.7)'; v.fillRect(tx - 21, ty - 3, 42, 6);
+      v.fillStyle = rs.stalled ? '#c98a2a' : '#5ab0ff'; v.fillRect(tx - 20, ty - 2, 40 * rs.progress, 4);
+    }
     // PRIMARY over the building new units come out of, when there is more than one of its type.
     for (const e of G.entities) {
       if (!e.alive || !e.primary || e.kind !== 'bld' || e.team !== G.me || !inView(e) || producersOfType(e).length < 2) continue;
@@ -1360,6 +1368,43 @@ function draw() {
     sendCredits(G.teams[G.me], +to, n);
     return true;
   }
+  // The Tech Center's upgrades (UPGRADES in data.js): a card listing this faction's, with Research / Cancel. One at a time per side.
+  let upEl = null, upSig = '';
+  function upFill() {
+    const me = G.teams[G.me], r = me.research, ids = Object.keys(UPGRADES).filter((k) => UPGRADES[k].factions.includes(me.faction));
+    const html = ids.map((k) => {
+      const u = UPGRADES[k], done = hasUpgrade(me, k), busy = r && r.id === k;
+      const btn = done ? '<span class="up-done">Researched ✓</span>'
+        : busy ? `<span class="up-pct">${Math.floor(r.progress * 100)}%${r.stalled ? ' · on hold' : ''}</span><button type="button" class="pf-btn" data-cancel="${k}">Cancel</button>`
+        : `<button type="button" class="pf-btn" data-up="${k}"${r ? ' disabled' : ''}>Research · ${u.cost} · ${u.time} s</button>`;
+      return `<div class="up-item"><p class="up-name">${u.name}</p><p class="up-desc">${u.desc}</p><div class="up-row">${btn}</div></div>`;
+    }).join('') || '<p class="up-desc">No upgrades for this side yet.</p>';
+    if (html !== upSig) { upSig = html; upEl.querySelector('.up-list').innerHTML = html; }
+  }
+  function openUpgrades() {
+    if (!G || G.over) return;
+    if (!upEl) {
+      upEl = document.createElement('div'); upEl.id = 'upgrades'; upEl.className = 'nw-wrap';
+      upEl.innerHTML = '<div class="nw-card" role="dialog" aria-label="Upgrades"><p class="nw-title">Tech Center upgrades</p><div class="up-list"></div>'
+        + '<button type="button" class="pf-btn" data-b="close">Close</button></div>';
+      upEl.addEventListener('click', (ev) => {
+        const b = ev.target.closest('button');
+        if (ev.target !== upEl && !b) return;
+        const me = G && G.teams[G.me];
+        if (b && b.dataset.up && me && !G.over) {
+          const err = startResearch(me, b.dataset.up);
+          if (err === 'busy') evaCalm('Unable to comply. Building in progress', 3); else if (err === 'Not available') evaCalm('Not available', 3); else if (!err) eva('Building');
+          upFill(); return;
+        }
+        if (b && b.dataset.cancel && me) { cancelResearch(me, b.dataset.cancel); eva('Cancelled'); upFill(); return; }
+        upEl.hidden = true;
+      });
+      document.body.append(upEl);
+    }
+    upSig = '';
+    upFill();
+    upEl.hidden = false;
+  }
   ui.giveBtn.addEventListener('click', () => {
     if (!G || G.over) return;
     if (G.teams[G.me].out || !giveAllies().length) { evaCalm('No ally to give to', 4); return; }
@@ -1416,6 +1461,7 @@ function draw() {
     const autoLabel = team.auto ? `AUTO ${Math.min(team.waiting || 0, GROUP_SIZE)}/${GROUP_SIZE}` : 'AUTO OFF';
     if (ui.autoLabel.textContent !== autoLabel) ui.autoLabel.textContent = autoLabel;
     if (giveEl && !giveEl.hidden && (G.over || team.out)) giveEl.hidden = true;
+    if (upEl && !upEl.hidden) { if (G.over || team.out || !hasBuilt(team, 'tech')) upEl.hidden = true; else upFill(); }
     if (ui.allyBtn.getAttribute('aria-pressed') !== String(!!team.assist)) ui.allyBtn.setAttribute('aria-pressed', String(!!team.assist));
     if (ui.autoBtn.getAttribute('aria-pressed') !== String(!!team.auto)) ui.autoBtn.setAttribute('aria-pressed', String(!!team.auto));
     // The picked enemy's colour along the button's edge.
@@ -1493,6 +1539,7 @@ function draw() {
         btns.push(['rally', 'RALLY']);
         if (bld.rally) btns.push(['norally', 'NO RALLY']);
       }
+      if (bld.type === 'tech' && bld.buildT >= 1) { const r = G.teams[G.me].research; btns.push(['upgrades', r ? `UPGRADES ${Math.floor(r.progress * 100)}%` : 'UPGRADES']); }
       btns.push(['repair', bld.repairing ? 'REPAIRING' : 'REPAIR']);
       if (bld.type !== 'cy') btns.push(['sell', sellArmed === bld ? 'CONFIRM' : 'SELL']);
     }
@@ -1523,6 +1570,7 @@ function draw() {
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
     else if (act === 'svc') { commandRepair(own.filter((u) => canService(u) && u.hp < u.maxHp)); eva('To the Service Depot'); Sound.ack('veh'); }
     else if (act === 'primary' && bld) { setPrimary(bld); eva('Primary building set'); }
+    else if (act === 'upgrades' && bld) openUpgrades();
     else if (act === 'rally' && bld) beginRally(bld);
     else if (act === 'norally' && bld) setRally(bld, null, null);
     else if (act === 'repair' && bld) setRepair(bld, !bld.repairing);

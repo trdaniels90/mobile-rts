@@ -936,6 +936,7 @@ Supabase.
 | `rally.js` | Headless: units from an Outpost Barracks stay there, PRIMARY picks the Barracks, a rally point gathers new units, fallback when the primary is lost |
 | `village.js` | Headless: Crossroads Village houses: seeded layout, blocking, blast and ordered damage, collapse, online snapshot, a computer 2 v 2 |
 | `mg-team.js` | Headless: the MG Team sets up before firing, packs before moving, is dug in once set up, and a staged fight against riflemen |
+| `comanche.js` | Headless: Tech Center research (cost, refund, kept, one at a time), the Comanche's pads, bays, lock-on, missiles for tanks only, gun after, stand-off, staged fights |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
@@ -1014,6 +1015,36 @@ frame-time maths everywhere, so it is not deterministic.
   Tank, Artillery to Medium Tank); helicopters only when `available`. Headless 1 v 1 on A Bridge Too Far: Tech Center at 370 s (Hard)
   and 580 s (Easy), then helicopters, Artillery and Mammoths.
 - The owner plans to use it later for per-unit upgrades bought there and for new units. Online, the server must run the same version.
+
+## Tech Center upgrades and the Comanche (after 2026.11.17.1, not released, owner OK'd for both modes)
+
+- **Upgrades** (`UPGRADES` in data.js: name, cost, `time` s, factions, `unlocks`, `desc`): researched at a Tech Center, one at a time per side
+  (`startResearch` / `cancelResearch` / `updateResearch` in world.js, both in netcore `COMMANDS`; the server must run the same version). Paid as it
+  goes like production (half speed on low power, `G.diff.speed` for the computer). `team.research` `{ id, progress, spent, stalled }` and
+  `team.upgrades` `{ id: true }` are plain data (saved; netcore `TEAM`). Owner's rules: a finished upgrade is kept for the battle even if every
+  Tech Center falls; research under way when the last one falls (or is sold) is cancelled and refunded. A unit with `upgrade: '<id>'` is
+  `available` only once researched (`hasUpgrade`), and needs nothing else from the Tech Center. Later upgrades can change existing units' stats.
+- **UI:** UPGRADES on a finished Tech Center's selection bar (shows the percentage while researching) opens the `#upgrades` card (`openUpgrades`,
+  `upFill` in ui.js): Research / Cancel / Researched. A blue bar under each Tech Center while research runs. "Upgrade complete" is text only (no voice clip yet).
+- **Comanche** (`comanche` in UNIT_DEFS, Allies, Helicopter Base, $1500, 180 health, speed 100, sight 8, `standoff`; upgrade "Comanche program" $1500, 60 s):
+  needs a free pad like any helicopter (`padRoom`). `standoffFight` (world.js) instead of the plain helicopter attack: it holds near the edge of the
+  weapon's reach (`STANDOFF_FAR` 0.92), backs away nose-on below `STANDOFF_NEAR` (0.6) at `BACK_SPEED` (0.55 x speed). Looks as far as its missiles
+  reach (`airTarget`). **Chin gun** (`weapon`: 4-round bursts of 11, range 150, splash 8, warhead `CG`, 15 bursts a sortie): `spareTanks`, so `canHit`
+  skips tanks (`isTank`: `draw === 'tank'`) while it has missiles; `airWeapons` swaps in `anyTarget(w)` (the same gun without the flag) once they are spent.
+  **Missiles** (`weapon2`: 4, 120 HF, range 210, `tanksOnly`, `lock` 1 s, `bay`): the bays open (`u.bay` 0 to 1 over `BAY_OPEN` 0.4 s, synced, while
+  `u.bayHold`), a lock builds while it faces the target (`u.lock`, `u.lockOn`, host timers in netcore `SKIP`), one missile per `rof` (cd2). `fireWeapon`'s `bay`
+  branch launches from the side bays in turn (`bayN`), the missile falls clear for `BAY_DROP` (0.22 s, `dropStep`, also run by the guest's `flyShots`) and lights
+  with a puff, then flies as any missile. No nose flash for those (`shots` is put back).
+- **Looks:** `comancheModel(pal, bay)` (models.js: faceted body, gold-tinted stepped canopy, chin gun, engine hump, fenestron fin, T-tail; doors flat out
+  with a missile on each when open), `BAY_STEPS` 2, key `'A' + key + 'b' + step` in `hullSprite`; baked (`looks` in bake-sprites.js) and warmed; five-blade
+  rotor (art.js); cameo with the bays open. Sprites and ground key rebaked.
+- **Computer** (ai.js, Normal and Hard: `aiOf(team).planner`): researches any upgrade it can once it has a Tech Center and 2,500 to spare; Allied
+  helicopters are then Comanches 45% of the time (65% when countering armour). Two 18-minute Hard 1 v 1s: researched at 411 / 476 s, up to 2 Comanches, no errors.
+- `node tools/sim/comanche.js <repo>`: research cost and refund, kept without a Tech Center, pads full, bays and lock (first missile 1.2 s after coming into
+  reach), no gun at tanks while missiles last, missiles 471 of 480 damage, the gun on tanks after (6 bursts, 53 damage), gun only on infantry from 138 px,
+  backing off. Staged (2 Comanches, 45 s): 9 of 10 riflemen, 1 of 3 Heavy Tanks killed, no losses; against 6 riflemen + 3 Rocket Soldiers both
+  Comanches are lost (RedEye reach 180 is past the gun's 150) for one kill. Balance not tuned further: owner's call.
+- Field Manual: Comanche entry (Aircraft), Tech Center text, "Needs" shows the upgrade. No Soviet upgrade yet.
 
 ## Unit veterancy (after 2026.11.14.12, not released, both modes)
 
