@@ -940,7 +940,7 @@ const nightLevel = () => dayNight(G ? G.t : 0).night;
 // Darkness over the view, with holes where there is light, then the lights' warm glow on top. Dusk and dawn tint it amber.
 let nightCv = null, lightPic = null;
 const NIGHT_RES = 0.5;   // the night layer's size as a share of the screen's (see drawNight)
-function drawNight(g, vx, vy, vw, vh, k, t) {
+function drawNight(g, vx, vy, vw, vh, k, t, vis) {
   const { night, warm } = dayNight(t);
   const W = g.canvas.width, H = g.canvas.height;
   if (warm > 0.01) {
@@ -993,6 +993,40 @@ function drawNight(g, vx, vy, vw, vh, k, t) {
     if (!w) continue;
     g.globalAlpha = 0.12 * a * night; g.drawImage(lampGlowPic || lightPic, (x - vx - r * 0.6) * k, (y - vy - r * 0.6) * k, r * 1.2 * k, r * 1.2 * k);
   }
+  g.restore();
+  navLights(g, vx, vy, k, t, night, near, vis);
+}
+// Aircraft lights after dark (looks only): steady red and green at the wingtips (port and starboard), a white strobe at the
+// tail that double-flashes, and a red beacon that pulses; helicopters a beacon on top and a white tail light. Drawn over
+// the darkness in screen pixels; each aircraft keeps its own beat (its id).
+function navLights(g, vx, vy, k, t, night, near, vis) {
+  const pts = [];
+  for (const u of G.entities) {
+    if (!u.alive || u.cls !== 'air' || (vis && !vis(u))) continue;
+    const alt = u.alt || 0, c = Math.cos(u.face), s = Math.sin(u.face), heli = u.def.fly === 'heli', r = u.def.r || 9;
+    const ph = (t + u.id * 0.37) % 1.3, at = (f, l, h) => { const [x, y] = toView(...liftPt(u.x + c * f - s * l, u.y + s * f + c * l, alt + h)); return [x, y]; };
+    const put = (p, col, a, R) => { if (a > 0.02 && near(p[0], p[1], 20)) pts.push([p[0], p[1], col, a, R]); };
+    if (heli) {
+      put(at(-r * 1.5, 0, 3), '255,250,235', 0.85, 2.5);                                    // tail light
+      put(at(-1, 0, 12 * VK), '255,40,30', ph < 0.45 ? 1 : 0.15, 4.5);                     // beacon over the cabin
+      put(at(1, -r * 0.55, 3), '255,40,30', 0.75, 2.2); put(at(1, r * 0.55, 3), '60,255,90', 0.75, 2.2);
+    } else {
+      const span = r * (u.def.draw === 'cargo' ? 1.6 : 1.05);
+      put(at(-r * 0.2, -span, 2), '255,40,30', 0.9, 2.6); put(at(-r * 0.2, span, 2), '60,255,90', 0.9, 2.6);   // port red, starboard green
+      put(at(-r * 1.25, 0, 3), '255,255,255', ph < 0.06 || (ph > 0.16 && ph < 0.22) ? 1 : 0, 6);           // tail strobe: two quick flashes
+      put(at(0, 0, 5), '255,40,30', 0.5 + 0.5 * Math.sin((t + u.id) * 6.3), 3.5);                          // beacon
+    }
+  }
+  if (!pts.length) return;
+  const vis2 = Math.min(1, night * 1.6);
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (const [x, y, col, a, R] of pts) {
+    const sx = (x - vx) * k, sy = (y - vy) * k, rr = R * k * 1.6, gr = g.createRadialGradient(sx, sy, 0, sx, sy, rr);
+    gr.addColorStop(0, `rgba(${col},${(0.9 * a * vis2).toFixed(3)})`); gr.addColorStop(0.35, `rgba(${col},${(0.35 * a * vis2).toFixed(3)})`); gr.addColorStop(1, `rgba(${col},0)`);
+    g.fillStyle = gr; g.fillRect(sx - rr, sy - rr, rr * 2, rr * 2);
+  }
+  g.globalCompositeOperation = 'source-over';
+  for (const [x, y, col, a] of pts) { g.fillStyle = `rgba(${col},${Math.min(1, a * vis2).toFixed(3)})`; g.fillRect((x - vx) * k - k * 0.6, (y - vy) * k - k * 0.6, k * 1.2, k * 1.2); }
   g.restore();
 }
 function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {

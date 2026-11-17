@@ -519,6 +519,9 @@ share globals. Read this file first; the commit history explains every change in
   dawn, and at night lays a dark blue layer (`nightCv`, up to 62%) with holes cut where there is light (`lightPic`): street
   lamps, about 3 in 5 house windows (`FORT_INFO` windows), every finished building, fires, blasts, bolts and bolt fires, then
   a faint warm glow over them. Lamps glow faintly by day (`nightLevel`). Sight, fog and combat are unchanged.
+- **Aircraft lights** (after 2026.11.17.2, looks only): `navLights` (art.js, end of `drawNight`) draws every visible aircraft's lights over
+  the darkness: red and green wingtips, a double-flash white tail strobe and a pulsing red beacon on planes; a beacon, tail light and
+  side lights on helicopters. ui.js passes `visibleToPlayer` so hidden enemy aircraft stay hidden.
 - Villagers walk home at nightfall (`dark` in `moveFolk`, `v.slow`) and stay in until morning; sparrows only by day.
 - `weather: { kind: 'rain', chance: 0.5 }` as on Lakeside: rain, lightning and the bolts that land (gameplay, both modes,
   server must match). `boltStrike` can now hit a village house too (it burns for 10% of its health like a building).
@@ -594,7 +597,7 @@ share globals. Read this file first; the commit history explains every change in
 - **Placing:** `placeWalls(team, kind, x0, y0, x1, y1)` lays `wallLine` (straight, stepping one axis at a time so a slant
   has no corner gaps, at most `WALL_LINE_MAX` 40) on every cell `wallOk` allows (open ground, nothing on it, within the
   building range of one of the side's buildings), paying per piece as far as the money goes. Built at once.
-  `sellWall(team, x, y)` takes down one of your own for half its price.
+  `sellWall(team, x, y)` takes down one of your own for half its price. In the UI the second tap must come at least `WALL_SELL_GAP` (600 ms) after the first, so a double tap or double click never sells.
 - **Damage:** only ordered fire. `commandAttackGround` on a wall cell makes a spot target with `wall: cell`; `damage`
   passes it to `hitWall`, and the spot dies with the piece so the attackers stand down. Structure armour.
 - **Shooting a way through** (`breachWalls`, each side every 4 s while walls stand; `wallInTheWay`): hunting units

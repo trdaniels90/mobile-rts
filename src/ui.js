@@ -641,7 +641,7 @@ function draw() {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
     ctx.drawImage(view, 0, 0, VW, VH, Math.round(-(cam.x - vx) * k + sx2), Math.round(-(cam.y - vy) * k + sy2), Math.round(VW * k), Math.round(VH * k));
-    if (MAPS[validMap(G.mapId)].daynight) drawNight(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t);   // (art.js)
+    if (MAPS[validMap(G.mapId)].daynight) drawNight(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, visibleToPlayer);   // (art.js)
     if (G.weather) drawWeather(ctx, G.weather, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, G.paused || !!G.over);
     if (gesture && gesture.type === 'box' && gesture.moved) {
       const bx = Math.min(gesture.sx, gesture.ex) * DPR, by = Math.min(gesture.sy, gesture.ey) * DPR;
@@ -792,6 +792,7 @@ function draw() {
   // Attack ground (the ATTACK GROUND button): aimSpan holds the units waiting for the next tap, which orders them to
   // fire at that spot, or at the bridge span there (world.js commandAttackGround).
   let aimSpan = null, spanSig = '', wallArmed = null;
+  const WALL_SELL_GAP = 600;   // ms: a second tap on your own wall sooner than this is part of a double tap, not a confirmation
   function tap(sx, sy, shift) {
     if (!G || G.over) return;
     const w = s2w(sx, sy);
@@ -837,6 +838,7 @@ function draw() {
         const able = mine.filter((u) => !u.def.harvester && (u.def.weapon || u.cls === 'air'));
         if (able.length) { commandAttackGround(able, w.x, w.y); marker((cellX(wc) + 0.5) * CELL, (cellY(wc) + 0.5) * CELL, '#ff4a3a'); Sound.ack(able[0].cls === 'inf' ? 'attack' : able[0].cls); return; }
       } else if (G.wallTeam[wc] === G.me && !mine.length) {
+        if (wallArmed && wallArmed.c === wc && now - wallArmed.t < WALL_SELL_GAP) return;   // a double tap or double click never sells: the second tap must be on its own
         if (wallArmed && wallArmed.c === wc && now - wallArmed.t < 5000) { wallArmed = null; sellWall(G.teams[G.me], cellX(wc), cellY(wc)); Sound.play('click'); }
         else { wallArmed = { c: wc, t: now }; evaCalm(`Tap again to take down this ${wd.gate ? 'Gate' : 'piece'} for $${Math.floor(wd.cost / 2)}`, 5); }
         return;
