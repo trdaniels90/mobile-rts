@@ -427,7 +427,22 @@ function tankHull(pal, s) {
   if (s.pods) for (const y of [-hw + 1, hw - 3]) { m.box(-hl + 2, y, 7, -hl + 9, y + 2, 9, C.metal, M_METAL); m.box(-hl + 8, y, 7, -hl + 9, y + 2, 9, C.red); }
   return m;
 }
+// The Tesla Tank's turret: a squat armoured drum carrying a Tesla coil: copper windings up a mast between two blue insulator
+// stacks, and the glowing ball on top that the bolt leaves from (world.js muzzle: TESLA_TOP).
+function teslaTurret(pal, s) {
+  const r = s.tur, m = new VModel(-r - 2, -r - 2, r + 4, r + 2, 15);
+  m.cylZ(0, 0, 0, 3, r, pal.main, M_METAL);
+  m.cylZ(0, 0, 3, 4, r - 1, pal.dark, M_METAL);
+  m.box(r - 2, -2, 0, r + 2, 2, 2, pal.dark, M_METAL);                         // mantlet
+  m.cylZ(0, 0, 4, 12, 1, '#3a3c38', M_METAL);                                  // mast
+  for (const z of [5, 7, 9]) m.cylZ(0, 0, z, z + 1, 2.3, '#b9763e', M_METAL);  // copper windings
+  for (const y of [-r + 1, r - 1]) { m.cylZ(-2, y, 3, 7, 0.9, '#3f78b4', M_METAL); m.set(-3, Math.floor(y), 7, '#cfe9ff', M_GLOW); }   // insulators
+  m.ellipsoid(0, 0, 13, 2, 2, 1.7, '#a6dcff', M_GLOW);                         // the ball
+  m.line(-r + 1, r - 2, 3, -r + 1, r - 2, 6, C.black);                         // aerial
+  return m;
+}
 function tankTurret(pal, s) {
+  if (s.tesla) return teslaTurret(pal, s);
   if (s.light) return lightTankTurret(pal);
   if (s.grizzly) return grizzlyTurret(pal, s);
   if (s.mammoth) return mammothTurret(pal, s);

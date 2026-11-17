@@ -580,6 +580,7 @@ function aiThink(team) {
   if (!capped && c.factory && vq.length < A.queue && money > 500 && !truckDue) {
     const opts = team.faction === 'allies' ? (anti ? ['mtank', 'mtank', 'ranger', 'ranger', 'ltank'] : ['ltank', 'mtank', 'mtank', 'ranger'])
       : (anti ? ['htank', 'mammoth', 'mammoth', 'htank'] : ['htank', 'htank', 'htank', 'mammoth']);
+    if (available(team, 'ttank')) opts.push('ttank', 'ttank');                    // after the Tesla program (Tech Center upgrade)
     const sup = team.faction === 'allies' ? 'arty' : 'v2rl';                        // long-range support, once it has a Radar Dome
     const k = team.counter || {};
     if (!anti && k.armor) opts.push(...(team.faction === 'allies' ? ['mtank', 'mtank'] : ['mammoth', 'htank']));

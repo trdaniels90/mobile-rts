@@ -146,6 +146,13 @@ const UNIT_DEFS = {
     cost: 1150, hp: 550, armor: 'heavy', speed: 38, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 16, tur: 6, barrel: 8, twin: true, heavy: true, tz: 6 },
     weapon: { dmg: 30, rof: 1.7, range: 114, wh: 'AP', proj: 'shell', twin: true, stagger: 0.25 },   // stagger: the second barrel fires this much later
   },
+  // Tesla Tank (Soviets, after the Tech Center upgrade `teslatank`): a mobile Tesla Coil, after OpenRA's Red Alert TTNK (cost, health,
+  // light armour, speed). Its bolt is shorter-ranged and lighter than the Coil's, hits ground targets only and needs no power.
+  ttank: {
+    name: 'Tesla Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', upgrade: 'teslatank', factions: ['soviets'], draw: 'tank',
+    cost: 1350, hp: 450, armor: 'light', speed: 50, turn: 3, sight: 6, r: 9, size: { len: 21, wid: 15, tur: 5, barrel: 0, tesla: true, tz: 5 },
+    weapon: { dmg: 75, rof: 2.4, range: 140, wh: 'TESLA', proj: 'tesla' },
+  },
   mammoth: {
     name: 'Mammoth Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['tech'], factions: ['soviets'], draw: 'tank',
     cost: 2000, hp: 950, armor: 'heavy', speed: 25, turn: 2, sight: 6, r: 12, size: { len: 24, wid: 22, tur: 7.5, barrel: 14, twin: true, pods: true, mammoth: true, tz: 4 },
@@ -322,6 +329,8 @@ function defOf(type) { return UNIT_DEFS[type] || BUILD_DEFS[type]; }
 const UPGRADES = {
   comanche: { name: 'Comanche program', unlocks: 'comanche', cost: 1500, time: 60, factions: ['allies'],
               desc: 'Unlocks the Comanche at the Helicopter Base: a stand-off helicopter with a chin gun for infantry and light vehicles, and four anti-tank missiles fired from its side bays.' },
+  teslatank: { name: 'Tesla program', unlocks: 'ttank', cost: 1500, time: 60, factions: ['soviets'],
+               desc: 'Unlocks the Tesla Tank at the War Factory: a tank carrying a Tesla coil. Its bolt kills infantry outright and hurts vehicles badly at short range; it cannot hit aircraft.' },
 };
 for (const k in UPGRADES) UPGRADES[k].id = k;
 

@@ -936,6 +936,7 @@ Supabase.
 | `rally.js` | Headless: units from an Outpost Barracks stay there, PRIMARY picks the Barracks, a rally point gathers new units, fallback when the primary is lost |
 | `village.js` | Headless: Crossroads Village houses: seeded layout, blocking, blast and ordered damage, collapse, online snapshot, a computer 2 v 2 |
 | `mg-team.js` | Headless: the MG Team sets up before firing, packs before moving, is dug in once set up, and a staged fight against riflemen |
+| `tesla-tank.js` | Headless: the Tesla Tank's upgrade, bolt, damage, and no shots at aircraft |
 | `comanche.js` | Headless: Tech Center research (cost, refund, kept, one at a time), the Comanche's pads, bays, lock-on, missiles for tanks only, gun after, stand-off, staged fights |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
@@ -1044,7 +1045,12 @@ frame-time maths everywhere, so it is not deterministic.
   reach), no gun at tanks while missiles last, missiles 471 of 480 damage, the gun on tanks after (6 bursts, 53 damage), gun only on infantry from 138 px,
   backing off. Staged (2 Comanches, 45 s): 9 of 10 riflemen, 1 of 3 Heavy Tanks killed, no losses; against 6 riflemen + 3 Rocket Soldiers both
   Comanches are lost (RedEye reach 180 is past the gun's 150) for one kill. Balance not tuned further: owner's call.
-- Field Manual: Comanche entry (Aircraft), Tech Center text, "Needs" shows the upgrade. No Soviet upgrade yet.
+- Field Manual: Comanche entry (Aircraft), Tech Center text, "Needs" shows the upgrade.
+- **Tesla Tank** (Soviets, owner's pick for their upgrade; `ttank` in UNIT_DEFS, War Factory; upgrade `teslatank` "Tesla program" $1500, 60 s): OpenRA's
+  TTNK numbers ($1350, 450 health, light armour, speed 50), `draw: 'tank'` (so it counts as a tank: the Comanche's missiles go for it), size `tesla`.
+  Weapon: Tesla bolt, 75 TESLA, every 2.4 s, range 140, ground only, no power needed. `teslaTurret` (models.js: armoured drum, copper windings on a
+  mast, blue insulators, glowing ball); `muzzle` fires from the ball (`TESLA_TOP` 13). The computer adds it to its Soviet vehicle picks once researched.
+  `node tools/sim/tesla-tank.js <repo>`: Soviets only, locked until researched, kills a rifleman, 132 damage to a Heavy Tank in 5 s, never fires at a helicopter.
 
 ## Unit veterancy (after 2026.11.14.12, not released, both modes)
 

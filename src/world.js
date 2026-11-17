@@ -2295,9 +2295,12 @@ function muzzle(src, t) {
     const h = src.stance === 'prone' ? 2 : 11;
     return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - h, h };
   }
-  const s = src.def.size, len = s.tur ? s.tur + s.barrel : 8, z = (turretZ(src.def) + 1.5) * VK;
+  const s = src.def.size;
+  if (s && s.tesla) return { x: src.x, y: src.y - (turretZ(src.def) + TESLA_TOP) * VK, h: (turretZ(src.def) + TESLA_TOP) * VK };   // the Tesla Tank: from the ball on its coil
+  const len = s.tur ? s.tur + s.barrel : 8, z = (turretZ(src.def) + 1.5) * VK;
   return { x: src.x + Math.cos(src.tface) * len, y: src.y + Math.sin(src.tface) * len - z, h: z };
 }
+const TESLA_TOP = 13;   // height of the Tesla Tank's ball above its turret's base (models.js teslaTurret)
 // Infantry under fire: seconds they stay prone after the last hit, the share of damage they take
 // while prone, and how fast they crawl (a share of walking speed).
 const PRONE_TIME = 6, PRONE_COVER = 0.5, CRAWL_SPEED = 0.6;
@@ -3848,7 +3851,8 @@ function rearmStep(u) {
 function anyTarget(w) { return w.all || (w.all = Object.assign({}, w, { spareTanks: false, all: null })); }
 function airWeapons(u) {
   const ws = [];
-  if (u.ammo > 0 || u.guns > 0) ws.push(u.def.weapon.spareTanks && !(u.aam > 0) ? anyTarget(u.def.weapon) : u.def.weapon);
+  const w = u.def.weapon;
+  if (w && (u.ammo > 0 || u.guns > 0)) ws.push(w.spareTanks && !(u.aam > 0) ? anyTarget(w) : w);
   if (u.aam > 0 && u.def.weapon2) ws.push(u.def.weapon2);
   return ws;
 }

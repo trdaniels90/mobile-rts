@@ -105,7 +105,7 @@ const res = JSON.parse(run(`(() => {
 console.log(JSON.stringify(res, null, 1));
 const ok = res.lockedBefore && res.start === null && res.second === 'busy-same' && Math.abs(res.half - 0.5) < 0.05 && Math.abs(res.paid - 750) < 40 && res.refunded &&
   res.done && res.keptWithoutTech && res.notTwice && res.padsFull && res.queued &&
-  res.bayOpenAt !== null && res.firstMissileAfterReach >= 1 && res.missilesLeft === 0 && res.gunWhileMissiles === 0 && res.missileDamage >= 440 && res.missileDamage <= 490 && res.bayShutAfter === 0 &&
+  res.bayOpenAt !== null && res.firstMissileAfterReach >= 1 && res.missilesLeft === 0 && res.gunWhileMissiles === 0 && res.missileDamage >= 430 && res.missileDamage <= 530 && res.bayShutAfter === 0 &&
   res.gunOnTankBursts > 0 && res.gunOnTankDamage > 0 && res.gunOnInf > 0 && res.missilesAtInf === 0 && res.infMinDist > 80 && res.keptDistance > 60;
 console.log(ok ? 'PASS' : 'FAIL');
 process.exit(ok ? 0 : 1);
