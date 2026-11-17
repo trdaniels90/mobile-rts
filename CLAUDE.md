@@ -635,6 +635,11 @@ share globals. Read this file first; the commit history explains every change in
   on the shortest way in (two floods: as the unit walks, then also through enemy walls), up to 3 groups a turn, units
   within `BREACH_REACH` 15 cells join. `u.breach` sends them back to the hunt after; `manual` is cleared (not a player's
   order). Direct orders are left alone.
+- **Breaching units still fight** (after 2026.11.17.12, both modes; the server must match; owner's report: after beating one side, an Auto Attack army
+  walked past the next side's defences and buildings to shoot a wall): a unit on a breach order (`u.breach`) takes anything hostile within its main gun's
+  reach (`breachReach`) first, defences and structures included, and answers fire from within that reach; the wall only when nothing else is. Only in-reach
+  targets, so the base behind the wall does not pull it round looking for a way in. A breacher whose wall falls goes back to the hunt even if its attack
+  order is still up (before, it could be left standing guard). Staged (6 Heavy Tanks sent at a far wall, a Pillbox beside the way): first shot at it 22 s to 4 s.
 - **Widening a gap** (after 2026.11.17.4, owner's request, both modes; the server must match): a hunting group of `BREACH_CROWD` (8)+ whose
   open way in squeezes through a gap (`wallInTheWay(u, goal, out)`: `out.choke`, an enemy wall within 2 cells on both sides of a cell of the
   way, within `CHOKE_NEAR` 25 cells) sends its nearest half that can hurt walls (warhead `bld` >= 0.25, so not rifles) to shoot the wall beside
@@ -1408,6 +1413,14 @@ frame-time maths everywhere, so it is not deterministic.
   (`aiBuildRing` returns false when money runs short).
 - **Army cap** (owner): `ARMY_UNITS` 80 to 100 (Easy, Hard), Normal `armyUnits` 90 to 100. Wave sizes that are shares of it grow with it.
 - The server must run the same version.
+
+## Turtles: bigger army, better defended; Tesla hits vehicles harder (after 2026.11.17.12, owner's picks for both modes; the server must match)
+
+- **Turtle** (`AI_STYLES.turtle` in ai.js): timing unchanged (owner: not sooner, a bigger army instead): `armyMul` 1.3, its army cap is 130 units and 1.3 x the
+  worth (`aiOf`); the extra 30 stay at home to defend (owner's pick): `aiLaunch` measures waves against the usual cap and never sends the newest `keep` units. Defences: `defAdd` 8 (was 5: about 3 more ground guns), `aaAdd` 4 (was 2: a Normal turtle
+  5 anti-air from the start, up to 7), `guns2` 5 at a second base (was 4).
+- **TESLA warhead** (Tesla Coil and Tesla Tank, data.js): light 1.0 to 1.2, heavy 0.9 to 1.3 (+40% against tanks; owner chose the Tesla Tank too). A Coil bolt does
+  130 to a tank (was 90). `tesla-tank.js`: 201 damage to a Heavy Tank in 5 s (was 132). Headless 2 v 2 of Normal computers on Twin Lakes, 14 min: no errors.
 
 ## Computer base rings, breaching a long way round (after 2026.11.16.5, not released, Normal and Hard, both modes)
 

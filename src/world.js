@@ -676,7 +676,7 @@ function breachWalls(team) {
   if (!G.wallN) return;
   const units = unitsOf(team.id).filter((u) => u.cls !== 'air' && u.def.weapon && !u.def.harvester && !u.chute);
   // Back to the hunt once the wall is down.
-  for (const u of units) if (u.breach && !(u.order.type === 'attack' && u.order.target.alive)) { u.breach = false; if (u.order.type === 'guard') setHunt(u); }
+  for (const u of units) if (u.breach && !(u.order.type === 'attack' && u.order.target.alive)) { u.breach = false; if (u.order.type === 'guard' || u.order.type === 'attack') setHunt(u); }   // (an attack order whose wall just fell: its own look round has not stood it down yet)
   const hunters = units.filter((u) => u.order.type === 'hunt' && !u.breach && !(u.target && u.target.alive));
   const done = [];
   let tries = 0;
@@ -2973,7 +2973,7 @@ function damage(t, amount, wh, attacker, from, splashed) {
   // Shot at while guarding or on the attack: turn on the shooter, wherever it is, unless
   // already trading fire with an enemy unit in range.
   if (attacker && attacker.alive && hostile(attacker.team, t.team) && t.kind === 'unit' && t.alive && t.cls !== 'air' && !t.def.harvester &&
-      (t.order.type === 'guard' || t.order.type === 'hunt') && t.target !== attacker && canTarget(t, attacker)) {
+      (t.order.type === 'guard' || t.order.type === 'hunt' || (t.order.type === 'attack' && t.breach && distTo(t, attacker) <= breachReach(t))) && t.target !== attacker && canTarget(t, attacker)) {
     const c = t.target;
     // (its target may have taken off since it was picked, out of reach of every weapon it has)
     const cw = c && (canHit(t.def.weapon, c) ? t.def.weapon : t.def.weapon2 && canHit(t.def.weapon2, c) ? t.def.weapon2 : null);
@@ -3508,7 +3508,20 @@ function updateUnit(u, dt) {
   if (u.think <= 0) {
     u.think = 0.35 + Math.random() * 0.2;
     if (o.type === 'attack') {
-      if (!o.target.alive) setGuard(u); else u.target = o.target;
+      if (!o.target.alive) setGuard(u);
+      else if (u.breach) {
+        // Shooting a way through a wall (breachWalls): anything hostile within reach of its guns comes first, defences and
+        // structures included; the wall only when nothing else is. Before, a group sent at a wall drove past guns and buildings
+        // that were shooting it, round to the piece it had been given. Only what is in reach: whatever stands behind the wall
+        // (the base it is breaking into) would have it driving round looking for a way in again.
+        const reach = breachReach(u);
+        if (u.target && u.target !== o.target && distTo(u, u.target) > reach) u.target = null;
+        if (!u.target || u.target === o.target || u.target.kind === 'bld') {
+          const t = acquire(u, reach, [w, u.def.weapon2]);
+          if (t && (!u.target || u.target === o.target || t.kind === 'unit')) u.target = t;
+        }
+        if (!u.target) u.target = o.target;
+      } else u.target = o.target;
     } else if (o.type !== 'move') {
       // Whoever fired on this unit is chased a little past its own reach; anything else is
       // dropped once out of sight.
@@ -3567,6 +3580,7 @@ function updateUnit(u, dt) {
   checkStuck(u, dt);
 }
 
+const breachReach = (u) => (u.def.weapon && u.def.weapon.range) || 0;   // (its main gun: a second weapon is often for aircraft only)
 function engage(u, t, dt) {
   const w = canHit(u.def.weapon, t) ? u.def.weapon : u.def.weapon2 && canHit(u.def.weapon2, t) ? u.def.weapon2 : null;
   if (!w) { u.target = null; return; }   // e.g. a helicopter that took off out of a rifleman's reach

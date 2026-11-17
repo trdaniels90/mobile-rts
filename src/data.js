@@ -75,7 +75,7 @@ const WARHEADS = {
   AP:    { inf: 0.3, light: 0.9,  heavy: 1.0,  bld: 0.7, air: 1.0 },   // tank shells
   HE:    { inf: 0.5, light: 1.0,  heavy: 0.8,  bld: 0.9, air: 1.0 },   // rockets and missiles
   FLAK:  { inf: 0,   light: 0,    heavy: 0,    bld: 0,   air: 1.0 },
-  TESLA: { inf: 1.6, light: 1.0,  heavy: 0.9,  bld: 0.6, air: 0 },
+  TESLA: { inf: 1.6, light: 1.2,  heavy: 1.3,  bld: 0.6, air: 0 },   // Tesla Coil and Tesla Tank (vehicles 1.0 / 0.9 until 2026.11.17.12, owner: more against tanks)
   FIRE:  { inf: 1.3, light: 0.6,  heavy: 0.3,  bld: 0.7, air: 0 },   // flame tower
   ART:   { inf: 0.9, light: 0.9,  heavy: 0.25, bld: 0.75, air: 0 },   // artillery shells: only the tank figure is OpenRA's 155mm (2026.11.15)
   RF:    { inf: 1.0, light: 0.27, heavy: 0.07, bld: 0.07, air: 0.6 }, // rifles: OpenRA's M1Carbine, with infantry kept at 1
