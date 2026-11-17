@@ -1736,7 +1736,7 @@ function drawUnitBody(g, u, t) {
         g.fillStyle = '#4c5149'; g.beginPath(); g.ellipse(rx, ry - 1.5, 2.6, 1.9, 0, 0, 7); g.fill();
         g.fillStyle = '#6b7166'; g.beginPath(); g.ellipse(rx - 0.5, ry - 2.1, 1.4, 0.9, 0, 0, 7); g.fill();
       }
-    } else if (u.moving) {
+    } else if (u.moving && u.def.type !== 'transport') {   // (the paratrooper transports have propellers: no jet flame)
       const [bx, by] = liftPt(u.x - Math.cos(u.face) * 15, u.y - Math.sin(u.face) * 15, alt + 2);   // behind the tail, at the jet's height
       g.fillStyle = Math.random() < 0.5 ? 'rgba(255,210,110,0.9)' : 'rgba(255,140,50,0.9)';
       g.beginPath(); g.arc(bx, by, 1.6, 0, 7); g.fill();
