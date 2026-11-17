@@ -1130,6 +1130,13 @@ frame-time maths everywhere, so it is not deterministic.
   not baked), welding sparks, dust at the corners, a white sheen at the end. Until a layer is made the finished sprite sinks into the pad, clipped to the footprint's front edges.
   Everything comes from `k`, the building's id and `G.t`: no state, no effects.
 
+## Construction Yard crane (after 2026.11.17.2, not released, both modes, looks only)
+
+- The tower crane's jib (both factions) is a turning part, `SPINNERS.cy` (models.js `towerJib`; only the cameo keeps it in the model).
+  art.js `craneState` / `drawCraneHook` (kept by building id, never on the building): when its side places a structure within
+  `CRANE_REACH` (16 cells), the jib swings to it (`CRANE_SPEED`), the hook (`CRANE_HOOK`) works up and down while it goes up, never
+  into the yard's roof, an amber lamp blinks at the tip, and `CRANE_HOLD` (2 s) after the build-up it swings home (angle 0 = rest).
+
 ## Flags fly in the wind (after 2026.11.16, both modes, looks only)
 
 - The modelled flags (Allied Ore Refinery, Allied and Soviet Outposts) keep only their poles in models.js; the cloth is drawn
