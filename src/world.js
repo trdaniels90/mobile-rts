@@ -3055,6 +3055,11 @@ function kill(e, attacker, wh, from) {
     // Jets parked on a destroyed Airfield go with it; those in the air survive (see updateReserves).
     if (e.type === 'airfield' && !G.remote) for (const j of G.entities.filter((u) => u.alive && u.kind === 'unit' && u.home === e.id && u.as === 'landed' && !u.leaving)) kill(j, attacker, wh, from);
   }
+  // Owner's rule: a side whose last Tech Center falls (or is sold) loses every upgrade and must research them again.
+  if (e.kind === 'bld' && e.type === 'tech' && !G.remote && team.upgrades && Object.keys(team.upgrades).length && !hasBuilt(team, 'tech')) {
+    team.upgrades = {};
+    notify(team, 'upgrade', 'Upgrades lost', 4);
+  }
   if (e.kind === 'unit' && e.kills) G.log.fallen.push({ team: e.team, type: e.type, faction: e.faction, kills: e.kills, worth: e.killWorth, born: e.born, died: G.t });
   const seed = (Math.random() * 1e6) | 0;
   if (e.kind === 'unit') {
@@ -4744,10 +4749,15 @@ function launchPower(team, key, x, y) {
   const type = key === 'spy' ? 'spyplane' : key === 'para' ? 'transport' : 'bomber';
   const hx = (team.start.cx + 0.5) * CELL, hy = (team.start.cy + 0.5) * CELL;
   const a = Math.atan2(y - hy, x - hx), back = Math.hypot(x - hx, y - hy) + 260;
-  const u = addUnit(type, team, x - Math.cos(a) * back, y - Math.sin(a) * back);
-  u.face = u.tface = a; u.alt = JET_ALT; u.as = 'fly';
-  u.order = { type: 'flight' };
-  u.flight = { key, tx: x, ty: y, done: false, bombs: 0, bombT: 0 };
+  // With the Airborne division upgrade (para2) a second transport flies alongside, 70 px to one side and a little behind.
+  const planes = key === 'para' && hasUpgrade(team, 'para2') ? [0, 1] : [0];
+  for (const i of planes) {
+    const side = i ? 70 : 0, lag = i ? 50 : 0, nx = -Math.sin(a) * side, ny = Math.cos(a) * side;
+    const u = addUnit(type, team, x + nx - Math.cos(a) * (back + lag), y + ny - Math.sin(a) * (back + lag));
+    u.face = u.tface = a; u.alt = JET_ALT; u.as = 'fly';
+    u.order = { type: 'flight' };
+    u.flight = { key, tx: x + nx, ty: y + ny, done: false, bombs: 0, bombT: 0 };
+  }
   return true;
 }
 function updateFlight(u, dt) {
@@ -4773,11 +4783,11 @@ function updateFlight(u, dt) {
 function dropTroops(plane, x, y) {
   const team = G.teams[plane.team], squad = POWERS.para.squad[team.faction];
   squad.forEach((type, i) => {
-    const a = i / squad.length * Math.PI * 2;
-    const c = nearestFreeCell(cellOfPos(x + Math.cos(a) * 16, y + Math.sin(a) * 16), 5);
+    const a = i / squad.length * Math.PI * 2, r = squad.length > 8 ? 22 : 16;
+    const c = nearestFreeCell(cellOfPos(x + Math.cos(a) * r, y + Math.sin(a) * r), 5);
     if (c < 0) return;
     const p = cellCenter(c), u = addUnit(type, team, p.x + (Math.random() - 0.5) * 8, p.y + (Math.random() - 0.5) * 8);
-    u.chute = 1.3 + i * 0.18;
+    u.chute = 1.3 + i * 0.14;
     setHunt(u); u.raider = true;   // once down, they wreck the nearest structures, one after another
   });
 }
@@ -4938,7 +4948,7 @@ function available(team, type) {
 }
 
 // --- Tech Center upgrades (UPGRADES in data.js) ------------------------------------
-// team.upgrades: { id: true } once researched (kept for the battle). team.research: { id, progress, spent } while one is under
+// team.upgrades: { id: true } once researched (lost with the side's last Tech Center, see kill). team.research: { id, progress, spent } while one is under
 // way, paid as it goes like production (half speed on low power). Plain data: saved, and sent to online players (netcore TEAM).
 function hasUpgrade(team, id) { return !!(team.upgrades && team.upgrades[id]); }
 function canResearch(team, id) {

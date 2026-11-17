@@ -1501,3 +1501,13 @@ frame-time maths everywhere, so it is not deterministic.
 - `drawStructure` draws `factoryDoorSprite(faction, step)` (models.js `factoryDoor`, `DOOR_STEPS` 5) over the door: a shutter
   that rolls up over `DOOR_UP`, stays open `DOOR_HOLD` 1.4 s, rolls down over `DOOR_DOWN` 0.7 s, the dark hall below it.
   The structure's own model is unchanged.
+
+## Bigger paratrooper drops, Airborne division, upgrades lost with the Tech Center (after 2026.11.17.12, not released, owner's picks for both modes; the server must match)
+
+- `POWERS.para.squad` is 10 soldiers (was 7): Allies 7 Rifle + 3 Rocket, Soviets 5 Rifle + 3 Grenadier + 2 Rocket. `dropTroops` lands squads over 8
+  on a 22 px ring (was 16) and staggers the chutes 0.14 s (was 0.18).
+- **Airborne division** (`para2` in `UPGRADES`, both factions, $1500, 60 s): `launchPower` sends a second transport 70 px to one side and 50 px
+  behind, dropping its own squad there: 20 soldiers a drop. The computer researches it like the others (ai.js).
+- **Upgrades are lost with the last Tech Center** (owner's rule, replaces "kept for the battle"): `kill` clears `team.upgrades` when a side's last
+  Tech Center is destroyed or sold ("Upgrades lost", text only). Queued Comanches / Tesla Tanks wait until re-researched; units already built stay.
+  Field Manual updated; `comanche.js` checks the new rule.

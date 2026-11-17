@@ -1,6 +1,6 @@
 // Tech Center upgrades and the Comanche. Headless. node tools/sim/comanche.js <repo>
 // 1 research: the Comanche needs the upgrade; research is paid as it goes, cancelled with a refund when the last Tech
-//   Center falls, kept once finished even without a Tech Center; one at a time; needs a free Helicopter Base pad.
+//   Center falls, lost with the last Tech Center once finished (owner's rule); one at a time; needs a free Helicopter Base pad.
 // 2 combat: against a tank it opens its bays, holds a lock for 1 s and fires its four missiles, never the gun while it
 //   has missiles; then the gun takes on the tank for little damage. Against infantry it uses the gun from the edge of its
 //   reach and backs away from infantry that comes close. A staged fight against riflemen and one against tanks.
@@ -37,7 +37,8 @@ const res = JSON.parse(run(`(() => {
   startResearch(me, 'comanche'); step(61);
   r.done = hasUpgrade(me, 'comanche') && !me.research;
   kill(tech, null); step(0.1);
-  r.keptWithoutTech = hasUpgrade(me, 'comanche') && available(me, 'comanche');
+  r.lostWithoutTech = !hasUpgrade(me, 'comanche') && !available(me, 'comanche');
+  tech = place('tech'); startResearch(me, 'comanche'); step(61);
   r.notTwice = startResearch(me, 'comanche') === 'Not available';
   const helis = []; for (let i = 0; i < 4; i++) helis.push(spawnUnit(me, 'heli'));
   r.padsFull = startProduction(me, 'comanche') === 'pads-full';
@@ -104,7 +105,7 @@ const res = JSON.parse(run(`(() => {
 })()`));
 console.log(JSON.stringify(res, null, 1));
 const ok = res.lockedBefore && res.start === null && res.second === 'busy-same' && Math.abs(res.half - 0.5) < 0.05 && Math.abs(res.paid - 750) < 40 && res.refunded &&
-  res.done && res.keptWithoutTech && res.notTwice && res.padsFull && res.queued &&
+  res.done && res.lostWithoutTech && res.notTwice && res.padsFull && res.queued &&
   res.bayOpenAt !== null && res.firstMissileAfterReach >= 1 && res.missilesLeft === 0 && res.gunWhileMissiles === 0 && res.missileDamage >= 430 && res.missileDamage <= 530 && res.bayShutAfter === 0 &&
   res.gunOnTankBursts > 0 && res.gunOnTankDamage > 0 && res.gunOnInf > 0 && res.missilesAtInf === 0 && res.infMinDist > 80 && res.keptDistance > 60;
 console.log(ok ? 'PASS' : 'FAIL');

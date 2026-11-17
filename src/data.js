@@ -285,7 +285,8 @@ const BUILD_DEFS = {
 const POWERS = {
   spy:  { name: 'Spy Plane',    charge: 60,  ready: 'Spy plane ready',   reveal: 10 },
   para: { name: 'Paratroopers', charge: 150, ready: 'Paratroopers ready',
-          squad: { allies: ['rifle', 'rifle', 'rifle', 'rifle', 'rifle', 'rocket', 'rocket'], soviets: ['rifle', 'rifle', 'rifle', 'rifle', 'grenadier', 'grenadier', 'grenadier'] } },
+          squad: { allies: ['rifle', 'rifle', 'rifle', 'rifle', 'rifle', 'rifle', 'rifle', 'rocket', 'rocket', 'rocket'],
+                   soviets: ['rifle', 'rifle', 'rifle', 'rifle', 'rifle', 'grenadier', 'grenadier', 'grenadier', 'rocket', 'rocket'] } },
   bomb: { name: 'Bombing Run',  charge: 200, ready: 'Bombing run ready', bomb: { dmg: 90, wh: 'HE', splash: 26 }, bombs: 10 },
 };
 
@@ -358,6 +359,8 @@ const UPGRADES = {
               desc: 'Unlocks the Comanche at the Helicopter Base: a stand-off helicopter with a chain gun for infantry and light vehicles, and four anti-tank missiles fired from its side bays.' },
   teslatank: { name: 'Tesla program', unlocks: 'ttank', cost: 1500, time: 60, factions: ['soviets'],
                desc: 'Unlocks the Tesla Tank at the War Factory: a tank carrying a Tesla coil. Its bolt kills infantry outright and hurts vehicles badly at short range; it cannot hit aircraft.' },
+  para2: { name: 'Airborne division', cost: 1500, time: 60, factions: ['allies', 'soviets'],
+           desc: 'Paratroopers come in two transport planes instead of one: twenty soldiers a drop.' },
 };
 for (const k in UPGRADES) UPGRADES[k].id = k;
 
