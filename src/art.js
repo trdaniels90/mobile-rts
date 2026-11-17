@@ -2895,7 +2895,7 @@ function makeCameo(type, faction, key) {
 // joined neighbour) drawn as solid prisms, back to front, with only the faces turned to the camera. ui.js sorts each cell
 // in with the units (kind 'wall') and calls drawWallIso on the view canvas.
 const WALL_LOOK = {
-  1: { h: 8, a: 6, top: '#c2ae80', side: '#9c8a5f', seam: '#7d6d49' },      // sandbags: two courses of sacks
+  1: { h: 5.5, a: 4, top: '#c2ae80', side: '#9c8a5f', seam: '#7d6d49' },      // sandbags: two courses of sacks
   3: { h: 13, a: 5, top: '#a7a7a0', side: '#85857e', seam: '#686862' },     // concrete
 };
 const WALL_DIAG = [[1, -1, 16], [1, 1, 32], [-1, 1, 64], [-1, -1, 128]];   // diagonal joins (ui.js sets them in the mask)
