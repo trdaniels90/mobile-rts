@@ -801,14 +801,14 @@ function treeFlames(spr) {
 let treeFrame = null;   // what every tree drawn this frame shares (wind, gusts, the camera's transform)
 function treesInView(g, x0, y0, x1, y1) {
   const T = G.ground && G.ground.trees, out = [];
-  if (!T || !T.length) return out;
-  let lo = 0, hi = T.length;   // the first tree at y0 or below (they are sorted by y)
+  let lo = 0, hi = T ? T.length : 0;   // the first tree at y0 or below (they are sorted by y)
   while (lo < hi) { const m = (lo + hi) >> 1; if (T[m].y < y0) lo = m + 1; else hi = m; }
   const fire = G.treeFire || null, t = G.t, w = windNow(), ws = Math.hypot(w.x, w.y) || 1;
   const storm = G.weather ? weatherLevel(G.weather, t) : 0, force = ws / WIND * (1 + 1.6 * storm);
   // The lean is across the screen: the part of the wind that blows left or right as the camera sees it.
   const sx = toView(w.x, w.y)[0], lean = sx / WIND * 0.045 * (1 + storm), ux = w.x / ws, uy = w.y / ws;
   treeFrame = { t, force, lean, ux, uy, tf: g.getTransform() };
+  if (!T || !T.length) return out;   // (treeFrame is still set: the woods past the map's edge use it)
   for (let i = lo; i < T.length && T[i].y < y1; i++) {
     const tr = T[i];
     if (tr.x < x0 || tr.x > x1) continue;

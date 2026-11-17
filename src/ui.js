@@ -209,12 +209,74 @@
   // World (x, y) at height h, in the pixels of canvas g as it is now set up; and drawing in those pixels.
   function onScreen(g, x, y, h) { const [wx, wy] = liftPt(x, y, h), m = g.getTransform(); return [m.a * wx + m.c * wy + m.e, m.b * wx + m.d * wy + m.f]; }
   function screenDraw(g, fn) { const up = g.upright; g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.upright = false; try { fn(); } finally { g.upright = up; g.restore(); } }
-  // The land beyond the map's edge (the iso view shows past it): each edge cell's colour carried a few cells out,
-  // fading into a haze (EDGE_FADE cells) with a little texture in it; the screen past the picture is the haze too.
-  // Made once a battle.
-  const EDGE_PAD = 24, EDGE_FADE = 6;
+  // The land beyond the map's edge (the iso view shows past it): a band of woods RIM cells deep round the map (water
+  // at the edge carries on as water), its floor the edge's own colour darkening to woodland, fading into a haze from
+  // FADE0 to FADE1 cells out with a little texture in it; the screen past the picture is the haze too. Made once a battle.
+  const EDGE_PAD = 24, RIM = 7, FADE0 = 3, FADE1 = RIM + 3;
   const hazeRGB = () => (snowy() ? [196, 204, 214] : [104, 116, 124]);
-  let edgeFor = null, edgeCv = null;
+  let edgeFor = null, edgeCv = null, rimFor = null, rimList = null, veilCv = null;
+  // Water at (or within 2 cells along) the map's edge nearest cell (cx, cy): no woods grow out there.
+  function rimWater(cx, cy) {
+    const along = cx === 0 || cx === MAP - 1 ? [cx, cy, 0, 1] : [cx, cy, 1, 0];
+    for (let k = -2; k <= 2; k++) {
+      const x = Math.max(0, Math.min(MAP - 1, along[0] + along[2] * k)), y = Math.max(0, Math.min(MAP - 1, along[1] + along[3] * k));
+      if (G.terr[idx(x, y)] === 4) return true;
+    }
+    return false;
+  }
+  // The trees of the woods round the map (the same pictures as the map's own, drawn with drawTree), sorted by y. On the
+  // two sides nearest the camera (south-east and south-west of the turned view) they stand back 1.5 cells, so they do
+  // not hide units at the edge.
+  function rimTrees() {
+    if (rimFor === G && rimList) return rimList;
+    const out = [], snow = snowy(), h = (a, b, c) => { let v = (a * 73856093) ^ (b * 19349663) ^ (c * 83492791); v = (v ^ (v >>> 13)) * 1274126177; return ((v ^ (v >>> 16)) >>> 0) / 4294967296; };
+    for (let cy = -RIM; cy < MAP + RIM; cy++) for (let cx = -RIM; cx < MAP + RIM; cx++) {
+      if (cx >= 0 && cx < MAP && cy >= 0 && cy < MAP) { if (cx === 0 && cy >= 0) cx = MAP - 1; continue; }
+      if (rimWater(Math.max(0, Math.min(MAP - 1, cx)), Math.max(0, Math.min(MAP - 1, cy)))) continue;
+      for (let n = 0; n < 2; n++) {
+        const x = (cx + 0.15 + 0.7 * h(cx, cy, n * 2)) * CELL, y = (cy + 0.2 + 0.7 * h(cx, cy, n * 2 + 1)) * CELL;
+        const back = Math.max(-x, -y), near = Math.max(x - WORLD, y - WORLD);   // how far out on the far and near sides
+        if (near > 0 ? near < 1.5 * CELL : back < 0.2 * CELL) continue;
+        if (h(cx, cy, 9 + n) < (n ? 0.35 : 0.05)) continue;   // a few gaps
+        const pine = snow || h(cx, cy, 20 + n) < 0.45, set = snow ? scenery.snowPines : pine ? scenery.pines : scenery.trees;
+        if (!set.length) continue;
+        const v = Math.floor(h(cx, cy, 30 + n) * set.length);
+        out.push({ s: set[v], burnt: (pine ? scenery.burntPines : scenery.burntTrees)[v % 5], pine, x, y });
+      }
+    }
+    out.sort((a, b) => a.y - b.y);
+    rimFor = G; rimList = out; veilCv = null;
+    return out;
+  }
+  // The rim's trees in the world box: their shadows drawn now, the trees returned to be sorted in with the units.
+  function rimInView(g, x0, y0, x1, y1) {
+    const T = rimTrees(), out = [];
+    if (x0 > 0 && y0 > 0 && x1 < WORLD && y1 < WORLD) return out;
+    let lo = 0, hi = T.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (T[m].y < y0) lo = m + 1; else hi = m; }
+    g.globalAlpha = 0.45;
+    for (let i = lo; i < T.length && T[i].y < y1; i++) {
+      const tr = T[i];
+      if (tr.x < x0 || tr.x > x1) continue;
+      g.drawImage(tr.s.sh, Math.round(tr.x + tr.s.sox), Math.round(tr.y + tr.s.soy));
+      out.push({ kind: 'tree', x: tr.x, y: tr.y, tr, p: 0, i: 90000 + i });
+    }
+    g.globalAlpha = 1;
+    return out;
+  }
+  // Haze over the outer woods (drawn after them): clear to 0.45 RIM cells out, thick by RIM + 1.5.
+  function edgeVeil() {
+    if (veilCv && rimFor === G) return veilCv;
+    const P = EDGE_PAD, N = MAP + 2 * P, c = mkCanvas(N, N), g = c.getContext('2d'), img = g.createImageData(N, N), d = img.data, [hr, hg, hb] = hazeRGB();
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const out = Math.hypot(Math.max(P - x, 0, x - (P + MAP - 1)), Math.max(P - y, 0, y - (P + MAP - 1)));
+      const t = Math.max(0, Math.min(1, (out - RIM * 0.45) / (RIM + 1.5 - RIM * 0.45))), i = (y * N + x) * 4;
+      d[i] = hr; d[i + 1] = hg; d[i + 2] = hb; d[i + 3] = 255 * t * t * (3 - 2 * t);
+    }
+    g.putImageData(img, 0, 0);
+    veilCv = c;
+    return c;
+  }
   function edgePic() {
     if (edgeFor === G && edgeCv) return edgeCv;
     const P = EDGE_PAD, N = MAP + 2 * P, c = mkCanvas(N, N), g = c.getContext('2d');
@@ -231,10 +293,16 @@
       const a = hash(x0, y0), b = hash(x0 + 1, y0), c2 = hash(x0, y0 + 1), e = hash(x0 + 1, y0 + 1);
       return (a + (b - a) * sx) * (1 - sy) + (c2 + (e - c2) * sx) * sy;
     };
+    const [fr, fg, fb] = snowy() ? [200, 206, 212] : [40, 52, 32];   // the woodland floor
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const ox = Math.max(P - x, 0, x - (P + MAP - 1)), oy = Math.max(P - y, 0, y - (P + MAP - 1)), out = Math.hypot(ox, oy);
       if (!out) continue;
-      const t = Math.min(1, out / EDGE_FADE), k = t * t * (3 - 2 * t), i = (y * N + x) * 4;
+      const i = (y * N + x) * 4;
+      if (!rimWater(Math.min(MAP - 1, Math.max(0, x - P)), Math.min(MAP - 1, Math.max(0, y - P)))) {
+        const w = Math.min(1, out / 2) * (0.85 + 0.3 * noise(x * 2, y * 2) - 0.15);
+        d[i] = d[i] * (1 - w) + fr * w; d[i + 1] = d[i + 1] * (1 - w) + fg * w; d[i + 2] = d[i + 2] * (1 - w) + fb * w;
+      }
+      const t = Math.max(0, Math.min(1, (out - FADE0) / (FADE1 - FADE0))), k = t * t * (3 - 2 * t);
       const n = 0.92 + 0.16 * noise(x, y) * Math.min(1, out / 3);   // patches of thicker and thinner haze
       d[i] = d[i] * (1 - k) + hr * n * k; d[i + 1] = d[i + 1] * (1 - k) + hg * n * k; d[i + 2] = d[i + 2] * (1 - k) + hb * n * k; d[i + 3] = 255;
     }
@@ -259,12 +327,14 @@
       v.fillStyle = gr; v.fillRect(x - R, y - R, 2 * R, 2 * R);
     }
     v.restore();
-    // A soft band of haze just inside the edge, so the ground does not stop on a hard line.
-    const B = 2.5 * CELL, hz = (a) => `rgba(${hr},${hg},${hb},${a})`;
+  }
+  // A soft band of haze just inside the edge (on the ground, under the units), so the ground does not stop on a hard line.
+  function edgeSeam(v, ox, oy, bw, bh) {
+    const [hr, hg, hb] = hazeRGB(), B = 2.5 * CELL, hz = (a) => `rgba(${hr},${hg},${hb},${a})`;
     for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [[0, 0, 0, B, 0, 0, WORLD, B], [0, WORLD, 0, WORLD - B, 0, WORLD - B, WORLD, B], [0, 0, B, 0, 0, 0, B, WORLD], [WORLD, 0, WORLD - B, 0, WORLD - B, 0, B, WORLD]]) {
       if (rx + rw < ox || rx > ox + bw || ry + rh < oy || ry > oy + bh) continue;
       const gr = v.createLinearGradient(x0, y0, x1, y1);
-      gr.addColorStop(0, hz(0.55)); gr.addColorStop(0.5, hz(0.18)); gr.addColorStop(1, hz(0));
+      gr.addColorStop(0, hz(0.3)); gr.addColorStop(0.5, hz(0.08)); gr.addColorStop(1, hz(0));
       v.fillStyle = gr; v.fillRect(rx, ry, rw, rh);
     }
   }
@@ -462,7 +532,7 @@ function draw() {
       v.imageSmoothingEnabled = false;
     }
     G.ground.draw(v, 't', sx, sy, sw, sh, sx, sy);
-    if (sx > ox || sy > oy || sx + sw < ox + bw || sy + sh < oy + bh) edgeMist(v, ox, oy, bw, bh);
+    if (sx > ox || sy > oy || sx + sw < ox + bw || sy + sh < oy + bh) edgeSeam(v, ox, oy, bw, bh);
 
     // Ore
     const c0 = Math.max(0, Math.floor(ox / CELL)), c1 = Math.min(MAP - 1, Math.floor((ox + bw) / CELL));
@@ -503,6 +573,7 @@ function draw() {
     const inView = (e) => e.x > x0 && e.x < x1 && e.y > y0 && e.y < y1;
     for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0) drawEffect(v, fx);
     const trees = treesInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40);   // swaying in the wind, burning (art.js): sorted in with the units below
+    for (const t of rimInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40)) trees.push(t);   // the woods past the map's edge
 
     const ground = [], air = [];
     for (const e of G.entities) {
@@ -554,6 +625,12 @@ function draw() {
       else if (e.kind === 'tree') drawTree(v, e);
       else if (e.kind === 'wall') drawWallIso(v, e);
       else drawUnit(v, e, G.t);
+    }
+    if (ox < 0 || oy < 0 || ox + bw > WORLD || oy + bh > WORLD) {   // haze over the outer woods past the map's edge
+      const up = v.upright; v.upright = false; v.imageSmoothingEnabled = true;
+      const P = EDGE_PAD; v.drawImage(edgeVeil(), -P * CELL, -P * CELL, (MAP + 2 * P) * CELL, (MAP + 2 * P) * CELL);
+      edgeMist(v, ox, oy, bw, bh);
+      v.imageSmoothingEnabled = false; v.upright = up;
     }
     for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') flameJet(v, e);
     for (let p of G.projectiles) {
