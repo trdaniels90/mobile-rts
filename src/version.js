@@ -4,6 +4,17 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.7', date: '17 November 2026', title: 'Comanche and wall fixes', groups: [
+    ['Changed', [
+      'Comanches no longer hover for good over a target they cannot hit: they use their missiles on what they can, or fly home to rearm. Comanches waiting on a target spread out instead of stacking on one spot.',
+      'Landed helicopters that are rearming or repairing join the base defence once they have half their health and half a load.',
+      'A wall laid on a slant now steps diagonally, uses half the pieces and is drawn as one straight wall. Units can no longer slip between two pieces that touch at a corner.',
+      'Match reports now record where drawing time goes, to track down the remaining slowdowns in big battles.',
+    ]],
+    ['Fixed', [
+      'Paratrooper transport lights at night now sit on its wingtips, fin and spine.',
+    ]],
+  ] },
   { v: '2026.11.17.6', date: '17 November 2026', title: 'Smoother big battles, steadier defenders', groups: [
     ['Changed', [
       'Big battles draw faster, most of all on large screens zoomed out: trees, units and effects that are off the screen are no longer drawn, and the map-edge haze is only drawn when the edge is in view. The picture is unchanged.',
