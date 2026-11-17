@@ -4,6 +4,21 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.2', date: '17 November 2026', title: 'Tech Center upgrades: Comanche and Tesla Tank', groups: [
+    ['New', [
+      'Tech Center upgrades: select a finished Tech Center and tap UPGRADES. One upgrade researches at a time and is paid for as it goes. A finished upgrade stays for the rest of the battle even if you lose the Tech Center; research still running when your last Tech Center falls is refunded.',
+      'Allies: the Comanche ($1,500 upgrade, then $1,500 at the Helicopter Base, which needs a free pad). A stealthy helicopter that hangs back at the edge of its reach. Its chain gun cuts down infantry and light vehicles; its four anti-tank missiles lock on to tanks from long range and drop from bays in its sides. Once the missiles are spent the gun takes on tanks too, for little damage. Rocket Soldiers are its counter.',
+      'Soviets: the Tesla Tank ($1,500 upgrade, then $1,350 at the War Factory). A tank with a Tesla dome whose bolt kills infantry outright and hurts vehicles badly at short range. It needs no power and cannot hit aircraft.',
+      'The computer researches upgrades on Normal and Hard and fields Comanches and Tesla Tanks.',
+    ]],
+    ['Changed', [
+      'Computer allies now spread out: each picks a different player to attack at first. After a few waves they choose one enemy to gang up on together, more often the strongest, and leave a side alone for a while after it loses a Construction Yard.',
+      'Low power: Gun Turrets, AA Guns and SAM Sites stop firing. Pillboxes and Flame Towers keep firing.',
+    ]],
+    ['Fixed', [
+      'Some fire effects could fail to draw near the map edge.',
+    ]],
+  ] },
   { v: '2026.11.17.1', date: '17 November 2026', title: 'Sidebar build progress fixed', groups: [
     ['Fixed', [
       'The build progress on the sidebar pictures no longer slides off their left edge.',
