@@ -210,6 +210,15 @@ function aiDriveFob(team, u) {
 // A Mobile Construction Yard rebuilds a lost yard: it drives to where the first one stood (or near it,
 // further out after each failed try) and unpacks there.
 function aiDriveMcv(team, u) {
+  if (u.expand === undefined) u.expand = !!aiMainYard(team);   // built while the main yard stands: it is for a second base
+  if (u.expand && !u.aiGoal) {
+    const f = team.expField || aiExpandField(team), k = u.mcvTries || 0;   // the field it was bought for
+    if (!f) { u.expand = false; return; }
+    const a = Math.atan2(team.start.cy - f.cy, team.start.cx - f.cx) + (k ? (Math.random() - 0.5) * 1.5 : 0), back = f.r + 4 + k * 1.5;
+    u.aiGoal = { x: (f.cx + 0.5 + Math.cos(a) * back) * CELL, y: (f.cy + 0.5 + Math.sin(a) * back) * CELL };
+    commandMove([u], u.aiGoal.x, u.aiGoal.y);
+    return;
+  }
   if (!u.aiGoal) {
     const k = u.mcvTries || 0, a = Math.random() * Math.PI * 2, r = k ? 2 + k * 1.5 : 0;
     u.aiGoal = { x: (team.start.cx + 0.5 + Math.cos(a) * r) * CELL, y: (team.start.cy + 0.5 + Math.sin(a) * r) * CELL };
@@ -222,12 +231,52 @@ function aiDriveMcv(team, u) {
   else if (u.order.type === 'guard') commandMove([u], u.aiGoal.x, u.aiGoal.y);
 }
 
-function aiFindSpot(team, type) {
-  const cy = G.entities.find((e) => e.alive && e.team === team.id && e.type === 'cy');
-  const lonely = type === 'refinery' && aiOutpostForRefinery(team);
+// --- Second base (Normal and Hard, both modes) --------------------------------------------------------------
+// From EXPAND_FROM, with money to spare, a computer that rolled it (EXPAND_CHANCE by personality, once a battle: team.exp2)
+// buys a Mobile Construction Yard, drives it to a rich ore field on its own half (aiExpandField) and unpacks it there,
+// then builds a small base round it (aiBase2Next): refineries, power, a Barracks and a War Factory, guns and anti-air.
+// One at a time; if it is lost, it may try again after EXPAND_RETRY. The main yard is the one within BASE2_SEP cells of its start.
+const EXPAND_CHANCE = { balanced: 0.8, raider: 0.8, turtle: 0.5, rusher: 0.25 }, EXPAND_FROM = 600, EXPAND_RETRY = 300, BASE2_SEP = 18;
+const aiYards = (team) => buildingsOf(team.id).filter((b) => b.type === 'cy');
+const aiMainYard = (team) => aiYards(team).find((b) => Math.hypot(b.cx - team.start.cx, b.cy - team.start.cy) < BASE2_SEP);
+const aiBase2 = (team) => aiYards(team).find((b) => Math.hypot(b.cx - team.start.cx, b.cy - team.start.cy) >= BASE2_SEP);
+// The richest ore field on its own half, 20 cells or more from its start, with no yard of its own or known enemy building near.
+function aiExpandField(team) {
+  const home = team.start, foe = enemyOf(team).start, yards = aiYards(team);
+  const theirs = enemyBuildingsOf(team.id).filter((b) => knownTo(team.id, b));
+  let best = null, bs = 0;
+  for (const f of G.oreFields) {
+    const dHome = Math.hypot(f.cx - home.cx, f.cy - home.cy);
+    if (dHome < 20 || dHome > Math.hypot(f.cx - foe.cx, f.cy - foe.cy)) continue;
+    if (yards.some((b) => Math.hypot(b.cx - f.cx, b.cy - f.cy) < BASE2_SEP + f.r + 4) || theirs.some((b) => Math.hypot(b.cx - f.cx, b.cy - f.cy) < 15)) continue;
+    let ore = 0;
+    for (let y = Math.floor(f.cy - f.r); y <= f.cy + f.r; y++) for (let x = Math.floor(f.cx - f.r); x <= f.cx + f.r; x++) if (inMap(x, y)) ore += G.ore[idx(x, y)];
+    if (ore < 3000) continue;
+    const sc = ore / (1 + dHome / 30);
+    if (sc > bs) { bs = sc; best = f; }
+  }
+  return best;
+}
+// What the second base wants next (counted within 12 cells of its yard), or null.
+function aiBase2Next(team, b2, c) {
+  const near = buildingsOf(team.id).filter((b) => dist(b, b2) < CELL * 12), n = (t) => near.filter((b) => b.type === t).length;
+  const p = team.power, pwr = available(team, 'apower') ? 'apower' : 'power';
+  const gun = team.faction === 'allies' ? 'turret' : 'tesla', aa = team.faction === 'allies' ? 'aagun' : 'sam';
+  const wants = [['refinery', 1], [pwr, 1], ['barracks', 1], [gun, 1], ['refinery', 2], ['factory', 1], [gun, 2], [aa, team.sawAir ? 1 : 0]];
+  for (const [t, want] of wants) {
+    if (n(t) >= want || !available(team, t)) continue;
+    if (t === 'refinery' && (c.refinery || 0) >= Math.min(8, aiRefCap(team) + 1)) continue;
+    const need = -Math.min(0, BUILD_DEFS[t].power);
+    return p.prod - p.use < need + 10 && available(team, pwr) ? pwr : t;
+  }
+  return null;
+}
+function aiFindSpot(team, type, at) {
+  const cy = aiMainYard(team) || G.entities.find((e) => e.alive && e.team === team.id && e.type === 'cy');
+  const lonely = !at && type === 'refinery' && aiOutpostForRefinery(team);
   const d = BUILD_DEFS[type], foe = enemyOf(team).start;
-  const guard = (d.defense && !d.antiAir && aiGuardSite(team)) || (d.antiAir && aiOf(team).adapt && aiAaSite(team));
-  const anchor = guard || lonely || cy || buildingsOf(team.id)[0];
+  const guard = !at && ((d.defense && !d.antiAir && aiGuardSite(team)) || (d.antiAir && aiOf(team).adapt && aiAaSite(team)));
+  const anchor = at || guard || lonely || cy || buildingsOf(team.id)[0];
   if (!anchor) return null;
   // Guns face the enemy base, or on Normal and Hard the way recent attacks came from.
   const from = team.attackFrom && team.attackFrom.length && aiOf(team).targets !== 'cy' && !guard ? team.attackFrom : null;
@@ -239,7 +288,7 @@ function aiFindSpot(team, type) {
     let bd = Infinity;
     for (const f of G.oreFields) {
       const dd = Math.hypot(f.cx - anchor.cx, f.cy - anchor.cy);
-      if (dd < bd && (anchor === lonely || !buildingsOf(team.id).some((b) => b.type === 'refinery' && Math.hypot(f.cx - b.cx, f.cy - b.cy) < 7))) { bd = dd; toOre = Math.atan2(f.cy - anchor.cy, f.cx - anchor.cx); }
+      if (dd < bd && (anchor === lonely || anchor === at || !buildingsOf(team.id).some((b) => b.type === 'refinery' && Math.hypot(f.cx - b.cx, f.cy - b.cy) < 7))) { bd = dd; toOre = Math.atan2(f.cy - anchor.cy, f.cx - anchor.cx); }
     }
   }
   for (let i = 0; i < 160; i++) {
@@ -426,14 +475,21 @@ function aiThink(team) {
   aiSquads(team);
   if (enemyUnitsOf(team.id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
   const q = team.queues.structure;
+  const b2 = aiOf(team).planner ? aiBase2(team) : null;
   if (q && q.ready) {
-    const spot = aiFindSpot(team, q.type);
+    // A building ordered for the second base goes up there (team.buildAt: its yard's id and the type).
+    const at = b2 && team.buildAt && team.buildAt.id === b2.id && team.buildAt.type === q.type ? b2 : null;
+    const spot = aiFindSpot(team, q.type, at);
+    if (spot && at) team.buildAt = null;
     const lone = q.type === 'refinery' && aiOutpostForRefinery(team);
     const b = spot && placeStructure(team, q.type, spot.cx, spot.cy);
     if (b && lone) (lone.refineries = lone.refineries || []).push(b);
     else if (!spot && Math.random() < 0.05) cancelProduction(team, q.type);
   } else if (!q) {
-    const next = aiNextStructure(team, c);
+    // Every other building goes to the second base while it still wants something (and money allows).
+    const want2 = b2 && b2.buildT >= 1 && (team.alt2 = !team.alt2) && team.credits > 1200 ? aiBase2Next(team, b2, c) : null;
+    if (want2) { team.buildAt = { id: b2.id, type: want2 }; startProduction(team, want2); }
+    const next = want2 ? null : aiNextStructure(team, c);
     if (next && team.credits >= Math.min(BUILD_DEFS[next].cost * 0.25, 500)) startProduction(team, next);
   }
 
@@ -444,6 +500,17 @@ function aiThink(team) {
     startProduction(team, 'mcv');
     const vq = team.queues.vehicle, i = vq.findIndex((x) => x.type === 'mcv');
     if (i > 0) vq.unshift(vq.splice(i, 1)[0]);   // it jumps the queue: nothing else can be built without it
+  }
+
+  // A second base: an MCV for a rich field on its own half (personality's chance, rolled once).
+  const A2 = aiOf(team);
+  if (A2.planner && team.style && team.exp2 === undefined) team.exp2 = Math.random() < (EXPAND_CHANCE[team.style] || 0);
+  if (team.exp2 && G.t >= EXPAND_FROM && G.t >= (team.expT || 0) && aiMainYard(team) && !aiBase2(team) && !mcvs.length && available(team, 'mcv') &&
+      !team.queues.vehicle.some((i) => i.type === 'mcv') && team.credits > UNIT_DEFS.mcv.cost + 2000 && !team.starved && aiExpandField(team)) {
+    team.expT = G.t + EXPAND_RETRY;
+    const f = aiExpandField(team);
+    team.expField = { cx: f.cx, cy: f.cy, r: f.r };
+    startProduction(team, 'mcv');
   }
 
   // Forward outposts: send a Mobile Outpost to a rich field far from its refineries.

@@ -1222,6 +1222,20 @@ frame-time maths everywhere, so it is not deterministic.
   Attack outside it: 21 breaching at 20 s, 16 inside by 40 s, base gone by 120 s. `walls.js` passes. With computers alone, turtles and
   balanced sides attack little in 24 minutes (2 v 2: 0-3 waves each; turtles late to scout since they scout only after `firstWave`).
 
+## Computer second bases (after 2026.11.16.5, not released, Normal and Hard, both modes)
+
+- Owner's pick ("full expansion", by personality): `team.exp2` rolled once (`EXPAND_CHANCE` balanced 0.8, raider 0.8, turtle 0.5, rusher 0.25).
+  From `EXPAND_FROM` (600 s), with its main yard standing (`aiMainYard`: a yard within `BASE2_SEP` 18 cells of its start), no second yard
+  (`aiBase2`), MCV cost + 2,000 credits, not starved: it picks `aiExpandField` (richest field with 3,000+ ore on its own half, 20+ cells
+  from its start, no yard of its own within 18 + r + 4, no known enemy building within 15), stores it in `team.expField` and buys an MCV
+  (no queue jump; `EXPAND_RETRY` 300 s between tries). `aiDriveMcv`: an MCV built while the main yard stands has `u.expand` and unpacks
+  at the field's home side (r + 4 cells out); otherwise it rebuilds at home as before.
+- `aiBase2Next`: refinery, power, Barracks, gun, 2nd refinery, War Factory, 2nd gun, AA once it has seen aircraft (counted within 12 cells
+  of the second yard; refineries still under `aiRefCap` + 1). In `aiThink` every other structure goes there (`team.alt2`); `team.buildAt`
+  ({ id, type }) makes `aiFindSpot(team, type, at)` anchor on that yard. `aiFindSpot` otherwise anchors on the main yard.
+- Headless (exp2 forced): 1 v 1 `bridge` both yards up at about 11-12 min, full second base by 18 min; 2 v 2 `twinlakes` 3 of 4 expanded
+  (one found no field). A first version let an MCV whose field stopped qualifying unpack at home (a raider ended with 4 yards): fixed with `expField`.
+
 ## Computer allies answer calls later and from nearer (after 2026.11.15.7, not released, both modes)
 
 - Owner's request: attacking one computer always brought the other's army at once. In `defendAllies` (world.js) a computer ally now sends only idle units within `AI_ALLY_REACH` (35 cells of the raiders, was 70)
