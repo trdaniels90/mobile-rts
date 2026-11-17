@@ -31,7 +31,7 @@ function aiNextStructure(team, c) {
   const build = (type) => (p.prod - p.use < powerNeed(type) + 10 && available(team, pwr) ? pwr : type);   // power first if needed
   // Normal and Hard: one AA site from 2:00 (up by about 2:30) whether or not it has seen aircraft (beside the
   // Construction Yard), and a second as soon as enemy aircraft turn up. These come before anything else.
-  const A = G.diff.ai;
+  const A = aiOf(team);
   if (enemyUnitsOf(team.id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
   if (A.adapt && available(team, aa) && n(aa) < (team.sawAir ? 2 : G.t >= 120 ? 1 : 0)) return build(aa);
   // An Outpost with no refinery beside it yet comes first: that is what it was sent out for.
@@ -92,7 +92,7 @@ function aiAaSite(team) {
 // Normal and Hard keep a few anti-aircraft soldiers or vehicles at home once enemy aircraft are
 // about, posted beside the key buildings, instead of sending them out with the waves.
 function aiHomeGuard(team, u) {
-  const A = G.diff.ai;
+  const A = aiOf(team);
   const hitsAir = (w) => !!(w && w.air && !w.heliOnly);   // Rangers (heliOnly) cannot hit jets, so they are not posted as anti-air
   if (!A.adapt || !team.sawAir || u.cls === 'air' || !(hitsAir(u.def.weapon) || hitsAir(u.def.weapon2))) return false;
   if (unitsOf(team.id).filter((e) => e.homeGuard).length >= A.homeGuard) return false;
@@ -105,7 +105,7 @@ function aiHomeGuard(team, u) {
 }
 // And a fighter or two kept back on the Airfield to go after enemy aircraft over the base.
 function aiKeepInterceptor(team, u) {
-  const A = G.diff.ai;
+  const A = aiOf(team);
   if (!A.adapt || !team.sawAir || !(u.def.weapon2 && u.def.weapon2.air)) return false;
   if (unitsOf(team.id).filter((e) => e.interceptor).length >= A.interceptors) return false;
   u.interceptor = true;
@@ -113,7 +113,7 @@ function aiKeepInterceptor(team, u) {
 }
 // An Outpost short of guns (or on Hard an outlying refinery with none beside it yet).
 function aiGuardSite(team) {
-  const A = G.diff.ai;
+  const A = aiOf(team);
   if (!A.guard.length) return null;
   const mine = buildingsOf(team.id), cy = mine.find((b) => b.type === 'cy');
   const guns = mine.filter((b) => b.def.defense && !b.def.antiAir);
@@ -146,7 +146,7 @@ function aiStarved(team) {
 // only when a refinery or Outpost stands right beside it.
 function aiRemoteField(team) {
   const mine = buildingsOf(team.id).filter((b) => b.type === 'refinery' || b.type === 'outpost' || b.type === 'cy');
-  const home = team.start, foe = enemyOf(team).start, expand = G.diff.ai.expand || 0;
+  const home = team.start, foe = enemyOf(team).start, expand = aiOf(team).expand || 0;
   let best = null, bd = Infinity;
   for (const f of G.oreFields) {
     let ore = 0;
@@ -196,7 +196,7 @@ function aiDriveFob(team, u) {
   if (!u.aiGoal) {
     const f = aiRemoteField(team);
     if (!f) return;
-    const a = Math.atan2(team.start.cy - f.cy, team.start.cx - f.cx), back = f.r + (G.diff.ai.expand ? 1.5 : 3);
+    const a = Math.atan2(team.start.cy - f.cy, team.start.cx - f.cx), back = f.r + (aiOf(team).expand ? 1.5 : 3);
     u.aiGoal = { x: (f.cx + 0.5 + Math.cos(a) * back) * CELL, y: (f.cy + 0.5 + Math.sin(a) * back) * CELL };
     commandMove([u], u.aiGoal.x, u.aiGoal.y);
     return;
@@ -226,11 +226,11 @@ function aiFindSpot(team, type) {
   const cy = G.entities.find((e) => e.alive && e.team === team.id && e.type === 'cy');
   const lonely = type === 'refinery' && aiOutpostForRefinery(team);
   const d = BUILD_DEFS[type], foe = enemyOf(team).start;
-  const guard = (d.defense && !d.antiAir && aiGuardSite(team)) || (d.antiAir && G.diff.ai.adapt && aiAaSite(team));
+  const guard = (d.defense && !d.antiAir && aiGuardSite(team)) || (d.antiAir && aiOf(team).adapt && aiAaSite(team));
   const anchor = guard || lonely || cy || buildingsOf(team.id)[0];
   if (!anchor) return null;
   // Guns face the enemy base, or on Normal and Hard the way recent attacks came from.
-  const from = team.attackFrom && team.attackFrom.length && G.diff.ai.targets !== 'cy' && !guard ? team.attackFrom : null;
+  const from = team.attackFrom && team.attackFrom.length && aiOf(team).targets !== 'cy' && !guard ? team.attackFrom : null;
   const toFoe = from ? from[Math.floor(Math.random() * from.length)] : Math.atan2(foe.cy - anchor.cy, foe.cx - anchor.cx);
   // Refineries go toward the nearest ore field so trucks have short trips.
   let toOre = 0;
@@ -295,7 +295,7 @@ function aiBridges(team) {
 // Its waves never take these soldiers (they are not staged); its other orders bring them out like anyone's.
 const AI_GARRISON = { normal: 2, hard: 3 };
 function aiGarrison(team) {
-  const want = AI_GARRISON[G.diffKey];
+  const want = AI_GARRISON[G.diffKey] && Math.max(1, AI_GARRISON[G.diffKey] + (aiOf(team).garAdd || 0));
   if (!want || !G.houses || !G.houses.length || G.t < 240 || G.t < (team.garT || 0)) return;
   team.garT = G.t + 15;
   const mine = unitsOf(team.id), going = new Set(mine.filter((u) => u.order.type === 'garrison').map((u) => u.order.target));
@@ -320,7 +320,7 @@ function aiGarrison(team) {
 // on Hard, Concrete once a War Factory stands. One defence at a time, while it has money to spare, up to a cap.
 const AI_WALL_CAP = { normal: 20, hard: 36 };
 function aiWalls(team) {
-  const cap = AI_WALL_CAP[G.diffKey];
+  const cap = AI_WALL_CAP[G.diffKey] && Math.round(AI_WALL_CAP[G.diffKey] * (aiOf(team).wallMul || 1));
   if (!cap || G.t < 300 || G.t < (team.wallT || 0)) return;
   team.wallT = G.t + 15;
   if (team.credits < 1200) return;
@@ -403,9 +403,9 @@ function aiThink(team) {
   const refineries = c.refinery || 0, trucks = c.harv || 0;
   const wantTrucks = refineries * 2 - (G.diffKey === 'easy' ? refineries : 0);
   const vq = team.queues.vehicle;
-  if (c.factory && trucks < wantTrucks && !vq.some((i) => i.type === 'harv') && trucks < G.diff.ai.econ.trucks) startProduction(team, 'harv');
+  if (c.factory && trucks < wantTrucks && !vq.some((i) => i.type === 'harv') && trucks < aiOf(team).econ.trucks) startProduction(team, 'harv');
   // Normal and Hard pay for a missing Ore Truck before buying more army.
-  const truckDue = G.diff.ai.econ.truckFirst && vq.some((i) => i.type === 'harv');
+  const truckDue = aiOf(team).econ.truckFirst && vq.some((i) => i.type === 'harv');
 
   // Spend the rest on an army; hold some back while a structure is being paid for.
   const sq = team.queues.structure;
@@ -415,10 +415,10 @@ function aiThink(team) {
   // more (Soviet Heavy Tanks and Mammoths) does not field a stronger army of the same size.
   const armyUnits = G.entities.filter((e) => e.alive && e.team === team.id && e.kind === 'unit' && !e.def.harvester);
   // At the cap only army production stops (infantry, vehicles, aircraft, surplus tanks); the support powers and repairs carry on.
-  const capped = saving || armyUnits.length > (G.diff.ai.armyUnits || ARMY_UNITS) || armyUnits.reduce((a, e) => a + e.def.cost, 0) > (G.diff.ai.armyWorth || ARMY_WORTH);
+  const capped = saving || armyUnits.length > (aiOf(team).armyUnits || ARMY_UNITS) || armyUnits.reduce((a, e) => a + e.def.cost, 0) > (aiOf(team).armyWorth || ARMY_WORTH);
   // Once the enemy flies aircraft (Normal and Hard), lean on units that can shoot them down:
   // rocket soldiers, Mammoths or Rangers, and fighters rather than helicopters.
-  const A = G.diff.ai, anti = A.adapt && team.sawAir;
+  const A = aiOf(team), anti = A.adapt && team.sawAir;
   const iq = team.queues.infantry;
   if (!capped && c.barracks && iq.length < A.queue && money > (truckDue ? 900 : 150)) {
     const r = Math.random();
@@ -480,28 +480,31 @@ function aiThink(team) {
 // outlying refinery turn aside to destroy it first (detourToSite). Runs once a second with the units waiting
 // at the rally point.
 function aiPlanWave(team) {
-  const A = G.diff.ai, r = Math.random, big = !!A.big && G.t >= A.bigFrom && r() < A.bigChance;
+  const A = aiOf(team), r = Math.random, big = !!A.big && G.t >= A.bigFrom && r() < A.bigChance;
   const [lo, hi] = big ? A.big : A.wave;
   team.holdFor = big && A.strike.length ? { keys: A.strike, since: G.t } : null;
   return { size: lo + Math.floor(r() * (hi - lo + 1)), big };
 }
 function aiLaunch(team, ready) {
-  const A = G.diff.ai, r = Math.random;
+  const A = aiOf(team), r = Math.random;
   if (!team.plan) team.plan = aiPlanWave(team);
   // No attacks until it has found the enemy base: once the first-wave timer is up, it scouts.
   if (!enemyBaseKnown(team.id)) { if (G.t >= Math.max(A.firstWave, 60)) aiScout(team, ready); return; }
   aiScoutDone(team);
   // Planner: the clock starts once the base is found and the first-wave wait is over, then each attack
   // comes after a random wait (AI_GAP: never under a minute, never over ten).
-  if (A.planner && team.attackAt === undefined && G.t >= A.firstWave) { team.attackAt = G.t + aiGap(); }
+  if (A.planner && team.attackAt === undefined && G.t >= A.firstWave) { team.attackAt = G.t + aiGap(team); }
   // A big army waiting at home does not sit out the timer: from ARMY_FULL of its army cap it attacks now
   // (still at least AI_GAP_MIN after the last wave).
-  const full = A.planner && team.attackAt !== undefined && ready.length >= (A.armyUnits || ARMY_UNITS) * ARMY_FULL && G.t - (team.lastWave || -1e9) >= AI_GAP_MIN;
+  // (Since the personalities: a full army halves what is left of the wait once, instead of skipping it, so the
+  // random wait still spreads the sides' attacks; they all filled up at the same moment and went together.)
+  const full = A.planner && team.attackAt !== undefined && ready.length >= (A.armyUnits || ARMY_UNITS) * A.full && G.t - (team.lastWave || -1e9) >= AI_GAP_MIN;
+  if (full && !team.fullCut && G.t < team.attackAt) { team.attackAt = G.t + (team.attackAt - G.t) / 2; team.fullCut = true; }
   // The first wave waits a while (on Easy and Normal), waves keep a gap between them, and each
   // takes only its planned number of units: the rest wait for the next one.
   // Planner waves are held until the army is big: WAVE_HOLD of the army cap, by count or by worth.
-  const hold = A.planner && ready.length < (A.armyUnits || ARMY_UNITS) * WAVE_HOLD && ready.reduce((w, u) => w + (u.def.cost || 300), 0) < (A.armyWorth || ARMY_WORTH) * WAVE_HOLD;
-  if (A.planner) { if (!full && (team.attackAt === undefined || G.t < team.attackAt || ready.length < team.plan.size || hold)) return; }
+  const hold = A.planner && ready.length < (A.armyUnits || ARMY_UNITS) * A.hold && ready.reduce((w, u) => w + (u.def.cost || 300), 0) < (A.armyWorth || ARMY_WORTH) * A.hold;
+  if (A.planner) { if ((team.attackAt === undefined || G.t < team.attackAt || ready.length < team.plan.size || hold)) return; }
   else if (ready.length < team.plan.size || G.t < A.firstWave || G.t - (team.lastWave || -1e9) < A.waveGap) return;
   // The planner's wave sends every unit that has gathered (the units on home guard are not in `ready`).
   const take = A.planner ? ready.length : team.plan.size;
@@ -511,13 +514,15 @@ function aiLaunch(team, ready) {
   const strike = team.plan.big && A.strike.length ? A.strike : null;
   const how = team.flk = team.flk || { pincer: 0, flank: 0, direct: 0 };
   // Planner: a big wave splits into two or three squads that come from different sides at once.
-  const parts = !A.planner ? 2 : ready.length >= 20 && r() < 0.5 ? 3 : ready.length >= 12 ? 2 : 0;
+  const [p3, p2] = A.splitAt || [20, 12];
+  const parts = !A.planner ? 2 : ready.length >= p3 && r() < (A.split3 || 0.5) ? 3 : ready.length >= p2 ? 2 : 0;
   if (A.planner ? parts >= 2 && aiPincerStart(team, ready, target, strike, parts) : ready.length >= 6 && r() < (A.pincer || 0) && aiPincerStart(team, ready, target, strike)) how.pincer++;
   else if (A.planner && r() < (A.approach || 0) && aiApproachStart(team, ready, target, strike)) how.flank++;
   else { aiSend(team, ready, target, { strike }); how.direct++; }
   team.waves = (team.waves || 0) + 1;
   team.lastWave = G.t;
-  if (A.planner) team.attackAt = G.t + aiGap();
+  team.fullCut = false;
+  if (A.planner) team.attackAt = G.t + aiGap(team);
   team.plan = aiPlanWave(team);
 }
 // --- Squad planner (Normal and Hard, A.planner) ----------------------------------------
@@ -525,9 +530,52 @@ function aiLaunch(team, ready) {
 // chance) a longer lull; never over ten minutes. ARMY_FULL: share of the army cap waiting at home that
 // launches an attack early; AI_GAP_MIN: the least time between such waves.
 const ARMY_FULL = 0.6, AI_GAP_MIN = 70, WAVE_HOLD = 0.5;
-function aiGap() {
-  const g = G.diff.ai.gap || { short: [90, 450], long: [450, 900], chance: 0.2 }, [a, b] = Math.random() < g.chance ? g.long : g.short;
-  return Math.min(900, a + Math.random() * (b - a));
+function aiGap(team) {
+  const A = aiOf(team), g = A.gap || { short: [90, 450], long: [450, 900], chance: 0.2 }, [a, b] = Math.random() < g.chance ? g.long : g.short;
+  return Math.max(AI_GAP_MIN, Math.min(900, (a + Math.random() * (b - a)) * (A.gapMul || 1)));
+}
+// --- Personalities (Normal and Hard, both modes) ----------------------------------------
+// Each computer side rolls one style the first time it thinks (aiStyle) and keeps it all battle; computer sides of
+// the same alliance never share one, so allies do not attack in step. Hidden from the players. Each style changes
+// the difficulty's own settings (DIFFICULTY ai), so a Hard rusher is still harder than a Normal one. Easy (fixed
+// waves) has none.
+//   firstWave: added to the difficulty's first-wave time; hold / full: share of the army cap that must be waiting
+//   before a wave goes / that halves the wait; gapMul: the random wait between waves; airGap: AIR_STRIKE_GAP;
+//   defAdd / gunsAdd: ground defences at home / guns at each Outpost; wallMul, garAdd: walls and held houses;
+//   splitAt / split3: wave sizes that split into 3 or 2 squads and the chance of 3; eco: the raider's taste for
+//   refineries, power and Outposts in aiWaveTarget.
+const AI_STYLES = {
+  balanced: {},
+  rusher: { firstWave: -180, hold: 0.3, full: 0.4, gapMul: 0.6, defAdd: -2, wallMul: 0.5, garAdd: -1 },
+  turtle: { firstWave: 210, hold: 0.75, full: 0.85, gapMul: 1.4, defAdd: 3, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18] },
+  raider: { hold: 0.4, airGap: 0.6, splitAt: [12, 8], split3: 0.75, eco: true },
+};
+const AI_STYLE_KEYS = Object.keys(AI_STYLES);
+function aiStyle(team) {
+  if (!team.style) {
+    const taken = new Set(G.teams.filter((t) => t !== team && t.isAI && t.style && !hostile(t.id, team.id)).map((t) => t.style));
+    const free = AI_STYLE_KEYS.filter((k) => !taken.has(k));
+    const pool = free.length ? free : AI_STYLE_KEYS;
+    team.style = pool[Math.floor(Math.random() * pool.length)];
+  }
+  return team.style;
+}
+// The difficulty's computer settings with this side's personality applied (one copy per difficulty and style).
+const aiOfCache = new Map();
+function aiOf(team) {
+  const base = G.diff.ai;
+  if (!base.planner || !team || !team.isAI) return base;
+  const key = G.diffKey + ':' + aiStyle(team);
+  let A = aiOfCache.get(key);
+  if (!A) {
+    const s = AI_STYLES[team.style];
+    A = Object.assign({}, base, s, {
+      firstWave: Math.max(240, base.firstWave + (s.firstWave || 0)), hold: s.hold || WAVE_HOLD, full: s.full || ARMY_FULL,
+      defMax: Math.max(2, base.defMax + (s.defAdd || 0)), outpostGuns: (base.outpostGuns || 1) + (s.gunsAdd || 0),
+    });
+    aiOfCache.set(key, A);
+  }
+  return A;
 }
 // Once a second: tracks the squads that have gone out, pulls a clearly losing one back to the rally
 // point, and sends squads home to a defence that is short-handed (defendBase works out the shortfall).
@@ -639,7 +687,7 @@ function aiScoutDone(team) {
 // fighting what it meets. A big push calls in its held Airfield powers once the first of it closes in.
 function aiSend(team, units, target, o) {
   for (const u of units) { setHunt(u); u.staged = false; u.focus = target; }
-  if (G.diff.ai.planner && units.length >= 3) (team.squads = team.squads || []).push({ units, n0: units.length, value0: units.reduce((a, u) => a + (u.def.cost || 300), 0) });
+  if (aiOf(team).planner && units.length >= 3) (team.squads = team.squads || []).push({ units, n0: units.length, value0: units.reduce((a, u) => a + (u.def.cost || 300), 0) });
   if (o.strike) team.strike = { keys: o.strike, target, units };
   if (units.length >= 3) logWave(team.id, !!o.strike);
   return units;
@@ -772,7 +820,7 @@ const FOE_PICK_EVERY = 30;
 function aiPickFoe(team) {
   const foes = G.teams.filter((t) => hostile(team.id, t.id));
   if (foes.length < 2) return;
-  if (!G.diff.ai.adapt) { team.focusSide = null; return; }
+  if (!aiOf(team).adapt) { team.focusSide = null; return; }
   if (team.foePickT && G.t - team.foePickT < FOE_PICK_EVERY && chosenFoe(team)) return;
   team.foePickT = G.t;
   const seen = inViewOf(team.id);
@@ -795,7 +843,7 @@ function aiPickFoe(team) {
   team.focusSide = best ? best.id : null;
 }
 function aiCounter(team) {
-  if (!G.diff.ai.counter) return;
+  if (!aiOf(team).counter) return;
   if (team.counterT && G.t - team.counterT < 10) return;
   team.counterT = G.t;
   const foe = enemyOf(team), seen = inViewOf(team.id);
@@ -812,7 +860,7 @@ function aiCounter(team) {
 // Normal: a mix of the Construction Yard, refineries, power and outlying sites. Hard: whatever
 // valuable building is least defended.
 function aiWaveTarget(team, from) {
-  const A = G.diff.ai, r = Math.random;
+  const A = aiOf(team), r = Math.random;
   let foe = enemyOf(team), theirs = buildingsOf(foe.id).filter((b) => targetable(team.id, b));
   // Its chosen enemy's base is not found yet but another enemy's is (team games): attack that one meanwhile.
   if (!theirs.length) {
@@ -841,7 +889,9 @@ function aiWaveTarget(team, from) {
   let best = null, bs = -Infinity;
   for (const b of theirs) {
     if (b.def.defense) continue;
-    const sc = (value[b.type] || 1) - guns.filter((d) => dist(d, b) < CELL * 8).length * 0.6 + r() * 2 - (b === team.lastTarget || b.type === team.lastType ? 1.4 : 0);
+    // The raider goes for the economy (refineries, power, Outposts) and shies from guns more.
+    const eco = A.eco && ['refinery', 'power', 'apower', 'outpost'].includes(b.type) ? 1.5 : 1;
+    const sc = (value[b.type] || 1) * eco - guns.filter((d) => dist(d, b) < CELL * 8).length * (A.eco ? 0.9 : 0.6) + r() * 2 - (b === team.lastTarget || b.type === team.lastType ? 1.4 : 0);
     if (sc > bs) { bs = sc; best = b; }
   }
   best = best || cy || theirs[0];

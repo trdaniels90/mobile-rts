@@ -1190,6 +1190,23 @@ frame-time maths everywhere, so it is not deterministic.
   `fireWeapon` puffs light smoke from the muzzle every round and, 40% of rounds, a slower wisp off the hot barrel.
 - Online: the server must run the same version.
 
+## Computer personalities (after 2026.11.16.5, not released, Normal and Hard, both modes)
+
+- Owner's report: on Normal every computer side attacked at the same moment. Measured (headless 2 v 2 on Twin Lakes): all four first
+  waves at 724-725 s. Cause: `firstWave` is the same for every side, and by then each had ~92 units, past `ARMY_FULL`, which skipped the
+  random `aiGap` timer; after that, waves went whenever the army refilled (6 of 7 before their timer), so the timer never mattered.
+- **Timer fix (all styles):** a full army now halves what is left of the wait once (`team.fullCut`) instead of skipping it.
+- **Styles** (`AI_STYLES`, `aiStyle`, `aiOf(team)` in ai.js): each computer side rolls `team.style` (rusher, turtle, raider, balanced) the first
+  time it thinks (also a side the server hands over) and keeps it (saved). **Computer sides of the same alliance never share a style**; enemies may.
+  `aiOf(team)` is the difficulty's `ai` settings with the style applied (cached per difficulty and style); every team-scoped `G.diff.ai` in
+  ai.js (and the air-strike gate in world.js `launchGroups`) reads it. Easy (no planner) has no styles. Hidden from players; Field Manual says they exist.
+  Rusher: first wave -180 s, waves at 30% of the cap, waits x 0.6, 2 fewer defences, half the walls, one held house fewer.
+  Turtle: +210 s, waves at 75%, waits x 1.4, 3 more defences, +1 Outpost gun, walls x 1.6, one more house, splits only from 18 / 30 units.
+  Raider: waves at 40%, air strikes x 0.6 apart, splits from 8 (3 squads from 12, 75%), targets refineries, power and Outposts (x 1.5) and avoids guns more.
+- Measured after (Normal, headless; scratch script, not in the repo): 1 v 1 first waves 915 / 1039 s; 2 v 2 first waves 597, 921, 1164, 1382 s
+  (rusher, raider, turtle, turtle); 3 v 3 Lakeside 678 (rusher), 811, 832 (balanced), 956 (raider), 1010 (turtle). Allies' styles differed every run.
+  Balanced's first wave is now 12:45-15:45 on Normal (was 12:00 exactly). The server must run the same version.
+
 ## Computer allies answer calls later and from nearer (after 2026.11.15.7, not released, both modes)
 
 - Owner's request: attacking one computer always brought the other's army at once. In `defendAllies` (world.js) a computer ally now sends only idle units within `AI_ALLY_REACH` (35 cells of the raiders, was 70)

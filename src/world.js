@@ -2038,8 +2038,8 @@ function launchGroups(only) {
         // Air attacks are spaced out: none before the first ground attack is due, then AIR_STRIKE_GAP between
         // strikes of each kind (they went out again as soon as two were rearmed: a constant threat).
         const airNext = team.airNext || (team.airNext = {});
-        if (G.t < G.diff.ai.firstWave || G.t < (airNext[kind] || 0)) continue;
-        airNext[kind] = G.t + AIR_STRIKE_GAP;
+        if (G.t < aiOf(team).firstWave || G.t < (airNext[kind] || 0)) continue;
+        airNext[kind] = G.t + AIR_STRIKE_GAP * (aiOf(team).airGap || 1);
         const exp = expansionsOf(enemyOf(team), ready[0]), focus = exp.length && Math.random() < 1 / 3 ? exp[0] : null;
         for (const u of ready) { launchAircraft(u, focus); u.airReadyT = undefined; }
       }
