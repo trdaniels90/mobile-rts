@@ -2099,15 +2099,15 @@ function defendAllies(team) {
   // A computer ally only answers once the base has been under attack for AI_ALLY_DELAY s, so a quick strike gets a window.
   if (team.isAI) {
     if (team.allyT === undefined) team.allyT = G.t;
-    if (G.t - team.allyT < AI_ALLY_DELAY && !unitsOf(team.id).some((u) => u.assisting)) return;
+    if (G.t - team.allyT < (aiOf(team).allyDelay || AI_ALLY_DELAY) && !unitsOf(team.id).some((u) => u.assisting)) return;
   }
   const nearC = new Map();   // each unit's distance to the nearest threat, worked out once (it is used in sorts)
   const near = (u) => { let d = nearC.get(u); if (d === undefined) { d = Infinity; for (const t of threats) d = Math.min(d, Math.hypot(u.x - t.x, u.y - t.y)); nearC.set(u, d); } return d; };
-  let army = unitsOf(team.id).filter((u) => u.assisting).concat(idleGround(team).filter((u) => (team.isAI ? near(u) < CELL * AI_ALLY_REACH : u.garrison)))
+  let army = unitsOf(team.id).filter((u) => u.assisting).concat(idleGround(team).filter((u) => (team.isAI ? near(u) < CELL * (aiOf(team).allyReach || AI_ALLY_REACH) : u.garrison)))
     .filter((u) => threats.some((t) => canTarget(u, t)));
   army.sort((a, b) => (!!b.assisting - !!a.assisting) || near(a) - near(b));
   // A human's garrison units all go; the computer sends worth half again what the raiders are.
-  const need = threats.reduce((a, t) => a + (t.def.cost || 300), 0) * 1.5;
+  const need = threats.reduce((a, t) => a + (t.def.cost || 300), 0) * (team.isAI && aiOf(team).allyNeed || 1.5);   // (a turtle sends more: AI_STYLES allyNeed)
   let got = 0;
   for (const u of army) {
     if (team.isAI && !u.assisting && got >= need) continue;

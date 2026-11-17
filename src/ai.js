@@ -12,12 +12,15 @@ function aiCount(team) {
 // 16 Ore Trucks against a player's 2 or 3, and took more than half of the ore). Its refineries are capped at the average
 // of the human sides still in the fight (at least 2); with no human in the game there is no cap. Every refinery brings a
 // free Ore Truck, so this caps the trucks too. Counts refineries being built as well.
+// Since 2026.11.17.18 (owner: a little looser, both modes) it may have REF_CAP_OVER more than that average: the
+// computers mined about 60% of the owner's ore in his last eight wins.
+const REF_CAP_OVER = 1;
 function aiRefCap(team) {
   const humans = G.teams.filter((t) => !t.isAI && !t.out);
   if (!humans.length) return Infinity;
   let total = 0;
   for (const h of humans) total += buildingsOf(h.id).filter((b) => b.type === 'refinery').length;
-  return Math.max(2, Math.ceil(total / humans.length));
+  return Math.max(2, Math.ceil(total / humans.length)) + REF_CAP_OVER;
 }
 
 // Another Helicopter Base when it still wants a transport (AI_STYLES lift) and every pad is taken (attack helicopters keep theirs),
@@ -932,7 +935,12 @@ function aiLaunch(team, ready) {
   // usual cap, and the newest `keep` units (the cap's extra) never go out with them.
   const mul = A.armyMul || 1, cap = (A.armyUnits || ARMY_UNITS) / mul, capW = (A.armyWorth || ARMY_WORTH) / mul;
   const keep = A.planner ? Math.round((A.armyUnits || ARMY_UNITS) - cap) : 0;
-  ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, Math.max(0, ready.length - keep));   // first come, first sent; the newest stay home
+  // The turtle's big push (pushEvery / pushMin): it digs in, but once that long has passed since its last wave (or since its first-wave
+  // time) with no wave, it comes out with everything that has gathered, the home reserve too, then digs in again. Its home
+  // guard (not in `ready`) and its guns still hold the base. (Owner's eight latest wins: the turtle sent no wave in five.)
+  const pushDue = A.planner && A.pushEvery && team.attackAt !== undefined && G.t >= Math.max(A.firstWave, team.lastWave || 0) + A.pushEvery;
+  const push = pushDue && ready.length >= A.pushMin;
+  ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, push ? ready.length : Math.max(0, ready.length - keep));   // first come, first sent; the newest stay home
   const full = A.planner && team.attackAt !== undefined && ready.length >= cap * A.full && G.t - (team.lastWave || -1e9) >= AI_GAP_MIN;
   if (full && !team.fullCut && G.t < team.attackAt) { team.attackAt = G.t + (team.attackAt - G.t) / 2; team.fullCut = true; }
   // The first wave waits a while (on Easy and Normal), waves keep a gap between them, and each
@@ -941,7 +949,8 @@ function aiLaunch(team, ready) {
   const hold = A.planner && ready.length < cap * A.hold && ready.reduce((w, u) => w + (u.def.cost || 300), 0) < capW * A.hold;
   // A turtle under steady attack never fills up to `hold`: some minutes past its timer it goes with what it has (stallAfter).
   const stale = A.planner && A.stallAfter && team.attackAt !== undefined && G.t >= team.attackAt + A.stallAfter && ready.length >= A.stallMin;
-  if (A.planner) { if (team.attackAt === undefined || G.t < team.attackAt || ((ready.length < team.plan.size || hold) && !stale)) return; }
+  if (push && !team.plan.big) { team.plan.big = true; if (A.strike.length) team.holdFor = { keys: A.strike, since: G.t }; }
+  if (A.planner) { if (team.attackAt === undefined || G.t < team.attackAt || ((ready.length < team.plan.size || hold) && !stale && !push)) return; }
   else if (ready.length < team.plan.size || G.t < A.firstWave || G.t - (team.lastWave || -1e9) < A.waveGap) return;
   // The planner's wave sends every unit that has gathered (the units on home guard are not in `ready`).
   const take = A.planner ? ready.length : team.plan.size;
@@ -984,6 +993,9 @@ function aiGap(team) {
 //   aaAdd: more anti-air sites (both the starting count and the cap); defRich: credits above which it keeps adding guns (default 1500); guns2: guns at a second base (default 2);
 //   ring2: also rings its second base; stallAfter / stallMin: once the wave timer is this many seconds past with no
 //   wave (the army never reaches `hold`), it goes with whatever has gathered if that is at least stallMin units;
+//   pushEvery / pushMin: the turtle's big push, at most this many seconds after its last wave (or its first-wave time) it goes
+//   with every unit gathered, its home reserve too, if that is at least pushMin; allyReach / allyDelay / allyNeed: how far (cells) it
+//   sends idle units to an ally's base under attack, how soon (s) and how much (times the raiders' worth) (defendAllies in world.js);
 //   splitAt / split3: wave sizes that split into 3 or 2 squads and the chance of 3; eco: the raider's taste for
 //   refineries, power and Outposts in aiWaveTarget.
 //   lift: how it uses transport helicopters (aiAirAssault): from (share of firstWave before it builds one), n (how many it keeps),
@@ -995,7 +1007,7 @@ const AI_STYLES = {
   balanced: { lift: { from: 0.6, n: 1, min: 8, pair: 'flank', minWave: 15 } },
   rusher: { firstWave: -180, hold: 0.3, full: 0.4, gapMul: 0.6, defAdd: -2, wallMul: 0.5, garAdd: -1,
     lift: { from: 0.4, n: 1, min: 4, prefer: { rifle: 3 }, pair: 'behind', solo: 100 } },
-  turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, armyMul: 1.3, defAdd: 8, aaAdd: 4, defRich: 800, guns2: 5, ring2: true, stallAfter: 240, stallMin: 18, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18],
+  turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, armyMul: 1.3, defAdd: 8, aaAdd: 4, defRich: 800, guns2: 5, ring2: true, stallAfter: 240, stallMin: 18, pushEvery: 480, pushMin: 12, allyReach: 120, allyDelay: 4, allyNeed: 2.5, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18],
     lift: { from: 0.8, n: 1, min: 8, pair: 'flank', stallOnly: true, defend: true } },
   raider: { hold: 0.4, airGap: 0.6, splitAt: [12, 8], split3: 0.75, eco: true,
     lift: { from: 0.5, n: 2, min: 6, prefer: { rocket: 2, grenadier: 2 }, solo: 90, eco: true, aaWide: 1.25 } },

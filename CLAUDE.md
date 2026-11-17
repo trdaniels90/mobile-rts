@@ -1579,6 +1579,17 @@ frame-time maths everywhere, so it is not deterministic.
   until credits plus pending sales cover it, then builds the chain in that order before anything else (`team.rebuild`). The refinery brings a free Ore Truck.
   `node tools/sim/rebuild.js <repo> [diff] [factory|refinery|both]`: Normal, 0 credits, trucks gone at 10 min: factory back in 73 s, refinery 85 s, both 118 s.
 
+## Turtles: a late big push and help for allies; refinery cap +1 (not released, owner's picks for both modes; the server must match)
+
+- From the owner's 8 latest Normal wins (0 buildings lost in 5, enemy turtles sent no wave in 5 of 7 games, enemy computers mined about 60% of his ore).
+- **Refinery cap** (`REF_CAP_OVER` 1 in ai.js `aiRefCap`): the computer may have one refinery more than the human sides' average.
+- **Big push** (`pushEvery` 480, `pushMin` 12 in `AI_STYLES.turtle`, `aiLaunch`): at most 8 min after its last wave (or its first-wave time) a turtle goes
+  with every unit gathered, its home reserve (`keep`) too, as a big wave (strike units), then digs in again. Normal turtle: first push about 21.5 min.
+- **Answers its allies** (`allyReach` 120 cells, `allyDelay` 4 s, `allyNeed` 2.5 x the raiders' worth; world.js `defendAllies` reads them through `aiOf`,
+  other styles keep `AI_ALLY_REACH` 35, `AI_ALLY_DELAY` 10, 1.5).
+- Headless Normal 2 v 2 (balanced + rusher against two forced turtles, 28 min, 3 seeds on Twin Lakes / Lakeside): turtle waves at 1152-1633 s (pushes at 1290-1291),
+  up to 28-136 turtle units at once defending an ally; no errors.
+
 ## Defences build in their own slot (not released, both modes; the server must match)
 
 - Owner's request: a power plant and a Pillbox can be built at the same time. `catOf` (data.js) gives `defense: true` structures the category `'defense'`: `team.queues.defense` is a second single slot like `queues.structure` (`isBuildCat`), with its own progress, READY and placing (`placeStructure` picks the slot by type). Same Construction Yard boost. The computer does it too (`aiThink` places and starts per slot; `aiNextStructure(team, c, slot)` picks defences for the defence slot and everything else for the main slot, power first when a defence needs it; what is queued counts as built). Headless 1 v 1 `bridge`, 8 min: no errors, `rebuild.js` unchanged. `pendingStructure` (world.js) still gives either queued item. Old saves have no `queues.defense` (treated as empty).
