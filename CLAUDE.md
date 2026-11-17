@@ -1414,6 +1414,14 @@ frame-time maths everywhere, so it is not deterministic.
 - **Army cap** (owner): `ARMY_UNITS` 80 to 100 (Easy, Hard), Normal `armyUnits` 90 to 100. Wave sizes that are shares of it grow with it.
 - The server must run the same version.
 
+## Turtles bolder and better defended, Tesla hits vehicles harder (after 2026.11.17.12, owner's picks for both modes; the server must match)
+
+- **Turtle** (`AI_STYLES.turtle` in ai.js): first wave +30 s (was +90), waves at 60% of the cap (`hold`, was 75%; `full` 0.7, was 0.85), waits x 1.0 (was 1.2),
+  stall release after 150 s with 14+ units (was 240 s, 18). Defences: `defAdd` 8 (was 5: about 3 more ground guns), `aaAdd` 4 (was 2: a Normal turtle 5 anti-air
+  from the start, up to 7), `guns2` 5 at a second base (was 4).
+- **TESLA warhead** (Tesla Coil and Tesla Tank, data.js): light 1.0 to 1.2, heavy 0.9 to 1.3 (+40% against tanks; owner chose the Tesla Tank too). A Coil bolt does
+  130 to a tank (was 90). `tesla-tank.js`: 201 damage to a Heavy Tank in 5 s (was 132). Headless 2 v 2 of Normal computers on Twin Lakes, 14 min: no errors.
+
 ## Computer base rings, breaching a long way round (after 2026.11.16.5, not released, Normal and Hard, both modes)
 
 - Owner's pick (by personality): `aiRing` / `aiPlanRing` in ai.js. A turtle from minute 6, a balanced computer from minute 12 once it holds

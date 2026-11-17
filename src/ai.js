@@ -908,7 +908,7 @@ const AI_STYLES = {
   balanced: { lift: { from: 0.6, n: 1, min: 8, pair: 'flank', minWave: 15 } },
   rusher: { firstWave: -180, hold: 0.3, full: 0.4, gapMul: 0.6, defAdd: -2, wallMul: 0.5, garAdd: -1,
     lift: { from: 0.4, n: 1, min: 4, prefer: { rifle: 3 }, pair: 'behind', solo: 100 } },
-  turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, defAdd: 5, aaAdd: 2, defRich: 800, guns2: 4, ring2: true, stallAfter: 240, stallMin: 18, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18],
+  turtle: { firstWave: 30, hold: 0.6, full: 0.7, gapMul: 1.0, defAdd: 8, aaAdd: 4, defRich: 800, guns2: 5, ring2: true, stallAfter: 150, stallMin: 14, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18],
     lift: { from: 0.8, n: 1, min: 8, pair: 'flank', stallOnly: true, defend: true } },
   raider: { hold: 0.4, airGap: 0.6, splitAt: [12, 8], split3: 0.75, eco: true,
     lift: { from: 0.5, n: 2, min: 6, prefer: { rocket: 2, grenadier: 2 }, solo: 90, eco: true, aaWide: 1.25 } },
