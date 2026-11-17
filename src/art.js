@@ -18,7 +18,8 @@ function uprightCtx(g) {
   if (g._upright) return g;
   g._upright = true; g.upright = false;
   const P = CanvasRenderingContext2D.prototype, di = P.drawImage, fr = P.fillRect, ft = P.fillText;
-  const at = (x, y) => { const m = g.getTransform(); return [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]; };
+  // Only the transform changes for the one draw, so it alone is put back: a full save() / restore() for every
+  // sprite, effect pixel and label was a quarter to two fifths of a big fight's frame on a large screen.
   g.drawImage = function (img, ...a) {
     const sprite = img && img._ox !== undefined;
     if (!sprite && !g.upright) return di.call(g, img, ...a);
@@ -27,19 +28,19 @@ function uprightCtx(g) {
     // The anchor: a sprite's origin (allowing for a part cut from the source, as a structure rising from its pad),
     // anything else's middle.
     const ax = sprite ? dx - img._ox - (n === 8 ? a[0] : 0) : dx + w / 2, ay = sprite ? dy - img._oy - (n === 8 ? a[1] : 0) : dy + h / 2;
-    const [px, py] = at(ax, ay), b = a.slice();
-    b[j] = Math.round(px + dx - ax); b[j + 1] = Math.round(py + dy - ay);
-    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); di.call(g, img, ...b); g.restore();
+    const m = g.getTransform(), b = a.slice();
+    b[j] = Math.round(m.a * ax + m.c * ay + m.e + dx - ax); b[j + 1] = Math.round(m.b * ax + m.d * ay + m.f + dy - ay);
+    g.setTransform(1, 0, 0, 1, 0, 0); di.call(g, img, ...b); g.setTransform(m);
   };
   g.fillRect = function (x, y, w, h) {
     if (!g.upright) return fr.call(g, x, y, w, h);
-    const [px, py] = at(x + w / 2, y + h / 2);
-    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); fr.call(g, Math.round(px - w / 2), Math.round(py - h / 2), w, h); g.restore();
+    const m = g.getTransform(), cx = x + w / 2, cy = y + h / 2;
+    g.setTransform(1, 0, 0, 1, 0, 0); fr.call(g, Math.round(m.a * cx + m.c * cy + m.e - w / 2), Math.round(m.b * cx + m.d * cy + m.f - h / 2), w, h); g.setTransform(m);
   };
   g.fillText = function (t, x, y, ...m) {
     if (!g.upright) return ft.call(g, t, x, y, ...m);
-    const [px, py] = at(x, y);
-    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); ft.call(g, t, px, py, ...m); g.restore();
+    const M = g.getTransform();
+    g.setTransform(1, 0, 0, 1, 0, 0); ft.call(g, t, M.a * x + M.c * y + M.e, M.b * x + M.d * y + M.f, ...m); g.setTransform(M);
   };
   return g;
 }
@@ -799,7 +800,7 @@ function treeFlames(spr) {
 // Trees (iso view): treesInView draws the shadows of the trees in the world box and returns the trees, which ui.js sorts
 // in with the units and draws one at a time with drawTree, so a tank in front of a wood is in front of it.
 let treeFrame = null;   // what every tree drawn this frame shares (wind, gusts, the camera's transform)
-function treesInView(g, x0, y0, x1, y1) {
+function treesInView(g, x0, y0, x1, y1, keep) {   // keep(x, y): whether a tree shows on the screen
   const T = G.ground && G.ground.trees, out = [];
   let lo = 0, hi = T ? T.length : 0;   // the first tree at y0 or below (they are sorted by y)
   while (lo < hi) { const m = (lo + hi) >> 1; if (T[m].y < y0) lo = m + 1; else hi = m; }
@@ -811,7 +812,7 @@ function treesInView(g, x0, y0, x1, y1) {
   if (!T || !T.length) return out;   // (treeFrame is still set: the woods past the map's edge use it)
   for (let i = lo; i < T.length && T[i].y < y1; i++) {
     const tr = T[i];
-    if (tr.x < x0 || tr.x > x1) continue;
+    if (tr.x < x0 || tr.x > x1 || (keep && !keep(tr.x, tr.y))) continue;
     const f = fire && fire[i] !== undefined ? fire[i] : null, p = f === null ? 0 : Math.max(0, Math.min(1, (t - f) / TREE_BURN));
     out.push({ kind: 'tree', x: tr.x, y: tr.y, tr, p, i });
   }
@@ -833,7 +834,7 @@ function drawTree(g, e) {
   // so the shear is kept (uprightCtx would set it aside).
   const fx = Math.round(tf.a * tr.x + tf.c * tr.y + tf.e), fy = Math.round(tf.b * tr.x + tf.d * tr.y + tf.f);
   const draw = (img, ox, oy, dy) => CanvasRenderingContext2D.prototype.drawImage.call(g, img, fx + Math.round(ox), fy + Math.round(oy) + (dy || 0));
-  g.save();
+  // (No save() / restore(): thousands of trees show zoomed out on a big screen. What is changed is put back below.)
   g.setTransform(1, 0, c, 1, -c * fy, 0);
   if (p < 1) { g.globalAlpha = 1 - p * p; draw(tr.s.img, tr.s.ox, tr.s.oy); }
   if (p > 0) { g.globalAlpha = Math.min(1, p * 1.6); draw(tr.burnt.img, tr.burnt.ox, tr.burnt.oy); }
@@ -845,9 +846,11 @@ function drawTree(g, e) {
     g.globalAlpha = 0.18 * heat; draw(fr, src.ox, src.oy, -1);
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalAlpha = 0.12 * heat * (0.8 + 0.2 * Math.sin(t * 13 + ph)); g.fillStyle = '#ff6a18';
+    const fs = g.fillStyle;
     g.beginPath(); g.ellipse(fx, fy - 14, 14, 15, 0, 0, 7); g.fill();
+    g.fillStyle = fs; g.globalCompositeOperation = 'source-over';
   }
-  g.restore();
+  g.globalAlpha = 1; g.setTransform(tf);
 }
 // Blocks of still trees for far views: TREE_BLOCK px squares of the map, each the shadows then the trees (living or
 // burnt, upright) of every tree that reaches into it, clipped to the square, so the blocks tile without seams. A block

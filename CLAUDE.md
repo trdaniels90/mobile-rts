@@ -162,6 +162,13 @@ share globals. Read this file first; the commit history explains every change in
   pips, structure flags. Banners are drawn as strips along their (turned) wall; the fountain's water and the lamps' glow
   and night lights are at their heights (`add(.., h)` in `drawNight`). The far-view tree blocks from that release
   (`drawTreeBlocks`) are not used in the iso view (trees are drawn one at a time): watch zoomed-out speed on big screens.
+- **Draw cost on big screens (after 2026.11.17.4, looks only; match a90f56b1, 2560 x 1370 desktop, draw 5 to 13 ms a frame over
+  33 min with bursts of 90-110 ms in big fights):** `uprightCtx` did a full `save()` / `restore()` for every upright picture, pixel and
+  label (24,000 a frame in a zoomed-out fight); now it only swaps the transform and puts it back, and `drawTree` puts back only what it
+  changes. ui.js `draw` also culls trees, rim trees, ore, units, effects and wisps by where they show on the screen (`onScr`), not
+  only by the world box round the turned screen (about twice the screen's area), and draws the edge haze, rim and mist only when the
+  screen itself shows past the map's edge (`past`). Village, widest zoom, mid-fight: trees drawn 7,700 to 3,400, effects 1,100 to 440.
+  Same picture (checked culled against unculled, pixel for pixel on a still scene).
 - **Known bugs:** not tried on a real phone or online; washing lines lie across the screen, not along their house; the
   debrief and Field Manual pictures are unchanged.
 
