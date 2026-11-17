@@ -1167,7 +1167,7 @@ frame-time maths everywhere, so it is not deterministic.
   **Tuning (owner OK'd, after every drop died within a minute):** drops land `LIFT_OFF` (10-12 cells) from the target (was 4-9); soldiers dropped
   with a wave hold the spot (`unloadOne` mode `wait`, `u.liftWait`, netcore `SKIP`) until the wave engages (`aiLiftRelease`: a wave unit fighting or
   within `LIFT_ENGAGED` 8 cells of the target, or the wave gone; at most `LIFT_HOLD_MAX` 75 s), and paired drops land as the wave's lead is
-  `LIFT_LAND` (14) cells out; the raider weighs Ore Trucks in the open and refineries, Outposts and power away from a main base `LIFT_OUT_W` (4) x
+  `LIFT_LAND` (6; was 14: owner, so defenders are busy with the wave) cells out, or at once if the wave is already fighting, and those soldiers attack on landing; the raider weighs Ore Trucks in the open and refineries, Outposts and power away from a main base `LIFT_OUT_W` (4) x
   and lands 4 cells off those (in-base targets: 10-12 cells beyond); balanced pairs only with waves of `minWave` (15)+.
 - Owner's choice: everyone gets both controls (no PC / phone split). `node tools/sim/transport.js <repo>` (boarding, drop, parking, Air Assault mix,
   shot down, a forged online order, a Normal computer flying one: 8 men at about 11 min). Not yet tried: two real phones online, save and continue

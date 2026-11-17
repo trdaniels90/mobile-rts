@@ -326,9 +326,10 @@ function aiPowerTarget(team, cluster) {
 // Air assaults by personality (Normal and Hard; Easy has none): AI_STYLES `lift`. Drops pick up idle infantry by a Barracks
 // (assaultPlan / startAssault in world.js) and land where no known anti-air covers. Allies never drop within LIFT_ALLY_R of each
 // other's drops of the last LIFT_ALLY_T seconds (G.liftDrops). Hard waits a quarter less between drops of their own.
-// LIFT_LAND: a paired drop lands as the wave's lead gets this many cells from the target; LIFT_OFF: how far from the target
+// LIFT_LAND: a paired drop lands as the wave's lead gets this many cells from the target (the wave engaging, owner's pick), and its
+// soldiers attack at once; the transport leaves at once if the wave is already fighting; LIFT_OFF: how far from the target
 // drops land (cells; well outside most base guns); LIFT_ENGAGED: a wave this near its target (cells), or fighting, has engaged.
-const LIFT_ALLY_R = 10, LIFT_ALLY_T = 60, LIFT_LAND = 14, LIFT_OFF = [10, 12], LIFT_ENGAGED = 8;
+const LIFT_ALLY_R = 10, LIFT_ALLY_T = 60, LIFT_LAND = 6, LIFT_OFF = [10, 12], LIFT_ENGAGED = 8;
 const unitDir = (a, b) => { const d = Math.hypot(b.x - a.x, b.y - a.y) || 1; return { x: (b.x - a.x) / d, y: (b.y - a.y) / d }; };
 function liftSafe(team, from, to, wide = 1) {
   const aa = knownAA(team.id, false), hit = (p) => aa.some((a) => Math.hypot(a.x - p.x, a.y - p.y) < a.r * wide);
@@ -367,7 +368,7 @@ function aiLiftWithWave(team, ready, target) {
   let ok = false;
   for (const r of LIFT_OFF) for (const t of turns) {
     if (ok) break;
-    ok = aiLiftGo(team, plan, { x: target.x + Math.cos(base + t) * CELL * r, y: target.y + Math.sin(base + t) * CELL * r }, { mode: 'wait', goAt: Infinity });
+    ok = aiLiftGo(team, plan, { x: target.x + Math.cos(base + t) * CELL * r, y: target.y + Math.sin(base + t) * CELL * r }, { mode: 'hunt', goAt: Infinity });
   }
   if (!ok) return ready;
   team.liftPair = { heli: plan.heli.id, tid: target.id, tx: target.x, ty: target.y, wave: wave.slice(0, 12).map((u) => u.id), t: G.t };
@@ -386,7 +387,8 @@ function aiLiftTiming(team) {
   const slow = Math.min(...wave.map((u) => u.def.speed || 30)) * 0.8;
   const waveT = Math.max(0, Math.hypot(lead.x - pr.tx, lead.y - pr.ty) - CELL * LIFT_LAND) / slow;
   const flyT = Math.hypot(h.order.dx - h.order.x, h.order.dy - h.order.y) / h.def.speed + 4;
-  h.order.goAt = G.t + Math.max(0, waveT - flyT);
+  const fighting = wave.some((u) => u.target && u.target.alive && Math.hypot(u.x - pr.tx, u.y - pr.ty) < CELL * 16);
+  h.order.goAt = fighting ? G.t : G.t + Math.max(0, waveT - flyT);
   if (h.order.goAt <= G.t) team.liftPair = null;
 }
 // A turtle's reinforcements: an outlying building (a second base, a lone refinery) with raiders at it gets the idle infantry of

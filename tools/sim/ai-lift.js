@@ -4,7 +4,7 @@
 //   what they were, and how far the paired drops landed in time from their wave.
 // 2 Staged: a turtle's outlying refinery attacked; its transport brings idle infantry from the main base and they hold there.
 const vm = require('vm');
-const [root, minutes = '22', map = 'bridge'] = process.argv.slice(2);
+const [root, minutes = '22', map = 'bridge', only = ''] = process.argv.slice(2);
 const headless = require(root + '/server/headless.js');
 
 function game(style) {
@@ -22,8 +22,8 @@ function game(style) {
     unloadOne = function (h, ai) {
       const n = G.nextId; uo(h, ai);
       const u = G.byId.get(n);
-      if (u) landed.push({ id: u.id, t: G.t, heli: h.id, type: u.type });
       const a = log.slice().reverse().find((l) => l.heli === h.id);
+      if (u) landed.push({ id: u.id, t: G.t, heli: h.id, type: u.type, kind: a ? a.kind : '?' });
       if (a && a.landT === undefined) a.landT = Math.round(G.t);
     };
     let errors = 0, firstErr = null;
@@ -32,15 +32,17 @@ function game(style) {
       if (G.over) break;
     }
     const alive60 = landed.filter((l) => G.t - l.t >= 60).map((l) => G.byId.get(l.id));
+    const byKindAlive = {}; for (const l of landed.filter((l) => G.t - l.t >= 60)) { const u = G.byId.get(l.id), k = byKindAlive[l.kind] || (byKindAlive[l.kind] = [0, 0]); k[1]++; if (u && u.alive) k[0]++; }
     const kinds = {}; for (const l of landed) kinds[l.type] = (kinds[l.type] || 0) + 1;
     return JSON.stringify({ minutes: +(G.t / 60).toFixed(1), errors, firstErr,
       transports: G.entities.filter((e) => e.alive && e.def && e.def.lift).length,
       assaults: log.length, first: log.length ? log[0].t : null, byKind: log.reduce((m, l) => (m[l.kind] = (m[l.kind] || 0) + 1, m), {}),
       flightSecs: log.filter((l) => l.landT).map((l) => l.landT - l.t),
-      landed: landed.length, aliveAfter60: alive60.filter((u) => u && u.alive).length + ' of ' + alive60.length, kinds });
+      landed: landed.length, aliveAfter60: alive60.filter((u) => u && u.alive).length + ' of ' + alive60.length, aliveByKind: byKindAlive, kinds });
   })()`));
 }
-for (const style of ['rusher', 'raider', 'balanced', 'turtle']) console.log(style, JSON.stringify(game(style)));
+for (const style of ['rusher', 'raider', 'balanced', 'turtle']) if (!only || only.split(',').includes(style)) console.log(style, JSON.stringify(game(style)));
+if (only) process.exit(0);
 
 // --- 2: a turtle's reinforcements
 const ctx = headless.load(), run = (s) => vm.runInContext(s, ctx);
