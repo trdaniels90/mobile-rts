@@ -4,6 +4,18 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.5', date: '17 November 2026', title: 'Comanche fixes, wider breaches', groups: [
+    ['Changed', [
+      'The Comanche\'s chain gun reaches further (190, was 150), past the MG Team and the Rocket Soldier, and it backs away sooner from anything that closes in.',
+      'The Comanche\'s missiles now lock on to Ore Trucks as well as tanks.',
+      'On Auto Attack the Comanche attacks every unit it meets on the way, and flies home to rearm once its gun is empty instead of hovering over the enemy base.',
+      'Units on Auto Attack (and the computer\'s waves) no longer all squeeze through one gap in a wall: a big group sends its tanks and heavier units to knock down the wall beside the gap while the rest go through.',
+    ]],
+    ['Fixed', [
+      'A stray black bar under parked Comanches and other aircraft (the ammunition gauge).',
+      'Bomber lights at night now sit on its wingtips, fin and spine instead of floating beside it.',
+    ]],
+  ] },
   { v: '2026.11.17.4', date: '17 November 2026', title: 'The map edge: woods fading into haze', groups: [
     ['New', [
       'The edge of the map no longer shows endless flat green. A band of woods (snowy pines on winter maps) runs round the map and fades into a soft haze with slow drifting mist. Where the edge is water, the water fades out instead.',
