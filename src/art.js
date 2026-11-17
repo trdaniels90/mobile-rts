@@ -827,7 +827,7 @@ function drawTree(g, e) {
   const { tr, p, i } = e, F = treeFrame, t = F.t, tf = F.tf;
   // The lean: a steady bend downwind, a gust rolling across the woods with the wind, and a little flutter.
   const ph = (i * 2.399) % 6.283, along = (tr.x * F.ux + tr.y * F.uy) * 0.025;
-  const sway = F.lean + F.force * (0.045 * Math.sin(t * 1.9 - along + ph * 0.3) + 0.01 * Math.sin(t * 5.1 + ph));
+  const sway = F.lean + F.force * (0.045 * Math.sin(t * 0.8 - along + ph * 0.3) + 0.01 * Math.sin(t * 2 + ph));
   const stiff = (tr.pine ? 0.7 : 1) * (1 - 0.65 * p), c = -sway * stiff;   // burnt trees hardly move
   // A shear on the screen about the tree's foot: the top moves, the foot stays. Drawn with the canvas's own drawImage,
   // so the shear is kept (uprightCtx would set it aside).
@@ -2042,7 +2042,7 @@ function drawFlag(g, px, py, len, hgt, col, dark, phase, star) {
   const w = windNow(), sp = Math.hypot(w.x, w.y) || 1, st = Math.max(0.2, Math.min(1, sp / (WIND * 1.3)));
   let ux = w.x / sp, uy = (w.y / sp) * 0.22;
   if (Math.abs(ux) < 0.6) ux = ux < 0 ? -0.6 : 0.6;   // blowing up or down the screen it is foreshortened, never a stub
-  const droop = (1 - st) * 0.55, freq = 4 + st * 5, amp = 0.3 + st * 1.1;
+  const droop = (1 - st) * 0.55, freq = 1.8 + st * 2.2, amp = 0.3 + st * 1.1;
   for (let i = 0; i < len; i++) {
     const k = i / len, wave = Math.sin(G.t * freq - i * 0.85 + phase) * amp * k, slope = Math.cos(G.t * freq - i * 0.85 + phase);
     const x = Math.round(px + ux * i * (0.6 + 0.4 * st)), y = Math.round(py + uy * i + droop * i + wave);
@@ -2062,8 +2062,8 @@ function drawBanners(g, b, x, y, pal) {
     const ph = b.id * 1.7 + j * 2.1, cx = (x0 + x1) / 2;
     for (let r = 0; r < len; r++) {
       const k = (r + 1) / len, z = top - 1 - r;
-      const dx = (side * 1.6 * k * k + Math.sin(G.t * (2.2 + gust * 2.5) + ph - r * 0.55) * (0.35 + gust * 0.75) * k);
-      const ripple = Math.cos(G.t * (2.2 + gust * 2.5) + ph - r * 0.55);
+      const dx = (side * 1.6 * k * k + Math.sin(G.t * (1 + gust * 1.1) + ph - r * 0.55) * (0.35 + gust * 0.75) * k);
+      const ripple = Math.cos(G.t * (1 + gust * 1.1) + ph - r * 0.55);
       // Each row of cloth lies along its wall (the iso view turns the wall): a strip from its left to its right edge.
       const strip = (u0, u1, col) => {
         const m = g.getTransform(), P = (u, h) => { const [wx, wy] = liftPt(x + u + dx, y + fy + 1, h); return [m.a * wx + m.c * wy + m.e, m.b * wx + m.d * wy + m.f]; };
