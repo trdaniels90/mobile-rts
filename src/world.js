@@ -2854,6 +2854,7 @@ function kill(e, attacker, wh, from) {
   if (e.kind === 'bld' && e.sellT <= 0) {
     team.stats.bldLost++;
     if (e.type === 'cy' || e.type === 'outpost') logEvent(e.team, e.type + ' lost');
+    if (e.type === 'cy') team.cyLostT = G.t;   // a breather before the computers gang up on it again (ai.js aiGangPlan)
     // Jets parked on a destroyed Airfield go with it; those in the air survive (see updateReserves).
     if (e.type === 'airfield' && !G.remote) for (const j of G.entities.filter((u) => u.alive && u.kind === 'unit' && u.home === e.id && u.as === 'landed' && !u.leaving)) kill(j, attacker, wh, from);
   }
