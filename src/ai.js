@@ -847,19 +847,24 @@ function aiLaunch(team, ready) {
   // (still at least AI_GAP_MIN after the last wave).
   // (Since the personalities: a full army halves what is left of the wait once, instead of skipping it, so the
   // random wait still spreads the sides' attacks; they all filled up at the same moment and went together.)
-  const full = A.planner && team.attackAt !== undefined && ready.length >= (A.armyUnits || ARMY_UNITS) * A.full && G.t - (team.lastWave || -1e9) >= AI_GAP_MIN;
+  // armyMul (the turtle): its army cap is bigger, but the extra stays at home to defend: waves are measured against the
+  // usual cap, and the newest `keep` units (the cap's extra) never go out with them.
+  const mul = A.armyMul || 1, cap = (A.armyUnits || ARMY_UNITS) / mul, capW = (A.armyWorth || ARMY_WORTH) / mul;
+  const keep = A.planner ? Math.round((A.armyUnits || ARMY_UNITS) - cap) : 0;
+  ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, Math.max(0, ready.length - keep));   // first come, first sent; the newest stay home
+  const full = A.planner && team.attackAt !== undefined && ready.length >= cap * A.full && G.t - (team.lastWave || -1e9) >= AI_GAP_MIN;
   if (full && !team.fullCut && G.t < team.attackAt) { team.attackAt = G.t + (team.attackAt - G.t) / 2; team.fullCut = true; }
   // The first wave waits a while (on Easy and Normal), waves keep a gap between them, and each
   // takes only its planned number of units: the rest wait for the next one.
   // Planner waves are held until the army is big: WAVE_HOLD of the army cap, by count or by worth.
-  const hold = A.planner && ready.length < (A.armyUnits || ARMY_UNITS) * A.hold && ready.reduce((w, u) => w + (u.def.cost || 300), 0) < (A.armyWorth || ARMY_WORTH) * A.hold;
+  const hold = A.planner && ready.length < cap * A.hold && ready.reduce((w, u) => w + (u.def.cost || 300), 0) < capW * A.hold;
   // A turtle under steady attack never fills up to `hold`: some minutes past its timer it goes with what it has (stallAfter).
   const stale = A.planner && A.stallAfter && team.attackAt !== undefined && G.t >= team.attackAt + A.stallAfter && ready.length >= A.stallMin;
   if (A.planner) { if (team.attackAt === undefined || G.t < team.attackAt || ((ready.length < team.plan.size || hold) && !stale)) return; }
   else if (ready.length < team.plan.size || G.t < A.firstWave || G.t - (team.lastWave || -1e9) < A.waveGap) return;
   // The planner's wave sends every unit that has gathered (the units on home guard are not in `ready`).
   const take = A.planner ? ready.length : team.plan.size;
-  ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, take);   // first come, first sent
+  ready = ready.slice(0, take);   // (sorted above: first come, first sent)
   const target = aiWaveTarget(team, ready[0]);
   if (!target) return;
   const strike = team.plan.big && A.strike.length ? A.strike : null;
@@ -894,7 +899,7 @@ function aiGap(team) {
 //   firstWave: added to the difficulty's first-wave time; hold / full: share of the army cap that must be waiting
 //   before a wave goes / that halves the wait; gapMul: the random wait between waves; airGap: AIR_STRIKE_GAP;
 //   defAdd / gunsAdd: ground defences at home / guns at each Outpost; wallMul, garAdd: walls and held houses;
-//   armyMul: a bigger army cap (units and worth; waves wait for `hold` of it, so they are bigger too);
+//   armyMul: a bigger army cap (units and worth); the extra stays at home to defend (aiLaunch: waves are measured against the usual cap);
 //   aaAdd: more anti-air sites (both the starting count and the cap); defRich: credits above which it keeps adding guns (default 1500); guns2: guns at a second base (default 2);
 //   ring2: also rings its second base; stallAfter / stallMin: once the wave timer is this many seconds past with no
 //   wave (the army never reaches `hold`), it goes with whatever has gathered if that is at least stallMin units;

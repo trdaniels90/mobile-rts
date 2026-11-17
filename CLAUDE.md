@@ -1417,7 +1417,7 @@ frame-time maths everywhere, so it is not deterministic.
 ## Turtles: bigger army, better defended; Tesla hits vehicles harder (after 2026.11.17.12, owner's picks for both modes; the server must match)
 
 - **Turtle** (`AI_STYLES.turtle` in ai.js): timing unchanged (owner: not sooner, a bigger army instead): `armyMul` 1.3, its army cap is 130 units and 1.3 x the
-  worth (`aiOf`), and its waves wait for 75% of that, so they are bigger. Defences: `defAdd` 8 (was 5: about 3 more ground guns), `aaAdd` 4 (was 2: a Normal turtle
+  worth (`aiOf`); the extra 30 stay at home to defend (owner's pick): `aiLaunch` measures waves against the usual cap and never sends the newest `keep` units. Defences: `defAdd` 8 (was 5: about 3 more ground guns), `aaAdd` 4 (was 2: a Normal turtle
   5 anti-air from the start, up to 7), `guns2` 5 at a second base (was 4).
 - **TESLA warhead** (Tesla Coil and Tesla Tank, data.js): light 1.0 to 1.2, heavy 0.9 to 1.3 (+40% against tanks; owner chose the Tesla Tank too). A Coil bolt does
   130 to a tank (was 90). `tesla-tank.js`: 201 damage to a Heavy Tank in 5 s (was 132). Headless 2 v 2 of Normal computers on Twin Lakes, 14 min: no errors.
