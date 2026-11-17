@@ -4671,6 +4671,9 @@ function updateResearch(team, dt) {
   }
 }
 
+// Most units one queue holds (the one being built included).
+const QUEUE_MAX = 20;
+
 function startProduction(team, type) {
   const cat = catOf(type);
   // The structure already queued answers first: one that is finished can still be placed after a building it
@@ -4684,7 +4687,7 @@ function startProduction(team, type) {
     return null;
   }
   const list = team.queues[cat];
-  if (list.length >= 9) return 'full';
+  if (list.length >= QUEUE_MAX) return 'full';
   if (padRoom(team, UNIT_DEFS[type].producer) <= 0) return 'pads-full';
   list.push({ type, progress: 0, spent: 0 });
   return null;
