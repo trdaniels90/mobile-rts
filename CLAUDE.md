@@ -1451,6 +1451,16 @@ frame-time maths everywhere, so it is not deterministic.
 - Headless (exp2 forced): 1 v 1 `bridge` both yards up at about 11-12 min, full second base by 18 min; 2 v 2 `twinlakes` 3 of 4 expanded
   (one found no field). A first version let an MCV whose field stopped qualifying unpack at home (a raider ended with 4 yards): fixed with `expField`.
 
+## Rusher forward base (after 2026.11.17.12, owner's picks for both modes; the server must match)
+
+- A rusher no longer builds the own-half second base (`EXPAND_CHANCE.rusher` 0). Once it has found an enemy base (`enemyBaseKnown`), with its main yard
+  up, MCV cost + 1,000 credits and not starved, it buys an MCV for `aiForwardSpot` (ai.js): `FWD_DIST` (35) cells from the nearest known enemy building
+  toward its own start (up to about 45 degrees either way), clear of every known enemy building by 31 cells and of known guns by their reach + `FWD_GUNS` (6),
+  reachable by land (`walkDistances`), near ore preferred. `team.expField` gets `fwd: true`; `aiDriveMcv` drives to the spot itself; `aiBase2Next` builds power,
+  Barracks, War Factory, a gun, a refinery only with ore within 10 cells, more guns, AA. New units come from the newest producer, so out of the forward base.
+  Retries `EXPAND_RETRY` (300 s) after it is lost. Headless Normal 1 v 1 (rusher against balanced): `bridge` forward yard at 14 min, 31 cells from the nearest
+  enemy building, rusher won at 26 min; `twinlakes` yard at 13-14 min, 43 cells off (it unpacked short of its spot), rusher won at 20 min.
+
 ## Computer allies answer calls later and from nearer (after 2026.11.15.7, not released, both modes)
 
 - Owner's request: attacking one computer always brought the other's army at once. In `defendAllies` (world.js) a computer ally now sends only idle units within `AI_ALLY_REACH` (35 cells of the raiders, was 70)

@@ -221,7 +221,7 @@ function aiDriveMcv(team, u) {
   if (u.expand && !u.aiGoal) {
     const f = team.expField || aiExpandField(team), k = u.mcvTries || 0;   // the field it was bought for
     if (!f) { u.expand = false; return; }
-    const a = Math.atan2(team.start.cy - f.cy, team.start.cx - f.cx) + (k ? (Math.random() - 0.5) * 1.5 : 0), back = f.r + 4 + k * 1.5;
+    const a = Math.atan2(team.start.cy - f.cy, team.start.cx - f.cx) + (k ? (Math.random() - 0.5) * 1.5 : 0), back = f.fwd ? k * 1.5 : f.r + 4 + k * 1.5;
     u.aiGoal = { x: (f.cx + 0.5 + Math.cos(a) * back) * CELL, y: (f.cy + 0.5 + Math.sin(a) * back) * CELL };
     commandMove([u], u.aiGoal.x, u.aiGoal.y);
     return;
@@ -243,7 +243,7 @@ function aiDriveMcv(team, u) {
 // buys a Mobile Construction Yard, drives it to a rich ore field on its own half (aiExpandField) and unpacks it there,
 // then builds a small base round it (aiBase2Next): refineries, power, a Barracks and a War Factory, guns and anti-air.
 // One at a time; if it is lost, it may try again after EXPAND_RETRY. The main yard is the one within BASE2_SEP cells of its start.
-const EXPAND_CHANCE = { balanced: 0.8, raider: 0.8, turtle: 0.5, rusher: 0.25 }, EXPAND_FROM = 600, EXPAND_RETRY = 300, BASE2_SEP = 18;
+const EXPAND_CHANCE = { balanced: 0.8, raider: 0.8, turtle: 0.5, rusher: 0 }, EXPAND_FROM = 600, EXPAND_RETRY = 300, BASE2_SEP = 18;
 const aiYards = (team) => buildingsOf(team.id).filter((b) => b.type === 'cy');
 const aiMainYard = (team) => aiYards(team).find((b) => Math.hypot(b.cx - team.start.cx, b.cy - team.start.cy) < BASE2_SEP);
 const aiBase2 = (team) => aiYards(team).find((b) => Math.hypot(b.cx - team.start.cx, b.cy - team.start.cy) >= BASE2_SEP);
@@ -264,12 +264,45 @@ function aiExpandField(team) {
   }
   return best;
 }
+// A rusher's second base is a forward base (owner's pick): once it has found an enemy base, it unpacks a Mobile Construction Yard
+// FWD_DIST cells out from the nearest known enemy building, on its own side of it (the way toward its start, turned up to about
+// 45 degrees either way), FWD_GUNS cells clear of the guns it knows of and of every known enemy building, on ground it can drive
+// to; nearer an ore field is better. Then it builds production first (aiBase2Next), so its new units start close to the enemy.
+const FWD_DIST = 35, FWD_GUNS = 6;
+function aiForwardSpot(team) {
+  const yard = aiMainYard(team);
+  if (!yard) return null;
+  const theirs = enemyBuildingsOf(team.id).filter((b) => targetable(team.id, b));
+  if (!theirs.length) return null;
+  const home = team.start, near = theirs.reduce((a, b) => (Math.hypot(a.cx - home.cx, a.cy - home.cy) <= Math.hypot(b.cx - home.cx, b.cy - home.cy) ? a : b));
+  const guns = theirs.filter((b) => b.def.weapon && !b.def.antiAir);
+  const c0 = cellOfPos(yard.x, yard.y + yard.h * CELL / 2 + CELL), c1 = freeCell(c0) ? c0 : nearestFreeCell(c0, 4);
+  if (!(c1 >= 0)) return null;
+  const walk = walkDistances(c1);
+  const toHome = Math.atan2(home.cy - near.cy, home.cx - near.cx);
+  let best = null, bs = -Infinity;
+  for (let da = -0.8; da <= 0.81; da += 0.2) for (let r = FWD_DIST - 3; r <= FWD_DIST + 3; r += 2) {
+    const cx = Math.round(near.cx + Math.cos(toHome + da) * r), cy = Math.round(near.cy + Math.sin(toHome + da) * r);
+    if (!inMap(cx, cy) || walk[idx(cx, cy)] < 0) continue;
+    if (theirs.some((b) => Math.hypot(b.cx - cx, b.cy - cy) < FWD_DIST - 4)) continue;
+    if (guns.some((b) => Math.hypot(b.cx - cx, b.cy - cy) < (b.def.weapon.range / CELL) + FWD_GUNS)) continue;
+    if (Math.hypot(home.cx - cx, home.cy - cy) < BASE2_SEP + 4) continue;   // (no nearer home than a second base would be)
+    let ore = 0;
+    for (const f of G.oreFields) if (Math.hypot(f.cx - cx, f.cy - cy) < f.r + 8) ore = 1;
+    const sc = ore * 3 - Math.abs(da) * 2 - Math.abs(r - FWD_DIST) * 0.2 + Math.random() * 0.5;
+    if (sc > bs) { bs = sc; best = { cx, cy, r: 0, fwd: true }; }
+  }
+  return best;
+}
 // What the second base wants next (counted within 12 cells of its yard), or null.
 function aiBase2Next(team, b2, c) {
   const near = buildingsOf(team.id).filter((b) => dist(b, b2) < CELL * 12), n = (t) => near.filter((b) => b.type === t).length;
   const p = team.power, pwr = available(team, 'apower') ? 'apower' : 'power';
   const gun = team.faction === 'allies' ? 'turret' : 'tesla', aa = team.faction === 'allies' ? 'aagun' : 'sam';
-  const wants = [['refinery', 1], [pwr, 1], ['barracks', 1], [gun, 1], ['refinery', 2], ['factory', 1], [gun, 2], [aa, team.sawAir ? 1 : 0], [gun, aiOf(team).guns2 || 2]];
+  const ore = G.oreFields.some((f) => Math.hypot(f.cx - b2.cx, f.cy - b2.cy) < f.r + 10);
+  const wants = team.expField && team.expField.fwd ?   // a rusher's forward base: production first, a refinery only with ore beside it
+    [[pwr, 1], ['barracks', 1], ['factory', 1], [gun, 1], ['refinery', ore ? 1 : 0], [gun, 2], [aa, team.sawAir ? 1 : 0], [gun, aiOf(team).guns2 || 2]] :
+    [['refinery', 1], [pwr, 1], ['barracks', 1], [gun, 1], ['refinery', 2], ['factory', 1], [gun, 2], [aa, team.sawAir ? 1 : 0], [gun, aiOf(team).guns2 || 2]];
   for (const [t, want] of wants) {
     if (n(t) >= want || !available(team, t)) continue;
     if (t === 'refinery' && (c.refinery || 0) >= Math.min(8, aiRefCap(team) + 1)) continue;
@@ -700,8 +733,15 @@ function aiThink(team) {
     if (i > 0) vq.unshift(vq.splice(i, 1)[0]);   // it jumps the queue: nothing else can be built without it
   }
 
-  // A second base: an MCV for a rich field on its own half (personality's chance, rolled once).
   const A2 = aiOf(team);
+  // A rusher's forward base: once it has found an enemy base, an MCV for a spot near it (aiForwardSpot). Replaces its own-half second base.
+  if (A2.planner && team.style === 'rusher' && G.t >= (team.expT || 0) && aiMainYard(team) && !aiBase2(team) && !mcvs.length && available(team, 'mcv') &&
+      !team.queues.vehicle.some((i) => i.type === 'mcv') && team.credits > UNIT_DEFS.mcv.cost + 1000 && !team.starved && enemyBaseKnown(team.id)) {
+    team.expT = G.t + EXPAND_RETRY;
+    const f = aiForwardSpot(team);
+    if (f) { team.expField = f; startProduction(team, 'mcv'); }
+  }
+  // A second base: an MCV for a rich field on its own half (personality's chance, rolled once).
   if (A2.planner && team.style && team.exp2 === undefined) team.exp2 = Math.random() < (EXPAND_CHANCE[team.style] || 0);
   if (team.exp2 && G.t >= EXPAND_FROM && G.t >= (team.expT || 0) && aiMainYard(team) && !aiBase2(team) && !mcvs.length && available(team, 'mcv') &&
       !team.queues.vehicle.some((i) => i.type === 'mcv') && team.credits > UNIT_DEFS.mcv.cost + 2000 && !team.starved && aiExpandField(team)) {
