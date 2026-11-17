@@ -534,8 +534,10 @@ share globals. Read this file first; the commit history explains every change in
 - **Aircraft lights** (after 2026.11.17.2, looks only): `navLights` (art.js, end of `drawNight`) draws every visible aircraft's lights over
   the darkness: red and green wingtips, a double-flash white tail strobe and a pulsing red beacon on planes; a beacon, tail light and
   side lights on helicopters. ui.js passes `visibleToPlayer` so hidden enemy aircraft stay hidden.
-  The Bomber's lights come from its own model (`BOMBER_LIGHTS`: B-1 / Tu-22M swept wingtips, fin top, spine; heights x `VK`); before, the
+  The Bomber's lights come from its own model (`PLANE_LIGHTS`: B-1 / Tu-22M swept wingtips, fin top, spine; heights x `VK`); before, the
   generic transport spots left them floating off the wings.
+  The paratrooper transports likewise (`PLANE_LIGHTS` c130 / il76, after 2026.11.17.6): the generic spots put the wingtips 22 px out
+  near the ground (2 px up) while the wings are 24-25 out and 7-9 voxels up (the Il-76's swept well back), so the lights hung below the wings.
 - Villagers walk home at nightfall (`dark` in `moveFolk`, `v.slow`) and stay in until morning; sparrows only by day.
 - `weather: { kind: 'rain', chance: 0.5 }` as on Lakeside: rain, lightning and the bolts that land (gameplay, both modes,
   server must match). `boltStrike` can now hit a village house too (it burns for 10% of its health like a building).
