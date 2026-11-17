@@ -1147,8 +1147,8 @@ frame-time maths everywhere, so it is not deterministic.
   up to 8 of them dealt round-robin by kind (`assaultCrew`: no Engineers, nobody busy or ordered to hold), at least `ASSAULT_MIN` (4). It lands below
   the Barracks, waits up to `LIFT_WAIT` (25 s), flies, unloads (player's troops guard the spot, `manual`; the computer's hunt) and goes home.
   No recharge. Online both commands are in netcore `COMMANDS`; the guest checks `assaultPlan` locally for the button.
-- **Computer, by personality** (owner's picks, Normal and Hard; `lift` in `AI_STYLES`, `aiAirAssault` in ai.js; Easy has none). Transports are built
-  before attack helicopters, which leave pads free for them. **Rusher:** 1 transport from 0.4 x `firstWave`; every wave takes a drop behind its
+- **Computer, by personality** (owner's picks, Normal and Hard; `lift` in `AI_STYLES`, `aiAirAssault` in ai.js; Easy has none). A transport is queued
+  first while a pad is free; with every pad taken it builds another Helicopter Base (`aiLiftPad`, up to 3; owner: attack helicopters are never held back). **Rusher:** 1 transport from 0.4 x `firstWave`; every wave takes a drop behind its
   target (`aiLiftWithWave`, `pair: 'behind'`) plus drops of its own every ~100 s (`aiLiftSolo`), rifle-heavy (`prefer`). **Raider:** 2 transports,
   drops every ~90 s behind refineries, power, Outposts and Ore Trucks it can see, landing on the far side from its base, never crossing known
   anti-air's reach and 1.25 x clear of it where it lands (`aaWide`), rockets and grenadiers first. **Balanced:** a drop with each planned wave on its

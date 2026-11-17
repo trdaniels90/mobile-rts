@@ -20,6 +20,13 @@ function aiRefCap(team) {
   return Math.max(2, Math.ceil(total / humans.length));
 }
 
+// Another Helicopter Base when it still wants a transport (AI_STYLES lift) and every pad is taken (attack helicopters keep theirs),
+// once it has the money for it with some to spare; at most three bases.
+function aiLiftPad(team, c) {
+  const L = aiOf(team).lift, lift = team.faction === 'allies' ? 'chinook' : 'halo';
+  return !!L && (c.helipad || 0) >= 1 && (c.helipad || 0) < 3 && (c[lift] || 0) < L.n && G.t > aiOf(team).firstWave * L.from &&
+    padRoom(team, 'helipad') <= 0 && team.credits > BUILD_DEFS.helipad.cost + 500;
+}
 function aiNextStructure(team, c) {
   const p = team.power, defense = team.faction === 'allies' ? 'turret' : 'tesla', aa = team.faction === 'allies' ? 'aagun' : 'sam';
   const antiInf = team.faction === 'allies' ? 'pillbox' : 'ftur';
@@ -618,7 +625,7 @@ function aiThink(team) {
     // Every other building goes to the second base while it still wants something (and money allows).
     const want2 = b2 && b2.buildT >= 1 && (team.alt2 = !team.alt2) && team.credits > 1200 ? aiBase2Next(team, b2, c) : null;
     if (want2) { team.buildAt = { id: b2.id, type: want2 }; startProduction(team, want2); }
-    const next = want2 ? null : aiNextStructure(team, c);
+    const next = want2 ? null : aiLiftPad(team, c) ? 'helipad' : aiNextStructure(team, c);
     if (next && team.credits >= Math.min(BUILD_DEFS[next].cost * 0.25, 500)) startProduction(team, next);
   }
 
@@ -726,14 +733,14 @@ function aiThink(team) {
   if (aiOf(team).planner && !team.research && c.tech && money > 2500) for (const id in UPGRADES) if (canResearch(team, id)) { startResearch(team, id); break; }
   // Helicopters and jets have their own queues; against aircraft it leans on fighters.
   const air = G.entities.filter((e) => e.alive && e.team === team.id && e.cls === 'air').length + team.queues.heli.length + team.queues.jet.length;
-  // Transports for air assaults (AI_STYLES lift) come first, and attack helicopters leave pads free for them.
+  // Transports for air assaults (AI_STYLES lift) are queued first while a pad is free; with every pad taken, aiLiftPad builds another base.
   const L = aiOf(team).lift, lift = team.faction === 'allies' ? 'chinook' : 'halo', liftsShort = L && c.helipad && G.t > aiOf(team).firstWave * L.from ? L.n - (c[lift] || 0) : 0;
   if (liftsShort > 0 && !capped && !truckDue && money > 1100 && !team.queues.heli.length && padRoom(team, 'helipad') > 0) startProduction(team, lift);
   if (!capped && money > (anti ? 600 : 900) && air < 6 && !truckDue) {
     const comanche = available(team, 'comanche') && Math.random() < ((team.counter || {}).armor ? 0.65 : 0.45);   // more of them against tanks
     const heli = team.faction === 'allies' ? (comanche ? 'comanche' : 'heli') : 'hind', jet = team.faction === 'allies' ? 'jet' : 'mig';
     if (c.airfield && !team.queues.jet.length && padRoom(team, 'airfield') > 0 && (anti || Math.random() < 0.5)) startProduction(team, jet);
-    else if (c.helipad && available(team, heli) && !team.queues.heli.length && padRoom(team, 'helipad') > Math.max(0, liftsShort) && (!anti || !c.airfield || Math.random() < 0.25)) startProduction(team, heli);
+    else if (c.helipad && available(team, heli) && !team.queues.heli.length && padRoom(team, 'helipad') > 0 && (!anti || !c.airfield || Math.random() < 0.25)) startProduction(team, heli);
   }
 
   // Airfield support powers: bomb the thickest part of the enemy base, drop troops on its economy,
