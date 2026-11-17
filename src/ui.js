@@ -249,7 +249,7 @@
     return out;
   }
   // The rim's trees in the world box: their shadows drawn now, the trees returned to be sorted in with the units.
-  function rimInView(g, x0, y0, x1, y1) {
+  function rimInView(g, x0, y0, x1, y1, keep) {
     const T = rimTrees(), out = [];
     if (x0 > 0 && y0 > 0 && x1 < WORLD && y1 < WORLD) return out;
     let lo = 0, hi = T.length;
@@ -257,7 +257,7 @@
     g.globalAlpha = 0.45;
     for (let i = lo; i < T.length && T[i].y < y1; i++) {
       const tr = T[i];
-      if (tr.x < x0 || tr.x > x1) continue;
+      if (tr.x < x0 || tr.x > x1 || (keep && !keep(tr.x, tr.y))) continue;
       g.drawImage(tr.s.sh, Math.round(tr.x + tr.s.sox), Math.round(tr.y + tr.s.soy));
       out.push({ kind: 'tree', x: tr.x, y: tr.y, tr, p: 0, i: 90000 + i });
     }
@@ -311,7 +311,7 @@
     return soft;
   }
   // Slow wisps of mist drifting over the haze past the map's edge (looks only).
-  function edgeMist(v, ox, oy, bw, bh) {
+  function edgeMist(v, ox, oy, bw, bh, onScr) {
     const [hr, hg, hb] = hazeRGB(), t = performance.now() / 1000, R = 9 * CELL, step = 7 * CELL;
     v.save();
     v.beginPath(); v.rect(ox - R, oy - R, bw + 2 * R, bh + 2 * R); v.rect(0, 0, WORLD, WORLD); v.clip('evenodd');
@@ -320,7 +320,7 @@
       const x = (gx + 0.5) * step + Math.sin(t * 0.07 + ph * 6.3) * 2 * CELL + ((t * 6 + ph * step) % step) - step / 2;
       const y = (gy + 0.5) * step + Math.cos(t * 0.05 + ph * 4.1) * 1.5 * CELL;
       const out = Math.max(-x, x - WORLD, -y, y - WORLD);
-      if (out < -2 * CELL) continue;
+      if (out < -2 * CELL || !onScr(x, y, R, R, R)) continue;
       const a = 0.22 * Math.min(1, (out + 2 * CELL) / (4 * CELL)) * (0.5 + 0.5 * Math.sin(t * 0.3 + ph * 9));
       const gr = v.createRadialGradient(x, y, 0, x, y, R);
       gr.addColorStop(0, `rgba(${hr + 30},${hg + 30},${hb + 30},${a})`); gr.addColorStop(1, `rgba(${hr},${hg},${hb},0)`);
@@ -511,6 +511,15 @@ function draw() {
       for (const s of G.spans || []) for (const c of s.cells) { mtctx.fillStyle = terrainMini()[G.terr[c]]; mtctx.fillRect(cellX(c), cellY(c), 1, 1); }
       radarWas = null;
     }
+    // The world box round a turned screen is about twice the screen's area, so things are also culled by where they
+    // show on the screen (margins in view pixels: sideways, above, and below for tall things standing just off the
+    // bottom edge). Before, half of the trees, ore, units and effects drawn on a big screen zoomed out were off it.
+    const onScr = (x, y, m = 120, up = 100, down = 220) => {
+      const X = x * VIEW.c - y * VIEW.s - vx, Y = (x * VIEW.s + y * VIEW.c) * VIEW.F - vy;
+      return X > -m && X < VW + m && Y > -up && Y < VH + down;
+    };
+    // Whether the screen shows anything past the map's edge (the box round it often does when the screen does not).
+    const past = corners.some(([x, y]) => x < 0 || y < 0 || x > WORLD || y > WORLD);
     const sx = Math.max(0, ox), sy = Math.max(0, oy);
     const sw = Math.min(WORLD, ox + bw) - sx, sh = Math.min(WORLD, oy + bh) - sy;
     // The ground is painted in tiles as it comes into view (art.js makeGround): up to 6 ms a frame for what is on
@@ -525,21 +534,21 @@ function draw() {
     G.ground.update(sx, sy, sw, sh, 6, 3);
     const toWorld = () => v.setTransform(VIEW.c, VIEW.s * VIEW.F, -VIEW.s, VIEW.c * VIEW.F, -vx, -vy);   // world -> view canvas
     toWorld();
-    if (sx > ox || sy > oy || sx + sw < ox + bw || sy + sh < oy + bh) {   // past the map's edge: its land carried on, fading into haze
+    if (past) {   // past the map's edge: its land carried on, fading into haze
       v.imageSmoothingEnabled = true;
       const e = edgePic(), P = EDGE_PAD;
       v.drawImage(e, -P * CELL, -P * CELL, (MAP + 2 * P) * CELL, (MAP + 2 * P) * CELL);
       v.imageSmoothingEnabled = false;
     }
     G.ground.draw(v, 't', sx, sy, sw, sh, sx, sy);
-    if (sx > ox || sy > oy || sx + sw < ox + bw || sy + sh < oy + bh) edgeSeam(v, ox, oy, bw, bh);
+    if (past) edgeSeam(v, ox, oy, bw, bh);
 
     // Ore
     const c0 = Math.max(0, Math.floor(ox / CELL)), c1 = Math.min(MAP - 1, Math.floor((ox + bw) / CELL));
     const r0 = Math.max(0, Math.floor(oy / CELL)), r1 = Math.min(MAP - 1, Math.floor((oy + bh) / CELL));
     for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
       const c = idx(cx, cy), o = G.ore[c];
-      if (o) drawOre(v, cx, cy, o, G.gem[c]);
+      if (o && onScr((cx + 0.5) * CELL, (cy + 0.5) * CELL, 40, 40, 40)) drawOre(v, cx, cy, o, G.gem[c]);
     }
 
     G.ground.draw(v, 'd', sx, sy, sw, sh, sx, sy);
@@ -570,11 +579,17 @@ function draw() {
     // Destroyed bridge spans: water and broken ends over the painted bridge (art.js spanRuin).
     for (const s of G.spans || []) if (!s.alive && s.x > ox - 400 && s.x < ox + bw + 400 && s.y > oy - 400 && s.y < oy + bh + 400) { const p = spanRuin(s); v.drawImage(p.c, p.x, p.y); }
     const x0 = ox - 80, y0 = oy - 80, x1 = ox + bw + 80, y1 = oy + bh + 80;
-    const inView = (e) => e.x > x0 && e.x < x1 && e.y > y0 && e.y < y1;
-    for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0) drawEffect(v, fx);
-    const trees = treesInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40);   // swaying in the wind, burning (art.js): sorted in with the units below
-    for (const t of rimInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40)) trees.push(t);   // the woods past the map's edge
+    const inView = (e) => e.x > x0 && e.x < x1 && e.y > y0 && e.y < y1 && onScr(e.x, e.y);
+    for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0 && onScr(fx.x, fx.y)) drawEffect(v, fx);
+    const treeShows = (x, y) => onScr(x, y, 60, 30, 90);
+    const trees = treesInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows);   // swaying in the wind, burning (art.js): sorted in with the units below
+    if (past) for (const t of rimInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows)) trees.push(t);   // the woods past the map's edge
 
+    // An effect on the screen: tracers and Tesla bolts by either end or their middle (a gun just off the screen firing into
+    // it), a lightning bolt by its landing spot with room for its top, which is drawn up to about 230 px to the side.
+    const fxShows = (fx) => fx.x2 !== undefined
+      ? onScr(fx.x, fx.y, 120, 100, 400) || onScr(fx.x2, fx.y2, 120, 100, 400) || onScr((fx.x + fx.x2) / 2, (fx.y + fx.y2) / 2, 120, 100, 400)
+      : onScr(fx.x, fx.y, fx.type === 'bolt' ? 360 : 120, 100, 400);
     const ground = [], air = [];
     for (const e of G.entities) {
       if (!inView(e) || !visibleToPlayer(e)) continue;
@@ -626,10 +641,10 @@ function draw() {
       else if (e.kind === 'wall') drawWallIso(v, e);
       else drawUnit(v, e, G.t);
     }
-    if (ox < 0 || oy < 0 || ox + bw > WORLD || oy + bh > WORLD) {   // haze over the outer woods past the map's edge
+    if (past) {   // haze over the outer woods past the map's edge
       const up = v.upright; v.upright = false; v.imageSmoothingEnabled = true;
       const P = EDGE_PAD; v.drawImage(edgeVeil(), -P * CELL, -P * CELL, (MAP + 2 * P) * CELL, (MAP + 2 * P) * CELL);
-      edgeMist(v, ox, oy, bw, bh);
+      edgeMist(v, ox, oy, bw, bh, onScr);
       v.imageSmoothingEnabled = false; v.upright = up;
     }
     for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') flameJet(v, e);
@@ -676,7 +691,7 @@ function draw() {
       }
     }
     for (const fx of G.effects) {
-      if (!(fx.t >= 0 && fx.type !== 'husk' && fx.type !== 'corpse' && fx.x > x0 && fx.x < x1 && fx.y > y0 && fx.y < y1)) continue;
+      if (!(fx.t >= 0 && fx.type !== 'husk' && fx.type !== 'corpse' && fx.x > x0 && fx.x < x1 && fx.y > y0 && fx.y < y1 && fxShows(fx))) continue;
       if (!fx.lift) { drawEffect(v, fx); continue; }
       // Up in the air (rising smoke and flames, world.js updateEffects): drawn that high straight up the screen.
       const gx = fx.x, gy = fx.y;
