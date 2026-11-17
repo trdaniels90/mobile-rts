@@ -585,6 +585,11 @@ function draw() {
     const trees = treesInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows);   // swaying in the wind, burning (art.js): sorted in with the units below
     if (past) for (const t of rimInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows)) trees.push(t);   // the woods past the map's edge
 
+    // An effect on the screen: tracers and Tesla bolts by either end or their middle (a gun just off the screen firing into
+    // it), a lightning bolt by its landing spot with room for its top, which is drawn up to about 230 px to the side.
+    const fxShows = (fx) => fx.x2 !== undefined
+      ? onScr(fx.x, fx.y, 120, 100, 400) || onScr(fx.x2, fx.y2, 120, 100, 400) || onScr((fx.x + fx.x2) / 2, (fx.y + fx.y2) / 2, 120, 100, 400)
+      : onScr(fx.x, fx.y, fx.type === 'bolt' ? 360 : 120, 100, 400);
     const ground = [], air = [];
     for (const e of G.entities) {
       if (!inView(e) || !visibleToPlayer(e)) continue;
@@ -686,7 +691,7 @@ function draw() {
       }
     }
     for (const fx of G.effects) {
-      if (!(fx.t >= 0 && fx.type !== 'husk' && fx.type !== 'corpse' && fx.x > x0 && fx.x < x1 && fx.y > y0 && fx.y < y1 && onScr(fx.x, fx.y, 120, 100, 400))) continue;
+      if (!(fx.t >= 0 && fx.type !== 'husk' && fx.type !== 'corpse' && fx.x > x0 && fx.x < x1 && fx.y > y0 && fx.y < y1 && fxShows(fx))) continue;
       if (!fx.lift) { drawEffect(v, fx); continue; }
       // Up in the air (rising smoke and flames, world.js updateEffects): drawn that high straight up the screen.
       const gx = fx.x, gy = fx.y;
