@@ -1805,9 +1805,9 @@ function drawBuildUp(g, b, s, x, y, k, selling, camo) {
     blit(g, s, ...liftPt(x, y, -(1 - k) * H), false);
     g.restore();
   }
-  // The dish goes on its pedestal once the walls are above it (half way up) and starts turning at once.
+  // The dish only appears when the build is done, so make its facings now (a few a frame): it then turns from the first frame.
   const sp = SPINNERS[b.type] && SPINNERS[b.type][b.faction];
-  if (sp && k >= 0.5) { const [lx, ly] = liftPt(x + sp[1], y + sp[2], sp[3] * VK); blit(g, spinnerSprite(b.type, b.faction, dishAngle(b, 0), 0), lx, ly, false); }
+  if (sp) for (let j = 0; j < 4; j++) spinnerSprite(b.type, b.faction, (((G.t * 60 | 0) * 4 + j) % FACINGS) * Math.PI * 2 / FACINGS, 0);
   scaffold([D], [[B, D], [C, D]]);
   // Welding sparks along the top edge.
   if (!selling || k < 1) {
