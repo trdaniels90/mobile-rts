@@ -4446,8 +4446,9 @@ function updateLift(u, dt) {
     if (!liftFly(u, o.x, o.y, dt)) return;
     o.t = (o.t || 0) + dt;
     if (o.dx === undefined) return;   // boarded by hand: it waits for a drop order
-    const coming = boardersOf(u).length;
-    if (cargo.length >= u.def.carry || (cargo.length && (!coming || o.t > LIFT_WAIT))) { u.order = { type: 'lift', step: 'go', x: o.dx, y: o.dy, ai: o.ai }; return; }
+    const coming = boardersOf(u).length, hold = o.goAt !== undefined && G.t < o.goAt;   // (goAt: the computer times a drop to land with its wave)
+    if (!hold && (cargo.length >= u.def.carry || (cargo.length && (!coming || o.t > LIFT_WAIT)))) { u.order = { type: 'lift', step: 'go', x: o.dx, y: o.dy, ai: o.ai }; return; }
+    if (cargo.length) return;
     if (o.t > LIFT_WAIT + 10 || (!coming && o.t > 3)) { for (const b of boardersOf(u)) setGuard(b, b.x, b.y); liftHome(u); }
     return;
   }
@@ -4463,6 +4464,7 @@ function updateLift(u, dt) {
     if (!cargo.length && o.t <= 0) { if (o.n) liftHome(u); else setGuard(u, u.x, u.y); }
   }
 }
+// ai: how the computer's soldiers carry on once down: 'hunt' (attack), 'guard' (hold the spot: a turtle's reinforcements).
 function unloadOne(h, ai) {
   const r = h.cargo.shift(), team = G.teams[h.team];
   if (!r || !UNIT_DEFS[r.type]) return;
@@ -4474,7 +4476,8 @@ function unloadOne(h, ai) {
   if (r.type !== 'pilot') team.stats.units--;   // counted when it was trained
   u.hp = Math.min(u.maxHp, r.hp); u.rank = r.rank || 0; u.kills = r.kills || 0; u.killWorth = r.kw || 0; u.born = r.born;
   u.face = u.tface = Math.atan2(p.y - h.y, p.x - h.x);
-  if (ai || team.isAI) { setHunt(u); u.staged = false; }
+  if (ai === 'guard') { setGuard(u, p.x, p.y); u.staged = true; }
+  else if (ai || team.isAI) { setHunt(u); u.staged = false; }
   else { setGuard(u, p.x, p.y); u.staged = false; takeOver(u, 'move'); }
   goTo(u, p.x, p.y);
   hooks.sfx('place', h.x, h.y);
@@ -4522,27 +4525,32 @@ function liftTo(u, x, y) {
   u.order = { type: 'lift', step: 'go', x: s.x, y: s.y }; u.target = null; u.repairHold = false;
 }
 // Air Assault: the side's idle infantry by a Barracks, as even a mix of kinds as there is, up to a transport's load.
-function assaultCrew(team, bar, n) {
+// prefer (the computer's personalities): kinds taken more than once a round, e.g. { rifle: 3 }.
+function assaultCrew(team, bar, n, prefer) {
   const pool = unitsOf(team.id).filter((u) => canBoard(u) && !u.def.engineer && !u.inHouse && u.order.type === 'guard' && !u.order.hold &&
     !u.defending && !u.assisting && !u.garrison && !u.homeGuard && !(u.target && u.target.alive) && dist(u, bar) < CELL * ASSAULT_REACH);
   const kinds = new Map();
   for (const u of pool.sort((a, b) => dist(a, bar) - dist(b, bar))) (kinds.get(u.type) || kinds.set(u.type, []).get(u.type)).push(u);
-  const lists = [...kinds.values()].sort((a, b) => b.length - a.length), out = [];
-  for (let i = 0; out.length < n && lists.some((l) => l.length > i); i++) for (const l of lists) if (l[i] && out.length < n) out.push(l[i]);
+  const w = (l) => (prefer && prefer[l[0].type]) || 1;
+  const lists = [...kinds.values()].sort((a, b) => w(b) - w(a) || b.length - a.length), out = [], at = lists.map(() => 0);
+  while (out.length < n && lists.some((l, j) => at[j] < l.length)) {
+    lists.forEach((l, j) => { for (let k = 0; k < w(l) && at[j] < l.length && out.length < n; k++) out.push(l[at[j]++]); });
+  }
   return out;
 }
 // What an Air Assault would use now: { heli, bar, crew }, or why not ('heli': no free transport, 'crew': too few idle infantry).
-function assaultPlan(team) {
+// opt (the computer): prefer (assaultCrew), min (fewest soldiers worth flying).
+function assaultPlan(team, opt = {}) {
   const helis = unitsOf(team.id).filter(liftReady);
   if (!helis.length) return 'heli';
   const carry = helis[0].def.carry;
   let best = null;
   for (const bar of buildingsOf(team.id)) {
     if (bar.type !== 'barracks' || bar.buildT < 1 || bar.sellT > 0) continue;
-    const crew = assaultCrew(team, bar, carry);
+    const crew = assaultCrew(team, bar, carry, opt.prefer);
     if (!best || crew.length > best.crew.length) best = { bar, crew };
   }
-  if (!best || best.crew.length < ASSAULT_MIN) return 'crew';
+  if (!best || best.crew.length < Math.min(carry, opt.min || ASSAULT_MIN)) return 'crew';
   best.heli = helis.reduce((a, b) => (dist(a, best.bar) <= dist(b, best.bar) ? a : b));
   return best;
 }
@@ -4551,10 +4559,15 @@ function commandAirAssault(team, x, y) {
   if (typeof plan === 'string') { say(team.id, plan === 'heli' ? 'No transport available' : 'Not enough infantry at the Barracks'); return false; }
   const drop = landSpot(x, y, plan.heli);
   if (!drop) { say(team.id, 'Cannot land there'); return false; }
+  return startAssault(team, plan, drop);
+}
+// The pickup by the Barracks and the flight to `drop`. extra (the computer): mode (unloadOne's ai), goAt (not before then).
+function startAssault(team, plan, drop, extra = {}) {
   const { heli, bar, crew } = plan;
   const pick = landSpot(bar.x, (bar.cy + bar.h + 2.5) * CELL, heli);
   if (!pick) { say(team.id, 'Cannot land there'); return false; }
-  heli.order = { type: 'lift', step: 'pick', x: pick.x, y: pick.y, dx: drop.x, dy: drop.y, t: 0, ai: !!team.isAI }; heli.target = null;
+  heli.order = { type: 'lift', step: 'pick', x: pick.x, y: pick.y, dx: drop.x, dy: drop.y, t: 0, ai: extra.mode || (team.isAI ? 'hunt' : false) }; heli.target = null;
+  if (extra.goAt !== undefined) heli.order.goAt = extra.goAt;
   for (const u of crew) {
     u.order = { type: 'board', target: heli }; u.target = null; u.staged = false; u.homeward = false; takeOver(u, 'move');
     goTo(u, pick.x, pick.y);

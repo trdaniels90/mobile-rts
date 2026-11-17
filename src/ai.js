@@ -316,20 +316,111 @@ function aiPowerTarget(team, cluster) {
   return { x: best.x, y: best.y };
 }
 
-// Air assaults (Normal and Hard): once its first wave is due and an enemy base is known, every AI_ASSAULT_GAP s or so it flies
-// idle infantry from a Barracks in a transport and lands them by an enemy refinery or power plant that no known anti-air covers.
-const AI_ASSAULT_GAP = 150, AI_ASSAULT_MIN = 6;
-function aiAirAssault(team) {
-  if (!aiOf(team).planner || G.t < (team.assaultT || 0) || G.t < aiOf(team).firstWave || !enemyBaseKnown(team.id)) return;
-  team.assaultT = G.t + 20;
-  const plan = assaultPlan(team);
-  if (typeof plan === 'string' || plan.crew.length < AI_ASSAULT_MIN) return;
-  const aa = knownAA(team.id, false);
-  for (let i = 0; i < 4; i++) {
-    const t = aiPowerTarget(team, false);
-    if (!t || aaCover(aa, t)) continue;
-    if (commandAirAssault(team, t.x, t.y)) { team.assaultT = G.t + AI_ASSAULT_GAP * (0.8 + Math.random() * 0.4); return; }
+// Air assaults by personality (Normal and Hard; Easy has none): AI_STYLES `lift`. Drops pick up idle infantry by a Barracks
+// (assaultPlan / startAssault in world.js) and land where no known anti-air covers. Allies never drop within LIFT_ALLY_R of each
+// other's drops of the last LIFT_ALLY_T seconds (G.liftDrops). Hard waits a quarter less between drops of their own.
+const LIFT_ALLY_R = 10, LIFT_ALLY_T = 60, LIFT_LAND = 6;
+const unitDir = (a, b) => { const d = Math.hypot(b.x - a.x, b.y - a.y) || 1; return { x: (b.x - a.x) / d, y: (b.y - a.y) / d }; };
+function liftSafe(team, from, to, wide = 1) {
+  const aa = knownAA(team.id, false), hit = (p) => aa.some((a) => Math.hypot(a.x - p.x, a.y - p.y) < a.r * wide);
+  if (hit(to)) return false;
+  if (wide <= 1) return true;
+  const n = Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / (CELL * 2));
+  for (let i = 1; i < n; i++) if (hit({ x: from.x + (to.x - from.x) * i / n, y: from.y + (to.y - from.y) * i / n })) return false;
+  return true;
+}
+function liftClash(team, p) {
+  G.liftDrops = (G.liftDrops || []).filter((d) => G.t - d.t < LIFT_ALLY_T);
+  return G.liftDrops.some((d) => d.side !== team.id && alliedSides(d.side, team.id) && Math.hypot(d.x - p.x, d.y - p.y) < CELL * LIFT_ALLY_R);
+}
+// A drop for this side: the spot `want` (moved to open ground), if safe and clear of its allies' drops.
+function aiLiftGo(team, plan, want, extra) {
+  const L = aiOf(team).lift, drop = landSpot(want.x, want.y, plan.heli);
+  if (!drop || !liftSafe(team, plan.bar, drop, L.aaWide) || liftClash(team, drop)) return false;
+  if (!startAssault(team, plan, drop, extra)) return false;
+  G.liftDrops.push({ side: team.id, x: drop.x, y: drop.y, t: G.t });
+  team.lifts = (team.lifts || 0) + 1;
+  return true;
+}
+// With a ground wave (rusher: behind the target, the side the wave is not coming from; balanced and a stalled turtle: on a flank).
+// The soldiers board now (taken out of the wave); the transport waits on the ground and leaves so as to land about as the wave
+// arrives (aiAirAssault keeps goAt up to date).
+function aiLiftWithWave(team, ready, target) {
+  const L = aiOf(team).lift, plan = assaultPlan(team, { min: L.min, prefer: L.prefer });
+  if (typeof plan === 'string' || !target) return ready;
+  const mid = { x: ready.reduce((s, u) => s + u.x, 0) / ready.length, y: ready.reduce((s, u) => s + u.y, 0) / ready.length };
+  const d = unitDir(mid, target), side = Math.random() < 0.5 ? 1 : -1;
+  const want = L.pair === 'behind' ? { x: target.x + d.x * CELL * 6, y: target.y + d.y * CELL * 6 } : { x: target.x - d.y * side * CELL * 7, y: target.y + d.x * side * CELL * 7 };
+  const crew = new Set(plan.crew), wave = ready.filter((u) => !crew.has(u));
+  if (wave.length < 3 || !aiLiftGo(team, plan, want, { mode: 'hunt', goAt: Infinity })) return ready;
+  team.liftPair = { heli: plan.heli.id, tid: target.id, tx: target.x, ty: target.y, wave: wave.slice(0, 12).map((u) => u.id), t: G.t };
+  return wave;
+}
+// When the paired transport should leave: the wave's lead needs (distance - LIFT_LAND cells) / its slowest speed; the
+// transport its pickup's remaining boarding plus the flight.
+function aiLiftTiming(team) {
+  const pr = team.liftPair, h = pr && G.byId.get(pr.heli);
+  if (!pr) return;
+  if (!h || !h.alive || h.order.type !== 'lift' || h.order.step !== 'pick' || G.t - pr.t > 300) { team.liftPair = null; if (h && h.alive && h.order.goAt) h.order.goAt = G.t; return; }
+  const wave = pr.wave.map((id) => G.byId.get(id)).filter((u) => u && u.alive);
+  if (!wave.length) { h.order.goAt = G.t; team.liftPair = null; return; }
+  const lead = wave.reduce((a, b) => (Math.hypot(a.x - pr.tx, a.y - pr.ty) < Math.hypot(b.x - pr.tx, b.y - pr.ty) ? a : b));
+  const slow = Math.min(...wave.map((u) => u.def.speed || 30)) * 0.8;
+  const waveT = Math.max(0, Math.hypot(lead.x - pr.tx, lead.y - pr.ty) - CELL * LIFT_LAND) / slow;
+  const flyT = Math.hypot(h.order.dx - h.order.x, h.order.dy - h.order.y) / h.def.speed + 4;
+  h.order.goAt = G.t + Math.max(0, waveT - flyT);
+  if (h.order.goAt <= G.t) team.liftPair = null;
+}
+// A turtle's reinforcements: an outlying building (a second base, a lone refinery) with raiders at it gets the idle infantry of
+// the main base, set down on the side toward home, holding the spot.
+function aiLiftDefend(team) {
+  if (!team.raiders || !team.raiders.length || G.t < (team.liftDefT || 0)) return false;
+  team.liftDefT = G.t + 5;
+  const main = aiMainYard(team);
+  if (!main) return false;
+  const mine = buildingsOf(team.id);
+  for (const id of team.raiders) {
+    const r = G.byId.get(id);
+    if (!r || !r.alive) continue;
+    const b = mine.reduce((a, x) => (!a || distTo(r, x) < distTo(r, a) ? x : a), null);
+    if (!b || distTo(r, b) > CELL * 10 || dist(b, main) < CELL * 18) continue;
+    const plan = assaultPlan(team, { min: 4 });
+    if (typeof plan === 'string') return false;
+    const d = unitDir(b, main);
+    if (aiLiftGo(team, plan, { x: b.x + d.x * CELL * 3, y: b.y + d.y * CELL * 3 }, { mode: 'guard' })) { team.liftDefT = G.t + 60; return true; }
+    return false;
   }
+  return false;
+}
+// Drops of their own (rusher, raider): the rusher at the economy or the edge of the base, the raider behind refineries, power
+// and Outposts (and Ore Trucks it can see out in the open), landing on the far side from its own base.
+function aiLiftSolo(team) {
+  const A = aiOf(team), L = A.lift;
+  if (!L.solo || G.t < A.firstWave || G.t < (team.assaultT || 0) || !enemyBaseKnown(team.id)) return;
+  team.assaultT = G.t + 15;
+  const plan = assaultPlan(team, { min: L.min, prefer: L.prefer });
+  if (typeof plan === 'string') return;
+  const home = aiMainYard(team) || plan.bar;
+  const picks = [];
+  if (L.eco) {
+    const seen = inViewOf(team.id);
+    for (const b of enemyBuildingsOf(team.id)) if (['refinery', 'power', 'apower', 'outpost'].includes(b.type) && targetable(team.id, b)) picks.push(b);
+    for (const u of enemyUnitsOf(team.id)) if (u.def.harvester && seen(u)) picks.push(u);
+  }
+  for (let i = 0; i < 5; i++) {
+    let want;
+    if (L.eco && picks.length) { const t = picks[Math.floor(Math.random() * picks.length)], d = unitDir(home, t); want = { x: t.x + d.x * CELL * 4, y: t.y + d.y * CELL * 4 }; }
+    else want = aiPowerTarget(team, false);
+    if (!want) return;
+    if (aiLiftGo(team, plan, want, { mode: 'hunt' })) { team.assaultT = G.t + L.solo * (G.diffKey === 'hard' ? 0.75 : 1) * (0.8 + Math.random() * 0.4); return; }
+  }
+}
+function aiAirAssault(team) {
+  const A = aiOf(team);
+  if (!A.planner || !A.lift) return;
+  aiLiftTiming(team);
+  if (A.lift.defend && aiLiftDefend(team)) return;
+  aiLiftSolo(team);
 }
 const ARMY_UNITS = 100, ARMY_WORTH = 28000;   // defaults; DIFFICULTY ai.armyUnits and ai.armyWorth set them per difficulty (Normal 100 and 45000)
 // Destroyed bridge spans: the computer trains an Engineer (one at a time, when no Engineer of its alliance is free or
@@ -631,7 +722,8 @@ function aiThink(team) {
     const comanche = available(team, 'comanche') && Math.random() < ((team.counter || {}).armor ? 0.65 : 0.45);   // more of them against tanks
     const heli = team.faction === 'allies' ? (comanche ? 'comanche' : 'heli') : 'hind', jet = team.faction === 'allies' ? 'jet' : 'mig';
     const lift = team.faction === 'allies' ? 'chinook' : 'halo';
-    if (aiOf(team).planner && c.helipad && !c[lift] && !anti && !team.queues.heli.length && G.t > aiOf(team).firstWave * 0.6 && padRoom(team, 'helipad') > 0) startProduction(team, lift);   // one transport for air assaults
+    const L = aiOf(team).lift;   // transports for air assaults, by personality (AI_STYLES lift)
+    if (L && c.helipad && (c[lift] || 0) < L.n && !anti && !team.queues.heli.length && G.t > aiOf(team).firstWave * L.from && padRoom(team, 'helipad') > 0) startProduction(team, lift);
     else if (c.airfield && !team.queues.jet.length && padRoom(team, 'airfield') > 0 && (anti || Math.random() < 0.5)) startProduction(team, jet);
     else if (c.helipad && available(team, heli) && !team.queues.heli.length && (!anti || !c.airfield || Math.random() < 0.25)) startProduction(team, heli);
   }
@@ -698,6 +790,7 @@ function aiLaunch(team, ready) {
   // Planner: a big wave splits into two or three squads that come from different sides at once.
   const [p3, p2] = A.splitAt || [20, 12];
   const parts = !A.planner ? 2 : ready.length >= p3 && r() < (A.split3 || 0.5) ? 3 : ready.length >= p2 ? 2 : 0;
+  if (A.lift && A.lift.pair && (!A.lift.stallOnly || stale)) ready = aiLiftWithWave(team, ready, target);   // (holds back the soldiers it flies)
   if (A.planner ? parts >= 2 && aiPincerStart(team, ready, target, strike, parts) : ready.length >= 6 && r() < (A.pincer || 0) && aiPincerStart(team, ready, target, strike)) how.pincer++;
   else if (A.planner && r() < (A.approach || 0) && aiApproachStart(team, ready, target, strike)) how.flank++;
   else { aiSend(team, ready, target, { strike }); how.direct++; }
@@ -729,11 +822,19 @@ function aiGap(team) {
 //   wave (the army never reaches `hold`), it goes with whatever has gathered if that is at least stallMin units;
 //   splitAt / split3: wave sizes that split into 3 or 2 squads and the chance of 3; eco: the raider's taste for
 //   refineries, power and Outposts in aiWaveTarget.
+//   lift: how it uses transport helicopters (aiAirAssault): from (share of firstWave before it builds one), n (how many it keeps),
+//   min (fewest soldiers flown), prefer (kinds it loads first), pair ('behind' / 'flank': a drop timed to land with each ground
+//   wave, behind the target or on its flank; stallOnly: only with a wave its stall rule sent), solo (seconds between drops of
+//   their own; eco: at refineries, power and Outposts, landing behind them), aaWide (keeps that much further from known
+//   anti-air, along the whole flight too), defend (flies idle infantry to an outlying base or refinery under attack).
 const AI_STYLES = {
-  balanced: {},
-  rusher: { firstWave: -180, hold: 0.3, full: 0.4, gapMul: 0.6, defAdd: -2, wallMul: 0.5, garAdd: -1 },
-  turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, defAdd: 5, aaAdd: 2, defRich: 800, guns2: 4, ring2: true, stallAfter: 240, stallMin: 18, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18] },
-  raider: { hold: 0.4, airGap: 0.6, splitAt: [12, 8], split3: 0.75, eco: true },
+  balanced: { lift: { from: 0.6, n: 1, min: 8, pair: 'flank' } },
+  rusher: { firstWave: -180, hold: 0.3, full: 0.4, gapMul: 0.6, defAdd: -2, wallMul: 0.5, garAdd: -1,
+    lift: { from: 0.4, n: 1, min: 4, prefer: { rifle: 3 }, pair: 'behind', solo: 100 } },
+  turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, defAdd: 5, aaAdd: 2, defRich: 800, guns2: 4, ring2: true, stallAfter: 240, stallMin: 18, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18],
+    lift: { from: 0.8, n: 1, min: 8, pair: 'flank', stallOnly: true, defend: true } },
+  raider: { hold: 0.4, airGap: 0.6, splitAt: [12, 8], split3: 0.75, eco: true,
+    lift: { from: 0.5, n: 2, min: 6, prefer: { rocket: 2, grenadier: 2 }, solo: 90, eco: true, aaWide: 1.5 } },
 };
 const AI_STYLE_KEYS = Object.keys(AI_STYLES);
 function aiStyle(team) {
