@@ -4,6 +4,15 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.13', date: '17 November 2026', title: 'Bigger paratrooper drops', groups: [
+    ['New', [
+      'Airborne division, a Tech Center upgrade for both sides: Paratroopers come in two planes, twenty soldiers a drop.',
+    ]],
+    ['Changed', [
+      'A Paratroopers drop is now ten soldiers (it was seven). Soviet squads now bring Rocket Soldiers too.',
+      'Lose your last Tech Center and you lose every upgrade: research them again once you rebuild. Units you already have stay.',
+    ]],
+  ] },
   { v: '2026.11.17.12', date: '17 November 2026', title: 'Sandbag cover', groups: [
     ['Changed', [
       'Infantry right behind your side\'s Sandbags take a third less damage from fire coming over them.',
