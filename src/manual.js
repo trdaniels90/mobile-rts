@@ -8,7 +8,7 @@ const Manual = (() => {
   const TEXT = {
     // Structures
     cy: ['The heart of your base: every structure is built here, within reach of any of your buildings. It cannot be sold. Lose every Construction Yard and you can build no more structures until a Mobile Construction Yard unpacks a new one.', '', ''],
-    power: ['Supplies 100 power. Keep production above demand: on low power everything builds more slowly, radar goes offline and Tesla Coils fall silent.', '', 'A tempting target for raids'],
+    power: ['Supplies 100 power. Keep production above demand: on low power everything builds more slowly, radar goes offline and every defence except the Pillbox and Flame Tower falls silent.', '', 'A tempting target for raids'],
     apower: ['Twice the output of a standard plant on a 3x3 footprint. Unlocked by the War Factory.', '', 'Losing one hurts twice as much'],
     refinery: ['Processes ore into credits. Each comes with a free Ore Truck that harvests and unloads on its own. Build them close to ore fields.', '', 'Key target for enemy raids'],
     outpost: ['Unpacked from a Mobile Outpost. You can build up to 8 cells around it, so a refinery can sit right beside a distant ore field.', '', 'Lightly defended unless you add guns'],
@@ -125,7 +125,7 @@ const Manual = (() => {
       <h4>Money</h4>
       <p>Credits come from ore. Every refinery brings an Ore Truck that works on its own; ore fields grow back slowly and spread onto open ground beside them, so fields left alone slowly get bigger. Purple <b>gems</b> are worth twice as much but never regrow. Far-off fields are best worked from an <b>Outpost</b>: drive a Mobile Outpost there and deploy it.</p>
       <h4>Power</h4>
-      <p>Each structure draws power. If demand passes supply your base runs on low power: production slows, the radar goes offline and Tesla Coils go dark. Build more Power Plants before that happens.</p>
+      <p>Each structure draws power. If demand passes supply your base runs on low power: production slows, the radar goes offline and every defence except the Pillbox and Flame Tower goes dark (Gun Turrets, AA Guns, Tesla Coils, SAM Sites). Build more Power Plants before that happens.</p>
       <h4>Radar</h4>
       <p>You start without radar. Build a <b>Radar Dome</b> to switch on the minimap, then tap it to jump the view.</p>` },
     { ch: 'Basics', title: 'Team Battles', html: () => `

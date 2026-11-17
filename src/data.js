@@ -234,9 +234,9 @@ const BUILD_DEFS = {
   // Later it is meant to sell upgrades and unlock new units.
   tech:     { name: 'Tech Center',  w: 3, h: 3, hp: 1000, power: -100, cost: 1500, req: ['dome'],    factions: ['allies', 'soviets'], sight: 5 },
   turret:   { name: 'Gun Turret',   w: 1, h: 1, hp: 450,  power: -40, cost: 600,  req: ['barracks'], factions: ['allies'], defense: true,
-              weapon: { dmg: 40, rof: 1.4, range: 165, wh: 'AP', proj: 'shell' } },
+              weapon: { dmg: 40, rof: 1.4, range: 165, wh: 'AP', proj: 'shell', needsPower: true } },
   aagun:    { name: 'AA Gun',       w: 1, h: 1, hp: 400,  power: -50, cost: 800,  req: ['barracks'], factions: ['allies'], defense: true, antiAir: true,
-              weapon: { dmg: 22, rof: 0.35, range: 170, wh: 'FLAK', proj: 'flak', air: true, ground: false } },
+              weapon: { dmg: 22, rof: 0.35, range: 170, wh: 'FLAK', proj: 'flak', air: true, ground: false, needsPower: true } },
   tesla:    { name: 'Tesla Coil',   w: 1, h: 2, hp: 450,  power: -100, cost: 1200, req: ['barracks'], factions: ['soviets'], defense: true,
               weapon: { dmg: 100, rof: 2.6, range: 190, wh: 'TESLA', proj: 'tesla', needsPower: true } },
   pillbox:  { name: 'Pillbox',      w: 1, h: 1, hp: 400,  power: -15, cost: 400,  req: ['barracks'], factions: ['allies'], defense: true, camo: true,
@@ -245,7 +245,7 @@ const BUILD_DEFS = {
               weapon: { dmg: 40, rof: 2.0, range: 130, wh: 'FIRE', proj: 'fireball', burst: 2, gap: 0.3, splash: 18,
                         jet: { dps: 10, width: 7 } } },   // jet: the stream of fire burns what stands in it between shots (world.js flameBurn)
   sam:      { name: 'SAM Site',     w: 2, h: 1, hp: 400,  power: -20, cost: 750,  req: ['barracks'], factions: ['soviets'], defense: true, antiAir: true,
-              weapon: { dmg: 50, rof: 1.3, range: 180, wh: 'HE', proj: 'missile', air: true, ground: false } },
+              weapon: { dmg: 50, rof: 1.3, range: 180, wh: 'HE', proj: 'missile', air: true, ground: false, needsPower: true } },
 };
 
 // Airfield support powers: each recharges (in seconds) while its side owns an Airfield,
