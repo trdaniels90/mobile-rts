@@ -1026,17 +1026,17 @@ frame-time maths everywhere, so it is not deterministic.
   Tech Center falls; research under way when the last one falls (or is sold) is cancelled and refunded. A unit with `upgrade: '<id>'` is
   `available` only once researched (`hasUpgrade`), and needs nothing else from the Tech Center. Later upgrades can change existing units' stats.
 - **UI:** UPGRADES on a finished Tech Center's selection bar (shows the percentage while researching) opens the `#upgrades` card (`openUpgrades`,
-  `upFill` in ui.js): Research / Cancel / Researched. A blue bar under each Tech Center while research runs. "Upgrade complete" is text only (no voice clip yet).
+  `upFill` in ui.js): Research (the button names what it unlocks, e.g. "Comanche · $1500 · 60 s") / Cancel / Researched. A blue bar under each Tech Center while research runs. "Upgrade complete" is text only (no voice clip yet).
 - **Comanche** (`comanche` in UNIT_DEFS, Allies, Helicopter Base, $1500, 180 health, speed 100, sight 8, `standoff`; upgrade "Comanche program" $1500, 60 s):
   needs a free pad like any helicopter (`padRoom`). `standoffFight` (world.js) instead of the plain helicopter attack: it holds near the edge of the
   weapon's reach (`STANDOFF_FAR` 0.92), backs away nose-on below `STANDOFF_NEAR` (0.6) at `BACK_SPEED` (0.55 x speed). Looks as far as its missiles
-  reach (`airTarget`). **Chin gun** (`weapon`: 4-round bursts of 11, range 150, splash 8, warhead `CG`, 15 bursts a sortie): `spareTanks`, so `canHit`
+  reach (`airTarget`). **Chain gun** (`weapon`: 4-round bursts of 11, range 150, splash 8, warhead `CG`, 15 bursts a sortie): `spareTanks`, so `canHit`
   skips tanks (`isTank`: `draw === 'tank'`) while it has missiles; `airWeapons` swaps in `anyTarget(w)` (the same gun without the flag) once they are spent.
   **Missiles** (`weapon2`: 4, 120 HF, range 210, `tanksOnly`, `lock` 1 s, `bay`): the bays open (`u.bay` 0 to 1 over `BAY_OPEN` 0.4 s, synced, while
   `u.bayHold`), a lock builds while it faces the target (`u.lock`, `u.lockOn`, host timers in netcore `SKIP`), one missile per `rof` (cd2). `fireWeapon`'s `bay`
   branch launches from the side bays in turn (`bayN`), the missile falls clear for `BAY_DROP` (0.22 s, `dropStep`, also run by the guest's `flyShots`) and lights
   with a puff, then flies as any missile. No nose flash for those (`shots` is put back).
-- **Looks:** `comancheModel(pal, bay)` (models.js: faceted body, gold-tinted stepped canopy, chin gun, engine hump, fenestron fin, T-tail; doors flat out
+- **Looks:** `comancheModel(pal, bay)` (models.js: faceted body, gold-tinted stepped canopy, chain gun, engine hump, fenestron fin, T-tail; doors flat out
   with a missile on each when open), `BAY_STEPS` 2, key `'A' + key + 'b' + step` in `hullSprite`; baked (`looks` in bake-sprites.js) and warmed; five-blade
   rotor (art.js); cameo with the bays open. Sprites and ground key rebaked.
 - **Computer** (ai.js, Normal and Hard: `aiOf(team).planner`): researches any upgrade it can once it has a Tech Center and 2,500 to spare; Allied

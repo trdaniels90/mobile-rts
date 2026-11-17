@@ -1376,7 +1376,7 @@ function draw() {
       const u = UPGRADES[k], done = hasUpgrade(me, k), busy = r && r.id === k;
       const btn = done ? '<span class="up-done">Researched ✓</span>'
         : busy ? `<span class="up-pct">${Math.floor(r.progress * 100)}%${r.stalled ? ' · on hold' : ''}</span><button type="button" class="pf-btn" data-cancel="${k}">Cancel</button>`
-        : `<button type="button" class="pf-btn" data-up="${k}"${r ? ' disabled' : ''}>Research · ${u.cost} · ${u.time} s</button>`;
+        : `<button type="button" class="pf-btn" data-up="${k}"${r ? ' disabled' : ''}>${u.unlocks ? UNIT_DEFS[u.unlocks].name : u.name} · $${u.cost} · ${u.time} s</button>`;
       return `<div class="up-item"><p class="up-name">${u.name}</p><p class="up-desc">${u.desc}</p><div class="up-row">${btn}</div></div>`;
     }).join('') || '<p class="up-desc">No upgrades for this side yet.</p>';
     if (html !== upSig) { upSig = html; upEl.querySelector('.up-list').innerHTML = html; }

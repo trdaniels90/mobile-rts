@@ -79,7 +79,7 @@ const WARHEADS = {
   GR:    { inf: 0.6, light: 0.25, heavy: 0.25, bld: 1.0, air: 1.0 },  // grenades: OpenRA's Grenade
   AT:    { inf: 0.3, light: 0.75, heavy: 1.0,  bld: 0.6, air: 1.0 },   // Rocket Soldier: Red Alert's AP
   HF:    { inf: 0.15, light: 0.9, heavy: 1.0,  bld: 0.7, air: 1.0 },   // Hellfire: a tank killer, wasted on infantry
-  CG:    { inf: 1.0, light: 0.8,  heavy: 0.2,  bld: 0.25, air: 0.6 },  // the Comanche's 20 mm chin gun: infantry and light vehicles, little against tanks
+  CG:    { inf: 1.0, light: 0.8,  heavy: 0.2,  bld: 0.25, air: 0.6 },  // the Comanche's 20 mm chain gun: infantry and light vehicles, little against tanks
 };
 
 // cls: inf | veh | air.  cat: which sidebar tab builds it.  speed in px/s, sight in cells.
@@ -194,7 +194,7 @@ const UNIT_DEFS = {
     weapon: { dmg: 55, rof: 0.9, range: 96, wh: 'HF', proj: 'rocket', ammo: 6, prefersArmor: true },
   },
   // RAH-66 Comanche (Allies, after the Tech Center upgrade `comanche`): a stealthy stand-off helicopter. It hangs back at the
-  // edge of its reach: the chin gun for infantry and light vehicles (tanks only once its missiles are spent: `spareTanks`), and
+  // edge of its reach: the chain gun for infantry and light vehicles (tanks only once its missiles are spent: `spareTanks`), and
   // four anti-tank missiles for tanks alone (`tanksOnly`), fired from bays in its sides after holding a lock (`lock` s).
   comanche: {
     name: 'Comanche', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', upgrade: 'comanche', factions: ['allies'], standoff: true,
@@ -328,7 +328,7 @@ function defOf(type) { return UNIT_DEFS[type] || BUILD_DEFS[type]; }
 // unit's `upgrade` names it) or, later, changes existing units' stats.
 const UPGRADES = {
   comanche: { name: 'Comanche program', unlocks: 'comanche', cost: 1500, time: 60, factions: ['allies'],
-              desc: 'Unlocks the Comanche at the Helicopter Base: a stand-off helicopter with a chin gun for infantry and light vehicles, and four anti-tank missiles fired from its side bays.' },
+              desc: 'Unlocks the Comanche at the Helicopter Base: a stand-off helicopter with a chain gun for infantry and light vehicles, and four anti-tank missiles fired from its side bays.' },
   teslatank: { name: 'Tesla program', unlocks: 'ttank', cost: 1500, time: 60, factions: ['soviets'],
                desc: 'Unlocks the Tesla Tank at the War Factory: a tank carrying a Tesla coil. Its bolt kills infantry outright and hurts vehicles badly at short range; it cannot hit aircraft.' },
 };

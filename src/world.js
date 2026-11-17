@@ -1640,7 +1640,7 @@ function canHit(w, t) {
   if (!w) return false;
   if (t.kind === 'unit' && isAirborne(t)) return !!w.air && !(w.heliOnly && t.def.fly === 'jet');   // heliOnly weapons cannot reach jets
   if (w.tanksOnly && !isTank(t)) return false;    // the Comanche's anti-tank missiles
-  if (w.spareTanks && isTank(t)) return false;    // its chin gun leaves tanks to the missiles (airWeapons lifts this once they are spent)
+  if (w.spareTanks && isTank(t)) return false;    // its chain gun leaves tanks to the missiles (airWeapons lifts this once they are spent)
   return w.ground !== false;
 }
 function canTarget(u, t) { return canHit(u.def.weapon, t) || canHit(u.def.weapon2, t); }
@@ -3847,7 +3847,7 @@ function rearmStep(u) {
   else if ((u.guns || 0) < L.guns) u.guns = (u.guns || 0) + 1;
   u.flares = u.def.flares || 0;
 }
-// The Comanche's chin gun takes on tanks too once its missiles are spent: the same gun without `spareTanks`.
+// The Comanche's chain gun takes on tanks too once its missiles are spent: the same gun without `spareTanks`.
 function anyTarget(w) { return w.all || (w.all = Object.assign({}, w, { spareTanks: false, all: null })); }
 function airWeapons(u) {
   const ws = [];
@@ -4207,7 +4207,7 @@ function strikeOver(u) {
 // The Comanche's fight: it holds near the edge of its reach and backs away (still facing the target) from anything that comes
 // closer than STANDOFF_NEAR of it. Tanks get the anti-tank missiles while it has them: the bays open (BAY_OPEN s), it holds a
 // lock for the weapon's `lock` seconds (kept while the target stays the same and in reach) and fires one missile per `rof`.
-// Everything else, and tanks once the missiles are spent, gets the chin gun.
+// Everything else, and tanks once the missiles are spent, gets the chain gun.
 const BAY_OPEN = 0.4, STANDOFF_FAR = 0.92, STANDOFF_NEAR = 0.6, BACK_SPEED = 0.55;
 function standoffFight(u, t, dt) {
   const mw = u.def.weapon2, missile = u.aam > 0 && canHit(mw, t);
