@@ -674,7 +674,7 @@ share globals. Read this file first; the commit history explains every change in
   phone-sized browser run laid concrete, a gate and sandbags, walked a soldier through the gate and took a piece down.
   Not yet tried: two real phones online, and a save and continue in the browser.
 
-- **Sandbag cover** (after 2026.11.17.11, owner's pick for both modes; the server must match): sandbags drawn smaller (`WALL_LOOK[1]` h 5.5, a 4; was 8, 6).
+- **Sandbag cover** (after 2026.11.17.11, owner's pick for both modes; the server must match): sandbags drawn smaller (`WALL_LOOK[1]` h 6.5, a 4; was 8, 6; darker sides and seams, each sack a shade apart by cell, `tone` in `drawWallIso`).
   `sandbagCover(u, sx, sy)` (world.js): an infantryman not in a house, beside a sandbag of his alliance that lies toward the shooter (within about 40 degrees,
   not point blank), takes `SANDBAG_COVER` (0.65) of the damage, on top of prone. `defendBase` gives defending infantry a spot behind the alliance's sandbags
   near the base (`sandbagCells`, `coverSpot`: the free cell on the far side of a bag from the raider, within `COVER_SEEK` 12 cells, raider within reach + 2 cells;
