@@ -1103,7 +1103,8 @@ function aiSquads(team) {
     for (const e of foes) if (Math.hypot(e.x - cx, e.y - cyy) < CELL * 14) theirs += e.def.cost || 300;
     for (const b of guns) if (Math.hypot(b.x - cx, b.y - cyy) < CELL * 12) theirs += 500;
     if (s.n0 >= 8 && mine < s.value0 * 0.35 && theirs > mine * 2) {
-      for (const u of l) { setGuard(u, rally.x, rally.y); u.staged = true; goTo(u, rally.x, rally.y); }
+      const deal = spotDealer(team);
+      for (const u of l) { const p = deal(u, rally.x, rally.y); setGuard(u, p.x, p.y); u.staged = true; goTo(u, p.x, p.y); }
       team.sqn = team.sqn || { home: 0, back: 0 }; team.sqn.back++;
       return false;
     }
@@ -1148,7 +1149,7 @@ function aiScoutDone(team) {
   const u = s.u; s.u = null;
   if (!u.alive) return;
   if (u.cls === 'air') { setGuard(u); u.order.pad = true; u.staged = true; return; }
-  const r = rallyPoint(team);
+  const r = spotDealer(team)(u, rallyPoint(team).x, rallyPoint(team).y);
   setGuard(u, r.x, r.y); u.staged = true; goTo(u, r.x, r.y);
 }
 
@@ -1204,9 +1205,10 @@ function aiApproachStart(team, units, target, strike) {
 }
 // Sends each group to its gathering point (guarding it on the way) and starts the wait in aiPincer.
 function aiGather(team, groups, spots, target, strike, n) {
+  const deal = spotDealer(team);   // each unit its own cell round the gathering point (they piled up on it)
   groups.forEach((g, i) => {
     const p = spots[i];
-    for (const u of g) { setGuard(u, p.x + (Math.random() - 0.5) * CELL * 3, p.y + (Math.random() - 0.5) * CELL * 3); u.staged = false; goTo(u, u.order.x, u.order.y); }
+    for (const u of g) { const s = deal(u, p.x, p.y); setGuard(u, s.x, s.y); u.staged = false; goTo(u, s.x, s.y); }
   });
   // Long marches get longer: give up waiting only well after the slowest unit could have arrived.
   const slow = Math.min(...groups.flat().map((u) => u.def.speed * (u.paceMul || 1)));
@@ -1268,7 +1270,7 @@ function aiPincer(team) {
   if (!p) return;
   const alive = p.groups.map((g) => g.filter((u) => u.alive && u.order.type === 'guard' && !u.defending));
   const all = [].concat(...alive);
-  const there = alive.map((g, i) => !g.length || g.filter((u) => Math.hypot(u.x - p.spots[i].x, u.y - p.spots[i].y) < CELL * 5).length >= g.length * 0.6);
+  const there = alive.map((g, i) => !g.length || g.filter((u) => Math.hypot(u.x - p.spots[i].x, u.y - p.spots[i].y) < CELL * Math.max(5, 2 + Math.sqrt(g.length))).length >= g.length * 0.6);
   if (!all.length) { team.pincer = null; return; }
   if (p.firstIn === undefined && there.some((x, i) => x && alive[i].length)) p.firstIn = G.t;
   const waited = p.firstIn !== undefined ? G.t - p.firstIn > 30 : G.t - p.since > (p.limit || 150);

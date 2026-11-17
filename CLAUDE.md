@@ -1523,6 +1523,16 @@ frame-time maths everywhere, so it is not deterministic.
   `roomyCell`s (3 x 3 free, not in a gap under 4 cells wide), so waiting units no longer park in the gaps between woods.
 - `ally-defend.js`, `rally.js` pass; `bunching.js` 4 x 90 s: 3.28 average, 10% six or more, worst 9 (unchanged).
 
+## Units sent to one spot get a cell each (after 2026.11.17.18, not released, both modes; the server must match)
+
+- Owner's report (match b76bd95e, Frostlight 3 v 3, Normal): green (a balanced Allied computer) kept a pile of units by its Airfield; they walked into it,
+  and Rocket Soldiers pushed out walked back in. Cause: defenders going back after a defence (`defendBase`, `defendAllies`) all had the same post, the
+  rally point (hunting units pulled into a defence get `rallyPoint`), and `aiSquads` retreats, `aiScoutDone` and the wave gather (`aiGather`, random within
+  1.5 cells) did the same. Now `spotDealer(team)` (world.js) gives each unit its own open cell round the point (flood over open ground, nearest first,
+  skipping cells friends stand on or wait for; vehicles keep a cell clear round them). `aiPincer` counts a group there within `max(5, 2 + sqrt(n))` cells.
+  Headless Frostlight 3 v 3 (sides styled as in that match, 22 min): green's 15-20-unit piles on its rally point (23 samples) to none.
+  `ally-defend.js`, `rally.js` pass; `teams.js` 2 v 2 Twin Lakes 12 min, no errors.
+
 ## V2 rocket raised to fire (after 2026.11.16.4, not released, owner OK'd for both modes)
 
 - The rocket lies flat on the truck's bed and is raised on its rail before it fires, like the MG Team's set-up: `setup: 1.5`, `pack: 1` on
