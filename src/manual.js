@@ -47,6 +47,8 @@ const Manual = (() => {
     heli: ['A fast gunship with six Hellfire missiles a sortie: armour-piercing, deadly to tanks but poor against infantry. Flies home to rearm. Needs a Tech Center.', 'Tanks, vehicles', 'Infantry, AA Guns, SAM sites, rocket soldiers'],
     ttank: ['A Soviet tank carrying a Tesla coil, unlocked by the Tesla program upgrade at the Tech Center. Its bolt never misses: it kills infantry outright and hurts vehicles badly, but its reach is short and it cannot hit aircraft. Unlike the Tesla Coil it needs no power. Lightly armoured for a tank.', 'Infantry, light vehicles, tanks up close', 'Artillery, helicopters, long-range guns'],
     comanche: ['A stealthy Allied stand-off helicopter, unlocked by the Comanche program upgrade at the Tech Center. It hangs back at the edge of its reach and backs away from anything that closes in. Its chain gun cuts down infantry and light vehicles; its four missiles, fired from bays in its sides, lock on to tanks and Ore Trucks from long range (a second to lock). Once the missiles are spent the gun takes on those too, for little damage. AA Guns and SAM Sites outreach it, so it cannot pick a defended base apart from a distance. Needs a free pad at a Helicopter Base like any helicopter.', 'Tanks and Ore Trucks (missiles), infantry, light vehicles', 'AA Guns, SAM sites, rocket soldiers'],
+    chinook: ['An unarmed Allied twin-rotor transport that carries 8 infantry. Select infantry and tap the Chinook: it lands beside them and they climb in. Select it and tap the ground: it flies there, lands, lets them out and flies home (tap the ground while it is empty to park it there). UNLOAD HERE sets them down where it is. Or use Air Assault in the sidebar. If it is shot down, everyone aboard is lost.', 'Moving infantry over water, round defences and to the far side of the map', 'AA defences, rockets, MG Teams'],
+    halo: ['An unarmed Soviet heavy transport helicopter that carries 8 infantry, a little tougher and slower than the Chinook. Select infantry and tap the Halo: it lands beside them and they climb in. Select it and tap the ground: it flies there, lands, lets them out and flies home (tap the ground while it is empty to park it there). UNLOAD HERE sets them down where it is. Or use Air Assault in the sidebar. If it is shot down, everyone aboard is lost.', 'Moving infantry over water, round defences and to the far side of the map', 'AA defences, rockets, MG Teams'],
     hind: ['An armoured Soviet gunship whose chain gun tears through infantry, with twelve bursts a sortie.', 'Infantry, light vehicles', 'AA defences, rockets'],
     jet: ['Styled after the F-15E Strike Eagle: two ground-attack missiles, two air-to-air missiles (fired at ground targets too once the others are spent), three cannon gun runs and two bursts of flares per sortie.', 'Structures, aircraft, infantry', 'SAM sites, flak, rockets'],
     mig: ['A fast Soviet delta-wing fighter with missiles for ground and air targets (the air-to-air pair also strikes the ground), a cannon for strafing runs and flares.', 'Structures, aircraft, infantry', 'AA Guns, rockets'],
@@ -54,7 +56,7 @@ const Manual = (() => {
   const WEAPON = {
     rifle: 'Rifle (small splash)', grenadier: 'Grenades (arcing, splash)', rocket: 'Dragon rockets; RedEye missiles (air)', hmg: 'Heavy machine gun (sets up to fire; hits helicopters, not jets)', pilot: 'Pistol',
     ranger: 'Machine gun (hits helicopters, not jets)', ltank: 'Light cannon', mtank: 'Cannon', htank: 'Twin cannons', mammoth: 'Twin cannons + anti-air missile pods',
-    arty: 'Howitzer (arcing, splash)', v2rl: 'V2 rocket (arcing, huge splash)', ttank: 'Tesla bolt (ground only)', heli: 'Hellfire missiles (anti-armour)', hind: 'Chain gun', comanche: '20 mm chain gun; 4 missiles (tanks and Ore Trucks, lock-on)',
+    arty: 'Howitzer (arcing, splash)', v2rl: 'V2 rocket (arcing, huge splash)', ttank: 'Tesla bolt (ground only)', heli: 'Hellfire missiles (anti-armour)', hind: 'Chain gun', comanche: '20 mm chain gun; 4 missiles (tanks and Ore Trucks, lock-on)', chinook: 'None (carries 8 infantry)', halo: 'None (carries 8 infantry)',
     jet: 'Missiles (ground and air), cannon', mig: 'Missiles (ground and air), cannon',
     pillbox: 'Machine gun', turret: 'Cannon', aagun: 'Flak (aircraft only)', ftur: 'Flamethrower', tesla: 'Tesla bolt', sam: 'SAM missiles (aircraft only)',
   };
@@ -107,7 +109,9 @@ const Manual = (() => {
     const f = window.__fmFaction || 'allies';
     return `<div class="fm-grid">${Object.entries(POWERS).map(([k, p]) => `<article class="fm-entry">
       <div class="fm-head">${pic('pw:' + k, f)}<div><h3>${p.name}</h3><span class="fm-side both">Airfield power</span></div></div>
-      <dl class="fm-stats">${stat('Recharge', `${p.charge} s`)}</dl><p>${POWER_TEXT[k]}</p></article>`).join('')}</div>
+      <dl class="fm-stats">${stat('Recharge', `${p.charge} s`)}</dl><p>${POWER_TEXT[k]}</p></article>`).join('')}
+      <article class="fm-entry"><div class="fm-head">${pic('as:assault', f)}<div><h3>Air Assault</h3><span class="fm-side both">Transport helicopter</span></div></div>
+      <dl class="fm-stats">${stat('Needs', 'A free Chinook or Halo, 4+ idle infantry by a Barracks')}</dl><p>Shows in the sidebar once you have a transport helicopter. Tap it, then tap where the troops should land. A free transport flies to your Barracks, picks up to 8 idle infantry from beside it (as even a mix of kinds as you have, no Engineers), lands them where you tapped and flies home. No recharge: it is ready again as soon as a transport is free. The computer uses it too on Normal and Hard.</p></article></div>
       <p>Powers charge only while you own an Airfield, at half speed on low power. Tap one when it shows READY, then tap the target (on touch screens tap again or press LAUNCH to confirm). The planes reveal nothing along their way in. AA Guns and SAM sites can shoot them down, but every gun or missile site that fires at one shows up on your map.</p>`;
   }
 
@@ -183,7 +187,7 @@ const Manual = (() => {
     { ch: 'Infantry', title: 'Infantry', html: () => entries(['rifle', 'grenadier', 'rocket', 'hmg', 'engineer', 'pilot']) },
     { ch: 'Vehicles', title: 'Armour', html: () => entries(['ranger', 'ltank', 'mtank', 'htank', 'ttank', 'mammoth']) },
     { ch: 'Vehicles', title: 'Support Vehicles', html: () => entries(['arty', 'v2rl', 'harv', 'fob', 'mcv']) },
-    { ch: 'Aircraft', title: 'Aircraft', html: () => entries(['heli', 'comanche', 'hind', 'jet', 'mig']) },
+    { ch: 'Aircraft', title: 'Aircraft', html: () => entries(['heli', 'comanche', 'hind', 'chinook', 'halo', 'jet', 'mig']) },
     { ch: 'Powers', title: 'Airfield Support Powers', html: powers },
     { ch: 'Intel', title: 'The Enemy Commander', html: () => `
       <p>The computer plays by your rules: the same buildings, costs and units. How it fights depends on the difficulty.</p>

@@ -825,7 +825,7 @@ function draw() {
     const p = G.place;
     if (p && p.rally && p.x !== undefined) { drawRally(v, p.rally, p); return; }
     if (p && (p.power || p.guard) && p.x !== undefined) {
-      const r = p.guard ? Math.max(...p.guard.filter((u) => u.alive).map(guardReach), CELL) : p.power === 'spy' ? POWERS.spy.reveal * CELL : p.power === 'para' ? 40 : 60;
+      const r = p.guard ? Math.max(...p.guard.filter((u) => u.alive).map(guardReach), CELL) : p.power === 'spy' ? POWERS.spy.reveal * CELL : p.power === 'para' || p.power === 'assault' ? 40 : 60;
       v.strokeStyle = p.guard ? '#5ee060' : '#ff5a4a'; v.lineWidth = 1;
       v.setLineDash([4, 3]); v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.stroke(); v.setLineDash([]);
       v.beginPath(); v.moveTo(p.x - 8, p.y); v.lineTo(p.x + 8, p.y); v.moveTo(p.x, p.y - 8); v.lineTo(p.x, p.y + 8); v.stroke();
@@ -971,6 +971,11 @@ function draw() {
     const slop = (isTouch ? 16 : 6) / cam.z;
     const e = pick(w.x, w.y, slop);
     const mine = ownUnits();
+    // Your own transport under the tap with infantry selected: they board it (it comes down beside them).
+    if (e && e.kind === 'unit' && e.alive && e.team === G.me && e.def.lift) {
+      const inf = mine.filter((u) => canBoard(u));
+      if (inf.length) { commandBoard(inf, e); marker(e.x, e.y, '#3ed04a'); Sound.ack('inf'); return; }
+    }
     // A village house under the tap: infantry selected go in (if it is free or yours); your own garrison is selected
     // with nothing else to do; an enemy's is attacked.
     const hh = !e && (houseAt(w.x, w.y) || houseAt(w.x, w.y + CELL * 0.8));
@@ -1066,7 +1071,7 @@ function draw() {
   function beginTarget(key) {
     G.place = { power: key };
     select([]);
-    ui.placeText.textContent = `${isTouch ? 'Tap' : 'Click'} the map to target the ${POWERS[key].name}`;
+    ui.placeText.textContent = key === 'assault' ? `${isTouch ? 'Tap' : 'Click'} where the troops should land` : `${isTouch ? 'Tap' : 'Click'} the map to target the ${POWERS[key].name}`;
     ui.placeOk.textContent = 'LAUNCH';
     ui.placeOk.hidden = !isTouch;
     ui.placebar.hidden = false;
@@ -1148,6 +1153,11 @@ function draw() {
     }
     if (p && p.power) {
       if (p.x === undefined) return;
+      if (p.power === 'assault') {
+        if (commandAirAssault(G.teams[G.me], p.x, p.y)) { marker(p.x, p.y, '#5ee060'); Sound.ack('air'); }
+        endPlace();
+        return;
+      }
       if (launchPower(G.teams[G.me], p.power, p.x, p.y)) { marker(p.x, p.y, '#ff4a3a'); Sound.ack('air'); endPlace(); }
       else { eva('Not available'); endPlace(); }
       return;
@@ -1322,7 +1332,8 @@ function draw() {
   const UNIT_ORDER = ['infantry', 'vehicle', 'heli', 'jet'];
   function stripTypes(team, side) {
     if (side === 'L') {
-      const powers = hasBuilt(team, 'airfield') ? Object.keys(POWERS).map((k) => 'pw:' + k) : [];
+      const powers = (hasBuilt(team, 'airfield') ? Object.keys(POWERS).map((k) => 'pw:' + k) : [])
+        .concat(unitsOf(team.id).some((u) => u.def.lift) ? ['as:assault'] : []);   // Air Assault: once the side has a transport helicopter
       // (a queued structure stays on the list after a building it needs is lost, so it can be placed or cancelled)
       const q = team.queues.structure;
       return powers.concat(Object.keys(BUILD_DEFS).filter((k) => available(team, k) || (q && q.type === k)), Object.keys(WALLS).filter((k) => wallAvailable(team, k)).map((k) => 'wl:' + k));
@@ -1345,7 +1356,7 @@ function draw() {
       return;
     }
     for (const type of types) {
-      const pw = type.startsWith('pw:'), wl = type.startsWith('wl:'), d = pw ? POWERS[type.slice(3)] : wl ? WALLS[type.slice(3)] : defOf(type);
+      const as = type.startsWith('as:'), pw = type.startsWith('pw:') || as, wl = type.startsWith('wl:'), d = as ? ASSAULT : pw ? POWERS[type.slice(3)] : wl ? WALLS[type.slice(3)] : defOf(type);
       const btn = document.createElement('button');
       btn.type = 'button'; btn.className = 'cameo'; btn.dataset.type = type;
       btn.title = pw ? d.name : `${d.name}: $${d.cost}`;
@@ -1364,6 +1375,13 @@ function draw() {
     if (!G || G.over) return;
     Sound.play('click');
     const team = G.teams[G.me];
+    if (type.startsWith('as:')) {
+      if (G.place && G.place.power === 'assault') { endPlace(); return; }
+      const plan = assaultPlan(team);
+      if (typeof plan === 'string') evaCalm(plan === 'heli' ? 'No transport available' : `Air Assault needs ${ASSAULT_MIN} idle infantry by a Barracks`, 4);
+      else beginTarget('assault');
+      return;
+    }
     if (type.startsWith('pw:')) {
       const key = type.slice(3);
       if (powerReady(team, key)) beginTarget(key); else eva('Not available');
@@ -1388,6 +1406,7 @@ function draw() {
   function cameoCancel(type) {
     if (!G) return;
     const team = G.teams[G.me];
+    if (type.startsWith('as:')) { if (G.place && G.place.power === 'assault') endPlace(); return; }
     if (type.startsWith('pw:')) { if (G.place && G.place.power === type.slice(3)) endPlace(); return; }
     if (type.startsWith('wl:')) { if (G.place && G.place.wall === type.slice(3)) endPlace(); return; }
     if (G.place && G.place.type === type) endPlace();
@@ -1642,8 +1661,12 @@ function draw() {
     const sq = team.queues.structure;
     for (const [type, el] of cameoEls) {
       let p = 0, st = '', count = 0, dim = false;
-      const cat = type.startsWith('pw:') ? 'power' : type.startsWith('wl:') ? 'wall' : catOf(type);
-      if (cat === 'power') {
+      const cat = type.startsWith('as:') ? 'assault' : type.startsWith('pw:') ? 'power' : type.startsWith('wl:') ? 'wall' : catOf(type);
+      if (cat === 'assault') {
+        const ready = typeof assaultPlan(team) !== 'string';
+        st = G.place && G.place.power === 'assault' ? 'READY' : ready ? 'READY' : '';
+        dim = !ready;
+      } else if (cat === 'power') {
         const key = type.slice(3);
         p = team.powers[key] / POWERS[key].charge;
         st = p >= 1 ? 'READY' : '';
@@ -1679,12 +1702,12 @@ function draw() {
     if (!sel.length) { ui.selbar.hidden = true; selSig = ''; return; }
     ui.selbar.hidden = false;
     const one = sel.length === 1 ? sel[0] : null;
-    ui.selName.textContent = one ? (one.def.name + (one.rank ? ' · ' + VET.names[one.rank] : '') + (hostile(one.team, G.me) ? ' · enemy' : one.team !== G.me ? ' · ally' : '')) : `${sel.length} units`;
+    ui.selName.textContent = one ? (one.def.name + (one.def.lift ? ` · ${(one.cargo || []).length}/${one.def.carry} aboard` : '') + (one.rank ? ' · ' + VET.names[one.rank] : '') + (hostile(one.team, G.me) ? ' · enemy' : one.team !== G.me ? ' · ally' : '')) : `${sel.length} units`;
     const hp = one ? one.hp / one.maxHp : sel.reduce((s, e) => s + e.hp / e.maxHp, 0) / sel.length;
     ui.selHp.style.setProperty('--p', Math.max(0, hp));
     ui.selHp.dataset.state = hp > 0.5 ? 'ok' : hp > 0.25 ? 'warn' : 'low';
     const own = sel.filter((e) => e.team === G.me);
-    const fighters = own.filter((e) => e.kind === 'unit' && !e.def.harvester && (e.def.weapon || e.cls === 'air'));
+    const fighters = own.filter((e) => e.kind === 'unit' && !e.def.harvester && !e.def.lift && (e.def.weapon || e.cls === 'air'));
     const bld = one && one.kind === 'bld' && one.team === G.me ? one : null;
     const btns = [];
     if (own.some((e) => e.kind === 'unit' && e.def.deploys)) btns.push(['deploy', 'DEPLOY']);
@@ -1692,6 +1715,7 @@ function draw() {
     if (fighters.length) btns.push(['span', 'ATTACK GROUND']);
     if (own.some((e) => e.kind === 'unit')) btns.push(['stop', 'STOP']);
     if (own.some((e) => e.inHouse)) btns.push(['exit', 'EXIT']);
+    if (own.some((e) => e.kind === 'unit' && e.def.lift && (e.cargo || []).length)) btns.push(['unload', 'UNLOAD HERE']);
     if (own.some((e) => canService(e) && e.hp < e.maxHp) && hasBuilt(G.teams[G.me], 'depot')) btns.push(['svc', 'REPAIR']);
     if (bld) {
       if (canRally(bld)) {
@@ -1725,7 +1749,8 @@ function draw() {
       else { commandHunt(own.filter((u) => u.kind === 'unit' && (u.def.weapon || u.cls === 'air'))); eva('Attacking enemy base'); Sound.ack('attack'); }
     }
     else if (act === 'exit') { commandExit(own.filter((u) => u.inHouse)); Sound.ack('inf'); }
-    else if (act === 'span') { aimSpan = own.filter((u) => u.kind === 'unit' && !u.def.harvester && (u.def.weapon || u.cls === 'air')); evaCalm('Tap the ground to attack', 5); }
+    else if (act === 'unload') { for (const u of own.filter((x) => x.kind === 'unit' && x.def.lift && (x.cargo || []).length)) commandMove([u], u.x, u.y); Sound.ack('air'); }
+    else if (act === 'span') { aimSpan = own.filter((u) => u.kind === 'unit' && !u.def.harvester && !u.def.lift && (u.def.weapon || u.cls === 'air')); evaCalm('Tap the ground to attack', 5); }
     else if (act === 'guard') beginGuard(own.filter((u) => u.kind === 'unit' && !u.def.harvester));
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
     else if (act === 'svc') { commandRepair(own.filter((u) => canService(u) && u.hp < u.maxHp)); eva('To the Service Depot'); Sound.ack('veh'); }

@@ -316,6 +316,21 @@ function aiPowerTarget(team, cluster) {
   return { x: best.x, y: best.y };
 }
 
+// Air assaults (Normal and Hard): once its first wave is due and an enemy base is known, every AI_ASSAULT_GAP s or so it flies
+// idle infantry from a Barracks in a transport and lands them by an enemy refinery or power plant that no known anti-air covers.
+const AI_ASSAULT_GAP = 150, AI_ASSAULT_MIN = 6;
+function aiAirAssault(team) {
+  if (!aiOf(team).planner || G.t < (team.assaultT || 0) || G.t < aiOf(team).firstWave || !enemyBaseKnown(team.id)) return;
+  team.assaultT = G.t + 20;
+  const plan = assaultPlan(team);
+  if (typeof plan === 'string' || plan.crew.length < AI_ASSAULT_MIN) return;
+  const aa = knownAA(team.id, false);
+  for (let i = 0; i < 4; i++) {
+    const t = aiPowerTarget(team, false);
+    if (!t || aaCover(aa, t)) continue;
+    if (commandAirAssault(team, t.x, t.y)) { team.assaultT = G.t + AI_ASSAULT_GAP * (0.8 + Math.random() * 0.4); return; }
+  }
+}
 const ARMY_UNITS = 100, ARMY_WORTH = 28000;   // defaults; DIFFICULTY ai.armyUnits and ai.armyWorth set them per difficulty (Normal 100 and 45000)
 // Destroyed bridge spans: the computer trains an Engineer (one at a time, when no Engineer of its alliance is free or
 // on the way) and sends each idle Engineer to the nearest destroyed span it can walk to that nobody is already
@@ -615,7 +630,9 @@ function aiThink(team) {
   if (!capped && money > (anti ? 600 : 900) && air < 6 && !truckDue) {
     const comanche = available(team, 'comanche') && Math.random() < ((team.counter || {}).armor ? 0.65 : 0.45);   // more of them against tanks
     const heli = team.faction === 'allies' ? (comanche ? 'comanche' : 'heli') : 'hind', jet = team.faction === 'allies' ? 'jet' : 'mig';
-    if (c.airfield && !team.queues.jet.length && padRoom(team, 'airfield') > 0 && (anti || Math.random() < 0.5)) startProduction(team, jet);
+    const lift = team.faction === 'allies' ? 'chinook' : 'halo';
+    if (aiOf(team).planner && c.helipad && !c[lift] && !anti && !team.queues.heli.length && G.t > aiOf(team).firstWave * 0.6 && padRoom(team, 'helipad') > 0) startProduction(team, lift);   // one transport for air assaults
+    else if (c.airfield && !team.queues.jet.length && padRoom(team, 'airfield') > 0 && (anti || Math.random() < 0.5)) startProduction(team, jet);
     else if (c.helipad && available(team, heli) && !team.queues.heli.length && (!anti || !c.airfield || Math.random() < 0.25)) startProduction(team, heli);
   }
 
@@ -625,6 +642,7 @@ function aiThink(team) {
   const held = (k) => team.holdFor && team.holdFor.keys.includes(k) && G.t - team.holdFor.since < 180;
   if (powerReady(team, 'bomb') && !held('bomb')) { const t = aiPowerTarget(team, true); if (t) launchPower(team, 'bomb', t.x, t.y); }
   if (powerReady(team, 'para') && !held('para')) { const t = aiPowerTarget(team, false); if (t) launchPower(team, 'para', t.x, t.y); }
+  aiAirAssault(team);
 
   // Patch up damaged buildings when there is cash to spare, but not while they are being shot at.
   for (const b of buildingsOf(team.id)) {

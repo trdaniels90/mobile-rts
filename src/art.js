@@ -1714,24 +1714,35 @@ function drawUnitBody(g, u, t) {
       // The rotor turns faster than any screen can show, so each frame it advances as far as it
       // can without seeming to run backwards (under half the gap between blades, whatever the
       // frame rate) and the blur of the arc it swept fills in the rest.
-      const five = u.type === 'hind' || u.type === 'comanche', n = five ? 5 : 4, gap = Math.PI * 2 / n, flying = alt > 1;
-      const rz = (u.type === 'comanche' ? 12 : five ? 10 : 9) * VK, [rx, ry] = liftPt(u.x, u.y, alt + rz), R = u.type === 'hind' ? 15 : 13;
+      const five = u.type === 'hind' || u.type === 'comanche', flying = alt > 1;
       const dtf = u.rotT === undefined ? 0 : Math.min(0.1, Math.max(0, t - u.rotT));
-      const step = Math.min((flying ? 80 : 6) * dtf, gap * 0.42);
-      u.rotT = t; u.rotA = (u.rotA === undefined ? u.id : u.rotA) + step;
-      g.fillStyle = flying ? 'rgba(40,40,36,0.26)' : 'rgba(0,0,0,0)';
-      g.beginPath(); g.ellipse(rx, ry, R, R * 0.92, 0, 0, 7); g.fill();
-      g.lineWidth = 1.2;
-      const trails = flying ? 4 : 1;
-      for (let c = trails - 1; c >= 0; c--) {
-        g.strokeStyle = `rgba(28,28,24,${c ? 0.32 * (1 - c / trails) : 0.85})`;
-        g.beginPath();
-        for (let k = 0; k < n; k++) {
-          const a = u.rotA - c * step / trails * 1.6 + k * gap;
-          g.moveTo(rx, ry); g.lineTo(rx + Math.cos(a) * R, ry + Math.sin(a) * R * 0.92);
+      // Each rotor: [distance forward of the middle, hub height, radius, blades, turning way]. The Chinook's two turn opposite ways.
+      const rotors = ROTORS[u.type] || [[0, u.type === 'comanche' ? 12 : five ? 10 : 9, u.type === 'hind' ? 15 : 13, five ? 5 : 4, 1]];
+      const adv = Math.min((flying ? 80 : 6) * dtf, Math.PI * 2 / Math.max(...rotors.map((r) => r[3])) * 0.42);
+      u.rotT = t; u.rotA = (u.rotA === undefined ? u.id : u.rotA) + adv;
+      let rx, ry;
+      for (const [fwd, hz, R, n, way] of rotors) {
+        const gap = Math.PI * 2 / n, step = adv * way;
+        [rx, ry] = liftPt(u.x + Math.cos(u.face) * fwd, u.y + Math.sin(u.face) * fwd, alt + hz * VK);
+        g.fillStyle = flying ? 'rgba(40,40,36,0.26)' : 'rgba(0,0,0,0)';
+        g.beginPath(); g.ellipse(rx, ry, R, R * 0.92, 0, 0, 7); g.fill();
+        g.lineWidth = 1.2;
+        const trails = flying ? 4 : 1;
+        for (let c = trails - 1; c >= 0; c--) {
+          g.strokeStyle = `rgba(28,28,24,${c ? 0.32 * (1 - c / trails) : 0.85})`;
+          g.beginPath();
+          for (let k = 0; k < n; k++) {
+            const a = u.rotA * way - c * step / trails * 1.6 + k * gap;
+            g.moveTo(rx, ry); g.lineTo(rx + Math.cos(a) * R, ry + Math.sin(a) * R * 0.92);
+          }
+          g.stroke();
         }
-        g.stroke();
       }
+      if (u.def.lift && u.cargo && u.cargo.length && alliedSides(u.team, G.me)) standAt(g, u.x, u.y, 0, () => {   // a pip for each soldier aboard
+        const n = u.def.carry, x0 = Math.round(u.x - n * 1.5), y0 = Math.round(u.y + 12);
+        g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x0 - 1, y0 - 1, n * 3 + 1, 4);
+        for (let j = 0; j < n; j++) { g.fillStyle = j < u.cargo.length ? '#7ee06a' : '#4a4436'; g.fillRect(x0 + j * 3, y0, 2, 2); }
+      });
       if (u.type === 'heli') {   // the Longbow radar dome on top of the mast
         g.fillStyle = '#4c5149'; g.beginPath(); g.ellipse(rx, ry - 1.5, 2.6, 1.9, 0, 0, 7); g.fill();
         g.fillStyle = '#6b7166'; g.beginPath(); g.ellipse(rx - 0.5, ry - 2.1, 1.4, 0.9, 0, 0, 7); g.fill();
@@ -2808,10 +2819,13 @@ function drawEffect(g, fx) {
 const cameoCache = new Map();
 // variant: 1 for a teammate's second colour (team.variant). It is set here, not left to whatever
 // was drawn last, and is part of the cache key (before, a co-op player's sidebar mixed both colours).
+// Transport rotors: [forward of the middle, hub height (voxels), radius (px), blades, turning way]; other helicopters have one.
+const ROTORS = { chinook: [[14, 11.5, 15, 3, 1], [-17, 14.5, 15, 3, -1]], halo: [[1, 14.5, 21, 8, 1]] };
 function cameoURL(type, faction, variant) {
   const v = variant | 0, key = type + faction + v;
   if (cameoCache.has(key)) return cameoCache.get(key);
   if (type.startsWith('wl:')) return wallCameo(type.slice(3), faction, key);
+  if (type.startsWith('as:')) type = faction === 'allies' ? 'chinook' : 'halo';   // Air Assault: the side's transport (key kept apart)
   const keep = drawVar; drawVar = v;
   try { return makeCameo(type, faction, key); } finally { drawVar = keep; }
 }
@@ -2841,9 +2855,9 @@ function makeCameo(type, faction, key) {
     else if (d.draw === 'mcv') mdl = mcvModel(pal);
     else if (d.draw === 'arty') mdl = artyModel(pal);
     else if (d.draw === 'v2') mdl = v2Model(pal, true, 1);   // shown raised
-    else if (d.fly === 'heli') mdl = type === 'hind' ? hindModel(pal) : type === 'comanche' ? comancheModel(pal, 1) : heliModel(pal);   // (the Comanche with its bays open)
+    else if (d.fly === 'heli') mdl = type === 'hind' ? hindModel(pal) : type === 'comanche' ? comancheModel(pal, 1) : type === 'chinook' ? chinookModel(pal) : type === 'halo' ? haloModel(pal) : heliModel(pal);   // (the Comanche with its bays open)
     else mdl = jetModel(pal, type === 'mig');
-    scale = d.setup && d.cls === 'inf' ? 2 : d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.fly ? 1.7 : d.size && d.size.len > 22 ? 1.9 : 2.3;
+    scale = d.setup && d.cls === 'inf' ? 2 : d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.lift ? 1.3 : d.fly ? 1.7 : d.size && d.size.len > 22 ? 1.9 : 2.3;
   }
   const s = renderVox(mdl, angle, { scale, shadow: false });
   const dx = Math.round((W - s.img.width) / 2), dy = Math.round((H - s.img.height) / 2 + (BUILD_DEFS[type] ? 0 : 3) - (power ? 6 : 0));

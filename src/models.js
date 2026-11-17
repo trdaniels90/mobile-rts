@@ -767,6 +767,80 @@ function hindModel(pal) {
   m.box(-20, 1, 6, -18, 2, 11, gun, M_METAL);                               // tail rotor, on the right
   return m;
 }
+// Chinook (Allied transport): a long boxy cabin with a rounded roof, a blunt glazed nose, a low pylon over the cockpit
+// for the front rotor and a tall one at the tail for the rear rotor (the two rotors turn opposite ways: art.js ROTORS),
+// fuel pods along the lower sides, a row of cabin windows, the loading ramp under the tail and four wheels.
+function chinookModel(pal) {
+  const m = new VModel(-23, -7, 21, 7, 16);
+  const body = pal.main, dark = pal.dark, gun = C.gun, GL = '#5d8fb0', WIN = '#1d2226';
+  for (let x = -19; x < 14; x++) {                                          // the cabin: flat sides, rounded roof
+    m.box(x, -4, 1, x + 1, 4, 7, body, M_METAL);
+    m.box(x, -3, 7, x + 1, 3, 8, body, M_METAL);
+    m.box(x, -2, 8, x + 1, 2, 9, body, M_METAL);
+  }
+  for (let x = 14; x < 21; x++) {                                           // the nose, narrowing and lower toward the tip
+    const k = (x - 14) / 7, w = Math.max(1, Math.round(4 - k * 2.4)), top = Math.round(8 - k * 4);
+    m.box(x, -w, 1 + Math.round(k * 1.5), x + 1, w, top, body, M_METAL);
+  }
+  m.box(15, -3, 5, 19, 3, 8, GL, M_GLASS);                                  // cockpit glazing
+  m.paint(15, -3, 5, 19, 3, 8, (x, y, z, c) => (c === rgbInt(GL) && (x === 17 || y === 0 || z === 5) ? dark : undefined));
+  for (let x = 11; x < 17; x++) m.box(x, -2, 8, x + 1, 2, x < 13 ? 10 : 11, dark, M_METAL);   // front pylon
+  m.cylZ(14, 0, 11, 12, 1.2, gun, M_METAL);                                 // front hub
+  for (let x = -22; x < -11; x++) {                                         // rear pylon, rising to the tail
+    const top = Math.min(14, 8 + Math.round((-11 - x) * 0.75));
+    m.box(x, -2, 6, x + 1, 2, top, body, M_METAL);
+  }
+  m.box(-21, -2, 13, -15, 2, 14, dark, M_METAL);
+  m.cylZ(-17, 0, 14, 15, 1.2, gun, M_METAL);                                // rear hub
+  for (const s of [-1, 1]) {
+    m.cylX(-11, 9, s * 4.6, 2.6, 1.6, dark, M_METAL);                        // fuel pods along the lower sides
+    for (let x = -14; x < 10; x += 3) m.box(x, s < 0 ? -4.4 : 4, 5, x + 1, s < 0 ? -4 : 4.4, 6, WIN);   // cabin windows
+    m.cylX(-14, -10, s * 2.6, 9, 1.0, '#3b3d36', M_METAL);                   // engines on the rear pylon's sides
+    for (const x of [-8, 7]) m.box(x, s * 4.5 - (s < 0 ? 1 : 0), 0, x + 1, s * 4.5 + (s < 0 ? 0 : 1), 1, gun);   // wheels
+  }
+  for (let z = 1; z < 6; z++) m.box(-20 - (z > 3 ? 1 : 0), -3, z, -19, 3, z + 1, dark, M_METAL);   // the ramp
+  m.paint(-19, -5, 1, 14, 5, 3, (x, y, z, c) => (c === rgbInt(body) && z === 2 ? shadeInt(body, 0.8) : undefined));   // a darker belly band
+  return m;
+}
+// Halo (Soviet transport, after the Mi-26): a huge cabin with clamshell doors at the back, a deep glazed nose, two big
+// turbines side by side on the roof before the eight-blade rotor (art.js ROTORS), a long tail boom with a swept fin and
+// the tail rotor on its right, and fixed wheels. Camouflage of the side's colours, as on the Hind.
+function haloModel(pal) {
+  const m = new VModel(-33, -7, 23, 7, 17);
+  const body = pal.main, dark = pal.dark, gun = C.gun, GL = '#5d8fb0', WIN = '#1d2226';
+  for (let x = -12; x < 16; x++) {                                          // the cabin: tall, with a rounded roof
+    const tail = x < -8 ? (-8 - x) : 0;
+    m.box(x, -5, 1 + tail, x + 1, 5, 8, body, M_METAL);
+    m.box(x, -4, 8, x + 1, 4, 9, body, M_METAL);
+    m.box(x, -3, 9, x + 1, 3, 10, body, M_METAL);
+  }
+  for (let x = 16; x < 23; x++) {                                           // the deep nose
+    const k = (x - 16) / 7, w = Math.max(1, Math.round(5 - k * 3)), top = Math.round(9 - k * 5);
+    m.box(x, -w, 1 + Math.round(k * 2), x + 1, w, top, body, M_METAL);
+  }
+  m.box(16, -4, 5, 21, 4, 9, GL, M_GLASS);                                  // the glazing, two rows
+  m.paint(16, -4, 5, 21, 4, 9, (x, y, z, c) => (c === rgbInt(GL) && (x === 18 || y === 0 || z === 7) ? dark : undefined));
+  m.box(14, -2, 1, 22, 2, 3, GL, M_GLASS);                                  // the navigator's chin window
+  for (const y of [-2.6, 2.6]) {
+    m.cylX(-3, 11, y, 11.2, 1.7, body, M_METAL);                            // turbines
+    m.cylX(11, 12, y, 11.2, 1.3, '#1b1b1a');                                // intakes
+    m.cylX(-5, -3, y * 1.3, 11, 1.2, '#262624', M_METAL);                   // exhausts
+  }
+  m.box(-2, -3, 10, 6, 3, 12, dark, M_METAL);                               // gearbox fairing
+  m.cylZ(1, 0, 12, 15, 1.5, gun, M_METAL);                                  // mast
+  for (let x = -31; x < -12; x++) m.cylX(x, x + 1, 0, 7.5, 1.9 - (-12 - x) * 0.04, body, M_METAL);   // tail boom
+  for (let z = 7; z < 15; z++) m.box(Math.round(-31 - (z - 7) * 0.3), 0, z, Math.round(-27 - (z - 7) * 0.35), 1, z + 1, dark, M_METAL);   // swept fin
+  m.box(-30, -5, 7, -27, 5, 8, dark, M_METAL);                              // stabiliser
+  m.cylY(1, 2, -31.5, 12, 3, gun, M_METAL);                                 // tail rotor, on the right
+  for (const s of [-1, 1]) {
+    for (let x = -8; x < 14; x += 3) m.box(x, s < 0 ? -5.4 : 5, 5, x + 1, s < 0 ? -5 : 5.4, 7, WIN);   // cabin windows
+    m.box(-12, s < 0 ? -5 : 4, 1, -11, s < 0 ? -4 : 5, 8, dark, M_METAL);   // clamshell door seams
+    m.box(-2, s < 0 ? -6.5 : 5.5, 0, 2, s < 0 ? -5.5 : 6.5, 2, gun);        // main wheels on struts
+  }
+  m.box(16, -1, 0, 17, 1, 1, gun);                                          // nose wheel
+  m.paint(-14, -6, 1, 16, 6, 11, (x, y, z, c) => (c === rgbInt(body) && hash3(x >> 2, (y + 8) >> 2, z >> 2) > 0.66 ? shadeInt(body, 0.74) : undefined));   // camouflage
+  return m;
+}
 function jetModel(pal, mig) {
   const m = new VModel(-17, -13, 17, 13, 11);
   if (mig) {
@@ -4864,7 +4938,7 @@ function hullSprite(u, pal) {
   if (d.draw === 'v2') { const loaded = !(u.cd > 1.2), st = Math.round((u.setup || 0) * V2_STEPS); return facingSprite('W' + key + loaded + st, () => v2Model(pal, loaded, st / V2_STEPS), u.face); }
   if (d.draw === 'harv') { const full = (u.load || 0) > d.capacity * 0.3; return facingSprite('V' + key + full, () => harvModel(pal, full), u.face); }
   if (d.type === 'comanche') { const st = Math.round((u.bay || 0) * BAY_STEPS); return facingSprite('A' + key + 'b' + st, () => comancheModel(pal, st / BAY_STEPS), u.face); }
-  if (d.fly === 'heli') return facingSprite('A' + key, () => d.type === 'hind' ? hindModel(pal) : heliModel(pal), u.face);
+  if (d.fly === 'heli') return facingSprite('A' + key, () => d.type === 'hind' ? hindModel(pal) : d.type === 'chinook' ? chinookModel(pal) : d.type === 'halo' ? haloModel(pal) : heliModel(pal), u.face);
   if (d.draw === 'cargo') {
     if (d.type === 'transport') return u.faction === 'allies' ? facingSprite('H' + key, () => c130Model(pal), u.face) : facingSprite('I' + key, () => il76Model(pal), u.face);
     if (d.type === 'bomber') return u.faction === 'allies' ? facingSprite('B' + key, () => b1Model(pal), u.face) : facingSprite('K' + key, () => tu22Model(pal), u.face);

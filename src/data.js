@@ -211,6 +211,17 @@ const UNIT_DEFS = {
     cost: 1200, hp: 240, armor: 'air', speed: 66, sight: 6, r: 10,
     weapon: { dmg: 13, rof: 1.0, range: 120, wh: 'SA', proj: 'bullet', ammo: 12, burst: 5, gap: 0.07 },
   },
+  // Transport helicopters (unarmed): carry up to `carry` infantry. Board: infantry selected, tap the transport (it lands by
+  // them). Drop: transport selected, tap the ground (it flies there, lands, unloads, goes home). Air Assault (sidebar, world.js
+  // commandAirAssault): an idle transport fetches up to `carry` idle infantry from beside a Barracks and lands them where tapped.
+  chinook: {
+    name: 'Chinook', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', factions: ['allies'], lift: true,
+    cost: 1000, hp: 320, armor: 'air', speed: 75, sight: 5, r: 13, carry: 8,
+  },
+  halo: {
+    name: 'Halo Transport', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', factions: ['soviets'], lift: true,
+    cost: 1000, hp: 360, armor: 'air', speed: 70, sight: 5, r: 14, carry: 8,
+  },
   // Jets carry ground-attack missiles (weapon), air-to-air missiles (weapon2, also fired at ground
   // targets once the ground-attack ones are spent) and a cannon for
   // gun runs (gun: `runs` strafing passes a sortie, each `rounds` shells walked along the flight
@@ -325,6 +336,8 @@ const DIFFICULTY = {
 // Build queues: one each for structures, infantry, vehicles, helicopters (Helipad) and jets (Airfield).
 const CATEGORIES = ['structure', 'infantry', 'vehicle', 'heli', 'jet'];
 
+// Air Assault (sidebar, with a transport helicopter): see world.js commandAirAssault.
+const ASSAULT = { name: 'Air Assault' };
 function defOf(type) { return UNIT_DEFS[type] || BUILD_DEFS[type]; }
 // Tech Center upgrades: researched at a Tech Center (UPGRADES on its selection bar), one at a time per side, paid for as the
 // research goes like production. Kept for the rest of the battle once finished, even if every Tech Center is lost; research

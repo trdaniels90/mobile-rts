@@ -2116,7 +2116,7 @@ function launchGroups(only) {
     // New units follow the others to an ally's base while the Ally button is on.
     if (team.assist) sendToAlly(team, idleGround(team).filter((u) => !u.garrison && u.staged && inBase(team, u) && !u.dest));
     const rally = rallyPoint(team);
-    const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.assisting && !u.manual && !u.def.harvester && (u.def.weapon || u.cls === 'air') && u.order.type === 'guard');
+    const waiting = G.entities.filter((u) => u.alive && u.kind === 'unit' && u.team === team.id && u.staged && !u.defending && !u.assisting && !u.manual && !u.def.harvester && (u.def.weapon || (u.cls === 'air' && !u.def.lift)) && u.order.type === 'guard');
     // The player's aircraft do not wait for a group: each one heads out on its own.
     // (A jet that came home early waits on its pad until it is fully rearmed.)
     // The computer sends helicopters together and jets together: two or more at once, and a lone
@@ -2973,6 +2973,11 @@ function kill(e, attacker, wh, from) {
   if (e.inHouse) leaveHouse(e);   // (falls in the doorway)
   e.alive = false;
   const team = teamOf(e);
+  if (e.cargo && e.cargo.length) {   // a transport shot down: everyone aboard goes with it
+    team.stats.lost += e.cargo.length;
+    if (attacker && hostile(attacker.team, e.team)) G.teams[attacker.team].stats.killed += e.cargo.length;
+    e.cargo = [];
+  }
   if (attacker && hostile(attacker.team, e.team)) {
     const st = G.teams[attacker.team].stats;
     if (e.kind === 'unit') st.killed++; else st.bldKilled++;
@@ -3422,6 +3427,7 @@ function updateUnit(u, dt) {
     const d = u.dest; leaveHouse(u);
     if (d) goTo(u, d.x, d.y, true);
   }
+  if (u.order.type === 'board') { updateBoard(u); if (u.alive) { followPath(u, dt); checkStuck(u, dt); } return; }
   if (u.order.type === 'garrison') { updateEnterHouse(u); if (u.alive && !u.inHouse) { followPath(u, dt); checkStuck(u, dt); } return; }
   u.repairing = false;
   if (u.def.harvester) { updateHarvester(u, dt); followPath(u, dt); checkStuck(u, dt); return; }
@@ -4140,9 +4146,21 @@ function airTarget(u) {
   return pick;
 }
 
+function padRepair(u, dt) {
+  u.repairing = false;
+  if (u.hp < u.maxHp && padFor(u) && Math.hypot(padFor(u).x - u.x, padFor(u).y - u.y) < CELL * 3) {
+    const team = G.teams[u.team], cost = Math.max(1, u.def.cost * 0.01);
+    if (team.credits >= cost) {
+      u.repairing = true;
+      if ((u.repT = (u.repT || 0) + dt) >= 0.25) { u.repT = 0; team.credits -= cost; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.02); }
+    } else notify(team, 'funds', 'Insufficient funds', 30);
+  }
+}
+
 function updateAir(u, dt) {
   const w = u.def.weapon, jet = u.def.fly === 'jet';
   if (u.leaving) { flyAway(u, dt); return; }   // off to reserve: nothing else matters
+  if (u.def.lift) { updateLift(u, dt); return; }   // transport helicopters: their own orders (below)
   if (u.def.standoff) {   // the Comanche's side bays: open while it has a missile target in reach (standoffFight), shut after
     const want = G.t < (u.bayHold || 0) ? 1 : 0, b = u.bay || 0;
     if (b !== want) u.bay = want > b ? Math.min(1, b + dt / BAY_OPEN) : Math.max(0, b - dt / BAY_OPEN);
@@ -4163,14 +4181,7 @@ function updateAir(u, dt) {
     if (!airFull(u) && u.rt >= (jet ? 3.4 : 0.5)) { rearmStep(u); u.rt = 0; }   // a jet takes about 20 s to rearm fully
     // Ground crews patch up damage at the same rate and price as structure repairs: 2% of its
     // health every quarter second for 1% of its price, so a full repair costs half the price.
-    u.repairing = false;
-    if (u.hp < u.maxHp && padFor(u) && Math.hypot(padFor(u).x - u.x, padFor(u).y - u.y) < CELL * 3) {
-      const team = G.teams[u.team], cost = Math.max(1, u.def.cost * 0.01);
-      if (team.credits >= cost) {
-        u.repairing = true;
-        if ((u.repT = (u.repT || 0) + dt) >= 0.25) { u.repT = 0; team.credits -= cost; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.02); }
-      } else notify(team, 'funds', 'Insufficient funds', 30);
-    }
+    padRepair(u, dt);
     if (u.repairHold && u.hp >= u.maxHp) u.repairHold = false;
     // Aircraft told to wait on their pad stay parked until auto attack, an order or a raid sends them up.
     // They also wait while repairs are under way, and one that came home damaged waits until it is
@@ -4364,6 +4375,194 @@ function flyHeli(u, x, y, dt) {
   }
   clampAir(u);
 }
+// --- Transport helicopters (Chinook, Halo) -----------------------------------------
+// Passengers are kept on the transport as plain data (u.cargo: type, health, rank, kills), like jets in reserve, and are
+// made again with addUnit when it unloads (host only: an online guest never makes entities). Orders (u.order.type 'lift'):
+//   step 'pick': fly to (x, y), land and wait for the soldiers ordered aboard (commandBoard). With a drop zone (dx, dy: an
+//     Air Assault) it takes off when full, when nobody else is coming, or after LIFT_WAIT; otherwise it waits for an order.
+//   step 'go': fly to (x, y) and land; step 'drop': unload one soldier every LIFT_DROP_GAP, then fly home (or, if it
+//     carried nobody, stay parked there: an empty transport sent somewhere waits there to pick troops up).
+// A guard order on its pad (setGuard + pad) flies it home to land and be repaired. Shot down, everyone aboard is lost.
+const LIFT_WAIT = 25, LIFT_DROP_GAP = 0.25, LIFT_BOARD_R = CELL * 1.5, ASSAULT_MIN = 4, ASSAULT_REACH = 14;
+const canBoard = (u) => !!u && u.kind === 'unit' && u.alive && u.cls === 'inf' && !u.chute && !u.def.scripted && u.type !== 'pilot';
+const boardersOf = (h) => G.entities.filter((u) => u.alive && u.kind === 'unit' && u.order.type === 'board' && u.order.target === h);
+const liftWaiting = (h) => !!h && h.alive && h.kind === 'unit' && !!h.def.lift && h.order.type === 'lift' && h.order.step === 'pick';
+// Ready for an Air Assault: empty, not on a job, not badly hurt.
+const liftReady = (h) => h.alive && h.def.lift && !(h.cargo && h.cargo.length) && h.order.type !== 'lift' && h.hp >= h.maxHp * 0.4 && !boardersOf(h).length;
+// Somewhere to set down near (x, y): open ground, not a building's exit, clear of where other transports are landing.
+function landSpot(x, y, self) {
+  const c0 = cellOfPos(Math.max(0, Math.min(WORLD - 1, x)), Math.max(0, Math.min(WORLD - 1, y))), cx = cellX(c0), cy = cellY(c0);
+  const taken = [];
+  for (const e of G.entities) if (e !== self && e.alive && e.kind === 'unit' && e.def.lift) {
+    taken.push(e.as === 'landed' ? e : null);
+    if (e.order.type === 'lift') taken.push(e.order);
+  }
+  const ok = (c) => {
+    if (!freeCell(c) || G.resv[c]) return false;
+    const p = cellCenter(c);
+    return !taken.some((t) => t && Math.hypot(t.x - p.x, t.y - p.y) < CELL * 1.8);
+  };
+  for (let rad = 0; rad <= 6; rad++) {
+    let best = -1, bd = Infinity;
+    for (let yy = cy - rad; yy <= cy + rad; yy++) for (let xx = cx - rad; xx <= cx + rad; xx++) {
+      if (Math.max(Math.abs(xx - cx), Math.abs(yy - cy)) !== rad || !inMap(xx, yy)) continue;
+      const c = idx(xx, yy), d = Math.hypot(xx - cx, yy - cy);
+      if (d < bd && ok(c)) { bd = d; best = c; }
+    }
+    if (best >= 0) return cellCenter(best);
+  }
+  return null;
+}
+// Up, across and down: true once it is on the ground at (x, y).
+function liftFly(u, x, y, dt) {
+  const d = Math.hypot(x - u.x, y - u.y);
+  if (u.as === 'landed') { if (d < 4) return true; u.as = 'takeoff'; }
+  if (u.as === 'takeoff') { u.alt = Math.min(HELI_ALT, u.alt + 18 * dt); if (u.alt >= HELI_ALT) u.as = 'fly'; return false; }
+  if (d < 3) {
+    u.alt = Math.max(0, u.alt - 20 * dt);
+    if (u.alt <= 0) { u.as = 'landed'; u.alt = 0; u.rt = 0; return true; }
+    return false;
+  }
+  flyHeli(u, x, y, dt);
+  return false;
+}
+function liftHome(u) { setGuard(u); u.order.pad = true; u.staged = false; }
+function updateLift(u, dt) {
+  const cargo = u.cargo || (u.cargo = []);
+  let o = u.order;
+  u.repairing = false;
+  if (o.type === 'move') { liftTo(u, o.x, o.y); o = u.order; }
+  else if (o.type !== 'lift' && o.type !== 'guard') { liftHome(u); o = u.order; }   // (it has no weapons: auto attack and the like send it home)
+  if (o.type === 'guard') {
+    if (o.pad) {
+      const pad = padFor(u);
+      if (!pad) { if (u.as !== 'landed') liftFly(u, o.x, o.y, dt); return; }
+      const sp = padSpot(pad, u);
+      if (liftFly(u, sp.x, sp.y, dt)) padRepair(u, dt);
+    } else liftFly(u, o.x, o.y, dt);   // parked where it was sent
+    return;
+  }
+  if (o.step === 'pick') {
+    if (!liftFly(u, o.x, o.y, dt)) return;
+    o.t = (o.t || 0) + dt;
+    if (o.dx === undefined) return;   // boarded by hand: it waits for a drop order
+    const coming = boardersOf(u).length;
+    if (cargo.length >= u.def.carry || (cargo.length && (!coming || o.t > LIFT_WAIT))) { u.order = { type: 'lift', step: 'go', x: o.dx, y: o.dy, ai: o.ai }; return; }
+    if (o.t > LIFT_WAIT + 10 || (!coming && o.t > 3)) { for (const b of boardersOf(u)) setGuard(b, b.x, b.y); liftHome(u); }
+    return;
+  }
+  if (o.step === 'go') {
+    if (!liftFly(u, o.x, o.y, dt)) return;
+    o.step = 'drop'; o.t = 0; o.n = cargo.length;
+    return;
+  }
+  if (o.step === 'drop') {
+    if (u.as !== 'landed') { liftFly(u, o.x, o.y, dt); return; }
+    o.t = (o.t || 0) - dt;
+    if (cargo.length && o.t <= 0) { o.t = LIFT_DROP_GAP; unloadOne(u, o.ai); }
+    if (!cargo.length && o.t <= 0) { if (o.n) liftHome(u); else setGuard(u, u.x, u.y); }
+  }
+}
+function unloadOne(h, ai) {
+  const r = h.cargo.shift(), team = G.teams[h.team];
+  if (!r || !UNIT_DEFS[r.type]) return;
+  const a = Math.random() * Math.PI * 2, k = 1 + Math.random() * 1.5;
+  let c = cellOfPos(Math.max(0, Math.min(WORLD - 1, h.x + Math.cos(a) * CELL * k)), Math.max(0, Math.min(WORLD - 1, h.y + Math.sin(a) * CELL * k)));
+  if (!freeCell(c)) c = nearestFreeCell(cellOfPos(h.x, h.y), 4);
+  const p = c >= 0 ? cellCenter(c) : { x: h.x, y: h.y };
+  const u = addUnit(r.type, team, h.x + (p.x - h.x) * 0.4, h.y + (p.y - h.y) * 0.4);
+  if (r.type !== 'pilot') team.stats.units--;   // counted when it was trained
+  u.hp = Math.min(u.maxHp, r.hp); u.rank = r.rank || 0; u.kills = r.kills || 0; u.killWorth = r.kw || 0; u.born = r.born;
+  u.face = u.tface = Math.atan2(p.y - h.y, p.x - h.x);
+  if (ai || team.isAI) { setHunt(u); u.staged = false; }
+  else { setGuard(u, p.x, p.y); u.staged = false; takeOver(u, 'move'); }
+  goTo(u, p.x, p.y);
+  hooks.sfx('place', h.x, h.y);
+}
+// Infantry ordered aboard walk to where the transport is landing and climb in.
+function updateBoard(u) {
+  const h = u.order.target;
+  if (!liftWaiting(h) || h.team !== u.team || (h.cargo || []).length >= h.def.carry) { setGuard(u, u.x, u.y); return; }
+  const o = h.order, d = Math.hypot(o.x - u.x, o.y - u.y), settled = !u.dest && !u.needPath;
+  if (h.as === 'landed' && Math.hypot(h.x - o.x, h.y - o.y) < 6 && (d < LIFT_BOARD_R || (settled && d < CELL * 3))) {
+    (h.cargo || (h.cargo = [])).push({ type: u.type, hp: u.hp, rank: u.rank || 0, kills: u.kills || 0, kw: u.killWorth || 0, born: u.born });
+    if (u.inHouse) leaveHouse(u);
+    u.alive = false;   // aboard (made again when it unloads); not a loss
+    hooks.sfx('place', h.x, h.y);
+    return;
+  }
+  if (settled && d > LIFT_BOARD_R) goTo(u, o.x, o.y);
+}
+// Infantry selected, a transport tapped: it comes and lands beside them (or waits where it is parked) and they get in.
+function commandBoard(units, h) {
+  if (!h || !h.alive || h.kind !== 'unit' || !h.def.lift) return;
+  const inf = units.filter((u) => canBoard(u) && u.team === h.team).sort((a, b) => dist(a, h) - dist(b, h));
+  if (!inf.length) return;
+  const room = h.def.carry - (h.cargo || []).length - boardersOf(h).filter((b) => !inf.includes(b)).length;
+  if (room <= 0) { say(h.team, 'Transport full'); return; }
+  const go = inf.slice(0, room);
+  if (inf.length > room) say(h.team, 'Transport full');
+  if (!liftWaiting(h)) {
+    const mx = go.reduce((s, u) => s + u.x, 0) / go.length, my = go.reduce((s, u) => s + u.y, 0) / go.length;
+    const parked = h.as === 'landed' && h.order.type === 'guard' && !h.order.pad && Math.hypot(h.x - mx, h.y - my) < CELL * 12;
+    const s = parked ? { x: h.x, y: h.y } : landSpot(mx, my, h);
+    if (!s) { say(h.team, 'Cannot land there'); return; }
+    h.order = { type: 'lift', step: 'pick', x: s.x, y: s.y, t: 0 }; h.target = null; takeOver(h, 'move');
+  }
+  for (const u of go) {
+    u.order = { type: 'board', target: h }; u.target = null; u.staged = false; u.defending = false; u.homeward = false; u.assisting = false; takeOver(u, 'move');
+    goTo(u, h.order.x, h.order.y);
+  }
+}
+// A transport sent somewhere: loaded, it lands there and unloads, then flies home; empty, it lands there and waits.
+function liftTo(u, x, y) {
+  const s = landSpot(x, y, u);
+  if (!s) { say(u.team, 'Cannot land there'); if (u.order.type === 'move') setGuard(u); return; }
+  for (const b of boardersOf(u)) setGuard(b, b.x, b.y);
+  u.order = { type: 'lift', step: 'go', x: s.x, y: s.y }; u.target = null; u.repairHold = false;
+}
+// Air Assault: the side's idle infantry by a Barracks, as even a mix of kinds as there is, up to a transport's load.
+function assaultCrew(team, bar, n) {
+  const pool = unitsOf(team.id).filter((u) => canBoard(u) && !u.def.engineer && !u.inHouse && u.order.type === 'guard' && !u.order.hold &&
+    !u.defending && !u.assisting && !u.garrison && !u.homeGuard && !(u.target && u.target.alive) && dist(u, bar) < CELL * ASSAULT_REACH);
+  const kinds = new Map();
+  for (const u of pool.sort((a, b) => dist(a, bar) - dist(b, bar))) (kinds.get(u.type) || kinds.set(u.type, []).get(u.type)).push(u);
+  const lists = [...kinds.values()].sort((a, b) => b.length - a.length), out = [];
+  for (let i = 0; out.length < n && lists.some((l) => l.length > i); i++) for (const l of lists) if (l[i] && out.length < n) out.push(l[i]);
+  return out;
+}
+// What an Air Assault would use now: { heli, bar, crew }, or why not ('heli': no free transport, 'crew': too few idle infantry).
+function assaultPlan(team) {
+  const helis = unitsOf(team.id).filter(liftReady);
+  if (!helis.length) return 'heli';
+  const carry = helis[0].def.carry;
+  let best = null;
+  for (const bar of buildingsOf(team.id)) {
+    if (bar.type !== 'barracks' || bar.buildT < 1 || bar.sellT > 0) continue;
+    const crew = assaultCrew(team, bar, carry);
+    if (!best || crew.length > best.crew.length) best = { bar, crew };
+  }
+  if (!best || best.crew.length < ASSAULT_MIN) return 'crew';
+  best.heli = helis.reduce((a, b) => (dist(a, best.bar) <= dist(b, best.bar) ? a : b));
+  return best;
+}
+function commandAirAssault(team, x, y) {
+  const plan = assaultPlan(team);
+  if (typeof plan === 'string') { say(team.id, plan === 'heli' ? 'No transport available' : 'Not enough infantry at the Barracks'); return false; }
+  const drop = landSpot(x, y, plan.heli);
+  if (!drop) { say(team.id, 'Cannot land there'); return false; }
+  const { heli, bar, crew } = plan;
+  const pick = landSpot(bar.x, (bar.cy + bar.h + 2.5) * CELL, heli);
+  if (!pick) { say(team.id, 'Cannot land there'); return false; }
+  heli.order = { type: 'lift', step: 'pick', x: pick.x, y: pick.y, dx: drop.x, dy: drop.y, t: 0, ai: !!team.isAI }; heli.target = null;
+  for (const u of crew) {
+    u.order = { type: 'board', target: heli }; u.target = null; u.staged = false; u.homeward = false; takeOver(u, 'move');
+    goTo(u, pick.x, pick.y);
+  }
+  say(team.id, 'Air assault under way');
+  return true;
+}
+
 // --- Jet landings ---------------------------------------------------------------
 // A jet lines up with its slot's runway, descends along a glide path at landing speed, touches down
 // short of the slot, brakes along the ground and then taxis round to park. Slots in the Airfield's
@@ -4787,7 +4986,8 @@ function spawnUnit(team, type, from) {
     const spot = padSpot(p, u);
     u.x = spot.x; u.y = spot.y; u.face = p.type === 'airfield' ? 0 : (team.id === PLAYER ? -0.8 : 2.35);
     u.as = 'landed'; u.alt = 0;
-    setGuard(u); u.order.pad = true; u.staged = !oneWave(u);
+    setGuard(u); u.order.pad = true; u.staged = !oneWave(u) && !d.lift;
+    if (d.lift) return u;
     if (team.isAI && aiKeepInterceptor(team, u)) return u;
     // The computer's new aircraft wait for its next air strike (launchGroups, AIR_STRIKE_GAP).
     if (team.auto && !oneWave(u) && !team.isAI) launchAircraft(u);
@@ -4997,6 +5197,8 @@ function commandMove(units, x, y) {
       const c = cellOfPos(x, y);
       if (G.ore[c] > 0) { u.hcell = c; u.hs = 'seek'; u.field = fieldAt(c) || u.field; goTo(u, x, y); }   // sent to a field: it keeps coming back until the field is bare
       else { u.hs = 'manual'; goTo(u, s.x, s.y); }
+    } else if (u.def.lift) {
+      liftTo(u, s.x, s.y);
     } else if (u.cls === 'air') {
       if (airEmpty(u)) return;
       u.repairHold = false; u.retreat = false;
@@ -5054,7 +5256,7 @@ function setAuto(team, on, side = null) {
   if (team.assist) { team.assist = false; for (const u of unitsOf(team.id)) u.garrison = false; }
   // Every idle ground unit attacks now; aircraft waiting on their pads take off.
   launchAll(team);
-  for (const u of unitsOf(team.id)) if (u.cls === 'air' && !u.def.scripted && u.order.type === 'guard' && !u.manual) u.staged = true;
+  for (const u of unitsOf(team.id)) if (u.cls === 'air' && !u.def.scripted && !u.def.lift && u.order.type === 'guard' && !u.manual) u.staged = true;
 }
 function setRepair(b, on) { b.repairing = !!on; }
 function sellStructure(b) { if (b.sellT <= 0) { b.sellT = 1.2; b.buildT = 1; } }

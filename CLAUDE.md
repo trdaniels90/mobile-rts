@@ -991,6 +991,7 @@ Supabase.
 | `mg-team.js` | Headless: the MG Team sets up before firing, packs before moving, is dug in once set up, and a staged fight against riflemen |
 | `tesla-tank.js` | Headless: the Tesla Tank's upgrade, bolt, damage, and no shots at aircraft |
 | `comanche.js` | Headless: Tech Center research (cost, refund, kept, one at a time), the Comanche's pads, bays, lock-on, missiles for tanks only, gun after, stand-off, staged fights |
+| `transport.js` | Headless: transport helicopters (board, drop, park, UNLOAD HERE), Air Assault's balanced pick, shot down with troops aboard, a forged online order, the computer's air assault |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
@@ -1127,6 +1128,29 @@ frame-time maths everywhere, so it is not deterministic.
   Weapon: Tesla bolt, 75 TESLA, every 2.4 s, range 140, ground only, no power needed. `teslaTurret` (models.js, reworked at the owner's request: a big steel dome with a copper band and a glowing cap on a low armoured drum, blue insulators; was copper windings on a
   mast, blue insulators, glowing ball); `muzzle` fires from the cap (`TESLA_TOP` 10). The computer adds it to its Soviet vehicle picks once researched.
   `node tools/sim/tesla-tank.js <repo>`: Soviets only, locked until researched, kills a rifleman, 132 damage to a Heavy Tank in 5 s, never fires at a helicopter.
+
+## Transport helicopters and Air Assault (after 2026.11.17.11, not released, owner OK'd for both modes; the server must match)
+
+- **Units** (data.js, Helicopter Base, $1000, unarmed, `lift: true`, `carry: 8`): Chinook (Allies, 320 health, speed 75) and Halo Transport
+  (Soviets, after the Mi-26, 360 health, speed 70). Models `chinookModel` / `haloModel` (models.js); rotors from `ROTORS` in art.js (the Chinook's
+  two turn opposite ways, the Halo's has 8 blades); green pips for soldiers aboard (own alliance only). Sprites rebaked.
+- **Passengers are plain data** on the transport (`u.cargo`: type, hp, rank, kills, kw, born), like jets in reserve: boarding sets `alive = false`
+  (not a loss), `unloadOne` makes them again with `addUnit` (host only). Shot down loaded: all aboard count as lost (`kill`).
+- **Orders** (world.js `updateLift`, `u.order.type 'lift'`): step `pick` (land at x, y, wait for boarders), `go` (fly and land), `drop` (one out every
+  `LIFT_DROP_GAP`, then home; empty, it parks there). A guard order on the pad flies home and is repaired there (`padRepair`, split out of `updateAir`).
+  Any other order (Auto Attack, hunt) sends it home: it never joins attacks, base defence or scrambles.
+- **Controls (option 1):** infantry selected + tap your transport = `commandBoard` (it comes down beside them, or they walk to it where it is parked).
+  Transport selected + tap the ground = `commandMove` → `liftTo` (drop and go home, or park if empty). UNLOAD HERE on the selection bar.
+- **Air Assault (owner's idea):** `as:assault` in the left strip once the side has a transport (`ASSAULT` in data.js). Tap it, tap where to land:
+  `commandAirAssault(team, x, y)` takes a free transport (`liftReady`), the Barracks with the most idle infantry within `ASSAULT_REACH` (14 cells),
+  up to 8 of them dealt round-robin by kind (`assaultCrew`: no Engineers, nobody busy or ordered to hold), at least `ASSAULT_MIN` (4). It lands below
+  the Barracks, waits up to `LIFT_WAIT` (25 s), flies, unloads (player's troops guard the spot, `manual`; the computer's hunt) and goes home.
+  No recharge. Online both commands are in netcore `COMMANDS`; the guest checks `assaultPlan` locally for the button.
+- **Computer** (Normal and Hard, `aiAirAssault` in ai.js): keeps one transport (built from 0.6 x `firstWave`), and from `firstWave` with 6+ idle infantry
+  lands them by an enemy refinery or power plant not under known anti-air, every `AI_ASSAULT_GAP` (150 s) or so.
+- Owner's choice: everyone gets both controls (no PC / phone split). `node tools/sim/transport.js <repo>` (boarding, drop, parking, Air Assault mix,
+  shot down, a forged online order, a Normal computer flying one: 8 men at about 11 min). Not yet tried: two real phones online, save and continue
+  with soldiers aboard in a browser.
 
 ## Unit veterancy (after 2026.11.14.12, not released, both modes)
 

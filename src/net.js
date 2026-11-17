@@ -560,6 +560,7 @@ const Net = (() => {
       return ok;
     }
     if (f === 'launchPower') { const ok = powerReady(a[0], a[1]); if (ok) go(); return ok; }
+    if (f === 'commandAirAssault') { const ok = typeof assaultPlan(a[0]) !== 'string'; if (ok) go(); return ok; }
     if (f === 'setAuto') { a[0].auto = !!a[1]; if (a[1]) a[0].focusSide = a[2] == null ? null : a[2]; }
     if (f === 'setAssist') { a[0].assist = !!a[1]; if (a[1] && a[2] != null) a[0].assistSide = a[2]; }
     if (f === 'recallAlly') { a[0].assist = false; if (!a[1]) a[0].auto = false; }
