@@ -6,10 +6,16 @@ on:
     branches: [main]
     paths: ['src/version.js', 'desktop/**']
   workflow_dispatch:
+    inputs:
+      mac_only:
+        description: 'Only the Mac job (the Windows release for this version is already out)'
+        type: boolean
+        default: false
 permissions:
   contents: write
 jobs:
   build:
+    if: ${{ !inputs.mac_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +34,10 @@ jobs:
   # itself (desktop/content-update.js). Runs after the Windows job so both attach to one release.
   mac:
     needs: build
-    runs-on: macos-latest
+    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    # Intel Macs: from 2026.11.17.8 on, macos-latest (Apple Silicon) jobs were never picked up ("not acquired by Runner",
+    # capacity), so seven releases had no Mac update. electron-builder still makes the universal app here.
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

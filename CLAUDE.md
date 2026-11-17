@@ -939,6 +939,9 @@ share globals. Read this file first; the commit history explains every change in
   downloaded copy if newer than the bundled one; one that never finished loading is ignored (`bad`). Windows is unchanged.
 - **When a game update needs a newer `main.js` / `preload.js`**, raise `SHELL_API` in content-update.js and `SHELL` in `scripts/make-manifest.js`
   together: older Mac apps then show "download the new app" instead of updating.
+- **Runner** (after 2026.11.17.14): the `mac` job runs on `macos-15-intel`. On `macos-latest` (Apple Silicon) it was never picked up from 2026.11.17.8 to .14
+  ("not acquired by Runner", GitHub capacity), so Mac apps got no updates. To rebuild only the Mac side of a version already out on Windows: run the
+  workflow by hand with `mac_only` (the `build` job is skipped).
 - Tested here only with a stubbed Electron (`pickBase`, staging, restart offer, unconfirmed-boot fallback); the packaged app is untested.
 
 ## Claude token tracker (2026.11.16)
