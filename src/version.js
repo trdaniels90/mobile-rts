@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.17', date: '17 November 2026', title: 'Defences build separately', groups: [
+    ['Changed', [
+      'Defensive structures (Pillbox, Gun Turret, AA Gun, Tesla Coil, Flame Tower, SAM Site) now build in their own queue, like walls, so you can build a power plant and a defence at the same time. The computer does too.',
+    ]],
+  ] },
   { v: '2026.11.17.16', date: '17 November 2026', title: 'Random personalities', groups: [
     ['Changed', [
       'Computer opponents now pick their personality completely at random. Two computer allies can now share the same one, though it is rare.',
