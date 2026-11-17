@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.12', date: '17 November 2026', title: 'Sandbag cover', groups: [
+    ['Changed', [
+      'Infantry right behind your side\'s Sandbags take a third less damage from fire coming over them.',
+      'When your base is attacked, defending infantry run to spots behind any Sandbags in reach of the attackers and fight from there. The computer\'s infantry do the same.',
+      'Sandbags are drawn lower and slimmer, with darker sides and sacks in slightly different shades, so they read as light cover next to a Concrete Wall.',
+    ]],
+  ] },
   { v: '2026.11.17.11', date: '17 November 2026', title: 'Longer build queues', groups: [
     ['Changed', [
       'You can now queue up to 20 units at a time in each production queue (it was 9).',
