@@ -63,6 +63,17 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
   font-weight: 700; font-size: 14px; letter-spacing: 0.04em; color: #d6d6cc;
   border-top: 0; border-radius: 0 0 10px 10px;
 }
+/* Touch screens: the Options tab answers taps on a larger area than it shows (about 44 px tall), since it sits
+   on the screen's top edge where iOS also listens for its own swipes. */
+#menuBtn { position: relative; }
+body.touch #menuBtn::after { content: ''; position: absolute; left: -6px; right: -16px; top: calc(0px - var(--safe-t)); bottom: -22px; }
+/* Battle clock in the middle of the strip; it ignores taps so the map below it stays usable. */
+.clock {
+  position: absolute; left: 50%; top: var(--safe-t); bottom: 0; transform: translateX(-50%);
+  display: flex; align-items: center; padding: 0 10px; pointer-events: none;
+  font-family: var(--font-term); font-size: 20px; line-height: 1; letter-spacing: 0.08em;
+  color: #c9c6b4; font-variant-numeric: tabular-nums;
+}
 .credits {
   width: var(--sbw); font-size: 16px; letter-spacing: 0.12em; font-variant-numeric: tabular-nums;
   color: #e7e4d4; text-shadow: 1px 1px 0 #000;
@@ -564,8 +575,8 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
   }
   .cameo { touch-action: pan-x; }
   .sb-arrows { display: none; }
-  #selbar, #placebar { top: calc(var(--ts) + 8px); }
-  #eva { top: calc(var(--ts) + 56px); }
+  #selbar, #placebar { top: calc(var(--ts) + 26px); }   /* clear of the Options tab's touch area */
+  #eva { top: calc(var(--ts) + 74px); }
 }
 /* Portrait Field Manual: a slimmer header and footer, the page counter on one line. */
 @media (orientation: portrait) {

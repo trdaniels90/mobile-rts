@@ -16,7 +16,7 @@
   const ui = {
     sidebar: $('sidebar'), credits: $('credits'), powerBar: $('powerBar'), topstrip: $('topstrip'),
     stripL: $('stripL'), stripR: $('stripR'), strips: document.querySelector('.sb-strips'),
-    autoBtn: $('autoBtn'), allyBtn: $('allyBtn'), giveBtn: $('giveBtn'), returnBtn: $('returnBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'),
+    autoBtn: $('autoBtn'), allyBtn: $('allyBtn'), giveBtn: $('giveBtn'), returnBtn: $('returnBtn'), autoLabel: document.querySelector('#autoBtn small'), menuBtn: $('menuBtn'), clock: $('clock'),
     eva: $('eva'), selbar: $('selbar'), selName: $('selName'), selHp: $('selHp'), selBtns: $('selBtns'),
     placebar: $('placebar'), placeText: $('placeText'), placeOk: $('placeOk'), placeCancel: $('placeCancel'),
     menu: $('menu'), menuTitle: $('menuTitle'), menuSub: $('menuSub'),
@@ -1395,6 +1395,11 @@ function draw() {
   });
   ui.menuBtn.addEventListener('click', togglePause);
 
+  // Battle time as m:ss, or h:mm:ss past an hour. G.t stops while paused or held and is sent to online guests.
+  function battleClock(t) {
+    const s = Math.max(0, Math.floor(t || 0)), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = String(s % 60).padStart(2, '0');
+    return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+  }
   let hudT = 0, lastCredits = null;
   function updateSidebar(dt) {
     hudT -= dt;
@@ -1403,6 +1408,8 @@ function draw() {
     const team = G.teams[G.me];
     const shown = Math.max(0, Math.floor(team.shown));
     ui.credits.textContent = String(shown);
+    const clock = battleClock(G.t);
+    if (ui.clock.textContent !== clock) ui.clock.textContent = clock;
     // Tick while the counter rolls, like the classic sidebar.
     if (lastCredits !== null && shown !== lastCredits && !G.paused) Sound.play(shown > lastCredits ? 'cashUp' : 'cashDown');
     lastCredits = shown;
