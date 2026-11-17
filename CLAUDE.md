@@ -149,8 +149,13 @@ share globals. Read this file first; the commit history explains every change in
   with lamps and a barrier that sinks with `open`), sorted with the units (kind 'wall'); `wallPic` is now only for the
   sidebar. Draw order: a structure sorts by its footprint's front corner, and anything within 1.5 cells that is nearer the
   camera than the closest footprint point is moved just after it. Ground: `G.ground.keep(fn)` limits tiles to those that
-  show on the turned screen (`tilesIn(.., pad)`). Past the map's edge: `edgePic` (ui.js), the edge cells' minimap colours
-  carried out `EDGE_PAD` cells, blurred and fading into haze. Flame jets and the rally flag are drawn in screen pixels
+  show on the turned screen (`tilesIn(.., pad)`). Past the map's edge (owner's pick, option B of two shown as video):
+  woods `RIM` (7) cells deep (`rimTrees`, `rimInView` in ui.js: the map's own tree pictures through `drawTree`, snowy pines on
+  winter maps, none where the edge is water, 1.5 cells back on the two sides nearest the camera); the floor (`edgePic`) is the
+  edge colour darkening to woodland, fading into a haze (`hazeRGB`, also the screen's background) from `FADE0` to `FADE1`
+  cells out; `edgeSeam` softens the edge on the ground, `edgeVeil` and `edgeMist` (drifting wisps) go over the outer woods
+  after the units. These trees never burn (owner: keep it so). `clampCam` keeps the screen's middle up to `EDGE_KEEP` (8)
+  cells inside the map. Flame jets and the rally flag are drawn in screen pixels
   (`onScreen`, `screenDraw` in ui.js); the rally line stays on the ground.
 - **Village (after the 2026.11.16.3 merge):** `standAt(g, x, y, h, fn)` (art.js) stands old-style pixel drawing up the
   screen at a world spot: villagers, hens, pigeons (in the air at their height), washing lines, a held house's flag and
