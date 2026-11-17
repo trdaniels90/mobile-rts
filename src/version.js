@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.11', date: '17 November 2026', title: 'Longer build queues', groups: [
+    ['Changed', [
+      'You can now queue up to 20 units at a time in each production queue (it was 9).',
+    ]],
+  ] },
   { v: '2026.11.17.10', date: '17 November 2026', title: 'Tougher turtles, faster yards', groups: [
     ['Changed', [
       'More Construction Yards build structures faster: 1.5x with two, 2x with three, up to 2.5x with four. This works for the computer too.',
