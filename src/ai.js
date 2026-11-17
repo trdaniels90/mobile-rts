@@ -897,7 +897,7 @@ const aiOfCache = new Map();
 function aiOf(team) {
   const base = G.diff.ai;
   if (!base.planner || !team || !team.isAI) return base;
-  const key = G.diffKey + ':' + aiStyle(team);
+  const key = G.diffKey + ':' + aiStyle(team) + (TRANSPORTS ? ':lift' : '');
   let A = aiOfCache.get(key);
   if (!A) {
     const s = AI_STYLES[team.style];
@@ -905,6 +905,7 @@ function aiOf(team) {
       firstWave: Math.max(240, base.firstWave + (s.firstWave || 0)), hold: s.hold || WAVE_HOLD, full: s.full || ARMY_FULL,
       defMax: Math.max(2, base.defMax + (s.defAdd || 0)), outpostGuns: (base.outpostGuns || 1) + (s.gunsAdd || 0),
       aa: base.aa + (s.aaAdd || 0), aaMax: base.aaMax + (s.aaAdd || 0),
+      lift: TRANSPORTS ? s.lift : undefined,   // (transports on hold: data.js setTransports)
     });
     aiOfCache.set(key, A);
   }

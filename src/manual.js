@@ -110,8 +110,8 @@ const Manual = (() => {
     return `<div class="fm-grid">${Object.entries(POWERS).map(([k, p]) => `<article class="fm-entry">
       <div class="fm-head">${pic('pw:' + k, f)}<div><h3>${p.name}</h3><span class="fm-side both">Airfield power</span></div></div>
       <dl class="fm-stats">${stat('Recharge', `${p.charge} s`)}</dl><p>${POWER_TEXT[k]}</p></article>`).join('')}
-      <article class="fm-entry"><div class="fm-head">${pic('as:assault', f)}<div><h3>Air Assault</h3><span class="fm-side both">Transport helicopter</span></div></div>
-      <dl class="fm-stats">${stat('Needs', 'A free Chinook or Halo, 4+ idle infantry by a Barracks')}</dl><p>Shows in the sidebar once you have a transport helicopter. Tap it, then tap where the troops should land. A free transport flies to your Barracks, picks up to 8 idle infantry from beside it (as even a mix of kinds as you have, no Engineers), lands them where you tapped and flies home. No recharge: it is ready again as soon as a transport is free. The computer uses it too on Normal and Hard.</p></article></div>
+      ${TRANSPORTS ? `<article class="fm-entry"><div class="fm-head">${pic('as:assault', f)}<div><h3>Air Assault</h3><span class="fm-side both">Transport helicopter</span></div></div>
+      <dl class="fm-stats">${stat('Needs', 'A free Chinook or Halo, 4+ idle infantry by a Barracks')}</dl><p>Shows in the sidebar once you have a transport helicopter. Tap it, then tap where the troops should land. A free transport flies to your Barracks, picks up to 8 idle infantry from beside it (as even a mix of kinds as you have, no Engineers), lands them where you tapped and flies home. No recharge: it is ready again as soon as a transport is free. The computer uses it too on Normal and Hard.</p></article>` : ''}</div>
       <p>Powers charge only while you own an Airfield, at half speed on low power. Tap one when it shows READY, then tap the target (on touch screens tap again or press LAUNCH to confirm). The planes reveal nothing along their way in. AA Guns and SAM sites can shoot them down, but every gun or missile site that fires at one shows up on your map.</p>`;
   }
 
@@ -187,7 +187,7 @@ const Manual = (() => {
     { ch: 'Infantry', title: 'Infantry', html: () => entries(['rifle', 'grenadier', 'rocket', 'hmg', 'engineer', 'pilot']) },
     { ch: 'Vehicles', title: 'Armour', html: () => entries(['ranger', 'ltank', 'mtank', 'htank', 'ttank', 'mammoth']) },
     { ch: 'Vehicles', title: 'Support Vehicles', html: () => entries(['arty', 'v2rl', 'harv', 'fob', 'mcv']) },
-    { ch: 'Aircraft', title: 'Aircraft', html: () => entries(['heli', 'comanche', 'hind', 'chinook', 'halo', 'jet', 'mig']) },
+    { ch: 'Aircraft', title: 'Aircraft', html: () => entries(['heli', 'comanche', 'hind'].concat(TRANSPORTS ? ['chinook', 'halo'] : [], ['jet', 'mig'])) },
     { ch: 'Powers', title: 'Airfield Support Powers', html: powers },
     { ch: 'Intel', title: 'The Enemy Commander', html: () => `
       <p>The computer plays by your rules: the same buildings, costs and units. How it fights depends on the difficulty.</p>

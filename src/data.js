@@ -338,6 +338,16 @@ const CATEGORIES = ['structure', 'infantry', 'vehicle', 'heli', 'jet'];
 
 // Air Assault (sidebar, with a transport helicopter): see world.js commandAirAssault.
 const ASSAULT = { name: 'Air Assault' };
+// Transport helicopters ON HOLD (owner, 2026-11-17): off, the Chinook and Halo cannot be built by anyone (so no Air Assault either),
+// the computer flies no air assaults (ai.js aiOf drops `lift`) and the Field Manual leaves them out. setTransports(true) turns
+// them back on (the tests transport.js and ai-lift.js do); to release them, make the line below setTransports(true).
+let TRANSPORTS = false;
+function setTransports(on) {
+  TRANSPORTS = !!on;
+  UNIT_DEFS.chinook.factions = TRANSPORTS ? ['allies'] : [];
+  UNIT_DEFS.halo.factions = TRANSPORTS ? ['soviets'] : [];
+}
+setTransports(false);
 function defOf(type) { return UNIT_DEFS[type] || BUILD_DEFS[type]; }
 // Tech Center upgrades: researched at a Tech Center (UPGRADES on its selection bar), one at a time per side, paid for as the
 // research goes like production. Kept for the rest of the battle once finished, even if every Tech Center is lost; research

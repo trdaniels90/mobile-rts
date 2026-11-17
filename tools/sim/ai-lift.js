@@ -9,7 +9,7 @@ const headless = require(root + '/server/headless.js');
 
 function game(style) {
   const ctx = headless.load(), run = (s) => vm.runInContext(s, ctx);
-  run(`newWorld('allies', 'normal', ${7 + style.length}, 0, false, '${map}'); G.me = -1; for (const t of G.teams) { t.isAI = true; t.auto = true; t.style = '${style}'; } 0`);
+  run(`setTransports(true); newWorld('allies', 'normal', ${7 + style.length}, 0, false, '${map}'); G.me = -1; for (const t of G.teams) { t.isAI = true; t.auto = true; t.style = '${style}'; } 0`);
   return JSON.parse(run(`(() => {
     const log = [], landed = [];
     const sa = startAssault;
@@ -46,7 +46,7 @@ if (only) process.exit(0);
 
 // --- 2: a turtle's reinforcements
 const ctx = headless.load(), run = (s) => vm.runInContext(s, ctx);
-run(`newWorld('allies', 'normal', 3, 0, false, '${map}'); G.me = -1; for (const t of G.teams) { t.isAI = true; t.auto = false; } G.teams[0].style = 'turtle'; G.teams[1].isAI = false; 0`);
+run(`setTransports(true); newWorld('allies', 'normal', 3, 0, false, '${map}'); G.me = -1; for (const t of G.teams) { t.isAI = true; t.auto = false; } G.teams[0].style = 'turtle'; G.teams[1].isAI = false; 0`);
 console.log('turtle defence', run(`(() => {
   const me = G.teams[0], foe = G.teams[1], cy = buildingsOf(0).find((b) => b.type === 'cy');
   const place = (type, near, from = 3) => { for (let d = from; d < 40; d++) for (let dy = -d; dy <= d; dy++) for (let dx = -d; dx <= d; dx++) { const x = near.cx + dx, y = near.cy + dy; if (Math.max(Math.abs(dx), Math.abs(dy)) === d && canPlace(me, type, x, y, 0)) { const b = addBuilding(type, me, x, y); b.buildT = 1; return b; } } };

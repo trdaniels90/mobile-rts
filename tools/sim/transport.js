@@ -9,7 +9,7 @@ const vm = require('vm');
 const root = process.argv[2];
 const headless = require(root + '/server/headless.js');
 const ctx = headless.load(), run = (s) => vm.runInContext(s, ctx);
-run(`newWorld('allies', 'normal', 11); G.me = 0; for (const t of G.teams) { t.isAI = false; t.auto = false; } 0`);
+run(`setTransports(true); newWorld('allies', 'normal', 11); G.me = 0; for (const t of G.teams) { t.isAI = false; t.auto = false; } 0`);
 const res = JSON.parse(run(`(() => {
   const step = (s, f) => { for (let i = 0; i < s * 30; i++) { update(1 / 30); if (f && f()) return true; } return false; };
   const me = G.teams[0], foe = G.teams[1], r = {};
@@ -95,7 +95,7 @@ const res = JSON.parse(run(`(() => {
 console.log(res);
 // --- 7: the computer flies an air assault
 const ctx2 = headless.load(), run2 = (s) => vm.runInContext(s, ctx2);
-run2(`newWorld('soviets', 'normal', 5); G.me = -1; for (const t of G.teams) { t.isAI = true; t.auto = true; } 0`);
+run2(`setTransports(true); newWorld('soviets', 'normal', 5); G.me = -1; for (const t of G.teams) { t.isAI = true; t.auto = true; } 0`);
 const ai = JSON.parse(run2(`(() => {
   let built = null, assault = null, errors = 0;
   for (let i = 0; i < 30 * 60 * 22 && !assault; i++) {
