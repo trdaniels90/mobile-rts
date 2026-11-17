@@ -4464,7 +4464,9 @@ function updateLift(u, dt) {
     if (!cargo.length && o.t <= 0) { if (o.n) liftHome(u); else setGuard(u, u.x, u.y); }
   }
 }
-// ai: how the computer's soldiers carry on once down: 'hunt' (attack), 'guard' (hold the spot: a turtle's reinforcements).
+// ai: how the computer's soldiers carry on once down: 'hunt' (attack), 'guard' (hold the spot: a turtle's reinforcements), 'wait'
+// (hold the spot until the ground wave they came with engages, at most LIFT_HOLD_MAX s: ai.js aiLiftRelease).
+const LIFT_HOLD_MAX = 75;
 function unloadOne(h, ai) {
   const r = h.cargo.shift(), team = G.teams[h.team];
   if (!r || !UNIT_DEFS[r.type]) return;
@@ -4477,6 +4479,7 @@ function unloadOne(h, ai) {
   u.hp = Math.min(u.maxHp, r.hp); u.rank = r.rank || 0; u.kills = r.kills || 0; u.killWorth = r.kw || 0; u.born = r.born;
   u.face = u.tface = Math.atan2(p.y - h.y, p.x - h.x);
   if (ai === 'guard') { setGuard(u, p.x, p.y); u.staged = true; }
+  else if (ai === 'wait') { setGuard(u, p.x, p.y); u.staged = false; u.liftWait = G.t + LIFT_HOLD_MAX; }   // (the computer's drop with a wave: aiLiftRelease sends it in)
   else if (ai || team.isAI) { setHunt(u); u.staged = false; }
   else { setGuard(u, p.x, p.y); u.staged = false; takeOver(u, 'move'); }
   goTo(u, p.x, p.y);
