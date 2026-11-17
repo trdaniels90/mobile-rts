@@ -630,16 +630,27 @@ function aiPlanRing(team, cy, at, reach) {
   for (const s of sides) delete s.face;
   return { sides, box: [x0, y0, x1, y1] };
 }
-// Comeback (Normal and Hard): a side that once had a War Factory, has lost it, still has a Construction Yard and cannot afford a
-// new one sells off buildings it can do without (defences first, then the dearest of the rest) to pay for it, and builds it
-// before anything else. Never sells the yard, power, refineries or any production building.
-const REBUILD_KEEP = ['cy', 'power', 'apower', 'refinery', 'outpost', 'factory', 'barracks', 'helipad', 'airfield'];
+// Comeback (Normal and Hard): a side that has lost its Ore Refinery (no ore coming in) or its War Factory, still has a Construction Yard
+// and cannot afford the replacement sells off whatever it can to pay for it, and builds it before anything else: power if the refinery
+// needs it, then the refinery (it brings a free Ore Truck), then the War Factory. Sells defences first, then the dearest of the rest,
+// and only when nothing else is left its Barracks, Helipads and Airfields. Never the yard, power, refineries, Outposts or War Factories.
+const REBUILD_KEEP = ['cy', 'power', 'apower', 'refinery', 'outpost', 'factory'];
+const REBUILD_LAST = ['barracks', 'helipad', 'airfield'];
+function aiRebuildChain(team, c) {
+  const chain = [];
+  if (!c.refinery && team.hadRef) {
+    if (!c.power && !c.apower) chain.push(available(team, 'power') ? 'power' : 'apower');
+    chain.push('refinery');
+  }
+  if (!c.factory && team.hadFactory) chain.push('factory');
+  return chain;
+}
 function aiRebuild(team, c) {
   if (!aiOf(team).planner) return false;
-  if (c.factory) { team.hadFactory = true; team.rebuild = false; return false; }
-  if (!team.hadFactory || !c.cy) { team.rebuild = false; return false; }
-  const chain = ['refinery', 'factory'].filter((t) => t === 'factory' || !c[t]);
-  if (chain.some((t) => t !== 'factory' && !available(team, t)) && !available(team, 'refinery')) { team.rebuild = false; return false; }
+  if (c.refinery) team.hadRef = true;
+  if (c.factory) team.hadFactory = true;
+  const chain = c.cy ? aiRebuildChain(team, c) : [];
+  if (!chain.length) { team.rebuild = false; return false; }
   const need = chain.reduce((a, t) => a + BUILD_DEFS[t].cost, 0);
   const pending = team.queues.structure;
   const paid = pending && chain.includes(pending.type) ? BUILD_DEFS[pending.type].cost : 0;
@@ -650,9 +661,11 @@ function aiRebuild(team, c) {
   let incoming = 0;
   for (const b of buildingsOf(team.id)) if (b.sellT > 0) incoming += Math.floor(b.def.cost * 0.5 * b.hp / b.maxHp);
   if (team.credits + paid + incoming >= need + 100) return true;
-  const list = buildingsOf(team.id).filter((b) => b.alive && b.buildT >= 1 && b.sellT <= 0 && !REBUILD_KEEP.includes(b.type));
-  list.sort((a, b) => (!!b.def.weapon - !!a.def.weapon) || b.def.cost - a.def.cost);
-  if (list.length) sellStructure(list[0]);
+  const mine = buildingsOf(team.id).filter((b) => b.alive && b.buildT >= 1 && b.sellT <= 0 && !REBUILD_KEEP.includes(b.type));
+  const list = mine.filter((b) => !REBUILD_LAST.includes(b.type));
+  const pool = list.length ? list : mine;
+  pool.sort((a, b) => (!!b.def.weapon - !!a.def.weapon) || b.def.cost - a.def.cost);
+  if (pool.length) sellStructure(pool[0]);
   return true;
 }
 function aiThink(team) {
@@ -679,9 +692,8 @@ function aiThink(team) {
     if (b && lone) (lone.refineries = lone.refineries || []).push(b);
     else if (!spot && Math.random() < 0.05) cancelProduction(team, q.type);
   } else if (!q && rebuilding) {
-    // Comeback: the missing refinery or War Factory is paid for first and nothing else is started.
-    const step = !c.refinery && available(team, 'refinery') ? 'refinery' : 'factory';
-    const t = available(team, step) ? step : available(team, 'power') && !c.power ? 'power' : null;
+    // Comeback: the missing power, refinery or War Factory is paid for first and nothing else is started.
+    const t = aiRebuildChain(team, c).find((x) => available(team, x));
     if (t && team.credits >= BUILD_DEFS[t].cost) startProduction(team, t);
   } else if (!q) {
     // Every other building goes to the second base while it still wants something (and money allows).
