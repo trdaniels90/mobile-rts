@@ -939,6 +939,7 @@ function dayNight(t) {
 const nightLevel = () => dayNight(G ? G.t : 0).night;
 // Darkness over the view, with holes where there is light, then the lights' warm glow on top. Dusk and dawn tint it amber.
 let nightCv = null, lightPic = null;
+const NIGHT_RES = 0.5;   // the night layer's size as a share of the screen's (see drawNight)
 function drawNight(g, vx, vy, vw, vh, k, t) {
   const { night, warm } = dayNight(t);
   const W = g.canvas.width, H = g.canvas.height;
@@ -952,7 +953,10 @@ function drawNight(g, vx, vy, vw, vh, k, t) {
     gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
     c.fillStyle = gr; c.fillRect(0, 0, 64, 64);
   }
-  if (!nightCv || nightCv.width !== W || nightCv.height !== H) nightCv = mkCanvas(W, H);
+  // The darkness is soft shade and blurred pools of light, so it is drawn at NIGHT_RES of the screen and stretched up
+  // smoothly: on a 3x phone the full-size layer cost about 8 ms of GPU time a frame (match 3c189abc: 60 to about 43 fps at night).
+  const nW = Math.max(1, Math.round(W * NIGHT_RES)), nH = Math.max(1, Math.round(H * NIGHT_RES)), nk = k * nW / W;
+  if (!nightCv || nightCv.width !== nW || nightCv.height !== nH) nightCv = mkCanvas(nW, nH);
   const n = nightCv.getContext('2d'), lights = [];
   const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
   const add = (x, y, r, a, warmLight, h) => { [x, y] = toView(...liftPt(x, y, h || 0)); if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };   // (vx, vy: the camera on the view plane)
@@ -974,15 +978,15 @@ function drawNight(g, vx, vy, vw, vh, k, t) {
     else if (fx.type === 'bolt') add(fx.x, fx.y, 260, 1, false);
   }
   for (const b of G.bolts || []) add(b.x, b.y, 50, Math.min(1, b.t / 3), true);
-  n.globalCompositeOperation = 'source-over'; n.clearRect(0, 0, W, H);
-  n.fillStyle = `rgba(6,12,34,${(0.62 * night).toFixed(3)})`; n.fillRect(0, 0, W, H);
+  n.globalCompositeOperation = 'source-over'; n.clearRect(0, 0, nW, nH);
+  n.fillStyle = `rgba(6,12,34,${(0.62 * night).toFixed(3)})`; n.fillRect(0, 0, nW, nH);
   n.globalCompositeOperation = 'destination-out';
   for (const [x, y, r, a] of lights) {
     const flick = 0.92 + Math.random() * 0.08;
-    n.globalAlpha = Math.min(1, a * flick); n.drawImage(lightPic, (x - vx - r) * k, (y - vy - r) * k, r * 2 * k, r * 2 * k);
+    n.globalAlpha = Math.min(1, a * flick); n.drawImage(lightPic, (x - vx - r) * nk, (y - vy - r) * nk, r * 2 * nk, r * 2 * nk);
   }
   n.globalAlpha = 1; n.globalCompositeOperation = 'source-over';
-  g.drawImage(nightCv, 0, 0);
+  g.save(); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'low'; g.drawImage(nightCv, 0, 0, W, H); g.restore();
   // The warm light itself, faintly, over what it lights.
   g.save(); g.globalCompositeOperation = 'lighter';
   for (const [x, y, r, a, w] of lights) {
