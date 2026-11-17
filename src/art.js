@@ -2490,7 +2490,7 @@ function drawEffect(g, fx) {
       break;
     }
     case 'fire': {
-      const f = flameFrames[Math.floor(fx.t * 12 + (fx.x | 0)) % 4], sc = fx.s || 1;
+      const f = flameFrames[(Math.floor(fx.t * 12 + (fx.x | 0)) % 4 + 4) % 4], sc = fx.s || 1;   // (x can be below 0 once lifted up the screen)
       g.globalAlpha = Math.min(1, (1 - k) * 3);
       if (sc > 1.3) {   // a big blaze lights up what is around it
         g.globalCompositeOperation = 'lighter';

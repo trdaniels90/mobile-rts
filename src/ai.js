@@ -955,35 +955,63 @@ function aiPincer(team) {
 // What the computer builds against (Normal and Hard, A.counter): the enemy ground army it can see
 // (mostly infantry, or mostly armour) and how fortified the enemy base it knows of is.
 // Which enemy side to attack in a team game (team.focusSide, read by enemyOf and the attackers'
-// nearestEnemyBuilding). Easy goes for the nearest. Normal and Hard weigh each enemy whose base
-// they have found: near, weak (the army and guns they have seen) and already under attack by an
-// ally (computer or player) all count for it, and the current choice is kept unless another is
-// clearly better. Looked at again every 30 seconds.
-const FOE_PICK_EVERY = 30;
+// nearestEnemyBuilding). Looked at again every 30 seconds, on every difficulty. Two phases, per alliance:
+// - Spread (the opening): each computer side takes an enemy of its own, nearest first, so the computers of an
+//   alliance do not gang up on one player (aiSpreadPlan). Only enemies whose base has been found count: while a
+//   base is still hidden, two computers may go for the same one meanwhile.
+// - Gang (once the alliance's computer sides have sent SPREAD_WAVES waves each on average: a turtle sends few): the alliance picks one enemy
+//   together at random (weaker ones a little more likely) and all its computers go for it; picked again every
+//   GANG_HOLD seconds or when it is beaten (aiGangPlan, G.gang[ally]).
+const FOE_PICK_EVERY = 30, SPREAD_WAVES = 3, GANG_HOLD = 360;
 function aiPickFoe(team) {
   const foes = G.teams.filter((t) => hostile(team.id, t.id));
   if (foes.length < 2) return;
-  if (!aiOf(team).adapt) { team.focusSide = null; return; }
   if (team.foePickT && G.t - team.foePickT < FOE_PICK_EVERY && chosenFoe(team)) return;
   team.foePickT = G.t;
+  const known = foes.filter((f) => !f.out && inTheFight(f.id) && enemyBaseKnown(team.id, f.id));
+  if (!known.length) { team.focusSide = null; return; }
+  const mates = G.teams.filter((t) => t.isAI && t.ally === team.ally && !t.out);
+  const spread = mates.reduce((n, t) => n + (t.waves || 0), 0) < SPREAD_WAVES * mates.length;
+  const pick = spread ? aiSpreadPlan(team, mates, known) : aiGangPlan(team, known);
+  team.focusSide = pick ? pick.id : null;
+}
+// The opening: the alliance's computer sides (in side order) each take the nearest found enemy no earlier one has
+// taken; with more computers than found enemies, the least taken (nearest on a tie). Worked out the same way by
+// every side of the alliance, so they agree without talking.
+function aiSpreadPlan(team, mates, known) {
+  const taken = new Map(known.map((f) => [f.id, 0]));
+  const d = (a, f) => Math.hypot(f.start.cx - a.start.cx, f.start.cy - a.start.cy);
+  for (const m of mates.slice().sort((a, b) => a.id - b.id)) {
+    let best = null, bs = Infinity;
+    for (const f of known) {
+      const sc = taken.get(f.id) * 1e6 + d(m, f);
+      if (sc < bs) { bs = sc; best = f; }
+    }
+    if (m === team) return best;
+    taken.set(best.id, taken.get(best.id) + 1);
+  }
+  return null;
+}
+// Later on: one enemy for the whole alliance, rolled at random (an enemy weak in what this side has seen is up to
+// twice as likely), kept GANG_HOLD seconds or until it is beaten or lost from sight. G.gang is plain data (saved).
+function aiGangPlan(team, known) {
+  G.gang = G.gang || {};
+  const g = G.gang[team.ally];
+  const cur = g && known.find((f) => f.id === g.side);
+  if (cur && G.t < g.until) return cur;
   const seen = inViewOf(team.id);
-  const might = (tid, all) => {
+  const might = (tid) => {
     let v = 0;
-    for (const u of unitsOf(tid)) if (u.def.weapon && !u.def.harvester && !u.def.scripted && (all || seen(u))) v += u.def.cost || 300;
-    for (const b of buildingsOf(tid)) if (b.def.defense && (all || targetable(team.id, b))) v += (b.def.cost || 600) * 0.7;
+    for (const u of unitsOf(tid)) if (u.def.weapon && !u.def.harvester && !u.def.scripted && seen(u)) v += u.def.cost || 300;
+    for (const b of buildingsOf(tid)) if (b.def.defense && targetable(team.id, b)) v += (b.def.cost || 600) * 0.7;
     return v;
   };
-  const mine = Math.max(1500, might(team.id, true));
-  const allies = G.teams.filter((t) => t !== team && t.ally === team.ally && !t.out);
-  let best = null, bs = -Infinity;
-  for (const f of foes) {
-    if (f.out || !inTheFight(f.id) || !enemyBaseKnown(team.id, f.id)) continue;
-    const d = Math.hypot(f.start.cx - team.start.cx, f.start.cy - team.start.cy) / MAP;
-    const ganged = allies.filter((a) => a.focusSide === f.id).length;
-    const sc = -d * 1.5 - Math.min(2, might(f.id, false) / mine) * 0.8 + ganged * 0.5 + (team.focusSide === f.id ? 0.35 : 0) + Math.random() * 0.15;
-    if (sc > bs) { bs = sc; best = f; }
-  }
-  team.focusSide = best ? best.id : null;
+  const m = known.map((f) => might(f.id)), top = Math.max(1, ...m);
+  const w = m.map((v) => 2 - v / top);
+  let r = Math.random() * w.reduce((a, b) => a + b, 0), pick = known[known.length - 1];
+  for (let i = 0; i < known.length; i++) if ((r -= w[i]) < 0) { pick = known[i]; break; }
+  G.gang[team.ally] = { side: pick.id, until: G.t + GANG_HOLD };
+  return pick;
 }
 function aiCounter(team) {
   if (!aiOf(team).counter) return;

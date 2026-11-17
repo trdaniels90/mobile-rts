@@ -91,7 +91,7 @@ function reportBattle(R, how, winner) {
     cpu_pct: cpuPct(B.cpu), cpu_peak_pct: B.cpuPeak, cpu: CPU_KIND };
   const players = B.sides.map((x, i) => {
     const s = R.seats.find((o) => o.side === i);
-    return { side: i, ally: x.ally, faction: x.faction, name: x.ai ? null : x.name, ai: !!x.ai, left: !!(s && s.left), took_over: !x.ai && !!(G && G.teams[i] && G.teams[i].isAI) };
+    return { side: i, ally: x.ally, faction: x.faction, name: x.ai ? null : x.name, ai: !!x.ai, style: (G && G.teams[i] && G.teams[i].isAI && G.teams[i].style) || null, left: !!(s && s.left), took_over: !x.ai && !!(G && G.teams[i] && G.teams[i].isAI) };
   });
   const done = how !== undefined;
   return rpc('server_battle', { id: B.id, code: R.code, version: VERSION, mode: R.mode, map: B.map, difficulty: B.diff, players,

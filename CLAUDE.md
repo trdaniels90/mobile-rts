@@ -1207,6 +1207,19 @@ frame-time maths everywhere, so it is not deterministic.
   (rusher, raider, turtle, turtle); 3 v 3 Lakeside 678 (rusher), 811, 832 (balanced), 956 (raider), 1010 (turtle). Allies' styles differed every run.
   Balanced's first wave is now 12:45-15:45 on Normal (was 12:00 exactly). The server must run the same version.
 
+## Computer allies spread out, then gang up together (after 2026.11.17.1, not released, every difficulty, both modes)
+
+- Owner's report (match 2d652450, Normal 2 v 2): both enemy computers attacked only them until beaten (the old `aiPickFoe` gave +0.5
+  for a foe an ally was on). Now `aiPickFoe` (ai.js, every 30 s) has two phases per alliance. **Spread:** `aiSpreadPlan` gives each
+  computer side (in side order) the nearest found enemy no earlier one has taken, so each player base gets its own attacker; an enemy
+  whose base is still hidden is not counted, so two may share the one found meanwhile. **Gang:** once the alliance's computers have sent
+  `SPREAD_WAVES` (3) waves each on average (`team.waves`; a turtle sends few, so the total counts), `aiGangPlan` rolls one enemy for the
+  whole alliance at random (weaker in what it has seen up to twice as likely), kept `GANG_HOLD` (360 s) or until beaten, in `G.gang[ally]`
+  (plain data, saved). Easy now spreads too (was nearest). Headless Normal 2 v 2 on Twin Lakes: four different targets until minute 28,
+  then one alliance on one foe. The server must run the same version.
+- Match reports now record each side's `ally`, `style` and `waves` in `stats.teams` (and `style` in the server's `players`).
+- Fire effects lifted past x < 0 picked `flameFrames[-n]` (art.js `drawEffect`): 631 draw errors in that match's last 80 s. Fixed.
+
 ## Computer base rings, breaching a long way round (after 2026.11.16.5, not released, Normal and Hard, both modes)
 
 - Owner's pick (by personality): `aiRing` / `aiPlanRing` in ai.js. A turtle from minute 6, a balanced computer from minute 12 once it holds
