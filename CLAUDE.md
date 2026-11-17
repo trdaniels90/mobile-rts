@@ -1511,3 +1511,10 @@ frame-time maths everywhere, so it is not deterministic.
 - **Upgrades are lost with the last Tech Center** (owner's rule, replaces "kept for the battle"): `kill` clears `team.upgrades` when a side's last
   Tech Center is destroyed or sold ("Upgrades lost", text only). Queued Comanches / Tesla Tanks wait until re-researched; units already built stay.
   Field Manual updated; `comanche.js` checks the new rule.
+
+## Computer comeback: sells off to rebuild its War Factory (after 2026.11.17.13, not released, Normal and Hard, both modes; the server must match)
+
+- `aiRebuild` (ai.js, from `aiThink`): a computer that once had a War Factory (`team.hadFactory`), has lost every one, still has a Construction Yard and cannot
+  pay for the missing chain (refinery if none, then War Factory) sells a building every 3 s (`sellStructure`; defences first, then the dearest of the rest; never the
+  yard, power, refineries, Outposts or any production building) until credits plus pending sales cover it, then builds it before anything else (`team.rebuild`).
+  `node tools/sim/rebuild.js <repo> [diff]`: Normal, factory and trucks destroyed at 10 min with 0 credits, sold a Tesla Coil and the Tech Center, new factory 77 s later.
