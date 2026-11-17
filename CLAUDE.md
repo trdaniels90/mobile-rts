@@ -1083,6 +1083,13 @@ frame-time maths everywhere, so it is not deterministic.
   Attack it fights every unit it meets, even under known anti-air (`open` in `airTarget`). Scratch hunt run (2 Comanches, 8 units on the way):
   5 of 8 killed and both lost before, 8 of 8 and none lost after. Landed aircraft's ammunition pips are drawn with `standAt` (a stray black
   bar on the turned view) and a load over 6 is a gauge.
+- **Comanches on an ordered target, missiles, spacing** (after 2026.11.17.6, both modes; the server must match; owner: Comanches bunched over an
+  enemy base doing nothing): with an attack order on a building it emptied its gun, then could neither hit the building (missiles are for
+  tanks) nor go home (`gunSpent` saw a tank or Ore Truck in missile reach) and hovered for good. Now `airTarget` keeps an ordered target only
+  while a weapon can hit it, else takes a missile target in reach or goes home. With only missiles left it looks `MISSILE_SEEK` (2) x their
+  reach for one before going home (it used to fly home with all 4 beside tanks just out of reach). `spreadHelis` eases friendly helicopters
+  holding on a target `HELI_SPACE` (34 px) apart. Staged: refinery attack with a tank and truck beside it, the truck killed by missiles (none
+  fired before); a hunt into a base, both Heavy Tanks hit after the gun (none before). `comanche.js` passes.
 - **Comanches defend from the pad** (after 2026.11.17.6, both modes; owner: they sat on the pad while the base was attacked): a helicopter
   rearming or repairing on its pad was left out of `defendBase` until fully loaded (the Comanche loads 15 bursts, then 4 missiles). Now a
   landed helicopter answers a raid with `padReady` (half its health, half a load of gun or missiles) and a weapon that can hit one of the

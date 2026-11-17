@@ -4099,9 +4099,11 @@ function padSpot(pad, u) {
 
 function airTarget(u) {
   const o = u.order, sight = u.def.sight * CELL * (u.def.fly === 'jet' ? 1.6 : 1);
-  if (o.type === 'attack') { if (o.target.alive) return o.target; setGuard(u); }
-  if (o.type === 'move' && u.def.fly === 'heli') return null;
   const ws = airWeapons(u);
+  // An ordered target: the Comanche with its gun spent cannot touch a building with its tank missiles, so meanwhile it takes on
+  // a tank or Ore Truck in reach (or, with none, goes home to rearm: gunSpent) instead of hovering over the target for ever.
+  if (o.type === 'attack') { if (o.target.alive) { if (!u.def.standoff || ws.some((w) => canHit(w, o.target))) return o.target; } else setGuard(u); }
+  if (o.type === 'move' && u.def.fly === 'heli') return null;
   // A defender keeps the raider base defence gave it, however far away: each jet has its own.
   if (u.defending && u.target && u.target.alive && ws.some((w) => canHit(w, u.target))) return u.target;
   const heli = u.def.fly === 'heli';
@@ -4115,7 +4117,8 @@ function airTarget(u) {
   if (o.type === 'hunt' && u.aaClear) { const aa = knownAA(u.team, u.def.fly === 'jet'), units = u.def.standoff; if (aa.length) open = (e) => isAirborne(e) || (units && e.kind === 'unit') || !aaCover(aa, e); }
   if (!ws.length) return null;
   // A stand-off helicopter (the Comanche) looks as far as its missiles lock on.
-  const reach = u.def.standoff ? Math.max(sight, ...ws.map((w) => w.range)) : sight;
+  // With only its missiles left it looks twice their reach for a tank or Ore Truck before going home (gunSpent).
+  const reach = u.def.standoff ? (u.ammo > 0 ? Math.max(sight, ...ws.map((w) => w.range)) : u.def.weapon2.range * MISSILE_SEEK) : sight;
   const pick = acquire(src, reach, ws, open, heli);
   // Nothing new in sight: carry on with the unfavoured target it had.
   if (heli && !pick && u.target && u.target.alive && ws.some((w) => canHit(w, u.target)) && distTo(u, u.target) < sight * 1.4) return u.target;
@@ -4184,7 +4187,7 @@ function updateAir(u, dt) {
   const strikeSpent = jet && u.ammo <= 0 && !(u.guns > 0) && !(u.aam > 0) && !huntingAir;
   // The Comanche with its gun spent goes home to rearm unless a tank or Ore Truck is in reach of its missiles: those hit
   // tanks alone, so it would otherwise fly on to the enemy base and hang there without a shot.
-  const gunSpent = u.def.standoff && u.ammo <= 0 && !(u.aam > 0 && ((u.target && u.target.alive && missileMark(u.target)) || acquire(u, u.def.weapon2.range, [u.def.weapon2])));
+  const gunSpent = u.def.standoff && u.ammo <= 0 && !(u.aam > 0 && ((u.target && u.target.alive && missileMark(u.target)) || acquire(u, u.def.weapon2.range * MISSILE_SEEK, [u.def.weapon2])));
   if (airEmpty(u) || strikeSpent || gunSpent || u.retreat || u.rearming || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {
@@ -4300,6 +4303,7 @@ function strikeOver(u) {
 // closer than STANDOFF_NEAR of it. Tanks get the anti-tank missiles while it has them: the bays open (BAY_OPEN s), it holds a
 // lock for the weapon's `lock` seconds (kept while the target stays the same and in reach) and fires one missile per `rof`.
 // Everything else, and tanks once the missiles are spent, gets the chain gun.
+const MISSILE_SEEK = 2;
 const BAY_OPEN = 0.4, STANDOFF_FAR = 0.92, STANDOFF_NEAR = 0.8, BACK_SPEED = 0.55;
 function standoffFight(u, t, dt) {
   const mw = u.def.weapon2, missile = u.aam > 0 && canHit(mw, t);
@@ -4314,12 +4318,27 @@ function standoffFight(u, t, dt) {
     u.x -= Math.cos(ang) * step; u.y -= Math.sin(ang) * step; u.moving = true;
     clampAir(u);
   }
+  spreadHelis(u, dt);
   u.face = turnToward(u.face, ang, 4 * dt);
   const facing = Math.abs(angDiff(ang, u.face)) < 0.2;
   if (missile) {
     if (facing) u.lock = (u.lock || 0) + dt;
     if (u.lock >= mw.lock && (u.bay || 0) >= 1 && !(u.cd2 > 0)) { shoot(u, mw, t); u.cd2 = mw.rof * VET.reload[u.rank || 0]; u.aam--; u.bayHold = G.t + 1.5; }
   } else if (facing && u.cd <= 0) { shoot(u, w, t); u.cd = w.rof * VET.reload[u.rank || 0]; u.ammo--; }
+}
+// Comanches holding at the edge of their reach on one target all end up on the same spot: each eases away from a friendly
+// helicopter within HELI_SPACE px (looks and a little less splash from one blast; flying on is unchanged).
+const HELI_SPACE = 34;
+function spreadHelis(u, dt) {
+  for (const b of nearBuckets(u.x, u.y, HELI_SPACE)) for (const e of b) {
+    if (e === u || !e.alive || e.cls !== 'air' || e.def.fly !== 'heli' || e.as !== 'fly' || e.team !== u.team) continue;
+    let dx = u.x - e.x, dy = u.y - e.y; const d = Math.hypot(dx, dy);
+    if (d >= HELI_SPACE) continue;
+    if (d < 0.5) { dx = Math.cos(u.id); dy = Math.sin(u.id); }
+    const k = Math.min(1, (HELI_SPACE - d) / HELI_SPACE) * 40 * dt / Math.max(d, 1);
+    u.x += dx * k; u.y += dy * k;
+  }
+  clampAir(u);
 }
 function flyHeli(u, x, y, dt) {
   const ang = Math.atan2(y - u.y, x - u.x), d = Math.hypot(x - u.x, y - u.y);
