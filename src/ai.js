@@ -67,7 +67,7 @@ function aiNextStructure(team, c) {
   }
   // Then a gun at each Outpost (and on Hard each outlying refinery), and more defences while rich.
   if (available(team, defense) && aiGuardSite(team) && n(defense) < capMain) return build(defense);
-  if (team.credits > 1500) {
+  if (team.credits > (A.defRich || 1500)) {   // a turtle tops its guns up from less money (defRich)
     const t = n(defense) / Math.max(1, capMain) <= n(antiInf) / Math.max(1, capInf) ? defense : antiInf;
     const other = t === defense ? antiInf : defense, cap = (x) => (x === defense ? capMain : capInf);
     for (const x of [t, other]) if (n(x) < cap(x) && available(team, x)) return build(x);
@@ -262,7 +262,7 @@ function aiBase2Next(team, b2, c) {
   const near = buildingsOf(team.id).filter((b) => dist(b, b2) < CELL * 12), n = (t) => near.filter((b) => b.type === t).length;
   const p = team.power, pwr = available(team, 'apower') ? 'apower' : 'power';
   const gun = team.faction === 'allies' ? 'turret' : 'tesla', aa = team.faction === 'allies' ? 'aagun' : 'sam';
-  const wants = [['refinery', 1], [pwr, 1], ['barracks', 1], [gun, 1], ['refinery', 2], ['factory', 1], [gun, 2], [aa, team.sawAir ? 1 : 0]];
+  const wants = [['refinery', 1], [pwr, 1], ['barracks', 1], [gun, 1], ['refinery', 2], ['factory', 1], [gun, 2], [aa, team.sawAir ? 1 : 0], [gun, aiOf(team).guns2 || 2]];
   for (const [t, want] of wants) {
     if (n(t) >= want || !available(team, t)) continue;
     if (t === 'refinery' && (c.refinery || 0) >= Math.min(8, aiRefCap(team) + 1)) continue;
@@ -316,7 +316,7 @@ function aiPowerTarget(team, cluster) {
   return { x: best.x, y: best.y };
 }
 
-const ARMY_UNITS = 80, ARMY_WORTH = 28000;   // defaults; DIFFICULTY ai.armyUnits and ai.armyWorth set them per difficulty (Normal 90 and 45000)
+const ARMY_UNITS = 100, ARMY_WORTH = 28000;   // defaults; DIFFICULTY ai.armyUnits and ai.armyWorth set them per difficulty (Normal 100 and 45000)
 // Destroyed bridge spans: the computer trains an Engineer (one at a time, when no Engineer of its alliance is free or
 // on the way) and sends each idle Engineer to the nearest destroyed span it can walk to that nobody is already
 // heading for. Checked every 10 s.
@@ -401,17 +401,29 @@ function aiRing(team) {
   if (!A.planner || from === undefined || G.t < from || G.t < (team.ringT || 0)) return;
   team.ringT = G.t + 15;
   if (!wallAvailable(team, 'concrete') || !wallAvailable(team, 'gate')) return;
-  const cy = buildingsOf(team.id).find((b) => b.type === 'cy');
-  if (!cy) return;
-  let R = team.ring;
-  if (!R) {
-    if (team.style === 'balanced' && team.credits < 3000) return;
-    R = team.ring = aiPlanRing(team, cy);
+  const keep = RING_KEEP[team.style];
+  const cy = aiMainYard(team) || buildingsOf(team.id).find((b) => b.type === 'cy');
+  if (cy) {
+    if (!team.ring) {
+      if (team.style === 'balanced' && team.credits < 3000) return;
+      team.ring = aiPlanRing(team, cy, team.start, 16);
+    }
+    if (!team.ring.skip && !aiBuildRing(team, team.ring, keep)) return;   // out of money: the second ring waits
   }
-  if (R.skip) return;
-  const keep = RING_KEEP[team.style], gate = WALLS.gate, wall = WALLS.concrete;
+  // A turtle also rings its second base (team.ring2, for that yard's id), once that base has all it wants.
+  const b2 = A.ring2 && aiBase2(team);
+  if (!b2 || b2.buildT < 1) return;
+  if (!team.ring2 || team.ring2.yard !== b2.id) {
+    if (aiBase2Next(team, b2, aiCount(team))) return;
+    team.ring2 = Object.assign(aiPlanRing(team, b2, b2, 12), { yard: b2.id });
+  }
+  if (!team.ring2.skip) aiBuildRing(team, team.ring2, keep);
+}
+// Lays what it can of a planned ring from the credits above `keep`. False once the money runs short.
+function aiBuildRing(team, R, keep) {
+  const gate = WALLS.gate, wall = WALLS.concrete;
   for (const sd of R.sides) {
-    if (team.credits - keep < (sd.gate < 0 ? gate.cost : wall.cost)) return;
+    if (team.credits - keep < (sd.gate < 0 ? gate.cost : wall.cost)) return false;
     if (sd.gate < 0) {                                   // the side's Gate first: the middle cell nearest the side's middle that fits
       for (const m of sd.mids) {
         const x = cellX(m), y = cellY(m), [dx, dy] = sd.ns ? [0, 1] : [1, 0];
@@ -437,10 +449,11 @@ function aiRing(team) {
     }
     lay();
   }
+  return true;
 }
 // The ring's four sides round the main base's buildings (within 16 cells of its start), facing the enemy first.
-function aiPlanRing(team, cy) {
-  const near = buildingsOf(team.id).filter((b) => Math.hypot(b.cx - team.start.cx, b.cy - team.start.cy) < 16);
+function aiPlanRing(team, cy, at, reach) {
+  const near = buildingsOf(team.id).filter((b) => Math.hypot(b.cx - at.cx, b.cy - at.cy) < reach);
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const b of near.length ? near : [cy]) { x0 = Math.min(x0, b.cx); y0 = Math.min(y0, b.cy); x1 = Math.max(x1, b.cx + b.w - 1); y1 = Math.max(y1, b.cy + b.h - 1); }
   x0 = Math.max(2, x0 - RING_MARGIN); y0 = Math.max(2, y0 - RING_MARGIN); x1 = Math.min(MAP - 3, x1 + RING_MARGIN); y1 = Math.min(MAP - 3, y1 + RING_MARGIN);
@@ -651,7 +664,9 @@ function aiLaunch(team, ready) {
   // takes only its planned number of units: the rest wait for the next one.
   // Planner waves are held until the army is big: WAVE_HOLD of the army cap, by count or by worth.
   const hold = A.planner && ready.length < (A.armyUnits || ARMY_UNITS) * A.hold && ready.reduce((w, u) => w + (u.def.cost || 300), 0) < (A.armyWorth || ARMY_WORTH) * A.hold;
-  if (A.planner) { if ((team.attackAt === undefined || G.t < team.attackAt || ready.length < team.plan.size || hold)) return; }
+  // A turtle under steady attack never fills up to `hold`: some minutes past its timer it goes with what it has (stallAfter).
+  const stale = A.planner && A.stallAfter && team.attackAt !== undefined && G.t >= team.attackAt + A.stallAfter && ready.length >= A.stallMin;
+  if (A.planner) { if (team.attackAt === undefined || G.t < team.attackAt || ((ready.length < team.plan.size || hold) && !stale)) return; }
   else if (ready.length < team.plan.size || G.t < A.firstWave || G.t - (team.lastWave || -1e9) < A.waveGap) return;
   // The planner's wave sends every unit that has gathered (the units on home guard are not in `ready`).
   const take = A.planner ? ready.length : team.plan.size;
@@ -689,12 +704,15 @@ function aiGap(team) {
 //   firstWave: added to the difficulty's first-wave time; hold / full: share of the army cap that must be waiting
 //   before a wave goes / that halves the wait; gapMul: the random wait between waves; airGap: AIR_STRIKE_GAP;
 //   defAdd / gunsAdd: ground defences at home / guns at each Outpost; wallMul, garAdd: walls and held houses;
+//   defRich: credits above which it keeps adding guns (default 1500); guns2: guns at a second base (default 2);
+//   ring2: also rings its second base; stallAfter / stallMin: once the wave timer is this many seconds past with no
+//   wave (the army never reaches `hold`), it goes with whatever has gathered if that is at least stallMin units;
 //   splitAt / split3: wave sizes that split into 3 or 2 squads and the chance of 3; eco: the raider's taste for
 //   refineries, power and Outposts in aiWaveTarget.
 const AI_STYLES = {
   balanced: {},
   rusher: { firstWave: -180, hold: 0.3, full: 0.4, gapMul: 0.6, defAdd: -2, wallMul: 0.5, garAdd: -1 },
-  turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, defAdd: 3, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18] },
+  turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, defAdd: 5, defRich: 800, guns2: 4, ring2: true, stallAfter: 240, stallMin: 18, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18] },
   raider: { hold: 0.4, airGap: 0.6, splitAt: [12, 8], split3: 0.75, eco: true },
 };
 const AI_STYLE_KEYS = Object.keys(AI_STYLES);

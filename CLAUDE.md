@@ -1338,6 +1338,19 @@ frame-time maths everywhere, so it is not deterministic.
 - Match reports now record each side's `ally`, `style` and `waves` in `stats.teams` (and `style` in the server's `players`).
 - Fire effects lifted past x < 0 picked `flameFrames[-n]` (art.js `drawEffect`): 631 draw errors in that match's last 80 s. Fixed.
 
+## Turtles attack when stalled, more guns, ring their second base; computer army cap 100 (after 2026.11.17.9, not released, both modes)
+
+- Owner's report (match 688f49e9, Normal 2 v 2 on Crossroads Village): the turtle had sent 0 waves at 21 minutes. It waits for `hold` (75%) of its
+  army cap, and the player kept killing its units (185 lost), so it never got there; its army piled up by its outlying Barracks and War Factory.
+- **Stall release** (`stallAfter` 240 s, `stallMin` 18 in `AI_STYLES.turtle`, `aiLaunch`): once the wave timer (`team.attackAt`) is 4 minutes past
+  with no wave, a turtle goes with whatever has gathered if that is 18 units or more.
+- **More guns:** `defAdd` 3 to 5, and it tops them up from 800 credits (`defRich`; others 1,500). Second base: 4 guns (`guns2`; others 2).
+- **Second base ring** (`ring2`): `aiRing` also plans `team.ring2` (`aiPlanRing(team, yard, at, reach)` round the buildings within 12 cells of the
+  second yard, `yard` = its id, replanned for a new yard) once `aiBase2Next` wants nothing more there, after the main ring is paid for
+  (`aiBuildRing` returns false when money runs short).
+- **Army cap** (owner): `ARMY_UNITS` 80 to 100 (Easy, Hard), Normal `armyUnits` 90 to 100. Wave sizes that are shares of it grow with it.
+- The server must run the same version.
+
 ## Computer base rings, breaching a long way round (after 2026.11.16.5, not released, Normal and Hard, both modes)
 
 - Owner's pick (by personality): `aiRing` / `aiPlanRing` in ai.js. A turtle from minute 6, a balanced computer from minute 12 once it holds
