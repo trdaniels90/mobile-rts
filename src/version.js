@@ -4,6 +4,16 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.15', date: '17 November 2026', title: 'Frostlight Valley', groups: [
+    ['New', [
+      'A new 3 v 3 winter map, Frostlight Valley: three bases in the west against three in the east, with three roads between them. A market town sits in the middle, a village on the north and south roads and two hamlets on the roads between, all snowed in. The houses are different every battle.',
+      'Street lamps light the village lanes and the main roads, so the routes glow at night. Day turns to night and it often snows.',
+      'Wooded hills ringed by cliffs squeeze the middle road into a pass, and frozen lakes lie between the routes.',
+    ]],
+    ['Changed', [
+      'Village houses on winter maps have snow on their roofs.',
+    ]],
+  ] },
   { v: '2026.11.17.14', date: '17 November 2026', title: 'Forward bases and fortresses', groups: [
     ['Changed', [
       'Units shooting a way through a wall now fight the defences, buildings and units in reach first, and fire back when shot at. Before, they drove past guns that were shooting them to reach the wall.',
