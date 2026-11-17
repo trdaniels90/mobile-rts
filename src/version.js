@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.19', date: '17 November 2026', title: 'No more piles', groups: [
+    ['Fixed', [
+      'Units no longer heap up in one big pile at home after a fight. Defenders going back, squads pulling back and waves gathering before an attack now each take their own spot, instead of all crowding onto one point and shoving each other round.',
+      'In team games, computer opponents now keep scouting until they have found every enemy base, so they no longer all go after the one player they found first.',
+    ]],
+  ] },
   { v: '2026.11.17.18', date: '17 November 2026', title: 'Close air support, tougher turtles', groups: [
     ['New', [
       'Close Air Support: three new Tech Center upgrades (need an Airfield). The first adds an Airfield power that calls in an A-10 Warthog (Allies) or Su-25 Frogfoot (Soviets) over an area you choose: missiles at vehicles on the way in, then an anti-tank cannon run, two passes. The second and third upgrades send two and three planes. The computer uses it too.',
