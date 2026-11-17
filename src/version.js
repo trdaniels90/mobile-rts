@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.16', date: '17 November 2026', title: 'Random personalities', groups: [
+    ['Changed', [
+      'Computer opponents now pick their personality completely at random. Two computer allies can now share the same one, though it is rare.',
+    ]],
+  ] },
   { v: '2026.11.17.15', date: '17 November 2026', title: 'Frostlight Valley', groups: [
     ['New', [
       'A new 3 v 3 winter map, Frostlight Valley: three bases in the west against three in the east, with three roads between them. A market town sits in the middle, a village on the north and south roads and two hamlets on the roads between, all snowed in. The houses are different every battle.',
