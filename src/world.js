@@ -836,19 +836,30 @@ function genVillage(m, seed) {
     }
     return true;
   };
+  const snow = mapTheme(G.mapId) === 'snow' ? ':s' : '';   // snow on the roofs (models.js houseModel)
   const put = (x0, y0, w, h, kind) => {
     for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) taken[idx(x, y)] = 1;
     const church = kind.startsWith('church'), fountain = kind === 'fountain', hp = fountain ? 1200 : church ? 1400 : Math.min(1000, 150 + 70 * w * h);
-    const h1 = { id: G.nextId++, kind: 'house', type: houseType(kind, w, h, church || fountain ? seed >>> 0 : look()), def: HOUSE, team: -1,
+    const h1 = { id: G.nextId++, kind: 'house', type: houseType(kind, w, h, church || fountain ? seed >>> 0 : look()) + snow, def: HOUSE, team: -1,
       cx: x0, cy: y0, w, h, x: (x0 + w / 2) * CELL, y: (y0 + h / 2) * CELL, hp, maxHp: hp, alive: true, hitT: -99,
       cap: fountain ? 0 : church ? 10 : Math.max(3, Math.min(6, w * h)), n: 0 };
     G.houses.push(h1); G.byId.set(h1.id, h1);
     setHouse(h1, true);
   };
-  // The fountain in the middle of the square.
-  if (m.square) { const [a, b, c, d] = m.square; put(Math.round((a + c + 1) / 2) - 2, Math.round((b + d + 1) / 2) - 2, 4, 4, 'fountain'); }
-  // The church: on one of the long plots beside the square, its tower toward the square.
-  const longLots = m.lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) === 3);
+  // The fountain in the middle of each square.
+  for (const [a, b, c, d] of villageSquares(m)) put(Math.round((a + c + 1) / 2) - 2, Math.round((b + d + 1) / 2) - 2, 4, 4, 'fountain');
+  // The church: on one of the long plots beside the square, its tower toward the square. A map of several villages
+  // (`squares`) has one in each, on a plot of 4 x 6 or more within 3 cells of its square, lying along the plot.
+  if (m.squares) for (const [a, b, c, d] of m.squares) {
+    const sx = (a + c + 1) / 2, sy = (b + d + 1) / 2, gap = (L) => Math.max(a - L[2], L[0] - c, b - L[3], L[1] - d, 0);
+    const fit = m.lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) >= 3 && Math.max(L[2] - L[0], L[3] - L[1]) >= 5 && gap(L) <= 3);
+    if (!fit.length) continue;
+    const L = fit[(r() * fit.length) | 0], tall = L[3] - L[1] > L[2] - L[0];
+    const w = tall ? 4 : 6, h = tall ? 6 : 4, mx = (L[0] + L[2] + 1) / 2, my = (L[1] + L[3] + 1) / 2, near = tall ? my < sy : mx < sx;
+    const x0 = tall ? L[0] + ((L[2] - L[0] + 1 - w) >> 1) : near ? L[2] - w + 1 : L[0], y0 = tall ? (near ? L[3] - h + 1 : L[1]) : L[1] + ((L[3] - L[1] + 1 - h) >> 1);
+    if (free(x0, y0, w, h, L)) put(x0, y0, w, h, 'church' + (near ? 1 : 0));
+  }
+  const longLots = m.squares ? [] : m.lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) === 3);
   if (longLots.length) {
     const L = longLots[(r() * longLots.length) | 0], tall = L[3] - L[1] > L[2] - L[0];
     const w = tall ? 4 : 6, h = tall ? 6 : 4, mx = (L[0] + L[2]) / 2, my = (L[1] + L[3]) / 2;
@@ -881,8 +892,8 @@ function villageProps(m, r, taken) {
   const add = (k, cx, cy, v) => G.props.push({ kind: 'prop', k, x: cx * CELL, y: cy * CELL, v: v === undefined ? (r() * 4) | 0 : v, up: true });
   const open = (cx, cy) => inMap(Math.floor(cx), Math.floor(cy)) && !taken[idx(Math.floor(cx), Math.floor(cy))] && !G.block[idx(Math.floor(cx), Math.floor(cy))];
   for (const [x, y] of m.lamps || []) if (open(x, y)) add('lamp', x, y, 0);
-  if (m.square) {
-    const [a, b, c, d] = m.square, mx = (a + c + 1) / 2, my = (b + d + 1) / 2;
+  for (const [a, b, c, d] of villageSquares(m)) {
+    const mx = (a + c + 1) / 2, my = (b + d + 1) / 2;
     // Market stalls round the square's edge, clear of the streets coming in, and benches round the fountain.
     for (const [sx, sy] of [[a + 1.5, b + 2.5], [a + 1.5, b + 5], [c - 0.5, b + 2.5], [c - 0.5, b + 5], [a + 1.5, d - 4], [a + 1.5, d - 1.5], [c - 0.5, d - 4], [c - 0.5, d - 1.5],
       [a + 3, b + 1.2], [c - 2, b + 1.2], [a + 3, d - 0.2], [c - 2, d - 0.2]]) if (r() < 0.8) add('stall', sx, sy);
@@ -907,6 +918,8 @@ function villageProps(m, r, taken) {
     if (open(x, y)) add('cart', x, y);
   }
 }
+// The village squares of a map: `squares` on a map of several villages, else its one `square`.
+const villageSquares = (m) => (m && (m.squares || (m.square ? [m.square] : []))) || [];
 // A house's look: the sprite key models.js builds it from (houseModel), as plain text so saves and copies keep it.
 const houseType = (kind, w, h, look) => `hv:${kind}:${w}:${h}:${look}`;
 const houseAt = (x, y) => {
@@ -1100,11 +1113,11 @@ function villageLife(dt) {
     if (m && m.chim) G.effects.push({ type: 'smoke', x: h.cx * CELL + m.chim.x, y: h.cy * CELL + m.chim.y, lift: m.chim.z * VK, r: 2.2, t: 0, life: 3.5, alpha: 0.32, color: '#bdb8ae', vy: -7, vx: 1.5 });
   }
 }
-// Two flocks: on the square round the fountain, and on the church's roof.
+// A flock on each square round the fountain, and one on each church roof.
 function birdFlocks() {
   if (G.birds) return G.birds;
   G.birds = [];
-  const f = G.houses.find((h) => h.type.startsWith('hv:fountain')), c = G.houses.find((h) => h.type.startsWith('hv:church'));
+  const fs = G.houses.filter((h) => h.type.startsWith('hv:fountain')), cs = G.houses.filter((h) => h.type.startsWith('hv:church'));
   const flock = (hx, hy, ha, n, spread) => {
     const fl = { hx, hy, ha, st: 0, t: 0, birds: [] };
     for (let i = 0; i < n; i++) {
@@ -1114,8 +1127,8 @@ function birdFlocks() {
     }
     G.birds.push(fl);
   };
-  if (f) flock(f.x, f.y + 4, 0, 14, 54);   // round the basin's rim, not under it
-  if (c) flock(c.x, c.y, 34, 7, 26);
+  for (const f of fs) flock(f.x, f.y + 4, 0, 14, 54);   // round the basin's rim, not under it
+  for (const c of cs) flock(c.x, c.y, 34, 7, 26);
   return G.birds;
 }
 function scareFlock(f, x, y) {
@@ -1156,9 +1169,8 @@ function streetNet() {
   if (folkNetFor === G && folkNet) return folkNet;
   const pts = (G.props || []).filter((p) => p.k === 'lamp').map((p) => ({ x: p.x, y: p.y + 6, n: [] }));
   // The square: a ring round the fountain and points along its edges, so people cross it and stroll round.
-  const sq = MAPS[G.mapId] && MAPS[G.mapId].square;
-  if (sq) {
-    const [a, b, c, d] = sq, mx = (a + c + 1) / 2 * CELL, my = (b + d + 1) / 2 * CELL;
+  for (const [a, b, c, d] of villageSquares(MAPS[G.mapId])) {
+    const mx = (a + c + 1) / 2 * CELL, my = (b + d + 1) / 2 * CELL;
     for (let i = 0; i < 10; i++) pts.push({ x: mx + Math.cos(i * Math.PI / 5) * CELL * 3.3, y: my + Math.sin(i * Math.PI / 5) * CELL * 3.1, n: [] });
     for (const t of [0.25, 0.5, 0.75]) for (const [x, y] of [[a + 3 + (c - a - 5) * t, b + 3], [a + 3 + (c - a - 5) * t, d - 1], [a + 3, b + 3 + (d - b - 5) * t], [c - 1, b + 3 + (d - b - 5) * t]]) pts.push({ x: x * CELL, y: y * CELL, n: [] });
   }
@@ -1175,7 +1187,8 @@ function villagers() {
   if (G.folk) return G.folk;
   G.folk = [];
   const net = streetNet().map((p, i) => [p, i]).filter(([p]) => p.n.length);
-  for (let k = 0; k < Math.min(16, net.length); k++) {
+  const nv = Math.max(1, villageSquares(MAPS[G.mapId]).length);   // 16 for one village, 8 more for each other
+  for (let k = 0; k < Math.min(Math.min(48, 8 + 8 * nv), net.length); k++) {
     const [p, i] = net[(Math.random() * net.length) | 0];
     G.folk.push({ x: p.x + (Math.random() - 0.5) * 8, y: p.y, node: i, to: p.n[(Math.random() * p.n.length) | 0], st: 'walk', t: 0, sp: 13 + Math.random() * 7,
       look: (Math.random() * 1e6) | 0, face: 1, ph: Math.random() * 6, side: (Math.random() - 0.5) * 10 });

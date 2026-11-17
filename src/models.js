@@ -5156,7 +5156,8 @@ function houseStructure(type) {
   return type;
 }
 function houseModel(type) {
-  const [, kind, ws, hs] = type.split(':'), W = +ws * CELL, H = +hs * CELL, r = rng(strSeed(type));
+  const [, kind, ws, hs, , snow] = type.split(':'), W = +ws * CELL, H = +hs * CELL, r = rng(strSeed(type));
+  if (snow && kind !== 'fountain') { const m = houseModel(type.slice(0, -2)); FORT_INFO.set(type, FORT_INFO.get(type.slice(0, -2))); return snowCover(m, 3); }
   if (kind.startsWith('church')) { const c = churchModel(W, H, kind === 'church1', r); FORT_INFO.set(type, c.fort); return c; }
   if (kind === 'fountain') return fountainModel(W, H);
   const pick = (a) => a[(r() * a.length) | 0];
@@ -5235,6 +5236,20 @@ function houseModel(type) {
   }
   m.ridge = ridge;
   FORT_INFO.set(type, { W, H, door: dx, wins, box: [bx0, by0, bx1, by1], flag: { x: Math.round(mx), y: Math.round(my), z: top + ridge } });
+  return m;
+}
+// Snow lying on a model: the top of every column of voxels from height z0 up (roofs, chimneys, fence rails, bushes)
+// turns white, a shade bluer under the ridge's lee. For the winter maps' houses (type ending ':s').
+function snowCover(m, z0) {
+  const A = m.w * m.h, white = [rgbInt('#eef2f7'), rgbInt('#f7f9fc'), rgbInt('#dde4ee')];
+  for (let i = 0; i < A; i++) {
+    for (let z = m.d - 1; z >= z0; z--) {
+      const k = z * A + i;
+      if (m.col[k] < 0) continue;
+      if (m.mat[k] !== M_GLASS) m.col[k] = white[hash3(i % m.w, (i / m.w) | 0, z) > 0.8 ? 2 : hash3(i, z, 7) > 0.5 ? 1 : 0];
+      break;
+    }
+  }
   return m;
 }
 // The village church: a stone nave under a steep slate roof, tall windows, and a square bell tower with a spire at

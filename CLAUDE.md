@@ -537,6 +537,22 @@ share globals. Read this file first; the commit history explains every change in
   every 2-3 minutes while calm and not held (`bell` in audio.js), sparrows chirp in the square (`chirp`). All looks and
   sound only, worked out on each phone (effects pass, `G.inFx`, so the host relays nothing).
 
+## Map "Frostlight Valley", a 3 v 3 winter map with five villages (after 2026.11.17.14, not released, both modes)
+
+- `MAPS.frost` in maps.js: **216 x 216**, `teamSize: 3`, west (starts 0-2) against east (3-5), `theme: 'snow'`, snow weather (0.6), `daynight`.
+  Laid out by `python3 tools/make-winter-map.py [--png out.png]` (prints `squares`, `lamps`, `spawns`, `gems`, `lots`, `rows` to paste over the
+  entry): every feature is listed for the west and turned half round the middle (`P`), and the tool asserts the halves match.
+  Three roads (north, middle through a pass between two hills, south), a market town in the middle, a village on the north and south roads,
+  two hamlets on the diagonal roads; frozen lakes between the routes. Lamps along every village lane and beside the main roads.
+- **Hills:** the game has no height. A big blob of rock paints as a flat dark mass (`paintCliffs` saturates), so a hill is a ring of cliff
+  (`'#'`) round woods and crags. Narrow ridges paint well.
+- **Several villages** (`squares` in MAPS instead of `square`; `villageSquares(m)` in world.js): a fountain, market and pigeons on each square,
+  a church on a 4 x 6+ plot within 3 cells of each square, villagers 8 + 8 per village (max 48). Crossroads Village rolls exactly as before.
+- **Snow on roofs:** on a `snow` theme map house types end in `:s`; `houseModel` builds the plain house and `snowCover` (models.js) whitens the top
+  of every voxel column from z 3. Fountains are left as they are (their water still shows).
+- Checked: all six starts connect; `teams.js <repo> 1 10 frost 3v3` no errors, 74 s CPU, ~830 units by minute 8 (no waves yet by 10 min);
+  `village.js` passes. Ground baked (`grounds/frost/`, ~8 MB); sprite manifest hash only (no pictures changed).
+
 ## Crossroads Village: day and night, rain (after 2026.11.16, both modes)
 
 - `daynight: true` in `MAPS.village`. **Looks only:** `dayNight(t)` (art.js) gives `night` and `warm` (dusk/dawn) from the battle
