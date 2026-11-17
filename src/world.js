@@ -2244,7 +2244,7 @@ function defendBase(team) {
     // Everyone pulled into a defence (aircraft that turned on a shooter too) goes back once its fight is over.
     for (const u of unitsOf(team.id)) {
       if (!u.defending || !u.post || (u.cls !== 'air' && u.target && u.target.alive)) continue;
-      u.defending = false;
+      u.defending = false; u.cover = null;
       const h = u.post;
       setGuard(u, h.x, h.y); u.staged = h.staged; u.order.pad = h.pad;
       // Aircraft do not wait in the air where the fight ended: they fly home, land, rearm and repair.
@@ -2280,6 +2280,8 @@ function defendBase(team) {
   }
   army = picked;
   team.defShort = Math.max(0, need - got);   // worth still missing: the computer's planner (aiSquads) sends squads to cover it
+  const bags = sandbagCells(team, bx0 - CELL * 18, by0 - CELL * 18, bx1 + CELL * 18, by1 + CELL * 18), claimed = new Set();
+  if (bags) for (const u of army) if (u.cover) claimed.add(u.cover.c);   // spots already taken stay with whoever has them
   for (const u of army) {
     let best = null, bd = CELL * 32;
     // Jets spread out: each takes a raider the others have not, and keeps it until it is dead.
@@ -2294,10 +2296,72 @@ function defendBase(team) {
       u.post = { x: g ? u.order.x : r.x, y: g ? u.order.y : r.y, staged: u.staged || (team.isAI && !g), pad: g && u.order.pad };
     }
     u.defending = true; u.staged = false;
+    // Infantry fight from behind their side's sandbags where there are some in reach of the raider (coverSpot).
+    let spot = null;
+    if (bags && u.cls === 'inf' && !u.inHouse) {
+      const tt = u.target && u.target.alive && threats.includes(u.target) ? u.target : best;
+      if (!(u.cover && G.wall[u.cover.s] === SANDBAG_ID && coverFits(u, tt, u.cover.c))) {
+        if (u.cover) claimed.delete(u.cover.c);
+        spot = coverSpot(u, tt, bags, claimed); u.cover = spot; if (spot) claimed.add(spot.c);
+      }
+    }
+    if (spot && u.target === best) { const p = cellCenter(spot.c); goTo(u, p.x, p.y); continue; }
     if (u.target === best || (u.target && u.target.alive && threats.includes(u.target))) continue;
     setGuard(u, best.x, best.y); u.target = best;
-    if (u.cls !== 'air') goTo(u, best.x, best.y, false, true);
+    if (u.cls !== 'air') { if (u.cover) { const p = cellCenter(u.cover.c); goTo(u, p.x, p.y); } else goTo(u, best.x, best.y, false, true); }
   }
+}
+
+// Sandbags as cover (both modes). An infantryman (not in a house) right beside a sandbag of his alliance that lies toward
+// whoever hit him takes SANDBAG_COVER of the damage (on top of going prone). Defending infantry seek such spots (coverSpot).
+const SANDBAG_ID = 1, SANDBAG_COVER = 0.65, COVER_SNAP = 9, COVER_SEEK = 12, COVER_WAIT = 8;
+function sandbagCover(u, sx, sy) {
+  const cx = Math.floor(u.x / CELL), cy = Math.floor(u.y / CELL);
+  const ax = sx - u.x, ay = sy - u.y, al = Math.hypot(ax, ay);
+  if (al < CELL) return false;   // point blank, or a blast at his feet: no cover
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    if (!dx && !dy) continue;
+    const x = cx + dx, y = cy + dy;
+    if (!inMap(x, y)) continue;
+    const c = idx(x, y);
+    if (G.wall[c] !== SANDBAG_ID || hostile(G.wallTeam[c], u.team)) continue;
+    const bx = (x + 0.5) * CELL - u.x, by = (y + 0.5) * CELL - u.y;
+    if ((bx * ax + by * ay) / (Math.hypot(bx, by) * al) > 0.75) return true;   // the bag is on the shooter's side
+  }
+  return false;
+}
+// The alliance's sandbag cells near the base (defendBase), or null when it has none.
+function sandbagCells(team, x0, y0, x1, y1) {
+  if (!G.wallN) return null;
+  const out = [];
+  const X0 = Math.max(0, Math.floor(x0 / CELL)), Y0 = Math.max(0, Math.floor(y0 / CELL)), X1 = Math.min(MAP - 1, Math.floor(x1 / CELL)), Y1 = Math.min(MAP - 1, Math.floor(y1 / CELL));
+  for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) { const c = idx(x, y); if (G.wall[c] === SANDBAG_ID && !hostile(G.wallTeam[c], team.id)) out.push(c); }
+  return out.length ? out : null;
+}
+// A spot cell is good for u against t: it can shoot t from there.
+function coverFits(u, t, c) {
+  const w = u.def.weapon, p = cellCenter(c);
+  return w && Math.hypot(t.x - p.x, t.y - p.y) <= w.range + CELL * 2;
+}
+// The nearest free cell behind one of the bags (on the far side from the raider t, beside the bag), within COVER_SEEK
+// cells of u and in reach of t: { c: the spot, s: the sandbag }.
+function coverSpot(u, t, bags, claimed) {
+  const w = u.def.weapon;
+  if (!w || !canTarget(u, t) || u.coverBan > G.t) return null;
+  let best = null, bd = CELL * COVER_SEEK;
+  for (const s of bags) {
+    const sp = cellCenter(s);
+    if (Math.abs(sp.x - u.x) > bd || Math.abs(sp.y - u.y) > bd) continue;
+    const ax = sp.x - t.x, ay = sp.y - t.y, al = Math.hypot(ax, ay);
+    if (al < CELL * 1.5) continue;   // the raider is at the bag already
+    const sx = cellX(s) + Math.round(ax / al), sy = cellY(s) + Math.round(ay / al);
+    if (!inMap(sx, sy)) continue;
+    const c = idx(sx, sy);
+    if (claimed.has(c) || G.block[c] || G.wall[c] || !coverFits(u, t, c)) continue;
+    const p = cellCenter(c), d = Math.hypot(p.x - u.x, p.y - u.y);
+    if (d < bd) { bd = d; best = { c, s }; }
+  }
+  return best;
 }
 
 // A helicopter rearming on its pad still answers a raid on its own base (the Comanche sat out whole raids while it loaded
@@ -2892,6 +2956,7 @@ function damage(t, amount, wh, attacker, from, splashed) {
     t.stanceUntil = G.t + PRONE_TIME;
     cover = PRONE_COVER;
   }
+  if (t.kind === 'unit' && t.cls === 'inf' && !t.inHouse) { const src = attacker || from; if (src && sandbagCover(t, src.x, src.y)) cover *= SANDBAG_COVER; }   // dug in behind friendly sandbags
   t.hp -= amount * mult * cover * (0.9 + Math.random() * 0.2);
   t.hitT = G.t;
   const team = teamOf(t);
@@ -3502,9 +3567,31 @@ function engage(u, t, dt) {
   if (!w) { u.target = null; return; }   // e.g. a helicopter that took off out of a rifleman's reach
   const d = distTo(u, t);
   const ang = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
+  // A defender sent to a spot behind sandbags (defendBase, coverSpot) walks there and fights from it; it leaves
+  // once the sandbag is gone, the defence is over, or its target has moved well out of reach of the spot.
+  let inCover = false, off;
+  if (u.cover) {
+    const p = cellCenter(u.cover.c);
+    if (!u.defending || G.wall[u.cover.s] !== SANDBAG_ID || Math.hypot(t.x - p.x, t.y - p.y) > w.range + CELL * 2) u.cover = null;
+    else if ((off = Math.hypot(u.x - p.x, u.y - p.y)) > CELL || (off > COVER_SNAP && (u.dest || u.needPath))) {
+      if (!u.needPath && (!u.dest || Math.hypot(u.dest.x - p.x, u.dest.y - p.y) > 4)) {
+        if ((u.cover.go = (u.cover.go || 0) + 1) > 4) { u.cover = null; return; }   // cannot get there (or keeps being shoved off)
+        goTo(u, p.x, p.y);   // (not the route-keeping 'auto': the spot is close to the old goal)
+      }
+      followPath(u, dt);
+      return;
+    } else {
+      inCover = true;
+      if (d > w.range) {   // waits in cover for it to come into reach, but not for ever (a gun that outranges it, a raider that stays off)
+        u.dest = null; u.path = null; u.face = ang; setUpGun(u, dt);
+        if ((u.cover.w = (u.cover.w || 0) + dt) > COVER_WAIT) { u.cover = null; u.coverBan = G.t + 20; }
+        return;
+      }
+    }
+  }
   if (d <= w.range) {
     u.dest = null; u.path = null;
-    if (!(u.def.setup && u.setup > 0) && slideOut(u, t, w, dt) && u.cls === 'inf') return;   // infantry find their place first, then fire (an MG Team setting up stays put)
+    if (!inCover && !(u.def.setup && u.setup > 0) && slideOut(u, t, w, dt) && u.cls === 'inf') return;   // infantry find their place first, then fire (an MG Team setting up stays put)
     let aligned = true;
     if (u.def.fixed) { u.face = u.tface = turnToward(u.face, ang, u.def.turn * dt); aligned = Math.abs(angDiff(ang, u.face)) < 0.08; }   // no turret: turn the vehicle
     else if (u.cls === 'veh') { u.tface = turnToward(u.tface, ang, 5 * dt); aligned = Math.abs(angDiff(ang, u.tface)) < 0.12; }
