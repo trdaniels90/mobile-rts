@@ -554,7 +554,7 @@ const Net = (() => {
     const go = () => send({ k: 'c', f, a: a.map(packArg) });
     if (f === 'startProduction' || f === 'cancelProduction' || f === 'startResearch' || f === 'cancelResearch') { go(); return ORIGC[f](...a); }
     if (f === 'placeStructure') {
-      const [team, type, cx, cy] = a, q = team.queues.structure;
+      const [team, type, cx, cy] = a, q = team.queues[catOf(type)];
       const ok = !!(q && q.ready && q.type === type && canPlace(team, type, cx, cy, 0));
       if (ok) go();
       return ok;

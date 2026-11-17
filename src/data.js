@@ -335,7 +335,7 @@ const DIFFICULTY = {
 };
 
 // Build queues: one each for structures, infantry, vehicles, helicopters (Helipad) and jets (Airfield).
-const CATEGORIES = ['structure', 'infantry', 'vehicle', 'heli', 'jet'];
+const CATEGORIES = ['structure', 'defense', 'infantry', 'vehicle', 'heli', 'jet'];
 
 // Air Assault (sidebar, with a transport helicopter): see world.js commandAirAssault.
 const ASSAULT = { name: 'Air Assault' };
@@ -365,7 +365,9 @@ const UPGRADES = {
 for (const k in UPGRADES) UPGRADES[k].id = k;
 
 function buildTime(def) { return Math.max(3, def.cost / 1000 * 24); }
-function catOf(type) { return UNIT_DEFS[type] ? UNIT_DEFS[type].cat : 'structure'; }
+// Defensive structures build in their own slot ('defense'), beside the main structure queue, like walls: a power plant and a Pillbox can go up together.
+function catOf(type) { return UNIT_DEFS[type] ? UNIT_DEFS[type].cat : BUILD_DEFS[type] && BUILD_DEFS[type].defense ? 'defense' : 'structure'; }
+const isBuildCat = (cat) => cat === 'structure' || cat === 'defense';
 
 for (const [k, d] of Object.entries(UNIT_DEFS)) d.type = k;
 for (const [k, d] of Object.entries(BUILD_DEFS)) d.type = k;

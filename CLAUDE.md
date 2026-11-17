@@ -1561,3 +1561,7 @@ frame-time maths everywhere, so it is not deterministic.
   first, then the dearest of the rest, its Barracks, Helipads and Airfields only when nothing else is left; never the yard, power, refineries, Outposts or War Factories)
   until credits plus pending sales cover it, then builds the chain in that order before anything else (`team.rebuild`). The refinery brings a free Ore Truck.
   `node tools/sim/rebuild.js <repo> [diff] [factory|refinery|both]`: Normal, 0 credits, trucks gone at 10 min: factory back in 73 s, refinery 85 s, both 118 s.
+
+## Defences build in their own slot (not released, both modes; the server must match)
+
+- Owner's request: a power plant and a Pillbox can be built at the same time. `catOf` (data.js) gives `defense: true` structures the category `'defense'`: `team.queues.defense` is a second single slot like `queues.structure` (`isBuildCat`), with its own progress, READY and placing (`placeStructure` picks the slot by type). Same Construction Yard boost. The computer still builds one structure at a time across both (`pendingStructure` in world.js). Old saves have no `queues.defense` (treated as empty).

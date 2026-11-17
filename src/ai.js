@@ -30,7 +30,7 @@ function aiLiftPad(team, c) {
 function aiNextStructure(team, c) {
   const p = team.power, defense = team.faction === 'allies' ? 'turret' : 'tesla', aa = team.faction === 'allies' ? 'aagun' : 'sam';
   const antiInf = team.faction === 'allies' ? 'pillbox' : 'ftur';
-  const pending = team.queues.structure;
+  const pending = pendingStructure(team);
   if (pending) return null;
   const n = (t) => c[t] || 0;
   const powerNeed = (t) => -Math.min(0, BUILD_DEFS[t].power);
@@ -685,7 +685,7 @@ function aiRebuild(team, c) {
   const chain = c.cy ? aiRebuildChain(team, c) : [];
   if (!chain.length) { team.rebuild = false; return false; }
   const need = chain.reduce((a, t) => a + BUILD_DEFS[t].cost, 0);
-  const pending = team.queues.structure;
+  const pending = pendingStructure(team);
   const paid = pending && chain.includes(pending.type) ? BUILD_DEFS[pending.type].cost : 0;
   team.rebuild = true;
   if (team.credits + paid >= need) return true;
@@ -712,7 +712,7 @@ function aiThink(team) {
   aiPincer(team);
   aiSquads(team);
   if (enemyUnitsOf(team.id).some((u) => u.cls === 'air' && !u.def.scripted)) team.sawAir = true;
-  const q = team.queues.structure;
+  const q = pendingStructure(team);
   const b2 = aiOf(team).planner ? aiBase2(team) : null;
   const rebuilding = aiRebuild(team, c);
   if (q && q.ready) {
@@ -801,7 +801,7 @@ function aiThink(team) {
   const truckDue = aiOf(team).econ.truckFirst && vq.some((i) => i.type === 'harv');
 
   // Spend the rest on an army; hold some back while a structure is being paid for.
-  const sq = team.queues.structure;
+  const sq = pendingStructure(team);
   const reserve = sq && !sq.ready ? Math.min(1500, BUILD_DEFS[sq.type].cost * (1 - sq.progress)) : 0;
   const money = team.credits - reserve;
   // A cap on the army, by headcount (for the frame rate) and by worth, so a side whose units cost

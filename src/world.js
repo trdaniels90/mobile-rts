@@ -119,7 +119,7 @@ function makeTeam(id, faction, isAI) {
   return {
     id, faction, isAI, pal: FACTIONS[faction].pal, credits: 10000, shown: 10000, start: null,
     power: { prod: 0, use: 0 }, low: false, auto: !!isAI, focusSide: null,
-    queues: { structure: null, infantry: [], vehicle: [], heli: [], jet: [] },
+    queues: { structure: null, defense: null, infantry: [], vehicle: [], heli: [], jet: [] },
     stats: { built: 0, units: 0, lost: 0, killed: 0, bldKilled: 0, bldLost: 0, harvested: 0 },
     cool: {}, powers: { spy: 0, para: 0, bomb: 0 }, upgrades: {}, research: null, defending: false, calm: 0, allyCalm: 0, assist: false, assistSide: null, harvHit: null,
   };
@@ -4940,10 +4940,12 @@ function exitOpens(start, fx, fy, fw, fh) {
   return q.length >= 150;
 }
 
+// The structure or defence being built (the computer builds one at a time across both slots).
+function pendingStructure(team) { return team.queues.structure || team.queues.defense || null; }
 function placeStructure(team, type, cx, cy) {
-  const q = team.queues.structure;
+  const slot = catOf(type), q = team.queues[slot];
   if (!q || !q.ready || q.type !== type || !canPlace(team, type, cx, cy, team.isAI ? 1 : 0)) return false;
-  team.queues.structure = null;
+  team.queues[slot] = null;
   const b = addBuilding(type, team, cx, cy);
   hooks.sfx('place', b.x, b.y);
   hooks.sfx('build', b.x, b.y);
@@ -5017,12 +5019,12 @@ function startProduction(team, type) {
   const cat = catOf(type);
   // The structure already queued answers first: one that is finished can still be placed after a building it
   // needed is lost (it is paid for), and one being built waits (updateProduction) until that is rebuilt.
-  if (cat === 'structure' && team.queues.structure && team.queues.structure.type === type) return team.queues.structure.ready ? 'place' : 'busy-same';
+  if (isBuildCat(cat) && team.queues[cat] && team.queues[cat].type === type) return team.queues[cat].ready ? 'place' : 'busy-same';
   if (!available(team, type)) return 'Not available';
-  if (cat === 'structure') {
-    const q = team.queues.structure;
+  if (isBuildCat(cat)) {
+    const q = team.queues[cat];
     if (q) return q.type === type ? (q.ready ? 'place' : 'busy-same') : 'busy';
-    team.queues.structure = { type, progress: 0, spent: 0, ready: false };
+    team.queues[cat] = { type, progress: 0, spent: 0, ready: false };
     return null;
   }
   const list = team.queues[cat];
@@ -5034,9 +5036,9 @@ function startProduction(team, type) {
 
 function cancelProduction(team, type) {
   const cat = catOf(type);
-  if (cat === 'structure') {
-    const q = team.queues.structure;
-    if (q && q.type === type) { team.credits += q.spent; team.queues.structure = null; return true; }
+  if (isBuildCat(cat)) {
+    const q = team.queues[cat];
+    if (q && q.type === type) { team.credits += q.spent; team.queues[cat] = null; return true; }
     return false;
   }
   const list = team.queues[cat];
@@ -5051,7 +5053,7 @@ function cancelProduction(team, type) {
 const PRODUCER_BOOST = [1, 1, 1.5, 2, 2.5];
 const BOOSTED = new Set(['barracks', 'factory', 'helipad', 'airfield', 'cy']);   // structures count Construction Yards
 function producerBoost(team, def, cat) {
-  const by = cat === 'structure' ? 'cy' : def.producer;
+  const by = isBuildCat(cat) ? 'cy' : def.producer;
   if (!BOOSTED.has(by)) return 1;
   const n = G.entities.filter((e) => e.alive && e.kind === 'bld' && e.team === team.id && e.type === by && e.sellT <= 0).length;
   return PRODUCER_BOOST[Math.min(n, PRODUCER_BOOST.length - 1)];
@@ -5065,7 +5067,7 @@ function activeItem(team, cat) {
 function updateProduction(team, dt) {
   const speed = (team.low ? 0.5 : 1) * (team.isAI ? G.diff.speed : 1);
   for (const cat of CATEGORIES) {
-    const item = cat === 'structure' ? team.queues.structure : activeItem(team, cat);
+    const item = isBuildCat(cat) ? team.queues[cat] : activeItem(team, cat);
     if (!item || item.ready) continue;
     if (!available(team, item.type)) continue;
     const def = defOf(item.type);
@@ -5076,7 +5078,7 @@ function updateProduction(team, dt) {
     item.stalled = false;
     team.credits -= cost; item.spent += cost; item.progress += dp;
     if (item.progress >= 0.9999) {
-      if (cat === 'structure') { item.ready = true; item.progress = 1; notify(team, 'cc', 'Construction complete', 0.5); }
+      if (isBuildCat(cat)) { item.ready = true; item.progress = 1; notify(team, 'cc', 'Construction complete', 0.5); }
       else { team.queues[cat].splice(team.queues[cat].indexOf(item), 1); spawnUnit(team, item.type); notify(team, 'ur', 'Unit ready', 4); }
     }
   }

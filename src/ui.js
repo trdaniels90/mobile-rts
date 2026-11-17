@@ -1335,8 +1335,8 @@ function draw() {
       const powers = (hasBuilt(team, 'airfield') ? Object.keys(POWERS).map((k) => 'pw:' + k) : [])
         .concat(unitsOf(team.id).some((u) => u.def.lift) ? ['as:assault'] : []);   // Air Assault: once the side has a transport helicopter
       // (a queued structure stays on the list after a building it needs is lost, so it can be placed or cancelled)
-      const q = team.queues.structure;
-      return powers.concat(Object.keys(BUILD_DEFS).filter((k) => available(team, k) || (q && q.type === k)), Object.keys(WALLS).filter((k) => wallAvailable(team, k)).map((k) => 'wl:' + k));
+      const q = team.queues.structure, qd = team.queues.defense;
+      return powers.concat(Object.keys(BUILD_DEFS).filter((k) => available(team, k) || (q && q.type === k) || (qd && qd.type === k)), Object.keys(WALLS).filter((k) => wallAvailable(team, k)).map((k) => 'wl:' + k));
     }
     // (so do queued units whose producer is lost: they wait, and can be cancelled)
     const queued = new Set(UNIT_ORDER.flatMap((c) => (team.queues[c] || []).map((i) => i.type)));
@@ -1393,7 +1393,7 @@ function draw() {
       return;
     }
     // Training / Building is said when a queue starts, not for every unit added to it.
-    const cat = catOf(type), wasBusy = cat === 'structure' ? !!team.queues.structure : team.queues[cat].length > 0;
+    const cat = catOf(type), wasBusy = isBuildCat(cat) ? !!team.queues[cat] : team.queues[cat].length > 0;
     const res = startProduction(team, type);
     if (res === 'place') beginPlace(type);
     else if (res === 'busy') evaCalm('Unable to comply. Building in progress', 4);
@@ -1658,7 +1658,6 @@ function draw() {
       const types = stripTypes(team, side), sig = types.join();
       if (sig !== cameoSig[side]) { cameoSig[side] = sig; rebuildStrip(team, side, types); }
     }
-    const sq = team.queues.structure;
     for (const [type, el] of cameoEls) {
       let p = 0, st = '', count = 0, dim = false;
       const cat = type.startsWith('as:') ? 'assault' : type.startsWith('pw:') ? 'power' : type.startsWith('wl:') ? 'wall' : catOf(type);
@@ -1672,7 +1671,8 @@ function draw() {
         st = p >= 1 ? 'READY' : '';
       } else if (cat === 'wall') {
         st = G.place && G.place.wall === type.slice(3) ? 'READY' : '';
-      } else if (cat === 'structure') {
+      } else if (isBuildCat(cat)) {
+        const sq = team.queues[cat];
         if (sq && sq.type === type) { p = sq.progress; if (sq.ready) warmBuild(type, team.faction); st = sq.ready ? 'READY' : sq.stalled || !available(team, type) ? 'ON HOLD' : ''; }
         else if (sq) dim = true;
       } else {
