@@ -540,8 +540,10 @@ share globals. Read this file first; the commit history explains every change in
 - **Aircraft lights** (after 2026.11.17.2, looks only): `navLights` (art.js, end of `drawNight`) draws every visible aircraft's lights over
   the darkness: red and green wingtips, a double-flash white tail strobe and a pulsing red beacon on planes; a beacon, tail light and
   side lights on helicopters. ui.js passes `visibleToPlayer` so hidden enemy aircraft stay hidden.
-  The Bomber's lights come from its own model (`BOMBER_LIGHTS`: B-1 / Tu-22M swept wingtips, fin top, spine; heights x `VK`); before, the
+  The Bomber's lights come from its own model (`PLANE_LIGHTS`: B-1 / Tu-22M swept wingtips, fin top, spine; heights x `VK`); before, the
   generic transport spots left them floating off the wings.
+  The paratrooper transports likewise (`PLANE_LIGHTS` c130 / il76, after 2026.11.17.6): the generic spots put the wingtips 22 px out
+  near the ground (2 px up) while the wings are 24-25 out and 7-9 voxels up (the Il-76's swept well back), so the lights hung below the wings.
 - Villagers walk home at nightfall (`dark` in `moveFolk`, `v.slow`) and stay in until morning; sparrows only by day.
 - `weather: { kind: 'rain', chance: 0.5 }` as on Lakeside: rain, lightning and the bolts that land (gameplay, both modes,
   server must match). `boltStrike` can now hit a village house too (it burns for 10% of its health like a building).
@@ -614,8 +616,8 @@ share globals. Read this file first; the commit history explains every change in
   `freeCell` asks `softBlocks(c)`, which goes by `MOVER`, the unit a path (`processPaths`) or a step (`tryMove`) is being
   worked out for: wire stops infantry, a gate stops whoever is not of its alliance, and with no unit named both stop
   everything. `canPlace` refuses any wall cell. A vehicle flattens the wire it drives over (`tryMove`).
-- **Placing:** `placeWalls(team, kind, x0, y0, x1, y1)` lays `wallLine` (straight, stepping one axis at a time so a slant
-  has no corner gaps, at most `WALL_LINE_MAX` 40) on every cell `wallOk` allows (open ground, nothing on it, within the
+- **Placing:** `placeWalls(team, kind, x0, y0, x1, y1)` lays `wallLine` (straight; a slant steps diagonally, one piece a step
+  since 2026.11.17.6, see Diagonal walls below; at most `WALL_LINE_MAX` 40) on every cell `wallOk` allows (open ground, nothing on it, within the
   building range of one of the side's buildings), paying per piece as far as the money goes. Built at once.
   `sellWall(team, x, y)` takes down one of your own for half its price. In the UI the second tap must come at least `WALL_SELL_GAP` (600 ms) after the first, so a double tap or double click never sells.
 - **Damage:** only ordered fire. `commandAttackGround` on a wall cell makes a spot target with `wall: cell`; `damage`
@@ -663,6 +665,14 @@ share globals. Read this file first; the commit history explains every change in
   tracks, ordered fire only, selling, hunters shooting through a walled-in base, snapshots and remote orders). A
   phone-sized browser run laid concrete, a gate and sandbags, walked a soldier through the gate and took a piece down.
   Not yet tried: two real phones online, and a save and continue in the browser.
+
+- **Diagonal walls** (after 2026.11.17.6, owner's pick for both modes; the server must match): in the iso view a wall straight across the
+  screen is a diagonal on the grid, and it was laid as a staircase (two pieces a step, drawn as a saw-tooth). Now `wallLine` steps
+  diagonally, so a diagonal costs half as many pieces. `cornerShut(a, b)` (world.js): a step between diagonal neighbours whose two
+  shared cells are both blocked is shut; `findPath` already refused it, now `tryMove`, `los` (path shortcuts), `walkDistances` and the
+  `aiFindSpot`-style flood do too (also between two buildings or rocks touching at a corner). Drawing: ui.js adds diagonal bits to the mask
+  (16 NE, 32 SE, 64 SW, 128 NW: a piece touching another only at a corner); `drawWallIso` turns the post to lie along the wall and draws an arm
+  to each joined corner (`prism`, any convex outline), so a run is one straight wall. Old staircase walls draw as before. `walls.js` covers it.
 
 ## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (2026.11.11.2; bridges, weather 2026.11.12)
 
@@ -1079,6 +1089,17 @@ frame-time maths everywhere, so it is not deterministic.
   Attack it fights every unit it meets, even under known anti-air (`open` in `airTarget`). Scratch hunt run (2 Comanches, 8 units on the way):
   5 of 8 killed and both lost before, 8 of 8 and none lost after. Landed aircraft's ammunition pips are drawn with `standAt` (a stray black
   bar on the turned view) and a load over 6 is a gauge.
+- **Comanches on an ordered target, missiles, spacing** (after 2026.11.17.6, both modes; the server must match; owner: Comanches bunched over an
+  enemy base doing nothing): with an attack order on a building it emptied its gun, then could neither hit the building (missiles are for
+  tanks) nor go home (`gunSpent` saw a tank or Ore Truck in missile reach) and hovered for good. Now `airTarget` keeps an ordered target only
+  while a weapon can hit it, else takes a missile target in reach or goes home. With only missiles left it looks `MISSILE_SEEK` (2) x their
+  reach for one before going home (it used to fly home with all 4 beside tanks just out of reach). `spreadHelis` eases friendly helicopters
+  holding on a target `HELI_SPACE` (34 px) apart. Staged: refinery attack with a tank and truck beside it, the truck killed by missiles (none
+  fired before); a hunt into a base, both Heavy Tanks hit after the gun (none before). `comanche.js` passes.
+- **Comanches defend from the pad** (after 2026.11.17.6, both modes; owner: they sat on the pad while the base was attacked): a helicopter
+  rearming or repairing on its pad was left out of `defendBase` until fully loaded (the Comanche loads 15 bursts, then 4 missiles). Now a
+  landed helicopter answers a raid with `padReady` (half its health, half a load of gun or missiles) and a weapon that can hit one of the
+  raiders (`airWeapons`, so a Comanche with only tank missiles waits for its gun against infantry). Jets are unchanged (one pass, full rearm).
 - **Missiles at Ore Trucks** (owner's request, both modes; the server must match): `missileMark` (world.js) = tanks and Ore Trucks; `tanksOnly`
   missiles fire at both and the `spareTanks` gun leaves both to them while it has missiles. A Comanche against a parked Ore Truck: all 4 missiles,
   then the gun, 600 to 70 health in 12 s. Field Manual says so.

@@ -564,7 +564,12 @@ function draw() {
         const c = idx(cx, cy), id = G.wall[c];
         if (!id || !G.seen[c]) continue;
         const wt = G.wallTeam[c], d = WALL_BY_ID[id], tm = G.teams[wt];
-        const mask = (cy > 0 && G.wall[c - MAP] ? 1 : 0) | (cx < MAP - 1 && G.wall[c + 1] ? 2 : 0) | (cy < MAP - 1 && G.wall[c + MAP] ? 4 : 0) | (cx > 0 && G.wall[c - 1] ? 8 : 0);
+        let mask = (cy > 0 && G.wall[c - MAP] ? 1 : 0) | (cx < MAP - 1 && G.wall[c + 1] ? 2 : 0) | (cy < MAP - 1 && G.wall[c + MAP] ? 4 : 0) | (cx > 0 && G.wall[c - 1] ? 8 : 0);
+        // Diagonal joins (16 NE, 32 SE, 64 SW, 128 NW): a piece touching another only at a corner, a diagonal wall.
+        if (!d.gate) for (const [dx, dy, bit] of WALL_DIAG) {
+          const x = cx + dx, y = cy + dy;
+          if (inMap(x, y) && G.wall[idx(x, y)] && !WALL_BY_ID[G.wall[idx(x, y)]].gate && !G.wall[idx(x, cy)] && !G.wall[idx(cx, y)]) mask |= bit;
+        }
         let open = 0, gm = 0;
         if (d.gate) {                                                       // its barrier sinks and rises over about a third of a second (looks only)
           // The three cells of a gate are drawn as one and open as one, when one of its alliance is beside any of it.

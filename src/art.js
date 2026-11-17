@@ -1006,7 +1006,10 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
 // tail that double-flashes, and a red beacon that pulses; helicopters a beacon on top and a white tail light. Drawn over
 // the darkness in screen pixels; each aircraft keeps its own beat (its id).
 // Wingtip (x back, half span, height), tail strobe on the fin top and the beacon on the spine, in model voxels.
-const BOMBER_LIGHTS = { b1: { tip: [-13.5, 17.5, 4.5], tail: [-20, 12.5], top: [-2, 7.4] }, tu22: { tip: [-11.5, 17.5, 5.5], tail: [-20, 14.5], top: [-2, 7.4] } };
+// The paratrooper transports too: the C-130's straight wing (tips 24 out, level with the wing root) and the Il-76's swept,
+// drooping wing (tips well back and lower), each with its fin top (the Il-76's T-tail).
+const PLANE_LIGHTS = { b1: { tip: [-13.5, 17.5, 4.5], tail: [-20, 12.5], top: [-2, 7.4] }, tu22: { tip: [-11.5, 17.5, 5.5], tail: [-20, 14.5], top: [-2, 7.4] },
+  c130: { tip: [1.5, 24, 8.5], tail: [-19.5, 15], top: [-6, 8] }, il76: { tip: [-8.5, 25, 6.5], tail: [-21, 16.5], top: [-6, 8.2] } };
 function navLights(g, vx, vy, k, t, night, near, vis) {
   const pts = [];
   for (const u of G.entities) {
@@ -1018,9 +1021,9 @@ function navLights(g, vx, vy, k, t, night, near, vis) {
       put(at(-r * 1.5, 0, 3), '255,250,235', 0.85, 2.5);                                    // tail light
       put(at(-1, 0, 12 * VK), '255,40,30', ph < 0.45 ? 1 : 0.15, 4.5);                     // beacon over the cabin
       put(at(1, -r * 0.55, 3), '255,40,30', 0.75, 2.2); put(at(1, r * 0.55, 3), '60,255,90', 0.75, 2.2);
-    } else if (u.def.type === 'bomber') {
-      // The bombers' swept wings: tips far back, a tall fin. Spots from b1Model / tu22Model (voxels; heights x VK).
-      const P = u.faction === 'allies' ? BOMBER_LIGHTS.b1 : BOMBER_LIGHTS.tu22;
+    } else if (u.def.type === 'bomber' || u.def.type === 'transport') {
+      // Spots from each plane's own model (b1Model, tu22Model, c130Model, il76Model; voxels, heights x VK).
+      const al = u.faction === 'allies', P = PLANE_LIGHTS[u.def.type === 'bomber' ? (al ? 'b1' : 'tu22') : (al ? 'c130' : 'il76')];
       put(at(P.tip[0], -P.tip[1], P.tip[2] * VK), '255,40,30', 0.9, 2.6); put(at(P.tip[0], P.tip[1], P.tip[2] * VK), '60,255,90', 0.9, 2.6);
       put(at(P.tail[0], 0, P.tail[1] * VK), '255,255,255', ph < 0.06 || (ph > 0.16 && ph < 0.22) ? 1 : 0, 6);
       put(at(P.top[0], 0, P.top[1] * VK), '255,40,30', 0.5 + 0.5 * Math.sin((t + u.id) * 6.3), 3.5);
@@ -2851,53 +2854,73 @@ const WALL_LOOK = {
   1: { h: 8, a: 6, top: '#c2ae80', side: '#9c8a5f', seam: '#7d6d49' },      // sandbags: two courses of sacks
   3: { h: 13, a: 5, top: '#a7a7a0', side: '#85857e', seam: '#686862' },     // concrete
 };
+const WALL_DIAG = [[1, -1, 16], [1, 1, 32], [-1, 1, 64], [-1, -1, 128]];   // diagonal joins (ui.js sets them in the mask)
 function drawWallIso(g, e) {
   const tf = g.getTransform();
   const S = (x, y, h) => { const [wx, wy] = liftPt(x, y, h); return [tf.a * wx + tf.c * wy + tf.e, tf.b * wx + tf.d * wy + tf.f]; };
   const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16); return `rgb(${Math.round(((n >> 16) & 255) * k)},${Math.round(((n >> 8) & 255) * k)},${Math.round((n & 255) * k)})`; };
   const poly = (pts, fill, stroke) => { g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath(); if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = 1; g.stroke(); } };
   // A box from (x0, y0) to (x1, y1) on the ground, from height z0 to z1; colours as #rrggbb, k darkens (a battered piece).
-  const box = (x0, y0, x1, y1, z0, z1, top, side, edge, k = 1) => {
+  // A solid prism over a convex outline of ground points (any order round it), from height z0 to z1.
+  const prism = (pts, z0, z1, top, side, edge, k = 1) => {
     edge = edge && shade(edge, k);
-    const faces = [[[x1, y0], [x1, y1], 1, 0], [[x0, y1], [x1, y1], 0, 1], [[x0, y0], [x0, y1], -1, 0], [[x0, y0], [x1, y0], 0, -1]];
-    for (const [a, b, nx, ny] of faces) {
-      const facing = nx * VIEW.s + ny * VIEW.c;   // toward the camera
-      if (facing <= 0.01) continue;
-      poly([S(a[0], a[1], z0), S(b[0], b[1], z0), S(b[0], b[1], z1), S(a[0], a[1], z1)], shade(side, k * (nx > 0 || ny < 0 ? 0.92 : 0.78)), edge);
+    const ox = pts.reduce((a, p) => a + p[0], 0) / pts.length, oy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      let nx = b[1] - a[1], ny = a[0] - b[0];
+      const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
+      if (nx * ((a[0] + b[0]) / 2 - ox) + ny * ((a[1] + b[1]) / 2 - oy) < 0) { nx = -nx; ny = -ny; }   // outward
+      if (nx * VIEW.s + ny * VIEW.c <= 0.01) continue;   // only the faces turned to the camera
+      poly([S(a[0], a[1], z0), S(b[0], b[1], z0), S(b[0], b[1], z1), S(a[0], a[1], z1)], shade(side, k * (nx - ny > 0.01 ? 0.92 : 0.78)), edge);
     }
-    poly([S(x0, y0, z1), S(x1, y0, z1), S(x1, y1, z1), S(x0, y1, z1)], shade(top, k), edge);
+    poly(pts.map((p) => S(p[0], p[1], z1)), shade(top, k), edge);
   };
+  const box = (x0, y0, x1, y1, z0, z1, top, side, edge, k) => prism([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], z0, z1, top, side, edge, k);
   const bx = e.cx * CELL, by = e.cy * CELL, mx = bx + CELL / 2, my = by + CELL / 2, m = e.mask;
   g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
   const up = g.upright; g.upright = false;
   // Parts: the middle and an arm to each joined side, drawn furthest first.
-  const parts = (a) => {
-    const out = [[mx - a, my - a, mx + a, my + a]];
-    if (m & 1) out.push([mx - a, by, mx + a, my - a]);
-    if (m & 8) out.push([bx, my - a, mx - a, my + a]);
-    if (m & 2) out.push([mx + a, my - a, bx + CELL, my + a]);
-    if (m & 4) out.push([mx - a, my + a, mx + a, by + CELL]);
-    return out.sort((p, q) => viewDepth((p[0] + p[2]) / 2, (p[1] + p[3]) / 2) - viewDepth((q[0] + q[2]) / 2, (q[1] + q[3]) / 2));
+  // A diagonal piece (joined only at its corners) has a post turned to lie along the wall and an arm to each joined corner,
+  // so a run of them is one straight wall in the iso view. Diagonal outlines are given as point lists.
+  const diag = m & 240, h2 = Math.SQRT1_2;
+  const parts = (a, ins = 0) => {
+    const out = [];
+    if (diag) out.push([[mx + a * Math.SQRT2, my], [mx, my + a * Math.SQRT2], [mx - a * Math.SQRT2, my], [mx, my - a * Math.SQRT2]]);
+    else out.push([mx - a, my - a, mx + a, my + a]);
+    const s0 = diag ? 0 : a;   // orthogonal arms start at the post's edge (or its middle beside a turned post)
+    if (m & 1) out.push([mx - a, by + ins, mx + a, my - s0]);
+    if (m & 8) out.push([bx + ins, my - a, mx - s0, my + a]);
+    if (m & 2) out.push([mx + s0, my - a, bx + CELL - ins, my + a]);
+    if (m & 4) out.push([mx - a, my + s0, mx + a, by + CELL - ins]);
+    for (const [dx, dy, bit] of WALL_DIAG) if (m & bit) {
+      const ex = mx + dx * (CELL / 2 - ins * h2), ey = my + dy * (CELL / 2 - ins * h2), px = -dy * h2 * a, py = dx * h2 * a;
+      out.push([[mx + px, my + py], [ex + px, ey + py], [ex - px, ey - py], [mx - px, my - py]]);
+    }
+    return out;
   };
+  const midOf = (p) => (typeof p[0] === 'number' ? [(p[0] + p[2]) / 2, (p[1] + p[3]) / 2] : [p.reduce((s, q) => s + q[0], 0) / p.length, p.reduce((s, q) => s + q[1], 0) / p.length]);
+  const byDepth = (list, key = (x) => x) => list.sort((p, q) => viewDepth(...midOf(key(p))) - viewDepth(...midOf(key(q))));   // furthest first
+  const piece = (p, z0, z1, k) => (typeof p[0] === 'number' ? box(p[0], p[1], p[2], p[3], z0, z1, L.top, L.side, L.seam, k) : prism(p, z0, z1, L.top, L.side, L.seam, k));
   const L = WALL_LOOK[e.id];
   if (L) {
     const k = e.hurt ? 0.78 : 1;
-    for (const [x0, y0, x1, y1] of parts(L.a)) {
-      if (e.id === 1) {   // sandbags: a lower and an upper course, the upper a little narrower
-        box(x0, y0, x1, y1, 0, L.h / 2, L.top, L.side, L.seam, k);
-        box(x0 + 0.7, y0 + 0.7, x1 - 0.7, y1 - 0.7, L.h / 2, L.h, L.top, L.side, L.seam, k);
-      } else box(x0, y0, x1, y1, 0, L.h, L.top, L.side, L.seam, k);
-    }
+    if (e.id === 1) {   // sandbags: a lower and an upper course, the upper a little narrower
+      const hi = parts(L.a - 0.7, 0.7);
+      for (const [p, i] of byDepth(parts(L.a).map((p, i) => [p, i]), (x) => x[0])) {
+        piece(p, 0, L.h / 2, k);
+        piece(typeof p[0] === 'number' ? [p[0] + 0.7, p[1] + 0.7, p[2] - 0.7, p[3] - 0.7] : hi[i], L.h / 2, L.h, k);
+      }
+    } else for (const p of byDepth(parts(L.a))) piece(p, 0, L.h, k);
     if (e.id === 3) {   // the owner's colour along the top
       g.strokeStyle = e.col; g.lineWidth = 1.5; g.beginPath();
       const a = S(mx, my, L.h);
-      for (const [dx, dy, bit] of [[0, -1, 1], [1, 0, 2], [0, 1, 4], [-1, 0, 8]]) if (m & bit) { const b = S(mx + dx * CELL / 2, my + dy * CELL / 2, L.h); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
+      for (const [dx, dy, bit] of [[0, -1, 1], [1, 0, 2], [0, 1, 4], [-1, 0, 8], ...WALL_DIAG]) if (m & bit) { const b = S(mx + dx * CELL / 2, my + dy * CELL / 2, L.h); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); }
       if (!m) { const b = S(mx + 2, my + 2, L.h); g.moveTo(a[0] - 2, a[1]); g.lineTo(b[0], b[1]); }
       g.stroke();
     }
   } else if (e.id === 2) {   // barbed wire: posts and loose coils along each arm
     const ends = [[mx, my]];
-    for (const [dx, dy, bit] of [[0, -1, 1], [1, 0, 2], [0, 1, 4], [-1, 0, 8]]) if (m & bit) ends.push([mx + dx * CELL / 2, my + dy * CELL / 2]);
+    for (const [dx, dy, bit] of [[0, -1, 1], [1, 0, 2], [0, 1, 4], [-1, 0, 8], ...WALL_DIAG]) if (m & bit) ends.push([mx + dx * CELL / 2, my + dy * CELL / 2]);
     if (ends.length === 1) ends.push([mx - 8, my], [mx + 8, my]);
     g.strokeStyle = e.hurt ? 'rgba(110,106,98,0.8)' : 'rgba(170,166,154,0.85)'; g.lineWidth = 0.7;
     for (let i = 1; i < ends.length; i++) {
