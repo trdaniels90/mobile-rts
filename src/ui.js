@@ -489,6 +489,11 @@
 const gateAnim = new Map();   // cell -> { v: how far a gate's barrier is down (0 to 1), t: when last drawn }
 function draw() {
     spriteSpend = 0;   // (models.js: sprites made this frame)
+    // Where the drawing time goes, part by part (art.js drawParts, for the match report): lap(k) adds the time since
+    // the last lap to part k.
+    const DP = drawParts; for (const k in DP) DP[k] = 0;
+    let lapT = performance.now();
+    const lap = (k) => { const t = performance.now(); DP[k] += t - lapT; lapT = t; };
     const z = cam.z;
     // The view canvas holds the screen at zoom 1 (VW x VH); its top left is (vx, vy) on the view plane (voxel.js
     // toView). The world is drawn through a transform that turns and squashes it (iso view); (ox, oy, bw, bh) is the
@@ -582,6 +587,7 @@ function draw() {
     const inView = (e) => e.x > x0 && e.x < x1 && e.y > y0 && e.y < y1 && onScr(e.x, e.y);
     for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0 && onScr(fx.x, fx.y)) drawEffect(v, fx);
     const treeShows = (x, y) => onScr(x, y, 60, 30, 90);
+    lap('gnd');   // the ground, ore, walls' list, wrecks and bodies
     const trees = treesInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows);   // swaying in the wind, burning (art.js): sorted in with the units below
     if (past) for (const t of rimInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows)) trees.push(t);   // the woods past the map's edge
 
@@ -631,15 +637,16 @@ function draw() {
     }
     ground.sort((a, b) => a._key - b._key);
     v.upright = true;   // from here on, pictures, pixels and labels stand upright (art.js uprightCtx)
+    lap('list');   // tree shadows, the lists and the sort
     for (const e of ground) {
-      if (e.kind === 'bld') drawStructure(v, e, G.t);
-      else if (e.kind === 'house') drawHouse(v, e);
-      else if (e.kind === 'prop') drawProp(v, e);
-      else if (e.kind === 'folk') drawFolk(v, e.v);
-      else if (e.kind === 'hen') drawHen(v, e.v);
-      else if (e.kind === 'tree') drawTree(v, e);
-      else if (e.kind === 'wall') drawWallIso(v, e);
-      else drawUnit(v, e, G.t);
+      if (e.kind === 'bld') { drawStructure(v, e, G.t); lap('bld'); }
+      else if (e.kind === 'house') { drawHouse(v, e); lap('bld'); }
+      else if (e.kind === 'prop') { drawProp(v, e); lap('misc'); }
+      else if (e.kind === 'folk') { drawFolk(v, e.v); lap('misc'); }
+      else if (e.kind === 'hen') { drawHen(v, e.v); lap('misc'); }
+      else if (e.kind === 'tree') { drawTree(v, e); lap('tree'); DP.nTree++; }
+      else if (e.kind === 'wall') { drawWallIso(v, e); lap('bld'); }
+      else { drawUnit(v, e, G.t); lap('unit'); DP.nUnit++; }
     }
     if (past) {   // haze over the outer woods past the map's edge
       const up = v.upright; v.upright = false; v.imageSmoothingEnabled = true;
@@ -647,6 +654,7 @@ function draw() {
       edgeMist(v, ox, oy, bw, bh, onScr);
       v.imageSmoothingEnabled = false; v.upright = up;
     }
+    lap('edge');
     for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') flameJet(v, e);
     for (let p of G.projectiles) {
       if (p.delay > 0) continue;
@@ -692,18 +700,21 @@ function draw() {
     }
     for (const fx of G.effects) {
       if (!(fx.t >= 0 && fx.type !== 'husk' && fx.type !== 'corpse' && fx.x > x0 && fx.x < x1 && fx.y > y0 && fx.y < y1 && fxShows(fx))) continue;
+      DP.nFx++;
       if (!fx.lift) { drawEffect(v, fx); continue; }
       // Up in the air (rising smoke and flames, world.js updateEffects): drawn that high straight up the screen.
       const gx = fx.x, gy = fx.y;
       [fx.x, fx.y] = liftPt(gx, gy, fx.lift);
       try { drawEffect(v, fx); } finally { fx.x = gx; fx.y = gy; }
     }
+    lap('fx');   // shots and effects
     air.sort((a, b) => (a.alt || 0) - (b.alt || 0) || a.y - b.y);
     for (const e of air) drawUnit(v, e, G.t);
     if (G.birds) drawBirds(v, true, x0, y0, x1, y1);   // pigeons in the air and on the church roof
 
     // Bars, brackets and labels are drawn flat on the view plane (screen pixels), at their things' projected spots.
     v.upright = false;
+    lap('air');   // aircraft and birds
     const onView = () => v.setTransform(1, 0, 0, 1, -vx, -vy);
     onView();
     // Bridge spans: health while under fire or while a ground target is being picked.
@@ -766,6 +777,7 @@ function draw() {
     v.imageSmoothingEnabled = false;
 
     drawPlacement(v);
+    lap('bars');   // bars, labels, shroud and placement
     v.setTransform(1, 0, 0, 1, 0, 0);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -774,8 +786,11 @@ function draw() {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
     ctx.drawImage(view, 0, 0, VW, VH, Math.round(-(cam.x - vx) * k + sx2), Math.round(-(cam.y - vy) * k + sy2), Math.round(VW * k), Math.round(VH * k));
+    lap('blit');   // the view put on the screen
     if (MAPS[validMap(G.mapId)].daynight) drawNight(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, visibleToPlayer);   // (art.js)
+    lap('night');
     if (G.weather) drawWeather(ctx, G.weather, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, G.paused || !!G.over);
+    lap('wthr');
     if (gesture && gesture.type === 'box' && gesture.moved) {
       const bx = Math.min(gesture.sx, gesture.ex) * DPR, by = Math.min(gesture.sy, gesture.ey) * DPR;
       ctx.strokeStyle = '#f2f2ea'; ctx.lineWidth = DPR;

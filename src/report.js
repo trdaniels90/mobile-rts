@@ -135,6 +135,7 @@ const Report = (() => {
     const L = out.log, F = out.frames;
     const steps = [
       () => { if (F && F.minutes.some((m) => m.lf.length)) { F.minutes.forEach((m) => { m.lf = []; }); return true; } },   // long-frame details
+      () => { if (F && F.minutes.some((m) => m.dp)) { F.minutes.forEach((m) => { delete m.dp; }); return true; } },   // drawing parts' averages (the slowest frame's stay)
       () => { if (L.samples && L.samples.length > 40) { L.samples = L.samples.filter((_, i) => i % 2 === 0); return true; } },   // a coarser graph
       () => {   // the fallen with fewest kills (the debrief's lists keep the best)
         const all = L.fallen.concat(L.alive);
@@ -180,6 +181,12 @@ const Report = (() => {
       // explains happened outside the game's own code (the browser collecting memory, or putting the frame on screen).
       m.wu = Math.max(m.wu || 0, upd); m.wd = Math.max(m.wd || 0, drw); m.wg = Math.max(m.wg || 0, gm); m.wo = Math.max(m.wo || 0, other || 0);
       m.gnd = (m.gnd || 0) + gm; m.tiles = (m.tiles || 0) + cur.tiles;
+      // Drawing by part (art.js drawParts): the minute's totals (averaged in frameStats) and its slowest drawing frame.
+      if (typeof drawParts === 'object') {
+        const t = m.dp || (m.dp = {});
+        for (const k in drawParts) t[k] = (t[k] || 0) + drawParts[k];
+        if (drw > (m.dwT || 0)) { m.dwT = drw; m.dw = { ...drawParts, t: Math.round(G.t) }; }
+      }
       const pk = G.ground && G.ground.peak;   // the ground's worst single steps: a tile's pixels put in, its scenery, one mark
       if (pk) { m.gp = Math.max(m.gp || 0, pk.put); m.gd = Math.max(m.gd || 0, pk.dec); if (pk.mark > (m.gm || 0)) { m.gm = pk.mark; m.gmk = pk.mk; } }
       if (G.ground && G.ground.blocky) m.blk = (m.blk || 0) + 1;
@@ -203,6 +210,17 @@ const Report = (() => {
       if (!m.units) m.units = G.entities.filter((e) => e.alive && e.kind === 'unit').length;
     } catch (_) {}
   }
+  // Drawing parts as ms (one decimal), counts (nTree, nUnit, nFx) whole; `n` frames to average over.
+  function partsOf(p, n) {
+    if (!p) return null;
+    const o = {};
+    for (const k in p) {
+      if (k === 't') continue;
+      const v = /^n[A-Z]/.test(k) ? Math.round(p[k] / n) : +(p[k] / n).toFixed(1);
+      if (v) o[k] = v;   // (zeros left out)
+    }
+    return o;
+  }
   function frameStats() {
     if (!G || !G.perf) return null;
     let sc = {};
@@ -210,7 +228,8 @@ const Report = (() => {
     return { ...sc, minutes: G.perf.min.filter(Boolean).map((m) => ({ m: m.m, fps: m.ft ? Math.round(m.f / m.ft) : null, slow: m.slow, long: m.long,
       worst: Math.round(m.worst), upd: +(m.upd / m.f).toFixed(1), drw: +(m.drw / m.f).toFixed(1), jumps: m.jumps, wait: m.wait, units: m.units,
       wu: Math.round(m.wu || 0), wd: Math.round(m.wd || 0), wg: Math.round(m.wg || 0), wo: Math.round(m.wo || 0), gnd: +((m.gnd || 0) / m.f).toFixed(1), tiles: m.tiles || 0, lx: m.lx || 0, lf: m.lf || [],
-      gp: Math.round(m.gp || 0), gd: Math.round(m.gd || 0), gm: Math.round(m.gm || 0), gmk: m.gmk || '', blk: m.blk || 0 })) };
+      gp: Math.round(m.gp || 0), gd: Math.round(m.gd || 0), gm: Math.round(m.gm || 0), gmk: m.gmk || '', blk: m.blk || 0,
+      dp: partsOf(m.dp, m.f), dw: m.dw ? { ...partsOf(m.dw, 1), t: m.dw.t } : null })) };
   }
   function end(won) {
     try { return finish(won ? 'win' : 'loss', G.over ? G.over.t : G.t, stats()); } catch (_) { return Promise.resolve(null); }

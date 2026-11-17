@@ -377,6 +377,12 @@ share globals. Read this file first; the commit history explains every change in
   `lf`: the first 4 frames over 100 ms each minute, part by part, put down to the frame before the gap (`t`, `gap`, `upd`,
   `drw`, `gnd`, `spr` / `sprN` new sprites made and how many, `oth` sidebar and radar, `tiles`, `units`). Query:
   `select m->>'m' min, m->>'fps' fps, m->>'long' long, m->>'worst' worst, m->>'upd' upd, m->>'drw' drw, m->>'jumps' jumps, m->>'wait' wait, m->>'units' units from matches, jsonb_array_elements(stats->'frames'->'minutes') m where id::text like '<id>%'`.
+- **Drawing by part** (after 2026.11.17.6, both modes, reports only): ui.js `draw` laps its parts into `drawParts` (art.js): `gnd` (ground,
+  ore, wrecks), `list` (tree shadows, lists, sort), `tree`, `bld` (structures, houses, walls), `unit`, `misc` (village props, folk, hens),
+  `edge` (haze past the map), `fx` (shots, effects), `air`, `bars` (bars, labels, shroud), `blit` (the view put on the screen), `night`,
+  `wthr`, and counts `nTree`, `nUnit`, `nFx`. Each minute has `dp` (averages, ms) and `dw` (the minute's slowest drawing frame, with `t`);
+  zeros are left out, and `dp` is trimmed first when a report is too big. The parts add up to `drw`. Query:
+  `select m->>'m' min, m->>'drw' drw, m->'dp' avg, m->'dw' slowest from matches, jsonb_array_elements(stats->'frames'->'minutes') m where id::text like '<id>%'`.
 - **Joining** (net.js `listen`, `knock`, `dropAttempt`, `retryable`; 2026.11.04.2):
   a connection attempt that fails before the lobby connects no longer kills the host's room. The host drops
   it and keeps listening, and a new hello replaces a stale attempt (before, the retry got "already has two
