@@ -202,7 +202,7 @@ const UNIT_DEFS = {
   // The gun outranges the MG Team (150) and the Rocket Soldier (180): it holds at 0.92 of 190 and backs off inside 0.8.
   comanche: {
     name: 'Comanche', cls: 'air', fly: 'heli', cat: 'heli', producer: 'helipad', upgrade: 'comanche', factions: ['allies'], standoff: true,
-    cost: 1500, hp: 180, armor: 'air', speed: 100, sight: 8, r: 9,
+    cost: 2000, hp: 180, armor: 'air', speed: 100, sight: 8, r: 9,
     weapon: { dmg: 11, rof: 1.0, range: 190, wh: 'CG', proj: 'bullet', ammo: 15, burst: 4, gap: 0.08, splash: 8, spareTanks: true, sound: 'mg' },
     weapon2: { dmg: 120, rof: 1.2, range: 210, wh: 'HF', proj: 'missile', ammo: 4, tanksOnly: true, lock: 1.0, bay: true },
   },
@@ -257,7 +257,7 @@ const BUILD_DEFS = {
   turret:   { name: 'Gun Turret',   w: 1, h: 1, hp: 450,  power: -40, cost: 600,  req: ['barracks'], factions: ['allies'], defense: true,
               weapon: { dmg: 40, rof: 1.4, range: 165, wh: 'AP', proj: 'shell', needsPower: true } },
   aagun:    { name: 'AA Gun',       w: 1, h: 1, hp: 400,  power: -50, cost: 800,  req: ['barracks'], factions: ['allies'], defense: true, antiAir: true,
-              weapon: { dmg: 22, rof: 0.35, range: 170, wh: 'FLAK', proj: 'flak', air: true, ground: false, needsPower: true } },
+              weapon: { dmg: 22, rof: 0.35, range: 195, wh: 'FLAK', proj: 'flak', air: true, ground: false, needsPower: true } },
   tesla:    { name: 'Tesla Coil',   w: 1, h: 2, hp: 450,  power: -100, cost: 1200, req: ['barracks'], factions: ['soviets'], defense: true,
               weapon: { dmg: 100, rof: 2.6, range: 190, wh: 'TESLA', proj: 'tesla', needsPower: true } },
   pillbox:  { name: 'Pillbox',      w: 1, h: 1, hp: 400,  power: -15, cost: 400,  req: ['barracks'], factions: ['allies'], defense: true, camo: true,
@@ -266,7 +266,7 @@ const BUILD_DEFS = {
               weapon: { dmg: 40, rof: 2.0, range: 130, wh: 'FIRE', proj: 'fireball', burst: 2, gap: 0.3, splash: 18,
                         jet: { dps: 10, width: 7 } } },   // jet: the stream of fire burns what stands in it between shots (world.js flameBurn)
   sam:      { name: 'SAM Site',     w: 2, h: 1, hp: 400,  power: -20, cost: 750,  req: ['barracks'], factions: ['soviets'], defense: true, antiAir: true,
-              weapon: { dmg: 50, rof: 1.3, range: 180, wh: 'HE', proj: 'missile', air: true, ground: false, needsPower: true } },
+              weapon: { dmg: 50, rof: 1.3, range: 195, wh: 'HE', proj: 'missile', air: true, ground: false, needsPower: true } },
 };
 
 // Airfield support powers: each recharges (in seconds) while its side owns an Airfield,

@@ -1118,6 +1118,10 @@ frame-time maths everywhere, so it is not deterministic.
   missiles fire at both and the `spareTanks` gun leaves both to them while it has missiles. A Comanche against a parked Ore Truck: all 4 missiles,
   then the gun, 600 to 70 health in 12 s. Field Manual says so.
 - Field Manual: Comanche entry (Aircraft), Tech Center text, "Needs" shows the upgrade.
+- **Comanche balance** (after 2026.11.17.9, owner's pick for both modes; the server must match): its stats are unchanged, but it costs $2000 (was 1500),
+  and SAM Site and AA Gun range is 195 (was 180 / 170; 220, 200 and 190 tried), past its gun (190), so it can no longer strip a defended base from outside
+  reach. This affects every aircraft. Staged (2 Comanches ordered onto a powered SAM Site, 60 s, 3 seeds): before, the SAM fell every time and 1-2 Comanches
+  lived; at 200 both are lost every time and the SAM keeps about 60% (the same at 220: against buildings only the gun counts). 3 Comanches lose too (SAM 15% left), 4 win with 2 left. At 190 the SAM lost every time (2 Comanches both lived). At 195: 2 Comanches won 1 of 2 runs, 3 lost both (SAM 15% left), 4 won with 2 left. `comanche.js` passes.
 - **Tesla Tank** (Soviets, owner's pick for their upgrade; `ttank` in UNIT_DEFS, War Factory; upgrade `teslatank` "Tesla program" $1500, 60 s): OpenRA's
   TTNK numbers ($1350, 450 health, light armour, speed 50), `draw: 'tank'` (so it counts as a tank: the Comanche's missiles go for it), size `tesla`.
   Weapon: Tesla bolt, 75 TESLA, every 2.4 s, range 140, ground only, no power needed. `teslaTurret` (models.js, reworked at the owner's request: a big steel dome with a copper band and a glowing cap on a low armoured drum, blue insulators; was copper windings on a
