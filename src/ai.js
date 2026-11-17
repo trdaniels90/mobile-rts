@@ -565,7 +565,7 @@ function aiLaunch(team, ready) {
   const A = aiOf(team), r = Math.random;
   if (!team.plan) team.plan = aiPlanWave(team);
   // No attacks until it has found the enemy base: once the first-wave timer is up, it scouts.
-  if (!enemyBaseKnown(team.id)) { if (G.t >= Math.max(A.firstWave, 60)) aiScout(team, ready); return; }
+  if (!enemyBaseKnown(team.id)) { if (G.t >= Math.max(Math.min(A.firstWave, G.diff.ai.firstWave), 60)) aiScout(team, ready); return; }   // (a late style still scouts on the difficulty's time)
   aiScoutDone(team);
   // Planner: the clock starts once the base is found and the first-wave wait is over, then each attack
   // comes after a random wait (AI_GAP: never under a minute, never over ten).
@@ -623,7 +623,7 @@ function aiGap(team) {
 const AI_STYLES = {
   balanced: {},
   rusher: { firstWave: -180, hold: 0.3, full: 0.4, gapMul: 0.6, defAdd: -2, wallMul: 0.5, garAdd: -1 },
-  turtle: { firstWave: 210, hold: 0.75, full: 0.85, gapMul: 1.4, defAdd: 3, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18] },
+  turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, defAdd: 3, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18] },
   raider: { hold: 0.4, airGap: 0.6, splitAt: [12, 8], split3: 0.75, eco: true },
 };
 const AI_STYLE_KEYS = Object.keys(AI_STYLES);

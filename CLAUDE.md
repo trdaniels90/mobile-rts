@@ -1201,7 +1201,7 @@ frame-time maths everywhere, so it is not deterministic.
   `aiOf(team)` is the difficulty's `ai` settings with the style applied (cached per difficulty and style); every team-scoped `G.diff.ai` in
   ai.js (and the air-strike gate in world.js `launchGroups`) reads it. Easy (no planner) has no styles. Hidden from players; Field Manual says they exist.
   Rusher: first wave -180 s, waves at 30% of the cap, waits x 0.6, 2 fewer defences, half the walls, one held house fewer.
-  Turtle: +210 s, waves at 75%, waits x 1.4, 3 more defences, +1 Outpost gun, walls x 1.6, one more house, splits only from 18 / 30 units.
+  Turtle (owner: scout sooner, attack a bit earlier; 2 v 2 Twin Lakes: both turtles attacked by 16-18 min, before one never did in 24): +90 s (was +210), waves at 75%, waits x 1.2 (was 1.4); every style scouts from the difficulty's `firstWave`, 3 more defences, +1 Outpost gun, walls x 1.6, one more house, splits only from 18 / 30 units.
   Raider: waves at 40%, air strikes x 0.6 apart, splits from 8 (3 squads from 12, 75%), targets refineries, power and Outposts (x 1.5) and avoids guns more.
 - Measured after (Normal, headless; scratch script, not in the repo): 1 v 1 first waves 915 / 1039 s; 2 v 2 first waves 597, 921, 1164, 1382 s
   (rusher, raider, turtle, turtle); 3 v 3 Lakeside 678 (rusher), 811, 832 (balanced), 956 (raider), 1010 (turtle). Allies' styles differed every run.
