@@ -1771,6 +1771,66 @@ function dishAngle(b, stage) {
 }
 
 // ---------------------------------------------------------------------------
+// The Construction Yard's tower crane (models.js SPINNERS.cy, CRANE_HOOK). Looks only, kept here by building id: when its side
+// places a structure within CRANE_REACH, the jib swings round to it (the jib points along -x, so angle 0 is its rest), the hook
+// runs down while the structure goes up, then comes up and the jib swings home. Worked out on each phone from what it sees.
+// ---------------------------------------------------------------------------
+const CRANE_SPEED = 2.4, CRANE_REACH = 16 * CELL, CRANE_HOLD = 2, CRANE_HOOK_SPEED = 40;   // rad/s, px, s, voxels a second
+const craneStates = new Map();   // building id -> { a, hook, t, aim, until, busy }
+function craneState(b, px, py, stage) {
+  let c = craneStates.get(b.id);
+  const rest = CRANE_HOOK[b.faction][1];
+  if (!c) {
+    if (craneStates.size > 64) for (const id of craneStates.keys()) if (!G.byId.has(id)) craneStates.delete(id);
+    c = { a: 0, hook: rest, t: G.t, aim: 0, until: -1, busy: false }; craneStates.set(b.id, c);
+  }
+  const dt = Math.max(0, Math.min(0.25, G.t - c.t)); c.t = G.t;
+  if (stage >= 2) return c;   // wrecked: it stands still
+  // The newest structure of this side going up within reach.
+  let best = null;
+  for (const e of G.entities) {
+    if (e.kind !== 'bld' || e === b || !e.alive || e.team !== b.team || !(e.buildT < 1) || e.sellT > 0) continue;
+    const ex = (e.cx + e.w / 2) * CELL, ey = (e.cy + e.h / 2) * CELL;
+    if ((ex - px) ** 2 + (ey - py) ** 2 > CRANE_REACH * CRANE_REACH || (best && e.id < best.id)) continue;
+    best = e; c.tx = ex; c.ty = ey;
+  }
+  if (best) { c.aim = Math.atan2(c.ty - py, c.tx - px) + Math.PI; c.until = G.t + CRANE_HOLD; }
+  c.busy = G.t < c.until;
+  const goal = c.busy ? c.aim : 0;
+  let d = goal - c.a; d = Math.atan2(Math.sin(d), Math.cos(d));
+  const hk = CRANE_HOOK[b.faction], high = SPINNERS.cy[b.faction][3] - 4;
+  // Swing only with the hook up; lower it once the jib is over the work.
+  if (Math.abs(d) > 0.3 && c.hook < high - 3) c.hook = Math.min(high, c.hook + CRANE_HOOK_SPEED * dt);
+  else {
+    c.a += Math.sign(d) * Math.min(Math.abs(d), CRANE_SPEED * dt);
+    let want = rest;
+    if (c.busy) {   // working: the hook runs up and down (down to the ground beside the yard, never into its own roof)
+      const hx = px - Math.cos(c.a) * hk[0] - b.cx * CELL, hy = py - Math.sin(c.a) * hk[0] - b.cy * CELL;
+      const low = hx > 2 && hx < b.w * CELL - 2 && hy > 4 && hy < b.h * CELL - 16 ? hk[2] : 6;
+      want = low + (high - low) * (0.5 - 0.5 * Math.cos(G.t * 2.6 + b.id));
+    }
+    if (Math.abs(d) > 0.3) want = high;
+    c.hook += Math.sign(want - c.hook) * Math.min(Math.abs(want - c.hook), CRANE_HOOK_SPEED * dt);
+  }
+  return c;
+}
+// The hook's cable and block hang from the trolley out along the jib; an amber lamp blinks at the jib's tip while it works.
+function drawCraneHook(g, b, c, px, py, pz) {
+  const hk = CRANE_HOOK[b.faction], ca = Math.cos(c.a), sa = Math.sin(c.a);
+  const hx = px - ca * hk[0], hy = py - sa * hk[0];
+  const [x0, y0] = liftPt(hx, hy, (pz - 1) * VK), [x1, y1] = liftPt(hx, hy, c.hook * VK);
+  g.strokeStyle = '#141412'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+  g.fillStyle = '#3a3c36'; g.fillRect(x1 - 2, y1 - 1, 4, 3);
+  g.fillStyle = '#d8b030'; g.fillRect(x1 - 0.5, y1 + 2, 1, 2);
+  if (c.busy && Math.floor(G.t * 2.5) % 2) {
+    const L = b.faction === 'soviets' ? 33 : 37, [lx, ly] = liftPt(px - ca * L, py - sa * L, (pz + 3.5) * VK);
+    g.fillStyle = 'rgba(255,170,40,0.95)'; g.beginPath(); g.arc(lx, ly, 1.3, 0, 7); g.fill();
+    g.fillStyle = 'rgba(255,170,40,0.25)'; g.beginPath(); g.arc(lx, ly, 3.2, 0, 7); g.fill();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Build-up and selling in the iso view: the footprint's pad (a diamond), a scaffold of poles and rails standing at its
 // corners, the structure's own model cut off at a rising height (models.js buildSprite), welding sparks at the top and a
 // sheen when it is done. Everything is worked out from k, the building's id and the battle clock, so it looks the same
@@ -1870,9 +1930,12 @@ function drawStructure(g, b, t) {
     } else if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
   }
   const sp = SPINNERS[b.type] && SPINNERS[b.type][b.faction];
-  if (sp) {   // a turning part that is not a weapon (the Soviet radar's dish)
+  if (sp) {   // a turning part that is not a weapon (the Soviet radar's dish, the yard's crane)
     const [lx, ly] = liftPt(x + sp[1], y + sp[2], sp[3] * VK);
-    blit(g, spinnerSprite(b.type, b.faction, dishAngle(b, stage), stage), lx, ly, false);
+    let a;
+    if (b.type === 'cy') { const c = craneState(b, x + sp[1], y + sp[2], stage); a = c.a; drawCraneHook(g, b, c, x + sp[1], y + sp[2], sp[3]); }
+    else a = dishAngle(b, stage);
+    blit(g, spinnerSprite(b.type, b.faction, a, stage), lx, ly, false);
   }
   if (b.type === 'pillbox' && b.fireT > 0) { const m = muzzle(b); flash(g, ...liftPt(m.x, m.y + m.h, m.h), 2); }
   const fs = FLAG_SPOTS[b.type] && FLAG_SPOTS[b.type][b.faction];

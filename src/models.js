@@ -1437,7 +1437,7 @@ function plantStacks(type, faction) {
 }
 
 const STRUCTURES = {
-  cy(pal) {
+  cy(pal, faction, cameo) {
     const m = new VModel(-2, -2, 76, 76, 48);
     slabV(m, 0, 0, 72, 72);
     m.box(4, 6, 1, 68, 54, 14, C.wall, M_MATTE);
@@ -1454,10 +1454,11 @@ const STRUCTURES = {
     m.paintTop(28, 58, 44, 70, (x, y) => (y - 58) % 4 < 2 ? C.yellow : undefined);
     m.box(64, 8, 1, 67, 11, 44, C.yellow, M_METAL);
     m.paint(64, 8, 1, 67, 11, 44, (x, y, z) => (z % 4 === 0 || (x + z) % 4 === 0) ? '#8a6c12' : undefined);
-    m.box(28, 8, 42, 67, 11, 45, C.yellow, M_METAL);
-    m.box(64, 7, 44, 68, 12, 46, '#5d5e58', M_METAL);
-    m.line(32, 9.5, 41, 32, 9.5, 22, C.black);
-    m.box(30, 8, 20, 34, 11, 22, C.gun, M_METAL);
+    if (cameo) {   // the jib turns in the battle (SPINNERS, art.js craneState) and its hook is drawn live; the cameo shows them still
+      towerJib(m, 66, 9.5, 42, false);
+      m.line(32, 9.5, 41, 32, 9.5, 22, C.black);
+      m.box(30, 8, 20, 34, 11, 22, C.gun, M_METAL);
+    }
     m.box(14, 16, 22, 15, 17, 26, C.gun);
     m.ellipsoid(14.5, 16.5, 27, 4, 4, 1.5, C.steel, M_METAL);
     return m;
@@ -2632,6 +2633,12 @@ function latticeV(m, x, y, z0, z1, col) {
   for (let z = z0; z < z1; z += 3) { m.line(x, y, z, x + 2, y, z + 2, col, M_METAL); m.line(x, y + 2, z + 2, x + 2, y + 2, z, col, M_METAL); }
 }
 
+// A Construction Yard's tower crane jib round its pivot (the mast's top): the yellow jib out along -x, the counterweight over the mast.
+function towerJib(m, px, py, pz, soviet) {
+  if (soviet) { m.box(px - 34, py - 1.5, pz, px + 3, py + 1.5, pz + 2, C.yellow, M_METAL); m.box(px, py - 2.5, pz + 2, px + 4, py + 2.5, pz + 4, '#5d5e58', M_METAL); }
+  else { m.box(px - 38, py - 1.5, pz, px + 1, py + 1.5, pz + 3, C.yellow, M_METAL); m.box(px - 2, py - 2.5, pz + 2, px + 2, py + 2.5, pz + 4, '#5d5e58', M_METAL); }
+}
+
 // An RBMK reactor block: pale panels in horizontal bands, its roof, and the raised reactor hall on top.
 function reactorV(m, x0, y0, x1, y1, h, pal) {
   const band = (a0, b0, z0, a1, b1, z1) => {
@@ -2668,7 +2675,7 @@ function ventStackV(m, SX, SY, z0, top, w, pal) {
 const SOVIET = {
   // Construction Yard: a long assembly hall with a stepped office tower, a gold star over the gate,
   // banners, and a tower crane.
-  cy(pal) {
+  cy(pal, cameo) {
     const m = new VModel(-2, -2, 76, 76, 48);
     slabV(m, 0, 0, 72, 72);
     panelBox(m, 4, 8, 1, 68, 54, 22);
@@ -2688,10 +2695,11 @@ const SOVIET = {
     bannersV(m, 'cy');
     m.paintTop(28, 58, 44, 70, (x, y) => (y - 58) % 4 < 2 ? C.yellow : undefined);
     latticeV(m, 63, 2, 1, 44, C.yellow);                                 // tower crane
-    m.box(30, 2, 43, 67, 5, 45, C.yellow, M_METAL);
-    m.box(64, 1, 45, 68, 6, 47, '#5d5e58', M_METAL);
-    m.line(36, 3.5, 42, 36, 3.5, 26, C.black);
-    m.box(34, 2, 24, 38, 5, 26, C.gun, M_METAL);
+    if (cameo) {   // the jib turns in the battle (SPINNERS, art.js craneState); the cameo shows it still
+      towerJib(m, 64, 3.5, 43, true);
+      m.line(36, 3.5, 42, 36, 3.5, 26, C.black);
+      m.box(34, 2, 24, 38, 5, 26, C.gun, M_METAL);
+    }
     return m;
   },
   // BLENDER:power_soviets begin
@@ -4612,7 +4620,15 @@ function camoPal(faction, col) {
 }
 // Turning parts that are not weapons: type, then faction -> [builder, pivot x, pivot y, pivot height]. Same layout as HEADS
 // (built round its own pivot), but kept apart: HEADS is keyed by type only and world.js muzzle reads it.
-const SPINNERS = { dome: { soviets: [(pal) => { const m = new VModel(-20, -14, 40, 18, 16); radarDish(m, 0, 0, 0); return m; }, 22, 28, 18] } };
+const SPINNERS = {
+  dome: { soviets: [(pal) => { const m = new VModel(-20, -14, 40, 18, 16); radarDish(m, 0, 0, 0); return m; }, 22, 28, 18] },
+  cy: {   // the tower crane's jib; art.js craneState swings it and hangs the hook (CRANE_HOOK)
+    allies: [(pal) => { const m = new VModel(-40, -4, 6, 4, 6); towerJib(m, 0, 0, 0, false); return m; }, 66, 9.5, 42],
+    soviets: [(pal) => { const m = new VModel(-40, -4, 6, 4, 6); towerJib(m, 0, 0, 0, true); return m; }, 64, 3.5, 43],
+  },
+};
+// The crane's hook: [distance out along the jib, hook height at rest, lowest over the yard's own roof] in model voxels.
+const CRANE_HOOK = { allies: [34, 20, 29], soviets: [28, 24, 28] };
 function spinnerSprite(type, faction, angle, stage) {
   const pal = palFor(faction), h = SPINNERS[type][faction], key = 'P' + type + pal.key;
   if (stage) return facingSprite(key + 'd' + stage, () => scorchModel(model(key, () => h[0](pal)), stage, type), angle, FACINGS, { shadow: false });
