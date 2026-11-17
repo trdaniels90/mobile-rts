@@ -2895,7 +2895,7 @@ function makeCameo(type, faction, key) {
 // joined neighbour) drawn as solid prisms, back to front, with only the faces turned to the camera. ui.js sorts each cell
 // in with the units (kind 'wall') and calls drawWallIso on the view canvas.
 const WALL_LOOK = {
-  1: { h: 5.5, a: 4, top: '#c2ae80', side: '#9c8a5f', seam: '#7d6d49' },      // sandbags: two courses of sacks
+  1: { h: 6.5, a: 4, top: '#c2ae80', side: '#86754d', seam: '#5e5034' },      // sandbags: two courses of sacks
   3: { h: 13, a: 5, top: '#a7a7a0', side: '#85857e', seam: '#686862' },     // concrete
 };
 const WALL_DIAG = [[1, -1, 16], [1, 1, 32], [-1, 1, 64], [-1, -1, 128]];   // diagonal joins (ui.js sets them in the mask)
@@ -2950,9 +2950,10 @@ function drawWallIso(g, e) {
     const k = e.hurt ? 0.78 : 1;
     if (e.id === 1) {   // sandbags: a lower and an upper course, the upper a little narrower
       const hi = parts(L.a - 0.7, 0.7);
+      const tone = (i, j) => k * (0.9 + 0.1 * (((e.c * 7 + i * 13 + j * 5) % 5) / 4));   // each sack a shade apart, fixed per cell
       for (const [p, i] of byDepth(parts(L.a).map((p, i) => [p, i]), (x) => x[0])) {
-        piece(p, 0, L.h / 2, k);
-        piece(typeof p[0] === 'number' ? [p[0] + 0.7, p[1] + 0.7, p[2] - 0.7, p[3] - 0.7] : hi[i], L.h / 2, L.h, k);
+        piece(p, 0, L.h / 2, tone(i, 0));
+        piece(typeof p[0] === 'number' ? [p[0] + 0.7, p[1] + 0.7, p[2] - 0.7, p[3] - 0.7] : hi[i], L.h / 2, L.h, tone(i, 1));
       }
     } else for (const p of byDepth(parts(L.a))) piece(p, 0, L.h, k);
     if (e.id === 3) {   // the owner's colour along the top
