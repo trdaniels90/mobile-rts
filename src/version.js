@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.1', date: '17 November 2026', title: 'Sidebar build progress fixed', groups: [
+    ['Fixed', [
+      'The build progress on the sidebar pictures no longer slides off their left edge.',
+    ]],
+  ] },
   { v: '2026.11.17', date: '17 November 2026', title: 'Computer personalities, new build-up, War Factory doors', groups: [
     ['New', [
       'Computer personalities (Normal and Hard): each computer side plays a style for the whole battle: rusher, turtle, raider or balanced. Computer allies never share a style, so they no longer all attack at the same moment.',
