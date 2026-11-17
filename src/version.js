@@ -4,6 +4,14 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.8', date: '17 November 2026', title: 'Smoother zoomed-out view', groups: [
+    ['Changed', [
+      'Zoomed far out (with many trees on screen, as on a large PC screen), the woods are drawn as still pictures instead of tree by tree, so the game runs much smoother. The trees stop swaying at that distance and sway again when you zoom in.',
+    ]],
+    ['Fixed', [
+      'The paratrooper transports no longer show a jet flame behind them: they have propellers.',
+    ]],
+  ] },
   { v: '2026.11.17.7', date: '17 November 2026', title: 'Comanche and wall fixes', groups: [
     ['Changed', [
       'Comanches no longer hover for good over a target they cannot hit: they use their missiles on what they can, or fly home to rearm. Comanches waiting on a target spread out instead of stacking on one spot.',
