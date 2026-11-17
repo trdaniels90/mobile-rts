@@ -172,7 +172,7 @@ const UNIT_DEFS = {
   v2rl: {
     name: 'V2 Rocket Launcher', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['dome'], factions: ['soviets'], draw: 'v2', fixed: true, setup: 1.5, pack: 1,   // the rocket lies flat on the bed: raised (setup s) before it fires, lowered (pack s) before it drives
     cost: 800, hp: 150, armor: 'light', speed: 42, turn: 2, sight: 5, r: 10, size: { len: 22, wid: 12, tur: 0, barrel: 12 },
-    weapon: { dmg: 240, rof: 7, range: 312, wh: 'HE', proj: 'v2', splash: 30, spread: 12 },
+    weapon: { dmg: 240, rof: 7, range: 340, wh: 'HE', proj: 'v2', splash: 30, spread: 12 },
   },
   harv: {
     name: 'Ore Truck', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies', 'soviets'], draw: 'harv',
