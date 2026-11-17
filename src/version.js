@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.9', date: '17 November 2026', title: 'Diagonal gates', groups: [
+    ['Changed', [
+      'Gates can now lie diagonally, so they line up with diagonal walls. Placed on or across a gap in your wall, a Gate turns to follow it; tap it again to turn it through all four ways.',
+      'Walls now run right up to a gate\'s end posts, with no gap.',
+    ]],
+  ] },
   { v: '2026.11.17.8', date: '17 November 2026', title: 'Smoother zoomed-out view', groups: [
     ['Changed', [
       'Zoomed far out (with many trees on screen, as on a large PC screen), the woods are drawn as still pictures instead of tree by tree, so the game runs much smoother. The trees stop swaying at that distance and sway again when you zoom in.',
