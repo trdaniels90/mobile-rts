@@ -136,6 +136,7 @@
     if (z * DPR < 1.5) return z;
     return Math.max(1, Math.round(z * DPR)) / DPR;
   }
+  const EDGE_KEEP = 8;
   function clampCam() {
     cam.z = snapZ(cam.z);
     // cam.x, cam.y: the top left of the screen on the view plane (voxel.js toView). The middle of the screen is kept
@@ -143,7 +144,10 @@
     // the map (Three Crossings' north-west start) is not stuck under the bar, which takes the taps.
     const vw = W / cam.z, vh = H / cam.z, top = placeMargin() / cam.z;
     let [x, y] = fromView(cam.x + vw / 2, cam.y + vh / 2);
-    x = Math.max(0, Math.min(WORLD, x)); y = Math.max(-top, Math.min(WORLD, y));
+    // Keep the middle of the screen a little inside the map (more when zoomed out), so less of the haze past the
+    // edge shows; at most EDGE_KEEP cells, so a base by the edge can still be centred.
+    const m = Math.min(EDGE_KEEP * CELL, 0.22 * Math.min(vw, vh / VIEW.F), WORLD / 2);
+    x = Math.max(m, Math.min(WORLD - m, x)); y = Math.max(m - top, Math.min(WORLD - m, y));
     const [X, Y] = toView(x, y);
     cam.x = X - vw / 2; cam.y = Y - vh / 2;
   }
@@ -205,9 +209,11 @@
   // World (x, y) at height h, in the pixels of canvas g as it is now set up; and drawing in those pixels.
   function onScreen(g, x, y, h) { const [wx, wy] = liftPt(x, y, h), m = g.getTransform(); return [m.a * wx + m.c * wy + m.e, m.b * wx + m.d * wy + m.f]; }
   function screenDraw(g, fn) { const up = g.upright; g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.upright = false; try { fn(); } finally { g.upright = up; g.restore(); } }
-  // The land beyond the map's edge (the iso view shows past it at the corners): each edge cell's minimap colour carried
-  // outward EDGE_PAD cells, softened, darkening into haze. Made once a battle.
-  const EDGE_PAD = 64;
+  // The land beyond the map's edge (the iso view shows past it): each edge cell's colour carried a few cells out,
+  // fading into a haze (EDGE_FADE cells) with a little texture in it; the screen past the picture is the haze too.
+  // Made once a battle.
+  const EDGE_PAD = 24, EDGE_FADE = 6;
+  const hazeRGB = () => (snowy() ? [196, 204, 214] : [104, 116, 124]);
   let edgeFor = null, edgeCv = null;
   function edgePic() {
     if (edgeFor === G && edgeCv) return edgeCv;
@@ -217,16 +223,50 @@
     g.drawImage(miniTerrain, 0, 0, 1, MAP, 0, P, P, MAP); g.drawImage(miniTerrain, MAP - 1, 0, 1, MAP, P + MAP, P, P, MAP);
     for (const [sx, sy, dx, dy] of [[0, 0, 0, 0], [MAP - 1, 0, P + MAP, 0], [0, MAP - 1, 0, P + MAP], [MAP - 1, MAP - 1, P + MAP, P + MAP]]) g.drawImage(miniTerrain, sx, sy, 1, 1, dx, dy, P, P);
     const soft = mkCanvas(N, N), s = soft.getContext('2d');
-    s.filter = 'blur(2px)'; s.drawImage(c, 0, 0); s.filter = 'none';
-    const img = s.getImageData(0, 0, N, N), d = img.data;
+    s.filter = 'blur(1.5px)'; s.drawImage(c, 0, 0); s.filter = 'none';
+    const img = s.getImageData(0, 0, N, N), d = img.data, [hr, hg, hb] = hazeRGB();
+    const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+    const noise = (x, y) => {   // smooth value noise, 6 cells across
+      const X = x / 6, Y = y / 6, x0 = Math.floor(X), y0 = Math.floor(Y), fx = X - x0, fy = Y - y0, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+      const a = hash(x0, y0), b = hash(x0 + 1, y0), c2 = hash(x0, y0 + 1), e = hash(x0 + 1, y0 + 1);
+      return (a + (b - a) * sx) * (1 - sy) + (c2 + (e - c2) * sx) * sy;
+    };
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const ox = Math.max(P - x, 0, x - (P + MAP - 1)), oy = Math.max(P - y, 0, y - (P + MAP - 1)), out = Math.hypot(ox, oy);
-      const k = 1 - Math.min(0.85, out / 30 * 0.85), i = (y * N + x) * 4;
-      d[i] *= k; d[i + 1] *= k; d[i + 2] *= k; d[i + 3] = 255;
+      if (!out) continue;
+      const t = Math.min(1, out / EDGE_FADE), k = t * t * (3 - 2 * t), i = (y * N + x) * 4;
+      const n = 0.92 + 0.16 * noise(x, y) * Math.min(1, out / 3);   // patches of thicker and thinner haze
+      d[i] = d[i] * (1 - k) + hr * n * k; d[i + 1] = d[i + 1] * (1 - k) + hg * n * k; d[i + 2] = d[i + 2] * (1 - k) + hb * n * k; d[i + 3] = 255;
     }
     s.putImageData(img, 0, 0);
     edgeFor = G; edgeCv = soft;
     return soft;
+  }
+  // Slow wisps of mist drifting over the haze past the map's edge (looks only).
+  function edgeMist(v, ox, oy, bw, bh) {
+    const [hr, hg, hb] = hazeRGB(), t = performance.now() / 1000, R = 9 * CELL, step = 7 * CELL;
+    v.save();
+    v.beginPath(); v.rect(ox - R, oy - R, bw + 2 * R, bh + 2 * R); v.rect(0, 0, WORLD, WORLD); v.clip('evenodd');
+    for (let gy = Math.floor((oy - R) / step); gy <= Math.ceil((oy + bh + R) / step); gy++) for (let gx = Math.floor((ox - R) / step); gx <= Math.ceil((ox + bw + R) / step); gx++) {
+      const ph = ((gx * 92821 + gy * 68917) % 1000) / 1000;
+      const x = (gx + 0.5) * step + Math.sin(t * 0.07 + ph * 6.3) * 2 * CELL + ((t * 6 + ph * step) % step) - step / 2;
+      const y = (gy + 0.5) * step + Math.cos(t * 0.05 + ph * 4.1) * 1.5 * CELL;
+      const out = Math.max(-x, x - WORLD, -y, y - WORLD);
+      if (out < -2 * CELL) continue;
+      const a = 0.22 * Math.min(1, (out + 2 * CELL) / (4 * CELL)) * (0.5 + 0.5 * Math.sin(t * 0.3 + ph * 9));
+      const gr = v.createRadialGradient(x, y, 0, x, y, R);
+      gr.addColorStop(0, `rgba(${hr + 30},${hg + 30},${hb + 30},${a})`); gr.addColorStop(1, `rgba(${hr},${hg},${hb},0)`);
+      v.fillStyle = gr; v.fillRect(x - R, y - R, 2 * R, 2 * R);
+    }
+    v.restore();
+    // A soft band of haze just inside the edge, so the ground does not stop on a hard line.
+    const B = 2.5 * CELL, hz = (a) => `rgba(${hr},${hg},${hb},${a})`;
+    for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [[0, 0, 0, B, 0, 0, WORLD, B], [0, WORLD, 0, WORLD - B, 0, WORLD - B, WORLD, B], [0, 0, B, 0, 0, 0, B, WORLD], [WORLD, 0, WORLD - B, 0, WORLD - B, 0, B, WORLD]]) {
+      if (rx + rw < ox || rx > ox + bw || ry + rh < oy || ry > oy + bh) continue;
+      const gr = v.createLinearGradient(x0, y0, x1, y1);
+      gr.addColorStop(0, hz(0.55)); gr.addColorStop(0.5, hz(0.18)); gr.addColorStop(1, hz(0));
+      v.fillStyle = gr; v.fillRect(rx, ry, rw, rh);
+    }
   }
   function centerOn(x, y) { [x, y] = toView(x, y); cam.x = x - W / cam.z / 2; cam.y = y - H / cam.z / 2; clampCam(); }
   // Screen point to the world point on the ground under it.
@@ -392,7 +432,7 @@ function draw() {
     v.upright = false;
     v.setTransform(1, 0, 0, 1, 0, 0);
     v.imageSmoothingEnabled = false;
-    v.fillStyle = '#000'; v.fillRect(0, 0, VW, VH);
+    v.fillStyle = G ? `rgb(${hazeRGB()})` : '#000'; v.fillRect(0, 0, VW, VH);
     if (!G) return;
     // A bridge span destroyed or rebuilt: the minimap's terrain follows.
     const sig = (G.spans || []).map((s) => (s.alive ? 1 : 0)).join('');
@@ -422,6 +462,7 @@ function draw() {
       v.imageSmoothingEnabled = false;
     }
     G.ground.draw(v, 't', sx, sy, sw, sh, sx, sy);
+    if (sx > ox || sy > oy || sx + sw < ox + bw || sy + sh < oy + bh) edgeMist(v, ox, oy, bw, bh);
 
     // Ore
     const c0 = Math.max(0, Math.floor(ox / CELL)), c1 = Math.min(MAP - 1, Math.floor((ox + bw) / CELL));
