@@ -1213,3 +1213,10 @@ frame-time maths everywhere, so it is not deterministic.
 - `v2Model(pal, loaded, up)` (models.js): the rail pivots on its rear end up to `V2_RAISE` (0.85 rad), with a ram; `V2_STEPS` (3) + 1 looks,
   keyed `'W' + key + loaded + step` in `hullSprite`, all baked (`looks` in bake-sprites.js and `warmSprites`). Sprites and ground key rebaked.
   The server must run the same version.
+
+## War Factory door opens (contributor's change by JGFortanelli, not released, both modes, looks only)
+
+- `spawnUnit` sets `b.doorAt = G.t` on a War Factory when a ground unit comes out (a plain field, so saved and synced to
+  online copies). `drawStructure` (art.js) draws `factoryDoorSprite(faction, step)` (models.js `factoryDoor`, `DOOR_STEPS` 5)
+  over the door: a shutter that rolls up over `DOOR_UP` 0.5 s, stays open `DOOR_HOLD` 1.4 s, rolls down over `DOOR_DOWN`
+  0.7 s (`doorOpen`), with the dark hall showing below it. The structure's own model is unchanged; the bakes only got new keys.

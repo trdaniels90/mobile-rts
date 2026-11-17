@@ -1755,6 +1755,10 @@ function drawStructure(g, b, t) {
   }
   const stage = dmgStage(b);
   blit(g, stage ? damagedSprite(b.type, b.faction, stage, camo) : s, x, y);
+  if (b.type === 'factory' && b.doorAt != null) {   // the door rolls up for a new unit (world.js spawnUnit)
+    const k = doorOpen(G.t - b.doorAt), step = Math.round(k * DOOR_STEPS);
+    if (step > 0) blit(g, factoryDoorSprite(b.faction, step), x, y, false);
+  }
   const head = HEADS[b.type];
   if (b.type === 'sam') drawSamHead(g, b, x, y, stage);
   else if (head) {
@@ -1993,6 +1997,16 @@ function shadeHex(hex, k) {
   const key = hex + k; let v = shadeCache.get(key);
   if (!v) { const c = parseInt(hex.slice(1), 16), f = (s) => Math.min(255, Math.round(((c >> s) & 255) * k)); v = `rgb(${f(16)},${f(8)},${f(0)})`; shadeCache.set(key, v); }
   return v;
+}
+
+// How far the War Factory's door is open, 0 to 1, t seconds after a unit came out: it rolls up in DOOR_UP,
+// stays open DOOR_HOLD while the unit drives clear, then rolls down in DOOR_DOWN.
+const DOOR_UP = 0.5, DOOR_HOLD = 1.4, DOOR_DOWN = 0.7;
+function doorOpen(t) {
+  if (t < 0 || t >= DOOR_UP + DOOR_HOLD + DOOR_DOWN) return 0;
+  if (t < DOOR_UP) return t / DOOR_UP;
+  if (t < DOOR_UP + DOOR_HOLD) return 1;
+  return 1 - (t - DOOR_UP - DOOR_HOLD) / DOOR_DOWN;
 }
 
 // A gun's recoil, 0 to 1 (shotAt, set in world.js fireWeapon): it kicks back at once, holds a

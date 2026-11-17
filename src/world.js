@@ -4528,6 +4528,7 @@ function spawnUnit(team, type) {
     const pos = cellCenter(c);
     u = addUnit(type, team, pos.x + (Math.random() - 0.5) * 6, pos.y + (Math.random() - 0.5) * 4);
     u.face = u.tface = Math.PI / 2;
+    if (p.type === 'factory') p.doorAt = G.t;   // the door rolls up (art.js drawStructure; synced, so online copies see it)
   }
   if (d.harvester) return u;
   if (team.isAI && aiHomeGuard(team, u)) return u;
