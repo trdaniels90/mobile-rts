@@ -554,21 +554,35 @@ function wallOk(team, c, blds) {
   }
   return false;
 }
+// A gate's middle kind and the step between its cells (G.wall index): 4 west-east, 5 north-south, 7 and 8 diagonal.
+const gateStep = (id) => (id === 5 ? MAP : id === 7 ? MAP + 1 : id === 8 ? MAP - 1 : 1);   // (MAP changes with the map)
+// Which way a gate lies diagonally: 1 north-west to south-east, -1 north-east to south-west, 0 straight (or not a gate).
+function gateDiag(c) { const m = G.wall[gateCells(c).find((k) => G.wall[k] !== 6) ?? c]; return m === 7 ? 1 : m === 8 ? -1 : 0; }
 // Every cell of the gate a gate cell belongs to: its middle and the ends that stand (a save from before gates were
 // three cells wide has middles alone).
 function gateCells(c) {
   const id = G.wall[c], t = G.wallTeam[c], is = (k, want) => k >= 0 && k < NCELLS && G.wall[k] === want && G.wallTeam[k] === t;
-  if (id === 6) c = is(c - 1, 4) && cellX(c) > 0 ? c - 1 : is(c + 1, 4) && cellX(c) < MAP - 1 ? c + 1 : is(c - MAP, 5) ? c - MAP : is(c + MAP, 5) ? c + MAP : c;
+  // A neighbour k of c (cells apart by its step) that does not wrap round the map's side.
+  const near = (k) => Math.abs(cellX(k) - cellX(c)) <= 1;
+  if (id === 6) {
+    for (const m of [4, 5, 7, 8]) {
+      const st = gateStep(m);
+      if (is(c - st, m) && near(c - st)) { c -= st; break; }
+      if (is(c + st, m) && near(c + st)) { c += st; break; }
+    }
+  }
   const mid = G.wall[c];
-  if (mid !== 4 && mid !== 5) return [c];
-  const st = mid === 4 ? 1 : MAP;
-  return [c - st, c, c + st].filter((k) => k === c || is(k, 6));
+  if (mid !== 4 && mid !== 5 && mid !== 7 && mid !== 8) return [c];
+  const st = gateStep(mid);
+  return [c - st, c, c + st].filter((k) => k === c || (is(k, 6) && Math.abs(cellX(k) - cellX(c)) <= 1));
 }
 // The cells of a straight line between two cells (at most WALL_LINE_MAX). A gate is three cells with the first cell
-// in the middle, lying north-south when the second cell is further off up or down than across, else west-east.
+// in the middle, lying north-south when the second cell is further off up or down than across, diagonally when it is
+// as far off both ways, else west-east.
 function wallLine(kind, x0, y0, x1, y1) {
   if (WALLS[kind] && WALLS[kind].gate) {
-    const v = Math.abs(y1 - y0) > Math.abs(x1 - x0), dx = v ? 0 : 1, dy = v ? 1 : 0;
+    const ax = Math.abs(x1 - x0), ay = Math.abs(y1 - y0);
+    const dx = ay > ax ? 0 : Math.sign(x1 - x0) || 1, dy = ay < ax ? 0 : Math.sign(y1 - y0);
     return inMap(x0 - dx, y0 - dy) && inMap(x0 + dx, y0 + dy) ? [idx(x0 - dx, y0 - dy), idx(x0, y0), idx(x0 + dx, y0 + dy)] : [];
   }
   // A slanted line steps diagonally where it must (one piece a step, so a diagonal wall looks straight in the iso view):
@@ -583,6 +597,7 @@ function wallLine(kind, x0, y0, x1, y1) {
 // need not leave a gap first: the pieces it covers are replaced, half their price back as if sold (owner's pick).
 const ownPiece = (team, c) => G.wall[c] > 0 && G.wallTeam[c] === team.id && !WALL_BY_ID[G.wall[c]].gate;
 const gateCellOk = (team, c, blds) => ownPiece(team, c) || wallOk(team, c, blds);
+const gateMid = (st) => (Math.abs(st) === 1 ? 4 : Math.abs(st) === MAP ? 5 : Math.abs(st) === MAP + 1 ? 7 : 8);
 const gateRefund = (team, cs) => cs.reduce((s, c) => s + (ownPiece(team, c) ? Math.floor(WALL_BY_ID[G.wall[c]].cost / 2) : 0), 0);
 function setWall(c, id, tid, hp) {
   const was = WALL_BY_ID[G.wall[c]], d = WALL_BY_ID[id];
@@ -602,7 +617,7 @@ function placeWalls(team, kind, x0, y0, x1, y1) {
     const cs = wallLine(kind, x0, y0, x1, y1), refund = gateRefund(team, cs);
     if (cs.length === 3 && team.credits + refund >= d.cost && cs.every((c) => gateCellOk(team, c, blds))) {
       team.credits += refund - d.cost; n = 1;
-      setWall(cs[0], 6, team.id, d.hp); setWall(cs[1], cs[1] - cs[0] === 1 ? 4 : 5, team.id, d.hp); setWall(cs[2], 6, team.id, d.hp);
+      setWall(cs[0], 6, team.id, d.hp); setWall(cs[1], gateMid(cs[1] - cs[0]), team.id, d.hp); setWall(cs[2], 6, team.id, d.hp);
     }
   } else for (const c of wallLine(kind, x0, y0, x1, y1)) {
     if (team.credits < d.cost) break;

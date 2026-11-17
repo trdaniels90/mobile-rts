@@ -568,14 +568,15 @@ function draw() {
         // Diagonal joins (16 NE, 32 SE, 64 SW, 128 NW): a piece touching another only at a corner, a diagonal wall.
         if (!d.gate) for (const [dx, dy, bit] of WALL_DIAG) {
           const x = cx + dx, y = cy + dy;
-          if (inMap(x, y) && G.wall[idx(x, y)] && !WALL_BY_ID[G.wall[idx(x, y)]].gate && !G.wall[idx(x, cy)] && !G.wall[idx(cx, y)]) mask |= bit;
+          // (A gate only when it lies diagonally this way: the wall runs on into it.)
+          const k = idx(x, y), wd = inMap(x, y) && WALL_BY_ID[G.wall[k]];
+          if (wd && !G.wall[idx(x, cy)] && !G.wall[idx(cx, y)] && (!wd.gate || gateDiag(k) === dx * dy)) mask |= bit;
         }
         let open = 0, gm = 0;
         if (d.gate) {                                                       // its barrier sinks and rises over about a third of a second (looks only)
           // The three cells of a gate are drawn as one and open as one, when one of its alliance is beside any of it.
-          const cs = gateCells(c), a = cs[0], b = cs[cs.length - 1], st = b - a >= MAP ? MAP : 1;
-          gm = (cs.includes(c - st) ? (st === 1 ? 8 : 1) : 0) | (cs.includes(c + st) ? (st === 1 ? 2 : 4) : 0);
-          const bx0 = cellX(a) * CELL - 22, by0 = cellY(a) * CELL - 22, bx1 = (cellX(b) + 1) * CELL + 22, by1 = (cellY(b) + 1) * CELL + 22, now = performance.now();
+          const cs = gateCells(c), xs = cs.map(cellX), ys = cs.map(cellY), now = performance.now();
+          const bx0 = Math.min(...xs) * CELL - 22, by0 = Math.min(...ys) * CELL - 22, bx1 = (Math.max(...xs) + 1) * CELL + 22, by1 = (Math.max(...ys) + 1) * CELL + 22;
           const want = G.entities.some((e) => e.alive && e.kind === 'unit' && !isAirborne(e) && e.x > bx0 && e.x < bx1 && e.y > by0 && e.y < by1 && alliedSides(e.team, wt)) ? 1 : 0;
           let s = gateAnim.get(c);
           if (!s || now - s.t > 1000) gateAnim.set(c, s = { v: want, t: now });
@@ -1162,16 +1163,19 @@ function draw() {
       if (WALLS[p.wall].gate) {
         // A gate: the tap is its middle. Tapped on your own wall it lies along the wall, replacing those pieces; else
         // across the gap in a wall when there is one (or the way it fits). A second tap on the same cell turns it.
-        if (p.ax === cx && p.ay === cy) p.vert = !p.vert;
+        // Four ways it can lie: west-east, north-south and the two diagonals (straight across the iso view).
+        const DIRS = [[1, 0], [0, 1], [1, 1], [1, -1]];
+        if (p.ax === cx && p.ay === cy) p.dir = ((p.dir | 0) + 1) % 4;
         else {
-          const team = G.teams[G.me], blds = buildingsOf(team.id), W = (x, y) => inMap(x, y) && G.wall[idx(x, y)] > 0, fits = (dx, dy) => [-1, 0, 1].every((k) => inMap(cx + k * dx, cy + k * dy) && gateCellOk(team, idx(cx + k * dx, cy + k * dy), blds));
+          const team = G.teams[G.me], blds = buildingsOf(team.id), W = (x, y) => inMap(x, y) && G.wall[idx(x, y)] > 0, fits = ([dx, dy]) => [-1, 0, 1].every((k) => inMap(cx + k * dx, cy + k * dy) && gateCellOk(team, idx(cx + k * dx, cy + k * dy), blds));
           const own = (x, y) => inMap(x, y) && ownPiece(team, idx(x, y));
-          const h = W(cx - 2, cy) || W(cx + 2, cy), v = W(cx, cy - 2) || W(cx, cy + 2);
-          if (own(cx, cy)) { const oh = own(cx - 1, cy) || own(cx + 1, cy), ov = own(cx, cy - 1) || own(cx, cy + 1); p.vert = ov && !oh ? true : oh ? false : !fits(1, 0) && fits(0, 1); }
-          else p.vert = v && !h ? true : h ? false : !fits(1, 0) && fits(0, 1);
+          // Your own wall under the tap: the way it runs on from here; else a gap with wall two cells off either side.
+          const runs = DIRS.findIndex(([dx, dy]) => own(cx - dx, cy - dy) || own(cx + dx, cy + dy));
+          const gap = DIRS.findIndex(([dx, dy]) => W(cx - 2 * dx, cy - 2 * dy) || W(cx + 2 * dx, cy + 2 * dy));
+          p.dir = own(cx, cy) && runs >= 0 ? runs : gap >= 0 ? gap : Math.max(0, DIRS.findIndex(fits));
           p.ax = cx; p.ay = cy;
         }
-        p.bx = p.ax + (p.vert ? 0 : 1); p.by = p.ay + (p.vert ? 1 : 0);
+        p.bx = p.ax + DIRS[p.dir][0]; p.by = p.ay + DIRS[p.dir][1];
       } else if (p.ax === undefined) { p.ax = p.bx = cx; p.ay = p.by = cy; } else { p.bx = cx; p.by = cy; }
       wallBar();
       return;

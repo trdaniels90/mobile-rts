@@ -681,6 +681,12 @@ share globals. Read this file first; the commit history explains every change in
   `aiFindSpot`-style flood do too (also between two buildings or rocks touching at a corner). Drawing: ui.js adds diagonal bits to the mask
   (16 NE, 32 SE, 64 SW, 128 NW: a piece touching another only at a corner); `drawWallIso` turns the post to lie along the wall and draws an arm
   to each joined corner (`prism`, any convex outline), so a run is one straight wall. Old staircase walls draw as before. `walls.js` covers it.
+- **Diagonal gates** (after 2026.11.17.8, both modes; the server must match): a Gate can lie diagonally too, so it fits a diagonal wall (straight
+  across the iso view; owner's report: walls straight, gates not). Middle kinds 7 (north-west to south-east, step `MAP + 1`) and 8 (north-east to
+  south-west, `MAP - 1`), `gateStep`, `gateDiag` (world.js); `wallLine('gate', ..)` lies diagonally when the second cell is as far off both ways.
+  Placing (`placeTap`): it lies along your own wall under the tap or across a gap two cells off, now in any of the four ways; tapping it again
+  cycles them (`p.dir`). Drawn along its line (`drawWallIso`: cells corner to corner, CELL x sqrt 2 long), a diagonal wall runs into its ends (ui.js mask),
+  and an end with a wall beyond gets a stub of that wall up to its pylon (with the owner's stripe on concrete). The computer's rings still use straight gates.
 
 ## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (2026.11.11.2; bridges, weather 2026.11.12)
 

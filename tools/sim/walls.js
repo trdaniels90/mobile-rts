@@ -141,5 +141,15 @@ run(`var wk = addUnit('rifle', T0, (dg[0] + 10.5) * CELL, (dg[1] + 9.5) * CELL),
 for (let i = 0; i < 20 * 30; i++) { run(`tryMove(wk, -0.7, 0.7); tryMove(wv, -0.7, 0.7); if (side(wk) !== s0[0] && wk.x > dg[0] * CELL + 20 && wk.x < (dg[0] + 19) * CELL) crossed++; if (side(wv) !== s0[1] && wv.x > dg[0] * CELL + 20 && wv.x < (dg[0] + 19) * CELL) crossed++; 0`); ctx.get('update')(1 / 30); }
 ok('a soldier and a tank pushed at it never slip through', run('crossed') === 0, run('[crossed, side(wk), side(wv), s0]'));
 
+// A diagonal gate (straight across the iso view) laid over the diagonal wall: three cells corner to corner, its own pass.
+run(`wk.alive = false; wv.alive = false; T0.credits = 5000; var gm = idx(dg[0] + 10, dg[1] + 10), gd = placeWalls(T0, 'gate', dg[0] + 10, dg[1] + 10, dg[0] + 11, dg[1] + 11); 0`);
+ok('a diagonal gate goes over the diagonal wall', run('gd === 1 && G.wall[gm] === 7 && G.wall[gm - MAP - 1] === 6 && G.wall[gm + MAP + 1] === 6 && G.wall[gm - 2 * MAP - 2] === 3 && gateDiag(gm - MAP - 1) === 1'), run('[gd, G.wall[gm]]'));
+ok('its cells are one gate', run('JSON.stringify(gateCells(gm + MAP + 1)) === JSON.stringify([gm - MAP - 1, gm, gm + MAP + 1])'));
+ok('the other diagonal lies north-east to south-west', run('JSON.stringify(wallLine("gate", 20, 20, 21, 19)) === JSON.stringify([idx(19, 21), idx(20, 20), idx(21, 19)])'));
+ok('its corners are shut to the enemy, open to its own', run(`(MOVER = foe, cornerShut(gm + 1, gm + MAP)) && (MOVER = mine, !cornerShut(gm + 1, gm + MAP)) && (MOVER = null, true)`));
+run(`var gw = addUnit('rifle', T0, (dg[0] + 11.5) * CELL, (dg[1] + 9.5) * CELL); commandMove([gw], (dg[0] + 9.5) * CELL, (dg[1] + 11.5) * CELL); 0`);
+for (let i = 0; i < 12 * 30; i++) ctx.get('update')(1 / 30);
+ok('a friendly soldier walks through the diagonal gate', run('side(gw) < 0'), run('[gw.x / CELL, gw.y / CELL]'));
+
 console.log(fails ? fails + ' FAILED' : 'all passed');
 process.exit(fails ? 1 : 0);

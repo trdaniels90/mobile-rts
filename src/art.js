@@ -2962,21 +2962,44 @@ function drawWallIso(g, e) {
     }
     for (const [x, y] of ends) box(x - 0.8, y - 0.8, x + 0.8, y + 0.8, 0, 9, '#4a4036', '#3a3328');
   } else {   // a gate: concrete pylons at its ends, a ribbed steel barrier between them that sinks into the ground to open
-    const cs = gateCells(e.c), vert = cs.length > 1 ? cs[cs.length - 1] - cs[0] >= MAP : e.id === 5;
-    const end = e.id === 6 || cs.length === 1, rise = 2 + 9 * (1 - e.open / GATE_STEPS);
-    const along = (u0, u1, a) => (vert ? [mx - a, by + u0, mx + a, by + u1] : [bx + u0, my - a, bx + u1, my + a]);
+    // Along the gate: d (unit, from its first cell to its last), across: n. A diagonal gate's cells are CELL x sqrt 2 long
+    // along it (corner to corner), so it runs straight on into a diagonal wall.
+    const cs = gateCells(e.c), one = cs.length === 1, A = cs[0], B = cs[cs.length - 1];
+    const sx = one ? (e.id === 5 ? 0 : 1) : Math.sign(cellX(B) - cellX(A)), sy = one ? (e.id === 5 ? 1 : 0) : Math.sign(cellY(B) - cellY(A));
+    const dl = Math.hypot(sx, sy), dx = sx / dl, dy = sy / dl;
+    const half = (dx && dy ? CELL * Math.SQRT2 : CELL) / 2;
+    const end = e.id === 6 || one, rise = 2 + 9 * (1 - e.open / GATE_STEPS);
+    // The outline from s0 to s1 along the gate (0 = this cell's middle), a either side of the line.
+    const along = (s0, s1, a) => [[mx + dx * s0 - dy * a, my + dy * s0 + dx * a], [mx + dx * s1 - dy * a, my + dy * s1 + dx * a],
+      [mx + dx * s1 + dy * a, my + dy * s1 - dx * a], [mx + dx * s0 + dy * a, my + dy * s0 - dx * a]];
     // The barrier runs over the middle and halfway into each end, toward the middle.
-    const first = cs[0] === e.c, last = cs[cs.length - 1] === e.c;
-    const u0 = cs.length === 1 ? 4 : first ? CELL / 2 : 0, u1 = cs.length === 1 ? CELL - 4 : last ? CELL / 2 : CELL;
-    const barrier = () => { const [x0, y0, x1, y1] = along(u0, u1, 1.6); box(x0, y0, x1, y1, 0, rise, '#c9b23a', '#7c7d78', '#4a4b47'); };
-    const pylons = cs.length === 1 ? [2, CELL - 2] : end ? [CELL / 2] : [];
-    const pyl = pylons.map((u) => { const [x0, y0, x1, y1] = along(u - 4, u + 4, 4); return [x0, y0, x1, y1]; });
-    const items = [...pyl.map((p) => ['p', p]), ['b']].sort((a, b) => (a[0] === 'b' ? viewDepth(mx, my) : viewDepth((a[1][0] + a[1][2]) / 2, (a[1][1] + a[1][3]) / 2))
-      - (b[0] === 'b' ? viewDepth(mx, my) : viewDepth((b[1][0] + b[1][2]) / 2, (b[1][1] + b[1][3]) / 2)));
-    for (const [kind, p] of items) {
-      if (kind === 'b') { if (u1 > u0) barrier(); continue; }
-      box(p[0], p[1], p[2], p[3], 0, 17, '#a9a9a2', '#8a8a84', '#5c5c57', e.hurt ? 0.8 : 1);
-      const [lx, ly] = S((p[0] + p[2]) / 2, (p[1] + p[3]) / 2, 17);
+    const first = A === e.c, last = B === e.c;
+    const s0 = one ? 4 - half : first ? 0 : -half, s1 = one ? half - 4 : last ? 0 : half;
+    const barrier = () => prism(along(s0, s1, 1.6), 0, rise, '#c9b23a', '#7c7d78', '#4a4b47');
+    const pylons = one ? [2 - half, half - 2] : end ? [0] : [];
+    const midP = (p) => [p.reduce((t, q) => t + q[0], 0) / 4, p.reduce((t, q) => t + q[1], 0) / 4];
+    const pyl = pylons.map((u) => along(u - 4, u + 4, 4));
+    // An end with a wall beyond it: a stub of that wall from the pylon out to the cell's edge, so the wall runs into it.
+    const stubs = [];
+    if (!one && end) {
+      const out = first ? -1 : 1, nx = e.cx + out * sx, ny = e.cy + out * sy;
+      const wid = inMap(nx, ny) ? G.wall[idx(nx, ny)] : 0, SL = WALL_LOOK[wid];
+      if (SL) stubs.push([out > 0 ? along(4, half, SL.a) : along(-half, -4, SL.a), SL, out > 0 ? [4, half] : [-half, -4], wid]);
+    }
+    const items = [...pyl.map((p) => ['p', p]), ...stubs.map((t) => ['s', ...t]), ['b']].sort((a, b) => (a[0] === 'b' ? viewDepth(mx, my) : viewDepth(...midP(a[1])))
+      - (b[0] === 'b' ? viewDepth(mx, my) : viewDepth(...midP(b[1]))));
+    for (const [kind, p, SL, span, wid] of items) {
+      if (kind === 'b') { if (s1 > s0) barrier(); continue; }
+      if (kind === 's') {
+        prism(p, 0, SL.h, SL.top, SL.side, SL.seam, e.hurt ? 0.78 : 1);
+        if (wid === 3) {   // concrete: the owner's colour along the top, as on the wall
+          const a = S(mx + dx * span[0], my + dy * span[0], SL.h), b = S(mx + dx * span[1], my + dy * span[1], SL.h);
+          g.strokeStyle = e.col; g.lineWidth = 1.5; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+        }
+        continue;
+      }
+      prism(p, 0, 17, '#a9a9a2', '#8a8a84', '#5c5c57', e.hurt ? 0.8 : 1);
+      const [lx, ly] = S(...midP(p), 17);
       g.fillStyle = e.open > 0 ? '#5ee060' : '#f0a020'; g.fillRect(Math.round(lx - 1.5), Math.round(ly - 1.5), 3, 3);   // its lamp
       g.fillStyle = e.col; g.fillRect(Math.round(lx - 3), Math.round(ly + 3), 6, 2);   // the owner's colour
     }
