@@ -4,6 +4,13 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.6', date: '17 November 2026', title: 'Smoother big battles, steadier defenders', groups: [
+    ['Changed', [
+      'Big battles draw faster, most of all on large screens zoomed out: trees, units and effects that are off the screen are no longer drawn, and the map-edge haze is only drawn when the edge is in view. The picture is unchanged.',
+      'Defenders keep after the raider they were sent to instead of turning back and forth every second.',
+      'Units stuck behind friends squeeze past them, and new units no longer wait in narrow gaps between woods.',
+    ]],
+  ] },
   { v: '2026.11.17.5', date: '17 November 2026', title: 'Comanche fixes, wider breaches', groups: [
     ['Changed', [
       'The Comanche\'s chain gun reaches further (190, was 150), past the MG Team and the Rocket Soldier, and it backs away sooner from anything that closes in.',
