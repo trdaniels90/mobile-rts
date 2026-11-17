@@ -612,6 +612,12 @@ share globals. Read this file first; the commit history explains every change in
   on the shortest way in (two floods: as the unit walks, then also through enemy walls), up to 3 groups a turn, units
   within `BREACH_REACH` 15 cells join. `u.breach` sends them back to the hunt after; `manual` is cleared (not a player's
   order). Direct orders are left alone.
+- **Widening a gap** (after 2026.11.17.4, owner's request, both modes; the server must match): a hunting group of `BREACH_CROWD` (8)+ whose
+  open way in squeezes through a gap (`wallInTheWay(u, goal, out)`: `out.choke`, an enemy wall within 2 cells on both sides of a cell of the
+  way, within `CHOKE_NEAR` 25 cells) sends its nearest half that can hurt walls (warhead `bld` >= 0.25, so not rifles) to shoot the wall beside
+  the gap while the rest go through; again each breach turn until it is wide. `breachWalls` also no longer lets a lead shut in by trees speak
+  for its whole group (up to 6 tries a turn). Staged (60 units, a 29-cell walled area with a 1-cell gap, cy 14 cells inside): inside after
+  30 s 28-36 to 44-48; yard damage by 90 s about the same.
 - **The computer** (`aiWalls` in ai.js, Normal and Hard, from minute 5, with 1,200 credits to spare, every 15 s): five
   pieces across the enemy's line of approach, 2.6 cells in front of each ground defence (`b.walled`), never a ring.
   Sandbags or wire; Concrete on Hard with a War Factory. Cap 20 pieces (Normal), 36 (Hard). It builds no gates.

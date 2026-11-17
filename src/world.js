@@ -659,6 +659,8 @@ function clearWalls() {
 // through: the first enemy wall or gate on the shortest way in, then they go on. Each side in turn, a few groups
 // at a time. A player's direct orders are left alone (Attack ground is theirs to give).
 const BREACH_REACH = 15;   // cells: the units around the one that found the way shut join in
+const BREACH_CROWD = 8;    // a group this big widens a gap it would squeeze through (wallInTheWay's `out.choke`)
+const CHOKE_NEAR = 25;     // cells: only gaps this far along its way count
 function breachWalls(team) {
   if (!G.wallN) return;
   const units = unitsOf(team.id).filter((u) => u.cls !== 'air' && u.def.weapon && !u.def.harvester && !u.chute);
@@ -666,15 +668,29 @@ function breachWalls(team) {
   for (const u of units) if (u.breach && !(u.order.type === 'attack' && u.order.target.alive)) { u.breach = false; if (u.order.type === 'guard') setHunt(u); }
   const hunters = units.filter((u) => u.order.type === 'hunt' && !u.breach && !(u.target && u.target.alive));
   const done = [];
+  let tries = 0;
   for (const lead of hunters) {
-    if (done.length >= 3) break;
+    if (done.length >= 3 || tries >= 6) break;
     if (done.some((o) => Math.hypot(o.x - lead.x, o.y - lead.y) < BREACH_REACH * CELL)) continue;
-    done.push(lead);
     const goal = nearestEnemyBuilding(lead);
     if (!goal) continue;
-    const c = wallInTheWay(lead, goal);
-    if (c < 0) continue;
-    const p = cellCenter(c), group = hunters.filter((u) => Math.hypot(u.x - lead.x, u.y - lead.y) < BREACH_REACH * CELL);
+    tries++;
+    const out = {}, c = wallInTheWay(lead, goal, out);
+    // (A unit whose own cell is shut in, by trees or another unit, finds no way at all: the next one speaks for the group.)
+    if (c < 0 && out.walk < 0) continue;
+    done.push(lead);
+    let group = hunters.filter((u) => Math.hypot(u.x - lead.x, u.y - lead.y) < BREACH_REACH * CELL), w = c;
+    // The way in is open but squeezes through a gap in a wall: a big group does not all queue for it. Half of it (those
+    // nearest) shoots the wall beside the gap to widen it while the rest go through; again each turn until it is wide.
+    if (c < 0) {
+      if (!(out.choke >= 0) || group.length < BREACH_CROWD) continue;
+      w = out.choke;
+      // (Only units that can hurt a wall: rifles would spend a minute on one piece of concrete.)
+      const q = cellCenter(w), d = (u) => Math.hypot(u.x - q.x, u.y - q.y), half = Math.ceil(group.length / 2);
+      group = group.filter((u) => WARHEADS[u.def.weapon.wh].bld >= 0.25).sort((a, b) => d(a) - d(b)).slice(0, half);
+      if (!group.length) continue;
+    }
+    const p = cellCenter(w);
     commandAttackGround(group, p.x, p.y);
     for (const u of group) if (u.order.type === 'attack') { u.breach = true; u.manual = false; u.manualFrom = undefined; }   // (not a player's order: see takeOver)
   }
@@ -684,7 +700,9 @@ function breachWalls(team) {
 // A way round that is BREACH_DETOUR times longer than the way through (plus BREACH_SLACK cells) counts as shut too:
 // a ring with a one-cell gap at the back of the base (ore it could not wall) is shot through at the front.
 const BREACH_DETOUR = 1.6, BREACH_SLACK = 12;
-function wallInTheWay(u, goal) {
+// out (optional): when it can walk there, out.choke is an enemy wall beside a gap the way squeezes through (enemy walls
+// within 2 cells on both sides of a cell of the way, within CHOKE_NEAR cells of the unit), the one met first; else -1.
+function wallInTheWay(u, goal, out) {
   const s = cellOfPos(u.x, u.y), n = NCELLS, from = new Int32Array(n).fill(-2), dist = new Int32Array(n);
   const atGoal = (x, y) => x >= goal.cx - 1 && x <= goal.cx + goal.w && y >= goal.cy - 1 && y <= goal.cy + goal.h;
   const enemyWall = (c) => G.wall[c] && hostile(u.team, G.wallTeam[c]);
@@ -708,6 +726,22 @@ function wallInTheWay(u, goal) {
   MOVER = u;
   try {
     const walk = flood(false), dWalk = walk >= 0 ? dist[walk] : -1;
+    if (out) {
+      out.choke = -1; out.walk = walk;
+      for (let p = walk; p >= 0; p = from[p]) {
+        if (dist[p] > CHOKE_NEAR) continue;
+        const px = cellX(p), py = cellY(p);
+        let L = false, R = false, U = false, D = false, best = -1, bd = 99;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+          if (!inMap(px + dx, py + dy)) continue;
+          const m = idx(px + dx, py + dy);
+          if (!enemyWall(m)) continue;
+          if (dx < 0) L = true; if (dx > 0) R = true; if (dy < 0) U = true; if (dy > 0) D = true;
+          const dd = dx * dx + dy * dy; if (dd < bd) { bd = dd; best = m; }
+        }
+        if ((L && R) || (U && D)) out.choke = best;   // (walking back from the goal: the last found is the first met)
+      }
+    }
     let c = flood(true), wall = -1;
     if (walk >= 0 && (c < 0 || dWalk <= dist[c] * BREACH_DETOUR + BREACH_SLACK)) return -1;
     for (; c >= 0; c = from[c]) if (enemyWall(c)) wall = c;   // (walking back from the goal: the last one found is the first met)
