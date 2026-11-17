@@ -325,8 +325,8 @@ function liftSafe(team, from, to, wide = 1) {
   const aa = knownAA(team.id, false), hit = (p) => aa.some((a) => Math.hypot(a.x - p.x, a.y - p.y) < a.r * wide);
   if (hit(to)) return false;
   if (wide <= 1) return true;
-  const n = Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / (CELL * 2));
-  for (let i = 1; i < n; i++) if (hit({ x: from.x + (to.x - from.x) * i / n, y: from.y + (to.y - from.y) * i / n })) return false;
+  const n = Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / (CELL * 2)), on = (p) => aa.some((a) => Math.hypot(a.x - p.x, a.y - p.y) < a.r);
+  for (let i = 1; i < n; i++) if (on({ x: from.x + (to.x - from.x) * i / n, y: from.y + (to.y - from.y) * i / n })) return false;
   return true;
 }
 function liftClash(team, p) {
@@ -349,10 +349,18 @@ function aiLiftWithWave(team, ready, target) {
   const L = aiOf(team).lift, plan = assaultPlan(team, { min: L.min, prefer: L.prefer });
   if (typeof plan === 'string' || !target) return ready;
   const mid = { x: ready.reduce((s, u) => s + u.x, 0) / ready.length, y: ready.reduce((s, u) => s + u.y, 0) / ready.length };
-  const d = unitDir(mid, target), side = Math.random() < 0.5 ? 1 : -1;
-  const want = L.pair === 'behind' ? { x: target.x + d.x * CELL * 6, y: target.y + d.y * CELL * 6 } : { x: target.x - d.y * side * CELL * 7, y: target.y + d.x * side * CELL * 7 };
+  // Spots round the target, best first: straight behind it (rusher) or square to the wave's line (flank), then turned further
+  // round, a little further out; the first one clear of known anti-air is used.
+  const d = unitDir(mid, target), side = Math.random() < 0.5 ? 1 : -1, base = Math.atan2(d.y, d.x);
+  const turns = L.pair === 'behind' ? [0, 0.6, -0.6, 1.1, -1.1] : [1.57, -1.57, 1.1, -1.1, 2.1, -2.1].map((t) => t * side);
   const crew = new Set(plan.crew), wave = ready.filter((u) => !crew.has(u));
-  if (wave.length < 3 || !aiLiftGo(team, plan, want, { mode: 'hunt', goAt: Infinity })) return ready;
+  if (wave.length < 3) return ready;
+  let ok = false;
+  for (const r of [6, 9]) for (const t of turns) {
+    if (ok) break;
+    ok = aiLiftGo(team, plan, { x: target.x + Math.cos(base + t) * CELL * r, y: target.y + Math.sin(base + t) * CELL * r }, { mode: 'hunt', goAt: Infinity });
+  }
+  if (!ok) return ready;
   team.liftPair = { heli: plan.heli.id, tid: target.id, tx: target.x, ty: target.y, wave: wave.slice(0, 12).map((u) => u.id), t: G.t };
   return wave;
 }
@@ -718,14 +726,14 @@ function aiThink(team) {
   if (aiOf(team).planner && !team.research && c.tech && money > 2500) for (const id in UPGRADES) if (canResearch(team, id)) { startResearch(team, id); break; }
   // Helicopters and jets have their own queues; against aircraft it leans on fighters.
   const air = G.entities.filter((e) => e.alive && e.team === team.id && e.cls === 'air').length + team.queues.heli.length + team.queues.jet.length;
+  // Transports for air assaults (AI_STYLES lift) come first, and attack helicopters leave pads free for them.
+  const L = aiOf(team).lift, lift = team.faction === 'allies' ? 'chinook' : 'halo', liftsShort = L && c.helipad && G.t > aiOf(team).firstWave * L.from ? L.n - (c[lift] || 0) : 0;
+  if (liftsShort > 0 && !capped && !truckDue && money > 1100 && !team.queues.heli.length && padRoom(team, 'helipad') > 0) startProduction(team, lift);
   if (!capped && money > (anti ? 600 : 900) && air < 6 && !truckDue) {
     const comanche = available(team, 'comanche') && Math.random() < ((team.counter || {}).armor ? 0.65 : 0.45);   // more of them against tanks
     const heli = team.faction === 'allies' ? (comanche ? 'comanche' : 'heli') : 'hind', jet = team.faction === 'allies' ? 'jet' : 'mig';
-    const lift = team.faction === 'allies' ? 'chinook' : 'halo';
-    const L = aiOf(team).lift;   // transports for air assaults, by personality (AI_STYLES lift)
-    if (L && c.helipad && (c[lift] || 0) < L.n && !anti && !team.queues.heli.length && G.t > aiOf(team).firstWave * L.from && padRoom(team, 'helipad') > 0) startProduction(team, lift);
-    else if (c.airfield && !team.queues.jet.length && padRoom(team, 'airfield') > 0 && (anti || Math.random() < 0.5)) startProduction(team, jet);
-    else if (c.helipad && available(team, heli) && !team.queues.heli.length && (!anti || !c.airfield || Math.random() < 0.25)) startProduction(team, heli);
+    if (c.airfield && !team.queues.jet.length && padRoom(team, 'airfield') > 0 && (anti || Math.random() < 0.5)) startProduction(team, jet);
+    else if (c.helipad && available(team, heli) && !team.queues.heli.length && padRoom(team, 'helipad') > Math.max(0, liftsShort) && (!anti || !c.airfield || Math.random() < 0.25)) startProduction(team, heli);
   }
 
   // Airfield support powers: bomb the thickest part of the enemy base, drop troops on its economy,
@@ -826,7 +834,7 @@ function aiGap(team) {
 //   min (fewest soldiers flown), prefer (kinds it loads first), pair ('behind' / 'flank': a drop timed to land with each ground
 //   wave, behind the target or on its flank; stallOnly: only with a wave its stall rule sent), solo (seconds between drops of
 //   their own; eco: at refineries, power and Outposts, landing behind them), aaWide (keeps that much further from known
-//   anti-air, along the whole flight too), defend (flies idle infantry to an outlying base or refinery under attack).
+//   anti-air at the landing spot, and the flight never crosses its reach), defend (flies idle infantry to an outlying base or refinery under attack).
 const AI_STYLES = {
   balanced: { lift: { from: 0.6, n: 1, min: 8, pair: 'flank' } },
   rusher: { firstWave: -180, hold: 0.3, full: 0.4, gapMul: 0.6, defAdd: -2, wallMul: 0.5, garAdd: -1,
@@ -834,7 +842,7 @@ const AI_STYLES = {
   turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, defAdd: 5, aaAdd: 2, defRich: 800, guns2: 4, ring2: true, stallAfter: 240, stallMin: 18, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18],
     lift: { from: 0.8, n: 1, min: 8, pair: 'flank', stallOnly: true, defend: true } },
   raider: { hold: 0.4, airGap: 0.6, splitAt: [12, 8], split3: 0.75, eco: true,
-    lift: { from: 0.5, n: 2, min: 6, prefer: { rocket: 2, grenadier: 2 }, solo: 90, eco: true, aaWide: 1.5 } },
+    lift: { from: 0.5, n: 2, min: 6, prefer: { rocket: 2, grenadier: 2 }, solo: 90, eco: true, aaWide: 1.25 } },
 };
 const AI_STYLE_KEYS = Object.keys(AI_STYLES);
 function aiStyle(team) {
