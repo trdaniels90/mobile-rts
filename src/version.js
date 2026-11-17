@@ -4,6 +4,14 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.10', date: '17 November 2026', title: 'Tougher turtles, faster yards', groups: [
+    ['Changed', [
+      'More Construction Yards build structures faster: 1.5x with two, 2x with three, up to 2.5x with four. This works for the computer too.',
+      'Defensive computer opponents no longer sit at home for good: if a wave is overdue by four minutes, they attack with what they have. They also build more defences and anti-air, and wall in their second base as well as their main one.',
+      'Computer opponents can field up to 100 units on every difficulty.',
+      'The Comanche now costs 2000. SAM Sites and AA Guns reach a little further.',
+    ]],
+  ] },
   { v: '2026.11.17.9', date: '17 November 2026', title: 'Diagonal gates', groups: [
     ['Changed', [
       'Gates can now lie diagonally, so they line up with diagonal walls. Placed on or across a gap in your wall, a Gate turns to follow it; tap it again to turn it through all four ways.',
