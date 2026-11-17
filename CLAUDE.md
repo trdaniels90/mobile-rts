@@ -1137,7 +1137,13 @@ frame-time maths everywhere, so it is not deterministic.
   mast, blue insulators, glowing ball); `muzzle` fires from the cap (`TESLA_TOP` 10). The computer adds it to its Soviet vehicle picks once researched.
   `node tools/sim/tesla-tank.js <repo>`: Soviets only, locked until researched, kills a rifleman, 132 damage to a Heavy Tank in 5 s, never fires at a helicopter.
 
-## Transport helicopters and Air Assault (after 2026.11.17.11, not released, owner OK'd for both modes; the server must match)
+## Transport helicopters and Air Assault (after 2026.11.17.11, ON HOLD: not released, owner OK'd for both modes; the server must match)
+
+- **ON HOLD (owner, 2026-11-17): keep this work but do not put it in any build (artifact, test build, Windows/Mac app, game server)
+  until the owner says so.** It is on `claude/cross-platform-game-k2d9lb`, so before any release from this branch, ask the owner whether
+  transports go out; if not, hide them first (e.g. empty `factions` on `chinook` / `halo` and no `lift` in `AI_STYLES`). Open question
+  when it comes back: computer drops die within a minute in computer-only games (see the tuning notes below); next ideas were trying it
+  against a person, a counter-drop (fly when the enemy army is seen away from home), or skipping paired drops when the wave is outnumbered.
 
 - **Units** (data.js, Helicopter Base, $1000, unarmed, `lift: true`, `carry: 8`): Chinook (Allies, 320 health, speed 75) and Halo Transport
   (Soviets, after the Mi-26, 360 health, speed 70). Models `chinookModel` / `haloModel` (models.js); rotors from `ROTORS` in art.js (the Chinook's
