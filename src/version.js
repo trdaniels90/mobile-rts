@@ -4,6 +4,16 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17.3', date: '17 November 2026', title: 'Yard crane, aircraft lights at night', groups: [
+    ['New', [
+      'The Construction Yard\'s crane swings round to each structure you place, works its hook while it goes up, then swings back.',
+      'Aircraft lights at night (Crossroads Village): planes show red and green wingtip lights, a white tail strobe and a red beacon; helicopters a red beacon and a white tail light.',
+    ]],
+    ['Fixed', [
+      'A double tap or double click on your own wall no longer sells it: tap once, then tap again a moment later.',
+      'The glow behind a jet\'s engine no longer shows in front of the jet.',
+    ]],
+  ] },
   { v: '2026.11.17.2', date: '17 November 2026', title: 'Tech Center upgrades: Comanche and Tesla Tank', groups: [
     ['New', [
       'Tech Center upgrades: select a finished Tech Center and tap UPGRADES. One upgrade researches at a time and is paid for as it goes. A finished upgrade stays for the rest of the battle even if you lose the Tech Center; research still running when your last Tech Center falls is refunded.',
