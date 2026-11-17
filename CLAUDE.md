@@ -1273,3 +1273,15 @@ frame-time maths everywhere, so it is not deterministic.
 - `v2Model(pal, loaded, up)` (models.js): the rail pivots on its rear end up to `V2_RAISE` (0.85 rad), with a ram; `V2_STEPS` (3) + 1 looks,
   keyed `'W' + key + loaded + step` in `hullSprite`, all baked (`looks` in bake-sprites.js and `warmSprites`). Sprites and ground key rebaked.
   The server must run the same version.
+
+## War Factory door opens (contributor's change by JGFortanelli, not released, both modes)
+
+- The door opens first, then the vehicle rolls out. `spawnUnit` for a ground unit from a War Factory sets `b.doorAt` (a plain
+  field, saved and synced) and queues the vehicle in `G.doorQ` (plain data, saved); `updateDoors` (world.js, from `update`)
+  makes it `DOOR_UP` (0.5 s) later with `spawnUnit(team, type, from)`. So a vehicle arrives 0.5 s after it is built (host only;
+  the server must run the same version). A second vehicle while the door is up keeps it up (`doorOpen` gives where it is).
+- The new vehicle carries `outT`, `outX`, `outY` (synced); art.js `drawUnit` draws it rolling from the doorway to where it
+  stands and coming out of the dark over `EMERGE` (0.6 s), then calls `drawUnitBody`. The simulation's position is unchanged.
+- `drawStructure` draws `factoryDoorSprite(faction, step)` (models.js `factoryDoor`, `DOOR_STEPS` 5) over the door: a shutter
+  that rolls up over `DOOR_UP`, stays open `DOOR_HOLD` 1.4 s, rolls down over `DOOR_DOWN` 0.7 s, the dark hall below it.
+  The structure's own model is unchanged.

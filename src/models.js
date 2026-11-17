@@ -4480,6 +4480,23 @@ function samDoor(right) {
   return m;
 }
 
+// The War Factory's door (both factions: x 20 to 52 on the front face, y 45, up to z 16), drawn over the
+// structure while it opens for a new unit (art.js drawStructure, b.doorAt). It rolls up like a shutter: lift
+// (0 to 15 voxels) of dark hall shows below it, and its slats move up with it.
+const DOOR_STEPS = 5;
+function factoryDoor(faction, step) {
+  const m = new VModel(-2, -2, 74, 50, 17), lift = Math.round(15 * step / DOOR_STEPS);
+  const sov = faction === 'soviets', slat = sov ? SV.olive : '#3b3b37', slatD = sov ? SV.oliveD : '#2c2c28';
+  for (let z = 1; z < 16; z++) {
+    if (z < 1 + lift) m.box(20, 44, z, 52, 46, z + 1, z === 1 ? '#34302a' : z > lift - 1 ? '#0c0b0a' : '#171512', M_MATTE);   // the hall inside
+    else m.box(20, 44, z, 52, 46, z + 1, z === 1 + lift && lift ? '#1e1e1b' : (z - lift) % 2 ? slatD : slat, M_METAL);
+  }
+  return m;
+}
+function factoryDoorSprite(faction, step) {
+  return sprite('FD' + faction + step, () => factoryDoor(faction, step), 0, 0, { shadow: false });
+}
+
 // ---------------------------------------------------------------------------
 // Sprite getters used by the renderer
 // ---------------------------------------------------------------------------

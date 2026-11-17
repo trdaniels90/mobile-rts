@@ -4,6 +4,21 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.17', date: '17 November 2026', title: 'Computer personalities, new build-up, War Factory doors', groups: [
+    ['New', [
+      'Computer personalities (Normal and Hard): each computer side plays a style for the whole battle: rusher, turtle, raider or balanced. Computer allies never share a style, so they no longer all attack at the same moment.',
+      'Turtle and balanced computers wall their main base in concrete with a gate on each side. Units hunting an enemy now also shoot through walls when the way round is much longer.',
+      'Computer second bases: from about minute 10 a computer sends a Mobile Construction Yard to a rich ore field on its half and builds a small base there.',
+      'Structures rise in layers inside a scaffold with sparks while they build (2.5 seconds). The Soviet radar dish turns.',
+      'War Factory: the front door rolls up before a vehicle rolls out, then rolls down again (a vehicle now appears half a second after it is built). Thanks to JGFortanelli.',
+      'A battle clock sits in the middle of the top strip.',
+    ]],
+    ['Changed', [
+      'Trees, flags and banners sway more slowly in the wind.',
+      'The Options tab has a bigger touch area on phones.',
+      'Night on Crossroads Village is lighter on phones, so it runs smoother.',
+    ]],
+  ] },
   { v: '2026.11.16.5', date: '16 November 2026', title: 'V2 raises its rocket, fewer traffic jams', groups: [
     ['New', [
       'V2 Rocket Launcher: the rocket now lies flat on the truck. When ordered to attack, it raises on its rail (about 1.5 seconds) before it fires, stays up while it reloads, and lowers again a few seconds after the fight (or before the truck drives off).',
