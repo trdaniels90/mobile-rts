@@ -386,6 +386,16 @@
     centerOn(cy.x + 40, cy.y - 30);
   }
 
+  // Saved co-op battles: this phone's match row for each (save id -> match id), so a continued battle is the same match.
+  const coopMatches = () => { try { return JSON.parse(localStorage.getItem('rh-coop-matches')) || {}; } catch (_) { return {}; } };
+  // A co-op battle saved and closed (by anyone in it): no result; back to the menu, on the online page that says how to continue.
+  UIBridge.saved = (by) => {
+    Report.park();
+    endPlace();
+    startGame();
+    showMenu('start');
+    Online.open(faction, `${by} saved the battle. To continue it, host a game, have the same friends join, and pick it under Saved co-op battles.`);
+  };
   // An online battle (net.js): o = { seed, faction, me, opponent }.
   UIBridge.start = (o) => {
     Report.quit();
@@ -402,7 +412,17 @@
     // Co-op against the computer is 'pve', with its difficulty; the rest 'pvp'.
     // In co-op the match row's opponent column holds the teammate's name, for the co-op leaderboard.
     // (3 v AI is reported as 'pve' too, with stats.size 3, but has no leaderboard of its own yet: see Report.stats)
-    if (coop) Report.start(o.faction, o.diff || 'normal', 'pve', o.partner || 'Commander'); else Report.start(o.faction, null, 'pvp', o.opponent);
+    if (coop) {
+      // A saved co-op battle continued: this phone carries on its own match row from before, if it played it.
+      const ids = coopMatches(), mine = o.resume !== undefined && o.save ? ids[o.save] : null;
+      if (mine) Report.resume(mine, o.faction, o.diff || 'normal', 'pve', o.partner || 'Commander');
+      else Report.start(o.faction, o.diff || 'normal', 'pve', o.partner || 'Commander');
+      if (o.save && Report.matchId) {
+        ids[o.save] = Report.matchId;
+        const keep = Object.keys(ids).slice(-10);
+        try { localStorage.setItem('rh-coop-matches', JSON.stringify(Object.fromEntries(keep.map((k) => [k, ids[k]])))); } catch (_) {}
+      }
+    } else Report.start(o.faction, null, 'pvp', o.opponent);
     hideMenu();
     eva('Select a structure to build');
   };
@@ -1790,6 +1810,7 @@ function draw() {
     ui.menu.dataset.mode = mode;
     ui.resumeBtn.hidden = mode !== 'pause';
     ui.quitBtn.hidden = mode !== 'pause';
+    $('saveQuitBtn').hidden = mode !== 'pause' || !Net.canSave;
     disarmQuit();
     if (G && !Net.role) G.paused = true;   // (an online battle runs on: the other player is still in it)
     ui.menu.dataset.mode = mode;
@@ -1872,6 +1893,17 @@ function draw() {
     endPlace();
     startGame();
     showMenu('start');
+  });
+  // Online co-op on the game server: save the battle and end it for everyone, to continue later (tap twice).
+  let saveArmed = null;
+  const saveQuit = $('saveQuitBtn');
+  saveQuit.addEventListener('click', () => {
+    if (!Net.canSave) return;
+    if (!saveArmed) { saveQuit.textContent = 'Tap again: save and end it for everyone'; saveArmed = setTimeout(() => { saveArmed = null; saveQuit.textContent = 'Save and leave'; }, 3000); return; }
+    clearTimeout(saveArmed); saveArmed = null;
+    saveQuit.textContent = 'Saving…';
+    Net.saveAndLeave();
+    setTimeout(() => { saveQuit.textContent = 'Save and leave'; }, 8000);
   });
   setInterval(() => { if (!ui.menu.hidden) $('audioStatus').textContent = 'Sound: ' + Sound.status(); }, 500);
   document.addEventListener('visibilitychange', () => { if (document.hidden && G && !G.paused && !G.over) showMenu('pause'); });

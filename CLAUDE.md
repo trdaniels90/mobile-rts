@@ -332,6 +332,24 @@ share globals. Read this file first; the commit history explains every change in
   over 0.8 s 4.4 to 2.9. `bunching.js` 4 x 90 s: attackers 3.44 to 3.64 friends in a V2 blast, 6+ 12% to 15% (a narrower cone, 22 px / 0.6 rad, gave 4.18 / 23%).
 - Under consideration, not built: soldiers packed 3 a cell (formation gap 14, friendly soldier spacing 1.2 radii; MP4 shown to the owner).
 
+## Saved online co-op battles (2 v AI, 3 v AI; not released, online co-op only; the server must match)
+
+- Owner's picks: kept online, autosave plus "Save and leave", the leader seats players, a missing player's side can go to the computer.
+- **Server** (server.js `Saves`, `saveBattle`, `loadSave`): a co-op battle gets `R.saveId` at start and is saved (`SaveGame.freeze` of the room's `G`,
+  gzipped, about 40-200 KB) every `SAVE_EVERY` (120 s), when a player drops (the hold starts), when the room closes with everyone gone, and on `savequit`
+  (any player: saves, sends `saved` with their name, closes the room, battle reported `how: 'saved'`). A battle that ends deletes its save. Stored in Supabase
+  `coop_saves` (`supabase/coop-saves.sql`, applied 2026-11-18; server token functions like server.sql, 60 days kept), in memory without `SERVER_TOKEN`.
+- **Who:** phones send `pids` (a signed-in account's id, `Account.uid`, and the phone's `Report.device`) with create and join. The leader's `saves` lists the
+  newest 8 saves any player in the room was in; `load` sets `R.resume`: mode, map, difficulty and factions are fixed, each player sits in their old place
+  (by pid), an empty human place shows whose it was (`had`) and the leader can give it to the computer (`mate`, any open player place). Saved again, that side
+  stays the player's (`human`). Starting: `SaveGame.adopt` (save.js, the old load's fixups as `revive`; save.js is now in headless.js's SCRIPTS) rebuilds `G`,
+  each side is set to player or computer, peers get a full resync, `start` carries `save` and `resume`.
+- **Phones:** lobby "Saved co-op battles" (leader), a "Continuing a saved battle" note, Continue battle; pause menu "Save and leave" (tap twice, `Net.canSave`);
+  on `saved` everyone goes back to the online page with a note (`UIBridge.saved`, `Report.park`: the match row stays open). A phone that played the battle
+  carries on its own match row (`rh-coop-matches` in localStorage, `Report.resume(.., 'pve', partner)`).
+- Not kept: the marks of battle on the ground (the server records none), burnt trees' looks on phones. A save from another version loads as skirmish saves do.
+- `node tools/sim/server-coop-save.js <repo>` (raw sockets) and `node tools/sim/coop-save-ui.js <repo>` (two browser pages). Not yet tried on real phones or with the live table.
+
 ## Recent mechanics (2026.10.31.2)
 
 - **Map:** "A Bridge Too Far" (`MAPS.bridge`, `src/maps.js`), 144 x 144 cells (`MAP` in data.js). The
@@ -1033,6 +1051,8 @@ Supabase.
 | `ground-tiles.js` | The ground in tiles: every kind of mark in a staged battle, live vs repainted tiles and tile sizes pixel for pixel, save and continue, an old save's scars. `<repo> [maps] [old checkout]` |
 | `give-credits.js` | Giving credits to an ally: the rule headless, the GIVE card in a 2 v 2 skirmish, online co-op through the server and forged orders |
 | `server-coop-mate.js` | Co-op with a computer teammate: two players in a 3 v AI, the leader adds the computer, the battle starts with it on the players' team |
+| `server-coop-save.js` | Saved co-op battles on the server: Save and leave, listing by player, loading with another leader and a missing player, autosave, saved when everyone leaves, deleted when the battle ends |
+| `coop-save-ui.js` | Saved co-op battles in two browser pages: Save and leave from the pause menu, the note, the lobby's list, Continue battle |
 | `bunching.js` | Headless staged fight: how many friends stand inside one V2 blast of each fighting unit, attack and defence, and how the fight went. `<repo> [runs] [seconds]` |
 | `veterancy.js` | Headless: ranks at 2, 4, 8, 16 times own cost destroyed, firepower, armour, speed, reload, elite self-heal, no ranks for Ore Trucks or structures, a staged fight |
 | `bridges.js` | Headless: attack ground, destroyable bridge spans on Twin Lakes (hurt only by an ordered attack, collapse, routes go round), Engineers rebuilding a span and repairing a structure, online snapshot and orders, the computer training and sending an Engineer |

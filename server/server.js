@@ -15,15 +15,19 @@
 //                    { k: 'setup', mode, map, diff } (leader) | { k: 'faction', slot, faction }
 //                    { k: 'team' } (move to the other alliance) | { k: 'go' } (leader)
 //                    { k: 'mate', slot } (leader, co-op: an open place on the players' team to the computer and back)
-//                    'c' orders | 'ping' | 'away' | 'back' | 'resume' | 'quit' | 'bye'
+//                    { k: 'saves' } (leader, co-op: list saved battles) | { k: 'load', id } (leader: continue one; id null: a new battle)
+//                    'c' orders | 'ping' | 'away' | 'back' | 'resume' | 'quit' | 'savequit' (co-op: save and leave, for everyone) | 'bye'
+//   (create and join also carry pids: the player's ids, a signed-in account's and the phone's, for finding their saves)
 //   server -> phone: { k: 'room', code, lead } | { k: 'err', why: 'none' | 'full' | 'version' | 'busy' }
 //                    { k: 'lobby', faction, map, mode, diff, host, guest, slots, mine, ready }
 //                    { k: 'start', seed, faction, match, map, side, sides, mode, diff }
+//                    { k: 'saves', list } | { k: 'saved', by } (the battle was saved and the room closes) | { k: 'err', why: 'save' }
 //                    's' snapshots | 'end' | 'pong' | 'away' | 'resume' | 'left' | 'bye'
 const http = require('http');
 const vm = require('vm');
 const { WebSocketServer } = require('ws');
 const headless = require('./headless');
+const zlib = require('zlib');
 
 const PORT = +process.env.PORT || 8080;
 const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -36,6 +40,7 @@ const MAX_ROOMS = +process.env.MAX_ROOMS || 40;
 const SPEED = +process.env.SPEED || 1;   // tests only: run battles faster than real time
 const ANY_BATTLE = !!process.env.ANY_BATTLE;   // tests: any battle on any map with room for it
 const DIFFS = ['easy', 'normal', 'hard'];
+const SAVE_EVERY = +process.env.SAVE_EVERY || 120;   // seconds between autosaves of a co-op battle
 
 const base = headless.load();
 const VERSION = base.get('VERSION');   // the game version this server runs
@@ -60,6 +65,55 @@ function rpc(fn, p) {
     .then((r) => { if (!r.ok) log('report', fn, 'failed:', r.status); return r.ok; })
     .catch((e) => { log('report', fn, 'failed:', e && e.message); return false; });
 }
+// The same, for a function that answers (the saved battles).
+function rpcJson(fn, p) {
+  return fetch(SUPA.url + 'rest/v1/rpc/' + fn, { method: 'POST', signal: AbortSignal.timeout(20000),
+    headers: { apikey: SUPA.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_token: SUPA.token, p }) })
+    .then((r) => { if (!r.ok) throw new Error(fn + ' ' + r.status); return r.json(); });
+}
+
+// ---------------------------------------------------------------------------
+// Saved co-op battles (2 v AI, 3 v AI): supabase/coop-saves.sql, gzipped JSON of the whole battle (save.js),
+// about 200 KB. Without the token (tests, a local run) they are kept in memory, until the server stops.
+const Saves = (() => {
+  const mem = new Map();
+  const online = () => !!SUPA.token && typeof fetch === 'function';
+  return {
+    put: (rec) => (online() ? rpcJson('coop_save_put', rec) : Promise.resolve(mem.set(rec.id, Object.assign({ saved_at: new Date().toISOString() }, rec)))),
+    list: (pids) => (online() ? rpcJson('coop_save_list', { pids })
+      : Promise.resolve([...mem.values()].filter((r) => r.pids.some((x) => pids.includes(x))).sort((a, b) => (a.saved_at < b.saved_at ? 1 : -1)).slice(0, 8)
+        .map(({ id, saved_at, version, mode, map, difficulty, game_t, players }) => ({ id, saved_at, version, mode, map, difficulty, game_t, players })))),
+    get: (id) => (online() ? rpcJson('coop_save_get', { id }) : Promise.resolve(mem.get(id) || null)),
+    drop: (id) => (online() ? rpcJson('coop_save_drop', { id }).catch(() => null) : Promise.resolve(mem.delete(id))),
+    mem,
+  };
+})();
+const isCoop = (R) => !!(BATTLES[R.mode] && BATTLES[R.mode].coop);
+// Saves the battle now (co-op only). Resolves true once it is stored.
+function saveBattle(R) {
+  const G = R.G, B = R.battle;
+  if (!isCoop(R) || !G || G.over || !B || !R.saveId) return Promise.resolve(false);
+  if (R.saving) return R.saving;
+  let text;
+  try { text = R.run('SaveGame.freeze(G)'); } catch (e) { noteError(R, 'save', e); return Promise.resolve(false); }
+  // Each side as the battle began (who played it), with this phone's id where a player sits there now or did.
+  const players = B.sides.map((x, i) => {
+    const s = R.seats.find((o) => o.side === i);
+    return { faction: x.faction, ally: x.ally, ai: !!x.ai && !x.human, mate: !!x.mate, name: x.name || null, pids: (s && s.pids && s.pids.length ? s.pids : x.pids) || [] };
+  });
+  const rec = { id: R.saveId, version: VERSION, mode: R.mode, map: B.map, difficulty: B.diff, game_t: Math.round(G.t), players,
+    pids: [].concat(...players.map((x) => x.pids)), match: R.match };
+  const at = Date.now();
+  R.saving = new Promise((res) => zlib.gzip(text, (err, z) => {
+    if (err) { res(false); return; }
+    rec.state = z.toString('base64');
+    Saves.put(rec).then(() => { log(R.code, 'saved', R.saveId, Math.round(rec.state.length / 1024) + ' KB', Date.now() - at, 'ms'); res(true); })
+      .catch((e) => { noteError(R, 'save', e); res(false); });
+  })).finally(() => { R.saving = null; });
+  R.savedAt = Date.now();
+  return R.saving;
+}
+
 // Step times over the last minute, every battle together (for the status beat).
 const stepStat = { n: 0, ms: 0, max: 0 };
 // The whole process's CPU use since the last beat, in % of one core (Fly limits a shared CPU to 6.25%).
@@ -122,6 +176,9 @@ const newId = () => Math.random().toString(36).slice(2, 10);
 const uuid = () => require('crypto').randomUUID();
 const send = (ws, o) => { if (ws && ws.readyState === 1) try { ws.send(typeof o === 'string' ? o : JSON.stringify(o)); } catch (_) {} };
 const clean = (s) => String(s || 'Commander').replace(/[\u0000-\u001f]/g, '').slice(0, 20) || 'Commander';
+// A player's ids: a signed-in account's and the phone's (either finds their saves).
+const pidsOf = (m) => (Array.isArray(m.pids) ? m.pids : []).filter((x) => typeof x === 'string').map((x) => x.replace(/[^\w-]/g, '').slice(0, 64)).filter(Boolean).slice(0, 2);
+const same = (a, b) => !!(a && b && a.some((x) => b.includes(x)));
 const other = (f) => (f === 'allies' ? 'soviets' : 'allies');
 const faction = (f) => (f === 'soviets' ? 'soviets' : 'allies');
 
@@ -142,6 +199,7 @@ function makeRoom(code) {
     for (const s of R.seats) send(s.ws, end);
     log(code, 'battle over, winner alliance', R.G.over.winner, R.G.over.how || '', 'at', Math.round(R.G.t), 's');
     reportBattle(R, R.G.over.how || 'win', R.G.over.winner);
+    if (R.saveId) { Saves.drop(R.saveId); R.saveId = null; }   // a battle that is over cannot be continued
     R.battle = null;
     setTimeout(() => backToLobby(R), 0);
   };
@@ -163,7 +221,10 @@ function warmDamage(R) {
 }
 function closeRoom(R, why) {
   clearInterval(R.timer);
-  if (R.phase === 'battle' && R.battle && !(R.G && R.G.over)) reportBattle(R, 'abandoned', null);
+  if (R.phase === 'battle' && R.battle && !(R.G && R.G.over)) {
+    if (why !== 'saved') saveBattle(R);   // a co-op battle everyone left can still be continued
+    reportBattle(R, why === 'saved' ? 'saved' : 'abandoned', null);
+  }
   R.battle = null;
   for (const s of R.seats) { send(s.ws, { k: 'bye' }); try { s.ws && s.ws.close(); } catch (_) {} }
   rooms.delete(R.code);
@@ -185,6 +246,26 @@ function setMode(R, mode, f) {
   for (const s of R.seats) s.slot = undefined;
   for (const s of R.seats) s.slot = freeSlot(R);
 }
+// Continue a saved co-op battle: its battle, map, difficulty and sides. Each player sits in the place they had
+// (by pid), anyone else in a free one; a place whose player is not here can be given to the computer (mate).
+function loadSave(R, rec) {
+  R.resume = { id: rec.id, t: rec.game_t || 0, map: rec.map, players: rec.players, state: rec.state, match: rec.match || null };
+  R.mode = rec.mode; R.map = rec.map; R.diff = DIFFS.includes(rec.difficulty) ? rec.difficulty : 'normal';
+  R.slots = rec.players.map((x) => ({ ally: x.ally, faction: faction(x.faction), ai: !!x.ai, mate: !!x.mate && !!x.ai, had: x.ai ? null : x.name, human: !x.ai, pids: Array.isArray(x.pids) ? x.pids : [] }));
+  for (const s of R.seats) s.slot = undefined;
+  for (const s of R.seats) { const i = R.slots.findIndex((x, j) => same(s.pids, x.pids) && !x.ai && !R.seats.some((o) => o.slot === j)); if (i >= 0) s.slot = i; }
+  for (const s of R.seats) if (s.slot === undefined) s.slot = freeSlot(R);
+  // Never leave the leader without a place: they take the first human place (a computer teammate's, if need be).
+  if (R.seats[0] && R.seats[0].slot === undefined) {
+    const i = R.slots.findIndex((x, j) => x.ally === 0 && (!x.ai || x.mate) && !R.seats.some((o) => o.slot === j));
+    if (i >= 0) { R.slots[i].ai = false; R.slots[i].mate = false; R.seats[0].slot = i; }
+  }
+}
+function unloadSave(R) {
+  if (!R.resume) return;
+  R.resume = null;
+  setMode(R, R.mode);
+}
 const humanSlots = (R) => R.slots.map((x, i) => i).filter((i) => !R.slots[i].ai);
 function freeSlot(R, ally) {
   for (const i of humanSlots(R)) if ((ally === undefined || R.slots[i].ally === ally) && !R.seats.some((s) => s.slot === i)) return i;
@@ -196,40 +277,71 @@ function lobbyMsg(R, me) {
   const [h, g] = R.seats;
   return { k: 'lobby', mode: R.mode, diff: R.diff, map: R.map, faction: R.slots[0].faction,
     host: h ? { name: h.name } : null, guest: g ? { name: g.name } : null,
-    slots: R.slots.map((x, i) => ({ ally: x.ally, faction: x.faction, ai: x.ai, mate: !!x.mate, name: by(i) ? by(i).name : null })),
-    mine: me ? me.slot : null, players: R.seats.length, ready: ready(R) };
+    slots: R.slots.map((x, i) => ({ ally: x.ally, faction: x.faction, ai: x.ai, mate: !!x.mate, name: by(i) ? by(i).name : null, had: x.had || null })),
+    mine: me ? me.slot : null, players: R.seats.length, ready: ready(R),
+    resume: R.resume ? { id: R.resume.id, t: R.resume.t } : null };
 }
 function sendLobby(R) { for (const s of R.seats) send(s.ws, lobbyMsg(R, s)); }
 
 function start(R) {
-  if (R.phase !== 'lobby' || !ready(R)) return;
-  const seed = (Math.random() * 1e9) | 0, match = newId();
-  R.match = match;
+  if (R.phase !== 'lobby' || !ready(R) || R.loading) return;
+  const rs = R.resume;
+  let seed = (Math.random() * 1e9) | 0, match = newId();
   const { ctx, NetCore } = R;
-  const name = (i) => { const s = R.seats.find((x) => x.slot === i); return s ? s.name : null; };
-  const sides = R.slots.map((x, i) => ({ faction: x.faction, ally: x.ally, ai: x.ai, mate: !!x.mate, name: name(i) }));
+  const seat = (i) => R.seats.find((x) => x.slot === i);
+  const name = (i) => { const s = seat(i); return s ? s.name : null; };
+  // human: a player's side the computer plays this time (they could not come); it stays theirs in the save.
+  const sides = R.slots.map((x, i) => ({ faction: x.faction, ally: x.ally, ai: x.ai, mate: !!x.mate, name: name(i) || (x.ai && x.had) || null,
+    human: !!(rs && x.ai && x.human), pids: (seat(i) && seat(i).pids.length ? seat(i).pids : x.pids) || [] }));
   const diff = BATTLES[R.mode].coop ? R.diff : 'normal';
-  // Nobody on this copy is "me": every side is a remote player or the computer.
-  ctx.get('newWorld')(sides[0].faction, diff, seed, 0, true, R.map, sides);
+  if (rs) {
+    // A saved battle, made again from its save; then each side goes to whoever plays it now.
+    try {
+      ctx.__save = zlib.gunzipSync(Buffer.from(rs.state, 'base64')).toString();
+      R.run(`SaveGame.adopt(__save, mapSize(${JSON.stringify(rs.map)})); delete globalThis.__save; 0`);
+    } catch (e) {
+      log(R.code, 'saved battle failed to load', e && e.stack);
+      for (const s of R.seats) send(s.ws, { k: 'err', why: 'save' });
+      unloadSave(R); sendLobby(R);
+      return;
+    }
+    seed = R.G.seed; match = rs.match || match;
+    R.G.teams.forEach((t, i) => {
+      const x = sides[i];
+      if (x.ai) { t.isAI = true; t.auto = true; } else { if (t.isAI) t.auto = false; t.isAI = false; t.name = x.name; }
+    });
+    R.G.hold = false;
+    R.saveId = rs.id;
+    R.resume = null;
+  } else {
+    // Nobody on this copy is "me": every side is a remote player or the computer.
+    ctx.get('newWorld')(sides[0].faction, diff, seed, 0, true, R.map, sides);
+    for (const t of R.G.teams) if (t.isAI) t.auto = true;
+    R.saveId = isCoop(R) ? uuid() : null;
+  }
+  R.match = match;
   R.G.me = -1;   // so every side's announcer lines go out to its player (hooks.evaFor)
-  for (const t of R.G.teams) if (t.isAI) t.auto = true;
+  R.savedAt = Date.now();
   NetCore.reset();
   NetCore.hosting = true;
-  R.seats.forEach((s) => { s.side = s.slot; s.peer = NetCore.peer(s.side); s.away = false; s.left = false; });
+  R.seats.forEach((s) => { s.side = s.slot; s.peer = NetCore.peer(s.side, !!rs); s.away = false; s.left = false; });
   R.phase = 'battle'; R.snapT = 0; R.waitSince = 0; R.held = false; R.last = Date.now();
   R.battle = { id: uuid(), at: new Date().toISOString(), t0: Date.now(), map: R.map, diff, sides, seats: R.seats.length,
     steps: 0, stepMs: 0, stepMax: 0, slow: 0, peak: 0, bytes: 0, snapMax: 0, heldMs: 0, errors: [],
     cpu: { at: process.hrtime.bigint(), use: process.cpuUsage() }, cpuMin: { at: process.hrtime.bigint(), use: process.cpuUsage() }, cpuPeak: 0 };
   reportBattle(R);
-  R.seats.forEach((s) => send(s.ws, { k: 'start', seed, faction: sides[0].faction, match, map: R.map, side: s.side, sides, mode: R.mode, diff }));
+  const pub = sides.map(({ faction, ally, ai, mate, name }) => ({ faction, ally, ai, mate, name }));
+  R.seats.forEach((s) => send(s.ws, { k: 'start', seed, faction: sides[0].faction, match, map: R.map, side: s.side, sides: pub, mode: R.mode, diff,
+    save: R.saveId, resume: rs ? Math.round(R.G.t) : undefined }));
   clearInterval(R.timer);
   R.timer = setInterval(() => tick(R), Math.round(STEP * 1000 / Math.max(1, SPEED)));
-  log(R.code, 'battle started:', R.mode, sides.map((x) => (x.ai ? 'computer' : x.name) + '/' + x.ally).join(', '), 'on', R.map);
+  log(R.code, rs ? 'saved battle continued at ' + Math.round(R.G.t) + ' s:' : 'battle started:', R.mode, sides.map((x) => (x.ai ? 'computer' : x.name) + '/' + x.ally).join(', '), 'on', R.map);
 }
 function backToLobby(R) {
   clearInterval(R.timer); R.timer = null;
   R.phase = 'lobby';
   R.NetCore.hosting = false;
+  R.saveId = null;
   // Anyone who left during the battle loses their seat now.
   R.seats = R.seats.filter((s) => s.ws && !s.left);
   if (!R.seats.length) { closeRoom(R, 'empty after battle'); return; }
@@ -270,7 +382,7 @@ function tick(R) {
   const now = Date.now(), G = R.G;
   let dt = Math.min(0.25, (now - R.last) / 1000) * SPEED;
   R.last = now;
-  if (R.phase !== 'battle' || !G || G.over) return;
+  if (R.phase !== 'battle' || !G || G.over || R.quitting) return;
   // Phones that have gone quiet have dropped.
   for (const s of R.seats) if (s.ws && now - s.heard > SILENT) { log(R.code, s.name, 'silent: dropped'); drop(R, s); }
   const missing = R.seats.filter((s) => !s.left && (!s.ws || s.away));
@@ -279,7 +391,7 @@ function tick(R) {
     if (R.battle) R.battle.heldMs += now - (R.lastHold || now);
     R.lastHold = now;
     R.held = true;
-    if (!R.waitSince) R.waitSince = now;
+    if (!R.waitSince) { R.waitSince = now; if (R.saveId) saveBattle(R); }   // someone dropped: keep the battle as it is now
     if ((now - R.waitSince) / 1000 > WAIT_LIMIT) {
       // Waited long enough: those still away are gone. If every player has gone, nobody won: close
       // the room with no result (no computer takeover, no winner sent to anyone).
@@ -305,6 +417,7 @@ function tick(R) {
       B.cpuMin = { at: process.hrtime.bigint(), use: process.cpuUsage() };
     }
   }
+  if (R.saveId && now - R.savedAt > SAVE_EVERY * 1000 / SPEED) saveBattle(R);
   if ((R.snapT -= STEP * SPEED) <= 0) {
     R.snapT = SNAP;
     try { broadcastSnaps(R); } catch (e) { noteError(R, 'snapshot', e); }
@@ -351,7 +464,7 @@ function onMessage(ws, m, st) {
       const room = makeRoom(code);
       setMode(room, '1v1', m.faction);
       room.map = room.ctx.get('validMap')(m.map);
-      const seat = { gid: String(m.gid || newId()), name: clean(m.name), ws, heard: Date.now(), slot: 0 };
+      const seat = { gid: String(m.gid || newId()), pids: pidsOf(m), name: clean(m.name), ws, heard: Date.now(), slot: 0 };
       room.seats.push(seat);
       st.room = room; st.seat = seat;
       send(ws, { k: 'room', code, lead: true });
@@ -373,9 +486,11 @@ function onMessage(ws, m, st) {
         return;
       }
       if (seat) { send(ws, { k: 'err', why: 'none' }); ws.close(); return; }   // left the battle: it goes on without them
-      const slot = room.phase === 'lobby' ? freeSlot(room) : undefined;
+      const pids = pidsOf(m);
+      let slot = room.phase === 'lobby' && room.resume ? room.slots.findIndex((x, j) => same(pids, x.pids) && !x.ai && !room.seats.some((o) => o.slot === j)) : -1;
+      if (slot < 0) slot = room.phase === 'lobby' ? freeSlot(room) : undefined;
       if (slot === undefined) { send(ws, { k: 'err', why: 'full' }); ws.close(); return; }
-      seat = { gid: String(m.gid || newId()), name: clean(m.name), ws, heard: Date.now(), slot };
+      seat = { gid: String(m.gid || newId()), pids, name: clean(m.name), ws, heard: Date.now(), slot };
       room.seats.push(seat);
       st.room = room; st.seat = seat;
       send(ws, { k: 'room', code: room.code, lead: false });
@@ -386,6 +501,39 @@ function onMessage(ws, m, st) {
   }
   s.heard = Date.now();
   const lead = R.seats[0] === s, lobby = R.phase === 'lobby';
+  if (lobby && R.resume && (m.k === 'lobby' || m.k === 'setup' || m.k === 'faction' || m.k === 'team')) { sendLobby(R); return; }   // a saved battle's sides are fixed
+  if (m.k === 'saves' && lead && lobby) {
+    const pids = [].concat(...R.seats.map((o) => o.pids));
+    if (!pids.length) { send(ws, { k: 'saves', list: [] }); return; }
+    Saves.list(pids).then((list) => send(ws, { k: 'saves', list: (list || []).filter((x) => BATTLES[x.mode] && BATTLES[x.mode].coop) }))
+      .catch((e) => { log(R.code, 'saves list failed', e && e.message); send(ws, { k: 'saves', list: [], failed: true }); });
+    return;
+  }
+  if (m.k === 'load' && lead && lobby) {
+    if (!m.id) { unloadSave(R); sendLobby(R); return; }
+    R.loading = true;
+    Saves.get(String(m.id)).then((rec) => {
+      R.loading = false;
+      if (!rooms.has(R.code) || R.phase !== 'lobby') return;
+      if (!rec || !rec.state || !BATTLES[rec.mode] || !BATTLES[rec.mode].coop || !Array.isArray(rec.players) || rec.players.length !== BATTLES[rec.mode].size * 2
+        || R.seats.length > BATTLES[rec.mode].players) { send(ws, { k: 'err', why: 'save' }); return; }
+      loadSave(R, rec);
+      sendLobby(R);
+    }).catch((e) => { R.loading = false; log(R.code, 'load failed', e && e.message); send(ws, { k: 'err', why: 'save' }); });
+    return;
+  }
+  if (m.k === 'savequit' && R.phase === 'battle' && R.saveId && !R.G.over && !s.left) {
+    log(R.code, s.name, 'saves and leaves');
+    R.quitting = true;
+    const done = (ok) => {
+      if (!rooms.has(R.code) || R.phase !== 'battle') return;
+      if (!ok) { R.quitting = false; send(ws, { k: 'err', why: 'save' }); return; }
+      for (const o of R.seats) send(o.ws, { k: 'saved', by: s.name });
+      closeRoom(R, 'saved');
+    };
+    (R.saving || Promise.resolve()).then(() => saveBattle(R)).then(done);
+    return;
+  }
   if (m.k === 'lobby' && lead && lobby) {
     // (1 v 1, as phone to phone: side 0's faction and the map)
     R.slots[0].faction = faction(m.faction); R.slots[1].faction = other(R.slots[0].faction);
@@ -412,6 +560,7 @@ function onMessage(ws, m, st) {
     // computer teammate (or back to a player). Slot 0 is always the leader's.
     const i = +m.slot, x = R.slots[i];
     if (x && i > 0 && x.ally === 0 && !R.seats.some((o) => o.slot === i)) { x.ai = !x.ai; x.mate = x.ai; sendLobby(R); }
+    else if (x && R.resume && x.ally === 0 && !R.seats.some((o) => o.slot === i)) { x.ai = !x.ai; x.mate = x.ai; sendLobby(R); }   // (a saved battle: any open place)
   } else if (m.k === 'team' && lobby && BATTLES[R.mode].size > 1 && !BATTLES[R.mode].coop) {
     const to = freeSlot(R, R.slots[s.slot].ally === 0 ? 1 : 0);
     if (to !== undefined) { s.slot = to; sendLobby(R); }
@@ -457,4 +606,4 @@ server.listen(PORT, () => {
   beat();
   setInterval(beat, 60000).unref();
 });
-module.exports = { rooms, server };
+module.exports = { rooms, server, Saves };

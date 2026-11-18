@@ -28,7 +28,7 @@ const Account = (() => {
   }
   function keep(d, email) {
     if (!d || !d.access_token) return false;
-    session = { access: d.access_token, refresh: d.refresh_token, exp: Date.now() + (d.expires_in || 3600) * 1000, email: email || (d.user && d.user.email) || (session && session.email) || '' };
+    session = { access: d.access_token, refresh: d.refresh_token, exp: Date.now() + (d.expires_in || 3600) * 1000, email: email || (d.user && d.user.email) || (session && session.email) || '', uid: (d.user && d.user.id) || (session && session.uid) || '' };
     save('ps-auth', session);
     return true;
   }
@@ -109,7 +109,7 @@ const Account = (() => {
 
   return {
     token, sendCode, verify, signOut, profile, setName, deleteAccount,
-    get signedIn() { return !!session; }, get email() { return session ? session.email : ''; }, get name() { return session ? name : ''; },
+    get signedIn() { return !!session; }, get uid() { return session ? session.uid || '' : ''; }, get email() { return session ? session.email : ''; }, get name() { return session ? name : ''; },
     onChange(f) { listeners.push(f); },
   };
 })();
