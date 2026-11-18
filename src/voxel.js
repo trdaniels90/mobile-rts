@@ -198,8 +198,9 @@ function renderVox(m, angle, opts) {
     }
   }
   const img = downsample(buf, BW, BH, W, H, false, opts.crisp);
-  const out = { img, ox: minX, oy: minY };
-  img._ox = minX; img._oy = minY;   // (the sprite's origin: art.js uprightCtx stands it at the projected spot)
+  const fit = opts.fit ? scale : 1;   // fit: offsets in the scaled picture's pixels (a smaller sprite at the same spot)
+  const out = { img, ox: minX * fit, oy: minY * fit };
+  img._ox = out.ox; img._oy = out.oy;   // (the sprite's origin: art.js uprightCtx stands it at the projected spot)
   if (opts.shadow !== false) {
     const SW = Math.max(1, Math.ceil((smaxX - sminX) * scale) + 1), SH = Math.max(1, Math.ceil((smaxY - sminY) * scale) + 1);
     const sb = new Uint32Array(SW * SUPER * SH * SUPER);
@@ -212,7 +213,7 @@ function renderVox(m, angle, opts) {
       for (let yy = Math.max(0, y0); yy < Math.min(SBH, y1); yy++) for (let xx = Math.max(0, x0); xx < Math.min(SBW, x1); xx++) sb[yy * SBW + xx] = 0xff000000;
     }
     out.sh = downsample(sb, SBW, SBH, SW, SH, true);
-    out.sox = sminX; out.soy = sminY; out.sh._ox = sminX; out.sh._oy = sminY;
+    out.sox = sminX * fit; out.soy = sminY * fit; out.sh._ox = out.sox; out.sh._oy = out.soy;
   }
   return out;
 }

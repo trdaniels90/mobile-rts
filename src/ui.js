@@ -460,7 +460,7 @@
   }
   // Veterancy: one gold chevron per rank at the unit's lower right; an elite unit wears a star.
   function drawRank(g, e) {
-    const r = e.def.r, [ux, uy] = unitSpot(e), x = Math.round(ux + r - 1), y0 = Math.round(uy + (e.cls === 'inf' ? -2 : r - 2));
+    const r = e.cls === 'inf' ? Math.round(e.def.r * INF_SCALE) : e.def.r, [ux, uy] = unitSpot(e), x = Math.round(ux + r - 1), y0 = Math.round(uy + (e.cls === 'inf' ? -2 : r - 2));
     if (e.rank >= VET.at.length) {
       g.fillStyle = '#000'; g.fillRect(x - 3, y0 - 3, 7, 7);
       g.fillStyle = '#ffd65a'; g.fillRect(x - 2, y0, 5, 1); g.fillRect(x, y0 - 2, 1, 5); g.fillRect(x - 1, y0 - 1, 3, 3);
@@ -754,9 +754,9 @@ function draw() {
         if (sel && e.team === G.me && e.rally && e.exitCell !== undefined) { toWorld(); drawRally(v, e, e.rally); onView(); }
         drawHealth(v, e, (bx[0] + bx[2]) / 2, bx[1] - 6, Math.min(48, e.w * CELL - 8));
       } else {
-        const r = e.def.r + 2, [xx, yy] = unitSpot(e, e.cls === 'inf' ? 8 : 3);
-        if (sel) brackets(v, xx - r, yy - r - (e.cls === 'inf' ? 5 : 0), xx + r, yy + r + (e.cls === 'inf' ? 3 : 0));
-        drawHealth(v, e, xx, yy - r - (e.cls === 'inf' ? 10 : 5), Math.max(10, r * 2));
+        const inf = e.cls === 'inf', r = inf ? Math.round(e.def.r * INF_SCALE) + 2 : e.def.r + 2, [xx, yy] = unitSpot(e, inf ? 8 * INF_SCALE : 3);
+        if (sel) brackets(v, xx - r, yy - r - (inf ? 3 : 0), xx + r, yy + r + (inf ? 2 : 0));
+        drawHealth(v, e, xx, yy - r - (inf ? 7 : 5), Math.max(10, r * 2));
       }
     }
 

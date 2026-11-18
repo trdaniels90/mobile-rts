@@ -2506,10 +2506,10 @@ function muzzle(src, t) {
     return { x: hx + Math.cos(src.tface) * 13, y: hy + Math.sin(src.tface) * 13, h: (h[3] + 2) * VK };
   }
   if (src.cls === 'air') return { x: src.x + Math.cos(src.face) * 9, y: src.y - (src.alt || 0) + Math.sin(src.face) * 9, h: src.alt || 0 };
-  if (src.cls === 'inf' && src.def.setup) { const r = src.faction === 'soviets' ? 21 : 19; return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - 8, h: 8 }; }   // the MG Team's gun on its mount
+  if (src.cls === 'inf' && src.def.setup) { const r = (src.faction === 'soviets' ? 21 : 19) * INF_SCALE, h = 8 * INF_SCALE; return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - h, h }; }   // the MG Team's gun on its mount
   if (src.cls === 'inf') {
-    const r = src.stance === 'prone' ? 12 : 10;
-    const h = src.stance === 'prone' ? 2 : 11;
+    const r = (src.stance === 'prone' ? 12 : 10) * INF_SCALE;
+    const h = (src.stance === 'prone' ? 2 : 11) * INF_SCALE;
     return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - h, h };
   }
   const s = src.def.size;
@@ -2524,16 +2524,16 @@ const PRONE_TIME = 6, PRONE_COVER = 0.5, CRAWL_SPEED = 0.6;
 // Where shots should land on a target (its body, not its feet).
 function aimY(t) {
   if (t.kind === 'bld' || t.kind === 'house') return t.y - 6;
-  if (t.cls === 'inf' && t.stance === 'prone') return t.y - 2;
-  return t.y - (t.alt || 0) - (t.cls === 'inf' ? 8 : 4);
+  if (t.cls === 'inf' && t.stance === 'prone') return t.y - 2 * INF_SCALE;
+  return t.y - (t.alt || 0) - (t.cls === 'inf' ? 8 * INF_SCALE : 4);
 }
 // The height aimY folds into y (for drawing: shots, sparks and bursts stand that high up the screen).
 function aimH(t) {
   if (!t || t.x === undefined) return 0;
   if (t.kind === 'bld' || t.kind === 'house') return 6;
   if (t.kind === 'spot') return 0;
-  if (t.cls === 'inf' && t.stance === 'prone') return 2;
-  return (t.alt || 0) + (t.cls === 'inf' ? 8 : 4);
+  if (t.cls === 'inf' && t.stance === 'prone') return 2 * INF_SCALE;
+  return (t.alt || 0) + (t.cls === 'inf' ? 8 * INF_SCALE : 4);
 }
 
 function weaponSound(src, w) {
@@ -3142,7 +3142,7 @@ function kill(e, attacker, wh, from) {
     team.stats.lost++;
     if (e.cls === 'inf' && e.def.setup) {   // the MG Team: both men go down
       const ca = Math.cos(e.face), sa = Math.sin(e.face);
-      for (const [f, sd] of [[3, -3], [-6, 6]]) ragdoll({ ...e, type: 'rifle', x: e.x + f * ca - sd * sa, y: e.y + f * sa + sd * ca }, wh, from);
+      for (const [f, sd] of [[3, -3], [-6, 6]]) ragdoll({ ...e, type: 'rifle', x: e.x + (f * ca - sd * sa) * INF_SCALE, y: e.y + (f * sa + sd * ca) * INF_SCALE }, wh, from);
     } else if (e.cls === 'inf') {
       ragdoll(e, wh, from);
     } else if (e.cls === 'veh') {
@@ -3214,7 +3214,7 @@ function ragdoll(e, wh, from) {
   // Joints in world space, standing as the soldier stood.
   const n = RAG_PTS.length, ca = Math.cos(e.face), sa = Math.sin(e.face);
   const P = new Float32Array(n * 3), V = new Float32Array(n * 3);
-  RAG_PTS.forEach(([f, sd, z], i) => { P[i * 3] = e.x + f * ca - sd * sa; P[i * 3 + 1] = e.y + f * sa + sd * ca; P[i * 3 + 2] = z; });
+  RAG_PTS.forEach(([f, sd, z], i) => { f *= INF_SCALE; sd *= INF_SCALE; P[i * 3] = e.x + f * ca - sd * sa; P[i * 3 + 1] = e.y + f * sa + sd * ca; P[i * 3 + 2] = z * INF_SCALE; });
   const dx = Math.cos(a), dy = Math.sin(a), px = -dy, py = dx;
   const kick = (i, vx, vy, vz) => { V[i * 3] += vx; V[i * 3 + 1] += vy; V[i * 3 + 2] += vz; };
   if (blast) {
@@ -3222,7 +3222,7 @@ function ragdoll(e, wh, from) {
     const p = 30 + r() * 50, up = 80 + r() * 90;
     const w = [(r() - 0.5) * 2, (r() - 0.5) * 2, (r() - 0.5) * 2], wl = Math.hypot(...w) || 1, ws = 5 + r() * 9;
     for (let i = 0; i < n; i++) {
-      const rx = P[i * 3] - e.x, ry = P[i * 3 + 1] - e.y, rz = P[i * 3 + 2] - 8;
+      const rx = P[i * 3] - e.x, ry = P[i * 3 + 1] - e.y, rz = P[i * 3 + 2] - 8 * INF_SCALE;
       const ox = w[0] / wl * ws, oy = w[1] / wl * ws, oz = w[2] / wl * ws;
       kick(i, dx * p + oy * rz - oz * ry, dy * p * 0.8 + oz * rx - ox * rz, up + ox * ry - oy * rx);
     }
@@ -3240,12 +3240,12 @@ function ragdoll(e, wh, from) {
       fx.burnt = true;
       if (r() < 0.45) fx.stagger = { t: 0.8 + r() * 0.8, a: r() * Math.PI * 2 };
     }
-    if (wh === 'TESLA') { G.effects.push({ type: 'spark', x: e.x, y: e.y, lift: 8, t: 0, life: 0.3 }); fx.burnt = true; fx.shock = 0.5 + r() * 0.3; }
+    if (wh === 'TESLA') { G.effects.push({ type: 'spark', x: e.x, y: e.y, lift: 8 * INF_SCALE, t: 0, life: 0.3 }); fx.burnt = true; fx.shock = 0.5 + r() * 0.3; }
   }
   // The weapon, flung loose from the hands.
-  const wl = e.type === 'rocket' ? 12 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'engineer' ? 0 : 8;
+  const wl = (e.type === 'rocket' ? 12 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'engineer' ? 0 : 8) * INF_SCALE;
   if (wl) {
-    const hx = P[18], hy = P[19], hz = e.type === 'rocket' ? 15 : 10;
+    const hx = P[18], hy = P[19], hz = (e.type === 'rocket' ? 15 : 10) * INF_SCALE;
     fx.gun = { P: new Float32Array([hx - ca * wl / 2, hy - sa * wl / 2, hz, hx + ca * wl / 2, hy + sa * wl / 2, hz + 0.5]), len: wl };
     fx.gun.V = new Float32Array([V[18] * 0.7 + (r() - 0.5) * 40, V[19] * 0.7 + (r() - 0.5) * 40, V[20] * 0.6 + 20 + r() * 30, 0, 0, 0]);
     fx.gun.V.copyWithin(3, 0, 3); fx.gun.V[3] += (r() - 0.5) * 50; fx.gun.V[4] += (r() - 0.5) * 50;
@@ -3325,7 +3325,7 @@ function updateRagdoll(fx, dt) {
   if (fx.still <= 0.3 && fx.age <= 5) return;
   if (G.terr[cellOfPos(Math.max(0, Math.min(WORLD - 1, fx.x)), Math.max(0, Math.min(WORLD - 1, fx.y)))] >= 4) { fx.t = fx.life; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 3, t: 0, life: 0.6, alpha: 0.5, color: '#c9c7c0' }); return; }
   if (fx.burnt) { fx.t = fx.life; bakeRagdoll(G.dctx, fx); return; }
-  fx.pool = { t: 0, dur: 2 + r() * 1.5, r: 3 + r() * 2, seed: (r() * 1e6) | 0, a: r() * Math.PI * 2 };
+  fx.pool = { t: 0, dur: 2 + r() * 1.5, r: (3 + r() * 2) * INF_SCALE, seed: (r() * 1e6) | 0, a: r() * Math.PI * 2 };
 }
 
 // Mobile Outpost: unpack into an Outpost on the spot, or the nearest clear 2x2 ground beside it.

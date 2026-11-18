@@ -587,9 +587,10 @@ function bakeCorpse(tg, u, seed, angle) {
   const a = angle !== undefined ? angle : (r() < 0.5 ? -1 : 1) * (Math.PI / 2) + (r() - 0.5) * 0.5, side = Math.sin(a) >= 0 ? 1 : -1;
   const x = Math.round(u.x), y = Math.round(u.y);
   tg.fillStyle = 'rgba(70,14,10,0.5)';
-  tg.beginPath(); tg.ellipse(x + side * 6, y + 1, 6 + r() * 2, 3, 0, 0, 7); tg.fill();
+  const k = INF_SCALE;
+  tg.beginPath(); tg.ellipse(x + side * 6 * k, y + 1, (6 + r() * 2) * k, 3 * k, 0, 0, 7); tg.fill();
   tg.fillStyle = 'rgba(0,0,0,0.28)';
-  tg.beginPath(); tg.ellipse(x + side * 7, y + 2, 9, 3, 0, 0, 7); tg.fill();
+  tg.beginPath(); tg.ellipse(x + side * 7 * k, y + 2 * k, 9 * k, 3 * k, 0, 0, 7); tg.fill();
   tg.save();
   tg.translate(x, y + 1); tg.rotate(a);
   const img = dimmed(s.img);
@@ -607,8 +608,8 @@ function drawRagBody(g, fx) {
   const L = (i) => liftPt(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]), X = (i) => L(i)[0], Y = (i) => L(i)[1], Zk = (i) => P[i * 3 + 2] * 4 + P[i * 3 + 1];
   const parts = [];
   const seg = (i, j, w, col) => parts.push({ k: (Zk(i) + Zk(j)) / 2, f: (dark) => pxLine(g, X(i), Y(i), X(j), Y(j), dark ? w + 1 : w, dark ? '#16120e' : col) });
-  seg(2, 7, 2, pants); seg(7, 9, 2, pants); seg(2, 8, 2, pants); seg(8, 10, 2, pants);
-  seg(1, 2, 3, tunic); seg(3, 4, 2, tunic); seg(3, 5, 1, sleeve); seg(4, 6, 1, sleeve);
+  seg(2, 7, 1, pants); seg(7, 9, 1, pants); seg(2, 8, 1, pants); seg(8, 10, 1, pants);   // (thin: soldiers are drawn at INF_SCALE)
+  seg(1, 2, 2, tunic); seg(3, 4, 2, tunic); seg(3, 5, 1, sleeve); seg(4, 6, 1, sleeve);
   if (fx.gun) {
     const q = fx.gun.P, rk = fx.unitType === 'rocket';
     parts.push({ k: (q[2] + q[5]) * 2 + (q[1] + q[4]) / 2, f: (dark) => pxLine(g, ...liftPt(q[0], q[1], q[2]), ...liftPt(q[3], q[4], q[5]), (rk ? 2 : 1) + (dark ? 1 : 0), dark ? '#16120e' : rk ? '#56603a' : C.gun) });
@@ -622,10 +623,10 @@ function drawRagBody(g, fx) {
   g.fillStyle = skin;
   for (const i of [5, 6]) g.fillRect(Math.round(X(i)), Math.round(Y(i)), 1, 1);
   const hx = X(0), hy = Y(0), ux = hx - X(1), uy = hy - Y(1), ul = Math.hypot(ux, uy) || 1;
-  g.fillStyle = '#16120e'; g.fillRect(Math.round(hx - 2), Math.round(hy - 2), 4, 4);
-  g.fillStyle = skin; g.fillRect(Math.round(hx - 1.5), Math.round(hy - 1.5), 3, 3);
+  g.fillStyle = '#16120e'; g.fillRect(Math.round(hx - 1.5), Math.round(hy - 1.5), 3, 3);
+  g.fillStyle = skin; g.fillRect(Math.round(hx - 1), Math.round(hy - 1), 2, 2);
   g.fillStyle = burnt ? BURNT.light : head;
-  g.fillRect(Math.round(hx + ux / ul * 1.2 - 1.5), Math.round(hy + uy / ul * 1.2 - 1.5), 3, 2);
+  g.fillRect(Math.round(hx + ux / ul - 1), Math.round(hy + uy / ul - 1), 2, 2);
 }
 // A pool of blood spreading from under the chest: a few overlapping blots, darker at the edge,
 // with a glint of wet highlight. k runs from 0 (just started) to 1 (full size).
@@ -1679,7 +1680,7 @@ function drawUnitBody(g, u, t) {
       const st = u.setup || 0, frame = st >= 1 ? 5 : st > 0 ? 4 : u.moving ? WALK[Math.floor(u.anim / 2.5) % 4] : 0;
       const rk = u.fireT > 0 && st >= 1 ? 0.6 : 0;
       blit(g, infSprite(u, pal, frame), u.x - Math.cos(u.face) * rk, u.y - Math.sin(u.face) * rk - (frame === 12 || frame === 13 ? 1 : 0));
-      if (u.fireT > 0 && st >= 1) { const r = u.faction === 'soviets' ? 21 : 19; flash(g, ...liftPt(u.x + Math.cos(u.face) * r, u.y + Math.sin(u.face) * r, 8), 1); }
+      if (u.fireT > 0 && st >= 1) { const r = (u.faction === 'soviets' ? 21 : 19) * INF_SCALE; flash(g, ...liftPt(u.x + Math.cos(u.face) * r, u.y + Math.sin(u.face) * r, 8 * INF_SCALE), 1); }
       return;
     }
     // As in Red Alert: a four-pose walk, the weapon brought up to the shoulder to shoot (and held
@@ -1699,9 +1700,9 @@ function drawUnitBody(g, u, t) {
     if (idle) { frame = idle.frame; if (idle.turn) u = { type: u.type, faction: u.faction, face: u.face + idle.turn, x: u.x, y: u.y }; }
     if (u.aaUntil > G.t && frame === 0 && u.type === 'rocket') frame = 11;   // firing the RedEye at an aircraft
     // The kick of the shot, and the bob of the walk as one foot passes the other.
-    const rk = u.fireT > 0 && (frame === 7 || frame === 5 || (frame === 0 && u.type === 'rocket')) ? Math.min(1, u.fireT / 0.1) * 1.5 : 0;
+    const rk = u.fireT > 0 && (frame === 7 || frame === 5 || (frame === 0 && u.type === 'rocket')) ? Math.min(1, u.fireT / 0.1) * 1.5 * INF_SCALE : 0;
     blit(g, infSprite(u, pal, frame), u.x - Math.cos(u.face) * rk, u.y - Math.sin(u.face) * rk - (frame === 12 || frame === 13 ? 1 : 0));
-    const mh = frame === 11 ? 20 : frame === 7 ? 13 : stance === 'prone' ? 2 : stance === 'crouch' ? 6 : 11, mr = frame === 11 || frame === 7 ? 13 : stance === 'prone' ? 12 : 10;
+    const mh = (frame === 11 ? 20 : frame === 7 ? 13 : stance === 'prone' ? 2 : stance === 'crouch' ? 6 : 11) * INF_SCALE, mr = (frame === 11 || frame === 7 ? 13 : stance === 'prone' ? 12 : 10) * INF_SCALE;
     if (u.fireT > 0) flash(g, ...liftPt(u.x + Math.cos(u.face) * mr, u.y + Math.sin(u.face) * mr, mh), 1);
     return;
   }
@@ -1808,7 +1809,7 @@ function drawUnitBody(g, u, t) {
 function drawChute(g, u, pal, t) {
   const h = u.chute * 26, sway = Math.sin(t * 2.4 + u.id) * 2, [wx, wy] = liftPt(u.x, u.y, h);
   g.fillStyle = 'rgba(0,0,0,0.25)';
-  g.beginPath(); g.ellipse(u.x, u.y, 6, 3, 0, 0, 7); g.fill();
+  g.beginPath(); g.ellipse(u.x, u.y, 6 * INF_SCALE, 3 * INF_SCALE, 0, 0, 7); g.fill();
   blit(g, infSprite(u, pal, 0), wx + sway, wy);
   // The canopy and lines, upright on the screen above him (the iso view: drawn in screen pixels from his spot).
   const m = g.getTransform(), x = Math.round(m.a * wx + m.c * wy + m.e) + sway, y = Math.round(m.b * wx + m.d * wy + m.f);

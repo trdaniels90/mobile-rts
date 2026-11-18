@@ -5088,7 +5088,7 @@ function pushupModel(pal, faction, type, up) {
   return m;
 }
 function infSprite(u, pal, frame) {
-  return facingSprite(`I${u.type}${pal.key}${frame}`, () => infModel(pal, u.faction, u.type, frame), u.face, 16, { crisp: true });
+  return facingSprite(`I${u.type}${pal.key}${frame}`, () => infModel(pal, u.faction, u.type, frame), u.face, 16, { crisp: true, scale: INF_SCALE, fit: true });
 }
 const TURRET_Z = { tank: 7, jeep: 7, arty: 9, v2: 12 };
 function turretZ(d) { return d.size && d.size.tz !== undefined ? d.size.tz : TURRET_Z[d.draw]; }   // a def can sit its turret lower (Heavy Tank)
