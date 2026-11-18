@@ -2649,11 +2649,12 @@ function fireWeapon(src, w, t, follow) {
       if (!follow) { src.twinNext = G.t + w.stagger; src.twinTarget = t; }
     }
     // The Comanche's missiles leave its side bays, left and right in turn, drop clear and then light up (updateProjectiles).
-    if (w.bay) {
+    if (w.bay || w.atgm) {
       src.fireT = 0; src.shots--;   // no flash at the nose (an online copy lights one when `shots` changes)
       const side = (src.bayN = (src.bayN || 0) + 1) % 2 ? 1 : -1, c = Math.cos(src.face), sn = Math.sin(src.face), alt = src.alt || 0;
-      const bx = src.x - sn * side * 5 + c, by = src.y + c * side * 5 + sn;
-      G.projectiles.push({ x: bx, y: by - alt + 3, target: t, w, from: src, team: src.team, speed: PROJ_SPEED.missile || 400, kind: 'missile', trail: 0, delay: 0,
+      const off = w.atgm ? 9 : 5, bx = src.x - sn * side * off + c, by = src.y + c * side * off + sn;   // (an ATGM hangs under the wing, further out than a bay)
+      const arc = w.atgm ? Math.min(46, Math.hypot(t.x - bx, t.y - by) * 0.14) : 0;
+      G.projectiles.push({ x: bx, y: by - alt + 3, target: t, w, from: src, team: src.team, speed: w.speed || PROJ_SPEED.missile || 400, kind: 'missile', trail: 0, delay: 0, ...(w.atgm ? { atgm: true, arc } : null),
         x0: bx, y0: by - alt + 3, h0: Math.max(0, alt - 3), drop: BAY_DROP, dropV: { x: c * src.def.speed * 0.4 - sn * side * 14, y: sn * src.def.speed * 0.4 + c * side * 14 }, aa: false, fuel: w.range * 2 });
       return;
     }
@@ -2691,7 +2692,7 @@ function projH(p) {
   if (p.h0 === undefined) return 0;
   const t = p.target, d0 = Math.hypot(p.x - p.x0, p.y - p.y0), d1 = t ? Math.hypot(t.x - p.x, aimY(t) - p.y) : 0;
   const k = d0 + d1 > 0 ? d0 / (d0 + d1) : 1;
-  return p.h0 + (aimH(t) - p.h0) * k;
+  return p.h0 + (aimH(t) - p.h0) * k + (p.arc ? p.arc * 4 * k * (1 - k) : 0);   // an ATGM climbs, then dives onto its target
 }
 function updateProjectiles(dt) {
   for (const p of G.projectiles) {
@@ -2741,10 +2742,10 @@ function updateProjectiles(dt) {
     p.a = Math.atan2(dy, dx);
     if (p.kind === 'rocket' || p.kind === 'missile') {
       p.trail -= dt;
-      if (p.trail <= 0) {   // SAM missiles leave a thicker trail that hangs longer
-        p.trail = 0.03;
+      if (p.trail <= 0) {   // SAM missiles leave a thicker trail that hangs longer; an ATGM a long white contrail
+        p.trail = p.atgm ? 0.02 : 0.03;
         const h = projH(p);
-        G.effects.push(p.thick ? { type: 'smoke', x: p.x, y: p.y + h, lift: h, r: 2.4, t: 0, life: 1.3, alpha: 0.5, color: '#c9c7c0', vx: 2, vy: -2 } : { type: 'smoke', x: p.x, y: p.y + h, lift: h, r: 1.6, t: 0, life: 0.5, alpha: 0.5, color: '#9a968c' });
+        G.effects.push(p.atgm ? { type: 'smoke', x: p.x, y: p.y + h, lift: h, r: 2, t: 0, life: 2.2, alpha: 0.6, color: '#e6e4de', vx: 1, vy: -1.5 } : p.thick ? { type: 'smoke', x: p.x, y: p.y + h, lift: h, r: 2.4, t: 0, life: 1.3, alpha: 0.5, color: '#c9c7c0', vx: 2, vy: -2 } : { type: 'smoke', x: p.x, y: p.y + h, lift: h, r: 1.6, t: 0, life: 0.5, alpha: 0.5, color: '#9a968c' });
       }
     } else if (p.kind === 'fireball') {
       p.trail -= dt;
@@ -2757,6 +2758,7 @@ function updateProjectiles(dt) {
       p.dead = true;
       if (p.decoy) { impact('flak', tx, ty, true, aimH(t)); continue; }   // burst harmlessly on a flare
       if (p.kind === 'fireball') { fireBlast(p, t.alive ? t.x : p.x, t.alive ? t.y : p.y); continue; }
+      if (p.atgm) { atgmBlast(p, t, tx, ty); continue; }
       if (t.alive) damage(t, p.w.dmg, p.w.wh, p.from || null, { x: p.x, y: p.y });
       impact(p.kind, t.alive ? tx : p.x, t.alive ? ty : p.y, isAirborne(t), t.alive ? aimH(t) : projH(p));
       if ((p.w.wh === 'HE' || p.w.wh === 'GR') && t.kind === 'unit' && !isAirborne(t)) splash(tx, ty, 14, p.w.dmg * 0.4, p.team, t, p.from);
@@ -2766,6 +2768,22 @@ function updateProjectiles(dt) {
     p.x += (dx / d) * step; p.y += (dy / d) * step;
   }
   G.projectiles = G.projectiles.filter((p) => !p.dead);
+}
+
+// An ATGM (Maverick / Kh-29L) hitting: full damage to what it was fired at, a big blast with a little splash round it.
+function atgmBlast(p, t, x, y) {
+  const w = p.w, from = p.from || null, h = t.alive ? aimH(t) : projH(p);
+  hooks.sfx('explodeVeh', x, y);
+  hooks.shake(x, y, 1.5);
+  G.effects.push({ type: 'expl', x, y: y + h, lift: h, size: 14, t: 0, life: 0.75, seed: (Math.random() * 1e6) | 0, debris: true });
+  G.effects.push({ type: 'smoke', x, y: y + h - 2, lift: h + 2, r: 6, t: 0, life: 1.6, alpha: 0.55, color: '#4a4640', vy: -10 });
+  if (t.alive) damage(t, w.dmg, w.wh, from, { x: p.x, y: p.y });
+  if (!isAirborne(t)) {
+    scorch(G.tctx, x, y, 10, (Math.random() * 1e6) | 0);
+    craterAt(x, y, 6);
+    splash(x, y, w.splash, w.dmg * 0.5, p.team, t, from);
+    houseBlast(x, y, w.splash, w.dmg, w.wh, from, t);
+  }
 }
 
 // Flame tower fireball: a burst of fire that splashes and leaves flames burning for a moment.

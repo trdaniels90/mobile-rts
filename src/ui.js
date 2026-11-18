@@ -700,6 +700,12 @@ function draw() {
       if (p.kind === 'fireball') { fireStream(v, p); continue; }
       if (p.kind === 'shell') { v.fillStyle = '#ffe9a0'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 2); v.fillStyle = 'rgba(255,200,90,0.5)'; v.fillRect(Math.round(p.x - ca * 3), Math.round(p.y - sa * 3), 1, 1); }
       else if (p.kind === 'flak') { v.fillStyle = '#ffd36a'; v.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
+      else if (p.atgm) {   // a long-range anti-tank missile: a slim white body, dark seeker, a bright motor
+        if (p.drop > 0) { v.fillStyle = '#d8d6cc'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 3, 2); continue; }
+        for (let i = -3; i <= 2; i++) { v.fillStyle = i >= 2 ? '#3a3a34' : '#eceae2'; v.fillRect(Math.round(p.x + ca * i), Math.round(p.y + sa * i), 2, 2); }
+        v.fillStyle = '#ffd27a'; v.fillRect(Math.round(p.x - ca * 5 - 1), Math.round(p.y - sa * 5 - 1), 3, 3);
+        v.fillStyle = '#ff8a2a'; v.fillRect(Math.round(p.x - ca * 7), Math.round(p.y - sa * 7), 2, 2);
+      }
       else {
         v.fillStyle = '#d8d6cc'; v.fillRect(Math.round(p.x - ca * 2), Math.round(p.y - sa * 2), 2, 2);
         v.fillStyle = '#ff9a2a'; v.fillRect(Math.round(p.x - ca * 4), Math.round(p.y - sa * 4), 1, 1);

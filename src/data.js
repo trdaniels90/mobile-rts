@@ -237,13 +237,14 @@ const UNIT_DEFS = {
   spyplane: { name: 'Spy Plane', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 150, armor: 'air', speed: 343, sight: 8, r: 9 },
   transport: { name: 'Transport', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 420, armor: 'air', speed: 105, sight: 5, r: 14 },
   // Close air support planes (POWERS.cas): `gun` an anti-tank cannon walked along the flight line (tickStrafe), `msl` homing air-to-ground missiles
-  // (fired at vehicles first, then defences and buildings in the area), `perPass` of them each pass.
+  // (fired at vehicles first, then defences and buildings in the area), `perPass` of them each pass. `atgm`: a long-range guided anti-tank
+  // missile (AGM-65 Maverick / Kh-29L), not a rocket: dropped from a wing pylon, climbs and dives onto the target, fast, long contrail, big blast.
   a10:  { name: 'A-10 Warthog', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 520, armor: 'air', speed: 118, turn: 1.6, sight: 6, r: 11,
           gun: { dmg: 30, wh: 'AT', range: 170, rounds: 26, gap: 0.035, splash: 11, walk: 96 },
-          msl: { dmg: 110, rof: 0.35, range: 340, wh: 'HF', proj: 'missile', ammo: 4, perPass: 2 } },
+          msl: { dmg: 160, rof: 0.5, range: 560, wh: 'HF', proj: 'missile', atgm: true, speed: 540, splash: 26, ammo: 4, perPass: 2, sound: 'missile', name: 'AGM-65 Maverick' } },
   su25: { name: 'Su-25 Frogfoot', cls: 'air', fly: 'jet', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 125, turn: 1.7, sight: 6, r: 11,
           gun: { dmg: 28, wh: 'AT', range: 170, rounds: 26, gap: 0.035, splash: 11, walk: 96 },
-          msl: { dmg: 115, rof: 0.35, range: 340, wh: 'HF', proj: 'missile', ammo: 4, perPass: 2 } },
+          msl: { dmg: 165, rof: 0.5, range: 560, wh: 'HF', proj: 'missile', atgm: true, speed: 540, splash: 26, ammo: 4, perPass: 2, sound: 'missile', name: 'Kh-29L' } },
   bomber: { name: 'Bomber', cls: 'air', fly: 'jet', draw: 'cargo', scripted: true, factions: [], cost: 0, hp: 480, armor: 'air', speed: 164, sight: 5, r: 14 },
   mig: {
     name: 'MiG Fighter', cls: 'air', fly: 'jet', cat: 'jet', producer: 'airfield', factions: ['soviets'],

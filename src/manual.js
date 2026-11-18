@@ -64,7 +64,7 @@ const Manual = (() => {
     spy: 'A fast reconnaissance plane reveals a wide area around the target. It reveals nothing on the way there, but anything that fires at it gives away where it stands.',
     para: 'A transport drops a squad of ten infantry by parachute wherever you choose (two transports, twenty soldiers, with the Tech Center\'s Airborne division upgrade).',
     bomb: 'A bomber carpet-bombs a strip of ground along its flight path.',
-    cas: 'Needs the Tech Center upgrade Close air support I (and an Airfield). A-10 Warthogs (Allies) or Su-25 Frogfoots (Soviets) fly in on the area you pick and make two runs over it: on the way in each fires long-range homing missiles at vehicles there (then defences and other buildings), then strafes the best target ahead with its 30 mm anti-tank cannon. Deadly to tanks. One plane, two with Close air support II, three with III. They can be shot down.',
+    cas: 'Needs the Tech Center upgrade Close air support I (and an Airfield). A-10 Warthogs (Allies) or Su-25 Frogfoots (Soviets) fly in on the area you pick and make two runs over it: on the way in each fires two long-range guided anti-tank missiles (the Warthog's AGM-65 Maverick, the Frogfoot's Kh-29L, 560 px reach) at vehicles there (then defences and other buildings), then strafes the best target ahead with its 30 mm anti-tank cannon. Deadly to tanks. One plane, two with Close air support II, three with III. They can be shot down.',
   };
 
   // --- Helpers ---------------------------------------------------------------------

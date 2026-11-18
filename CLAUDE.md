@@ -1562,10 +1562,11 @@ frame-time maths everywhere, so it is not deterministic.
   `hasPower` gates the sidebar, charging and `powerReady`); cas2 / cas3 send 2 / 3 planes (`casPlanes`), 60 px to either side and 45 px behind the lead.
   Lost with the last Tech Center like every upgrade.
 - Planes (`a10` Allies, `su25` Soviets via `CAS_PLANE`; scripted, 520 / 480 health, can be shot down): `updateCas` (world.js, from `updateFlight`). Each makes
-  `passes` (2) runs over its spot: on the way in, from `msl.range` (340 px), `perPass` (2) homing missiles (HF, 110 / 115) at vehicles in the area (`r` 150 px;
+  `passes` (2) runs over its spot: on the way in, from `msl.range` (560 px), `perPass` (2) long-range guided anti-tank missiles (AGM-65 Maverick / Kh-29L: `atgm: true`, HF 160 / 165, splash 26, speed 540; not rockets: see below) at vehicles in the area (`r` 150 px;
   `casPick`: heavy vehicles, other vehicles, defences, other buildings, infantry; a different one each where it can), then one gun run (`startStrafe` /
   `tickStrafe` with its own `gun`: 26 AT shells of 28-30, splash 11, walked 96 px) at the best target nearly dead ahead within 170 px; then `CAS_OUT` px on,
   turns (`flyJet`) and comes back; after the last run it flies off. Camouflaged Pillboxes not exposed and garrisoned soldiers are skipped.
+- **ATGM missiles** (`w.atgm`, owner: they flew like rockets): `fireWeapon`'s bay branch launches them from a wing pylon 9 px out (left and right in turn), dropped clear for `BAY_DROP` (`dropStep`), then they climb and dive onto the target (`p.arc`, up to 46 px, added in `projH` so the guest and `ui.js` follow), 540 px/s, a long white contrail (life 2.2 s, every 0.02 s), drawn as a slim white body with a dark seeker and a bright motor (ui.js). The hit is `atgmBlast`: full damage to the target, a size-14 explosion with debris, smoke, a small shake, scorch and crater, splash half damage within 26 px, `houseBlast`. `cas.js` (Allies, 1 / 2 / 3 planes): 1,370 / 1,730 / 2,490 vehicle damage, 1 / 3 / 5 of 6 killed.
 - Computer: researches the tiers like any upgrade (Normal and Hard); fires at the biggest seen group of 3+ enemy vehicles (`aiCasTarget`), else the thickest part of the base.
 - Looks: `a10Model` / `su25Model` (models.js, sprite keys 'G' / 'U', not baked: scripted); power cameo. Sprites rebaked for the hash only. "Air support ready" is text only (no voice clip).
 - `node tools/sim/cas.js <repo> [allies|soviets]`: rules, then 1 / 2 / 3 planes against 6 tanks + 3 riflemen in the open (Allies: 1,170 / 1,615 / 2,400 vehicle damage
