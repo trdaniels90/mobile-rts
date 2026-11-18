@@ -347,7 +347,10 @@ share globals. Read this file first; the commit history explains every change in
 - **Phones:** lobby "Saved co-op battles" (leader), a "Continuing a saved battle" note, Continue battle; pause menu "Save and leave" (tap twice, `Net.canSave`);
   on `saved` everyone goes back to the online page with a note (`UIBridge.saved`, `Report.park`: the match row stays open). A phone that played the battle
   carries on its own match row (`rh-coop-matches` in localStorage, `Report.resume(.., 'pve', partner)`).
-- Not kept: the marks of battle on the ground (the server records none), burnt trees' looks on phones. A save from another version loads as skirmish saves do.
+- **Marks of battle:** the server records none (`HEADLESS`), so in a co-op battle netcore.js keeps every relayed decal (scorch, crater, rubble, wreck, pads) as
+  `[name, packed args]` in `G.keepMarks` (newest `KEEP_MARKS` 8000; a 15-minute 3 v 3 makes about 2,600, 160 KB, 52 KB gzipped), saved with the battle; on
+  continuing, the server sends them in one `marks` message and each phone draws them as relayed decals. Not kept: bodies and blown-off turrets (made on each
+  phone by its effects), burnt trees' looks. A save from another version loads as skirmish saves do.
 - `node tools/sim/server-coop-save.js <repo>` (raw sockets) and `node tools/sim/coop-save-ui.js <repo>` (two browser pages). Not yet tried on real phones or with the live table.
 
 ## Recent mechanics (2026.10.31.2)

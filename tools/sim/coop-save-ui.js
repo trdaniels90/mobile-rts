@@ -38,6 +38,8 @@ const { chromium, devices } = require('playwright');
   await B.evaluate(() => { startProduction(G.teams[G.me], 'power'); });
   await A.waitForTimeout(6000);
   const R = rooms.get(code);
+  R.run('for (let i = 0; i < 30; i++) scorch(G.tctx, 300 + i * 20, 400, 12, i); 0');
+  await A.waitForTimeout(500);
   const before = { t: R.G.t, n: R.G.entities.filter((e) => e.alive).length };
   // B opens the menu: Save and leave shows; two taps.
   await B.evaluate(() => document.getElementById('menuBtn') ? document.getElementById('menuBtn').click() : null);
@@ -64,6 +66,8 @@ const { chromium, devices } = require('playwright');
   await A.waitForTimeout(3000);
   const R2 = rooms.get(code);
   const after = await Promise.all([A, B].map((p) => p.evaluate(() => ({ me: G.me, t: G.t, mine: G.entities.filter((e) => e.alive && e.team === G.me).length, match: Report.matchId }))));
+  const scorches = await Promise.all([A, B].map((p) => p.evaluate(() => G.marks.filter((m) => m[1] === 'scorch').length)));
+  check(scorches.every((n) => n >= 30), `each phone has the saved scorch marks again (${scorches})`);
   const srvMine = after.map((x) => R2.G.entities.filter((e) => e.alive && e.team === x.me).length);
   check(after.every((x) => x.t >= before.t), `the phones go on from ${Math.round(before.t)} s (now ${after.map((x) => Math.round(x.t))})`);
   check(after.every((x, i) => Math.abs(x.mine - srvMine[i]) <= 2), `each phone has its own side as the server does (${after.map((x) => x.mine)} / ${srvMine})`);

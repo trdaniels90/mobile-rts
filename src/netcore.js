@@ -165,13 +165,20 @@ const NetCore = (() => {
   // out: G.inFx.)
   let events = [];
   const queueEv = (ev) => { if (hosting && G && !G.inFx && events.length < 400) events.push(ev); };
+  const KEEP_MARKS = 8000;
   const DECALS = ['scorch', 'crater', 'rubble', 'bakeWreck', 'bibDecal', 'padDecal'];
   const ORIG = {};
   const root = typeof window !== 'undefined' ? window : globalThis;
   for (const n of DECALS) {
     ORIG[n] = root[n];
     root[n] = function (...a) {
-      if (hosting) queueEv(['d', n, a.map((v) => (v === G.tctx ? { $c: 't' } : v === G.dctx ? { $c: 'd' } : pack(v)))]);
+      if (hosting) {
+        const ev = ['d', n, a.map((v) => (v === G.tctx ? { $c: 't' } : v === G.dctx ? { $c: 'd' } : pack(v)))];
+        queueEv(ev);
+        // The game server keeps the marks of a co-op battle (G.keepMarks, saved with it), so phones continuing it get its
+        // scars back (server.js sends them with 'marks'); the newest KEEP_MARKS, about 60 B each.
+        if (G && G.keepMarks) { G.keepMarks.push([n, ev[2]]); if (G.keepMarks.length > KEEP_MARKS) G.keepMarks.splice(0, G.keepMarks.length - KEEP_MARKS); }
+      }
       return ORIG[n].apply(this, a);
     };
   }

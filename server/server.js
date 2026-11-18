@@ -318,6 +318,7 @@ function start(R) {
     ctx.get('newWorld')(sides[0].faction, diff, seed, 0, true, R.map, sides);
     for (const t of R.G.teams) if (t.isAI) t.auto = true;
     R.saveId = isCoop(R) ? uuid() : null;
+    if (R.saveId) R.G.keepMarks = [];   // the marks of battle, for a save (netcore.js)
   }
   R.match = match;
   R.G.me = -1;   // so every side's announcer lines go out to its player (hooks.evaFor)
@@ -333,6 +334,12 @@ function start(R) {
   const pub = sides.map(({ faction, ally, ai, mate, name }) => ({ faction, ally, ai, mate, name }));
   R.seats.forEach((s) => send(s.ws, { k: 'start', seed, faction: sides[0].faction, match, map: R.map, side: s.side, sides: pub, mode: R.mode, diff,
     save: R.saveId, resume: rs ? Math.round(R.G.t) : undefined }));
+  // A continued battle: its scorch marks, craters and wrecks, for the phones to put on their ground again.
+  if (rs) {
+    if (!R.G.keepMarks) R.G.keepMarks = [];   // (a save from before marks were kept)
+    const marks = JSON.stringify({ k: 'marks', list: R.G.keepMarks });
+    R.seats.forEach((s) => send(s.ws, marks));
+  }
   clearInterval(R.timer);
   R.timer = setInterval(() => tick(R), Math.round(STEP * 1000 / Math.max(1, SPEED)));
   log(R.code, rs ? 'saved battle continued at ' + Math.round(R.G.t) + ' s:' : 'battle started:', R.mode, sides.map((x) => (x.ai ? 'computer' : x.name) + '/' + x.ally).join(', '), 'on', R.map);

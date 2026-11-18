@@ -497,6 +497,7 @@ const Net = (() => {
       listener();
     } else if (m.k === 'lobby' && lobby.me === 'guest') { lobby.host = Object.assign(lobby.host || { name: 'Commander' }, { faction: m.faction, map: validMap(m.map) }); listener(); }
     else if (m.k === 'start' && (lobby.me === 'guest' || lobby.via === 'server')) { lobby.save = m.save || null; lobby.resume = m.resume; begin('guest', m.seed, m.faction, m.match, m.map, m.side, m.sides, m.diff, m.mode); }
+    else if (m.k === 'marks' && role === 'guest' && Array.isArray(m.list)) { for (const x of m.list) if (Array.isArray(x)) playEvent(['d', x[0], x[1]]); }   // a continued co-op battle's scars
     else if (m.k === 'saves') { lobby.saves = Array.isArray(m.list) ? m.list : []; lobby.savesFailed = !!m.failed; listener(); }
     else if (m.k === 'err' && m.why === 'save') {
       if (inBattle()) hooks.eva('The battle could not be saved');

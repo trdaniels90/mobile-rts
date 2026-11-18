@@ -34,6 +34,8 @@ const roomOf = (code) => rooms.get(code);
   let R = roomOf(code);
   await wait(8000);   // ~30 s of battle
   const t1 = R.G.t, n1 = R.G.entities.filter((e) => e.alive).length;
+  R.run('scorch(G.tctx, 500, 500, 12, 7); crater(G.tctx, 520, 500, 9, 8); 0');   // marks of battle to keep
+  const k1 = R.G.keepMarks.length;
   b.send({ k: 'savequit' }); await wait(1500);
   check([a, b, c].every((p) => p.last.saved && p.last.saved.by === 'P1'), 'Save and leave: everyone hears who saved ');
   check(!rooms.has(code), 'and the room closes');
@@ -67,6 +69,7 @@ const roomOf = (code) => rooms.get(code);
   R = roomOf(code);
   const st = b2.last.start;
   check(st && st.save === id && st.resume >= t1 - 1 && st.seed === R.G.seed, `continued at ${st && st.resume} s, same save and seed`);
+  check(k1 >= 2 && b2.last.marks && b2.last.marks.list.length === k1 && a2.last.marks && b2.last.marks.list.some((m) => m[0] === 'crater'), `the marks of battle come back (${k1} kept, ${b2.last.marks && b2.last.marks.list.length} sent)`);
   check(R.G.teams[was.c].isAI && !R.G.teams[was.a].isAI && !R.G.teams[was.b].isAI, 'the computer plays P2, the others are players');
   const n2 = R.G.entities.filter((e) => e.alive).length;
   check(Math.abs(n2 - n1) <= n1 * 0.1 + 5, `the battle as it was (${n1} -> ${n2} alive)`);
