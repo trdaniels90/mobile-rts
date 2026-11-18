@@ -1416,6 +1416,12 @@ frame-time maths everywhere, so it is not deterministic.
   20 extra Medium Tanks on one side made it 62% of picks), and **a breather**: a side that lost a Construction Yard in the last `BREATHER`
   (150 s, `team.cyLostT` set in `kill`) is not picked while anyone else can be, and a gang on it breaks up at the next look (within 30 s). Easy now spreads too (was nearest). Headless Normal 2 v 2 on Twin Lakes: four different targets until minute 28,
   then one alliance on one foe. The server must run the same version.
+- **Scouting every base** (after 2026.11.17.18, both modes; the server must match; owner's match b76bd95e, 3 v 3: all three enemy computers attacked only him for 33 min,
+  his allies lost no building): a computer stopped scouting at the first enemy base it found, and the spread / gang picks only count found bases, so an alliance
+  that had found one player sent everything at that player. Now `aiLaunch` keeps one scout out (`aiScout(team, [], true)`: an idle staged unit, not one waiting
+  for a wave; a lost one replaced at most every `SCOUT_AGAIN` 60 s) until every enemy base is found, waves going meanwhile; scouts skip allies' starts, and a
+  scout leaving home goes to its k-th nearest start (k = its rank among its alliance's computers). Headless Normal 3 v 3 on Snowbound: before, all three of an
+  alliance on side 0 from minute 10 to 14; after, every base found by minute 14 and each computer on its own foe.
 - Match reports now record each side's `ally`, `style` and `waves` in `stats.teams` (and `style` in the server's `players`).
 - Fire effects lifted past x < 0 picked `flameFrames[-n]` (art.js `drawEffect`): 631 draw errors in that match's last 80 s. Fixed.
 
@@ -1523,6 +1529,16 @@ frame-time maths everywhere, so it is not deterministic.
   `roomyCell`s (3 x 3 free, not in a gap under 4 cells wide), so waiting units no longer park in the gaps between woods.
 - `ally-defend.js`, `rally.js` pass; `bunching.js` 4 x 90 s: 3.28 average, 10% six or more, worst 9 (unchanged).
 
+## Units sent to one spot get a cell each (after 2026.11.17.18, not released, both modes; the server must match)
+
+- Owner's report (match b76bd95e, Frostlight 3 v 3, Normal): green (a balanced Allied computer) kept a pile of units by its Airfield; they walked into it,
+  and Rocket Soldiers pushed out walked back in. Cause: defenders going back after a defence (`defendBase`, `defendAllies`) all had the same post, the
+  rally point (hunting units pulled into a defence get `rallyPoint`), and `aiSquads` retreats, `aiScoutDone` and the wave gather (`aiGather`, random within
+  1.5 cells) did the same. Now `spotDealer(team)` (world.js) gives each unit its own open cell round the point (flood over open ground, nearest first,
+  skipping cells friends stand on or wait for; vehicles keep a cell clear round them). `aiPincer` counts a group there within `max(5, 2 + sqrt(n))` cells.
+  Headless Frostlight 3 v 3 (sides styled as in that match, 22 min): green's 15-20-unit piles on its rally point (23 samples) to none.
+  `ally-defend.js`, `rally.js` pass; `teams.js` 2 v 2 Twin Lakes 12 min, no errors.
+
 ## V2 rocket raised to fire (after 2026.11.16.4, not released, owner OK'd for both modes)
 
 - The rocket lies flat on the truck's bed and is raised on its rail before it fires, like the MG Team's set-up: `setup: 1.5`, `pack: 1` on
@@ -1555,7 +1571,7 @@ frame-time maths everywhere, so it is not deterministic.
   Tech Center is destroyed or sold ("Upgrades lost", text only). Queued Comanches / Tesla Tanks wait until re-researched; units already built stay.
   Field Manual updated; `comanche.js` checks the new rule.
 
-## Close Air Support: A-10 Warthog / Su-25 Frogfoot (after 2026.11.17.17, not released, owner's picks for both modes; the server must match)
+## Close Air Support: A-10 Warthog / Su-25 Frogfoot (2026.11.17.18, owner's picks for both modes; the server must match)
 
 - Three Tech Center upgrades in order (`UPGRADES` cas1 $2000 60 s, cas2 $3000 90 s, cas3 $4000 120 s; `needs` the tier before, `req: 'airfield'`, checked in
   `canResearch`; the upgrade card shows "Needs ..." while locked; `desc` may be per faction). cas1 adds the Airfield power `POWERS.cas` (240 s, `upgrade: 'cas1'`:
@@ -1579,6 +1595,17 @@ frame-time maths everywhere, so it is not deterministic.
   first, then the dearest of the rest, its Barracks, Helipads and Airfields only when nothing else is left; never the yard, power, refineries, Outposts or War Factories)
   until credits plus pending sales cover it, then builds the chain in that order before anything else (`team.rebuild`). The refinery brings a free Ore Truck.
   `node tools/sim/rebuild.js <repo> [diff] [factory|refinery|both]`: Normal, 0 credits, trucks gone at 10 min: factory back in 73 s, refinery 85 s, both 118 s.
+
+## Turtles: a late big push and help for allies; refinery cap +1 (2026.11.17.18, owner's picks for both modes; the server must match)
+
+- From the owner's 8 latest Normal wins (0 buildings lost in 5, enemy turtles sent no wave in 5 of 7 games, enemy computers mined about 60% of his ore).
+- **Refinery cap** (`REF_CAP_OVER` 1 in ai.js `aiRefCap`): the computer may have one refinery more than the human sides' average.
+- **Big push** (`pushEvery` 480, `pushMin` 12 in `AI_STYLES.turtle`, `aiLaunch`): at most 8 min after its last wave (or its first-wave time) a turtle goes
+  with every unit gathered, its home reserve (`keep`) too, as a big wave (strike units), then digs in again. Normal turtle: first push about 21.5 min.
+- **Answers its allies** (`allyReach` 120 cells, `allyDelay` 4 s, `allyNeed` 2.5 x the raiders' worth; world.js `defendAllies` reads them through `aiOf`,
+  other styles keep `AI_ALLY_REACH` 35, `AI_ALLY_DELAY` 10, 1.5).
+- Headless Normal 2 v 2 (balanced + rusher against two forced turtles, 28 min, 3 seeds on Twin Lakes / Lakeside): turtle waves at 1152-1633 s (pushes at 1290-1291),
+  up to 28-136 turtle units at once defending an ally; no errors.
 
 ## Defences build in their own slot (not released, both modes; the server must match)
 

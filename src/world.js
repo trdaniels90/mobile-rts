@@ -1955,6 +1955,48 @@ function scatterSpot(team, near) {
   }
   return best || rallyPoint(team);
 }
+// Spots for a crowd sent to one point (defenders going back to the rally point, a squad pulling back, a wave gathering):
+// each unit gets its own open cell round (x, y), nearest first, found by a flood over open ground (so it is reachable from
+// the point), skipping cells a friend stands still on or waits for. Vehicles take a cell with its neighbours. Before, all of
+// them were sent to the same spot: they walked into a pile there, and units pushed out walked back in (owner's report:
+// 15-20 units of a computer side heaped on its rally point for minutes, headless Frostlight 3 v 3 the same).
+// spotDealer(team) returns deal(u, x, y) -> { x, y }; one dealer per batch, so the batch's units do not share cells.
+const DEAL_R = 12;
+function spotDealer(team) {
+  const used = new Set();
+  for (const e of unitsOf(team.id)) {
+    if (e.cls === 'air') continue;
+    if (!e.dest && !e.needPath) used.add(cellOfPos(e.x, e.y));
+    if (e.order.type === 'guard' && e.order.x !== undefined) used.add(cellOfPos(e.order.x, e.order.y));
+  }
+  return (u, x, y) => {
+    used.delete(cellOfPos(u.x, u.y));
+    if (u.order.type === 'guard' && u.order.x !== undefined) used.delete(cellOfPos(u.order.x, u.order.y));
+    const start = nearestFreeCell(cellOfPos(x, y), 6);
+    if (start < 0) return { x, y };
+    const big = u.def.r > 8, sx = cellX(start), sy = cellY(start);
+    const seen = new Set([start]), q = [start];
+    let fallback = -1;
+    for (let i = 0; i < q.length; i++) {
+      const c = q[i], cx = cellX(c), cy = cellY(c);
+      const ok = !used.has(c) && !G.resv[c] && (!big || [[-1, 0], [1, 0], [0, -1], [0, 1]].every(([dx, dy]) => !used.has(idx(cx + dx, cy + dy))));
+      if (ok) {
+        if (!G.ore[c]) { fallback = c; break; }
+        if (fallback < 0) fallback = c;
+      }
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = cx + dx, ny = cy + dy;
+        if (!inMap(nx, ny) || Math.abs(nx - sx) > DEAL_R || Math.abs(ny - sy) > DEAL_R) continue;
+        const n = idx(nx, ny);
+        if (!seen.has(n) && freeCell(n)) { seen.add(n); q.push(n); }
+      }
+    }
+    if (fallback < 0) return { x, y };
+    used.add(fallback);
+    if (big) for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) used.add(idx(cellX(fallback) + dx, cellY(fallback) + dy));
+    return cellCenter(fallback);
+  };
+}
 // A friend (no route of its own) stands on (x, y), closer than units keep apart.
 function spotTaken(u, x, y) {
   for (const b of nearBuckets(x, y, CELL)) for (const e of b) {
@@ -2087,11 +2129,12 @@ function defendAllies(team) {
   if (!threats.length) {
     if (++team.allyCalm < DEFEND_CALM) return;
     team.allyT = undefined;
+    const deal = spotDealer(team);
     for (const u of unitsOf(team.id)) {
       if (!u.assisting || (u.target && u.target.alive)) continue;
       u.assisting = false;
       if (u.garrison && allies.length) { const s = scatterSpot(allies[0]); setGuard(u, s.x, s.y); goTo(u, s.x, s.y); }
-      else if (u.post) { setGuard(u, u.post.x, u.post.y); u.staged = u.post.staged; goTo(u, u.post.x, u.post.y); }
+      else if (u.post) { const p = deal(u, u.post.x, u.post.y); setGuard(u, p.x, p.y); u.staged = u.post.staged; goTo(u, p.x, p.y); }
     }
     return;
   }
@@ -2099,15 +2142,15 @@ function defendAllies(team) {
   // A computer ally only answers once the base has been under attack for AI_ALLY_DELAY s, so a quick strike gets a window.
   if (team.isAI) {
     if (team.allyT === undefined) team.allyT = G.t;
-    if (G.t - team.allyT < AI_ALLY_DELAY && !unitsOf(team.id).some((u) => u.assisting)) return;
+    if (G.t - team.allyT < (aiOf(team).allyDelay || AI_ALLY_DELAY) && !unitsOf(team.id).some((u) => u.assisting)) return;
   }
   const nearC = new Map();   // each unit's distance to the nearest threat, worked out once (it is used in sorts)
   const near = (u) => { let d = nearC.get(u); if (d === undefined) { d = Infinity; for (const t of threats) d = Math.min(d, Math.hypot(u.x - t.x, u.y - t.y)); nearC.set(u, d); } return d; };
-  let army = unitsOf(team.id).filter((u) => u.assisting).concat(idleGround(team).filter((u) => (team.isAI ? near(u) < CELL * AI_ALLY_REACH : u.garrison)))
+  let army = unitsOf(team.id).filter((u) => u.assisting).concat(idleGround(team).filter((u) => (team.isAI ? near(u) < CELL * (aiOf(team).allyReach || AI_ALLY_REACH) : u.garrison)))
     .filter((u) => threats.some((t) => canTarget(u, t)));
   army.sort((a, b) => (!!b.assisting - !!a.assisting) || near(a) - near(b));
   // A human's garrison units all go; the computer sends worth half again what the raiders are.
-  const need = threats.reduce((a, t) => a + (t.def.cost || 300), 0) * 1.5;
+  const need = threats.reduce((a, t) => a + (t.def.cost || 300), 0) * (team.isAI && aiOf(team).allyNeed || 1.5);   // (a turtle sends more: AI_STYLES allyNeed)
   let got = 0;
   for (const u of army) {
     if (team.isAI && !u.assisting && got >= need) continue;
@@ -2254,11 +2297,13 @@ function defendBase(team) {
     team.raiders = []; team.defShort = 0;
     if (++team.calm < DEFEND_CALM) return;
     team.defending = false;
-    // Everyone pulled into a defence (aircraft that turned on a shooter too) goes back once its fight is over.
+    // Everyone pulled into a defence (aircraft that turned on a shooter too) goes back once its fight is over,
+    // ground units each to an open cell of their own near where they were (spotDealer: many share the rally point).
+    const deal = spotDealer(team);
     for (const u of unitsOf(team.id)) {
       if (!u.defending || !u.post || (u.cls !== 'air' && u.target && u.target.alive)) continue;
       u.defending = false; u.cover = null;
-      const h = u.post;
+      const h = u.cls === 'air' ? u.post : Object.assign({}, u.post, deal(u, u.post.x, u.post.y));
       setGuard(u, h.x, h.y); u.staged = h.staged; u.order.pad = h.pad;
       // Aircraft do not wait in the air where the fight ended: they fly home, land, rearm and repair.
       if (u.cls === 'air' && padFor(u)) { u.order.pad = true; u.rearming = true; }

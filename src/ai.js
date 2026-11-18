@@ -12,12 +12,15 @@ function aiCount(team) {
 // 16 Ore Trucks against a player's 2 or 3, and took more than half of the ore). Its refineries are capped at the average
 // of the human sides still in the fight (at least 2); with no human in the game there is no cap. Every refinery brings a
 // free Ore Truck, so this caps the trucks too. Counts refineries being built as well.
+// Since 2026.11.17.18 (owner: a little looser, both modes) it may have REF_CAP_OVER more than that average: the
+// computers mined about 60% of the owner's ore in his last eight wins.
+const REF_CAP_OVER = 1;
 function aiRefCap(team) {
   const humans = G.teams.filter((t) => !t.isAI && !t.out);
   if (!humans.length) return Infinity;
   let total = 0;
   for (const h of humans) total += buildingsOf(h.id).filter((b) => b.type === 'refinery').length;
-  return Math.max(2, Math.ceil(total / humans.length));
+  return Math.max(2, Math.ceil(total / humans.length)) + REF_CAP_OVER;
 }
 
 // Another Helicopter Base when it still wants a transport (AI_STYLES lift) and every pad is taken (attack helicopters keep theirs),
@@ -919,8 +922,13 @@ function aiLaunch(team, ready) {
   const A = aiOf(team), r = Math.random;
   if (!team.plan) team.plan = aiPlanWave(team);
   // No attacks until it has found the enemy base: once the first-wave timer is up, it scouts.
-  if (!enemyBaseKnown(team.id)) { if (G.t >= Math.max(Math.min(A.firstWave, G.diff.ai.firstWave), 60)) aiScout(team, ready); return; }   // (a late style still scouts on the difficulty's time)
-  aiScoutDone(team);
+  const scoutT = G.t >= Math.max(Math.min(A.firstWave, G.diff.ai.firstWave), 60);   // (a late style still scouts on the difficulty's time)
+  if (!enemyBaseKnown(team.id)) { if (scoutT) aiScout(team, ready); return; }
+  // Team games: one base found is not all of them. It keeps one scout out until it has found every enemy base (its
+  // waves go meanwhile), so aiPickFoe has more than one enemy to share out (before, every computer stopped at the first
+  // base it found, often the same player's, and all of them attacked only that player all game).
+  if (foesOf(team.id).some((f) => !G.teams[f].out && inTheFight(f) && !enemyBaseKnown(team.id, f))) { if (scoutT) aiScout(team, [], true); }
+  else aiScoutDone(team);
   // Planner: the clock starts once the base is found and the first-wave wait is over, then each attack
   // comes after a random wait (AI_GAP: never under a minute, never over ten).
   if (A.planner && team.attackAt === undefined && G.t >= A.firstWave) { team.attackAt = G.t + aiGap(team); }
@@ -932,7 +940,12 @@ function aiLaunch(team, ready) {
   // usual cap, and the newest `keep` units (the cap's extra) never go out with them.
   const mul = A.armyMul || 1, cap = (A.armyUnits || ARMY_UNITS) / mul, capW = (A.armyWorth || ARMY_WORTH) / mul;
   const keep = A.planner ? Math.round((A.armyUnits || ARMY_UNITS) - cap) : 0;
-  ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, Math.max(0, ready.length - keep));   // first come, first sent; the newest stay home
+  // The turtle's big push (pushEvery / pushMin): it digs in, but once that long has passed since its last wave (or since its first-wave
+  // time) with no wave, it comes out with everything that has gathered, the home reserve too, then digs in again. Its home
+  // guard (not in `ready`) and its guns still hold the base. (Owner's eight latest wins: the turtle sent no wave in five.)
+  const pushDue = A.planner && A.pushEvery && team.attackAt !== undefined && G.t >= Math.max(A.firstWave, team.lastWave || 0) + A.pushEvery;
+  const push = pushDue && ready.length >= A.pushMin;
+  ready = ready.slice().sort((a, b) => a.id - b.id).slice(0, push ? ready.length : Math.max(0, ready.length - keep));   // first come, first sent; the newest stay home
   const full = A.planner && team.attackAt !== undefined && ready.length >= cap * A.full && G.t - (team.lastWave || -1e9) >= AI_GAP_MIN;
   if (full && !team.fullCut && G.t < team.attackAt) { team.attackAt = G.t + (team.attackAt - G.t) / 2; team.fullCut = true; }
   // The first wave waits a while (on Easy and Normal), waves keep a gap between them, and each
@@ -941,7 +954,8 @@ function aiLaunch(team, ready) {
   const hold = A.planner && ready.length < cap * A.hold && ready.reduce((w, u) => w + (u.def.cost || 300), 0) < capW * A.hold;
   // A turtle under steady attack never fills up to `hold`: some minutes past its timer it goes with what it has (stallAfter).
   const stale = A.planner && A.stallAfter && team.attackAt !== undefined && G.t >= team.attackAt + A.stallAfter && ready.length >= A.stallMin;
-  if (A.planner) { if (team.attackAt === undefined || G.t < team.attackAt || ((ready.length < team.plan.size || hold) && !stale)) return; }
+  if (push && !team.plan.big) { team.plan.big = true; if (A.strike.length) team.holdFor = { keys: A.strike, since: G.t }; }
+  if (A.planner) { if (team.attackAt === undefined || G.t < team.attackAt || ((ready.length < team.plan.size || hold) && !stale && !push)) return; }
   else if (ready.length < team.plan.size || G.t < A.firstWave || G.t - (team.lastWave || -1e9) < A.waveGap) return;
   // The planner's wave sends every unit that has gathered (the units on home guard are not in `ready`).
   const take = A.planner ? ready.length : team.plan.size;
@@ -984,6 +998,9 @@ function aiGap(team) {
 //   aaAdd: more anti-air sites (both the starting count and the cap); defRich: credits above which it keeps adding guns (default 1500); guns2: guns at a second base (default 2);
 //   ring2: also rings its second base; stallAfter / stallMin: once the wave timer is this many seconds past with no
 //   wave (the army never reaches `hold`), it goes with whatever has gathered if that is at least stallMin units;
+//   pushEvery / pushMin: the turtle's big push, at most this many seconds after its last wave (or its first-wave time) it goes
+//   with every unit gathered, its home reserve too, if that is at least pushMin; allyReach / allyDelay / allyNeed: how far (cells) it
+//   sends idle units to an ally's base under attack, how soon (s) and how much (times the raiders' worth) (defendAllies in world.js);
 //   splitAt / split3: wave sizes that split into 3 or 2 squads and the chance of 3; eco: the raider's taste for
 //   refineries, power and Outposts in aiWaveTarget.
 //   lift: how it uses transport helicopters (aiAirAssault): from (share of firstWave before it builds one), n (how many it keeps),
@@ -995,7 +1012,7 @@ const AI_STYLES = {
   balanced: { lift: { from: 0.6, n: 1, min: 8, pair: 'flank', minWave: 15 } },
   rusher: { firstWave: -180, hold: 0.3, full: 0.4, gapMul: 0.6, defAdd: -2, wallMul: 0.5, garAdd: -1,
     lift: { from: 0.4, n: 1, min: 4, prefer: { rifle: 3 }, pair: 'behind', solo: 100 } },
-  turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, armyMul: 1.3, defAdd: 8, aaAdd: 4, defRich: 800, guns2: 5, ring2: true, stallAfter: 240, stallMin: 18, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18],
+  turtle: { firstWave: 90, hold: 0.75, full: 0.85, gapMul: 1.2, armyMul: 1.3, defAdd: 8, aaAdd: 4, defRich: 800, guns2: 5, ring2: true, stallAfter: 240, stallMin: 18, pushEvery: 480, pushMin: 12, allyReach: 120, allyDelay: 4, allyNeed: 2.5, gunsAdd: 1, wallMul: 1.6, garAdd: 1, splitAt: [30, 18],
     lift: { from: 0.8, n: 1, min: 8, pair: 'flank', stallOnly: true, defend: true } },
   raider: { hold: 0.4, airGap: 0.6, splitAt: [12, 8], split3: 0.75, eco: true,
     lift: { from: 0.5, n: 2, min: 6, prefer: { rocket: 2, grenadier: 2 }, solo: 90, eco: true, aaWide: 1.25 } },
@@ -1091,7 +1108,8 @@ function aiSquads(team) {
     for (const e of foes) if (Math.hypot(e.x - cx, e.y - cyy) < CELL * 14) theirs += e.def.cost || 300;
     for (const b of guns) if (Math.hypot(b.x - cx, b.y - cyy) < CELL * 12) theirs += 500;
     if (s.n0 >= 8 && mine < s.value0 * 0.35 && theirs > mine * 2) {
-      for (const u of l) { setGuard(u, rally.x, rally.y); u.staged = true; goTo(u, rally.x, rally.y); }
+      const deal = spotDealer(team);
+      for (const u of l) { const p = deal(u, rally.x, rally.y); setGuard(u, p.x, p.y); u.staged = true; goTo(u, p.x, p.y); }
       team.sqn = team.sqn || { home: 0, back: 0 }; team.sqn.back++;
       return false;
     }
@@ -1103,28 +1121,43 @@ function aiSquads(team) {
 // first-wave timer is up (a minute in on Hard) it sends a scout to the map's other starting spots
 // in turn, nearest first, then to whatever ground it has not seen: the Spy Plane if it is charged,
 // else a helicopter, else its fastest ground unit. Its waves wait until the base is found.
-function aiScout(team, ready) {
+// more: a base is found already (team games), so this is one scout looking for the others. It takes no unit
+// waiting for a wave (its own fastest idle unit instead), and a lost scout is replaced at most once a minute.
+const SCOUT_AGAIN = 60;
+function aiScout(team, ready, more) {
   const s = team.scout || (team.scout = { u: null, until: 0 });
   if (G.t < s.until) return;                                         // a Spy Plane is on its way
   if (s.u && s.u.alive && s.u.order.type === 'move') return;          // the scout is on its way
   const seen = (x, y) => G.fog[team.id][idx(Math.round(x), Math.round(y))];
   const home = team.start;
-  let spots = G.spawns.filter((p) => !(p.cx === home.cx && p.cy === home.cy) && !seen(p.cx, p.cy));
+  // Not its own or an ally's start (nothing to find there).
+  const friend = (p) => G.teams.some((t) => !hostile(team.id, t.id) && t.start && t.start.cx === p.cx && t.start.cy === p.cy);
+  let spots = G.spawns.filter((p) => !friend(p) && !seen(p.cx, p.cy));
   if (!spots.length) for (let y = 4; y < MAP - 4; y += 8) for (let x = 4; x < MAP - 4; x += 8) if (!seen(x, y)) spots.push({ cx: x, cy: y });
   if (!spots.length) return;
   // The scout carries on to the nearest spot from where it is; a new one sets out from home.
   const kept = s.u && s.u.alive && !s.u.retreat && !(s.u.cls === 'air' && airEmpty(s.u)) ? s.u : null;
+  if (more && !kept && G.t < (s.again || 0)) return;
   const from = kept ? { cx: kept.x / CELL, cy: kept.y / CELL } : home;
-  const to = spots.reduce((a, b) => (Math.hypot(a.cx - from.cx, a.cy - from.cy) <= Math.hypot(b.cx - from.cx, b.cy - from.cy) ? a : b));
+  const near = (p) => Math.hypot(p.cx - from.cx, p.cy - from.cy);
+  let to = spots.reduce((a, b) => (near(a) <= near(b) ? a : b));
+  // A scout setting out from home: the computers of an alliance each try a different start first (the k-th computer
+  // its k-th nearest), so they do not all find the same base and stop there.
+  if (!kept && spots.length > 1) {
+    const k = G.teams.filter((t) => t.isAI && t.ally === team.ally && t.id < team.id).length;
+    to = spots.slice().sort((a, b) => near(a) - near(b))[k % spots.length];
+  }
   const x = (to.cx + 0.5) * CELL, y = (to.cy + 0.5) * CELL;
   if (powerReady(team, 'spy')) { launchPower(team, 'spy', x, y); s.until = G.t + 20; return; }
   const heli = unitsOf(team.id).find((u) => u.def.fly === 'heli' && !u.interceptor && !u.repairHold && (u.as === 'landed' || u.order.type === 'guard'));
-  const runner = ready.filter((u) => !u.def.harvester).sort((a, b) => b.def.speed - a.def.speed)[0];
+  const pool = more ? idleGround(team).filter((u) => u.staged && u.def.weapon && !u.def.harvester && !u.def.deploys && !u.manual && !u.defending && !u.assisting) : ready;
+  const runner = pool.filter((u) => !u.def.harvester).sort((a, b) => b.def.speed - a.def.speed)[0];
   // Something faster than the scout (a helicopter, or a vehicle over half as fast again) takes over.
   const faster = (heli && kept && kept.cls !== 'air') || (runner && kept && kept.cls !== 'air' && runner.def.speed > kept.def.speed * 1.5);
   const u = kept && !faster ? kept : heli || runner;
   if (!u) return;
   if (kept && u !== kept) aiScoutDone(team);
+  if (more && u !== kept) s.again = G.t + SCOUT_AGAIN;
   if (u.cls === 'air' && u.as === 'landed') u.as = 'takeoff';
   commandMove([u], x, y);
   s.u = u;
@@ -1136,7 +1169,7 @@ function aiScoutDone(team) {
   const u = s.u; s.u = null;
   if (!u.alive) return;
   if (u.cls === 'air') { setGuard(u); u.order.pad = true; u.staged = true; return; }
-  const r = rallyPoint(team);
+  const r = spotDealer(team)(u, rallyPoint(team).x, rallyPoint(team).y);
   setGuard(u, r.x, r.y); u.staged = true; goTo(u, r.x, r.y);
 }
 
@@ -1192,9 +1225,10 @@ function aiApproachStart(team, units, target, strike) {
 }
 // Sends each group to its gathering point (guarding it on the way) and starts the wait in aiPincer.
 function aiGather(team, groups, spots, target, strike, n) {
+  const deal = spotDealer(team);   // each unit its own cell round the gathering point (they piled up on it)
   groups.forEach((g, i) => {
     const p = spots[i];
-    for (const u of g) { setGuard(u, p.x + (Math.random() - 0.5) * CELL * 3, p.y + (Math.random() - 0.5) * CELL * 3); u.staged = false; goTo(u, u.order.x, u.order.y); }
+    for (const u of g) { const s = deal(u, p.x, p.y); setGuard(u, s.x, s.y); u.staged = false; goTo(u, s.x, s.y); }
   });
   // Long marches get longer: give up waiting only well after the slowest unit could have arrived.
   const slow = Math.min(...groups.flat().map((u) => u.def.speed * (u.paceMul || 1)));
@@ -1256,7 +1290,7 @@ function aiPincer(team) {
   if (!p) return;
   const alive = p.groups.map((g) => g.filter((u) => u.alive && u.order.type === 'guard' && !u.defending));
   const all = [].concat(...alive);
-  const there = alive.map((g, i) => !g.length || g.filter((u) => Math.hypot(u.x - p.spots[i].x, u.y - p.spots[i].y) < CELL * 5).length >= g.length * 0.6);
+  const there = alive.map((g, i) => !g.length || g.filter((u) => Math.hypot(u.x - p.spots[i].x, u.y - p.spots[i].y) < CELL * Math.max(5, 2 + Math.sqrt(g.length))).length >= g.length * 0.6);
   if (!all.length) { team.pincer = null; return; }
   if (p.firstIn === undefined && there.some((x, i) => x && alive[i].length)) p.firstIn = G.t;
   const waited = p.firstIn !== undefined ? G.t - p.firstIn > 30 : G.t - p.since > (p.limit || 150);
