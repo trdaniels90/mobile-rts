@@ -3114,6 +3114,12 @@ function kill(e, attacker, wh, from) {
   if (e.inHouse) leaveHouse(e);   // (falls in the doorway)
   e.alive = false;
   const team = teamOf(e);
+  if (e.cargo && e.cargo.length && e.def.apc && !G.remote && !WIPING) {   // an APC: some of those aboard get out of the wreck
+    const n = e.cargo.length, out = apcEscape(e);
+    team.stats.lost += n - out;
+    if (attacker && hostile(attacker.team, e.team)) G.teams[attacker.team].stats.killed += n - out;
+    if (out) say(e.team, out === 1 ? 'A soldier got out of the APC' : out + ' soldiers got out of the APC');
+  }
   if (e.cargo && e.cargo.length) {   // a transport shot down: everyone aboard goes with it
     team.stats.lost += e.cargo.length;
     if (attacker && hostile(attacker.team, e.team)) G.teams[attacker.team].stats.killed += e.cargo.length;
@@ -3573,6 +3579,7 @@ function updateUnit(u, dt) {
     const d = u.dest; leaveHouse(u);
     if (d) goTo(u, d.x, d.y, true);
   }
+  if (u.unload) updateUnload(u, dt);
   if (u.order.type === 'board') { updateBoard(u); if (u.alive) { followPath(u, dt); checkStuck(u, dt); } return; }
   if (u.order.type === 'garrison') { updateEnterHouse(u); if (u.alive && !u.inHouse) { followPath(u, dt); checkStuck(u, dt); } return; }
   u.repairing = false;
@@ -4666,30 +4673,45 @@ function unloadOne(h, ai) {
   else { setGuard(u, p.x, p.y); u.staged = false; takeOver(u, 'move'); }
   goTo(u, p.x, p.y);
   hooks.sfx('place', h.x, h.y);
+  return u;
 }
 // Infantry ordered aboard walk to where the transport is landing and climb in.
 function updateBoard(u) {
   const h = u.order.target;
-  if (!liftWaiting(h) || h.team !== u.team || (h.cargo || []).length >= h.def.carry) { setGuard(u, u.x, u.y); return; }
-  const o = h.order, d = Math.hypot(o.x - u.x, o.y - u.y), settled = !u.dest && !u.needPath;
-  if (h.as === 'landed' && Math.hypot(h.x - o.x, h.y - o.y) < 6 && (d < LIFT_BOARD_R || (settled && d < CELL * 3))) {
-    (h.cargo || (h.cargo = [])).push({ type: u.type, hp: u.hp, rank: u.rank || 0, kills: u.kills || 0, kw: u.killWorth || 0, born: u.born });
-    if (u.inHouse) leaveHouse(u);
-    u.alive = false;   // aboard (made again when it unloads); not a loss
-    hooks.sfx('place', h.x, h.y);
+  if (h && h.def && h.def.apc) {   // an APC: walk up to it wherever it is and climb in
+    if (!h.alive || h.team !== u.team || (h.cargo || []).length >= h.def.carry) { setGuard(u, u.x, u.y); return; }
+    const d = Math.hypot(h.x - u.x, h.y - u.y), settled = !u.dest && !u.needPath;
+    if (d < h.def.r + APC_BOARD_R || (settled && d < CELL * 2.5)) { climbIn(u, h); return; }
+    if (settled || (u.dest && Math.hypot(u.dest.x - h.x, u.dest.y - h.y) > CELL)) goTo(u, h.x, h.y);
     return;
   }
+  if (!liftWaiting(h) || h.team !== u.team || (h.cargo || []).length >= h.def.carry) { setGuard(u, u.x, u.y); return; }
+  const o = h.order, d = Math.hypot(o.x - u.x, o.y - u.y), settled = !u.dest && !u.needPath;
+  if (h.as === 'landed' && Math.hypot(h.x - o.x, h.y - o.y) < 6 && (d < LIFT_BOARD_R || (settled && d < CELL * 3))) { climbIn(u, h); return; }
   if (settled && d > LIFT_BOARD_R) goTo(u, o.x, o.y);
+}
+function climbIn(u, h) {
+  (h.cargo || (h.cargo = [])).push({ type: u.type, hp: u.hp, rank: u.rank || 0, kills: u.kills || 0, kw: u.killWorth || 0, born: u.born });
+  if (u.inHouse) leaveHouse(u);
+  u.alive = false;   // aboard (made again when it unloads); not a loss
+  hooks.sfx('place', h.x, h.y);
 }
 // Infantry selected, a transport tapped: it comes and lands beside them (or waits where it is parked) and they get in.
 function commandBoard(units, h) {
-  if (!h || !h.alive || h.kind !== 'unit' || !h.def.lift) return;
+  if (!h || !h.alive || h.kind !== 'unit' || !(h.def.lift || h.def.apc)) return;
   const inf = units.filter((u) => canBoard(u) && u.team === h.team).sort((a, b) => dist(a, h) - dist(b, h));
   if (!inf.length) return;
   const room = h.def.carry - (h.cargo || []).length - boardersOf(h).filter((b) => !inf.includes(b)).length;
   if (room <= 0) { say(h.team, 'Transport full'); return; }
   const go = inf.slice(0, room);
   if (inf.length > room) say(h.team, 'Transport full');
+  if (h.def.apc) {
+    for (const u of go) {
+      u.order = { type: 'board', target: h }; u.target = null; u.staged = false; u.defending = false; u.homeward = false; u.assisting = false; takeOver(u, 'move');
+      goTo(u, h.x, h.y);
+    }
+    return;
+  }
   if (!liftWaiting(h)) {
     const mx = go.reduce((s, u) => s + u.x, 0) / go.length, my = go.reduce((s, u) => s + u.y, 0) / go.length;
     const parked = h.as === 'landed' && h.order.type === 'guard' && !h.order.pad && Math.hypot(h.x - mx, h.y - my) < CELL * 12;
@@ -4708,6 +4730,37 @@ function liftTo(u, x, y) {
   if (!s) { say(u.team, 'Cannot land there'); if (u.order.type === 'move') setGuard(u); return; }
   for (const b of boardersOf(u)) setGuard(b, b.x, b.y);
   u.order = { type: 'lift', step: 'go', x: s.x, y: s.y }; u.target = null; u.repairHold = false;
+}
+// --- Armoured personnel carriers (APC, `def.apc`) --------------------------------------
+// Boarding as for a transport helicopter (commandBoard, updateBoard: they walk up to the APC wherever it is), the passengers kept
+// as plain data in u.cargo. commandUnload: it stops and lets one out every APC_DROP_GAP (unloadOne), unless given another order.
+// Destroyed with soldiers aboard (kill): each gets out of the wreck with APC_ESCAPE chance, with APC_ESCAPE_HP of the health
+// they had; the rest are lost. Host only, like every new entity.
+const APC_BOARD_R = CELL * 0.9, APC_DROP_GAP = 0.3, APC_ESCAPE = 0.5, APC_ESCAPE_HP = 0.5;
+function commandUnload(units) {
+  for (const u of units) {
+    if (!u || !u.alive || u.kind !== 'unit' || !u.def.apc || !(u.cargo && u.cargo.length)) continue;
+    setGuard(u, u.x, u.y); u.target = null; u.unload = true; u.unloadT = 0;
+  }
+}
+function updateUnload(u, dt) {
+  if (!u.cargo || !u.cargo.length || u.order.type !== 'guard') { u.unload = false; return; }
+  if (u.moving) return;
+  if ((u.unloadT = (u.unloadT || 0) - dt) > 0) return;
+  u.unloadT = APC_DROP_GAP;
+  unloadOne(u);
+  if (!u.cargo.length) u.unload = false;
+}
+function apcEscape(e) {
+  const out = [];
+  for (const r of e.cargo) if (Math.random() < APC_ESCAPE) out.push(Object.assign({}, r, { hp: Math.max(1, Math.round(r.hp * APC_ESCAPE_HP)) }));
+  const n = out.length;
+  e.cargo = out;
+  while (e.cargo.length) {
+    const u = unloadOne(e);
+    if (u && u.alive && !teamOf(u).isAI) { u.manual = false; u.manualFrom = 0; }   // (not an order of the player's: they defend themselves as usual)
+  }
+  return n;
 }
 // Air Assault: the side's idle infantry by a Barracks, as even a mix of kinds as there is, up to a transport's load.
 // prefer (the computer's personalities): kinds taken more than once a round, e.g. { rifle: 3 }.

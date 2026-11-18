@@ -180,6 +180,13 @@ share globals. Read this file first; the commit history explains every change in
 - **Known bugs:** not tried on a real phone or online; washing lines lie across the screen, not along their house; the
   debrief and Field Manual pictures are unchanged.
 
+## Soviet Spy Plane is a Beriev A-50 (after 2026.11.18, looks only, both modes)
+
+- Owner's request: the Soviet Spy Plane (power `spy`) is drawn as the A-50 AWACS: `il76Model(pal, true)` (models.js): the Il-76 airframe with a
+  solid nose and refuelling probe, the tail glazing faired over, no paratroop doors, and a rotodome on two raked struts over the rear fuselage
+  (pale, dark rim and panels, a band of side colour). Sprite key `'Y'` in `hullSprite`; the sidebar cameo and the night lights (`PLANE_LIGHTS.il76`)
+  use it too. Speed, health and size (`r`) unchanged. Not baked (scripted); sprites and ground rebaked for the hash only. The Allied one is still the jet.
+
 ## Recent mechanics (2026.10.31 and .31.1)
 
 - **Defending jets** (`defendBase`, `pickRaider`, `updateAir`): each defending jet takes a raider
@@ -1025,6 +1032,7 @@ Supabase.
 | `ai-lift.js` | Headless: a Normal 1 v 1 per personality (first air assault, how many, kind, soldiers landed and alive 60 s later), and a turtle reinforcing an outlying refinery |
 | `transport.js` | Headless: transport helicopters (board, drop, park, UNLOAD HERE), Air Assault's balanced pick, shot down with troops aboard, a forged online order, the computer's air assault |
 | `cas.js` | Headless: Close Air Support tiers (needs Tech Center, Airfield, the tier before), the power, strikes by 1-3 planes on a tank column |
+| `apc.js` | Headless: APCs: boarding (5 of 6), unloading, a forged online order, about half escape a destroyed APC at half health |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
@@ -1204,6 +1212,21 @@ frame-time maths everywhere, so it is not deterministic.
 - Owner's choice: everyone gets both controls (no PC / phone split). `node tools/sim/transport.js <repo>` (boarding, drop, parking, Air Assault mix,
   shot down, a forged online order, a Normal computer flying one: 8 men at about 11 min). Not yet tried: two real phones online, save and continue
   with soldiers aboard in a browser.
+
+## APCs (not released, owner's picks for both modes; the server must match)
+
+- `apc` (Allies, a tracked box with a gunner standing in the hatch at an M2 .50 cal) and `btr` (Soviets, an eight-wheeled boat-hulled carrier with a small
+  heavy-MG turret), both named APC, War Factory, OpenRA's numbers: $850, 300 health, heavy armour, speed 83, 5 aboard (`carry`, `apc: true`). Heavy MG
+  (`sound: 'hmg'`: cal50 / dshk), hits helicopters, not jets. One type per side because wrecks are drawn from the type alone.
+- **Boarding** reuses the transport helicopters' code (and is not behind their `TRANSPORTS` switch): infantry selected + tap your APC = `commandBoard`;
+  `updateBoard` walks them to the APC wherever it is and `climbIn` (plain data in `u.cargo`). UNLOAD HERE = `commandUnload` (netcore `COMMANDS`): it
+  stops and lets one out every `APC_DROP_GAP` (`updateUnload`, `unloadOne`; another order stops it). Pips for those aboard (`cargoPips` in art.js).
+- **Destroyed with soldiers aboard** (owner's pick, `apcEscape` from `kill`, host only, not while a beaten side is wiped): each gets out with `APC_ESCAPE`
+  (0.5) chance at `APC_ESCAPE_HP` (half) the health they had, not under the player's orders; the rest count as lost. The vehicle's own crew may still bail out.
+- **Looks:** `apcHull` / `apcTurret(pal, frame)` and `btrHull` / `btrTurret` (models.js, hulls built with the turret ring at the origin, so turret offset 0);
+  the gun kicks back on alternate rounds of a burst (`apcFrame`: `fireT` and `shots` parity, frame 1, baked); a wreck's turret has no gunner. Sprites rebaked.
+- The computer does not build APCs yet. `node tools/sim/apc.js <repo>`: boarding, the sixth soldier left out, driving, unloading, a forged online order, 40 kills
+  with 5 aboard (about half get out, at half health, losses counted right).
 
 ## Unit veterancy (after 2026.11.14.12, not released, both modes)
 
