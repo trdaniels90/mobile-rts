@@ -331,6 +331,8 @@ share globals. Read this file first; the commit history explains every change in
   Decided once per target (when `slideT` is 0). Staged 12 v 10 riflemen in sight, 12 seeds: wait from in reach to first shot 1.6 to 0.8 s, soldiers waiting
   over 0.8 s 4.4 to 2.9. `bunching.js` 4 x 90 s: attackers 3.44 to 3.64 friends in a V2 blast, 6+ 12% to 15% (a narrower cone, 22 px / 0.6 rad, gave 4.18 / 23%).
 - Under consideration, not built: soldiers packed 3 a cell (formation gap 14, friendly soldier spacing 1.2 radii; MP4 shown to the owner).
+- **Group moves stay as they are** (owner, after an MP4 of ours beside a Red Alert-style mock-up: soldiers setting off one by one in a file and packing
+  five to a cell round the tapped cell). `formationSpots` (16 px square grid) and the spacing are unchanged.
 
 ## Saved online co-op battles (2 v AI, 3 v AI; not released, online co-op only; the server must match)
 
