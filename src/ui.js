@@ -987,12 +987,18 @@ function draw() {
         return;
       }
     }
-    // Engineers: tap a destroyed bridge span to rebuild it, or a damaged structure of your side or an ally's to repair it.
+    // Engineers: tap a destroyed bridge span to rebuild it, a damaged structure of your side or an ally's to repair it, or an
+    // enemy structure to capture it (the rest of the selection attacks it meanwhile).
     const engs = G.selection.filter((u) => u.alive && u.kind === 'unit' && u.team === G.me && u.def.engineer);
     if (engs.length) {
       const down = spanAt(w.x, w.y), bld = pick(w.x, w.y, (isTouch ? 16 : 6) / cam.z);
       const job = down && !down.alive ? down : bld && bld.kind === 'bld' && engineerJob(engs[0], bld) ? bld : null;
-      if (job) { commandEngineer(engs, job); marker(job.x, job.y, '#3ed04a'); Sound.ack('inf'); return; }
+      if (job) {
+        commandEngineer(engs, job);
+        const rest = ownUnits().filter((u) => !u.def.engineer && u.def.weapon);
+        if (job.kind === 'bld' && hostile(job.team, G.me) && rest.length) commandAttack(rest, job);
+        marker(job.x, job.y, hostile(job.team, G.me) ? '#ffd23e' : '#3ed04a'); Sound.ack('inf'); return;
+      }
     }
     const slop = (isTouch ? 16 : 6) / cam.z;
     const e = pick(w.x, w.y, slop);

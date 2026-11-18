@@ -51,8 +51,58 @@ for (const fac of ['allies', 'soviets']) {
     return JSON.stringify(r);
   })()`));
 }
+// Engineers capture enemy structures at once, Construction Yards too.
+{
+  const ctx = headless.load(), run = (s) => vm.runInContext(s, ctx);
+  run(`newWorld('allies', 'normal', 7); G.me = 0; for (const t of G.teams) { t.isAI = false; t.auto = false; } 0`);
+  out.capture = JSON.parse(run(`(() => {
+    const step = (s) => { for (let i = 0; i < s * 30; i++) update(1 / 30); };
+    const me = G.teams[0], foe = G.teams[1], r = {};
+    const ecy = buildingsOf(1).find((b) => b.type === 'cy');
+    const pw = addBuilding('power', foe, ecy.cx + 5, ecy.cy); pw.buildT = 1; updatePower();
+    for (const c of G.fog[0].keys()) G.fog[0][c] = 2;
+    const e1 = addUnit('engineer', me, pw.x, pw.y + CELL * 4), e2 = addUnit('engineer', me, ecy.x - CELL * 4, ecy.y);
+    for (const e of [e1, e2]) e.hp = e.maxHp = 1e6;   // (the enemy's starting units would shoot them)
+    r.jobEnemy = engineerJob(e1, pw); r.jobOwnFull = engineerJob(e1, buildingsOf(0)[0]);
+    commandEngineer([e1], pw); commandEngineer([e2], ecy); step(20);
+    r.power = [pw.team, pw.faction]; r.cy = [ecy.team, ecy.faction]; r.engsUsed = !e1.alive && !e2.alive; r.captured = me.stats.captured;
+    step(10); r.foeOut = !!foe.out || !inTheFight(1);
+    return JSON.stringify(r);
+  })()`));
+}
+// A Normal 1 v 1 of computers, side 1 a Raider: APCs built and ridden, an Engineer raid, a capture.
+{
+  const mins = +(process.argv[3] || 20);
+  const ctx = headless.load(), run = (s) => vm.runInContext(s, ctx);
+  run(`newWorld('allies', 'normal', 4242, 0, false, 'bridge', [{ faction: 'allies', ally: 0, ai: true }, { faction: 'soviets', ally: 1, ai: true }]);
+    for (const t of G.teams) t.auto = true; G.me = -1; G.teams[0].style = 'balanced'; G.teams[1].style = 'raider'; 0`);
+  out.ai = JSON.parse(run(`(() => {
+    const r = { apcs: [0, 0], rode: [0, 0], raids: 0, raidSteps: {}, captured: [0, 0], errors: 0 };
+    const seenApc = new Set(), rode = new Set();
+    let lastRaid = null;
+    for (let i = 0; i < ${mins} * 60 * 15; i++) {
+      try { update(1 / 15); } catch (e) { r.errors++; r.err = String(e.stack).slice(0, 300); break; }
+      if (i % 15) continue;
+      for (const u of G.entities) if (u.alive && u.kind === 'unit' && u.def.apc) {
+        if (!seenApc.has(u.id)) { seenApc.add(u.id); r.apcs[u.team]++; }
+        if ((u.cargo || []).length && !rode.has(u.id) && !atHome(G.teams[u.team], u, 25)) { rode.add(u.id); r.rode[u.team]++; }
+      }
+      const R = G.teams[1].engRaid;
+      if (R && R !== lastRaid) { r.raids++; lastRaid = R; }
+      if (R) r.raidSteps[R.step] = (r.raidSteps[R.step] || 0) + 1;
+      if (G.over) break;
+    }
+    r.captured = G.teams.map((t) => t.stats.captured || 0); r.t = Math.round(G.t / 60);
+    r.engineers = G.teams.map((t) => t.queues ? 0 : 0);
+    return JSON.stringify(r);
+  })()`));
+}
 console.log(JSON.stringify(out));
-const ok = Object.values(out).every((r) => r.buildable === true && r.aboard === 5 && r.leftOut === 1 && r.drove >= 6 && r.unloaded === 5 && r.cargoAfter === 0 &&
+const cap = out.capture, ai = out.ai;
+const capOk = cap.jobEnemy && !cap.jobOwnFull && cap.power.join() === '0,allies' && cap.cy.join() === '0,allies' && cap.engsUsed && cap.captured === 2;
+const aiOk = ai.errors === 0 && ai.apcs[0] > 0 && ai.apcs[1] > 0 && ai.rode[0] + ai.rode[1] > 0 && ai.raids > 0;
+console.log('capture', capOk ? 'ok' : 'FAIL', 'ai', aiOk ? 'ok' : 'FAIL');
+const ok = capOk && aiOk && Object.entries(out).filter(([k]) => k === 'allies' || k === 'soviets').map(([, v]) => v).every((r) => r.buildable === true && r.aboard === 5 && r.leftOut === 1 && r.drove >= 6 && r.unloaded === 5 && r.cargoAfter === 0 &&
   r.forgedRefused && r.escapeShare > 0.35 && r.escapeShare < 0.65 && r.escapeStatsOk);
 console.log(ok ? 'PASS' : 'FAIL');
 process.exit(ok ? 0 : 1);

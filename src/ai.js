@@ -544,6 +544,143 @@ function aiBridges(team) {
   if (down.some((s) => !taken.has(s)) && !friends.some((u) => u.team === team.id) && !team.queues.infantry.some((i) => i.type === 'engineer') &&
       team.credits >= UNIT_DEFS.engineer.cost + 300) startProduction(team, 'engineer');
 }
+// --- APCs (every personality) ---------------------------------------------------------------------------------
+// Waiting at home, an APC with room takes idle staged infantry aboard (not Engineers); it then goes out with a wave like any
+// unit. In the field, loaded, it lets them out when it is hurt (under half), fighting, or has known enemies within APC_UNLOAD_R,
+// then hunts on. A raider's Engineer raid (aiEngRaid) uses one of its own.
+const APC_MAX = 2, APC_HOME_R = 20, APC_PICK_R = 10, APC_UNLOAD_R = 7;
+const apcType = (team) => (team.faction === 'allies' ? 'apc' : 'btr');
+const atHome = (team, u, r) => Math.hypot(u.x / CELL - team.start.cx, u.y / CELL - team.start.cy) < r;
+function aiApcs(team) {
+  const apcs = unitsOf(team.id).filter((u) => u.def.apc);
+  if (!apcs.length) return;
+  let pool = null;
+  for (const a of apcs) {
+    const cargo = a.cargo || [];
+    if (a.apcBack && !cargo.length && !a.unload) { a.apcBack = false; setHunt(a); a.staged = false; continue; }
+    if (a.raid) continue;
+    if (cargo.length && !a.unload && (a.order.type === 'hunt' || a.order.type === 'attack' || a.defending || a.assisting)) {
+      const fog = G.fog[team.id];
+      const near = a.hp < a.maxHp * 0.5 || (a.target && a.target.alive) || G.t - (a.hitT || -99) < 2 ||
+        enemyUnitsOf(team.id).some((e) => e.cls !== 'air' && fog[cellOfPos(e.x, e.y)] && Math.hypot(e.x - a.x, e.y - a.y) < APC_UNLOAD_R * CELL) ||
+        enemyBuildingsOf(team.id).some((b) => targetable(team.id, b) && distTo(a, b) < APC_UNLOAD_R * CELL);
+      if (near) { commandUnload([a]); a.apcBack = true; }
+      continue;
+    }
+    // Loading at home.
+    if (!a.staged || a.order.type !== 'guard' || a.defending || !atHome(team, a, APC_HOME_R)) continue;
+    const room = a.def.carry - cargo.length - boardersOf(a).length;
+    if (room <= 0) continue;
+    pool = pool || unitsOf(team.id).filter((u) => canBoard(u) && !u.def.engineer && u.staged && u.order.type === 'guard' && !u.target && !u.inHouse &&
+      !u.homeGuard && !u.garrison && !u.defending && !u.assisting && !u.liftWait && !u.raidCrew);
+    const pick = pool.filter((u) => Math.hypot(u.x - a.x, u.y - a.y) < APC_PICK_R * CELL).sort((p, q) => dist(p, a) - dist(q, a)).slice(0, room);
+    if (pick.length) { commandBoard(pick, a); for (const u of pick) { u.staged = false; pool.splice(pool.indexOf(u), 1); } }
+  }
+}
+// --- Engineer raids (Raider personality, Normal and Hard) -------------------------------------------------------
+// From ENG_RAID_FROM x its first-wave time, every ENG_RAID_GAP or so: an APC at home takes two Engineers and up to three soldiers
+// aboard, drives to the least defended side of a valuable known enemy structure (aiEngTarget: worth over known guns and units
+// covering the spot), lets them out there and the Engineers walk in and capture it (world.js captureBuilding). Engineers left in
+// the field (an APC lost on the way: half of those aboard get out) go for the nearest enemy structure they can reach.
+const ENG_RAID_FROM = 0.6, ENG_RAID_GAP = 150, ENG_RAID_ENGS = 2;
+const ENG_VALUE = { cy: 6, factory: 5, tech: 5, airfield: 4, refinery: 4, helipad: 3, barracks: 3, dome: 3, depot: 2.5, apower: 2.5, power: 2, outpost: 3 };
+function aiEngTarget(team, from) {
+  const theirs = enemyBuildingsOf(team.id).filter((b) => targetable(team.id, b) && b.buildT >= 1 && b.sellT <= 0);
+  if (!theirs.length) return null;
+  const guns = theirs.filter((b) => b.def.weapon && !b.def.antiAir), fog = G.fog[team.id];
+  const foes = enemyUnitsOf(team.id).filter((e) => e.cls !== 'air' && e.def.weapon && fog[cellOfPos(e.x, e.y)]);
+  const cover = (x, y) => guns.filter((g) => Math.hypot(g.x - x, g.y - y) <= g.def.weapon.range + CELL * 2).length +
+    0.25 * foes.filter((e) => Math.hypot(e.x - x, e.y - y) < CELL * 6).length;
+  const c0 = cellOfPos(from.x, from.y), walk = walkDistances(freeCell(c0) ? c0 : nearestFreeCell(c0, 4));
+  let best = null, bs = -Infinity;
+  for (const b of theirs) {
+    const val = ENG_VALUE[b.type] || (b.def.weapon ? 1 : 1.5), r = Math.max(b.w, b.h) / 2 + 3;
+    let spot = null, ss = Infinity;
+    for (let k = 0; k < 12; k++) {
+      const a = k * Math.PI / 6, cx = Math.round(b.x / CELL + Math.cos(a) * r - 0.5), cy = Math.round(b.y / CELL + Math.sin(a) * r - 0.5);
+      if (!inMap(cx, cy)) continue;
+      const c = idx(cx, cy);
+      if (!freeCell(c) || !(walk[c] >= 0)) continue;
+      const p = cellCenter(c), sc = cover(p.x, p.y) + Math.random() * 0.1;
+      if (sc < ss) { ss = sc; spot = p; }
+    }
+    if (!spot) continue;
+    const score = val / (1 + ss + 0.5 * cover(b.x, b.y)) + Math.random() * 0.3;
+    if (score > bs) { bs = score; best = { b, x: spot.x, y: spot.y }; }
+  }
+  return best;
+}
+function aiEngRaid(team) {
+  const A = aiOf(team);
+  const engs = unitsOf(team.id).filter((u) => u.def.engineer && !u.chute);
+  // Engineers out in the field (not at home, not on a job): the nearest enemy structure they can take.
+  for (const u of engs) {
+    if (u.order.type === 'engineer' || u.order.type === 'board' || atHome(team, u, 25)) continue;
+    const t = enemyBuildingsOf(team.id).filter((b) => engineerJob(u, b) && targetable(team.id, b) && distTo(u, b) < CELL * 15).sort((a, b) => distTo(u, a) - distTo(u, b))[0];
+    if (t) commandEngineer([u], t);
+  }
+  const R = team.engRaid;
+  if (R) {
+    const apc = G.byId.get(R.apc);
+    if (!apc || !apc.alive) { team.engRaid = null; team.engNext = G.t + 120; return; }
+    const cargo = apc.cargo || [];
+    if (R.step === 'load') {
+      const coming = boardersOf(apc).length, engAboard = cargo.some((r) => r.type === 'engineer');
+      if (engAboard && (!coming || G.t - R.t > 25)) {
+        for (const b of boardersOf(apc)) { b.raidCrew = false; setGuard(b, b.x, b.y); b.staged = true; }
+        commandMove([apc], R.x, R.y); R.step = 'go'; R.t = G.t;
+      } else if (G.t - R.t > 60) {   // nobody came: give it up
+        for (const b of boardersOf(apc)) { b.raidCrew = false; setGuard(b, b.x, b.y); b.staged = true; }
+        apc.raid = false; apc.staged = true; team.engRaid = null; team.engNext = G.t + 60;
+      }
+      return;
+    }
+    if (R.step === 'go') {
+      const d = Math.hypot(apc.x - R.x, apc.y - R.y), stopped = !apc.dest && !apc.needPath && !apc.moving && G.t - R.t > 5;
+      if (d < CELL * 2 || stopped || apc.hp < apc.maxHp * 0.4 || G.t - R.t > 150) { commandUnload([apc]); R.step = 'drop'; R.t = G.t; }
+      return;
+    }
+    if (R.step === 'drop') {
+      if ((cargo.length || apc.unload) && G.t - R.t < 15) return;
+      const tgt = G.byId.get(R.tgt);
+      for (const u of unitsOf(team.id)) {
+        if (u.cls !== 'inf' || Math.hypot(u.x - apc.x, u.y - apc.y) > CELL * 6) continue;
+        u.raidCrew = false;
+        if (u.def.engineer) {
+          const t = engineerJob(u, tgt) ? tgt : enemyBuildingsOf(team.id).filter((b) => engineerJob(u, b) && targetable(team.id, b)).sort((a, b) => distTo(u, a) - distTo(u, b))[0];
+          if (t) commandEngineer([u], t);
+        } else if (u.order.type === 'guard' || u.order.type === 'hunt') { if (tgt && tgt.alive && hostile(team.id, tgt.team)) commandAttack([u], tgt); else setHunt(u); }
+      }
+      apc.raid = false; setHunt(apc); apc.staged = false;
+      team.engRaid = null; team.engNext = G.t + ENG_RAID_GAP + Math.random() * 60;
+    }
+    return;
+  }
+  if (G.t < A.firstWave * ENG_RAID_FROM || G.t < (team.engNext || 0) || !enemyBaseKnown(team.id)) return;
+  const homeEngs = engs.filter((u) => u.order.type === 'guard' && atHome(team, u, APC_HOME_R) && !u.raidCrew);
+  const queued = (t) => team.queues.infantry.filter((i) => i.type === t).length + team.queues.vehicle.filter((i) => i.type === t).length;
+  if (homeEngs.length + queued('engineer') < ENG_RAID_ENGS && available(team, 'engineer') && team.credits >= UNIT_DEFS.engineer.cost + 700) startProduction(team, 'engineer');
+  const apc = unitsOf(team.id).filter((u) => u.def.apc && !u.raid && u.staged && u.order.type === 'guard' && !u.defending && atHome(team, u, APC_HOME_R) && !boardersOf(u).length)
+    .sort((a, b) => (a.cargo || []).length - (b.cargo || []).length)[0];
+  if (!apc) {
+    if (!unitsOf(team.id).some((u) => u.def.apc) && !queued(apcType(team)) && available(team, apcType(team)) && team.credits >= 1500) startProduction(team, apcType(team));
+    return;
+  }
+  if (!homeEngs.length) return;
+  const plan = aiEngTarget(team, apc);
+  if (!plan) { team.engNext = G.t + 30; return; }
+  // Load: what it already carries stays aboard (up to 3 others); two Engineers and soldiers to fill it.
+  while ((apc.cargo || []).length > apc.def.carry - ENG_RAID_ENGS) unloadOne(apc, 'guard');   // (make room: they wait at home)
+  const crew = homeEngs.sort((a, b) => dist(a, apc) - dist(b, apc)).slice(0, ENG_RAID_ENGS);
+  const room = apc.def.carry - (apc.cargo || []).length - crew.length;
+  const inf = unitsOf(team.id).filter((u) => canBoard(u) && !u.def.engineer && u.staged && u.order.type === 'guard' && !u.target && !u.inHouse && !u.homeGuard &&
+    !u.garrison && !u.defending && !u.assisting && Math.hypot(u.x - apc.x, u.y - apc.y) < APC_PICK_R * CELL).sort((a, b) => dist(a, apc) - dist(b, apc)).slice(0, Math.max(0, room));
+  const go = crew.concat(inf);
+  commandBoard(go, apc);
+  for (const u of go) { u.raidCrew = true; u.staged = false; }
+  apc.raid = true; apc.staged = false;
+  team.engRaid = { apc: apc.id, tgt: plan.b.id, x: plan.x, y: plan.y, step: 'load', t: G.t };
+}
 // Village houses (Normal and Hard, from minute 4, every 15 s): the computer holds AI_GARRISON houses with up to three
 // idle soldiers each, picked from its own half of the village, nearest the middle (the front line). Easy ignores them.
 // Its waves never take these soldiers (they are not staged); its other orders bring them out like anyone's.
@@ -723,6 +860,8 @@ function aiRebuild(team, c) {
 }
 function aiThink(team) {
   aiBridges(team);
+  aiApcs(team);
+  if (aiOf(team).planner && team.style === 'raider') aiEngRaid(team);
   aiRing(team);
   aiWalls(team);
   aiGarrison(team);
@@ -861,6 +1000,9 @@ function aiThink(team) {
     const opts = team.faction === 'allies' ? (anti ? ['mtank', 'mtank', 'ranger', 'ranger', 'ltank'] : ['ltank', 'mtank', 'mtank', 'ranger'])
       : (anti ? ['htank', 'mammoth', 'mammoth', 'htank'] : ['htank', 'htank', 'htank', 'mammoth']);
     if (available(team, 'ttank')) opts.push('ttank', 'ttank');                    // after the Tesla program (Tech Center upgrade)
+    // APCs (every personality, every difficulty): a few to carry infantry into the fight (aiApcs).
+    const apcT = team.faction === 'allies' ? 'apc' : 'btr';
+    if (available(team, apcT) && (c[apcT] || 0) + vq.filter((i) => i.type === apcT).length < (team.style === 'raider' ? APC_MAX + 1 : APC_MAX)) opts.push(apcT);
     const sup = team.faction === 'allies' ? 'arty' : 'v2rl';                        // long-range support, once it has a Radar Dome
     const k = team.counter || {};
     if (!anti && k.armor) opts.push(...(team.faction === 'allies' ? ['mtank', 'mtank'] : ['mammoth', 'htank']));

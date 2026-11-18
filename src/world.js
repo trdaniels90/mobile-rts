@@ -762,7 +762,34 @@ function wallInTheWay(u, goal, out) {
 
 // Engineers: sent to a destroyed bridge span, or to a damaged structure of their own alliance, they walk up to it,
 // put it right at once (the span stands again, the structure is back at full health) and are used up.
-const engineerJob = (u, t) => !!t && (t.kind === 'span' ? !t.alive : t.kind === 'bld' && t.alive && t.hp < t.maxHp && t.buildT >= 1 && t.sellT <= 0 && alliedSides(u.team, t.team));
+// Or to an enemy structure (owner's rule, both modes, classic Red Alert): it walks in and the structure is its side's at once,
+// Construction Yards too (captureBuilding); the Engineer is used up.
+const engineerJob = (u, t) => !!t && (t.kind === 'span' ? !t.alive : t.kind === 'bld' && t.alive && t.buildT >= 1 && t.sellT <= 0 &&
+  (hostile(u.team, t.team) ? !camoHidden(t, u.team) : t.hp < t.maxHp && alliedSides(u.team, t.team)));
+// A structure changes sides: it keeps its health and place, takes the new owner's colours and look (its faction), and what the old
+// owner had tied to it (rally point, primary, Ore Trucks docking, aircraft based there, its door's next vehicle) is let go.
+function captureBuilding(b, team) {
+  const old = G.teams[b.team];
+  if (!old || old === team || !b.alive) return;
+  b.team = team.id; b.faction = team.faction;
+  b.rally = null; b.primary = false; b.repairing = false; b.target = null; b.doorAt = null; b.dockU = null; b.exposed = true;
+  if (G.doorQ) G.doorQ = G.doorQ.filter((d) => d.p !== b.id);   // (a vehicle the old owner had rolling out is lost with it)
+  for (const u of G.entities) {
+    if (!u.alive || u.kind !== 'unit' || u.team !== old.id) continue;
+    if (u.home === b.id) u.home = null;
+    if (u.ref === b) { u.ref = null; if (u.hs === 'unload') u.hs = 'return'; }
+    if (u.target === b) u.target = null;
+  }
+  old.stats.bldLost++; team.stats.bldKilled++;
+  team.stats.captured = (team.stats.captured || 0) + 1;
+  if (b.type === 'cy' || b.type === 'outpost') logEvent(old.id, b.type + ' lost');
+  if (b.type === 'cy') old.cyLostT = G.t;
+  if (b.type === 'tech' && old.upgrades && Object.keys(old.upgrades).length && !hasBuilt(old, 'tech')) { old.upgrades = {}; notify(old, 'upgrade', 'Upgrades lost', 4); }
+  updatePower();
+  say(team.id, 'Building captured');
+  say(old.id, 'Building lost to the enemy');
+  hooks.sfx('place', b.x, b.y);
+}
 // The free cell beside a span or structure nearest the unit that it can walk to.
 function besideSpot(u, t) {
   const here = cellOfPos(u.x, u.y), ring = [];
@@ -796,6 +823,8 @@ function updateEngineer(u) {
   if (t.kind === 'span') {
     t.hp = t.maxHp; setSpan(t, true);
     for (const tm of G.teams) say(tm.id, 'Bridge rebuilt');
+  } else if (hostile(u.team, t.team)) {
+    captureBuilding(t, G.teams[u.team]);
   } else {
     t.hp = t.maxHp;
     say(u.team, 'Structure repaired');
@@ -4695,7 +4724,7 @@ function unloadOne(h, ai) {
 function updateBoard(u) {
   const h = u.order.target;
   if (h && h.def && h.def.apc) {   // an APC: walk up to it wherever it is and climb in
-    if (!h.alive || h.team !== u.team || (h.cargo || []).length >= h.def.carry) { setGuard(u, u.x, u.y); return; }
+    if (!h.alive || h.team !== u.team || (h.cargo || []).length >= h.def.carry) { setGuard(u, u.x, u.y); if (teamOf(u).isAI) { u.staged = true; u.raidCrew = false; } return; }
     const d = Math.hypot(h.x - u.x, h.y - u.y), settled = !u.dest && !u.needPath;
     if (d < h.def.r + APC_BOARD_R || (settled && d < CELL * 2.5)) { climbIn(u, h); return; }
     if (settled || (u.dest && Math.hypot(u.dest.x - h.x, u.dest.y - h.y) > CELL)) goTo(u, h.x, h.y);

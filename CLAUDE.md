@@ -1070,7 +1070,7 @@ Supabase.
 | `ai-lift.js` | Headless: a Normal 1 v 1 per personality (first air assault, how many, kind, soldiers landed and alive 60 s later), and a turtle reinforcing an outlying refinery |
 | `transport.js` | Headless: transport helicopters (board, drop, park, UNLOAD HERE), Air Assault's balanced pick, shot down with troops aboard, a forged online order, the computer's air assault |
 | `cas.js` | Headless: Close Air Support tiers (needs Tech Center, Airfield, the tier before), the power, strikes by 1-3 planes on a tank column |
-| `apc.js` | Headless: APCs: boarding (5 of 6), unloading, a forged online order, about half escape a destroyed APC at half health |
+| `apc.js` | Headless: APCs: boarding (5 of 6), unloading, a forged online order, about half escape a destroyed APC at half health; Engineer capture; a computer 1 v 1 with APCs and Engineer raids |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
@@ -1263,8 +1263,21 @@ frame-time maths everywhere, so it is not deterministic.
   (0.5) chance at `APC_ESCAPE_HP` (half) the health they had, not under the player's orders; the rest count as lost. The vehicle's own crew may still bail out.
 - **Looks:** `apcHull` / `apcTurret(pal, frame)` and `btrHull` / `btrTurret` (models.js, hulls built with the turret ring at the origin, so turret offset 0);
   the gun kicks back on alternate rounds of a burst (`apcFrame`: `fireT` and `shots` parity, frame 1, baked); a wreck's turret has no gunner. Sprites rebaked.
-- The computer does not build APCs yet. `node tools/sim/apc.js <repo>`: boarding, the sixth soldier left out, driving, unloading, a forged online order, 40 kills
-  with 5 aboard (about half get out, at half health, losses counted right).
+- **Computer** (every personality and difficulty; `aiApcs` in ai.js): up to `APC_MAX` (2, raider 3) in its vehicle picks; an APC waiting at home takes idle
+  staged infantry aboard (no Engineers) and goes out with a wave; loaded in the field it unloads when hurt under half, fighting, hit, or with known enemies within
+  `APC_UNLOAD_R` (7 cells), then hunts (`u.apcBack`). Home APCs that join a defence unload too.
+- **Engineers capture** (owner's picks, both modes; the server must match): `engineerJob` takes a finished enemy structure (not a hidden Pillbox), any kind,
+  Construction Yards included; `updateEngineer` calls `captureBuilding(b, team)` at once and the Engineer is used up. The structure keeps its health, takes the
+  new owner's side and faction (so its look and colours; faction-only types such as the Tesla Coil draw fine in either), and lets go of the old owner's rally,
+  primary, docking trucks, based aircraft and a vehicle at its door; the old side counts a building lost (and loses its upgrades with its last Tech Center),
+  the new one `stats.captured`. UI: Engineers selected + tap an enemy structure (the rest of the selection attacks it).
+- **Engineer raids** (Raider only, Normal and Hard; `aiEngRaid`): from 0.6 x its first-wave time, every `ENG_RAID_GAP` (150 s) + up to 60: trains 2 Engineers and
+  an APC if short, loads 2 Engineers + up to 3 soldiers, drives to the least covered spot round the best known enemy structure (`aiEngTarget`: `ENG_VALUE` worth
+  over known guns and seen armed units covering the spot, 12 spots round each), unloads, Engineers capture, soldiers attack it. Engineers left in the field go
+  for the nearest enemy structure within 15 cells. `team.engRaid` is plain data (saved).
+- `node tools/sim/apc.js <repo> [minutes]`: boarding, the sixth soldier left out, driving, unloading, a forged online order, 40 kills with 5 aboard (about half get
+  out, at half health), capture of a power plant and a Construction Yard (the side is out), and a Normal 1 v 1 (balanced against raider): both build and ride APCs,
+  raids happen (1 capture in one 20-minute run, 0 with 3 raids in another). `bridges.js`: an enemy Engineer now captures instead of repairing.
 
 ## Unit veterancy (after 2026.11.14.12, not released, both modes)
 
