@@ -1051,7 +1051,7 @@ function navLights(g, vx, vy, k, t, night, near, vis) {
       put(at(-r * 1.5, 0, 3), '255,250,235', 0.85, 2.5);                                    // tail light
       put(at(-1, 0, 12 * VK), '255,40,30', ph < 0.45 ? 1 : 0.15, 4.5);                     // beacon over the cabin
       put(at(1, -r * 0.55, 3), '255,40,30', 0.75, 2.2); put(at(1, r * 0.55, 3), '60,255,90', 0.75, 2.2);
-    } else if (u.def.type === 'bomber' || u.def.type === 'transport') {
+    } else if (u.def.type === 'bomber' || u.def.type === 'transport' || (u.def.type === 'spyplane' && u.faction === 'soviets')) {
       // Spots from each plane's own model (b1Model, tu22Model, c130Model, il76Model; voxels, heights x VK).
       const al = u.faction === 'allies', P = PLANE_LIGHTS[u.def.type === 'bomber' ? (al ? 'b1' : 'tu22') : (al ? 'c130' : 'il76')];
       put(at(P.tip[0], -P.tip[1], P.tip[2] * VK), '255,40,30', 0.9, 2.6); put(at(P.tip[0], P.tip[1], P.tip[2] * VK), '60,255,90', 0.9, 2.6);
@@ -2838,8 +2838,8 @@ function makeCameo(type, faction, key) {
   let mdl, angle = -0.55, scale;
   const power = type.startsWith('pw:') && type.slice(3);
   if (power) {
-    mdl = power === 'spy' ? jetModel(pal, faction === 'soviets') : power === 'para' ? (faction === 'allies' ? c130Model(pal) : il76Model(pal)) : power === 'bomb' ? (faction === 'allies' ? b1Model(pal) : tu22Model(pal)) : power === 'cas' ? (faction === 'allies' ? a10Model(pal) : su25Model(pal)) : cargoModel(pal, power === 'bomb');
-    scale = power === 'spy' ? 1.6 : power === 'cas' ? 1.4 : 1.05;
+    mdl = power === 'spy' ? (faction === 'soviets' ? il76Model(pal, true) : jetModel(pal, false)) : power === 'para' ? (faction === 'allies' ? c130Model(pal) : il76Model(pal)) : power === 'bomb' ? (faction === 'allies' ? b1Model(pal) : tu22Model(pal)) : power === 'cas' ? (faction === 'allies' ? a10Model(pal) : su25Model(pal)) : cargoModel(pal, power === 'bomb');
+    scale = power === 'spy' ? (faction === 'soviets' ? 1.05 : 1.6) : power === 'cas' ? 1.4 : 1.05;
   } else if (BUILD_DEFS[type]) {
     mdl = STRUCTURES[type](pal, faction, true);
     angle = 0;

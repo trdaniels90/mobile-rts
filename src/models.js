@@ -1030,7 +1030,7 @@ function c130Model(pal) {
 // four jet engines in pods on pylons, a glazed navigator's nose with a radar chin below the cockpit,
 // big gear fairings on the lower sides, an upswept tail over the ramp with a tail gunner's glazing,
 // and a T-tail with the fin in the side's colour.
-function il76Model(pal) {
+function il76Model(pal, a50) {
   const m = new VModel(-25, -26, 22, 26, 17);
   const body = mixHex(pal.main, '#8e918b', 0.82), hull = shadeInt(body, 0.88), dark = shadeInt(body, 0.62), pod = shadeInt(body, 1.08);
   m.cylX(-10, 15, 0, 4.4, 3.3, body, M_METAL);                                    // fuselage
@@ -1042,16 +1042,21 @@ function il76Model(pal) {
     }
   }
   m.box(-17, -1, 1.6, -11, 1, 2.4, dark, M_METAL);                                // ramp hinge line
-  m.box(-24, -1, 6, -22, 1, 8, C.glass, M_GLASS);                                 // tail gunner's glazing
+  m.box(-24, -1, 6, -22, 1, 8, a50 ? dark : C.glass, a50 ? M_METAL : M_GLASS);   // tail gunner's glazing (the A-50's is faired over)
   // Nose: a tapering cone, the navigator's glazing low at the tip, the radar chin under it, cockpit glazing on top.
   m.ellipsoid(15, 0, 4.2, 5.5, 3.3, 3.2, body, M_METAL);
-  m.ellipsoid(19, 0, 3.6, 2.2, 1.9, 1.6, C.glass, M_GLASS);
+  if (a50) {                                                                      // A-50: a solid nose and a refuelling probe
+    m.ellipsoid(19, 0, 4, 2.2, 1.9, 1.7, body, M_METAL);
+    m.box(19, -1, 6, 23, 0, 7, dark, M_METAL);
+  } else m.ellipsoid(19, 0, 3.6, 2.2, 1.9, 1.6, C.glass, M_GLASS);
   m.ellipsoid(16, 0, 1.4, 3, 2.2, 1.3, dark, M_METAL);
   m.paint(14, -4, 5, 19, 4, 8, (x, y, z) => (x >= 15 && x <= 17 && (z === 6 || (z === 5 && x === 17)) && Math.abs(y + 0.5) < 3 - (x - 15) * 0.5) ? C.glass : undefined);
   // Main gear fairings, a row of windows and the paratroop doors.
   for (const y of [-3.4, 3.4]) m.ellipsoid(0, y, 2.3, 7, 1.4, 1.7, hull, M_METAL);
-  for (let x = -6; x < 13; x += 3) { m.set(x, -4, 5, C.glass, M_GLASS); m.set(x, 3, 5, C.glass, M_GLASS); }
-  m.box(-15, -3, 3, -13, -2, 6, dark, M_METAL); m.box(-15, 2, 3, -13, 3, 6, dark, M_METAL);
+  if (!a50) {
+    for (let x = -6; x < 13; x += 3) { m.set(x, -4, 5, C.glass, M_GLASS); m.set(x, 3, 5, C.glass, M_GLASS); }
+    m.box(-15, -3, 3, -13, -2, 6, dark, M_METAL); m.box(-15, 2, 3, -13, 3, 6, dark, M_METAL);
+  } else for (const x of [8, 11]) { m.set(x, -4, 5, C.glass, M_GLASS); m.set(x, 3, 5, C.glass, M_GLASS); }   // a few crew windows
   // Swept, tapered high wing with anhedral (the tips droop), the side's colour at the tips.
   const lead = (a) => 5 - Math.round(a * 0.42), wz = (a) => 8 - Math.floor(a / 9);
   for (let y = -25; y <= 25; y++) {
@@ -1080,6 +1085,22 @@ function il76Model(pal) {
     for (let x = tr; x <= ld; x++) m.set(x, y, 15, a > 8 ? pal.main : body, M_METAL);
   }
   m.box(-22, 0, 15, -19, 1, 16, pal.dark, M_METAL);                               // the bullet fairing where they meet
+  if (a50) {
+    // The Beriev A-50's radar: a big flat rotodome on two raked struts over the rear fuselage, pale with a dark rim
+    // and dark radome panels, the side's colour in a band across the top.
+    const cx = -8, R = 6.8, z0 = 12, pale = mixHex(body, '#d8dad4', 0.6), rim = shadeInt(body, 0.55);
+    for (let z = 8; z < z0; z++) {                                                // struts lean back as they rise
+      const x = Math.round(-5 - (z - 8) * 0.9);
+      m.box(x - 1, -2, z, x + 1, -1, z + 1, hull, M_METAL); m.box(x - 1, 1, z, x + 1, 2, z + 1, hull, M_METAL);
+    }
+    for (let x = Math.floor(cx - R); x <= cx + R; x++) for (let y = Math.floor(-R); y <= R; y++) {
+      const d = Math.hypot(x + 0.5 - cx, y + 0.5);
+      if (d > R) continue;
+      const edge = d > R - 1.2, panel = Math.abs(y + 0.5) < 1 ? pal.main : (d > R * 0.45 && d < R * 0.78 && Math.abs(y + 0.5) > 2.5) ? shadeInt(pale, 0.72) : pale;
+      m.set(x, y, z0, edge ? rim : shadeInt(pale, 0.86), M_METAL);
+      if (d < R - 0.6) m.set(x, y, z0 + 1, edge ? rim : panel, M_METAL);
+    }
+  }
   return m;
 }
 
@@ -5020,7 +5041,8 @@ function hullSprite(u, pal) {
   }
   if (d.type === 'a10') return facingSprite('G' + key, () => a10Model(pal), u.face);
   if (d.type === 'su25') return facingSprite('U' + key, () => su25Model(pal), u.face);
-  const mig = d.type === 'mig' || (d.type === 'spyplane' && u.faction === 'soviets');
+  if (d.type === 'spyplane' && u.faction === 'soviets') return facingSprite('Y' + key, () => il76Model(pal, true), u.face);   // Beriev A-50
+  const mig = d.type === 'mig';
   return facingSprite('A' + key + mig, () => jetModel(pal, mig), u.face);
 }
 function turretSprite(u, pal) {
