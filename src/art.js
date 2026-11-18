@@ -1738,11 +1738,7 @@ function drawUnitBody(g, u, t) {
           g.stroke();
         }
       }
-      if (u.def.lift && u.cargo && u.cargo.length && alliedSides(u.team, G.me)) standAt(g, u.x, u.y, 0, () => {   // a pip for each soldier aboard
-        const n = u.def.carry, x0 = Math.round(u.x - n * 1.5), y0 = Math.round(u.y + 12);
-        g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x0 - 1, y0 - 1, n * 3 + 1, 4);
-        for (let j = 0; j < n; j++) { g.fillStyle = j < u.cargo.length ? '#7ee06a' : '#4a4436'; g.fillRect(x0 + j * 3, y0, 2, 2); }
-      });
+      if (u.def.lift) cargoPips(g, u);
       if (u.type === 'heli') {   // the Longbow radar dome on top of the mast
         g.fillStyle = '#4c5149'; g.beginPath(); g.ellipse(rx, ry - 1.5, 2.6, 1.9, 0, 0, 7); g.fill();
         g.fillStyle = '#6b7166'; g.beginPath(); g.ellipse(rx - 0.5, ry - 2.1, 1.4, 0.9, 0, 0, 7); g.fill();
@@ -1784,15 +1780,16 @@ function drawUnitBody(g, u, t) {
   blit(g, hullSprite(u, pal), u.x, u.y);
   const ts = turretSprite(u, pal);
   if (ts) {
-    const z = turretZ(u.def) * VK, off = u.def.draw === 'jeep' ? -3 : -1;
+    const z = turretZ(u.def) * VK, off = u.def.draw === 'jeep' ? -3 : u.def.draw === 'apc' ? 0 : -1;
     const [lx, ly] = liftPt(u.x, u.y, z), tx = lx + Math.cos(u.face) * off - Math.cos(u.tface) * kick, ty = ly + Math.sin(u.face) * off - Math.sin(u.tface) * kick * 0.6;
     blit(g, ts, tx, ty, false);
     if (u.fireT > 0) {
       const len = u.def.size.tur ? u.def.size.tur + u.def.size.barrel : 8;
       const side = u.def.weapon && u.def.weapon.stagger && u.barrel ? u.barrel * 1.6 : 0;   // a staggered twin gun: at the barrel that fired
-      flash(g, tx + Math.cos(u.tface) * len + Math.sin(u.tface) * side, ty + Math.sin(u.tface) * len - Math.cos(u.tface) * side - 1.5, u.def.draw === 'jeep' ? 1 : 2);
+      flash(g, tx + Math.cos(u.tface) * len + Math.sin(u.tface) * side, ty + Math.sin(u.tface) * len - Math.cos(u.tface) * side - 1.5, u.def.draw === 'jeep' || u.def.draw === 'apc' ? 1 : 2);
     }
   }
+  if (u.def.apc) cargoPips(g, u);
   // On a Service Depot's pad: the blinking green cross, and sparks from the work.
   if (u.repairing) {
     if (Math.floor(t * 3) % 2) {
@@ -1826,6 +1823,15 @@ function drawChute(g, u, pal, t) {
   g.upright = up; g.restore();
 }
 
+// A green pip for each soldier aboard a transport or APC (own alliance only).
+function cargoPips(g, u) {
+  if (!u.cargo || !u.cargo.length || !alliedSides(u.team, G.me)) return;
+  standAt(g, u.x, u.y, 0, () => {
+    const n = u.def.carry, x0 = Math.round(u.x - n * 1.5), y0 = Math.round(u.y + 12);
+    g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x0 - 1, y0 - 1, n * 3 + 1, 4);
+    for (let j = 0; j < n; j++) { g.fillStyle = j < u.cargo.length ? '#7ee06a' : '#4a4436'; g.fillRect(x0 + j * 3, y0, 2, 2); }
+  });
+}
 // Burnt-out wreck: the same model with charred paint.
 function drawHusk(g, fx) {
   const fake = { def: fx.def, face: fx.face, tface: fx.tface, load: 0 };
@@ -2850,6 +2856,7 @@ function makeCameo(type, faction, key) {
     if (d.cls === 'inf') mdl = infModel(pal, faction, type, d.setup ? 5 : 0);   // the MG Team shown set up
     else if (d.draw === 'tank') mdl = tankHull(pal, d.size);
     else if (d.draw === 'jeep') mdl = jeepModel(pal);
+    else if (d.draw === 'apc') mdl = type === 'btr' ? btrHull(pal) : apcHull(pal);
     else if (d.draw === 'harv') mdl = harvModel(pal, true);
     else if (d.draw === 'fob') mdl = fobModel(pal);
     else if (d.draw === 'mcv') mdl = mcvModel(pal);
@@ -2877,10 +2884,10 @@ function makeCameo(type, faction, key) {
   }
   // Tanks get their turret in the cameo too.
   const d = !power && UNIT_DEFS[type];
-  if (d && (d.draw === 'tank' || d.draw === 'jeep')) {
-    const tm = d.draw === 'tank' ? tankTurret(pal, d.size) : mgModel(pal);
+  if (d && (d.draw === 'tank' || d.draw === 'jeep' || d.draw === 'apc')) {
+    const tm = d.draw === 'tank' ? tankTurret(pal, d.size) : d.draw === 'apc' ? (type === 'btr' ? btrTurret(pal, 0) : apcTurret(pal, 0)) : mgModel(pal);
     const ts = renderVox(tm, angle, { scale, shadow: false });
-    const z = turretZ(d) * VK * scale, off = (d.draw === 'jeep' ? -3 : -1) * scale;
+    const z = turretZ(d) * VK * scale, off = (d.draw === 'jeep' ? -3 : d.draw === 'apc' ? 0 : -1) * scale;
     const ox = dx - s.ox * scale, oy = dy - s.oy * scale;
     g.drawImage(ts.img, Math.round(ox + Math.cos(angle) * off + ts.ox * scale), Math.round(oy + Math.sin(angle) * off - z + ts.oy * scale));
   }

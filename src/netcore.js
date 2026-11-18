@@ -42,7 +42,7 @@ const NetCore = (() => {
   // ---------------------------------------------------------------------------
   // Fields a remote player never needs: the host's own timers and bookkeeping. `anim` (the walk
   // cycle) the remote copy keeps itself.
-  const SKIP = new Set(['def', 'liftWait', 'cover', 'coverBan', 'healT', 'lowT', 'strafe', 'path', 'pathIdx', 'needPath', 'lastX', 'lastY', 'stuckN', 'stuckT', 'think', 'cd', 'cd2', 'extT', 'sent', 'fan', 'apT', 'apA', 'slideT', 'dockU', 'qSpot', 'qRef', 'dockBest', 'dockBan', 'aiMove', 'stallN', 'pathT', 'waitLeader', 'waitSince', 'waitBan',
+  const SKIP = new Set(['def', 'unloadT', 'liftWait', 'cover', 'coverBan', 'healT', 'lowT', 'strafe', 'path', 'pathIdx', 'needPath', 'lastX', 'lastY', 'stuckN', 'stuckT', 'think', 'cd', 'cd2', 'extT', 'sent', 'fan', 'apT', 'apA', 'slideT', 'dockU', 'qSpot', 'qRef', 'dockBest', 'dockBan', 'aiMove', 'stallN', 'pathT', 'waitLeader', 'waitSince', 'waitBan',
     'smokeT', 'revealT', 'dmgSeen', 'dmgHp', 'dropT', 'dmgFxT', 'popK', 'popHold', 'anim', 'htimer', 'hcell', 'crowdT', 'cornerT', 'prog', 'squeezeT', 'nearBest', 'clankT', 'final', 'roll', 'rollTo', 'fireT', 'shotAt', 'twinNext', 'twinTarget', 'plumeT', 'flareT', 'jetOn', 'jetD', 'jetSeen', 'burnT', 'bayHold', 'lockOn', 'bayN', 'lock']);   // fireT: the copy lights the flash itself from `shots`
   const COARSE = new Set(['x', 'y', 'alt']);   // to a tenth of a pixel
   const OBJ = '\u0000';   // marks an object field, kept as JSON for comparing
@@ -193,7 +193,7 @@ const NetCore = (() => {
   const COMMANDS = ['commandMove', 'commandAttack', 'commandHunt', 'commandGuard', 'commandStop', 'startProduction', 'cancelProduction',
     'placeStructure', 'launchPower', 'deployFob', 'setAuto', 'setAssist', 'recallAlly', 'setRepair', 'sellStructure', 'commandRepair', 'sendCredits',
     'setPrimary', 'setRally', 'commandAttackGround', 'commandEngineer', 'placeWalls', 'sellWall', 'commandGarrison', 'commandExit', 'startResearch', 'cancelResearch',
-    'commandBoard', 'commandAirAssault'];
+    'commandBoard', 'commandAirAssault', 'commandUnload'];
   const ORIGC = {};
   for (const f of COMMANDS) ORIGC[f] = root[f];
   function applyCommand(side, m) {

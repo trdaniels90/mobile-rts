@@ -528,6 +528,100 @@ function mgModel(pal) {
   m.box(8, -1, 2, 9, 1, 3, '#25261f', M_METAL);
   return m;
 }
+// ---------------------------------------------------------------------------
+// Armoured personnel carriers. Hulls are built with the turret ring at the origin (the turret turns about it).
+// Fill the voxels of a box for which keep(x, y, z) (voxel centres) is true: for sloped plates.
+function solidV(m, x0, y0, z0, x1, y1, z1, keep, c, mt) {
+  for (let z = Math.max(0, Math.floor(z0)); z < z1; z++) for (let y = Math.floor(y0); y < y1; y++) for (let x = Math.floor(x0); x < x1; x++)
+    if (keep(x + 0.5, y + 0.5, z + 0.5)) m.set(x, y, z, c, mt);
+}
+function apcTracks(m, x0, x1, hw, tw, h) {
+  for (const side of [-1, 1]) {
+    const y0 = side < 0 ? -hw : hw - tw, y1 = y0 + tw;
+    m.box(x0, y0, 0, x1, y1, h, C.track, M_ROUGH);
+    m.clear(x0, y0, 0, x0 + 1, y1, 1); m.clear(x1 - 1, y0, 0, x1, y1, 1);
+    for (let x = x0; x < x1; x += 2) m.box(x, y0, h - 1, x + 1, y1, h, C.trackHi, M_ROUGH);
+    const outer = side < 0 ? -hw : hw - 1;
+    for (let x = x0 + 2; x < x1 - 2; x += 4) m.box(x, outer, 1, x + 2, outer + 1, h - 1, C.wheel, M_METAL);
+  }
+}
+// Allied APC: a tracked box with flat sides, a sloped nose with a trim vane, a big rear ramp and a roof hatch; the gunner's
+// hatch and .50 cal are the turret (apcTurret).
+function apcHull(pal) {
+  const X0 = -12, X1 = 10, hw = 7, m = new VModel(X0 - 2, -hw - 2, X1 + 3, hw + 2, 13);
+  const roof = (x) => 11 - Math.max(0, x - 3) * 1.15;
+  apcTracks(m, X0, X1, hw, 3, 4);
+  solidV(m, X0, -hw + 0.5, 3, X1, hw - 0.5, 11, (x, y, z) => z < roof(x) && z > 2 + Math.max(0, x - 7) * 1.4, pal.main, M_METAL);
+  m.box(X0, -hw, 4, 4, -hw + 1, 6, pal.dark, M_METAL); m.box(X0, hw - 1, 4, 4, hw, 6, pal.dark, M_METAL);    // fenders
+  solidV(m, 7, -hw + 1, 4, X1 + 1, hw - 1, 8, (x, y, z) => Math.abs(z - roof(x)) < 0.9, pal.dark, M_METAL);   // trim vane
+  m.box(X0, -hw + 1, 3, X0 + 1, hw - 1, 10, pal.dark, M_METAL);                                             // rear ramp
+  m.paint(X0, -hw + 1, 3, X0 + 1, hw - 1, 10, (x, y, z) => (y === -hw + 2 || y === hw - 3 || z === 9) ? pal.deep : undefined);
+  m.box(X0 + 1, -3, 10, -4, 3, 11, pal.dark, M_METAL);                                                      // troop hatch
+  m.cylZ(0, 0, 10, 11, 2.8, pal.dark, M_METAL);                                                             // turret ring
+  m.box(-7, -hw, 6, -3, -hw + 1, 9, C.oliveD, M_MATTE);                                                     // stowage
+  m.box(-7, hw - 1, 6, -3, hw, 8, C.oliveD, M_MATTE);
+  m.line(X0 + 2, hw - 2, 11, X0 + 2, hw - 2, 15, C.black);                                                  // aerial
+  m.box(8, -hw + 1, 7, 9, -hw + 2, 8, C.glow, M_GLASS); m.box(8, hw - 2, 7, 9, hw - 1, 8, C.glow, M_GLASS);
+  return m;
+}
+// The Allied APC's top: a gunner standing in the hatch at an M2 .50 cal behind a small shield. frame 1: the gun kicked back
+// (firing; drawn on alternate rounds of a burst). Burnt (a wreck): the gun only.
+function apcTurret(pal, frame) {
+  const m = new VModel(-6, -4, 12, 4, 10), k = frame === 1 ? -1 : 0, burnt = pal.key === 'burnt';
+  m.cylZ(0, 0, 0, 1, 2.4, pal.dark, M_METAL);                                       // hatch ring
+  m.box(3, -3, 1, 4, 3, 5, '#6a7076', M_METAL);                                    // shield
+  m.clear(3, -1, 3, 4, 1, 5);
+  m.box(0 + k, -1, 3, 4 + k, 1, 5, C.gun, M_METAL);                                // receiver
+  m.box(4 + k, -1, 3, 7 + k, 1, 5, '#3d4038', M_METAL);                            // barrel jacket
+  m.box(7 + k, 0, 4, 11 + k, 1, 5, C.gun, M_METAL);                                // barrel
+  m.box(1 + k, 1, 2, 3 + k, 2, 4, C.olive, M_MATTE);                               // ammunition can
+  if (burnt) return m;
+  const K = infKit(pal, 'allies'), sleeve = shadeInt(pal.main, 0.84);
+  const g = k * 0.5;                                                                // (firing: he leans into the gun)
+  m.box(-4, -2, 1, -1, 2, 6, pal.main, M_MATTE);                                    // chest, out of the hatch
+  m.box(-4, -2, 5, -1, 2, 6, shadeInt(pal.main, 1.12), M_MATTE);                    // shoulders
+  m.box(-5, -1, 2, -4, 1, 5, K.pack, M_MATTE);                                      // pack
+  for (const y of [-3, 2]) { m.box(-3 + k, y, 4, 0 + k, y + 1, 5, sleeve, M_MATTE); m.box(0 + k, y < 0 ? -2 : 1, 4, 1 + k, y < 0 ? -1 : 2, 5, K.skin); }   // arms to the grips
+  m.box(-3, -1, 6, -2, 1, 7, K.skin);                                               // neck
+  m.ellipsoid(-2.5 + g, 0, 7.6, 1.5, 1.5, 1.4, K.skin);                             // face
+  m.ellipsoid(-2.8 + g, 0, 8.4, 1.9, 1.9, 1.3, K.helm, M_MATTE);                    // helmet
+  return m;
+}
+// Soviet APC: an eight-wheeled boat-hulled carrier with a pointed bow, sides sloping in above and below, side doors between
+// the second and third axles; the small conical turret with its heavy MG is btrTurret.
+function btrHull(pal) {
+  const X0 = -15.5, X1 = 9.5, hw = 6.5, m = new VModel(X0 - 2, -hw - 2, X1 + 3, hw + 2, 12);
+  for (const x of [-11.5, -7, 0, 4.5]) for (const y0 of [-hw, hw - 2]) {
+    m.cylY(y0, y0 + 2, x, 2.7, 2.7, C.track, M_ROUGH);
+    m.cylY(y0 < 0 ? y0 : y0 + 1, y0 < 0 ? y0 + 1 : y0 + 2, x, 2.7, 1.35, C.wheel, M_METAL);
+  }
+  solidV(m, X0, -hw, 2.5, X1, hw, 10, (x, y, z) => {
+    const nose = x - 2;
+    let w = hw - 1;
+    if (z < 5) w -= (5 - z) * 0.7;
+    if (z > 7.5) w -= (z - 7.5) * 1.1;
+    if (nose > 0) w -= nose * 0.35;
+    if (Math.abs(y) > w) return false;
+    if (nose > 0 && z > 10 - nose * 0.55) return false;
+    if (nose > 0 && z < 2.5 + nose * 0.75) return false;
+    return x > X0 + (z > 8 ? 1 : 0);
+  }, pal.main, M_METAL);
+  for (const s of [-1, 1]) m.box(-5.5, s < 0 ? -hw + 0.6 : hw - 1.6, 4, -2.5, s < 0 ? -hw + 1.6 : hw - 0.6, 8, pal.dark, M_METAL);   // side doors
+  m.box(4, -3, 9, 6, 3, 9.6, C.glass, M_GLASS);                                    // driver's ports
+  m.box(-12, -3, 9.5, -8, -1, 10.2, pal.dark, M_METAL); m.box(-12, 1, 9.5, -8, 3, 10.2, pal.dark, M_METAL);   // roof hatches
+  m.box(X0 + 0.5, -1, 3, X0 + 1.5, 1, 5, '#3a3a36', M_METAL);                     // water-jet
+  m.line(-9, hw - 2, 10, -9, hw - 2, 14, C.black);
+  m.box(7, -hw + 2, 6, 8, -hw + 3, 7, C.glow, M_GLASS); m.box(7, hw - 3, 6, 8, hw - 2, 7, C.glow, M_GLASS);
+  return m;
+}
+function btrTurret(pal, frame) {
+  const m = new VModel(-4, -4, 12, 4, 5), k = frame === 1 ? -1 : 0;
+  m.cylZ(0, 0, 0, 1.5, 2.8, pal.main, M_METAL); m.cylZ(0, 0, 1.5, 2.5, 2.2, pal.main, M_METAL); m.cylZ(0, 0, 2.5, 3.5, 1.4, pal.dark, M_METAL);
+  m.box(1 + k, -1, 1, 3 + k, 1, 3, pal.dark, M_METAL);                             // mantlet
+  m.box(3 + k, 0, 1, 11 + k, 1, 2, C.gun, M_METAL); m.box(9 + k, -1, 1, 11 + k, 1, 3, C.gun, M_METAL);   // KPV and its flash hider
+  m.box(1, 1, 2, 2, 2, 3, C.glass, M_GLASS);                                       // sight
+  return m;
+}
 // Mobile Outpost: a six-wheeled truck carrying a command shelter, mast and folded radar dish.
 function fobModel(pal) {
   const hl = 11, hw = 7;
@@ -5006,6 +5100,7 @@ function hullSprite(u, pal) {
   const key = d.type + pal.key;
   if (d.draw === 'tank') return facingSprite('T' + key, () => tankHull(pal, d.size), u.face);
   if (d.draw === 'jeep') return facingSprite('J' + key, () => jeepModel(pal), u.face);
+  if (d.draw === 'apc') return facingSprite('Q' + key, () => d.type === 'btr' ? btrHull(pal) : apcHull(pal), u.face);
   if (d.draw === 'fob') return facingSprite('F' + key, () => fobModel(pal), u.face);
   if (d.draw === 'mcv') return facingSprite('M' + key, () => mcvModel(pal), u.face);
   if (d.draw === 'arty') return facingSprite('R' + key, () => artyModel(pal), u.face);
@@ -5027,6 +5122,7 @@ function turretSprite(u, pal) {
   const d = u.def;
   if (d.draw === 'tank') return facingSprite('t' + d.type + pal.key, () => tankTurret(pal, d.size), u.tface, FACINGS, { shadow: false });
   if (d.draw === 'jeep') return facingSprite('m' + pal.key, () => mgModel(pal), u.tface, FACINGS, { shadow: false });
+  if (d.draw === 'apc') { const f = apcFrame(u); return facingSprite('q' + d.type + pal.key + f, () => d.type === 'btr' ? btrTurret(pal, f) : apcTurret(pal, f), u.tface, FACINGS, { shadow: false }); }
   return null;
 }
 // Crouching: the standing figure with the thighs folded away, so the body sits lower.
@@ -5090,7 +5186,9 @@ function pushupModel(pal, faction, type, up) {
 function infSprite(u, pal, frame) {
   return facingSprite(`I${u.type}${pal.key}${frame}`, () => infModel(pal, u.faction, u.type, frame), u.face, 16, { crisp: true });
 }
-const TURRET_Z = { tank: 7, jeep: 7, arty: 9, v2: 12 };
+const TURRET_Z = { tank: 7, jeep: 7, arty: 9, v2: 12, apc: 11 };
+// The APC's gun kicks back on alternate rounds of a burst (`shots` is synced, so an online copy shows it too).
+const apcFrame = (u) => (u.fireT > 0 && (u.shots || 0) % 2 ? 1 : 0);
 function turretZ(d) { return d.size && d.size.tz !== undefined ? d.size.tz : TURRET_Z[d.draw]; }   // a def can sit its turret lower (Heavy Tank)
 
 // Scenery: trees, boulders, ore, all rendered once.

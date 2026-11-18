@@ -184,6 +184,21 @@ const UNIT_DEFS = {
     name: 'Mobile Outpost', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies', 'soviets'], draw: 'fob',
     cost: 1000, hp: 500, armor: 'heavy', speed: 35, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 14 }, deploys: 'outpost',
   },
+  // Armoured personnel carriers (OpenRA's APC: $850, 300 health, heavy armour, Speed 142, 5 aboard). Infantry selected, tap
+  // the APC: they walk to it and climb in (`carry`); UNLOAD HERE lets them out where it stands. Destroyed with soldiers
+  // aboard, each has APC_ESCAPE (world.js) chance to get out of the wreck, hurt. A heavy machine gun on top for infantry and
+  // helicopters (Allies: a gunner at an M2 in the hatch; Soviets: a small turret). `apc` / `btr`: one type per side so their
+  // wrecks (which are drawn from the type alone) look right.
+  apc: {
+    name: 'APC', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'apc', apc: true, carry: 5,
+    cost: 850, hp: 300, armor: 'heavy', speed: 83, turn: 3.2, sight: 5, r: 9, size: { len: 22, wid: 14, tur: 2, barrel: 9, tz: 11 },
+    weapon: { dmg: 7, rof: 1.2, range: 100, wh: 'SA', proj: 'bullet', air: true, heliOnly: true, burst: 5, gap: 0.08, sound: 'hmg' },
+  },
+  btr: {
+    name: 'APC', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'apc', apc: true, carry: 5,
+    cost: 850, hp: 300, armor: 'heavy', speed: 83, turn: 3.2, sight: 5, r: 9, size: { len: 25, wid: 13, tur: 2, barrel: 10, tz: 10 },
+    weapon: { dmg: 7, rof: 1.2, range: 100, wh: 'SA', proj: 'bullet', air: true, heliOnly: true, burst: 5, gap: 0.08, sound: 'hmg' },
+  },
   // Unpacks into a Construction Yard anywhere on the map. Needs a Service Depot.
   mcv: {
     name: 'Mobile Construction Yard', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['depot'], factions: ['allies', 'soviets'], draw: 'mcv',

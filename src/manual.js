@@ -33,6 +33,8 @@ const Manual = (() => {
     pilot: ['Bails out of a downed aircraft, parachutes down and runs for the nearest friendly structure. Reaching it, the pilot is recovered and you get $100. Cannot be trained.', '', ''],
     // Vehicles
     ranger: ['A fast armed jeep for scouting and raids. Its machine gun can also fire at helicopters, but not at jets.', 'Infantry, Ore Trucks', 'Tanks'],
+    apc: ['An Allied tracked armoured personnel carrier with a gunner at a .50 cal in the hatch. It carries 5 infantry: select them and tap the APC to climb in, then UNLOAD HERE to let them out. If it is destroyed with soldiers aboard, each has an even chance of getting out of the wreck, hurt. Its gun can hit helicopters, not jets.', 'Infantry, helicopters', 'Tanks, rockets'],
+    btr: ['A Soviet eight-wheeled armoured personnel carrier with a heavy machine gun turret. It carries 5 infantry: select them and tap the APC to climb in, then UNLOAD HERE to let them out. If it is destroyed with soldiers aboard, each has an even chance of getting out of the wreck, hurt. Its gun can hit helicopters, not jets.', 'Infantry, helicopters', 'Tanks, rockets'],
     ltank: ['Quick, cheap armour with a light cannon.', 'Light vehicles', 'Heavy tanks'],
     mtank: ['The Allied main battle tank: well armoured with a solid gun.', 'Vehicles, structures', 'Rockets, Tesla Coils'],
     htank: ['Thick Soviet armour and twin cannons.', 'Vehicles, structures', 'Rockets, artillery'],
@@ -55,7 +57,7 @@ const Manual = (() => {
   };
   const WEAPON = {
     rifle: 'Rifle (small splash)', grenadier: 'Grenades (arcing, splash)', rocket: 'Dragon rockets; RedEye missiles (air)', hmg: 'Heavy machine gun (sets up to fire; hits helicopters, not jets)', pilot: 'Pistol',
-    ranger: 'Machine gun (hits helicopters, not jets)', ltank: 'Light cannon', mtank: 'Cannon', htank: 'Twin cannons', mammoth: 'Twin cannons + anti-air missile pods',
+    ranger: 'Machine gun (hits helicopters, not jets)', apc: 'Heavy machine gun (hits helicopters, not jets)', btr: 'Heavy machine gun (hits helicopters, not jets)', ltank: 'Light cannon', mtank: 'Cannon', htank: 'Twin cannons', mammoth: 'Twin cannons + anti-air missile pods',
     arty: 'Howitzer (arcing, splash)', v2rl: 'V2 rocket (arcing, huge splash)', ttank: 'Tesla bolt (ground only)', heli: 'Hellfire missiles (anti-armour)', hind: 'Chain gun', comanche: '20 mm chain gun; 4 missiles (tanks and Ore Trucks, lock-on)', chinook: 'None (carries 8 infantry)', halo: 'None (carries 8 infantry)',
     jet: 'Missiles (ground and air), cannon', mig: 'Missiles (ground and air), cannon',
     pillbox: 'Machine gun', turret: 'Cannon', aagun: 'Flak (aircraft only)', ftur: 'Flamethrower', tesla: 'Tesla bolt', sam: 'SAM missiles (aircraft only)',
@@ -186,7 +188,7 @@ const Manual = (() => {
     { ch: 'Structures', title: 'Production', html: () => entries(['barracks', 'factory', 'depot', 'helipad', 'airfield']) },
     { ch: 'Structures', title: 'Defences', html: () => entries(['pillbox', 'turret', 'aagun', 'ftur', 'tesla', 'sam']) },
     { ch: 'Infantry', title: 'Infantry', html: () => entries(['rifle', 'grenadier', 'rocket', 'hmg', 'engineer', 'pilot']) },
-    { ch: 'Vehicles', title: 'Armour', html: () => entries(['ranger', 'ltank', 'mtank', 'htank', 'ttank', 'mammoth']) },
+    { ch: 'Vehicles', title: 'Armour', html: () => entries(['ranger', 'apc', 'btr', 'ltank', 'mtank', 'htank', 'ttank', 'mammoth']) },
     { ch: 'Vehicles', title: 'Support Vehicles', html: () => entries(['arty', 'v2rl', 'harv', 'fob', 'mcv']) },
     { ch: 'Aircraft', title: 'Aircraft', html: () => entries(['heli', 'comanche', 'hind'].concat(TRANSPORTS ? ['chinook', 'halo'] : [], ['jet', 'mig'])) },
     { ch: 'Powers', title: 'Airfield Support Powers', html: powers },

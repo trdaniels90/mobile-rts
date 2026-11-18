@@ -978,7 +978,7 @@ function draw() {
     const e = pick(w.x, w.y, slop);
     const mine = ownUnits();
     // Your own transport under the tap with infantry selected: they board it (it comes down beside them).
-    if (e && e.kind === 'unit' && e.alive && e.team === G.me && e.def.lift) {
+    if (e && e.kind === 'unit' && e.alive && e.team === G.me && (e.def.lift || e.def.apc)) {
       const inf = mine.filter((u) => canBoard(u));
       if (inf.length) { commandBoard(inf, e); marker(e.x, e.y, '#3ed04a'); Sound.ack('inf'); return; }
     }
@@ -1711,7 +1711,7 @@ function draw() {
     if (!sel.length) { ui.selbar.hidden = true; selSig = ''; return; }
     ui.selbar.hidden = false;
     const one = sel.length === 1 ? sel[0] : null;
-    ui.selName.textContent = one ? (one.def.name + (one.def.lift ? ` · ${(one.cargo || []).length}/${one.def.carry} aboard` : '') + (one.rank ? ' · ' + VET.names[one.rank] : '') + (hostile(one.team, G.me) ? ' · enemy' : one.team !== G.me ? ' · ally' : '')) : `${sel.length} units`;
+    ui.selName.textContent = one ? (one.def.name + (one.def.carry ? ` · ${(one.cargo || []).length}/${one.def.carry} aboard` : '') + (one.rank ? ' · ' + VET.names[one.rank] : '') + (hostile(one.team, G.me) ? ' · enemy' : one.team !== G.me ? ' · ally' : '')) : `${sel.length} units`;
     const hp = one ? one.hp / one.maxHp : sel.reduce((s, e) => s + e.hp / e.maxHp, 0) / sel.length;
     ui.selHp.style.setProperty('--p', Math.max(0, hp));
     ui.selHp.dataset.state = hp > 0.5 ? 'ok' : hp > 0.25 ? 'warn' : 'low';
@@ -1724,7 +1724,7 @@ function draw() {
     if (fighters.length) btns.push(['span', 'ATTACK GROUND']);
     if (own.some((e) => e.kind === 'unit')) btns.push(['stop', 'STOP']);
     if (own.some((e) => e.inHouse)) btns.push(['exit', 'EXIT']);
-    if (own.some((e) => e.kind === 'unit' && e.def.lift && (e.cargo || []).length)) btns.push(['unload', 'UNLOAD HERE']);
+    if (own.some((e) => e.kind === 'unit' && e.def.carry && (e.cargo || []).length)) btns.push(['unload', 'UNLOAD HERE']);
     if (own.some((e) => canService(e) && e.hp < e.maxHp) && hasBuilt(G.teams[G.me], 'depot')) btns.push(['svc', 'REPAIR']);
     if (bld) {
       if (canRally(bld)) {
@@ -1758,7 +1758,13 @@ function draw() {
       else { commandHunt(own.filter((u) => u.kind === 'unit' && (u.def.weapon || u.cls === 'air'))); eva('Attacking enemy base'); Sound.ack('attack'); }
     }
     else if (act === 'exit') { commandExit(own.filter((u) => u.inHouse)); Sound.ack('inf'); }
-    else if (act === 'unload') { for (const u of own.filter((x) => x.kind === 'unit' && x.def.lift && (x.cargo || []).length)) commandMove([u], u.x, u.y); Sound.ack('air'); }
+    else if (act === 'unload') {
+      const full = own.filter((x) => x.kind === 'unit' && x.def.carry && (x.cargo || []).length);
+      for (const u of full.filter((x) => x.def.lift)) commandMove([u], u.x, u.y);
+      const apcs = full.filter((x) => x.def.apc);
+      if (apcs.length) commandUnload(apcs);
+      Sound.ack(apcs.length ? 'veh' : 'air');
+    }
     else if (act === 'span') { aimSpan = own.filter((u) => u.kind === 'unit' && !u.def.harvester && !u.def.lift && (u.def.weapon || u.cls === 'air')); evaCalm('Tap the ground to attack', 5); }
     else if (act === 'guard') beginGuard(own.filter((u) => u.kind === 'unit' && !u.def.harvester));
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
