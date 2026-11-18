@@ -319,6 +319,19 @@ share globals. Read this file first; the commit history explains every change in
   video: narrow +-1.5 rad / 13-26 px / 1.25 / 3 s gave 3.87, 19%; wide +-2.4 / 20-36 / 1.5 / 5 s gave 2.7, 4%);
   defenders were already about 2.4. Defenders kill more (7-8 of 24 attackers, was 6): the attackers still win every run.
 
+## Soldiers drawn at 65%, front rank fires first (after 2026.11.18, both modes)
+
+- **65% soldiers** (owner's pick after comparing Red Alert's real sprites, looks only): `INF_SCALE` (data.js) 0.65. `infSprite` renders the voxel models
+  at that scale (`renderVox` option `fit`: offsets in the scaled picture's pixels); muzzles, `aimY` / `aimH`, recoil, flashes, ragdolls (`RAG_PTS` scaled,
+  thinner limbs, smaller head), dropped weapons, blood pools, corpses, paratrooper shadows, selection brackets, health bars and rank chevrons follow.
+  Sidebar pictures and villagers unchanged. Positions, ranges and spacing unchanged. Sprites rebaked.
+- **Front rank** (owner's pick, both modes; the server must match): a soldier coming into reach in a crowd used to step out to his spot round the
+  target (`slideOut`) for up to `SLIDE_MAX` (4 s) without firing. Now `frontRank(u, t)` (world.js) lets one with no friend in front of him (within
+  `FRONT_NEAR` 30 px, nearer the target by `FRONT_GAP` 4 px, within `FRONT_CONE` 1.1 rad of his line to it) fire at once; only those behind step out first.
+  Decided once per target (when `slideT` is 0). Staged 12 v 10 riflemen in sight, 12 seeds: wait from in reach to first shot 1.6 to 0.8 s, soldiers waiting
+  over 0.8 s 4.4 to 2.9. `bunching.js` 4 x 90 s: attackers 3.44 to 3.64 friends in a V2 blast, 6+ 12% to 15% (a narrower cone, 22 px / 0.6 rad, gave 4.18 / 23%).
+- Under consideration, not built: soldiers packed 3 a cell (formation gap 14, friendly soldier spacing 1.2 radii; MP4 shown to the owner).
+
 ## Recent mechanics (2026.10.31.2)
 
 - **Map:** "A Bridge Too Far" (`MAPS.bridge`, `src/maps.js`), 144 x 144 cells (`MAP` in data.js). The

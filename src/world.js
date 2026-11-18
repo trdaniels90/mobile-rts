@@ -3748,6 +3748,21 @@ function fanAngle(u, t, R) {
 // own spot round the target (approachSpot) before it settles: infantry for at most SLIDE_MAX seconds without
 // firing, vehicles (and anything without a fixed gun) while they fire. True while it is stepping.
 const SLIDE_MAX = 4;
+// Front rank (owner's pick, both modes): a soldier coming into reach with no friend in front of him (within FRONT_NEAR px, nearer the
+// target by FRONT_GAP px or more, within FRONT_CONE rad of his line to it) fires at once; only those behind step out to their spots first.
+const FRONT_NEAR = 30, FRONT_GAP = 4, FRONT_CONE = 1.1;
+function frontRank(u, t) {
+  const du = Math.hypot(t.x - u.x, t.y - u.y), a = Math.atan2(t.y - u.y, t.x - u.x);
+  const bs = nearBuckets(u.x, u.y, FRONT_NEAR);
+  for (let bi = 0; bi < bs.length; bi++) for (const e of bs[bi]) {
+    if (e === u || !e.alive || e.kind !== 'unit' || e.team !== u.team || e.cls === 'air' || e.inHouse) continue;
+    const dx = e.x - u.x, dy = e.y - u.y;
+    if (dx * dx + dy * dy > FRONT_NEAR * FRONT_NEAR) continue;
+    if (Math.hypot(t.x - e.x, t.y - e.y) > du - FRONT_GAP) continue;
+    if (Math.abs(angDiff(Math.atan2(dy, dx), a)) < FRONT_CONE) return false;
+  }
+  return true;
+}
 function slideOut(u, t, w, dt) {
   if (u.def.fixed || u.cls === 'air' || !u.def.speed || t.kind === 'unit' && t.cls === 'air' || u.setup > 0) return false;
   const R = fanR(t, w);
@@ -3759,6 +3774,7 @@ function slideOut(u, t, w, dt) {
   const bs = nearBuckets(u.x, u.y, 20);
   for (let bi = 0; bi < bs.length; bi++) for (const e of bs[bi]) if (e !== u && e.alive && e.kind === 'unit' && e.team === u.team && e.cls !== 'air' && Math.abs(e.x - u.x) < 20 && Math.abs(e.y - u.y) < 20) crowd++;
   if (crowd < 1) return false;
+  if (u.cls === 'inf' && u.slideT === 0 && frontRank(u, t)) { u.slideT = SLIDE_MAX; return false; }   // the front rank opens fire where it stands
   u.slideT += dt;
   const want = Math.atan2(dy, dx);
   let speed = u.def.speed * VET.speed[u.rank || 0] * (u.cls === 'inf' && u.stance === 'prone' ? CRAWL_SPEED : 1);
