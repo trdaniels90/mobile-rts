@@ -185,12 +185,14 @@ share globals. Read this file first; the commit history explains every change in
 - **Known bugs:** not tried on a real phone or online; washing lines lie across the screen, not along their house; the
   debrief and Field Manual pictures are unchanged.
 
-## Soviet Spy Plane is a Beriev A-50 (after 2026.11.18, looks only, both modes)
+## Spy Planes: Soviet Beriev A-50, Allied SR-71 (after 2026.11.18, looks only, both modes)
 
 - Owner's request: the Soviet Spy Plane (power `spy`) is drawn as the A-50 AWACS: `il76Model(pal, true)` (models.js): the Il-76 airframe with a
   solid nose and refuelling probe, the tail glazing faired over, no paratroop doors, and a rotodome on two raked struts over the rear fuselage
-  (pale, dark rim and panels, a band of side colour). Sprite key `'Y'` in `hullSprite`; the sidebar cameo and the night lights (`PLANE_LIGHTS.il76`)
-  use it too. Speed, health and size (`r`) unchanged. Not baked (scripted); sprites and ground rebaked for the hash only. The Allied one is still the jet.
+  (pale, dark rim and panels, a band of side colour). Sprite key `'Y'` in `hullSprite`; the sidebar cameo
+  use it too; the night lights have their own spots (`PLANE_LIGHTS.a50`: the Il-76's wingtips and tail, the beacon moved forward of the dome onto the spine, x 5). Speed, health and size (`r`) unchanged. Not baked (scripted); sprites and ground rebaked for the hash only.
+- The Allied Spy Plane is the SR-71 Blackbird: `sr71Model(pal)` (models.js: slim chined body, delta wing, nacelles with inlet spikes, inward-canted fins with
+  side-colour tips, dark blue-grey), sprite key `'X'`, cameo, and night lights `PLANE_LIGHTS.sr71` (wingtips, tail cone, spine).
 
 ## Recent mechanics (2026.10.31 and .31.1)
 
