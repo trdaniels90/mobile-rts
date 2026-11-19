@@ -658,6 +658,7 @@ const Net = (() => {
       else if (ev[0] === 'd' && NetCore.ORIG[ev[1]]) {
         const a = ev[2].map((v) => (v && v.$c ? (v.$c === 't' ? G.tctx : G.dctx) : unpack(v)));
         NetCore.ORIG[ev[1]](...a);
+        if (ev[1] === 'crater' && a[5]) digCrater(a[1], a[2], a[3]);   // a crater that digs the ground (world.js digCrater)
       }
     } catch (_) {}
   }
