@@ -106,6 +106,11 @@ Four recorded MP3s in `music/`, listed in `SONGS` (`audio.js`) and `TRACKS` (`sw
 contain them: publish them to the owner's artifact as `music/<name>.mp3` files beside the page (only needed once, or
 when a track changes). Details, adding a track and ffmpeg settings: "Soundtrack" in `docs/NOTES.md`.
 
+## Work in progress
+
+- **Tiberian Sun look** (lighting, cloud shadows, tall cliffs, concrete; `src/look.js`, off unless `?look=ts`): read
+  "Tiberian Sun look" in `docs/NOTES.md` for where it stands and what the owner has approved.
+
 ## Feature notes (`docs/NOTES.md`)
 
 Detailed notes on every feature (mechanics, constants, measurements, owner's picks) are in `docs/NOTES.md`, one `##` section each. **Before changing a feature, read its section there** (`grep -n '^## ' docs/NOTES.md`, then read that range). Add notes for new work there, not here; keep this file to rules every session needs.

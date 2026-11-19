@@ -634,6 +634,7 @@ function draw() {
     for (const w of wallsHere) ground.push(w);
     for (const h of G.houses || []) if (h.alive && houseSeen(h) && h.x > x0 - 60 && h.x < x1 + 60 && h.y > y0 - 60 && h.y < y1 + 120) ground.push(h);
     for (const p of G.props || []) if (inView(p) && G.seen[cellOfPos(p.x, p.y)]) ground.push(p);
+    lookView = v; cliffItems(ground, x0, y0, x1, y1, onScr);   // tall rock (look.js prototype, off by default)
     for (const f of G.folk || []) if (f.st !== 'in' && inView(f) && G.seen[cellOfPos(f.x, f.y)]) ground.push({ kind: 'folk', v: f, y: f.y });
     for (const c of G.hens || []) if (inView(c) && G.seen[cellOfPos(c.x, c.y)]) ground.push({ kind: 'hen', v: c, y: c.y });
     if (G.birds) drawBirds(v, false, x0, y0, x1, y1);   // pigeons on the ground
@@ -673,6 +674,7 @@ function draw() {
       else if (e.kind === 'hen') { drawHen(v, e.v); lap('misc'); }
       else if (e.kind === 'tree') { drawTree(v, e); lap('tree'); DP.nTree++; }
       else if (e.kind === 'wall') { drawWallIso(v, e); lap('bld'); }
+      else if (e.kind === 'cliff') { drawCliff(v, e); lap('bld'); }
       else { drawUnit(v, e, G.t); lap('unit'); DP.nUnit++; }
     }
     if (past) {   // haze over the outer woods past the map's edge
@@ -830,6 +832,7 @@ function draw() {
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
     ctx.drawImage(view, 0, 0, VW, VH, Math.round(-(cam.x - vx) * k + sx2), Math.round(-(cam.y - vy) * k + sy2), Math.round(VW * k), Math.round(VH * k));
     lap('blit');   // the view put on the screen
+    if (LOOK.light && !MAPS[validMap(G.mapId)].daynight) drawLook(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t);   // (look.js prototype, off by default)
     if (MAPS[validMap(G.mapId)].daynight) drawNight(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, visibleToPlayer);   // (art.js)
     lap('night');
     if (G.weather) drawWeather(ctx, G.weather, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, G.paused || !!G.over);
