@@ -568,7 +568,7 @@ function lookSmoke(g) {
     spots.forEach((sp, i) => {
       if (sp.s > stage) return;
       const x = ox + sp.x, y = oy + sp.y, h = sp.z * VK;
-      emit('b' + e.id + '.' + i, stage === 2 ? 7 : 3.5, () => P.push({ x: x + (r() - 0.5) * 4, y, h, r0: 3 + r() * 2, r1: (stage === 2 ? 34 : 24) + r() * 8, rise: 18 + r() * 8, t: 0, life: 5 + r() * 3, a: stage === 2 ? 0.55 : 0.4, dark: true }));
+      emit('b' + e.id + '.' + i, stage === 2 ? 5 : 2.5, () => P.push({ x: x + (r() - 0.5) * 4, y, h, r0: 3 + r() * 2, r1: (stage === 2 ? 34 : 24) + r() * 8, rise: 18 + r() * 8, t: 0, life: 5 + r() * 3, a: stage === 2 ? 0.38 : 0.28, dark: true }));
       if (stage === 2) fires.push([x, y, h, 0.75, e.id * 13 + i]);
     });
   }
@@ -579,9 +579,9 @@ function lookSmoke(g) {
       const k = 1 - fx.t / fx.life;
       const key = ((fx.x / 14) | 0) * 100003 + ((fx.y / 14) | 0);   // nearby flames of one fire: one bigger flame
       if (!seenFire.has(key)) { seenFire.add(key); fires.push([fx.x, fx.y + 6, 0, 0.4 + 0.25 * k, key]); }
-      if (r() < dt * 2.2) P.length < SMOKE_MAX && P.push({ x: fx.x, y: fx.y + 6, h: 8, r0: 3, r1: 18 + r() * 6, rise: 18 + r() * 6, t: 0, life: 2.6 + r() * 1.5, a: 0.4, dark: true });
+      if (r() < dt * 2.2) P.length < SMOKE_MAX && P.push({ x: fx.x, y: fx.y + 6, h: 8, r0: 3, r1: 18 + r() * 6, rise: 18 + r() * 6, t: 0, life: 2.6 + r() * 1.5, a: 0.3, dark: true });
     } else if (fx.type === 'smoulder') {
-      if (r() < dt * 1.5) P.length < SMOKE_MAX && P.push({ x: fx.x + (r() - 0.5) * 6, y: fx.y, h: 2, r0: 2, r1: 12 + r() * 4, rise: 10 + r() * 4, t: 0, life: 2.5 + r(), a: 0.28, dark: false });
+      if (r() < dt * 1.5) P.length < SMOKE_MAX && P.push({ x: fx.x + (r() - 0.5) * 6, y: fx.y, h: 2, r0: 2, r1: 12 + r() * 4, rise: 10 + r() * 4, t: 0, life: 2.5 + r(), a: 0.22, dark: false });
     }
   }
   // Move the smoke on.

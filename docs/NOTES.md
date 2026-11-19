@@ -61,7 +61,8 @@ recorder usage at the top of record.js).
   pillbox), 'fire' effects (one flame per 14 px cluster, so a wreck's many small flames make one, and a puff now and then) and
   smouldering craters (thin grey). Puffs rise, swell, lean more with `windNow()` as they age and fade (life 5-8 s; max
   `SMOKE_MAX` 1400); flames from 6 drawn frames, added; embers. The first try had a big flame on every small flame (far too
-  much), now merged and smaller. The columns are dense: thin them (`a` 0.55 / 0.4) if the owner finds they hide too much.
+  much), now merged and smaller. Thinned at the owner's word ("thin the smoke a bit"): structures' smoke 0.38 / 0.28 opacity (was 0.55 / 0.4) and
+  5 / 2.5 puffs a second per spot (was 7 / 3.5), fires' puffs 0.3, craters' 0.22.
 - **Tank turret fix (main game, 2026-11-19, on both branches, not released):** see the commit "Fix: a tank's turret slipped a
   pixel" (art.js `blit`): hull and turret were rounded to pixels separately, twice, so the turret wobbled on the hull.
 - **Next ideas offered to the owner (not started):**
