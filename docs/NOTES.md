@@ -317,6 +317,15 @@ recorder usage at the top of record.js).
   three blasts) with distance fall-off and facing, metal highlights, glowing parts. Not shown: shadows cast by the point lights.
   For the game this would mean: sprites baked as colour + normal + height pictures (about 3x the sprite memory), the view
   drawn through WebGL instead of 2D canvas (a large rewrite of art.js/ui.js drawing), and its cost measured on a phone.
+- **TS test link for testers, 2026-11-19 (owner: "Update the test build for this new TS so I can start testing it", picked "Separate
+  TS link"):** https://trdaniels90.github.io/mobile-rts/ts/ , the folder `ts/` on `main` (and `claude/cross-platform-game-k2d9lb`),
+  built by `tools/look/build-ts.sh` from this branch: VERSION + '-ts' (the server and room codes check the version, so TS phones
+  only play other TS phones, phone to phone; no team games), its own saved game (IndexedDB 'red-horizon-ts'), its own baked ground
+  (`ts/grounds`), sprites, music and map pictures from the main site (`../`; the script stops if they differ from main), `<meta
+  charset>` added (the single file has none). It registers no service worker of its own and its update check finds no
+  `ts/src/version.js` (so no restart offer: testers reload). Match reports still go to Supabase, with the `-ts` version (filter
+  them out of the leaderboard and stats if needed). The main game, the Windows app (its workflow only runs on src/version.js or
+  desktop/) and the server are unchanged.
 - **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size
