@@ -45,7 +45,7 @@ const [root, out, scene = 'cliffs', secs = '12', still] = process.argv.slice(2);
       let best = null;
       for (let y = 4; y < MAP - 4; y += 2) for (let x = 4; x < MAP - 4; x += 2) {
         const d = Math.hypot(x * CELL - cy.x, y * CELL - cy.y) / CELL;
-        if (d < 12 || d > 30) continue;
+        if (d < 16 || d > 40) continue;
         let lo = 99, hi = 0;
         for (let j = -5; j <= 5; j++) for (let i = -5; i <= 5; i++) { const h = G.hgt[(y + j) * MAP + x + i]; lo = Math.min(lo, h); hi = Math.max(hi, h); }
         const s = hi - lo - d * 0.2;
