@@ -1055,6 +1055,7 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
   const add = (x, y, r, a, warmLight, h) => { [x, y] = toView(...liftPt(x, y, (h || 0) + gLift(x, y))); if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };   // (vx, vy: the camera on the view plane)
   // Street lamps, lit windows, buildings' own lights, fires and blasts.
   for (const p of G.props || []) if (p.k === 'lamp' && p.up) add(p.x + 4.5, p.y, 52, 1, true, 8);
+  if (typeof lookNightLights === 'function') lookNightLights(add, night);   // (look.js test: lamp posts' pools, window spill, ore)
   for (const h of G.houses || []) {
     if (!h.alive || !G.seen[idx(h.cx, h.cy)]) continue;
     const fi = FORT_INFO.get(h.type);
@@ -1368,6 +1369,7 @@ function makeGround(painter, legacy, baked) {
   const finishing = new Map();
   function finishSome(k, until) {
     const f = finishing.get(k), list = index[k];
+    if (!f.dr) { f.dr = 1; if (typeof lookDress === 'function') { const [x0, y0] = at(k); lookDress(f.t.g.getContext('2d'), x0, y0); } }   // (look.js test: ground dressing, once a tile)
     while (f.i < list.length) {
       const a = performance.now(), m = G.marks[list[f.i++]];
       drawOn(f.t, k, m);

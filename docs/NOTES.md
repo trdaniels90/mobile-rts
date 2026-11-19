@@ -124,11 +124,38 @@ recorder usage at the top of record.js).
     the cost of the warped ground on a phone.
   - Checked: teams.js 1v1 river 4 min, no errors.
 - **Proposal of 2026-11-19 (page https://claude.ai/artifact/BCzR1QoVMcAXYE8N3mcFkP, slug `52a7f35d-f1d8-4fb0-adf4-dbd0b9aa2f04`;
-  our screenshots only), waiting for the owner's picks:** 1 light pools on the ground (lamp posts, window spill, ore glow),
+  our screenshots only). Owner picked 1, 2 and 3; made 2026-11-19, video sent, verdict pending (see below). The list:** 1 light pools on the ground (lamp posts, window spill, ore glow),
   2 ground dressing (rocks, gravel, puddles, worn paths, painted in once), 3 per-map mood (sun colour, shadow tint, haze; merge
   with day/night), 4 living structures (moving parts, build-up), 5 bigger blasts (fireball, shockwave, debris, lasting craters),
   6 steel sidebar skin, 7 storms (looks only; ask the mode if they should affect play), 8 grittier structure colours.
   Recommended: 1-3 first. All drawing only (except 7 if made to affect play).
+- **Made 2026-11-19 (proposal items 1-3, owner's picks; video sent, verdict pending).** All drawing only, both modes; each its own
+  switch (`?lookoff=pools`, `dress`, `mood`). Recorder: `tools/look/record-pools.js <repo> <out> <map> <pools|dress|mood> [s] [night|rain]`.
+  - **Light pools** (`LOOK.pools`, look.js "Light pools"): lamp posts of our own design (plinth, slim post with a lit edge, bent arm,
+    hooded head lit from below; 28 view px tall, `postPic`) placed once a battle from the ground seed (`poolLampsFor`, not in G):
+    along every road line every `POOL_GAP` 150 world px, 1.7 cells off it, sides alternating, and 7 in a ring `POOL_RING` 8.5 cells
+    (+-1) round each start position; only on grass or dirt, 3 cells from water, ore, cliffs, trees, other lamps and the village's
+    own street lamps. Colours: 70% warm yellow, 18% cool blue, 12% red (ring: 80% warm). Hidden while a structure or wall stands
+    on its cell. Sorted in with the units as a picture (pushed as kind 'cliff' with `post`, so ui.js needed no change), with a
+    shadow to the lower right. Pools (`poolLights`): radius `POOL_R` 46 view px squashed to the ground's slant (VIEW.F), holes in
+    drawLook's shade and coloured light screened on at `POOL_DAY` 0.55, so units passing through are lit; a small glow at the head.
+    Window spill: up to 4 warm spots (22 px) on the ground just in front of a structure's lit windows (`windowSpill`, not
+    defences, not below 30% health). Ore glows faint gold, gems violet (every other cell on screen, 30 px, by amount).
+    Day/night maps: drawNight's own darkness gets the pools as holes (`lookNightLights`, one line in art.js drawNight) and their
+    colour after it (`lookNightPools`, ui.js, x night), so they grow with the night; by day they come from drawLook (x day).
+  - **Ground dressing** (`LOOK.dress`, look.js "Ground dressing"): painted into each ground tile once (art.js makeGround's
+    `finishSome` calls `lookDress` before the marks, so pads, scorches and wrecks cover it; nothing per frame). Placed once a
+    battle from the ground seed (`dressFor`, not in G), per cell: grass 5% rock clusters, 5% gravel, 7% bushes, 1.5% puddles;
+    dirt 8% gravel, 5% rocks, 4% puddles; road cells 12% cracks, 8% oil, 6% gravel, 4% puddles; plus worn paths (two ruts and
+    trodden dirt) from each start position to its two nearest ore fields (within 40 cells, not their first 12% nor last 10%).
+    Never on or next to water, ore, cliffs, or on trees, fords and bridges. No puddles on snow maps (rocks and bushes snow-capped).
+    Each detail from its own seed, so one split between tiles matches.
+  - **Per-map mood** (`LOOK.mood`, `MOOD` / `lookMood`): drawLook's saturation cut, multiply grade, sun and shadow tints (soft-light),
+    a haze ('screen', thicker toward the top of the screen), the shade's tint, the vignette and the pools' day strength, per map
+    id: bridge as before (BASE), river green-grey, lakes cool and misty, twinlakes dry late-summer warm, village golden, snow theme
+    (snowbound, frost) cold and bright, a desert theme warm (no desert map yet). Rain pulls toward an overcast grey and falling
+    snow toward a white haze, by weatherLevel x 0.8. The day/night maps (village, frost) now get drawLook too (with the mood), faded
+    out as night falls (`night` argument), before drawNight; their lamps still come from drawLampsAlone.
 - **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size

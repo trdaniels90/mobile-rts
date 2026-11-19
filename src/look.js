@@ -13,11 +13,14 @@
 //  - hills:    the ground drawn raised by its height (G.hgt, terrain height stage 2), and everything on it standing at that
 //              height (gLift; ground warped in chunks by hillWarp from art.js makeGround's draw; ?lookoff=hills: flat as before)
 //  - smoke:    tall smoke columns leaning with the wind, bigger flames and embers from damaged structures and fires (lookSmoke, over the units)
+//  - pools:    lamp posts with coloured pools of light, window light spilling onto the ground, ore glowing (drawLook / drawNight)
+//  - dress:    rocks, gravel, bushes, puddles, worn paths, cracks and oil painted into the ground tiles once (lookDress)
+//  - mood:     drawLook's colours per map and weather (MOOD); also by day on the day/night maps
 // (LOOK_SOFT below: the soft ground blends, read by art.js groundPixels and copied into its workers)
 const LOOK = (() => {
   const q = typeof location !== 'undefined' ? location.search : '';
   const on = !/[?&]look=off\b/.test(q), off = (q.match(/[?&]lookoff=([a-z,]+)/) || [, ''])[1].split(',');   // ?lookoff=ground,water: parts off
-  const L = { light: on, cliffs: on, concrete: on, lamps: on, ground: on, water: on, smoke: on, hills: on };
+  const L = { light: on, cliffs: on, concrete: on, lamps: on, ground: on, water: on, smoke: on, hills: on, pools: on, dress: on, mood: on };
   for (const k of off) if (k in L) L[k] = false;
   return L;
 })();
@@ -132,22 +135,27 @@ function lookGlowPic(c0, c1, c2) {
   return c;
 }
 // g: the screen; (vx, vy, vw, vh): the screen on the view plane; k: screen pixels per view pixel; t: battle clock.
-function drawLook(g, vx, vy, vw, vh, k, t) {
-  const W = g.canvas.width, H = g.canvas.height;
+// night: on the day/night maps (Village, Frost) how dark it is (0 by day; drawNight darkens after this), else undefined.
+function drawLook(g, vx, vy, vw, vh, k, t, night) {
+  const W = g.canvas.width, H = g.canvas.height, dn = night === undefined ? 1 : 1 - night, M = lookMood(t), rgba = (c, m) => `rgba(${c[0]},${c[1]},${c[2]},${(c[3] * m).toFixed(3)})`;
   g.save();
-  g.globalCompositeOperation = 'saturation'; g.fillStyle = 'rgba(128,128,128,0.26)'; g.fillRect(0, 0, W, H);   // muted colours
-  g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgb(218,226,228)'; g.fillRect(0, 0, W, H);           // a cool grade
+  g.globalCompositeOperation = 'saturation'; g.fillStyle = `rgba(128,128,128,${(M.sat * dn).toFixed(3)})`; g.fillRect(0, 0, W, H);   // muted colours
+  const gr = M.grade.map((c) => Math.round(255 - (255 - c) * dn));
+  g.globalCompositeOperation = 'multiply'; g.fillStyle = `rgb(${gr})`; g.fillRect(0, 0, W, H);           // the map's grade
   const sun = g.createLinearGradient(0, 0, W * 0.8, H * 1.2);                                                    // low sun, upper left
-  sun.addColorStop(0, 'rgba(255,205,140,0.6)'); sun.addColorStop(0.45, 'rgba(128,128,128,0)'); sun.addColorStop(1, 'rgba(10,25,60,0.4)');
+  sun.addColorStop(0, rgba(M.sun, dn)); sun.addColorStop(0.45, 'rgba(128,128,128,0)'); sun.addColorStop(1, rgba(M.shade, dn));
   g.globalCompositeOperation = 'soft-light'; g.fillStyle = sun; g.fillRect(0, 0, W, H);
-  cloudShadows(g, vx, vy, k, t);
+  if (M.haze[3] > 0.005) {   // haze: thicker toward the far (upper) side of the screen
+    const hz = g.createLinearGradient(0, 0, 0, H);
+    hz.addColorStop(0, rgba(M.haze, dn)); hz.addColorStop(1, rgba(M.haze, dn * 0.35));
+    g.globalCompositeOperation = 'screen'; g.fillStyle = hz; g.fillRect(0, 0, W, H);
+  }
+  if (dn > 0.02) { g.globalAlpha = dn; cloudShadows(g, vx, vy, k, t); g.globalAlpha = 1; }
   g.restore();
-  if (!lookPics) lookPics = { hole: lookGlowPic('rgba(255,255,255,1)', 'rgba(255,255,255,0.55)', 'rgba(255,255,255,0)'),
-    warm: lookGlowPic('rgba(255,190,110,1)', 'rgba(255,120,40,0.5)', 'rgba(255,80,20,0)'),
-    blue: lookGlowPic('rgba(170,210,255,1)', 'rgba(90,150,255,0.5)', 'rgba(60,100,255,0)'), sh: mkCanvas(1, 1), gl: mkCanvas(1, 1) };
+  lookPoolPics();
   const L = lookPics, lights = [];
   const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
-  const add = (x, y, r, a, col, h) => { [x, y] = toView(...liftPt(x, y, (h || 0) + gLift(x, y))); if (near(x, y, r)) lights.push([x, y, r, Math.max(0, Math.min(1, a)), col]); };
+  const add = (x, y, r, a, col, h, f) => { [x, y] = toView(...liftPt(x, y, (h || 0) + gLift(x, y))); if (near(x, y, r)) lights.push([x, y, r, Math.max(0, Math.min(1, a)), col, f || 1]); };
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.defense || !G.seen[idx(e.cx, e.cy)]) continue;   // (defences give off no light: owner)
     add((e.cx + e.w / 2) * CELL, (e.cy + e.h) * CELL - 4, 20 + e.w * 8, 0.45, 'warm');
@@ -162,27 +170,69 @@ function drawLook(g, vx, vy, vw, vh, k, t) {
     else if (fx.type === 'bolt' || fx.type === 'tesla') add(fx.x, fx.y, 90, 1, 'blue', h);
   }
   for (const b of G.bolts || []) add(b.x, b.y, 60, Math.min(1, b.t / 3), 'warm');
+  if (dn > 0.02) {   // light pools (lamp posts, window spill, ore): by day here; at night on the day/night maps from drawNight
+    const cs = [[vx, vy], [vx + vw, vy], [vx, vy + vh], [vx + vw, vy + vh]].map(([X, Y]) => fromView(X, Y));
+    const box = [Math.min(...cs.map((c) => c[0])) - 40, Math.min(...cs.map((c) => c[1])) - 40, Math.max(...cs.map((c) => c[0])) + 40, Math.max(...cs.map((c) => c[1])) + 80];
+    poolLights(add, M.pool * dn, box);
+  }
   // A light shade over everything with soft holes where things glow (at half size, stretched up smoothly), then the
   // glow itself added once: each spot as bright as its brightest light ('lighten'), so overlapping blasts never pile
-  // up into a white blob (owner, after the first video).
+  // up into a white blob (owner, after the first video). Pools on the ground are squashed to the ground's slant (f).
   const R = 0.5, sW = Math.max(1, Math.round(W * R)), sH = Math.max(1, Math.round(H * R)), nk = k * R;
   for (const c of [L.sh, L.gl]) if (c.width !== sW || c.height !== sH) { c.width = sW; c.height = sH; }
   const n = L.sh.getContext('2d');
   n.globalCompositeOperation = 'source-over'; n.clearRect(0, 0, sW, sH);
-  n.fillStyle = 'rgba(8,16,30,0.22)'; n.fillRect(0, 0, sW, sH);
+  n.fillStyle = rgba(M.tint, dn); n.fillRect(0, 0, sW, sH);
   n.globalCompositeOperation = 'destination-out';
-  for (const [x, y, r, a] of lights) { n.globalAlpha = a; n.drawImage(L.hole, (x - vx - r) * nk, (y - vy - r) * nk, r * 2 * nk, r * 2 * nk); }
+  for (const [x, y, r, a, , f] of lights) { n.globalAlpha = a; n.drawImage(L.hole, (x - vx - r) * nk, (y - vy - r * f) * nk, r * 2 * nk, r * 2 * f * nk); }
   n.globalAlpha = 1; n.globalCompositeOperation = 'source-over';
   const q = L.gl.getContext('2d'); q.clearRect(0, 0, sW, sH); q.globalCompositeOperation = 'lighten';
-  for (const [x, y, r, a, col] of lights) { q.globalAlpha = a; q.drawImage(L[col], (x - vx - r * 0.75) * nk, (y - vy - r * 0.75) * nk, r * 1.5 * nk, r * 1.5 * nk); }
+  for (const [x, y, r, a, col, f] of lights) { q.globalAlpha = a; const rr = col[0] === 'p' ? r : r * 0.75; q.drawImage(L[col], (x - vx - rr) * nk, (y - vy - rr * f) * nk, rr * 2 * nk, rr * 2 * f * nk); }
   q.globalAlpha = 1; q.globalCompositeOperation = 'source-over';
   g.save(); g.imageSmoothingEnabled = true; g.drawImage(L.sh, 0, 0, W, H);
-  g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.3; g.drawImage(L.gl, 0, 0, W, H);
+  g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.3 * (0.5 + 0.5 * dn); g.drawImage(L.gl, 0, 0, W, H);
+  // The pools' colour, screened on at full size (the shared glow above is too faint by day for them).
+  g.globalCompositeOperation = 'screen';
+  for (const [x, y, r, a, col, f] of lights) if (col[0] === 'p') { g.globalAlpha = Math.min(1, a * POOL_DAY); g.drawImage(L[col], (x - vx - r) * k, (y - vy - r * f) * k, r * 2 * k, r * 2 * f * k); }
   g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
-  if (LOOK.lamps) drawLamps(g, vx, vy, k, t, near);
+  if (LOOK.lamps && night === undefined) drawLamps(g, vx, vy, k, t, near);   // (day/night maps: drawLampsAlone, after drawNight)
   const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) * 0.6);   // vignette
-  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,4,12,0.42)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, rgba(M.vig, dn)); g.fillStyle = vg; g.fillRect(0, 0, W, H);
   g.restore();
+}
+// ---- Per-map mood (LOOK.mood) -----------------------------------------------------------------------------------------
+// drawLook's colours per map (G.mapId) and theme: saturation taken out, the multiply grade, the low sun's warm side and the
+// far side's shadow tint (soft-light), a haze ('screen', thicker toward the far side), the light shade's tint, the
+// vignette, and how strong the light pools are by day. Rain (G.weather) pulls toward an overcast grey as it gets heavier
+// (weatherLevel), falling snow toward a white haze. Without LOOK.mood every map gets BASE (the first grade, as before).
+const MOOD_BASE = { sat: 0.26, grade: [218, 226, 228], sun: [255, 205, 140, 0.6], shade: [10, 25, 60, 0.4], haze: [200, 215, 230, 0],
+  tint: [8, 16, 30, 0.22], vig: [0, 4, 12, 0.42], pool: 1 };
+const MOOD = {
+  bridge: {},                                                                                            // as BASE: a clear afternoon
+  river: { sat: 0.3, grade: [210, 222, 210], sun: [235, 215, 165, 0.5], shade: [20, 45, 45, 0.42], haze: [190, 208, 196, 0.1], tint: [10, 22, 18, 0.24], vig: [2, 12, 8, 0.44] },   // green-grey river valley
+  lakes: { sat: 0.24, grade: [210, 222, 234], sun: [255, 215, 175, 0.5], shade: [10, 30, 75, 0.42], haze: [205, 222, 242, 0.13], vig: [0, 6, 20, 0.42] },                         // cool, damp, misty
+  twinlakes: { sat: 0.18, grade: [236, 226, 206], sun: [255, 196, 120, 0.7], shade: [60, 32, 22, 0.36], haze: [245, 222, 182, 0.1], tint: [24, 14, 6, 0.2], vig: [22, 8, 0, 0.4] },   // late summer, dry and warm
+  village: { sat: 0.2, grade: [232, 228, 214], sun: [255, 212, 150, 0.6], shade: [30, 30, 64, 0.38], haze: [236, 226, 206, 0.08], vig: [8, 6, 10, 0.38] },                          // pastoral, golden by day
+  snow: { sat: 0.3, grade: [226, 236, 250], sun: [242, 246, 255, 0.55], shade: [20, 52, 115, 0.44], haze: [236, 243, 255, 0.17], tint: [10, 24, 54, 0.18], vig: [0, 12, 34, 0.32] },   // cold and bright (snowbound, frost)
+  desert: { sat: 0.14, grade: [244, 226, 196], sun: [255, 190, 110, 0.75], shade: [85, 42, 20, 0.36], haze: [250, 226, 186, 0.15], tint: [30, 16, 4, 0.18], vig: [32, 12, 0, 0.38] },  // warm (for a desert theme)
+  rain: { sat: 0.46, grade: [194, 202, 212], sun: [205, 210, 220, 0.14], shade: [20, 30, 46, 0.32], haze: [172, 182, 194, 0.2], tint: [10, 16, 26, 0.3], vig: [0, 4, 10, 0.5], pool: 1.4 },   // overcast
+  snowfall: { haze: [238, 242, 250, 0.26], sun: [235, 240, 250, 0.3] },
+};
+let moodCache = null;
+function lookMood(t) {
+  if (!LOOK.mood || !G) return MOOD_BASE;
+  const id = validMap(G.mapId), th = mapTheme(G.mapId);
+  if (!moodCache || moodCache.g !== G) moodCache = { g: G, m: { ...MOOD_BASE, ...(MOOD[th === 'snow' || th === 'desert' ? th : id] || {}) } };
+  const m = moodCache.m, w = G.weather;
+  if (!w) return m;
+  const o = MOOD[w.kind === 'rain' ? 'rain' : 'snowfall'], f = Math.min(1, weatherLevel(w, t)) * 0.8, out = {};
+  for (const key in m) {
+    const a = m[key], b = o[key];
+    out[key] = b === undefined ? a : Array.isArray(a) ? a.map((v, i) => v + (b[i] - v) * f) : a + (b - a) * f;
+  }
+  for (const c of ['grade']) out[c] = out[c].map(Math.round);
+  for (const c of ['sun', 'shade', 'haze', 'tint', 'vig']) out[c] = out[c].map((v, i) => (i < 3 ? Math.round(v) : v));
+  return out;
 }
 // Cloud shadows: a tileable soft noise (4 octaves) cut into cloud shapes, fixed to the ground (the view plane) and
 // drifting with the wind; multiplied over the picture, so they darken without hiding anything.
@@ -303,6 +353,7 @@ function cliffPic(L, c) {
 // From ui.js draw: the cliff cells round the screen as things to sort in with the units.
 function cliffItems(list, x0, y0, x1, y1, shows) {
   lookGround(lookView, x0, y0, x1, y1);   // (the ground's patches and tracks first: under the cliffs' shadows)
+  poolItems(list, x0, y0, x1, y1, shows);   // lamp posts (light pools), with their shadows
   if (!LOOK.cliffs || !G.cliff) return;
   const L = cliffLookFor();
   let made = 0;
@@ -314,7 +365,7 @@ function cliffItems(list, x0, y0, x1, y1, shows) {
     if (p) list.push({ kind: 'cliff', x, y, p });
   }
   // The shadows now, on the ground under everything (the list is drawn after).
-  for (const e of list) if (e.kind === 'cliff') onHill(lookView, e.x, e.y, () => cliffShadow(lookView, e));
+  for (const e of list) if (e.kind === 'cliff' && !e.post) onHill(lookView, e.x, e.y, () => cliffShadow(lookView, e));
 }
 let lookView = null;   // the view canvas's context, set by ui.js before cliffItems
 function cliffShadow(g, e) {
@@ -734,4 +785,271 @@ function lookSmoke(g) {
     g.globalAlpha = 1 - m.t / m.life; g.fillStyle = m.t < m.life * 0.4 ? '#ffe2a0' : '#ff8a30'; g.fillRect(wx - 0.5, wy - 0.5, 1, 1);
   }
   g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.imageSmoothingEnabled = false; g.upright = up;
+}
+
+// ---- Light pools (LOOK.pools) ---------------------------------------------------------------------------------------
+// Lamp posts of our own design (a slim post on a plinth, a bent arm, a hooded head lit from below) along the roads and in
+// a ring round each start position, placed once a battle from the map's ground seed (kept here, not in G: not saved).
+// Each casts a soft coloured pool on the ground (mostly warm yellow, some cool blue, a few red), drawn into drawLook's
+// shade and glow, so units passing through are lit too. Structures' windows spill light onto the ground in front of
+// them, and ore and gems glow faintly. Defences give off no light (owner). On the day/night maps the pools come from
+// lookNightLights (art.js drawNight's lights) and lookNightPools (their colour), stronger as night falls.
+const POOL_R = 46, POOL_GAP = 150, POOL_RING = 8.5, POOL_DAY = 0.55;   // POOL_DAY: the pools' colour screened on by day (x their strength)   // pool radius (view px), road lamps every POOL_GAP world px, ring radius (cells)
+const POOL_COL = { warm: [255, 214, 130], cool: [140, 190, 255], red: [255, 90, 70] };
+let poolLook = null;
+function poolLampsFor() {
+  if (poolLook && poolLook.g === G) return poolLook;
+  const r = rng(groundSeed(G) ^ 0x51a7e), lamps = [], T = G.terr;
+  const villageLamps = (G.props || []).filter((p) => p.k === 'lamp');
+  const ok = (x, y) => {
+    const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+    if (cx < 2 || cy < 2 || cx > MAP - 3 || cy > MAP - 3) return false;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const t = T[idx(cx + i, cy + j)]; if (t >= 4) return false; }
+    const c = idx(cx, cy);
+    if (T[c] > 1 || G.ore[c] || (G.cliff && G.cliff[c]) || (G.block && G.block[c])) return false;
+    if (lamps.some((l) => Math.hypot(l.x - x, l.y - y) < CELL * 3)) return false;
+    return !villageLamps.some((p) => Math.hypot(p.x - x, p.y - y) < CELL * 3);
+  };
+  const colour = () => { const v = r(); return v < 0.7 ? 'warm' : v < 0.88 ? 'cool' : 'red'; };
+  for (const line of G.road || []) {
+    let run = r() * POOL_GAP, side = r() < 0.5 ? 1 : -1;
+    for (let i = 1; i < line.length; i++) {
+      const a = line[i - 1], b = line[i], d = Math.hypot(b.x - a.x, b.y - a.y);
+      run += d;
+      if (run < POOL_GAP || !d) continue;
+      run = 0; side = -side;
+      const nx = -(b.y - a.y) / d, ny = (b.x - a.x) / d, x = b.x + nx * side * CELL * 1.7, y = b.y + ny * side * CELL * 1.7;
+      if (ok(x, y)) lamps.push({ x, y, col: colour(), c: idx(Math.floor(x / CELL), Math.floor(y / CELL)) });
+    }
+  }
+  for (const s of G.spawns || []) {
+    const a0 = r() * Math.PI * 2;
+    for (let k = 0; k < 7; k++) {
+      const a = a0 + k * Math.PI * 2 / 7 + (r() - 0.5) * 0.4, R = (POOL_RING + (r() - 0.5) * 2) * CELL;
+      const x = (s.cx + 0.5) * CELL + Math.cos(a) * R, y = (s.cy + 0.5) * CELL + Math.sin(a) * R;
+      if (ok(x, y)) lamps.push({ x, y, col: r() < 0.8 ? 'warm' : colour(), c: idx(Math.floor(x / CELL), Math.floor(y / CELL)) });
+    }
+  }
+  poolLook = { g: G, lamps, pics: {}, spill: new Map() };
+  return poolLook;
+}
+// The lamp post (view px, foot at its picture's (5, 33)) and its shadow, one per colour.
+const POST_H = 28, POST_ARM = 6;
+function postPic(col) {
+  const P = poolLampsFor();
+  if (P.pics[col]) return P.pics[col];
+  const c = mkCanvas(14, 36), g = c.getContext('2d'), [lr, lg, lb] = POOL_COL[col];
+  g.fillStyle = '#2a2c2e'; g.fillRect(3, 31, 5, 3); g.fillStyle = '#4a4d50'; g.fillRect(3, 31, 2, 2);   // plinth
+  g.fillStyle = '#2f3234'; g.fillRect(4.5, 33 - POST_H, 2, POST_H - 2);                                    // post
+  g.fillStyle = '#5c6064'; g.fillRect(4.5, 33 - POST_H, 0.8, POST_H - 2);                                  // its lit edge
+  g.strokeStyle = '#2f3234'; g.lineWidth = 1.4; g.beginPath();                                             // bent arm
+  g.moveTo(5.5, 34 - POST_H); g.quadraticCurveTo(6, 31 - POST_H, 5.5 + POST_ARM, 32 - POST_H); g.stroke();
+  g.fillStyle = '#1e2022'; g.fillRect(4 + POST_ARM, 31 - POST_H, 5, 2);                                    // hood
+  g.fillStyle = `rgb(${lr},${lg},${lb})`; g.fillRect(4.5 + POST_ARM, 33 - POST_H, 4, 1);                   // lit glass
+  g.fillStyle = 'rgba(255,255,240,0.9)'; g.fillRect(5.5 + POST_ARM, 33 - POST_H, 2, 1);
+  const s = mkCanvas(48, 46), q = s.getContext('2d');                                                       // shadow: to the lower right (same origin)
+  q.strokeStyle = 'rgba(0,0,0,0.8)'; q.lineWidth = 2; q.beginPath(); q.moveTo(6, 34); q.lineTo(36, 40); q.stroke();
+  q.fillStyle = 'rgba(0,0,0,0.8)'; q.fillRect(35, 39, 7, 3);
+  return (P.pics[col] = { c, X0: -5, Y0: -33, sh: s });
+}
+// From cliffItems: the lamp posts round the screen, sorted in with the units (drawn like a cliff picture).
+function poolItems(list, x0, y0, x1, y1, shows) {
+  if (!LOOK.pools || !G) return;
+  for (const l of poolLampsFor().lamps) {
+    if (l.x < x0 - 40 || l.x > x1 + 40 || l.y < y0 - 40 || l.y > y1 + 120 || !G.seen[l.c] || G.bld[l.c] || (G.wall && G.wall[l.c]) || !shows(l.x, l.y)) continue;
+    const p = postPic(l.col);
+    const e = { kind: 'cliff', post: true, x: l.x, y: l.y, p };
+    list.push(e);
+    onHill(lookView, e.x, e.y, () => cliffShadow(lookView, e));
+  }
+}
+// The lights of the pools for drawLook (add: its light adder, ground spots in world px, h in view px up), or for drawNight.
+function poolLights(add, strength, box) {
+  if (!LOOK.pools || !G) return;
+  const P = poolLampsFor(), [ax, ay] = fromView(POST_ARM + 2, 0);
+  for (const l of P.lamps) {
+    if (!G.seen[l.c] || G.bld[l.c]) continue;
+    add(l.x + ax, l.y + ay, POOL_R, 0.85 * strength, 'p' + l.col, 0, VIEW.F);
+    add(l.x + ax, l.y + ay, 9, 0.9 * strength, 'p' + l.col, POST_H - 1);   // the lamp's own glow
+  }
+  // Window light spilling onto the ground in front of structures (not defences: owner).
+  for (const e of G.entities) {
+    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.defense || e.hp < e.maxHp * 0.3 || !G.seen[idx(e.cx, e.cy)]) continue;
+    for (const [x, y] of windowSpill(e)) add(x, y, 22, 0.5 * strength, 'pwarm', 0, VIEW.F);
+  }
+  // Ore glows faintly gold, gems a cold violet: one soft light per cell on screen.
+  if (box) {
+    const cx0 = Math.max(0, Math.floor(box[0] / CELL)), cx1 = Math.min(MAP - 1, Math.ceil(box[2] / CELL));
+    const cy0 = Math.max(0, Math.floor(box[1] / CELL)), cy1 = Math.min(MAP - 1, Math.ceil(box[3] / CELL));
+    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+      const c = idx(cx, cy), o = G.ore[c];
+      if (!o || !G.seen[c] || (cx + cy) & 1) continue;   // (every other cell: the pools are wide and soft)
+      add((cx + 0.5) * CELL, (cy + 0.5) * CELL, 30, Math.min(1, 0.25 + o / 600) * 0.32 * strength, G.gem[c] ? 'pgem' : 'pore', 0, VIEW.F);
+    }
+  }
+}
+// Up to 4 spots on the ground just in front of a structure's lit windows (toward the camera), per type.
+function windowSpill(e) {
+  const P = poolLampsFor(), key = e.type + '/' + e.faction;
+  let s = P.spill.get(key);
+  if (!s) {
+    const Ls = structLamps(e.type, e.faction), W = e.w * CELL, H = e.h * CELL;
+    s = [];
+    for (const w of Ls.wins.slice(0, 4)) {
+      let x = w.x, y = w.y;
+      for (let i = 0; i < 40 && x > -1 && y > -1 && x < W + 1 && y < H + 1; i++) { x += VIEW.s * 3; y += VIEW.c * 3; }
+      s.push([x + VIEW.s * 8, y + VIEW.c * 8]);
+    }
+    P.spill.set(key, s);
+  }
+  const ox = e.cx * CELL, oy = e.cy * CELL;
+  return s.map(([x, y]) => [ox + x, oy + y]);
+}
+// Day/night maps: drawNight's lights (art.js calls this with its own adder); round holes in the dark, the colour after.
+function lookNightLights(add, night) {
+  if (!LOOK.pools || !G) return;
+  poolLights((x, y, r, a, col, h) => add(x, y, r * 1.15, Math.min(1, a * 1.2), col === 'pwarm' || col === 'pore', h), 1, null);
+}
+// After drawNight: the pools' colour, stronger as night falls (view px, as drawLook).
+function lookNightPools(g, vx, vy, vw, vh, k, night) {
+  if (!LOOK.pools || !G || night < 0.02) return;
+  lookPoolPics();
+  const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
+  g.save(); g.globalCompositeOperation = 'lighter';
+  poolLights((x, y, r, a, col, h, f) => {
+    [x, y] = toView(...liftPt(x, y, (h || 0) + gLift(x, y)));
+    if (!near(x, y, r)) return;
+    const fy = f || 1;
+    g.globalAlpha = Math.min(1, a * 0.55 * night); g.drawImage(lookPics[col], (x - vx - r) * k, (y - vy - r * fy) * k, r * 2 * k, r * 2 * fy * k);
+  }, 1, null);
+  g.restore();
+}
+function lookPoolPics() {
+  if (!lookPics) lookPics = { hole: lookGlowPic('rgba(255,255,255,1)', 'rgba(255,255,255,0.55)', 'rgba(255,255,255,0)'),
+    warm: lookGlowPic('rgba(255,190,110,1)', 'rgba(255,120,40,0.5)', 'rgba(255,80,20,0)'),
+    blue: lookGlowPic('rgba(170,210,255,1)', 'rgba(90,150,255,0.5)', 'rgba(60,100,255,0)'), sh: mkCanvas(1, 1), gl: mkCanvas(1, 1) };
+  if (lookPics.pwarm) return;
+  for (const [n, [r0, g0, b0]] of Object.entries(POOL_COL)) lookPics['p' + n] = lookGlowPic(`rgba(${r0},${g0},${b0},1)`, `rgba(${r0},${g0},${b0},0.45)`, `rgba(${r0},${g0},${b0},0)`);
+  lookPics.pore = lookGlowPic('rgba(255,215,90,1)', 'rgba(220,170,40,0.4)', 'rgba(200,140,20,0)');
+  lookPics.pgem = lookGlowPic('rgba(200,150,255,1)', 'rgba(150,90,240,0.4)', 'rgba(120,60,220,0)');
+}
+
+// ---- Ground dressing (LOOK.dress) ------------------------------------------------------------------------------------
+// Small details painted into each ground tile once, when it is painted (art.js makeGround's finishSome calls lookDress
+// before the marks of battle, so pads, scorches and wrecks go over it): rock clusters, gravel, bushes and puddles on open
+// ground, cracks, oil and gravel on the roads, and worn dirt paths from each start position to its nearest ore fields.
+// Placed once a battle from the map's ground seed (kept here, not in G), each from its own seed, so a detail split
+// between two tiles is drawn the same on both. Never on water or next to it, on ore, cliffs, trees or bridges.
+const DRESS_TILE = GROUND_TILE;
+let dressLook = null;
+function dressFor() {
+  if (dressLook && dressLook.g === G) return dressLook;
+  const n = Math.ceil(WORLD / DRESS_TILE), by = Array.from({ length: n * n }, () => []), T = G.terr, snow = snowy();
+  const r = rng(groundSeed(G) ^ 0xd7e55);
+  const put = (it, rad) => {
+    const tx0 = Math.max(0, Math.floor((it.x - rad) / DRESS_TILE)), tx1 = Math.min(n - 1, Math.floor((it.x + rad) / DRESS_TILE));
+    const ty0 = Math.max(0, Math.floor((it.y - rad) / DRESS_TILE)), ty1 = Math.min(n - 1, Math.floor((it.y + rad) / DRESS_TILE));
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) by[ty * n + tx].push(it);
+  };
+  const clear = (cx, cy) => {
+    if (cx < 1 || cy < 1 || cx > MAP - 2 || cy > MAP - 2) return false;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const c = idx(cx + i, cy + j); if (T[c] >= 4 || G.ore[c] || (G.cliff && G.cliff[c])) return false; }
+    const c = idx(cx, cy);
+    return T[c] <= 1 && !(G.block && G.block[c]) && !(G.ford && G.ford[c]);
+  };
+  const roadCell = new Uint8Array(MAP * MAP);
+  for (const line of G.road || []) for (const p of line) roadCell[idx(Math.min(MAP - 1, Math.floor(p.x / CELL)), Math.min(MAP - 1, Math.floor(p.y / CELL)))] = 1;
+  for (let cy = 0; cy < MAP; cy++) for (let cx = 0; cx < MAP; cx++) {
+    const v = r(), s = (r() * 1e9) | 0, x = (cx + r()) * CELL, y = (cy + r()) * CELL;
+    if (!clear(cx, cy)) continue;
+    const road = roadCell[idx(cx, cy)], dirt = T[idx(cx, cy)] === 1;
+    let t = null;
+    if (road) t = v < 0.12 ? 'crack' : v < 0.2 ? 'oil' : v < 0.26 ? 'gravel' : v < 0.3 && !snow ? 'puddle' : null;
+    else if (dirt) t = v < 0.08 ? 'gravel' : v < 0.13 ? 'rocks' : v < 0.17 && !snow ? 'puddle' : null;
+    else t = v < 0.05 ? 'rocks' : v < 0.1 ? 'gravel' : v < 0.17 ? 'bush' : v < 0.185 && !snow ? 'puddle' : null;
+    if (t) put({ t, x, y, s }, 18);
+  }
+  // Worn paths: a wobbly line from each start position to its two nearest ore fields, cut into short pieces.
+  for (const sp of G.spawns || []) {
+    const fs = (G.oreFields || []).map((f) => [Math.hypot(f.cx - sp.cx, f.cy - sp.cy), f]).sort((a, b) => a[0] - b[0]).slice(0, 2);
+    for (const [d, f] of fs) {
+      if (d > 40) continue;
+      const ax = (sp.cx + 0.5) * CELL, ay = (sp.cy + 0.5) * CELL, bx = (f.cx + 0.5) * CELL, by2 = (f.cy + 0.5) * CELL;
+      const L = Math.hypot(bx - ax, by2 - ay), nx = -(by2 - ay) / L, ny = (bx - ax) / L, bend = (r() - 0.5) * L * 0.35, ph = r() * 6;
+      let piece = null;
+      for (let u = 0; u <= L; u += 3) {
+        const k = u / L, w = Math.sin(k * Math.PI) * bend + Math.sin(k * 9 + ph) * 6;
+        const x = ax + (bx - ax) * k + nx * w, y = ay + (by2 - ay) * k + ny * w, cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+        if (!clear(cx, cy) || roadCell[idx(cx, cy)] || k < 0.12 || k > 0.9) { piece = null; continue; }
+        if (!piece || piece.pts.length >= 10) { if (piece) put(piece, 40); piece = { t: 'path', x, y, s: (r() * 1e9) | 0, pts: [], nx, ny }; }
+        piece.pts.push([x, y]);
+      }
+      if (piece) put(piece, 40);
+    }
+  }
+  dressLook = { g: G, by, n, snow };
+  return dressLook;
+}
+// From art.js makeGround: tile (x0, y0) just painted (g: its canvas, tile pixels).
+function lookDress(g, x0, y0) {
+  if (!LOOK.dress || !G || !G.terr || (typeof HEADLESS !== 'undefined' && HEADLESS)) return;
+  const D = dressFor(), list = D.by[Math.floor(y0 / DRESS_TILE) * D.n + Math.floor(x0 / DRESS_TILE)];
+  if (!list || !list.length) return;
+  g.save(); g.translate(-x0, -y0);
+  for (const it of list) if (it.t === 'path') dressOne(g, it, D.snow);   // paths first, under the rest
+  for (const it of list) if (it.t !== 'path') dressOne(g, it, D.snow);
+  g.restore();
+}
+function dressOne(g, it, snow) {
+  const r = rng(it.s), { x, y } = it;
+  const ell = (px, py, rx, ry, col) => { g.fillStyle = col; g.beginPath(); g.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2); g.fill(); };
+  if (it.t === 'path') {   // two worn ruts and trodden dirt between them
+    for (const [px, py] of it.pts) {
+      ell(px + (r() - 0.5) * 2, py + (r() - 0.5) * 2, 6 + r() * 2, 5 + r() * 2, snow ? 'rgba(150,140,128,0.16)' : 'rgba(132,104,64,0.2)');
+      for (const sd of [-1, 1]) g.fillStyle = snow ? 'rgba(90,84,80,0.26)' : 'rgba(84,64,40,0.28)', g.fillRect(Math.round(px + it.nx * sd * 3.5), Math.round(py + it.ny * sd * 3.5), 2, 2);
+    }
+    return;
+  }
+  if (it.t === 'rocks') {
+    const m = 3 + Math.floor(r() * 6);
+    for (let i = 0; i < m; i++) {
+      const a = r() * Math.PI * 2, d = r() * 9, px = x + Math.cos(a) * d, py = y + Math.sin(a) * d, s = 1.6 + r() * (i ? 2.4 : 4), tone = 100 + Math.floor(r() * 60);
+      ell(px + 1.6, py + 1.4, s, s * 0.8, 'rgba(0,0,0,0.4)');                                   // shadow
+      ell(px, py, s, s * 0.8, `rgb(${tone},${tone - 4},${tone - 12})`);
+      ell(px - s * 0.3, py - s * 0.3, s * 0.5, s * 0.38, snow ? 'rgba(245,248,255,0.9)' : `rgba(255,250,235,0.42)`);   // lit top (snow on winter maps)
+    }
+  } else if (it.t === 'gravel') {
+    const m = 30 + Math.floor(r() * 30), R = 6 + r() * 7;
+    ell(x, y, R * 0.9, R * 0.75, snow ? 'rgba(120,116,110,0.18)' : 'rgba(110,92,64,0.22)');   // bare earth under it
+    for (let i = 0; i < m; i++) {
+      const a = r() * Math.PI * 2, d = Math.sqrt(r()) * R, tone = 80 + Math.floor(r() * 110), sz = r() < 0.3 ? 2 : 1;
+      g.fillStyle = `rgba(${tone},${tone - 6},${tone - 14},0.9)`; g.fillRect(Math.round(x + Math.cos(a) * d), Math.round(y + Math.sin(a) * d), sz, sz);
+    }
+  } else if (it.t === 'bush') {
+    const m = 5 + Math.floor(r() * 6), base = snow ? [52, 66, 58] : r() < 0.3 ? [72, 74, 30] : [40, 72, 28];
+    ell(x + 2.5, y + 2.5, 7.5, 5.5, 'rgba(0,0,0,0.35)');
+    for (let i = 0; i < m; i++) {
+      const a = r() * Math.PI * 2, d = r() * 5, s = 2 + r() * 2.4, px = x + Math.cos(a) * d, py = y + Math.sin(a) * d, l = r() * 24;
+      ell(px, py, s, s, `rgb(${base[0] + l},${base[1] + l},${base[2] + l * 0.6})`);
+      ell(px - s * 0.35, py - s * 0.35, s * 0.45, s * 0.45, snow ? 'rgba(240,245,255,0.8)' : 'rgba(150,190,90,0.35)');
+    }
+  } else if (it.t === 'puddle') {
+    const rx = 5 + r() * 8, ry = rx * (0.5 + r() * 0.3);
+    ell(x, y, rx + 1.5, ry + 1.5, 'rgba(70,52,30,0.3)');               // wet mud round it
+    ell(x, y, rx, ry, 'rgba(58,70,82,0.75)');                            // water, darker than the sky
+    ell(x - rx * 0.25, y - ry * 0.3, rx * 0.5, ry * 0.25, 'rgba(190,210,230,0.35)');   // the sky's sheen
+  } else if (it.t === 'crack') {
+    g.strokeStyle = 'rgba(30,24,18,0.65)'; g.lineWidth = 1; g.beginPath();
+    let px = x, py = y, a = r() * Math.PI * 2;
+    g.moveTo(px, py);
+    for (let i = 0; i < 6 + r() * 6; i++) {
+      a += (r() - 0.5) * 1.2; px += Math.cos(a) * (2 + r() * 2); py += Math.sin(a) * (2 + r() * 2); g.lineTo(px, py);
+      if (r() < 0.2) { g.moveTo(px, py); g.lineTo(px + Math.cos(a + 1.2) * 3, py + Math.sin(a + 1.2) * 3); g.moveTo(px, py); }
+    }
+    g.stroke();
+  } else if (it.t === 'oil') {
+    const rx = 4 + r() * 5;
+    ell(x, y, rx, rx * 0.7, 'rgba(18,16,18,0.42)'); ell(x + 0.5, y, rx * 0.55, rx * 0.4, 'rgba(10,10,12,0.45)');
+    ell(x - rx * 0.3, y - rx * 0.2, rx * 0.4, rx * 0.2, 'rgba(110,90,150,0.12)');   // a faint sheen
+  }
 }
