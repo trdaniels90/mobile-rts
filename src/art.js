@@ -724,7 +724,6 @@ function charredLook(img, seed) {
 
 // Worn earth around a structure, like the dirt aprons of classic bases.
 function bibDecal(tg, x, y, w, h, seed) {
-  if (typeof LOOK !== 'undefined' && LOOK.concrete) return concreteDecal(tg, x, y, w, h, seed);   // (look.js prototype, off by default)
   const r = rng(seed), M = 9;
   const tones = snowy() ? [[92, 90, 88], [108, 105, 102], [124, 122, 119], [142, 140, 138]] : [[66, 56, 42], [79, 67, 49], [92, 78, 57], [105, 90, 66]];   // winter: trodden slush
   // Worked out as pixels and drawn in one go (a pixel at a time, a large pad took 15 ms on a slow phone).

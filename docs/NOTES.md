@@ -2,32 +2,6 @@
 
 Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the section for the part of the game you are changing; add notes for new features here, newest last.
 
-## Tiberian Sun look (WORK IN PROGRESS, prototype off by default; looks only, both modes)
-
-**Goal (owner, 2026-11-19):** bring the game's look closer to Tiberian Sun's (original work only, nothing copied). Done as a
-prototype in `src/look.js`, OFF unless the address has `?look=ts` (`LOOK.light`, `LOOK.cliffs`, `LOOK.concrete`), so players see
-no change. Owner reviews each step as a before/after MP4 (`tools/look/record.js` makes the frames, `tools/look/video.sh` the MP4;
-recorder usage at the top of record.js).
-- **Done, owner liked it ("good starting point", "looks better"):** `drawLook` (ui.js, after the view is put on the screen, not on
-  day/night maps): saturation -26%, a cool multiply grade, a low sun from the upper left (soft-light gradient), a light shade with
-  holes where fires, blasts, Tesla bolts and structures glow, their warm glow added once at 0.3 ('lighten' buffer, so overlapping
-  blasts never pile up; owner said the first version's flames were overwhelming), a vignette. `cloudShadows`: a tileable noise
-  cut into clouds, fixed to the ground, drifting (9, 3.5) view px a second, multiplied over the picture.
-- **Made, video sent, waiting on the owner's verdict:** tall cliffs and concrete (video of 2026-11-19).
-  - Cliffs: `G.cliff` ridges stand up as flat-topped plateaus (Tiberian Sun style mesas): paintCliffs' own mound sum (cut from its
-    source, so the crag stands on its painted foot), steep sides to `CLIFF_TOP` (34) and lone rocks lower (`big`), drawn per cell
-    as a voxel-space picture (columns back to front, rock faces with strata, grassy/mossy tops, snowy on winter maps) sorted in with
-    the units (ui.js `cliffItems` / kind 'cliff' / `drawCliff`), and a shadow to the screen's right (`cliffShadow`). Pictures are
-    made 9 a frame (`cliffItems`), so they pop in at first: needs warming at battle start before release.
-  - Concrete: `concreteDecal` replaces `bibDecal`'s dirt (art.js hook): 12 px slabs on a world grid with joints, grit, oil stains,
-    cracks, a broken outer ring and a little dirt; every pixel from its world position, so pads and tiles join seamlessly.
-- **Next ideas offered to the owner (not started):** water and shorelines (ripples, foam, depth), ground detail (fading tank
-  tracks, debris, smoother blends), lights on structures (warning lamps, windows, sweeping spotlights), bigger smoke and fires,
-  real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
-- **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size
-  layers; cliffs add one picture per rock cell); an Options switch was offered; decide per map grade (snow maps colder, rain maps
-  cloudier); day/night maps (village, frost) use drawNight instead, so merge the two; cliffs on the minimap and in the debrief are flat.
-
 ## Iso view (branch `claude/iso-view`, test only: not for players until the bugs are fixed, owner's call)
 
 - Tiberian Sun style camera: the world is turned 45 degrees (cells show as diamonds) and seen from about 33 degrees.
