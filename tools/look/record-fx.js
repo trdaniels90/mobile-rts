@@ -34,7 +34,7 @@ const [root, out, map, part, secs = '6'] = process.argv.slice(2);
     } else if (part === 'blasts') {
       const fb = G.entities.filter((e) => e.alive && e.team === foe.id && e.kind === 'bld' && !e.def.defense);
       const c = fb.find((e) => e.type === 'cy') || fb[0];
-      x = c.x; y = c.y; z = 1.5;
+      x = c.x; y = c.y; z = 2;
       window.__targets = fb.filter((e) => Math.hypot(e.x - c.x, e.y - c.y) < 260).slice(0, 4).map((e) => e.id);
     }
     window.__aim = (x, y, z) => { const [X, Y] = toView(x, y); ps.cam.z = z; ps.cam.x = X - (innerWidth - 180) / 2 / z; ps.cam.y = Y - innerHeight / 2 / z; };

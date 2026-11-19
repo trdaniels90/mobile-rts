@@ -155,18 +155,18 @@ function fxBlast(S, x, y, h0, size, debris) {
   const nb = Math.min(room - 1, s < 7 ? 1 : big ? 3 + Math.round(s / 5) : 2);
   for (let i = 0; i < nb; i++) {   // the fireball: a few balls swelling, rising, cooling from yellow through orange to soot
     const a = r() * Math.PI * 2, d = r() * s * 0.5;
-    P.push({ k: 'ball', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.7, h: h0 + lift + s * (0.2 + r() * 0.4), vh: s * (1.2 + r() * 1.4), R0: s * 0.45, R1: s * (0.9 + r() * 0.5), t: -r() * 0.06 * i, life: 0.55 + s * 0.03 + r() * 0.2 });
+    P.push({ k: 'ball', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.7, h: h0 + lift + s * (0.2 + r() * 0.4), vh: s * (1.2 + r() * 1.4), R0: s * 0.6, R1: s * (1.3 + r() * 0.6), t: -r() * 0.06 * i, life: 0.55 + s * 0.03 + r() * 0.2 });
   }
   if (big) S.rings.push({ x, y, h: h0, R0: s * 0.6, R1: s * (4 + s * 0.12), t: 0, life: 0.45 + s * 0.012 });
   if ((debris || big) && h0 < 6) {   // a scorch mark that outlasts the game's own crater
     if (S.scorch.length >= SCORCH_MAX) S.scorch.shift();
-    S.scorch.push({ x, y, R: s * (1.3 + r() * 0.4), a: r() * Math.PI, t: 0, life: SCORCH_LIFE * (0.7 + 0.3 * Math.min(1, s / 18)) });
+    S.scorch.push({ x, y, R: s * (1.7 + r() * 0.5), a: r() * Math.PI, t: 0, life: SCORCH_LIFE * (0.7 + 0.3 * Math.min(1, s / 18)) });
   }
   if (debris || big) {
     const nd = Math.min(DEBRIS_MAX - S.debris.length, Math.round(s * 0.55));
     for (let i = 0; i < nd; i++) {
       const a = r() * Math.PI * 2, sp = (25 + r() * 60) * (0.6 + s / 20);
-      S.debris.push({ x, y, h: h0 + lift + 2, base: 0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vh: 50 + r() * 90 * (0.6 + s / 25), t: 0, life: 1.6 + r() * 1.4, hot: r() < 0.45, w: r() < 0.4 ? 2 : 1, rest: false });
+      S.debris.push({ x, y, h: h0 + lift + 2, base: 0, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vh: 50 + r() * 90 * (0.6 + s / 25), t: 0, life: 1.6 + r() * 1.4, hot: r() < 0.45, w: r() < 0.5 ? 3 : 2, rest: false });
     }
   }
   // The smoke that rolls up after it: handed to the look's smoke (look.js lookSmoke), which draws and moves it.
@@ -238,7 +238,7 @@ function lookFxGround(g, x0, y0, x1, y1) {
   g.upright = false; g.imageSmoothingEnabled = true;
   for (const m of S.scorch) {
     if (!on(m.x, m.y, m.R)) continue;
-    const k = m.t / m.life, a = 0.62 * Math.min(1, m.t / 0.3) * (k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4);
+    const k = m.t / m.life, a = 0.8 * Math.min(1, m.t / 0.3) * (k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4);
     onHill(g, m.x, m.y, () => { g.save(); g.translate(m.x, m.y); g.rotate(m.a); g.globalAlpha = a; g.drawImage(S.pics.scorch, -m.R, -m.R, m.R * 2, m.R * 2); g.restore(); });
   }
   for (const w of S.rings) {
@@ -274,7 +274,7 @@ function lookFxOver(g) {
     const [wx, wy] = liftPt(d.x, d.y, d.h), fade = Math.min(1, (d.life - d.t) / 0.5);
     const hot = d.hot && d.t < 0.9;
     g.globalAlpha = fade; g.fillStyle = hot ? (d.t < 0.45 ? '#ffd27a' : '#e0702a') : '#26221e';
-    g.fillRect(wx - d.w / 2, wy - 0.5, d.w, d.w > 1 ? 2 : 1);
+    g.fillRect(wx - d.w / 2, wy - 1, d.w, d.w > 2 ? 2 : 1.5);
   }
   // The flash at the heart, added: bright but short, and each one on its own.
   g.globalCompositeOperation = 'lighter';
