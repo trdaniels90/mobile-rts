@@ -106,6 +106,13 @@ Four recorded MP3s in `music/`, listed in `SONGS` (`audio.js`) and `TRACKS` (`sw
 contain them: publish them to the owner's artifact as `music/<name>.mp3` files beside the page (only needed once, or
 when a track changes). Details, adding a track and ffmpeg settings: "Soundtrack" in `docs/NOTES.md`.
 
+## Work in progress
+
+- **Tiberian Sun look** (lighting, cloud shadows, tall cliffs, concrete) lives ONLY on the branch `claude/ts-look` (owner's
+  wish: it must not touch the main game until it is ready). To work on it: `git fetch origin claude/ts-look`, check it out,
+  read "Tiberian Sun look" in its `docs/NOTES.md`, and push there (the one exception to the branch rule above). Its test page
+  is a separate artifact; never release it to the owner's build, the test build or the Windows app until the owner says so.
+
 ## Feature notes (`docs/NOTES.md`)
 
 Detailed notes on every feature (mechanics, constants, measurements, owner's picks) are in `docs/NOTES.md`, one `##` section each. **Before changing a feature, read its section there** (`grep -n '^## ' docs/NOTES.md`, then read that range). Add notes for new work there, not here; keep this file to rules every session needs.
