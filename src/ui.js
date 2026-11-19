@@ -721,7 +721,7 @@ function draw() {
     // Each on the raised ground (look.js onHill): a structure or house at the middle of its footprint.
     const hillAt = (e) => (big(e) ? [(e.cx + e.w / 2) * CELL, (e.cy + e.h / 2) * CELL] : [posOf(e).x, posOf(e).y]);
     const drawOne = (e) => {
-      if (e.kind === 'bld') { drawStructure(v, e, G.t); lap('bld'); }
+      if (e.kind === 'bld') { drawStructure(v, e, G.t); lookAlive(v, e); lap('bld'); }   // (lookAlive: lookfx.js, living structures)
       else if (e.kind === 'house') { drawHouse(v, e); lap('bld'); }
       else if (e.kind === 'prop') { drawProp(v, e); lap('misc'); }
       else if (e.kind === 'folk') { drawFolk(v, e.v); lap('misc'); }
@@ -754,6 +754,7 @@ function draw() {
     }
     if (occs) while (oi < occs.length) reHill(occs[oi++]);
     lookSmoke(v);   // bigger smoke and fires over the units (look.js test)
+    lookFxOver(v);   // lookfx.js: steam, fireballs and debris over the units
     lap('misc');
     if (past) {   // haze over the outer woods past the map's edge
       const up = v.upright; v.upright = false; v.imageSmoothingEnabled = true;
@@ -1016,6 +1017,7 @@ function draw() {
     const Wr = radar.width, Hr = radar.height, k = Wr / MAP, on = radarOn();
     if (radarWas !== null && on !== radarWas && !G.over) eva(on ? 'Radar online' : 'Radar offline');
     radarWas = on;
+    lookRadar(on);   // lookfx.js: the steel sidebar's static when the radar comes online
     if (!on) {
       rctx.fillStyle = '#0a0e0a'; rctx.fillRect(0, 0, Wr, Hr);
       for (let i = 0; i < Wr * Hr / 60; i++) { rctx.fillStyle = `rgba(150,190,150,${Math.random() * 0.18})`; rctx.fillRect(Math.random() * Wr, Math.random() * Hr, DPR, DPR); }

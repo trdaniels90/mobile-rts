@@ -134,7 +134,7 @@ recorder usage at the top of record.js).
   2 ground dressing (rocks, gravel, puddles, worn paths, painted in once), 3 per-map mood (sun colour, shadow tint, haze; merge
   with day/night), 4 living structures (moving parts, build-up), 5 bigger blasts (fireball, shockwave, debris, lasting craters),
   6 steel sidebar skin, 7 storms (looks only; ask the mode if they should affect play), 8 grittier structure colours.
-  Recommended: 1-3 first. All drawing only (except 7 if made to affect play).
+  Recommended: 1-3 first. All drawing only (except 7 if made to affect play). Owner then picked 4, 5 and 6: made 2026-11-19, video sent, verdict pending (see below).
 - **Made 2026-11-19 (proposal items 1-3, owner's picks; video sent, verdict pending).** All drawing only, both modes; each its own
   switch (`?lookoff=pools`, `dress`, `mood`). Recorder: `tools/look/record-pools.js <repo> <out> <map> <pools|dress|mood> [s] [night|rain]`.
   - **Light pools** (`LOOK.pools`, look.js "Light pools"): lamp posts of our own design (plinth, slim post with a lit edge, bent arm,
@@ -178,6 +178,35 @@ recorder usage at the top of record.js).
     Drawn flat (not warped with the raised ground): it lies only in low ground, where the lift is about 0.
   Looks only: sight and the fog of war are unchanged (making it cut sight would be a gameplay change: ask the mode).
   Recorder: `record-pools.js <repo> <out> village fog 6 fognight|fogdawn`.
+- **Made 2026-11-19 (proposal items 4-6, owner's picks; video sent, verdict pending).** All drawing only, both modes, nothing in G
+  (the look's own particles in `lookFxS`, src/lookfx.js); each its own switch (`?lookoff=alive`, `blasts`, `sidebar`; the three
+  keys are added to LOOK by lookfx.js itself). Hooks, each marked "lookfx": ui.js drawOne (`lookAlive` after drawStructure),
+  ui.js after lookSmoke (`lookFxOver`), ui.js drawRadar (`lookRadar(on)`), look.js cliffItems (`lookFxGround`: the update, then
+  ground marks), look.js drawLook (`lookFxLights`). Recorder: `tools/look/record-fx.js <repo> <out> <map> <alive|blasts|sidebar> [s]`.
+  - **Living structures** (`LOOK.alive`): stacks found from each type's voxel model (`aliveSpots`: the highest columns, at least
+    70% of the top, 9 voxels apart; `ALIVE_STEAM` refinery 2, factory 2, power 2, apower 3). White steam from them (1.1 puffs a
+    second a stack, 2.4 from a producing factory, x0.3 on low power; life 1.8-2.6 s, max `STEAM_MAX` 260; none below 60% health,
+    where the look's dark smoke takes over). Power plants' glow breathes at their stacks (cool blue Allies, amber Soviets;
+    stutters on low power). The Allied Radar Dome gets a small dish turning on its roof (the Soviet one already turns) with a
+    green blink. While producing (own side and allies only, so nothing gives away the enemy's work): the War Factory's amber
+    beacon sweeps twice a second, a Barracks / Helipad / Airfield's green door lamp blinks. Not below 30% health; defences none
+    (owner's rule: no light from defences). **Build-up:** the game already builds each structure layer by layer from its model
+    with scaffold and sparks over `BUILD_UP` (2.5 s, a rule shared with the server, so not changed to 1 s); the look adds a glowing
+    plane in the team colour at the height reached, with lit corners, and a dust ring and dust puffs round the footprint when it is done.
+  - **Bigger blasts** (`LOOK.blasts`): every new 'expl' effect the player can see (the game's own sizes 5-20 already follow the
+    weapon and what was destroyed: shells 9, tanks 16, a structure's death a run of 10-18) gets: a core flash ('lighter', 0.14 s +),
+    a fireball of 1-7 balls swelling, rising and cooling yellow > orange > soot (drawn normally, not added, so many at once stay
+    fire-coloured), from size 10 a shockwave ring on the ground (pressure front and a dust ring, out to about 4-7 x size), debris
+    chunks (0.55 per size, a share glowing hot) that fly, fall at 330 px/s2 and bounce (x0.35), dark smoke handed to lookSmoke's
+    puffs, and a scorch mark (soot rays) that fades over `SCORCH_LIFE` 70 s (x0.7-1 by size; max `SCORCH_MAX` 120). Its light goes
+    through drawLook's shared 'lighten' buffer, so overlapping blasts never pile up into white. Caps: `FX_MAX` 700 balls and cores,
+    `DEBRIS_MAX` 260, `BLASTS_PER_FRAME` 10.
+  - **Steel sidebar** (`LOOK.sidebar`): CSS injected by lookfx.js (`STEEL_CSS`, body class `lk-steel`): dark brushed plate with rows
+    of rivets down both edges and along the top strip, a team-colour trim (`--accent`: blue Allies, red Soviets) on the sidebar's
+    inner edge, under the top strip, round the radar, the power bar and along each build icon's foot; build icons framed (bevel,
+    two rivets, a sheen); steel buttons with corner rivets; a hatched well behind the strips; the credits amber and the clock green
+    on the glow of a display. The radar: a frame, scan lines, a slow scan bar, and a burst of green static (about 1.1 s, a rolling band)
+    when it comes online. Same buttons, layout and hit areas (only colours, borders, shadows and pseudo-elements change).
 - **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size

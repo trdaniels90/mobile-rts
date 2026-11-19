@@ -171,6 +171,7 @@ function drawLook(g, vx, vy, vw, vh, k, t, night) {
     else if (fx.type === 'bolt' || fx.type === 'tesla') add(fx.x, fx.y, 90, 1, 'blue', h);
   }
   for (const b of G.bolts || []) add(b.x, b.y, 60, Math.min(1, b.t / 3), 'warm');
+  lookFxLights(add);   // lookfx.js: the bigger blasts' light, merged here
   if (dn > 0.02) {   // light pools (lamp posts, window spill, ore): by day here; at night on the day/night maps from drawNight
     const cs = [[vx, vy], [vx + vw, vy], [vx, vy + vh], [vx + vw, vy + vh]].map(([X, Y]) => fromView(X, Y));
     const box = [Math.min(...cs.map((c) => c[0])) - 40, Math.min(...cs.map((c) => c[1])) - 40, Math.max(...cs.map((c) => c[0])) + 40, Math.max(...cs.map((c) => c[1])) + 80];
@@ -354,6 +355,7 @@ function cliffPic(L, c) {
 // From ui.js draw: the cliff cells round the screen as things to sort in with the units.
 function cliffItems(list, x0, y0, x1, y1, shows) {
   lookGround(lookView, x0, y0, x1, y1);   // (the ground's patches and tracks first: under the cliffs' shadows)
+  lookFxGround(lookView, x0, y0, x1, y1);   // lookfx.js: blasts' scorch marks and rings, and the update of its particles
   lookFogGround(lookView, x0, y0, x1, y1);   // fog lying on the ground, under the units
   poolItems(list, x0, y0, x1, y1, shows);   // lamp posts (light pools), with their shadows
   if (!LOOK.cliffs || !G.cliff) return;
