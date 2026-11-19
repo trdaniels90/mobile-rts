@@ -4,6 +4,21 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.19.1', date: '19 November 2026', title: 'Escape MCVs, smoother big fights', groups: [
+    ['New', [
+      'In team games, a computer about to lose its base can send a Mobile Construction Yard to an ally\'s base to rebuild there. It happens once a battle, and some computer opponents do it more readily than others.',
+    ]],
+    ['Changed', [
+      'Big battles run smoother: the game keeps a steady pace on fast screens, and trees are drawn faster after a long jump across the map.',
+      'Computer APCs unload their soldiers sooner when they are badly hurt.',
+      'Close Air Support covers a wider area.',
+      'The Allied Barracks flag flies in the wind like the others.',
+    ]],
+    ['Fixed', [
+      'A structure captured by an ally is no longer attacked by your units.',
+      'A Mobile Construction Yard or Mobile Outpost that deploys keeps the damage it had.',
+    ]],
+  ] },
   { v: '2026.11.19', date: '19 November 2026', title: 'APCs and captures', groups: [
     ['New', [
       'APCs for both sides, built at the War Factory: carry 5 soldiers, with a heavy machine gun that can hit helicopters. Select infantry and tap your APC to board; if it is destroyed, about half of those aboard escape.',
