@@ -228,6 +228,8 @@ function aiDriveFob(team, u) {
 // A Mobile Construction Yard rebuilds a lost yard: it drives to where the first one stood (or near it,
 // further out after each failed try) and unpacks there.
 function aiDriveMcv(team, u) {
+  if (u.evac === undefined && team.evacFor != null) { u.evac = team.evacFor; team.evacFor = null; u.expand = false; }   // the escape MCV (aiEvac)
+  if (u.evac != null) { aiDriveEvac(team, u); return; }
   if (u.expand === undefined) u.expand = !!aiMainYard(team);   // built while the main yard stands: it is for a second base
   if (u.expand && !u.aiGoal) {
     const f = team.expField || aiExpandField(team), k = u.mcvTries || 0;   // the field it was bought for
@@ -240,6 +242,56 @@ function aiDriveMcv(team, u) {
   if (!u.aiGoal) {
     const k = u.mcvTries || 0, a = Math.random() * Math.PI * 2, r = k ? 2 + k * 1.5 : 0;
     u.aiGoal = { x: (team.start.cx + 0.5 + Math.cos(a) * r) * CELL, y: (team.start.cy + 0.5 + Math.sin(a) * r) * CELL };
+    commandMove([u], u.aiGoal.x, u.aiGoal.y);
+    return;
+  }
+  const d = Math.hypot(u.x - u.aiGoal.x, u.y - u.aiGoal.y);
+  if (u.order.type !== 'guard' && aiDriveStalled(u)) { if (!deployFob(u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; commandStop([u]); } return; }
+  if (d < CELL * 2.5 || (u.order.type === 'guard' && d < CELL * 6)) { if (!deployFob(u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; } }
+  else if (u.order.type === 'guard') commandMove([u], u.aiGoal.x, u.aiGoal.y);
+}
+
+// --- Escape to an ally (team games, every difficulty, both modes) -------------------------------------------
+// A computer that rolled it (EVAC_CHANCE by personality, once a battle: team.evac) and thinks it is about to be beaten
+// buys one MCV (it jumps the queue), drives it to an ally's base and unpacks it at the edge away from the enemy, so it can
+// rebuild there. About to be beaten: a Construction Yard below half health and hit in the last EVAC_HIT seconds, or at most
+// EVAC_LEFT of its most buildings left with EVAC_FOES enemy units within EVAC_NEAR cells of its yard. Once a battle.
+const EVAC_CHANCE = { turtle: 0.7, balanced: 0.5, raider: 0.4, rusher: 0.25 }, EVAC_HIT = 10, EVAC_LEFT = 0.4, EVAC_FOES = 3, EVAC_NEAR = 14;
+const aiAllyYard = (o) => { const ys = aiYards(o); return ys.find((b) => Math.hypot(b.cx - o.start.cx, b.cy - o.start.cy) < BASE2_SEP) || ys[0]; };
+function aiEvac(team, mcvs) {
+  if (team.evac === undefined) team.evac = Math.random() < (EVAC_CHANCE[team.style] || EVAC_CHANCE.balanced);
+  const n = buildingsOf(team.id).length;
+  team.peakB = Math.max(team.peakB || 0, n);
+  if (!team.evac || team.evacDone || mcvs.length || team.queues.vehicle.some((i) => i.type === 'mcv') || !available(team, 'mcv')) return;
+  const home = aiMainYard(team) || aiYards(team)[0];
+  if (!home) return;   // no yard at all: the ordinary rebuild at home takes over
+  const allies = alliesOf(team).filter((o) => aiAllyYard(o));
+  if (!allies.length) return;
+  const hit = aiYards(team).some((b) => b.hp < b.maxHp * 0.5 && G.t - (b.hitT || -99) < EVAC_HIT);
+  const foes = enemyUnitsOf(team.id).filter((u) => !isAirborne(u) && Math.hypot(u.x - home.x, u.y - home.y) < EVAC_NEAR * CELL).length;
+  if (!hit && !(team.peakB >= 5 && n <= team.peakB * EVAC_LEFT && foes >= EVAC_FOES)) return;
+  if (team.credits < UNIT_DEFS.mcv.cost) return;   // tries again each think while it can still pay
+  const to = allies.reduce((a, o) => (buildingsOf(o.id).length > buildingsOf(a.id).length ? o : a));   // the strongest ally
+  team.evacFor = to.id; team.evacDone = true;
+  startProduction(team, 'mcv');
+  const vq = team.queues.vehicle, i = vq.findIndex((x) => x.type === 'mcv');
+  if (i > 0) vq.unshift(vq.splice(i, 1)[0]);
+}
+// Drive the escape MCV to its ally's yard and unpack it EVAC_OFF cells out on the side away from the enemy (further out
+// and turned a little after each failed try). If that ally has no yard left, another ally's; if none, home as usual.
+const EVAC_OFF = 8;
+function aiDriveEvac(team, u) {
+  let to = G.teams[u.evac];
+  if (!to || to.out || !aiAllyYard(to)) {
+    to = alliesOf(team).find((o) => aiAllyYard(o));
+    if (!to) { u.evac = null; u.aiGoal = null; return; }
+    u.evac = to.id; u.aiGoal = null;
+  }
+  if (!u.aiGoal) {
+    const y = aiAllyYard(to), foe = enemyOf(to).start, k = u.mcvTries || 0;
+    const a = Math.atan2(y.cy - foe.cy, y.cx - foe.cx) + (k ? (Math.random() - 0.5) * 2 : 0), r = EVAC_OFF + k * 1.5;
+    const cx = Math.max(2, Math.min(MAP - 3, y.cx + 1 + Math.cos(a) * r)), cy = Math.max(2, Math.min(MAP - 3, y.cy + 1 + Math.sin(a) * r));
+    u.aiGoal = { x: cx * CELL, y: cy * CELL };
     commandMove([u], u.aiGoal.x, u.aiGoal.y);
     return;
   }
@@ -907,6 +959,7 @@ function aiThink(team) {
 
   // Construction Yard lost: build a Mobile Construction Yard and unpack it at home.
   const mcvs = unitsOf(team.id).filter((u) => u.def.deploys === 'cy');
+  aiEvac(team, mcvs);
   for (const u of mcvs) aiDriveMcv(team, u);
   if (!c.cy && !mcvs.length && available(team, 'mcv') && !team.queues.vehicle.some((i) => i.type === 'mcv') && team.credits > 1250) {
     startProduction(team, 'mcv');

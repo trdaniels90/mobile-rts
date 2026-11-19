@@ -53,6 +53,7 @@ Supabase.
 | `ore-econ.js` | Headless team game of computers: ore left on the map and each side's income every 5 minutes. `<repo> [sides 4\|6] [minutes] [map] [seed]` |
 | `pop-cap.js` | Headless 2 v 2 of computers: each army against its cap, once a minute. `<repo> [minutes] [difficulty] [map] [seed]` |
 | `rebuild.js` | Headless: a broke Normal computer that lost its War Factory or refinery sells buildings to rebuild. `<repo> [diff] [factory\|refinery\|both]` |
+| `evac.js` | Headless 2 v 2: a computer about to be beaten (forced) sends an MCV to its ally's base and unpacks it there. `<repo> [diff] [map] [seed]` |
 | `stuck.js` | Finds computer units sitting still with an order, and Ore Trucks not mining or unloading. `<repo> [minutes] [map] [1v1\|2v2] [seed]` |
 | `truck-queue.js` | Headless: 8 full trucks sent to one refinery queue at the dock; how long until all are unloaded. `<repo> [trucks]` |
 | `wipe-out.js` | A defeated side in a team game loses everything it has left |

@@ -1513,6 +1513,19 @@ frame-time maths everywhere, so it is not deterministic.
 - `node tools/sim/cas.js <repo> [allies|soviets]`: rules, then 1 / 2 / 3 planes against 6 tanks + 3 riflemen in the open (Allies: 1,170 / 1,615 / 2,400 vehicle damage
   of 2,500, 0 / 3 / 4 of 6 killed), and 3 planes beside a SAM Site.
 
+## Computer escape MCV to an ally's base (not released, owner's picks for both modes, every difficulty; the server must match)
+
+- Owner's request: in a team game a computer that thinks it is about to be beaten builds an MCV and sends it to an ally's base to rebuild.
+- `aiEvac` (ai.js, from `aiThink`): `team.evac` rolled once by personality (`EVAC_CHANCE`: turtle 0.7, balanced 0.5, raider 0.4, rusher 0.25; no style = balanced).
+  Triggers once a battle (`team.evacDone`) when it has a yard, an ally with a yard (`alliesOf`, `aiAllyYard`), no MCV out or queued, MCV money, and either a yard
+  below half health hit in the last `EVAC_HIT` (10) s, or at most `EVAC_LEFT` (40%) of its most buildings (`team.peakB`, 5+) left with `EVAC_FOES` (3) enemy
+  ground units within `EVAC_NEAR` (14) cells of its yard. It picks the ally with the most buildings (`team.evacFor`), buys the MCV and moves it to the front of the queue.
+- `aiDriveMcv` hands that MCV (`u.evac`, the ally's side) to `aiDriveEvac`: `EVAC_OFF` (8) cells from the ally's yard on the side away from the ally's enemy, further
+  out and turned after each failed try; another ally if that one has lost its yard, home as usual if none has one. The new yard is a second base (`aiBase2`) while the
+  home yard stands, and the only yard once it falls.
+- `node tools/sim/evac.js <repo> [diff] [map] [seed]` (forced at 10 min, Normal 2 v 2 Twin Lakes): MCV out at 62 s, unpacked 8 cells from the ally's yard at 131 s,
+  outpost, refinery, power and Barracks round it 2 min later.
+
 ## Computer comeback: sells off to rebuild its Ore Refinery and War Factory (after 2026.11.17.13, not released, Normal and Hard, both modes; the server must match)
 
 - `aiRebuild` / `aiRebuildChain` (ai.js, from `aiThink`): a computer that once had a refinery (`team.hadRef`) or a War Factory (`team.hadFactory`), has none now, still has
