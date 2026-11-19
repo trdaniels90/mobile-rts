@@ -158,7 +158,8 @@ function fxBlast(S, x, y, h0, size, debris) {
     P.push({ k: 'ball', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.7, h: h0 + lift + s * (0.2 + r() * 0.4), vh: s * (1.2 + r() * 1.4), R0: s * 0.6, R1: s * (1.3 + r() * 0.6), t: -r() * 0.06 * i, life: 0.55 + s * 0.03 + r() * 0.2 });
   }
   if (big) S.rings.push({ x, y, h: h0, R0: s * 0.6, R1: s * (4 + s * 0.12), t: 0, life: 0.45 + s * 0.012 });
-  if ((debris || big) && h0 < 6) {   // a scorch mark that outlasts the game's own crater
+  const dug = G.craters && G.craters.slice(-24).some((c) => Math.abs(c[0] - x) < 14 && Math.abs(c[1] - y - (size > 0 ? 0 : 0)) < 18);   // (a dug crater: its own picture, no soot over it)
+  if ((debris || big) && h0 < 6 && !dug) {   // a scorch mark that outlasts the game's own crater
     if (S.scorch.length >= SCORCH_MAX) S.scorch.shift();
     S.scorch.push({ x, y, R: s * (1.7 + r() * 0.5), a: r() * Math.PI, t: 0, life: SCORCH_LIFE * (0.7 + 0.3 * Math.min(1, s / 18)) });
   }
@@ -310,43 +311,60 @@ function lookDug(x, y, r) {
   const N = HILL_CH;
   for (let gy = Math.floor((y - r) / N); gy <= Math.floor((y + r) / N); gy++) for (let gx = Math.floor((x - r) / N); gx <= Math.floor((x + r) / N); gx++) hillFits.m.delete(gy * 4096 + gx);
 }
-// The pits (original art, Tiberian Sun as a style reference only): a ragged scorched hollow about a cell across, not a
-// disc: a soft halo of soot, a ring of thrown earth and clods, the pit darkest at its heart with its far wall (facing the
-// low sun from the upper left) lit and its near wall in shade, all with soft edges, so overlapping craters run together.
-// CRATER_VAR pictures (from fixed seeds), each crater one of them, turned by its own angle.
-const CRATER_VAR = 6;
+// The craters (original art; Tiberian Sun's snow craters, from the owner's screenshot, as a style reference only): a spiky
+// star-burst splat in a darker shade of the ground (cool blue-grey on snow, dark earth elsewhere), not a disc and with no
+// raised lip: jagged spikes of thrown earth out from it, streaks running out from the middle, and in the bigger ones
+// (rad >= 8: bombs, V2s, crashes, structures) faint rings round a deeper middle; pale flecks round the edge. CRATER_VAR
+// pictures per kind (from fixed seeds), each crater one of them by its position, turned freely (no strong light in them).
+const CRATER_VAR = 4;
 let craterPics = null;
-function craterPic(v, snow) {
-  const key = v + (snow ? 's' : 'g');
+function craterPic(v, snow, big) {
+  const key = v + (snow ? 's' : 'g') + (big ? 'b' : '');
   if (!craterPics) craterPics = new Map();
   if (craterPics.has(key)) return craterPics.get(key);
-  const Z = 96, M = Z / 2, c = mkCanvas(Z, Z), x = c.getContext('2d'), r = rng(1301 + v * 7919);
-  const soot = snow ? [58, 56, 60] : [26, 20, 14], earth = snow ? [120, 116, 118] : [92, 72, 50], pit = snow ? [44, 42, 48] : [36, 27, 18], lit = snow ? [214, 216, 222] : [156, 128, 92];
+  const Z = 96, M = Z / 2, c = mkCanvas(Z, Z), x = c.getContext('2d'), r = rng(1301 + v * 7919 + (big ? 77 : 0));
+  const deep = snow ? [44, 58, 76] : [30, 26, 18], mid = snow ? [78, 96, 118] : [62, 52, 36], pale = snow ? [228, 238, 250] : [150, 132, 100];
   const col = (k, a) => `rgba(${k[0]},${k[1]},${k[2]},${a})`;
-  // A ragged outline: radius by angle from a few waves.
-  const w = [0, 1, 2].map(() => [r() * 6.28, 0.06 + r() * 0.08]);
-  const rad = (a, R) => R * (1 + w[0][1] * Math.sin(3 * a + w[0][0]) + w[1][1] * Math.sin(5 * a + w[1][0]) + w[2][1] * Math.sin(2 * a + w[2][0]));
-  const blob = (R, fill) => { x.beginPath(); for (let i = 0; i <= 36; i++) { const a = i / 36 * Math.PI * 2, d = rad(a, R); i ? x.lineTo(M + Math.cos(a) * d, M + Math.sin(a) * d) : x.moveTo(M + Math.cos(a) * d, M + Math.sin(a) * d); } x.closePath(); x.fillStyle = fill; x.fill(); };
-  x.filter = 'blur(2px)'; blob(42, col(soot, 0.22)); x.filter = 'blur(1px)'; blob(35, col(earth, 0.6)); x.filter = 'none';
-  for (let i = 0; i < 90; i++) {   // thrown earth and clods round the lip
-    const a = r() * Math.PI * 2, d = rad(a, 27) + r() * 11, s = 0.6 + r() * 1.4;
-    x.fillStyle = col(r() < 0.4 ? soot : r() < 0.6 ? lit : earth, (0.35 + r() * 0.45).toFixed(2));
-    x.beginPath(); x.ellipse(M + Math.cos(a) * d, M + Math.sin(a) * d, s, s * (0.6 + r() * 0.4), r() * 3, 0, 7); x.fill();
+  // The splat: many tapered streaks thrown out from the middle, of all lengths, a little bent, overlapping (so it is darkest
+  // where most cross: the middle), clumps along some, and loose splotches past the ends.
+  const ray = (a, L, w, colr, al) => {
+    const bend = (r() - 0.5) * 0.5, ex = M + Math.cos(a + bend) * L, ey = M + Math.sin(a + bend) * L, mx = M + Math.cos(a) * L * 0.5, my = M + Math.sin(a) * L * 0.5;
+    const px = -Math.sin(a) * w, py = Math.cos(a) * w;
+    x.beginPath(); x.moveTo(M + px, M + py); x.quadraticCurveTo(mx + px * 0.6, my + py * 0.6, ex, ey); x.quadraticCurveTo(mx - px * 0.6, my - py * 0.6, M - px, M - py); x.closePath();
+    x.fillStyle = col(colr, al.toFixed(2)); x.fill();
+  };
+  const reach = big ? 44 : 38;
+  for (let i = 0; i < 70; i++) {
+    const a = r() * Math.PI * 2, L = reach * (0.3 + Math.pow(r(), 0.7) * 0.7) * (r() < 0.08 ? 1.15 : 1);
+    ray(a, L, 2 + r() * 4, r() < 0.75 ? mid : deep, 0.16 + r() * 0.22);
+    if (r() < 0.35) { const d = L * (0.5 + r() * 0.4), s = 1.5 + r() * 2.5; x.fillStyle = col(mid, (0.3 + r() * 0.3).toFixed(2)); x.beginPath(); x.ellipse(M + Math.cos(a) * d, M + Math.sin(a) * d, s, s * 0.7, a, 0, 7); x.fill(); }
   }
-  // The pit, shaded: its far wall (lower right, facing the sun) lit, the near wall dark.
-  x.save(); x.filter = 'blur(0.6px)'; blob(27, '#000'); x.filter = 'none'; x.globalCompositeOperation = 'source-atop';
-    // (the picture lies on the ground: the sun's direction from the screen's upper left, turned into world axes)
-  const sv = fromView(-1, -1), sl = Math.hypot(sv[0], sv[1]), ux = sv[0] / sl, uy = sv[1] / sl;
-  let g = x.createLinearGradient(M + ux * 27, M + uy * 27, M - ux * 27, M - uy * 27);
-  g.addColorStop(0, col(soot, 1)); g.addColorStop(0.45, col(pit, 1)); g.addColorStop(0.72, col(earth, 1)); g.addColorStop(0.9, col(lit, 1));
-  x.fillStyle = g; x.fillRect(0, 0, Z, Z);
-  g = x.createRadialGradient(M + ux * 4, M + uy * 4, 0, M + ux * 4, M + uy * 4, 14); g.addColorStop(0, col(soot, 0.95)); g.addColorStop(1, col(soot, 0));
-  x.fillStyle = g; x.fillRect(0, 0, Z, Z);
-  for (let i = 0; i < 40; i++) { x.fillStyle = col(r() < 0.5 ? earth : soot, (0.4 + r() * 0.4).toFixed(2)); x.fillRect(M - 22 + r() * 44, M - 22 + r() * 44, 1 + (r() < 0.3), 1); }
-  x.restore();
-  // The lip catching the light on its sun side (upper left, outside the pit) and a dark rim inside it.
-  // The lip on the sun's side catching the light (outside the pit), soft.
-  x.filter = 'blur(1.5px)'; x.globalCompositeOperation = 'destination-over'; x.fillStyle = col(lit, 0.45); x.beginPath(); x.arc(M + ux * 6, M + uy * 6, 30, 0, 7); x.fill(); x.globalCompositeOperation = 'source-over'; x.filter = 'none';
+  for (let i = 0; i < 14; i++) { const a = r() * Math.PI * 2, d = reach * (0.75 + r() * 0.3), s = 0.8 + r() * 1.8; x.fillStyle = col(mid, (0.35 + r() * 0.3).toFixed(2)); x.beginPath(); x.arc(M + Math.cos(a) * d, M + Math.sin(a) * d, s, 0, 7); x.fill(); }
+  if (big) {   // the hollow itself: a ragged body under the middle
+    x.beginPath(); for (let i = 0; i <= 20; i++) { const a = i / 20 * Math.PI * 2, d = 21 * (0.85 + r() * 0.3); i ? x.lineTo(M + Math.cos(a) * d, M + Math.sin(a) * d) : x.moveTo(M + Math.cos(a) * d, M + Math.sin(a) * d); }
+    x.closePath(); x.fillStyle = col(mid, 0.45); x.fill();
+  }
+  const g = x.createRadialGradient(M, M, 0, M, M, big ? 20 : 14); g.addColorStop(0, col(deep, big ? 0.55 : 0.75)); g.addColorStop(1, col(deep, 0));
+  x.fillStyle = g; x.beginPath(); x.arc(M, M, big ? 20 : 14, 0, 7); x.fill();
+  // Fine streaks over it, dark and pale.
+  x.lineCap = 'round';
+  for (let i = 0; i < 26; i++) {
+    const a = r() * Math.PI * 2, d0 = 3 + r() * 8, d1 = 12 + r() * (reach - 16);
+    x.strokeStyle = r() < 0.65 ? col(deep, (0.25 + r() * 0.3).toFixed(2)) : col(pale, (0.12 + r() * 0.18).toFixed(2)); x.lineWidth = 0.5 + r() * 0.9;
+    x.beginPath(); x.moveTo(M + Math.cos(a) * d0, M + Math.sin(a) * d0); x.lineTo(M + Math.cos(a + (r() - 0.5) * 0.2) * d1, M + Math.sin(a + (r() - 0.5) * 0.2) * d1); x.stroke();
+  }
+  if (big) {   // ragged rings round a deeper middle (in broken arcs), each wall a little lighter than the floor inside it
+    for (const [R, a] of [[19, 0.28], [12, 0.32]]) for (let k = 0; k < 7; k++) {
+      const a0 = k / 7 * Math.PI * 2 + r() * 0.4, a1 = a0 + 0.5 + r() * 0.4, rr = R + (r() - 0.5) * 3;
+      x.lineWidth = 1.6; x.strokeStyle = col(pale, (a * 0.55).toFixed(2)); x.beginPath(); x.arc(M, M, rr, a0, a1); x.stroke();
+      x.lineWidth = 1.1; x.strokeStyle = col(deep, a.toFixed(2)); x.beginPath(); x.arc(M, M, rr - 1.6, a0, a1); x.stroke();
+    }
+    x.fillStyle = col(deep, 0.6); x.beginPath(); x.ellipse(M, M, 5 + r() * 2, 4 + r() * 2, r() * 3, 0, 7); x.fill();
+  }
+  for (let i = 0; i < 40; i++) {   // pale flecks of snow or dirt thrown round the edge
+    const a = r() * Math.PI * 2, d = 26 + r() * 18;
+    x.fillStyle = col(pale, (0.35 + r() * 0.5).toFixed(2)); x.fillRect(M + Math.cos(a) * d, M + Math.sin(a) * d, 1 + (r() < 0.3), 1);
+  }
   craterPics.set(key, c);
   return c;
 }
@@ -354,11 +372,11 @@ function lookCraters(g, on) {
   if (!LOOK.craters || !G.craters || !G.craters.length) return;
   const snow = typeof mapTheme === 'function' && mapTheme(G.mapId) === 'snow';
   for (const [x, y, rad] of G.craters) {
-    const R = (0.6 + rad / 10) * CELL;   // world.js digCrater's bowl (the pit in the picture), its lip round it
+    const R = (0.6 + rad / 10) * CELL;   // world.js digCrater's bowl
     if (!on(x, y, R) || !fxSeen(x, y)) continue;
     const h = ((x * 73856093) ^ (y * 19349663)) >>> 0, [tx, ty] = liftPt(0, 0, gLift(x, y, true));   // at the drawn ground's height
-    g.save(); g.translate(x + tx, y + ty);   // (not turned: its light comes from the sun's side)
-    g.globalAlpha = 1; g.drawImage(craterPic(h % CRATER_VAR, snow), -R * 1.5, -R * 1.5, R * 3, R * 3);
+    g.save(); g.translate(x + tx, y + ty); g.rotate((h % 628) / 100);
+    g.drawImage(craterPic(h % CRATER_VAR, snow, rad >= 8), -R * 1.3, -R * 1.3, R * 2.6, R * 2.6);
     g.restore();
   }
 }

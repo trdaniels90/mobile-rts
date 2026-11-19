@@ -276,6 +276,13 @@ recorder usage at the top of record.js).
     ring of thrown earth and clods, the pit darkest at its heart, its wall on the sun's side (the screen's upper left, turned
     into world axes) in shade and the far wall lit, a soft lit lip; soft edges so overlapping craters run together; drawn at
     the ground's height, 3 x the bowl's radius. `lookDug` is now a no-op.
+  - **Look redone again 2026-11-19** from the owner's Tiberian Sun snow screenshot (style reference only; original art): not a
+    pit with a lip but a splat in a darker shade of the ground (cool blue-grey on snow, dark earth elsewhere). `craterPic(v, snow,
+    big)`: 70 tapered, slightly bent streaks of all lengths thrown out from the middle (overlapping, so darkest there), clumps
+    and loose splotches past the ends, a soft dark middle, fine dark and pale streaks; the big ones (rad >= 8: bombs, V2s,
+    crashes, structures) also a ragged hollow and two broken rings round a deeper middle; pale flecks round the edge.
+    `CRATER_VAR` 4 per kind, turned by the crater's position, 2.6 x the bowl's radius. The blasts' own scorch mark (lookfx)
+    is left out where a crater was dug (its black soot hid the colour).
 - **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size
