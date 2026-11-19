@@ -935,6 +935,44 @@ function haloModel(pal) {
   m.paint(-14, -6, 1, 16, 6, 11, (x, y, z, c) => (c === rgbInt(body) && hash3(x >> 2, (y + 8) >> 2, z >> 2) > 0.66 ? shadeInt(body, 0.74) : undefined));   // camouflage
   return m;
 }
+// The Allied Spy Plane, after the Lockheed SR-71 Blackbird: a long, slim body with sharp chines flaring out along
+// the nose into a thin delta wing, two huge engine nacelles at mid-span with pointed inlet spikes, two inward-canted
+// fins on the nacelles, and a small tandem cockpit far forward. Near black, the fin tips in the side's colour.
+function sr71Model(pal) {
+  const m = new VModel(-21, -12, 21, 12, 10);
+  const body = mixHex(pal.main, '#2b2f38', 0.9), hull = shadeInt(body, 0.72), edge = shadeInt(body, 1.45), nac = shadeInt(body, 1.15), lite = shadeInt(body, 1.35), spike = '#7a7f86', cz = 3;
+  for (let x = -17; x < 21; x++) {                                                // fuselage, a needle nose
+    const r = x > 9 ? Math.max(0.45, 1.5 - (x - 9) * 0.1) : x < -14 ? 1.5 - (-14 - x) * 0.3 : 1.5;
+    m.cylX(x, x + 1, 0, cz, r, x % 6 === 0 ? hull : body, M_METAL);
+  }
+  for (let x = -2; x < 19; x++) {                                                 // chines: a thin lip that widens back into the wing
+    const w = 1.3 + (19 - x) * 0.19;
+    for (let y = Math.floor(-w); y < w; y++) m.set(x, y, cz, Math.abs(y + 0.5) > w - 1 ? edge : body, M_METAL);
+  }
+  for (let y = -11; y <= 11; y++) {                                               // the delta wing, its tips rounded off
+    const a = Math.abs(y + (y < 0 ? 0.5 : -0.5)), lead = a <= 5 ? 1 : Math.round(1 - (a - 5) * 2.4), trail = -17 + Math.max(0, Math.round((a - 8) * 1.3));
+    if (y === 0) continue;
+    const yy = y < 0 ? y : y - 1;
+    for (let x = trail; x <= lead; x++) m.set(x, yy, cz, x === lead || a > 10 ? edge : x === trail ? hull : body, M_METAL);
+  }
+  for (const y of [-5.5, 5.5]) {                                                  // engine nacelles, inlet spikes, exhausts
+    m.cylX(-19, 5, y, cz, 1.6, nac, M_METAL);
+    for (let x = 5; x < 10; x++) m.cylX(x, x + 1, y, cz, Math.max(0.35, 1.2 - (x - 5) * 0.2), spike, M_METAL);
+    m.cylX(-20, -19, y, cz, 1.2, '#0d0d0e');
+    m.cylX(4, 5, y, cz, 1.6, '#0d0d0e');                                         // the dark ring of the inlet round the spike
+    m.cylX(4, 5, y, cz, 0.9, spike, M_METAL);
+    const yi = y < 0 ? -6 : 5, inward = y < 0 ? 1 : -1;                           // fins canted in toward the body
+    for (let z = cz + 2; z < 9; z++) {
+      const lead = Math.round(-11 - (z - 5) * 0.9), trail = Math.round(-18 - (z - 5) * 0.35), fy = yi + (z >= 7 ? inward : 0);
+      for (let x = trail; x <= lead; x++) m.set(x, fy, z, z >= 8 ? pal.main : body, M_METAL);
+    }
+  }
+  m.box(12, -1, 4, 16, 1, 5, '#2e3a46', M_GLASS);                                 // tandem cockpit glazing
+  m.set(15, -1, 5, '#7f99ad', M_GLASS); m.set(15, 0, 5, '#7f99ad', M_GLASS);
+  m.box(-8, -1, 4, 6, 1, 5, lite, M_METAL);                                       // a pale line along the spine
+  return m;
+}
+
 function jetModel(pal, mig) {
   const m = new VModel(-17, -13, 17, 13, 11);
   if (mig) {
@@ -5136,7 +5174,8 @@ function hullSprite(u, pal) {
   }
   if (d.type === 'a10') return facingSprite('G' + key, () => a10Model(pal), u.face);
   if (d.type === 'su25') return facingSprite('U' + key, () => su25Model(pal), u.face);
-  if (d.type === 'spyplane' && u.faction === 'soviets') return facingSprite('Y' + key, () => il76Model(pal, true), u.face);   // Beriev A-50
+  if (d.type === 'spyplane') return u.faction === 'soviets' ? facingSprite('Y' + key, () => il76Model(pal, true), u.face)   // Beriev A-50
+    : facingSprite('X' + key, () => sr71Model(pal), u.face);                                                                    // SR-71
   const mig = d.type === 'mig';
   return facingSprite('A' + key + mig, () => jetModel(pal, mig), u.face);
 }
