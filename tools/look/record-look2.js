@@ -4,7 +4,8 @@ const fs = require('fs');
 //   node tools/look/record-look2.js <repo> <out dir> <map> <structs|storms> [seconds]
 // Bases built by the AI for 6 minutes, fog lifted, the AI still playing. structs: a slow pan over our base, then over the
 // enemy's (before = the earlier models, after = the redesigned ones; lookStructs.set swaps them per frame). storms: our
-// base; after = a storm rolling in fast-forwarded (0-16 s of it in 3 s), its height in real time with strikes, then
+// base; after = a storm rolling in fast-forwarded (0-16 s of it in 3 s), its height in real time with sky flashes and two bolts
+// landing (world.js boltStrike, so they are in the battle: they show in the before frames too; use the after frames), then
 // clearing fast-forwarded. Frames: <out>/a, <out>/b. Prints page errors.
 const [root, out, map, part, secs = '12'] = process.argv.slice(2);
 (async () => {
@@ -45,7 +46,7 @@ const [root, out, map, part, secs = '12'] = process.argv.slice(2);
     } else await p.evaluate((f) => { const [x, y] = window.__bases[0]; __aim(x - 40 + f * 0.4, y + 10, 1.4); }, f);
     for (const [dir, on] of [['a', false], ['b', true]]) {
       if (part === 'structs') await p.evaluate((on) => { LOOK.storms = false; lookStructs.set(on); spriteSpend = -1e9; }, on);
-      else await p.evaluate(([on, u, hit]) => { LOOK.storms = on; lookStorm.at(u); if (on && hit !== undefined) lookStorm.strike(hit); G.paused = false; }, [on, stormAt(f), strikes.get(f)]);
+      else await p.evaluate(([on, u, hit]) => { LOOK.storms = on; lookStorm.at(u); if (on && hit === 0) lookStorm.strike(); if (on && hit === 1) { const [x, y] = window.__bases[0]; for (let i = 0; i < 20; i++) { const c = cellOfPos(x - 60 + Math.random() * 200, y - 40 + Math.random() * 120); if (c !== false && G.terr[c] !== 4) { boltStrike(c); break; } } } G.paused = false; }, [on, stormAt(f), strikes.get(f)]);
       await raf();
       await p.evaluate(() => { G.paused = true; });
       if (part === 'structs') { await p.evaluate(() => { spriteSpend = -1e9; }); await raf(); }

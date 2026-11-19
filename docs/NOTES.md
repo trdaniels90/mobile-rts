@@ -212,21 +212,27 @@ recorder usage at the top of record.js).
 - **Made 2026-11-19 (proposal items 7 and 8; videos sent, verdict pending).** Drawing only, both modes, nothing in G; each its
   own switch (`?lookoff=storms`, `?lookoff=structs`; keys added to LOOK by their own files). Recorder:
   `tools/look/record-look2.js <repo> <out> <map> <structs|storms> [s]` (one page; structures swapped per frame by `lookStructs.set`).
-  - **Storms** (`src/lookstorm.js`, `lookStorm`): now and then a storm rolls in on this phone's own clock (real seconds while not
-    paused; not G.t), rolled from G.seed: first after `STORM_FIRST` 70-160 s, then every `STORM_GAP` 160-320 s, lasting
-    `STORM_LEN` 70-110 s, building over `STORM_IN` 16 s and clearing over `STORM_OUT` 20 s. Under the rain: a slate multiply
-    (`STORM_DARK` 0.55 at its height, heavier toward the top of the screen) and a murk. The rain: drawWeather gets a stand-in
-    weather `{ kind, lvl, storm, real }` (art.js weatherLevel returns `w.lvl` when set) at 0.12 + 0.88 x the storm's level, or the
-    battle's own rain if heavier; the battle's own lightning (whose bolts land in the battle, world.js) still runs from G.weather
-    only. Over it, at the height (level above 0.6): sheet lightning every `STORM_SKY_GAP` 4-10 s (the scene flashes, 'screen',
-    up to `STORM_FLASH` 0.5 x 0.55-0.9, flicker 0.7 s; distant thunder 0.4-2.6 s later), and rarer, every `STORM_BOLT_GAP` 16-32 s,
-    a bolt that comes down on a spot of dry land on the screen (lifted with the hills; trunk and 1-3 branches from the top of the
-    screen, glow and white core, 0.45 s, a flash where it lands; full flash and loud, close thunder). Owner, 2026-11-19, after the
-    first video: "cut back on the lightning bolts, sky can flash but I want the bolts to be rarer and actually strike the ground"
-    (the first try had a bolt every 3.5-9 s ending in mid-air). Looks only: these bolts hurt and burn nothing (asked the owner
-    whether they should, as the rain's do, and in which mode). No full-screen flash with reduced motion (`calmFlash`). On
-    snow maps a blizzard instead (heavy snow, pale haze, no lightning). Hooks: ui.js (where drawWeather was called:
-    `lookStorm.weather`, `.dark`, `.flash`), art.js weatherLevel (`w.lvl`) and drawWeather (the stand-in skips its lightning).
+  - **Storms** (world.js `stormLevel` / `stormStrikes`, src/lookstorm.js `lookStorm`). **Their bolts are a rules change, both
+    modes (owner, 2026-11-19: "yes to both but make the lightning more rare"); the rest is looks only.** Now and then a storm rolls
+    in, planned from G.seed on the battle clock G.t (so the host, the server and every phone agree): the first after `STORM_FIRST`
+    70-160 s, then every `STORM_GAP` 160-320 s, lasting `STORM_LEN` 70-110 s, building over `STORM_IN` 16 s, clearing over
+    `STORM_OUT` 20 s. At its height (level above 0.6) each second has a `STORM_BOLT_P` 1/75 chance of a bolt (seeded per second):
+    world.js `boltStrike`, as the rain's lightning (a visible bolt, a scorch, trees alight, a building or span burns for BOLT_BURN
+    10 s losing BOLT_DMG 10%). The host decides (`G.remote` skips), guests get the bolt and its fires as usual; `G.stormT` (a number,
+    saved). None on snow maps. Measured headless: 20 min on River Crossing, about 225 s of storm height, 3 bolts (about 1-2 a storm).
+    - Looks (lookstorm.js, `?lookoff=storms` hides only these): under the rain a slate multiply (`STORM_DARK` 0.55 at the height,
+      heavier toward the top of the screen) and a murk; the rain is drawWeather given a stand-in weather `{ kind, lvl, storm, real }`
+      (art.js weatherLevel returns `w.lvl`) at 0.12 + 0.88 x the level, or the battle's own rain if heavier (its own lightning still
+      runs from G.weather only). Sheet lightning, this phone's own (local clock, looks only): every `STORM_SKY_GAP` 4-10 s the
+      scene flashes ('screen', up to `STORM_FLASH` 0.5 x 0.55-0.9, flicker 0.7 s) with distant thunder. Every bolt that lands on
+      the screen (a new 'bolt' effect) gives a full flash and close thunder panned to it. No full-screen flash with reduced motion
+      (`calmFlash`). On snow maps a blizzard (heavy snow, pale haze, no lightning).
+    - History: first made looks only with a drawn bolt every 3.5-9 s ending in mid-air; owner: "cut back on the lightning bolts, sky
+      can flash but I want the bolts to be rarer and actually strike the ground as before"; then asked whether storm bolts should
+      hurt and burn as the rain's do: "yes to both" (both modes), rarer.
+    - Hooks: ui.js where drawWeather is called (`lookStorm.weather`, `.dark`, `.flash`), art.js weatherLevel (`w.lvl`) and
+      drawWeather (the stand-in skips its lightning), world.js update (`stormStrikes`), boltStrike(at) takes a cell (recorders).
+      A game server for the look branch (online tests) must carry this world.js.
   - **Structures redesigned** (`src/lookstructs.js`; owner: "Let's get away from our toy structures look"). Studied from
     Tiberian Sun and Red Alert 2 screenshots (nothing copied); the principles: squat, wide and layered (stepped plinth, battered
     lower walls, set-back storeys, buttresses); real materials (weathered concrete with pour lines and joints, riveted plate,

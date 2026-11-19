@@ -5851,6 +5851,7 @@ function update(dt) {
   if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); for (const t of G.teams) if (!t.isAI) adviseTrucks(t); }
   if (!G.over && (T.stuck = (T.stuck === undefined ? 5 : T.stuck) - dt) <= 0) { T.stuck = 5; stuckWatch(); pileWatch(); }
   lightningStrikes(dt);
+  stormStrikes(dt);
   updateEffects(dt);
   sweepDead();
   rollCredits(dt);
@@ -6039,10 +6040,44 @@ function lightningStrikes(dt) {
     return f.t > 0;
   });
 }
+// Storms (look branch, proposal item 7; owner, 2026-11-19: their bolts land as the rain's do, both modes, and rarely). Now and
+// then a storm rolls in, planned from the battle's seed on the battle's clock (G.t), so the host, the server and every phone
+// agree: the first after STORM_FIRST s, then every STORM_GAP, lasting STORM_LEN, building over STORM_IN and clearing over
+// STORM_OUT (stormLevel: 0 to 1). At its height (above 0.6) each second has a STORM_BOLT_P chance of a bolt (boltStrike, as
+// the rain's: it scorches, sets trees alight, a building or span burns). The host decides (not guests); none on snow maps
+// (a blizzard there, looks only). The look (darker sky, heavy rain, sheet lightning) is src/lookstorm.js.
+const STORM_FIRST = [70, 160], STORM_GAP = [160, 320], STORM_LEN = [70, 110], STORM_IN = 16, STORM_OUT = 20, STORM_BOLT_P = 1 / 75;
+let stormPlan = null;
+function stormLevel(t) {
+  if (!G) return 0;
+  if (!stormPlan || stormPlan.seed !== G.seed) {
+    const h = Math.imul((G.seed | 0) ^ 0x2f6b1d3a, 0x9e3779b1), r = rng(h ^ (h >>> 15));
+    stormPlan = { seed: G.seed, r, list: [], end: 0 };
+  }
+  const P = stormPlan, span = (a) => a[0] + P.r() * (a[1] - a[0]);
+  while (P.end <= t) { const st = P.end + span(P.list.length ? STORM_GAP : STORM_FIRST), len = span(STORM_LEN); P.list.push([st, len]); P.end = st + len; }
+  const sm = (v) => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+  for (const [st, len] of P.list) { const u = t - st; if (u >= 0 && u <= len) return Math.min(sm(u / STORM_IN), sm((len - u) / STORM_OUT)); }
+  return 0;
+}
+const stormSnowy = () => mapTheme(G.mapId) === 'snow' || !!(G.weather && G.weather.kind === 'snow');
+function stormStrikes(dt) {
+  if (G.remote || stormSnowy()) return;
+  const t0 = G.stormT === undefined ? G.t - dt : G.stormT;
+  G.stormT = G.t;
+  if (G.t - t0 >= 2) return;
+  for (let s = Math.floor(t0); s <= Math.floor(G.t); s++) {
+    if (stormLevel(s) < 0.6) continue;
+    let h = Math.imul((G.seed | 0) ^ 0x6a09e667, 0x2c1b3c6d) + Math.imul(s, 0x297a2d39);
+    const r = rng(h ^ (h >>> 15)); r();
+    const at = r();
+    if (r() < STORM_BOLT_P && s + at > t0 && s + at <= G.t) boltStrike();
+  }
+}
 // Where a bolt comes down: anywhere on the map's dry land (bridges included), every spot as likely as any other.
 // Whatever stands there takes it: a building, a bridge span, a wood (its trees catch) or open ground.
-function boltStrike() {
-  let c = -1;
+function boltStrike(at) {   // (at: a cell, for recorders)
+  let c = at === undefined ? -1 : at;
   for (let i = 0; i < 200 && c < 0; i++) { const k = Math.floor(Math.random() * NCELLS); if (G.terr[k] !== 4) c = k; }
   if (c < 0) return;
   const x = (cellX(c) + Math.random()) * CELL, y = (cellY(c) + Math.random()) * CELL;
