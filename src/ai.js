@@ -603,6 +603,7 @@ function aiBridges(team) {
 const APC_MAX = 2, APC_HOME_R = 20, APC_PICK_R = 10, APC_UNLOAD_R = 7;
 const apcType = (team) => (team.faction === 'allies' ? 'apc' : 'btr');
 const atHome = (team, u, r) => Math.hypot(u.x / CELL - team.start.cx, u.y / CELL - team.start.cy) < r;
+const APC_BAIL = 0.5, APC_BAIL_HP = 0.35;
 function aiApcs(team) {
   const apcs = unitsOf(team.id).filter((u) => u.def.apc);
   if (!apcs.length) return;
@@ -611,6 +612,11 @@ function aiApcs(team) {
     const cargo = a.cargo || [];
     if (a.apcBack && !cargo.length && !a.unload) { a.apcBack = false; setHunt(a); a.staged = false; continue; }
     if (a.raid) continue;
+    // About to be destroyed (below APC_BAIL_HP and just hit): an APC that rolled it (APC_BAIL, once) lets its soldiers out, whatever it is doing.
+    if (cargo.length && !a.unload) {
+      if (a.bail === undefined) a.bail = Math.random() < APC_BAIL;
+      if (a.bail && a.hp < a.maxHp * APC_BAIL_HP && G.t - (a.hitT ?? -99) < 2) { commandUnload([a]); a.apcBack = true; continue; }
+    }
     if (cargo.length && !a.unload && (a.order.type === 'hunt' || a.order.type === 'attack' || a.defending || a.assisting)) {
       const fog = G.fog[team.id];
       const near = a.hp < a.maxHp * 0.5 || (a.target && a.target.alive) || G.t - (a.hitT || -99) < 2 ||

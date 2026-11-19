@@ -316,7 +316,7 @@ const POWERS = {
   bomb: { name: 'Bombing Run',  charge: 200, ready: 'Bombing run ready', bomb: { dmg: 90, wh: 'HE', splash: 26 }, bombs: 10 },
   // Close air support (Tech Center upgrade cas1, then cas2 / cas3 for 2 or 3 planes): A-10 Warthogs (Allies) or Su-25 Frogfoots (Soviets) fly in,
   // fire homing missiles at vehicles in the area (r px round the target), then make gun runs with their anti-tank cannon; `passes` runs each.
-  cas:  { name: 'Close Air Support', charge: 240, ready: 'Air support ready', upgrade: 'cas1', r: 150, passes: 2 },
+  cas:  { name: 'Close Air Support', charge: 240, ready: 'Air support ready', upgrade: 'cas1', r: 225, passes: 2 },
 };
 // The power's plane by faction, and how many fly in (the highest close air support tier researched).
 const CAS_PLANE = { allies: 'a10', soviets: 'su25' };
