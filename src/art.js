@@ -880,9 +880,13 @@ function drawTree(g, e) {
 // (the shadow the way treesInView draws it, the tree with drawTree), so a block looks as the trees would standing still.
 // Blocks are drawn before the units (so a unit passing behind a tree shows in front of it: only in far views). A
 // burning tree stays out of its block and is drawn one by one as before; a block is redrawn when one of its trees catches
-// fire or burns out. At most TREE_BLOCK_BUILD blocks are made a frame; the trees of one not made yet are drawn one by one.
-// Blocks unused for 5 s are dropped. The view plane is the same at every zoom (ui.js draws it at zoom 1, then scales).
-const TREE_BLOCK = 512, TREE_BLOCK_PAD = 64, TREE_FAR_N = 700, TREE_NEAR_N = 550, TREE_BLOCK_BUILD = 3;
+// fire or burns out. Blocks are made for up to TREE_BLOCK_MS a frame (at least TREE_BLOCK_BUILD); the trees of one not
+// made yet are drawn one by one. A block takes about a millisecond: with only three a frame, a jump across the map (a
+// minimap tap) drew 2,000 to 3,500 trees one by one, with their shadows, for a dozen frames (match ea39d315: frames of
+// 70 to 100 ms in big fights on a PC). Blocks unused for TREE_BLOCK_KEEP ms are dropped, and beyond twice the blocks a
+// screen shows (at least 24) the least recently used, so a look elsewhere and back finds them still made.
+// The view plane is the same at every zoom (ui.js draws it at zoom 1, then scales).
+const TREE_BLOCK = 512, TREE_BLOCK_PAD = 64, TREE_FAR_N = 700, TREE_NEAR_N = 550, TREE_BLOCK_BUILD = 3, TREE_BLOCK_MS = 5, TREE_BLOCK_KEEP = 30000;
 let treeBlocks = null, treeFar = false;   // { trees, rim, map: key -> { idx: [[list, i]], c, sig, used } }
 function treeKey(x, y) { const [X, Y] = toView(x, y); return Math.floor(Y / TREE_BLOCK) * 65536 + Math.floor(X / TREE_BLOCK) + 32768; }
 // The shadows of a list of trees (from treesInView / rimInView), the living tree's fading as it burns.
@@ -910,8 +914,8 @@ function isoTreeBlocks(g, list, rim, vx, vy, VW, VH) {
   }
   const fire = G.treeFire || null, t = G.t, now = performance.now();
   const state = (src, i) => { if (src !== T || !fire || fire[i] === undefined) return 0; return t - fire[i] >= TREE_BURN ? 2 : 1; };
-  let built = 0;
-  const ready = new Set(), m = g.getTransform();
+  let built = 0, shown = 0;
+  const ready = new Set(), m = g.getTransform(), t0 = performance.now();
   const bx0 = Math.floor((vx - TREE_BLOCK_PAD) / TREE_BLOCK), bx1 = Math.floor((vx + VW + TREE_BLOCK_PAD) / TREE_BLOCK);
   const by0 = Math.floor((vy - TREE_BLOCK_PAD) / TREE_BLOCK), by1 = Math.floor((vy + VH + TREE_BLOCK_PAD * 3) / TREE_BLOCK);
   const order = [];
@@ -921,7 +925,7 @@ function isoTreeBlocks(g, list, rim, vx, vy, VW, VH) {
     let sig = 0;
     if (fire) for (const [src, i] of b.idx) sig = (sig * 3 + state(src, i)) % 1000000007;
     if (!b.c || sig !== b.sig) {
-      if (built >= TREE_BLOCK_BUILD) continue;   // not made yet: its trees are drawn one by one this frame
+      if (built >= TREE_BLOCK_BUILD && performance.now() - t0 > TREE_BLOCK_MS) continue;   // not made yet: its trees are drawn one by one this frame
       built++;
       b.sig = sig;
       const S = TREE_BLOCK + 2 * TREE_BLOCK_PAD;
@@ -939,19 +943,21 @@ function isoTreeBlocks(g, list, rim, vx, vy, VW, VH) {
     }
     b.used = now; ready.add(key); order.push(b, bx, by);
   }
+  shown = (bx1 - bx0 + 1) * (by1 - by0 + 1);
   g.setTransform(1, 0, 0, 1, -vx, -vy);   // view plane
   for (let k = 0; k < order.length; k += 3) CanvasRenderingContext2D.prototype.drawImage.call(g, order[k].c, order[k + 1] * TREE_BLOCK - TREE_BLOCK_PAD, order[k + 2] * TREE_BLOCK - TREE_BLOCK_PAD);
   g.setTransform(m);
   // The rest: burning trees, and trees of blocks not made yet.
   const rest = list.filter((e) => e.p > 0 && e.p < 1 || !ready.has(treeKey(e.x, e.y)));
   treeShadows(g, rest);
-  dropTreeBlocks();
+  dropTreeBlocks(Math.max(24, shown * 2));
   return rest;
 }
-function dropTreeBlocks() {   // blocks no far view has used for 5 s
+function dropTreeBlocks(most = Infinity) {   // blocks no far view has used for TREE_BLOCK_KEEP, and the oldest beyond `most`
   if (!treeBlocks) return;
-  const now = performance.now();
-  for (const b of treeBlocks.map.values()) if (b.c && now - b.used > 5000) b.c = null;
+  const now = performance.now(), made = [];
+  for (const b of treeBlocks.map.values()) if (b.c) { if (now - b.used > TREE_BLOCK_KEEP) b.c = null; else made.push(b); }
+  if (made.length > most) { made.sort((a, b) => a.used - b.used); for (let i = 0; i < made.length - most; i++) made[i].c = null; }
 }
 // Lightning in rain: now and then, more often the heavier it rains (none in a drizzle), the sky flashes and thunder
 // follows a moment later. When it strikes is worked out from the weather's seed and the battle clock, so every phone of
