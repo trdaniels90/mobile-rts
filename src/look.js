@@ -16,7 +16,7 @@
 //  - pools:    lamp posts with coloured pools of light, window light spilling onto the ground, ore glowing (drawLook / drawNight)
 //  - dress:    rocks, gravel, bushes, puddles, worn paths, cracks and oil painted into the ground tiles once (lookDress)
 //  - mood:     drawLook's colours per map and weather (MOOD); also by day on the day/night maps
-//  - fog:      on grass day/night maps, fog rolling in on some calm, dry nights and lifting in the morning (lookFog)
+//  - fog:      on grass day/night maps, fog lying on the low ground on some calm, dry nights, lifting in the morning (lookFogGround / lookFogOver)
 // (LOOK_SOFT below: the soft ground blends, read by art.js groundPixels and copied into its workers)
 const LOOK = (() => {
   const q = typeof location !== 'undefined' ? location.search : '';
@@ -354,6 +354,7 @@ function cliffPic(L, c) {
 // From ui.js draw: the cliff cells round the screen as things to sort in with the units.
 function cliffItems(list, x0, y0, x1, y1, shows) {
   lookGround(lookView, x0, y0, x1, y1);   // (the ground's patches and tracks first: under the cliffs' shadows)
+  lookFogGround(lookView, x0, y0, x1, y1);   // fog lying on the ground, under the units
   poolItems(list, x0, y0, x1, y1, shows);   // lamp posts (light pools), with their shadows
   if (!LOOK.cliffs || !G.cliff) return;
   const L = cliffLookFor();
@@ -735,6 +736,7 @@ function smokePics() {
   return { dark: blob(34, 32, 30), grey: blob(92, 90, 86), flames };
 }
 function lookSmoke(g) {
+  lookFogOver(g);   // (the fog over the units, lighter: under the smoke)
   if (!LOOK.smoke || !G) return;
   if (!lookSmokeS || lookSmokeS.g !== G) lookSmokeS = { g: G, puffs: [], embers: [], t: G.t, pics: (lookSmokeS && lookSmokeS.pics) || smokePics(), acc: new Map() };
   const S = lookSmokeS, dt = Math.max(0, Math.min(0.1, G.t - S.t)), P = S.puffs;
@@ -1077,7 +1079,7 @@ function dressOne(g, it, snow) {
 // the morning. Only when the weather allows it: never in a battle with rain or snow (G.weather), thinner when the wind
 // gusts (windNow). Two layers of soft tileable noise drifting with the wind over a thin veil, drawn before drawNight (so
 // the night darkens it and lamps' colour shines through it). Looks only: sight and fog of war do not change.
-const FOG_CHANCE = 0.55, FOG_MAX = 0.62;   // share of nights with fog; its greatest opacity
+const FOG_CHANCE = 0.55, FOG_MAX = 0.75;   // share of nights with fog; its greatest opacity
 // The day phase (0 midnight, 0.5 noon, as art.js dayNight): in from 0.82 to 0.95, lifting from 0.26 to 0.38.
 function lookFogLevel(t) {
   if (!LOOK.fog || !G || G.weather) return 0;
@@ -1094,34 +1096,91 @@ function lookFogLevel(t) {
   const w = typeof windNow === 'function' ? windNow() : null, gust = w ? Math.hypot(w.x, w.y / 0.6) / WIND : 1;
   return env * thick * Math.max(0.35, Math.min(1, (1.6 - gust) / 0.7));
 }
-let fogPic = null;
-function lookFog(g, vx, vy, vw, vh, k, t) {
-  const f = lookFogLevel(t);
-  if (f < 0.01) return;
-  if (!fogPic) {   // tileable soft noise (3 octaves) as the alpha of a pale grey
-    const N = 128, c = mkCanvas(N, N), x = c.getContext('2d'), img = x.createImageData(N, N);
-    const hash = (i, j, p) => { let h = (((i % p) + p) % p) * 374761393 + (((j % p) + p) % p) * 668265263 + p * 131; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-    const sm = (a) => a * a * (3 - 2 * a);
-    const vn = (u, v, p) => { const i = Math.floor(u), j = Math.floor(v), fu = sm(u - i), fv = sm(v - j);
-      const a = hash(i, j, p), b = hash(i + 1, j, p), cc = hash(i, j + 1, p), d = hash(i + 1, j + 1, p);
-      return a + (b - a) * fu + (cc - a) * fv + (a - b - cc + d) * fu * fv; };
-    for (let py = 0; py < N; py++) for (let px = 0; px < N; px++) {
-      let v = 0, amp = 0.55, p = 3;
-      for (let o = 0; o < 3; o++) { v += amp * vn(px / N * p, py / N * p, p); amp *= 0.5; p *= 2; }
-      const i = (py * N + px) * 4, a = Math.max(0, Math.min(1, (v - 0.3) / 0.5));
-      img.data[i] = 214; img.data[i + 1] = 222; img.data[i + 2] = 230; img.data[i + 3] = Math.round(255 * a * a);
+// The fog lies on the ground: a density field fixed to the world (fogField, an eighth of world size), thick in low ground
+// and along water, thin on the hills and gone on the tops, broken into banks by a fixed noise, then thinned and thickened
+// by a second noise drifting slowly downwind (fogFrame, each frame). Drawn in the view's world transform, so it keeps to
+// the ground's perspective: a thick sheet under the units (lookFogGround, from cliffItems after the ground) and stacked,
+// each a few view px higher, so banks show a soft top; then a lighter sheet over the units (lookFogOver, before the smoke)
+// so they stand in it with their feet hidden more than their heads. The highest ground (lifted most by the raised ground)
+// has almost no fog, so drawing it flat costs nothing in looks. Before drawNight (the night darkens it).
+const FOG_Q = 8;   // world px per fog pixel
+let fogLook = null, fogPic = null;
+function fogField() {
+  if (fogLook && fogLook.g === G) return fogLook;
+  const N = Math.ceil(WORLD / FOG_Q), c = mkCanvas(N, N), x = c.getContext('2d'), img = x.createImageData(N, N), T = G.terr;
+  const wet = new Float32Array(MAP * MAP), R = 4;   // nearness to water, 1 on it, 0 from R cells away
+  for (let cy = 0; cy < MAP; cy++) for (let cx = 0; cx < MAP; cx++) {
+    if (T[idx(cx, cy)] < 4) continue;
+    for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) {
+      const X = cx + i, Y = cy + j; if (X < 0 || Y < 0 || X >= MAP || Y >= MAP) continue;
+      const v = 1 - Math.hypot(i, j) / (R + 1), k = idx(X, Y); if (v > wet[k]) wet[k] = v;
     }
-    x.putImageData(img, 0, 0);
-    fogPic = c;
   }
-  const W = g.canvas.width, H = g.canvas.height, w = typeof windNow === 'function' ? windNow() : { x: 3, y: 1 };
+  const sd = (G.seed | 0) * 0.0001, sm = (a) => { a = Math.max(0, Math.min(1, a)); return a * a * (3 - 2 * a); };
+  const vn = (u, v, o) => { const i = Math.floor(u), j = Math.floor(v), fu = sm(u - i), fv = sm(v - j), h = (a, b) => hash3(a, b, o) / 1;
+    const A = h(i, j), B = h(i + 1, j), C = h(i, j + 1), D = h(i + 1, j + 1); return A + (B - A) * fu + (C - A) * fv + (A - B - C + D) * fu * fv; };
+  for (let py = 0; py < N; py++) for (let px = 0; px < N; px++) {
+    const wx = (px + 0.5) * FOG_Q, wy = (py + 0.5) * FOG_Q, h = G.hgt ? hgtAt(wx, wy) / HG_MAX : 0;
+    const low = 1 - sm(h / 0.45), w = wet[idx(Math.min(MAP - 1, Math.floor(wx / CELL)), Math.min(MAP - 1, Math.floor(wy / CELL)))];
+    const n = vn(px / 22 + sd, py / 22, 61) * 0.7 + vn(px / 9, py / 9 + sd, 62) * 0.3;   // banks, a few hundred px across
+    const d = sm(((low * 0.8 + w * 0.5) * (0.3 + n) - 0.42) / 0.25) * (T[idx(Math.min(MAP - 1, Math.floor(wx / CELL)), Math.min(MAP - 1, Math.floor(wy / CELL)))] >= 4 ? 1 : 0.95);
+    const i = (py * N + px) * 4;
+    img.data[i] = 212; img.data[i + 1] = 220; img.data[i + 2] = 228; img.data[i + 3] = Math.round(255 * d);
+  }
+  x.putImageData(img, 0, 0);
+  fogLook = { g: G, c, N, frame: mkCanvas(N, N), at: -1 };
+  return fogLook;
+}
+// This frame's fog: the field, thinned by a noise drifting downwind (0.15 to 1) (made once a frame, at the field's size).
+function fogFrame(t) {
+  const F = fogField();
+  if (F.at === t) return F.frame;
+  F.at = t;
+  if (!fogPic) {   // tileable soft noise as alpha (0.3 to 1)
+    const N = 64, c = mkCanvas(N, N), x = c.getContext('2d'), img = x.createImageData(N, N), sm = (a) => a * a * (3 - 2 * a);   // (0.15 to 1)
+    const hash = (i, j) => { let h = (((i % 8) + 8) % 8) * 374761393 + (((j % 8) + 8) % 8) * 668265263 + 977; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+    for (let py = 0; py < N; py++) for (let px = 0; px < N; px++) {
+      const u = px / 8, v = py / 8, i0 = Math.floor(u), j0 = Math.floor(v), fu = sm(u - i0), fv = sm(v - j0);
+      const A = hash(i0, j0), B = hash(i0 + 1, j0), C = hash(i0, j0 + 1), D = hash(i0 + 1, j0 + 1), n = A + (B - A) * fu + (C - A) * fv + (A - B - C + D) * fu * fv;
+      const i = (py * N + px) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; img.data[i + 3] = Math.round(255 * (0.15 + 0.85 * n));
+    }
+    x.putImageData(img, 0, 0); fogPic = c;
+  }
+  const g = F.frame.getContext('2d'), w = typeof windNow === 'function' ? windNow() : { x: 3, y: 1 };
+  g.globalCompositeOperation = 'copy'; g.drawImage(F.c, 0, 0);
+  const pat = g.createPattern(fogPic, 'repeat');
+  pat.setTransform(new DOMMatrix([2, 0, 0, 2, (t * w.x * 0.12) / FOG_Q, (t * w.y * 0.12) / FOG_Q]));
+  g.globalCompositeOperation = 'destination-in'; g.fillStyle = pat; g.fillRect(0, 0, F.N, F.N);
+  g.globalCompositeOperation = 'source-over';
+  return F.frame;
+}
+let fogBox = null;   // the world box on screen, from cliffItems
+// layers: [lift in view px, opacity] each.
+function fogSheets(g, x0, y0, x1, y1, f, layers) {
+  const c = fogFrame(G.t), N = fogLook.N;
+  x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(WORLD, x1); y1 = Math.min(WORLD, y1);
+  if (x1 <= x0 || y1 <= y0) return;
+  const sx = x0 / FOG_Q, sy = y0 / FOG_Q, sw = Math.min(N - sx, (x1 - x0) / FOG_Q), sh = Math.min(N - sy, (y1 - y0) / FOG_Q);
+  if (!LIFT_V) LIFT_V = fromView(0, -1);
+  const up = g.upright; g.upright = false;
   g.save(); g.imageSmoothingEnabled = true;
-  g.fillStyle = 'rgb(205,214,224)'; g.globalAlpha = 0.16 * f; g.fillRect(0, 0, W, H);   // the veil
-  // Two banks of fog at different sizes, drifting downwind at different speeds (fixed to the ground: they move with the view).
-  for (const [S, sp, a] of [[9, 0.25, 0.55], [4.5, 0.45, 0.4]]) {
-    const pat = g.createPattern(fogPic, 'repeat'), dx = t * w.x * sp, dy = t * w.y * sp;
-    pat.setTransform(new DOMMatrix([S * k, 0, 0, S * k * 0.7, (-vx + dx) * k, (-vy + dy) * k]));
-    g.fillStyle = pat; g.globalAlpha = Math.min(1, a * f * FOG_MAX / 0.55); g.fillRect(0, 0, W, H);
+  for (const [h, a] of layers) {
+    g.globalAlpha = Math.min(1, a * f);
+    g.drawImage(c, sx, sy, sw, sh, x0 + LIFT_V[0] * h, y0 + LIFT_V[1] * h, sw * FOG_Q, sh * FOG_Q);
   }
-  g.restore();
+  g.restore(); g.upright = up;
+}
+function lookFogGround(g, x0, y0, x1, y1) {
+  fogBox = null;
+  if (!g || !G) return;
+  const f = lookFogLevel(G.t) * FOG_MAX * (1 - 0.35 * dayNight(G.t).night);   // (thinner in the dark: it read milky)
+  if (f < 0.01) return;
+  fogBox = [x0, y0 - 60, x1, y1 + 60];
+  fogSheets(g, x0, y0 - 60, x1, y1 + 60, f, [[0, 0.8], [4, 0.5], [9, 0.35], [15, 0.22]]);
+}
+function lookFogOver(g) {
+  if (!fogBox || !g) return;
+  const f = lookFogLevel(G.t) * FOG_MAX * (1 - 0.35 * dayNight(G.t).night);   // (thinner in the dark: it read milky)
+  if (f < 0.01) return;
+  fogSheets(g, ...fogBox, f, [[0, 0.45], [7, 0.25]]);
 }
