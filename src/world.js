@@ -4471,8 +4471,6 @@ function updateAir(u, dt) {
   // The Comanche with its gun spent goes home to rearm unless a tank or Ore Truck is in reach of its missiles: those hit
   // tanks alone, so it would otherwise fly on to the enemy base and hang there without a shot.
   const gunSpent = u.def.standoff && u.ammo <= 0 && !(u.aam > 0 && ((u.target && u.target.alive && missileMark(u.target)) || acquire(u, u.def.weapon2.range * MISSILE_SEEK, [u.def.weapon2])));
-  // (No Airfield left: a "wait on the pad" order means nothing, or the jet would orbit the base for ever.)
-  if (u.order.type === 'guard' && u.order.pad && !padFor(u)) u.order.pad = false;
   if (airEmpty(u) || strikeSpent || gunSpent || u.retreat || u.rearming || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {
@@ -4985,7 +4983,7 @@ function launchPower(team, key, x, y) {
 // (casPick: vehicles first, then defences, then other buildings, then infantry); then, when a ground target lies nearly dead ahead within
 // the gun's range, one gun run (startStrafe / tickStrafe with its own gun: anti-tank shells walked along the flight line). Past the area it
 // flies on CAS_OUT px, turns round (flyJet) and comes back for the next run. Host only (the guest gets the planes and shots in snapshots).
-const CAS_OUT = 230, CAS_AHEAD = 0.45;
+const CAS_OUT = 230, CAS_AHEAD = 0.45, CAS_TURN_MAX = 6;   // (a full circle takes about 4 s)
 function casFoes(u, x, y, r) {
   const out = [];
   for (const e of G.entities) {
@@ -5009,9 +5007,12 @@ function updateCas(u, dt) {
   u.alt = JET_ALT;
   tickStrafe(u, dt);
   if (f.phase === 'turn') {   // coming round for the next run
+    // Near the map edge flyJet pins the plane inside the world, and an area closer than its turning circle can then never be lined up
+    // on: it circled there for ever. After TURN_MAX seconds it gives the run up and leaves.
+    if ((f.turnT = (f.turnT || 0) + dt) > CAS_TURN_MAX) { f.phase = 'out'; return; }
     flyJet(u, f.ax, f.ay, dt);
     const want = Math.atan2(f.ay - u.y, f.ax - u.x);
-    if (Math.abs(angDiff(u.face, want)) < 0.12) { f.phase = 'in'; f.fired = 0; f.gunDone = false; f.mslT = 0; }
+    if (Math.abs(angDiff(u.face, want)) < 0.12) { f.phase = 'in'; f.turnT = 0; f.fired = 0; f.gunDone = false; f.mslT = 0; }
     return;
   }
   u.speedCur = d.speed; u.moving = true;

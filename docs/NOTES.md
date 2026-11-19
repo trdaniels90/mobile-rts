@@ -1583,9 +1583,12 @@ Owner's match ea39d315 (3 v 3, 40 min, a 120 Hz PC at 2560 x 1370): 117 fps earl
   up to 8 a minute), with 20 to 33 ms in `list`. Returning to a spot looked at in the last 30 s now uses the blocks at once
   (headless test: 4,000 to 7,000 trees one by one before, none after). Memory: a block is 640 x 640 (1.6 MB).
 
-## Second base only where the army can get out; no jets circling without an Airfield (not released, both modes)
+## Computer bases only where the army can get out; Close Air Support planes no longer circle at the map edge (not released, both modes)
 
-- `aiExpandField` (ai.js) now walks the ground from the main yard (`walkDistances`) and skips any ore field that cannot be reached, or
-  whose road is over twice the straight line plus 20 cells (an island, a pocket behind a lake or trees): a base there could never send its army out.
-- `updateAir` (world.js): a jet with a "wait on the pad" guard order and no Airfield left drops the flag, so it fights or rearms in the air
-  instead of orbiting the base for ever (seen in the owner's screenshot).
+- `aiOpenSite` (ai.js): a base spot must be reachable on the ground from the main yard (`walkDistances`) with at least `OPEN_MIN` of the
+  11x11 cells round it drivable and connected. Used by `aiExpandField` (also: road at most twice the straight line plus 20 cells) and by the
+  escape MCV's spot (`aiDriveEvac`, which tries nearby angles and distances for an open one). The forward base already checked reachability.
+  (Not confirmed which of these built the base in the owner's snow-map screenshot, so all are covered.)
+- Close Air Support (`updateCas`, world.js): a strike on an area near the map edge left the plane circling for ever, because `flyJet` pins it
+  inside the world and the area ended up inside its turning circle. A turn that takes over `CAS_TURN_MAX` (6) seconds is given up and the plane leaves.
+  Checked by flying an A-10 at three edge spots: before, two still flew after 90 s; after, all left.

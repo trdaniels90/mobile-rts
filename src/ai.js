@@ -290,7 +290,18 @@ function aiDriveEvac(team, u) {
   if (!u.aiGoal) {
     const y = aiAllyYard(to), foe = enemyOf(to).start, k = u.mcvTries || 0;
     const a = Math.atan2(y.cy - foe.cy, y.cx - foe.cx) + (k ? (Math.random() - 0.5) * 2 : 0), r = EVAC_OFF + k * 1.5;
-    const cx = Math.max(2, Math.min(MAP - 3, y.cx + 1 + Math.cos(a) * r)), cy = Math.max(2, Math.min(MAP - 3, y.cy + 1 + Math.sin(a) * r));
+    let cx = Math.max(2, Math.min(MAP - 3, y.cx + 1 + Math.cos(a) * r)), cy = Math.max(2, Math.min(MAP - 3, y.cy + 1 + Math.sin(a) * r));
+    // Not in a pocket (water, cliffs, forest, the map edge): the nearest spot round the preferred one with open, connected ground.
+    const c0 = cellOfPos(y.x, y.y + y.h * CELL / 2 + CELL), c1 = freeCell(c0) ? c0 : nearestFreeCell(c0, 4);
+    if (c1 >= 0) {
+      const walk = walkDistances(c1);
+      let bs = Infinity;
+      for (let da = -1.6; da <= 1.61; da += 0.4) for (let dr = 0; dr <= 8; dr += 4) {
+        const px = Math.max(2, Math.min(MAP - 3, Math.round(y.cx + 1 + Math.cos(a + da) * (r + dr)))), py = Math.max(2, Math.min(MAP - 3, Math.round(y.cy + 1 + Math.sin(a + da) * (r + dr))));
+        const sc = Math.abs(da) * 4 + dr;
+        if (sc < bs && aiOpenSite(walk, px, py)) { bs = sc; cx = px; cy = py; }
+      }
+    }
     u.aiGoal = { x: cx * CELL, y: cy * CELL };
     commandMove([u], u.aiGoal.x, u.aiGoal.y);
     return;
@@ -310,6 +321,15 @@ const EXPAND_CHANCE = { balanced: 0.8, raider: 0.8, turtle: 0.5, rusher: 0 }, EX
 const aiYards = (team) => buildingsOf(team.id).filter((b) => b.type === 'cy');
 const aiMainYard = (team) => aiYards(team).find((b) => Math.hypot(b.cx - team.start.cx, b.cy - team.start.cy) < BASE2_SEP);
 const aiBase2 = (team) => aiYards(team).find((b) => Math.hypot(b.cx - team.start.cx, b.cy - team.start.cy) >= BASE2_SEP);
+// Is this a spot a base can work from: reachable on the ground (walk = walkDistances from the main base) and with open ground round it
+// (at least OPEN_MIN of the cells within 5 are drivable and connected), so the army is not boxed in by water, cliffs or forest?
+const OPEN_MIN = 0.55;
+function aiOpenSite(walk, cx, cy) {
+  if (!inMap(cx, cy) || !(walk[idx(cx, cy)] >= 0)) return false;
+  let ok = 0, all = 0;
+  for (let y = cy - 5; y <= cy + 5; y++) for (let x = cx - 5; x <= cx + 5; x++) { all++; if (inMap(x, y) && walk[idx(x, y)] >= 0) ok++; }
+  return ok >= all * OPEN_MIN;
+}
 // The richest ore field on its own half, 20 cells or more from its start, with no yard of its own or known enemy building near.
 function aiExpandField(team) {
   const home = team.start, foe = enemyOf(team).start, yards = aiYards(team);
@@ -328,6 +348,7 @@ function aiExpandField(team) {
     const dHome = Math.hypot(f.cx - home.cx, f.cy - home.cy);
     const fc = idx(Math.round(f.cx), Math.round(f.cy)), fw = walk[freeCell(fc) ? fc : (nearestFreeCell(fc, 6) >= 0 ? nearestFreeCell(fc, 6) : 0)];
     if (!(fw >= 0) || fw > dHome * 2 + 20) continue;
+    { const a0 = Math.atan2(home.cy - f.cy, home.cx - f.cx), bk = f.r + 4; if (!aiOpenSite(walk, Math.round(f.cx + Math.cos(a0) * bk), Math.round(f.cy + Math.sin(a0) * bk))) continue; }
     if (dHome < 20 || dHome > Math.hypot(f.cx - foe.cx, f.cy - foe.cy)) continue;
     if (yards.some((b) => Math.hypot(b.cx - f.cx, b.cy - f.cy) < BASE2_SEP + f.r + 4) || theirs.some((b) => Math.hypot(b.cx - f.cx, b.cy - f.cy) < 15)) continue;
     let ore = 0;
