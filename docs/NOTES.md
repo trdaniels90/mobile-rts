@@ -4,9 +4,18 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
 
 ## Tiberian Sun look (WORK IN PROGRESS, prototype off by default; looks only, both modes)
 
-**Goal (owner, 2026-11-19):** bring the game's look closer to Tiberian Sun's (original work only, nothing copied). Done as a
-prototype in `src/look.js`, OFF unless the address has `?look=ts` (`LOOK.light`, `LOOK.cliffs`, `LOOK.concrete`), so players see
-no change. Owner reviews each step as a before/after MP4 (`tools/look/record.js` makes the frames, `tools/look/video.sh` the MP4;
+**Goal (owner, 2026-11-19):** bring the game's look closer to Tiberian Sun's (original work only, nothing copied). A prototype in
+`src/look.js` (`LOOK.light`, `LOOK.cliffs`, `LOOK.concrete`).
+- **Kept apart (owner: "I don't want this touching the main game until it is ready"):** it lives ONLY on the branch
+  `claude/ts-look`; the main branch `claude/cross-platform-game-k2d9lb` has none of it (only a pointer in CLAUDE.md). Never release
+  it to the owner's build, the test build or the Windows app until the owner says it is ready. Bring the main branch in now and
+  then (`git merge origin/claude/cross-platform-game-k2d9lb`) so the look test shows the current game. On this branch the look is
+  ON unless the address has `?look=off`; the menu's version line says "Look test".
+- **Look test page** (shareable, the owner shares it from claude.ai): artifact https://claude.ai/artifact/PiiUht6h9D94h1KR1DD2gP
+  (slug `b7fc1b4a-ebb5-41ce-bf4c-f9fab9d9fbb0`). Update it like the owner's build (CLAUDE.md "Releasing" step 3-4: single file to `.build/index.html` plus
+  `sprites/`, `grounds/`, `music/`), but from this branch and to this slug. Single player only: a claude.ai page blocks
+  connections to other hosts, so online play and match reports do not work there (which keeps look tests out of the stats).
+  For online testing later: a test build on GitHub Pages would need the owner's OK (Pages serves `main`). Owner reviews each step as a before/after MP4 (`tools/look/record.js` makes the frames, `tools/look/video.sh` the MP4;
 recorder usage at the top of record.js).
 - **Done, owner liked it ("good starting point", "looks better"):** `drawLook` (ui.js, after the view is put on the screen, not on
   day/night maps): saturation -26%, a cool multiply grade, a low sun from the upper left (soft-light gradient), a light shade with

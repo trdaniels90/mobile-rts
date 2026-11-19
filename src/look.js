@@ -1,12 +1,12 @@
 'use strict';
-// The "Tiberian Sun look" prototype (looks only, OFF unless the address has ?look=ts; see "Tiberian Sun look" in
-// docs/NOTES.md). Four parts, each with its own switch in LOOK so before/after videos can show one at a time:
+// The "Tiberian Sun look" prototype (looks only; lives only on the branch claude/ts-look, ON there unless the address has
+// ?look=off, for comparing; see "Tiberian Sun look" in docs/NOTES.md). Four parts, each with its own switch in LOOK so before/after videos can show one at a time:
 //  - light:    a colour grade, a low sun from the upper left, cloud shadows drifting over the ground, and light from
 //              fires, explosions and structures (ui.js draw, after the view is put on the screen; not on day/night maps)
 //  - cliffs:   the rock ridges (G.cliff) stand up as tall crags, sorted in with the units (ui.js draw, kind 'cliff')
 //  - concrete: structures sit on concrete slabs instead of trodden dirt (art.js bibDecal)
 const LOOK = (() => {
-  const on = typeof location !== 'undefined' && /[?&]look=ts\b/.test(location.search);
+  const on = !(typeof location !== 'undefined' && /[?&]look=off\b/.test(location.search));
   return { light: on, cliffs: on, concrete: on };
 })();
 

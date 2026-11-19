@@ -2129,7 +2129,7 @@ function draw() {
     showNews();
   };
   const tag = $('versionTag'), latest = document.createElement('button');
-  tag.textContent = `Version ${VERSION}`;
+  tag.textContent = `Version ${VERSION}` + (LOOK.light ? ' · Look test' : '');   // (look.js: the Tiberian Sun look test build)
   latest.type = 'button'; latest.className = 'version-new'; latest.textContent = `New: ${RELEASES[0].title}`;
   latest.addEventListener('click', openNews);
   tag.append(document.createElement('br'), latest);
