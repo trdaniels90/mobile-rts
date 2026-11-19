@@ -1641,3 +1641,17 @@ Owner's match ea39d315 (3 v 3, 40 min, a 120 Hz PC at 2560 x 1370): 117 fps earl
   used dropped first. The slowest frames of the match drew 2,000 to 3,500 trees one by one after a jump (minimap taps:
   up to 8 a minute), with 20 to 33 ms in `list`. Returning to a spot looked at in the last 30 s now uses the blocks at once
   (headless test: 4,000 to 7,000 trees one by one before, none after). Memory: a block is 640 x 640 (1.6 MB).
+
+## Computer bases only where the army can get out; Close Air Support planes no longer circle at the map edge (not released, both modes)
+
+- `aiOpenSite` (ai.js): a base spot must be reachable on the ground from the main yard (`walkDistances`) with at least `OPEN_MIN` of the
+  11x11 cells round it drivable and connected. Used by `aiExpandField` (also: road at most twice the straight line plus 20 cells) and by the
+  escape MCV's spot (`aiDriveEvac`, which tries nearby angles and distances for an open one). The forward base already checked reachability.
+  (Not confirmed which of these built the base in the owner's snow-map screenshot, so all are covered.)
+- Close Air Support (`updateCas`, world.js): a strike on an area near the map edge left the plane circling for ever, because `flyJet` pins it
+  inside the world and the area ended up inside its turning circle. A turn that takes over `CAS_TURN_MAX` (6) seconds is given up and the plane leaves.
+  Checked by flying an A-10 at three edge spots: before, two still flew after 90 s; after, all left.
+
+## Ally picker was invisible (not released, team games, both modes)
+
+- With 2+ allies the Ally button builds `#allyPick` (`allyPicker`, ui.js), but style.css only styled `#autoPick`, so the card was never shown and the button seemed to do nothing (owner, 3 v AI online). `#allyPick` now shares the overlay rules. With one ally the button still toggles at once.

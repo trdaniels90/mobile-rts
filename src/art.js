@@ -49,7 +49,20 @@ function uprightCtx(g) {
 }
 
 // Draws a pre-rendered sprite (and its cast shadow) with its origin at world (x, y).
-function blit(g, s, x, y, shadow) {
+// In the battle view (uprightCtx, g.upright) the picture is placed by rounding its spot once, on the screen. It used to be
+// rounded on the map first (here) and again on the screen (uprightCtx), and a tank's hull and turret, each rounded twice on
+// their own, slipped a pixel against each other as it drove (the turret seemed loose, the tank to jolt; at zoom 2 two screen
+// pixels). on: the spot another picture was drawn at (what blit returns), so this one keeps a whole-pixel offset from it.
+function blit(g, s, x, y, shadow, on) {
+  if (g.upright && g._upright) {
+    const m = g.getTransform(), X = m.a * x + m.c * y + m.e, Y = m.b * x + m.d * y + m.f;
+    const px = on ? on[0] + Math.round(X - on[2]) : Math.round(X), py = on ? on[1] + Math.round(Y - on[3]) : Math.round(Y);
+    g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0);
+    if (shadow !== false && s.sh) { g.globalAlpha = 0.45; g.drawImage(s.sh, px + Math.round(s.sox), py + Math.round(s.soy)); g.globalAlpha = 1; }
+    g.drawImage(s.img, px + Math.round(s.ox), py + Math.round(s.oy));
+    g.setTransform(m); g.upright = true;
+    return [px, py, X, Y];
+  }
   if (shadow !== false && s.sh) {
     g.globalAlpha = 0.45;
     g.drawImage(s.sh, Math.round(x + s.sox), Math.round(y + s.soy));
@@ -1819,12 +1832,12 @@ function drawUnitBody(g, u, t) {
   // A tank gun firing kicks the turret back along the barrel (recoil); the hull stays put.
   const rk = u.def.weapon && u.def.weapon.proj === 'shell' && !isAirborne(u) ? recoil(u) : 0;
   const kick = rk * (u.type === 'mammoth' || u.type === 'htank' ? 2 : 1.6);
-  blit(g, hullSprite(u, pal), u.x, u.y);
+  const hullAt = blit(g, hullSprite(u, pal), u.x, u.y);
   const ts = turretSprite(u, pal);
   if (ts) {
     const z = turretZ(u.def) * VK, off = u.def.draw === 'jeep' ? -3 : u.def.draw === 'apc' ? 0 : -1;
     const [lx, ly] = liftPt(u.x, u.y, z), tx = lx + Math.cos(u.face) * off - Math.cos(u.tface) * kick, ty = ly + Math.sin(u.face) * off - Math.sin(u.tface) * kick * 0.6;
-    blit(g, ts, tx, ty, false);
+    blit(g, ts, tx, ty, false, hullAt);   // (a whole-pixel offset from the hull: the turret stays put on it as the tank moves)
     if (u.fireT > 0) {
       const len = u.def.size.tur ? u.def.size.tur + u.def.size.barrel : 8;
       const side = u.def.weapon && u.def.weapon.stagger && u.barrel ? u.barrel * 1.6 : 0;   // a staggered twin gun: at the barrel that fired
