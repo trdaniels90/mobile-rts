@@ -37,7 +37,7 @@ function drawLook(g, vx, vy, vw, vh, k, t) {
   const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
   const add = (x, y, r, a, col, h) => { [x, y] = toView(...liftPt(x, y, h || 0)); if (near(x, y, r)) lights.push([x, y, r, Math.max(0, Math.min(1, a)), col]); };
   for (const e of G.entities) {
-    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || !G.seen[idx(e.cx, e.cy)]) continue;
+    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.camo || !G.seen[idx(e.cx, e.cy)]) continue;   // (no light gives a camouflaged pillbox away)
     add((e.cx + e.w / 2) * CELL, (e.cy + e.h) * CELL - 4, 20 + e.w * 8, 0.45, 'warm');
   }
   for (const fx of G.effects) {
@@ -260,7 +260,7 @@ function concreteDecal(tg, x, y, w, h, seed) {
 // two highest points (chimneys, masts, domes), and the glass of windows the camera can see (faces to the east or south,
 // the camera's side), a light for every 4 x 4 x 4 block of glass. Model coordinates are world pixels from the footprint's
 // corner, heights x VK on the screen (world.js structureDamageFx).
-const lampCache = new Map();
+const lampCache = new Map(), AA_LOOK = 320;   // (world px)
 function structLamps(type, faction) {
   const key = type + faction;
   if (lampCache.has(key)) return lampCache.get(key);
@@ -292,7 +292,7 @@ function drawLamps(g, vx, vy, k, t, near) {
   const P = lampPics, scr = (x, y, h) => { const [X, Y] = toView(...liftPt(x, y, h)); return [(X - vx) * k, (Y - vy) * k, X, Y]; };
   g.save(); g.globalCompositeOperation = 'lighter';
   for (const e of G.entities) {
-    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || !G.seen[idx(e.cx, e.cy)]) continue;
+    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.camo || !G.seen[idx(e.cx, e.cy)]) continue;   // camouflaged pillbox: no lamps at all (owner)
     const ox = e.cx * CELL, oy = e.cy * CELL, [, , cX, cY] = scr(ox + e.w * CELL / 2, oy + e.h * CELL / 2, 0);
     if (!near(cX, cY, 160)) continue;
     const Ls = structLamps(e.type, e.faction), ph = (e.id * 0.37) % 1, dark = e.hp < e.maxHp * 0.3;
@@ -308,8 +308,26 @@ function drawLamps(g, vx, vy, k, t, near) {
       const w = Ls.wins[i], [x, y] = scr(ox + w.x, oy + w.y, w.z * VK), R = 4 * k;
       g.globalAlpha = 0.55 + 0.1 * Math.sin(t * 2.3 + i * 1.7 + e.id); g.drawImage(P.win, x - R, y - R, R * 2, R * 2);
     }
-    // Searchlights: defences (not the hidden pillbox) sweep a beam over the ground in front of them.
-    if (e.def.defense && !e.def.camo) {
+    // Anti-aircraft (AA Gun, SAM Site): a searchlight up into the sky, sweeping slowly overhead, locked on the nearest
+    // enemy aircraft it can see within AA_LOOK (owner: "pointing up in the air looking for planes").
+    if (e.def.antiAir) {
+      const mx = ox + e.w * CELL / 2, my = oy + e.h * CELL / 2, [sx, sy] = scr(mx, my, Math.max(8, Ls.maxZ) * VK);
+      let tx, ty, best = AA_LOOK;
+      for (const u of G.entities) {
+        if (!u.alive || u.cls !== 'air' || !(u.alt > 4) || alliedSides(u.team, e.team) || !G.seen[cellOfPos(u.x, u.y)]) continue;
+        const d = Math.hypot(u.x - mx, u.y - my);
+        if (d < best) { best = d; [tx, ty] = scr(u.x, u.y, u.alt); }
+      }
+      if (tx === undefined) { const a = -Math.PI / 2 + Math.sin(t * 0.5 + e.id * 1.3) * 0.55 + Math.sin(t * 0.23 + e.id) * 0.2; tx = sx + Math.cos(a) * 190 * k; ty = sy + Math.sin(a) * 190 * k; }
+      else { tx += (tx - sx) * 0.25; ty += (ty - sy) * 0.25; }   // on past the plane
+      const dx = tx - sx, dy = ty - sy, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, W0 = 1.5 * k, W1 = 14 * k;
+      const gr = g.createLinearGradient(sx, sy, tx, ty); gr.addColorStop(0, 'rgba(235,245,255,0.32)'); gr.addColorStop(1, 'rgba(235,245,255,0)');
+      g.globalAlpha = 1; g.fillStyle = gr; g.beginPath();
+      g.moveTo(sx + nx * W0, sy + ny * W0); g.lineTo(tx + nx * W1, ty + ny * W1); g.lineTo(tx - nx * W1, ty - ny * W1); g.lineTo(sx - nx * W0, sy - ny * W0); g.closePath(); g.fill();
+      g.globalAlpha = 0.8; g.drawImage(P.beam, sx - 4 * k, sy - 4 * k, 8 * k, 8 * k);   // the lamp itself
+    }
+    // Searchlights: other defences (the camouflaged pillbox is skipped above) sweep a beam over the ground in front of them.
+    else if (e.def.defense) {
       const a = 0.8 + Math.sin(t * 0.45 + e.id * 1.3) * 1.1, d = 52, mx = ox + e.w * CELL / 2, my = oy + e.h * CELL / 2;
       const ex = mx + Math.cos(a) * d, ey = my + Math.sin(a) * d;
       const [sx, sy] = scr(mx, my, Math.max(10, Ls.maxZ) * VK), [px, py] = scr(ex, ey, 0);
