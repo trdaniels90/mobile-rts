@@ -4,6 +4,8 @@ const fs = require('fs');
 //   node tools/look/record.js <repo> <out dir> <scene> [seconds] [still]
 // scene 'battle': a tank fight beside a base on A Bridge Too Far; before = the game, after = LOOK.light. Each frame drawn twice.
 // scene 'cliffs': River Crossing, tanks fighting round a rock ridge; before = light only, after = light + tall cliffs. Each frame drawn twice.
+// scene 'lamps':  River Crossing, tanks fighting beside a base; before = light, cliffs, concrete; after = + lamps on structures and the
+//                 richer ground (patches, tank tracks). Each frame drawn twice.
 // scene 'base':   a pan over a built base, battle paused; before = light only, after = light + concrete (two passes, the ground repainted).
 // Frames go to <out>/a and <out>/b (PNG, 15 a second); make the MP4 with tools/look/video.sh.
 const [root, out, scene = 'cliffs', secs = '12', still] = process.argv.slice(2);
@@ -18,7 +20,7 @@ const [root, out, scene = 'cliffs', secs = '12', still] = process.argv.slice(2);
   await p.click(`#maps [data-map="${map}"]`); await p.click('#maps [data-map-go]'); await p.waitForTimeout(1000);
   const info = await p.evaluate((scene) => {
     const ps = window.__ps;
-    LOOK.light = scene !== 'battle'; LOOK.cliffs = false; LOOK.concrete = false;
+    LOOK.light = scene !== 'battle'; LOOK.cliffs = LOOK.concrete = scene === 'lamps'; LOOK.lamps = LOOK.ground = false;
     for (const t of G.teams) { t.isAI = true; t.auto = false; }
     for (let i = 0; i < 6 * 60 * 30; i++) ps.update(1 / 30);   // bases built
     G.teams[G.me].isAI = false;
@@ -47,7 +49,7 @@ const [root, out, scene = 'cliffs', secs = '12', still] = process.argv.slice(2);
     G.fog[G.me].fill(1); G.shroudDirty = true; G.weather = null;
     window.__aim = (x, y, z) => { const [X, Y] = toView(x, y); ps.cam.z = z; ps.cam.x = X - (innerWidth - 120) / 2 / z; ps.cam.y = Y - innerHeight / 2 / z; };
     window.__base = { x: cy.x, y: cy.y };
-    if (scene === 'base') __aim(cy.x + 60, cy.y + 40, 1.3); else __aim(mx, my, 1.15);
+    if (scene === 'base') __aim(cy.x + 60, cy.y + 40, 1.3); else if (scene === 'lamps') __aim(cy.x + 90, cy.y + 70, 1.15); else __aim(mx, my, 1.15);
     for (let i = 0; i < 40; i++) ps.update(1 / 30);
     G.paused = true;
     return { map: G.mapId, t: Math.round(G.t), cliffs: G.cliff ? G.cliff.reduce((a, v) => a + v, 0) : 0 };
@@ -56,7 +58,7 @@ const [root, out, scene = 'cliffs', secs = '12', still] = process.argv.slice(2);
   const raf = () => p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   const shot = (dir, f) => p.screenshot({ path: `${out}/${dir}/${String(f).padStart(4, '0')}.png` });
   // Ground tiles painted, and (cliffs) every crag's picture made, so none pops in during the recording.
-  await p.evaluate((scene) => { if (scene === 'cliffs') LOOK.cliffs = true; return new Promise((r) => setTimeout(r, 4000)); }, scene);
+  await p.evaluate((scene) => { if (scene === 'cliffs' || scene === 'lamps') LOOK.cliffs = true; return new Promise((r) => setTimeout(r, 4000)); }, scene);
   fs.mkdirSync(out + '/a', { recursive: true }); fs.mkdirSync(out + '/b', { recursive: true });
   const N = still ? 1 : +secs * 15;
   if (scene === 'base') {   // a slow pan, twice
@@ -67,13 +69,14 @@ const [root, out, scene = 'cliffs', secs = '12', still] = process.argv.slice(2);
       for (let f = 0; f < N; f++) { await pan(f); await raf(); await raf(); await shot(dir, f); }
     }
   } else {
-    const key = scene === 'battle' ? 'light' : 'cliffs';
+    const keys = scene === 'battle' ? ['light'] : scene === 'lamps' ? ['lamps', 'ground'] : ['cliffs'];
     for (let f = 0; f < N; f++) {
-      await p.evaluate((key) => { const ps = window.__ps; G.paused = false; ps.update(1 / 30); ps.update(1 / 30); G.paused = true; LOOK[key] = false; }, key);
+      await p.evaluate((keys) => { const ps = window.__ps; G.paused = false; ps.update(1 / 30); ps.update(1 / 30); G.paused = true; for (const k of keys) LOOK[k] = false; }, keys);
       await raf(); await shot('a', f);
-      await p.evaluate((key) => { LOOK[key] = true; }, key); await raf(); await shot('b', f);
+      await p.evaluate((keys) => { for (const k of keys) LOOK[k] = true; }, keys); await raf(); await shot('b', f);
     }
   }
+  console.log('tracks', await p.evaluate(() => lookTracks ? lookTracks.list.length : null));
   console.log('errors', errs.slice(0, 3));
   await b.close();
 })();

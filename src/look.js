@@ -5,9 +5,11 @@
 //              fires, explosions and structures (ui.js draw, after the view is put on the screen; not on day/night maps)
 //  - cliffs:   the rock ridges (G.cliff) stand up as tall crags, sorted in with the units (ui.js draw, kind 'cliff')
 //  - concrete: structures sit on concrete slabs instead of trodden dirt (art.js bibDecal)
+//  - lamps:    red beacons blinking on structures' high points, lit windows, searchlights sweeping from defences (drawLook)
+//  - ground:   tank tracks that fade, and large soft patches of drier and lusher grass (lookGround, under the units)
 const LOOK = (() => {
   const on = !(typeof location !== 'undefined' && /[?&]look=off\b/.test(location.search));
-  return { light: on, cliffs: on, concrete: on };
+  return { light: on, cliffs: on, concrete: on, lamps: on, ground: on };
 })();
 
 // ---- Light: grade, sun, clouds, lights --------------------------------------------------------------------------
@@ -65,6 +67,7 @@ function drawLook(g, vx, vy, vw, vh, k, t) {
   g.save(); g.imageSmoothingEnabled = true; g.drawImage(L.sh, 0, 0, W, H);
   g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.3; g.drawImage(L.gl, 0, 0, W, H);
   g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  if (LOOK.lamps) drawLamps(g, vx, vy, k, t, near);
   const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) * 0.6);   // vignette
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,4,12,0.42)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
   g.restore();
@@ -187,6 +190,7 @@ function cliffPic(L, c) {
 }
 // From ui.js draw: the cliff cells round the screen as things to sort in with the units.
 function cliffItems(list, x0, y0, x1, y1, shows) {
+  lookGround(lookView, x0, y0, x1, y1);   // (the ground's patches and tracks first: under the cliffs' shadows)
   if (!LOOK.cliffs || !G.cliff) return;
   const L = cliffLookFor();
   let made = 0;
@@ -249,4 +253,124 @@ function concreteDecal(tg, x, y, w, h, seed) {
   }
   g.putImageData(img, 0, 0);
   tg.drawImage(c, X0, Y0);
+}
+
+// ---- Lamps on structures ---------------------------------------------------------------------------------------
+// Worked out once per structure type from its own voxel model (models.js, as damageSpots): red beacons on its one or
+// two highest points (chimneys, masts, domes), and the glass of windows the camera can see (faces to the east or south,
+// the camera's side), a light for every 4 x 4 x 4 block of glass. Model coordinates are world pixels from the footprint's
+// corner, heights x VK on the screen (world.js structureDamageFx).
+const lampCache = new Map();
+function structLamps(type, faction) {
+  const key = type + faction;
+  if (lampCache.has(key)) return lampCache.get(key);
+  const pal = palFor(faction), m = model('S' + type + pal.key, () => STRUCTURES[type](pal, faction)), top = topOf(m);
+  let maxZ = 0;
+  for (let i = 0; i < top.length; i++) maxZ = Math.max(maxZ, top[i]);
+  const peaks = [];
+  const cols = [];
+  for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (top[y * m.w + x] >= Math.max(8, maxZ * 0.6)) cols.push([x, y, top[y * m.w + x]]);
+  cols.sort((a, b) => b[2] - a[2]);
+  for (const [x, y, z] of cols) { if (peaks.length >= 2) break; if (peaks.every((p) => Math.hypot(p.x - x - m.x0, p.y - y - m.y0) > 10)) peaks.push({ x: x + m.x0, y: y + m.y0, z: z + 1.5 }); }
+  const at = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < m.w && y < m.h && z < m.d ? m.col[(z * m.h + y) * m.w + x] : -1;
+  const blocks = new Map();
+  for (let z = 0; z < m.d; z++) for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
+    const i = (z * m.h + y) * m.w + x;
+    if (m.col[i] < 0 || m.mat[i] !== M_GLASS || (at(x + 1, y, z) >= 0 && at(x, y + 1, z) >= 0)) continue;
+    const b = ((z >> 2) * 64 + (y >> 2)) * 64 + (x >> 2);
+    if (!blocks.has(b)) blocks.set(b, { x: x + m.x0 + 0.5, y: y + m.y0 + 0.5, z: z + 0.5 });
+  }
+  const wins = [...blocks.values()].slice(0, 10);
+  const r = { peaks, wins, maxZ };
+  lampCache.set(key, r);
+  return r;
+}
+let lampPics = null;
+function drawLamps(g, vx, vy, k, t, near) {
+  if (!lampPics) lampPics = { red: lookGlowPic('rgba(255,90,70,1)', 'rgba(255,30,20,0.45)', 'rgba(255,0,0,0)'),
+    win: lookGlowPic('rgba(255,226,160,1)', 'rgba(255,180,90,0.4)', 'rgba(255,140,40,0)'), beam: lookGlowPic('rgba(255,250,225,0.9)', 'rgba(255,245,210,0.35)', 'rgba(255,240,200,0)') };
+  const P = lampPics, scr = (x, y, h) => { const [X, Y] = toView(...liftPt(x, y, h)); return [(X - vx) * k, (Y - vy) * k, X, Y]; };
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (const e of G.entities) {
+    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || !G.seen[idx(e.cx, e.cy)]) continue;
+    const ox = e.cx * CELL, oy = e.cy * CELL, [, , cX, cY] = scr(ox + e.w * CELL / 2, oy + e.h * CELL / 2, 0);
+    if (!near(cX, cY, 160)) continue;
+    const Ls = structLamps(e.type, e.faction), ph = (e.id * 0.37) % 1, dark = e.hp < e.maxHp * 0.3;
+    // Red beacons: a short bright blink every 1.6 s, a faint glow between.
+    const on = ((t / 1.6 + ph) % 1) < 0.14;
+    for (const p of Ls.peaks) {
+      const [x, y] = scr(ox + p.x, oy + p.y, p.z * VK), R = (on ? 9 : 5) * k;
+      g.globalAlpha = on ? 0.95 : 0.3; g.drawImage(P.red, x - R, y - R, R * 2, R * 2);
+      if (on) { g.globalAlpha = 1; g.fillStyle = '#ffd0c0'; g.fillRect(x - k * 0.75, y - k * 0.75, k * 1.5, k * 1.5); }
+    }
+    // Lit windows (out in a badly damaged structure), a slow flicker of their own.
+    if (!dark) for (let i = 0; i < Ls.wins.length; i++) {
+      const w = Ls.wins[i], [x, y] = scr(ox + w.x, oy + w.y, w.z * VK), R = 4 * k;
+      g.globalAlpha = 0.55 + 0.1 * Math.sin(t * 2.3 + i * 1.7 + e.id); g.drawImage(P.win, x - R, y - R, R * 2, R * 2);
+    }
+    // Searchlights: defences (not the hidden pillbox) sweep a beam over the ground in front of them.
+    if (e.def.defense && !e.def.camo) {
+      const a = 0.8 + Math.sin(t * 0.45 + e.id * 1.3) * 1.1, d = 52, mx = ox + e.w * CELL / 2, my = oy + e.h * CELL / 2;
+      const ex = mx + Math.cos(a) * d, ey = my + Math.sin(a) * d;
+      const [sx, sy] = scr(mx, my, Math.max(10, Ls.maxZ) * VK), [px, py] = scr(ex, ey, 0);
+      const R = 15, [qx, qy] = scr(ex - Math.sin(a) * R, ey + Math.cos(a) * R, 0), [rx, ry] = scr(ex + Math.sin(a) * R, ey - Math.cos(a) * R, 0);
+      const gr = g.createLinearGradient(sx, sy, px, py); gr.addColorStop(0, 'rgba(255,248,220,0.22)'); gr.addColorStop(1, 'rgba(255,248,220,0.05)');
+      g.globalAlpha = 1; g.fillStyle = gr; g.beginPath(); g.moveTo(sx, sy); g.lineTo(qx, qy); g.lineTo(rx, ry); g.closePath(); g.fill();
+      g.globalAlpha = 0.45; g.drawImage(P.beam, px - R * 1.4 * k, py - R * 1.4 * k * VIEW.F, R * 2.8 * k, R * 2.8 * k * VIEW.F);
+    }
+  }
+  g.restore();
+}
+
+// ---- Richer ground ---------------------------------------------------------------------------------------------
+// Drawn on the ground under everything that stands on it (from ui.js through cliffItems, the world transform set):
+// large soft patches (a fixed noise, 1.5k px across, soft-light: drier and yellower, lusher, darker) so open grass is
+// not one even carpet, and tank tracks: a ground vehicle leaves a pair of tread marks every 5 px it moves, fading over
+// TRACK_LIFE seconds (kept here, not in G: looks only, not saved).
+const TRACK_LIFE = 25, TRACK_MAX = 6000;
+let lookTracks = null, patchPic = null;
+function lookGround(g, x0, y0, x1, y1) {
+  if (!LOOK.ground || !g) return;
+  if (!patchPic) {
+    const N = 128, c = mkCanvas(N, N), x = c.getContext('2d'), img = x.createImageData(N, N);
+    const hash = (i, j, p, s) => { let h = (((i % p) + p) % p) * 374761393 + (((j % p) + p) % p) * 668265263 + p * 97 + s * 1013; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+    const sm = (a) => a * a * (3 - 2 * a);
+    const vn = (u, v, p, s) => { const i = Math.floor(u), j = Math.floor(v), fu = sm(u - i), fv = sm(v - j);
+      const a = hash(i, j, p, s), b = hash(i + 1, j, p, s), cc = hash(i, j + 1, p, s), d = hash(i + 1, j + 1, p, s);
+      return a + (b - a) * fu + (cc - a) * fv + (a - b - cc + d) * fu * fv; };
+    for (let py = 0; py < N; py++) for (let px = 0; px < N; px++) {
+      const l = vn(px / N * 4, py / N * 4, 4, 1) * 0.65 + vn(px / N * 8, py / N * 8, 8, 2) * 0.35;   // light or dark
+      const dry = sm(Math.max(0, Math.min(1, (vn(px / N * 3, py / N * 3, 3, 3) - 0.55) / 0.2)));      // dry patches
+      const v = 128 + (l - 0.5) * 95, i = (py * N + px) * 4;
+      img.data[i] = v + dry * 30; img.data[i + 1] = v + dry * 18; img.data[i + 2] = v - dry * 22; img.data[i + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+    patchPic = c;
+  }
+  const pat = g.createPattern(patchPic, 'repeat');
+  pat.setTransform(new DOMMatrix([12, 0, 0, 12, 0, 0]));
+  g.save(); g.globalCompositeOperation = 'soft-light'; g.globalAlpha = 1; g.imageSmoothingEnabled = true; g.fillStyle = pat;
+  g.fillRect(Math.max(0, x0), Math.max(0, y0), Math.min(WORLD, x1) - Math.max(0, x0), Math.min(WORLD, y1) - Math.max(0, y0)); g.restore();
+  // Tracks.
+  if (!lookTracks || lookTracks.g !== G) lookTracks = { g: G, list: [], last: new Map() };
+  const T = lookTracks;
+  for (const e of G.entities) {
+    if (!e.alive || e.kind !== 'unit' || e.cls !== 'veh') continue;
+    const l = T.last.get(e.id);
+    if (!l) { T.last.set(e.id, [e.x, e.y]); continue; }
+    const dx = e.x - l[0], dy = e.y - l[1], d = Math.hypot(dx, dy);
+    if (d < 5) continue;
+    if (d < 30) T.list.push([e.x, e.y, Math.atan2(dy, dx), (e.def.r || 8) * 0.5, G.t]);
+    l[0] = e.x; l[1] = e.y;
+  }
+  if (T.list.length > TRACK_MAX || (T.list.length && G.t - T.list[0][4] > TRACK_LIFE)) T.list = T.list.filter((s) => G.t - s[4] < TRACK_LIFE).slice(-TRACK_MAX);
+  const snow = snowy(), B = 5, paths = Array.from({ length: B }, () => new Path2D());
+  for (const [x, y, a, w, t0] of T.list) {
+    if (x < x0 - 10 || x > x1 + 10 || y < y0 - 10 || y > y1 + 10) continue;
+    const f = 1 - (G.t - t0) / TRACK_LIFE, b = Math.min(B - 1, Math.floor(f * B)), c = Math.cos(a), s = Math.sin(a), P = paths[b];
+    for (const o of [-w, w]) { const px = x - s * o, py = y + c * o; P.moveTo(px - c * 3, py - s * 3); P.lineTo(px + c * 3, py + s * 3); }
+  }
+  g.save(); g.lineWidth = 2.2; g.lineCap = 'butt';
+  for (let b = 0; b < B; b++) { g.strokeStyle = snow ? `rgba(60,70,92,${(0.18 + b * 0.12).toFixed(2)})` : `rgba(22,17,10,${(0.2 + b * 0.13).toFixed(2)})`; g.stroke(paths[b]); }
+  g.restore();
 }

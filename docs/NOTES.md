@@ -30,8 +30,16 @@ recorder usage at the top of record.js).
     made 9 a frame (`cliffItems`), so they pop in at first: needs warming at battle start before release.
   - Concrete: `concreteDecal` replaces `bibDecal`'s dirt (art.js hook): 12 px slabs on a world grid with joints, grit, oil stains,
     cracks, a broken outer ring and a little dirt; every pixel from its world position, so pads and tiles join seamlessly.
-- **Next ideas offered to the owner (not started):** water and shorelines (ripples, foam, depth), ground detail (fading tank
-  tracks, debris, smoother blends), lights on structures (warning lamps, windows, sweeping spotlights), bigger smoke and fires,
+- **Made, video sent 2026-11-19 (owner asked for them; verdict pending):** `LOOK.lamps` and `LOOK.ground`.
+  - Lamps (`structLamps`, `drawLamps`, in drawLook): from each structure type's voxel model, red beacons on its 1-2 highest
+    points (blink 0.14 of every 1.6 s, own phase per structure), a warm glow per 4 x 4 x 4 block of window glass facing the camera
+    (up to 10; out below 30% health), and a searchlight sweeping 52 px out from defences (not the camouflaged pillbox).
+  - Ground (`lookGround`, called from `cliffItems`, so under units and cliff shadows): a fixed soft-light noise of drier, lusher
+    and darker patches (12 world px a noise pixel), and tank tracks: every 5 px a ground vehicle moves, a pair of tread marks,
+    fading over `TRACK_LIFE` 25 s (max 6000; kept in `lookTracks`, not in G, so not saved). The first strength was invisible on
+    the dark graded grass; now up to 0.72 alpha.
+- **Next ideas offered to the owner (not started):** water and shorelines (ripples, foam, depth), more ground detail (debris
+  round wrecks, smoother blends between dirt, grass and road), bigger smoke and fires,
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size
   layers; cliffs add one picture per rock cell); an Options switch was offered; decide per map grade (snow maps colder, rain maps
