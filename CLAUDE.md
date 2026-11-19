@@ -177,6 +177,11 @@ share globals. Read this file first; the commit history explains every change in
   `TREE_BLOCK_BUILD` (3) are made a frame (the rest's trees drawn one by one meanwhile); unused for 5 s, dropped. `treesInView` / `rimInView` take
   `noShadow`; shadows are drawn by `isoTreeBlocks`. Village at 2560 x 1370, widest zoom: trees drawn one by one 3,266 to 0 (burning ones only), trees'
   share of drawing 64 to 12 ms here (software drawing); with the wind stilled the picture differs only round burning trees.
+- **Wrecks, bodies, blown-off turrets in the ground** (after 2026.11.17.19, looks only): `standOnGround` (art.js) draws a mark as it
+  looked standing on the view (upright sprites and pixels, `uprightCtx`) into a scratch picture through the view's turn and squash, then into
+  the ground through the inverse (nearest pixel), so on screen it matches the live unit. Used by `bakeWreck` (the burnt iso sprites, as
+  `drawHusk`; no longer `FLAT_PASS`), `bakeTurret` and `bakeRagdoll` (pools and scorch stay flat on the ground). Before, wrecks showed as flat
+  dark slabs and bodies as smears. Old saves' marks redraw the new way. `ground-tiles.js`: tiles still match pixel for pixel.
 - **Known bugs:** not tried on a real phone or online; washing lines lie across the screen, not along their house; the
   debrief and Field Manual pictures are unchanged.
 
