@@ -8,7 +8,7 @@ const step = (sec) => { for (let i = 0; i < sec * 30 && !run('G.over'); i++) ctx
 step(600);
 const ally = run(`alliesOf(G.teams[0]).map((o) => o.id).join(',')`);
 console.log('ally of side 0:', ally, 'evac rolled (before forcing):', run('G.teams[0].evac'));
-run(`{ const t = G.teams[0]; t.evac = true; t.exp2 = false; t.expT = 1e9; for (const u of unitsOf(0).filter((u) => u.def.deploys === 'cy')) u.alive = false; t.queues.vehicle = t.queues.vehicle.filter((i) => i.type !== 'mcv'); for (const b of buildingsOf(0).filter((b) => b.type === 'cy' && b !== aiMainYard(t))) b.alive = false; t.credits = Math.max(t.credits, 3000); const y = aiMainYard(t); y.hp = y.maxHp * 0.3; y.hitT = G.t; }; 0`);
+run(`{ const t = G.teams[0]; t.evac = true; t.exp2 = false; t.expT = 1e9; for (const u of unitsOf(0).filter((u) => u.def.deploys === 'cy')) u.alive = false; t.queues.vehicle = t.queues.vehicle.filter((i) => i.type !== 'mcv'); for (const b of buildingsOf(0).filter((b) => b.type === 'cy' && b !== aiMainYard(t))) b.alive = false; t.credits = 700; const y = aiMainYard(t); y.hp = y.maxHp * 0.3; y.hitT = G.t; }; 0`);
 let mcv = null, done = null;
 for (let s = 1; s <= 180 && done === null; s++) {
   step(1);

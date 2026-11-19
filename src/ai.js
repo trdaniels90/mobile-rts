@@ -256,7 +256,7 @@ function aiDriveMcv(team, u) {
 // buys one MCV (it jumps the queue), drives it to an ally's base and unpacks it at the edge away from the enemy, so it can
 // rebuild there. About to be beaten: a Construction Yard below half health and hit in the last EVAC_HIT seconds, or at most
 // EVAC_LEFT of its most buildings left with EVAC_FOES enemy units within EVAC_NEAR cells of its yard. Once a battle.
-const EVAC_CHANCE = { turtle: 0.7, balanced: 0.5, raider: 0.4, rusher: 0.25 }, EVAC_HIT = 10, EVAC_LEFT = 0.4, EVAC_FOES = 3, EVAC_NEAR = 14;
+const EVAC_CHANCE = { turtle: 0.7, balanced: 0.5, raider: 0.4, rusher: 0.25 }, EVAC_HIT = 10, EVAC_LEFT = 0.4, EVAC_FOES = 3, EVAC_NEAR = 14, EVAC_PAY = 0.25;
 const aiAllyYard = (o) => { const ys = aiYards(o); return ys.find((b) => Math.hypot(b.cx - o.start.cx, b.cy - o.start.cy) < BASE2_SEP) || ys[0]; };
 function aiEvac(team, mcvs) {
   if (team.evac === undefined) team.evac = Math.random() < (EVAC_CHANCE[team.style] || EVAC_CHANCE.balanced);
@@ -270,7 +270,7 @@ function aiEvac(team, mcvs) {
   const hit = aiYards(team).some((b) => b.hp < b.maxHp * 0.5 && G.t - (b.hitT || -99) < EVAC_HIT);
   const foes = enemyUnitsOf(team.id).filter((u) => !isAirborne(u) && Math.hypot(u.x - home.x, u.y - home.y) < EVAC_NEAR * CELL).length;
   if (!hit && !(team.peakB >= 5 && n <= team.peakB * EVAC_LEFT && foes >= EVAC_FOES)) return;
-  if (team.credits < UNIT_DEFS.mcv.cost) return;   // tries again each think while it can still pay
+  if (team.credits < UNIT_DEFS.mcv.cost * EVAC_PAY) return;   // it pays as it builds (front of the queue): a start is enough; tries again each think
   const to = allies.reduce((a, o) => (buildingsOf(o.id).length > buildingsOf(a.id).length ? o : a));   // the strongest ally
   team.evacFor = to.id; team.evacDone = true;
   startProduction(team, 'mcv');

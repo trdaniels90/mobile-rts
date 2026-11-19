@@ -1531,7 +1531,8 @@ frame-time maths everywhere, so it is not deterministic.
 
 - Owner's request: in a team game a computer that thinks it is about to be beaten builds an MCV and sends it to an ally's base to rebuild.
 - `aiEvac` (ai.js, from `aiThink`): `team.evac` rolled once by personality (`EVAC_CHANCE`: turtle 0.7, balanced 0.5, raider 0.4, rusher 0.25; no style = balanced).
-  Triggers once a battle (`team.evacDone`) when it has a yard, an ally with a yard (`alliesOf`, `aiAllyYard`), no MCV out or queued, MCV money, and either a yard
+  Triggers once a battle (`team.evacDone`) when it has a yard, an ally with a yard (`alliesOf`, `aiAllyYard`), no MCV out or queued, a quarter of the MCV's cost (`EVAC_PAY`; it pays as it builds: first version waited for the full 2,500, which a
+  losing computer never had, so none escaped in two 40-minute 2 v 2s), and either a yard
   below half health hit in the last `EVAC_HIT` (10) s, or at most `EVAC_LEFT` (40%) of its most buildings (`team.peakB`, 5+) left with `EVAC_FOES` (3) enemy
   ground units within `EVAC_NEAR` (14) cells of its yard. It picks the ally with the most buildings (`team.evacFor`), buys the MCV and moves it to the front of the queue.
 - `aiDriveMcv` hands that MCV (`u.evac`, the ally's side) to `aiDriveEvac`: `EVAC_OFF` (8) cells from the ally's yard on the side away from the ally's enemy, further
