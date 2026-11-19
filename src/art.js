@@ -1039,7 +1039,8 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
 // The paratrooper transports too: the C-130's straight wing (tips 24 out, level with the wing root) and the Il-76's swept,
 // drooping wing (tips well back and lower), each with its fin top (the Il-76's T-tail).
 const PLANE_LIGHTS = { b1: { tip: [-13.5, 17.5, 4.5], tail: [-20, 12.5], top: [-2, 7.4] }, tu22: { tip: [-11.5, 17.5, 5.5], tail: [-20, 14.5], top: [-2, 7.4] },
-  c130: { tip: [1.5, 24, 8.5], tail: [-19.5, 15], top: [-6, 8] }, il76: { tip: [-8.5, 25, 6.5], tail: [-21, 16.5], top: [-6, 8.2] } };
+  c130: { tip: [1.5, 24, 8.5], tail: [-19.5, 15], top: [-6, 8] }, il76: { tip: [-8.5, 25, 6.5], tail: [-21, 16.5], top: [-6, 8.2] },
+  a50: { tip: [-8.5, 25, 6.5], tail: [-21, 16.5], top: [5, 7.9] } };   // the A-50's beacon is forward of its rotodome (which covers x -15 to -1)
 function navLights(g, vx, vy, k, t, night, near, vis) {
   const pts = [];
   for (const u of G.entities) {
@@ -1052,8 +1053,8 @@ function navLights(g, vx, vy, k, t, night, near, vis) {
       put(at(-1, 0, 12 * VK), '255,40,30', ph < 0.45 ? 1 : 0.15, 4.5);                     // beacon over the cabin
       put(at(1, -r * 0.55, 3), '255,40,30', 0.75, 2.2); put(at(1, r * 0.55, 3), '60,255,90', 0.75, 2.2);
     } else if (u.def.type === 'bomber' || u.def.type === 'transport' || (u.def.type === 'spyplane' && u.faction === 'soviets')) {
-      // Spots from each plane's own model (b1Model, tu22Model, c130Model, il76Model; voxels, heights x VK).
-      const al = u.faction === 'allies', P = PLANE_LIGHTS[u.def.type === 'bomber' ? (al ? 'b1' : 'tu22') : (al ? 'c130' : 'il76')];
+      // Spots from each plane's own model (b1Model, tu22Model, c130Model, il76Model and the A-50; voxels, heights x VK).
+      const al = u.faction === 'allies', P = PLANE_LIGHTS[u.def.type === 'bomber' ? (al ? 'b1' : 'tu22') : u.def.type === 'spyplane' ? 'a50' : (al ? 'c130' : 'il76')];
       put(at(P.tip[0], -P.tip[1], P.tip[2] * VK), '255,40,30', 0.9, 2.6); put(at(P.tip[0], P.tip[1], P.tip[2] * VK), '60,255,90', 0.9, 2.6);
       put(at(P.tail[0], 0, P.tail[1] * VK), '255,255,255', ph < 0.06 || (ph > 0.16 && ph < 0.22) ? 1 : 0, 6);
       put(at(P.top[0], 0, P.top[1] * VK), '255,40,30', 0.5 + 0.5 * Math.sin((t + u.id) * 6.3), 3.5);
