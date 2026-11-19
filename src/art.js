@@ -196,8 +196,12 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt) {
         }
         if (hgt && !(wv > 0.5)) {   // hills (look test): slopes toward the sun (the screen's upper left) lit, the others shaded
           const h0 = bil(hgt, fx, fy), gx = (bil(hgt, fx + 0.25, fy) - bil(hgt, fx - 0.25, fy)) / (CELL * 0.5), gy = (bil(hgt, fx, fy + 0.25) - bil(hgt, fx, fy - 0.25)) / (CELL * 0.5);
-          const k = (1 + Math.max(-0.45, Math.min(0.4, (gx * 0.937 - gy * 0.351) * 4.2))) * (1 + h0 * 0.005);
-          col = [col[0] * k, col[1] * k, col[2] * k];
+          // HILL_SHADE: how strongly (1: the first version; owner 2026-11-19: "too faint"). Lit slopes a little warmer,
+          // shaded ones a little cooler.
+          const HS = typeof HILL_SHADE !== 'undefined' ? HILL_SHADE : 1;
+          const lit = Math.max(-0.45 - 0.12 * (HS - 1), Math.min(0.4 + 0.1 * (HS - 1), (gx * 0.937 - gy * 0.351) * 4.2 * HS));
+          const k = (1 + lit) * (1 + h0 * 0.005 * HS), wt = HS > 1 ? lit * 0.12 : 0;
+          col = [col[0] * k * (1 + wt), col[1] * k, col[2] * k * (1 - wt)];
         }
         d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2]; d[p + 3] = 255;
       }
@@ -276,6 +280,7 @@ function groundKey(g) {
   str(JSON.stringify(['live-trees', validMap(g.mapId), MAP, CELL, GROUND_TILE, GROUND_SHEET, groundSeed(g), mapTheme(g.mapId), MAPS[validMap(g.mapId)].bridge || '', g.bridges || []]));
   for (const a of [g.terr, g.road, g.cliff, g.ford]) { num(a ? a.length : -1); if (a) for (let i = 0; i < a.length; i++) num(a[i]); }
   if (g.hgt) for (let i = 0; i < g.hgt.length; i++) num(Math.round(g.hgt[i] * 16));   // (the hills: look test)
+  if (g.hgt && typeof HILL_SHADE !== 'undefined' && HILL_SHADE !== 1) num(Math.round(HILL_SHADE * 100));   // (their shading's strength)
   return (h >>> 0).toString(16);
 }
 
@@ -1259,6 +1264,7 @@ function groundWorkers() {
     const src = ["'use strict';",
       `const CELL = ${CELL}, CLIFF_H = ${CLIFF_H}, GRASS_TILE = ${JSON.stringify(GRASS_TILE)}, GRASS_TILE_N = ${GRASS_TILE_N};`,
       `const LOOK_SOFT = ${typeof LOOK_SOFT !== 'undefined' && !!LOOK_SOFT};`,
+      `const HILL_SHADE = ${typeof HILL_SHADE !== 'undefined' ? HILL_SHADE : 1};`,
       'let MAP = 0, WORLD = 0, NCELLS = 0;',
       ...[rng, groundPixels, cliffCells, paintCliffs, paintRuts, fordStone].map(String),
       `let px = null, gen = -1, pvBuf = null;

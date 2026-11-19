@@ -592,6 +592,9 @@ function drawSkyBeams(g, vx, vy, k, t, night) {
 }
 
 var LOOK_SOFT = LOOK.ground;
+// The hill shading's strength in the ground (art.js groundPixels, copied into its workers; part of groundKey, so the baked
+// grounds are used only when baked with the same). ?hillshade=2.2 (A) or 3.5 (B) shows the stronger ones.
+var HILL_SHADE = (() => { const m = typeof location !== 'undefined' && location.search.match(/[?&]hillshade=([0-9.]+)/); return m ? +m[1] : 1; })();   // (owner to pick: A 2.2 or B 3.5, then rebake the grounds)
 
 // ---- Debris round wrecks ----------------------------------------------------------------------------------------
 // Drawn into the ground under each wreck (art.js bakeWreck, a mark: once, kept on the tiles): a scatter of torn metal, rust,
