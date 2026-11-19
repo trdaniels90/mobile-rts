@@ -55,7 +55,16 @@ recorder usage at the top of record.js).
     swells and ebbs. Not on winter maps (icy water). Tank tracks are not laid on bridges, fords or water.
   - `tools/look/record-ground.js`: before/after as two page loads (`?lookoff=ground,water`), the same staged scene at the
     crossing nearest River Crossing's middle.
-- **Next ideas offered to the owner (not started):** bigger smoke and fires,
+- **Made 2026-11-19 (owner asked; verdict pending): bigger smoke and fires** (`LOOK.smoke`, `lookSmoke`, from ui.js after the
+  sorted list, so over the units): the look's own particles (not in G: not saved, not online), fed from structures below 60%
+  health (dark smoke from their `damageSpots`, thicker below 30%, where the spots also burn with flames; not the camouflaged
+  pillbox), 'fire' effects (one flame per 14 px cluster, so a wreck's many small flames make one, and a puff now and then) and
+  smouldering craters (thin grey). Puffs rise, swell, lean more with `windNow()` as they age and fade (life 5-8 s; max
+  `SMOKE_MAX` 1400); flames from 6 drawn frames, added; embers. The first try had a big flame on every small flame (far too
+  much), now merged and smaller. The columns are dense: thin them (`a` 0.55 / 0.4) if the owner finds they hide too much.
+- **Tank turret fix (main game, 2026-11-19, on both branches, not released):** see the commit "Fix: a tank's turret slipped a
+  pixel" (art.js `blit`): hull and turret were rounded to pixels separately, twice, so the turret wobbled on the hull.
+- **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size
   layers; cliffs add one picture per rock cell); an Options switch was offered; decide per map grade (snow maps colder, rain maps

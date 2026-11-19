@@ -10,11 +10,12 @@
 //              scattered round wrecks (bakeWreck), and soft blends where grass meets dirt, road and sand (art.js groundPixels,
 //              LOOK_SOFT: read once when the ground workers start, so switch it with ?lookoff=ground, not at run time)
 //  - water:    ripples moving over open water and foam lapping at the shore (drawWater, under the units)
+//  - smoke:    tall smoke columns leaning with the wind, bigger flames and embers from damaged structures and fires (lookSmoke, over the units)
 // (LOOK_SOFT below: the soft ground blends, read by art.js groundPixels and copied into its workers)
 const LOOK = (() => {
   const q = typeof location !== 'undefined' ? location.search : '';
   const on = !/[?&]look=off\b/.test(q), off = (q.match(/[?&]lookoff=([a-z,]+)/) || [, ''])[1].split(',');   // ?lookoff=ground,water: parts off
-  const L = { light: on, cliffs: on, concrete: on, lamps: on, ground: on, water: on };
+  const L = { light: on, cliffs: on, concrete: on, lamps: on, ground: on, water: on, smoke: on };
   for (const k of off) if (k in L) L[k] = false;
   return L;
 })();
@@ -520,4 +521,101 @@ function drawWater(g, x0, y0, x1, y1) {
   mask(W.sm);
   g.globalCompositeOperation = 'source-over'; g.globalAlpha = 0.45 + 0.25 * Math.sin(t * 1.3); g.drawImage(T, 0, 0, tw, th, x0, y0, x1 - x0, y1 - y0);
   g.restore();
+}
+
+// ---- Bigger smoke and fires ---------------------------------------------------------------------------------------
+// A particle layer of the look's own (not in G: not saved, not sent online), fed each frame from what burns in the game:
+//  - structures below 60% health: dark smoke from their damage spots (models.js damageSpots, as world.js structureDamageFx),
+//    thicker below 30%, where the spots also burn with big flames;
+//  - fires ('fire' effects: wrecks, flame towers, burning ground): a puff of smoke now and then, and a larger flame;
+//  - smouldering craters: a thin grey trail.
+// Puffs rise and swell, are carried more by the wind (world.js windNow) the older they are, and fade; drawn over the units
+// (ui.js, after the sorted list) as soft blobs standing at their height. Flames flicker from a few drawn frames, added.
+const SMOKE_MAX = 1400;
+let lookSmokeS = null;
+function smokePics() {
+  const blob = (r, g, b) => { const c = mkCanvas(48, 48), x = c.getContext('2d'), gr = x.createRadialGradient(24, 24, 0, 24, 24, 24);
+    gr.addColorStop(0, `rgba(${r},${g},${b},1)`); gr.addColorStop(0.55, `rgba(${r},${g},${b},0.55)`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`); x.fillStyle = gr; x.fillRect(0, 0, 48, 48);
+    // a little lumpiness
+    x.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < 9; i++) { const a = i * 0.7, d = 14 + (i % 3) * 3; x.fillStyle = 'rgba(0,0,0,0.25)'; x.beginPath(); x.arc(24 + Math.cos(a) * d, 24 + Math.sin(a) * d, 6, 0, 7); x.fill(); }
+    return c; };
+  const flames = [];
+  for (let f = 0; f < 6; f++) {   // flame frames: a tongue of fire, its tip swaying
+    const c = mkCanvas(20, 40), x = c.getContext('2d');
+    for (const [col, w, h, o] of [['rgba(255,90,20,0.85)', 9, 36, 0], ['rgba(255,170,40,0.9)', 6, 26, 1], ['rgba(255,240,170,0.95)', 3, 14, 2]]) {
+      const sway = Math.sin(f / 6 * Math.PI * 2 + o) * 2.5;
+      x.fillStyle = col; x.beginPath(); x.moveTo(10 - w, 39); x.quadraticCurveTo(10 - w, 39 - h * 0.45, 10 + sway, 39 - h); x.quadraticCurveTo(10 + w, 39 - h * 0.45, 10 + w, 39); x.closePath(); x.fill();
+    }
+    flames.push(c);
+  }
+  return { dark: blob(34, 32, 30), grey: blob(92, 90, 86), flames };
+}
+function lookSmoke(g) {
+  if (!LOOK.smoke || !G) return;
+  if (!lookSmokeS || lookSmokeS.g !== G) lookSmokeS = { g: G, puffs: [], embers: [], t: G.t, pics: (lookSmokeS && lookSmokeS.pics) || smokePics(), acc: new Map() };
+  const S = lookSmokeS, dt = Math.max(0, Math.min(0.1, G.t - S.t)), P = S.puffs;
+  S.t = G.t;
+  const wind = typeof windNow === 'function' ? windNow() : { x: 10, y: 0 };
+  const emit = (key, rate, mk) => { let a = (S.acc.get(key) || 0) + rate * dt; while (a >= 1) { a -= 1; if (P.length < SMOKE_MAX) mk(); } S.acc.set(key, a); };
+  const r = Math.random, fires = [], seenFire = new Set();
+  // Structures.
+  for (const e of G.entities) {
+    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.camo || !G.seen[idx(e.cx, e.cy)]) continue;
+    const f = e.hp / e.maxHp;
+    if (f >= 0.6) continue;
+    const spots = damageSpots(e.type, e.faction), stage = f < 0.3 ? 2 : 1, ox = e.cx * CELL, oy = e.cy * CELL;
+    spots.forEach((sp, i) => {
+      if (sp.s > stage) return;
+      const x = ox + sp.x, y = oy + sp.y, h = sp.z * VK;
+      emit('b' + e.id + '.' + i, stage === 2 ? 7 : 3.5, () => P.push({ x: x + (r() - 0.5) * 4, y, h, r0: 3 + r() * 2, r1: (stage === 2 ? 34 : 24) + r() * 8, rise: 18 + r() * 8, t: 0, life: 5 + r() * 3, a: stage === 2 ? 0.55 : 0.4, dark: true }));
+      if (stage === 2) fires.push([x, y, h, 0.75, e.id * 13 + i]);
+    });
+  }
+  // Fires and smouldering ground.
+  for (const fx of G.effects) {
+    if (fx.t < 0) continue;
+    if (fx.type === 'fire' && fx.t < fx.life) {
+      const k = 1 - fx.t / fx.life;
+      const key = ((fx.x / 14) | 0) * 100003 + ((fx.y / 14) | 0);   // nearby flames of one fire: one bigger flame
+      if (!seenFire.has(key)) { seenFire.add(key); fires.push([fx.x, fx.y + 6, 0, 0.4 + 0.25 * k, key]); }
+      if (r() < dt * 2.2) P.length < SMOKE_MAX && P.push({ x: fx.x, y: fx.y + 6, h: 8, r0: 3, r1: 18 + r() * 6, rise: 18 + r() * 6, t: 0, life: 2.6 + r() * 1.5, a: 0.4, dark: true });
+    } else if (fx.type === 'smoulder') {
+      if (r() < dt * 1.5) P.length < SMOKE_MAX && P.push({ x: fx.x + (r() - 0.5) * 6, y: fx.y, h: 2, r0: 2, r1: 12 + r() * 4, rise: 10 + r() * 4, t: 0, life: 2.5 + r(), a: 0.28, dark: false });
+    }
+  }
+  // Move the smoke on.
+  for (const p of P) {
+    p.t += dt;
+    const age = p.t / p.life;
+    p.h += p.rise * dt * (1 - age * 0.6);
+    p.x += wind.x * dt * (0.25 + age * 1.1); p.y += wind.y * dt * (0.25 + age * 1.1);
+  }
+  if (P.length && (P[0].t > P[0].life || P.length > SMOKE_MAX)) S.puffs = P.filter((p) => p.t < p.life);
+  // Embers from the bigger fires.
+  for (const [x, y, h, sz] of fires) if (r() < dt * 3 * sz && S.embers.length < 300) S.embers.push({ x: x + (r() - 0.5) * 8, y, h: h + 6, vh: 20 + r() * 25, t: 0, life: 0.8 + r() * 0.8 });
+  for (const m of S.embers) { m.t += dt; m.h += m.vh * dt; m.x += wind.x * dt * 0.6 + (r() - 0.5) * 0.6; m.y += wind.y * dt * 0.6; }
+  if (S.embers.length && S.embers[0].t > S.embers[0].life) S.embers = S.embers.filter((m) => m.t < m.life);
+  // Draw: smoke (oldest, highest first), then flames and embers added on top.
+  const up = g.upright; g.upright = true; g.imageSmoothingEnabled = true;
+  for (const p of S.puffs) {
+    const age = p.t / p.life, R = p.r0 + (p.r1 - p.r0) * Math.sqrt(age), a = p.a * Math.min(1, p.t / 0.25) * (1 - age) * (1 - age * 0.3);
+    if (a < 0.01) continue;
+    const [wx, wy] = liftPt(p.x, p.y, p.h);
+    g.globalAlpha = a; g.drawImage(p.dark ? S.pics.dark : S.pics.grey, wx - R, wy - R, R * 2, R * 2);
+  }
+  g.globalCompositeOperation = 'lighter';
+  const ft = performance.now() / 70;
+  for (const [x, y, h, sz, seed] of fires) {
+    for (let j = 0; j < 2; j++) {
+      const fr = S.pics.flames[((ft + seed + j * 3) | 0) % 6], w = 10 * sz * (1 - j * 0.25), hh = 20 * sz * (1 - j * 0.3), dx = (j - 0.5) * 4 * sz;
+      const [wx, wy] = liftPt(x + dx, y + j, h + hh / 2);
+      g.globalAlpha = 0.6; g.drawImage(fr, wx - w / 2, wy - hh / 2, w, hh);
+    }
+  }
+  for (const m of S.embers) {
+    const [wx, wy] = liftPt(m.x, m.y, m.h);
+    g.globalAlpha = 1 - m.t / m.life; g.fillStyle = m.t < m.life * 0.4 ? '#ffe2a0' : '#ff8a30'; g.fillRect(wx - 0.5, wy - 0.5, 1, 1);
+  }
+  g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.imageSmoothingEnabled = false; g.upright = up;
 }

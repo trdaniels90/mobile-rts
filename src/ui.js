@@ -677,6 +677,8 @@ function draw() {
       else if (e.kind === 'cliff') { drawCliff(v, e); lap('bld'); }
       else { drawUnit(v, e, G.t); lap('unit'); DP.nUnit++; }
     }
+    lookSmoke(v);   // bigger smoke and fires over the units (look.js test)
+    lap('misc');
     if (past) {   // haze over the outer woods past the map's edge
       const up = v.upright; v.upright = false; v.imageSmoothingEnabled = true;
       const P = EDGE_PAD; v.drawImage(edgeVeil(), -P * CELL, -P * CELL, (MAP + 2 * P) * CELL, (MAP + 2 * P) * CELL);
