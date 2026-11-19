@@ -103,6 +103,12 @@ recorder usage at the top of record.js).
   - **Stage 3 (next):** the AI using high ground; a game server for the look branch (online testing); balance with the owner;
     the cost of the warped ground on a phone.
   - Checked: teams.js 1v1 river 4 min, no errors.
+- **Proposal of 2026-11-19 (page https://claude.ai/artifact/BCzR1QoVMcAXYE8N3mcFkP, slug `52a7f35d-f1d8-4fb0-adf4-dbd0b9aa2f04`;
+  our screenshots only), waiting for the owner's picks:** 1 light pools on the ground (lamp posts, window spill, ore glow),
+  2 ground dressing (rocks, gravel, puddles, worn paths, painted in once), 3 per-map mood (sun colour, shadow tint, haze; merge
+  with day/night), 4 living structures (moving parts, build-up), 5 bigger blasts (fireball, shockwave, debris, lasting craters),
+  6 steel sidebar skin, 7 storms (looks only; ask the mode if they should affect play), 8 grittier structure colours.
+  Recommended: 1-3 first. All drawing only (except 7 if made to affect play).
 - **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size
