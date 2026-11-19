@@ -4,6 +4,14 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.19.2', date: '19 November 2026', title: 'Steadier tanks, smarter expansions', groups: [
+    ['Fixed', [
+      'Tank turrets no longer wobble on their hulls, and tanks glide instead of jolting as they drive.',
+      'Computer opponents only build a second base, or rebuild with an escaping Mobile Construction Yard, on open ground their army can reach.',
+      'Jets without an Airfield, and Close Air Support planes near the edge of the map, no longer circle endlessly.',
+      'The Ally button\'s picker shows up again in team games with two or more allies.',
+    ]],
+  ] },
   { v: '2026.11.19.1', date: '19 November 2026', title: 'Escape MCVs, smoother big fights', groups: [
     ['New', [
       'In team games, a computer about to lose its base can send a Mobile Construction Yard to an ally\'s base to rebuild there. It happens once a battle, and some computer opponents do it more readily than others.',
