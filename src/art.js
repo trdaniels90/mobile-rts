@@ -818,6 +818,7 @@ function rollWeather(mapId, seed) {
 }
 // How hard it is raining or snowing at battle time t: 0.2 (a drizzle, a few flakes) to 1, changing over a minute or two.
 function weatherLevel(w, t) {
+  if (w.lvl !== undefined) return w.lvl;   // (look test: a storm's stand-in weather, lookstorm.js)
   const h = (i) => { let x = Math.imul(i, 374761393) ^ Math.imul(w.seed, 668265263); x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
   const f = t / 70, i = Math.floor(f), u = f - i, s = u * u * (3 - 2 * u);
   return 0.2 + 0.8 * (h(i) + (h(i + 1) - h(i)) * s);
@@ -1156,7 +1157,7 @@ function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {
   g.fillStyle = rain ? `rgba(14,22,34,${(0.1 + 0.16 * L).toFixed(3)})` : `rgba(214,222,236,${(0.04 + 0.08 * L).toFixed(3)})`;
   g.fillRect(0, 0, g.canvas.width, g.canvas.height);
   if (rain) {
-    lightning(g, w, t, k, paused);
+    if (!w.storm || w.real) lightning(g, w.real || w, t, k, paused);   // (a storm's stand-in: the battle's own lightning only)
     const wind = 70;
     g.strokeStyle = 'rgba(180,200,220,0.5)'; g.lineWidth = Math.max(1, Math.round(k * 0.6));
     g.beginPath();
