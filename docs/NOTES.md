@@ -124,8 +124,10 @@ recorder usage at the top of record.js).
       (trees one by one, so hills can hide them: measure the cost on a big screen zoomed out).
     - Taps: `s2w` walks its screen column from as far in front as the highest hill could show, back to the first ground
       that stands at or above the tap (then a few halvings): the nearest ground under the finger, not ground hidden behind.
-    - The baked hill shading (art.js groundPixels `hgt`) is unchanged: it may need to be stronger for the taller hills (that
-      would mean rebaking the grounds).
+    - Hill shading stronger (owner, 2026-11-19: "too faint"; picked A from a still of Now / A 2.2 / B 3.5): `HILL_SHADE` 2.2
+      (look.js; copied into the ground workers and part of `groundKey`; `?hillshade=1` shows the first version): the slope
+      term x2.2, its limits widened, lit slopes a little warmer and shaded ones a little cooler. Grounds rebaked. On rain or
+      night maps the shaded side is fairly dim: ease it back if the owner finds it too dark.
   - **Stage 3 (next):** the AI using high ground; a game server for the look branch (online testing); balance with the owner;
     the cost of the warped ground on a phone.
   - Checked: teams.js 1v1 river 4 min, no errors.
