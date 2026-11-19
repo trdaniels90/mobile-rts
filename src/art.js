@@ -553,16 +553,37 @@ function crater(tg, x, y, rad, seed) {
   oval(x + rad * 0.2, y + ry * 0.08, rad * 0.48, ry * 0.44, 'rgba(84,67,48,0.5)');
   oval(x - rad * 0.06, y, rad * 0.36, ry * 0.3, 'rgba(16,12,8,0.6)');
 }
-// A burnt-out wreck painted into the ground, so it stays for the rest of the battle.
+// Painted into the ground so that on screen it looks just as it did standing on the battle view (iso view): fn draws
+// as on the view (sprites, pixels and lines upright at their spots, uprightCtx) into a scratch picture seen through the
+// view's turn and squash, and that picture goes into the ground through the inverse, which the ground's own transform
+// undoes. Before, a wreck was rendered flat from straight above and a body's pixels and a turret's picture were laid
+// in world coordinates, so on the turned, squashed ground they showed as dark slabs and smears.
+// R: half the scratch picture's size, in screen pixels (the world box it can reach is about R / VIEW.F each way).
+let standPic = null;
+function standOnGround(tg, x, y, R, fn) {
+  const S = 2 * R;
+  if (!standPic || standPic.width < S) standPic = mkCanvas(S, S);
+  const g = uprightCtx(standPic.getContext('2d')), c = VIEW.c, s = VIEW.s, F = VIEW.F;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, standPic.width, standPic.height);
+  g.setTransform(c, s * F, -s, c * F, R - (c * x - s * y), R - (s * F * x + c * F * y));
+  g.upright = true;
+  try { fn(g); } finally { g.upright = false; g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.setTransform(1, 0, 0, 1, 0, 0); }
+  tg.save();
+  tg.translate(x, y); tg.transform(c, -s, s / F, c / F, 0, 0);
+  tg.imageSmoothingEnabled = false;   // (restored with the rest)
+  tg.drawImage(standPic, 0, 0, S, S, -R, -R, S, S);
+  tg.restore();
+}
+// A burnt-out wreck painted into the ground, so it stays for the rest of the battle: the burning hull as it stood (drawHusk).
 // seed: the char pattern (given by the marks list, so a tile painted again shows the same wreck).
 function bakeWreck(tg, x, y, def, face, tface, noTurret, seed = (Math.random() * 1e6) | 0) {
   const fake = { def, face, tface, load: 0 };
-  FLAT_PASS = true;   // (lying in the ground, which is turned and squashed with it: voxel.js)
-  let hs, ts;
-  try { hs = hullSprite(fake, BURNT); ts = !noTurret && turretSprite(fake, BURNT); } finally { FLAT_PASS = false; }
-  if (hs.sh) { tg.globalAlpha = 0.45; tg.drawImage(hs.sh, Math.round(x + hs.sox), Math.round(y + hs.soy)); tg.globalAlpha = 1; }
-  tg.drawImage(charred(hs.img, seed), Math.round(x + hs.ox), Math.round(y + hs.oy));
-  if (ts) tg.drawImage(charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - turretZ(def) * FLAT_VK + ts.oy));
+  const hs = hullSprite(fake, BURNT), ts = !noTurret && turretSprite(fake, BURNT);
+  standOnGround(tg, x, y, 48, (g) => {
+    if (hs.sh) { g.globalAlpha = 0.45; g.drawImage(hs.sh, Math.round(x + hs.sox), Math.round(y + hs.soy)); g.globalAlpha = 1; }
+    g.drawImage(charred(hs.img, seed), Math.round(x + hs.ox), Math.round(y + hs.oy));
+    if (ts) { const [tx, ty] = liftPt(x, y, turretZ(def) * VK); g.drawImage(charred(ts.img, seed + 1), Math.round(tx + ts.ox), Math.round(ty + ts.oy)); }
+  });
 }
 // A turret blown off by a cook-off, charred, at its height above the ground and turned by rot.
 function turretImg(fx) {
@@ -579,7 +600,7 @@ function drawTurretAt(g, fx, z) {
 function bakeTurret(tg, fx) {
   tg.fillStyle = 'rgba(0,0,0,0.35)';
   tg.beginPath(); tg.ellipse(fx.x + 2, fx.y + 1, 9, 4, 0, 0, 7); tg.fill();
-  drawTurretAt(tg, fx, 0);
+  standOnGround(tg, fx.x, fx.y, 24, (g) => drawTurretAt(g, fx, 0));
 }
 // A fallen soldier: the unit's own sprite tipped onto its side, a shade darker, over a dark stain.
 function bakeCorpse(tg, u, seed, angle) {
@@ -662,12 +683,12 @@ function bakeRagdoll(tg, fx) {
     tg.fillStyle = 'rgba(20,16,12,0.45)';
     tg.beginPath(); tg.ellipse((P[3] + P[6]) / 2, (P[4] + P[7]) / 2 + 1, 5, 3, Math.atan2(P[4] - P[7], P[3] - P[6]), 0, 7); tg.fill();
   }
-  const c = mkCanvas(R * 2, R * 2), g = c.getContext('2d');
-  g.translate(R - cx, R - cy); drawRagBody(g, fx);
-  g.setTransform(1, 0, 0, 1, 0, 0);
-  g.globalCompositeOperation = 'source-atop';
-  g.fillStyle = 'rgba(20,16,12,0.28)'; g.fillRect(0, 0, R * 2, R * 2);
-  tg.drawImage(c, cx - R, cy - R);
+  standOnGround(tg, cx, cy, R, (g) => {   // the body as it lay on the view (drawEffect 'ragdoll'), a shade dimmer
+    drawRagBody(g, fx);
+    g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(20,16,12,0.28)'; g.fillRect(0, 0, R * 2, R * 2);
+  });
 }
 function dimmed(img) {
   const c = mkCanvas(img.width, img.height), g = c.getContext('2d');
@@ -689,6 +710,7 @@ function charred(img, seed) {
 }
 function charredLook(img, seed) {
   const r = rng(seed), c = mkCanvas(img.width, img.height), g = c.getContext('2d');
+  c._ox = img._ox; c._oy = img._oy;   // (still a sprite to uprightCtx)
   g.drawImage(img, 0, 0);
   g.globalCompositeOperation = 'source-atop';
   g.fillStyle = 'rgba(22,18,14,0.62)'; g.fillRect(0, 0, c.width, c.height);
