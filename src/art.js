@@ -2245,6 +2245,7 @@ function birdPixels(g, f, b) {
 // the pole. FLAG_SPOTS: per structure and faction, [pole x, y, top height, cloth length, cloth height, star].
 const FLAG_SPOTS = {
   refinery: { allies: [4, 46.5, 22, 8, 5] },
+  barracks: { allies: [45, 3.5, 30, 7, 5] },
   outpost: { allies: [39, 10.5, 22, 8, 5], soviets: [39, 10.5, 24, 9, 6, true] },
 };
 function drawFlag(g, px, py, len, hgt, col, dark, phase, star) {

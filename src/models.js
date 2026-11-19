@@ -1957,8 +1957,7 @@ const STRUCTURES = {
         }
         m.paint(tx, 6, 1, tx + 16, 38, 13, (x, y, z) => z >= 9 ? pal.main : (y === 37 && Math.abs(x + 0.5 - (tx + 8)) < 2.5 && z < 7 ? C.black : undefined));
       }
-      m.box(44, 3, 1, 45, 4, 30, C.steel, M_METAL);
-      m.box(38, 3, 24, 44, 4, 29, pal.main);
+      m.box(44, 3, 1, 45, 4, 30, C.steel, M_METAL);   // flag pole (the cloth: art.js drawFlag)
     } else {
       slabV(m, 0, 0, 48, 48);
       m.box(4, 4, 1, 44, 44, 13, C.wall, M_MATTE);
