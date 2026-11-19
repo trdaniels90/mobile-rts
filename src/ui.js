@@ -933,7 +933,10 @@ function draw() {
     if (MAPS[validMap(G.mapId)].daynight) drawSkyBeams(ctx, cam.x, cam.y, k, G.t, dayNight(G.t).night);   // the AA Gun's searchlight at night (look.js)
     if (MAPS[validMap(G.mapId)].daynight) lookNightPools(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, dayNight(G.t).night);   // light pools' colour at night (look.js)
     lap('night');
-    if (G.weather) drawWeather(ctx, G.weather, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, G.paused || !!G.over);
+    const wx = lookStorm.weather(G.paused || !!G.over);   // a passing storm's heavier stand-in, or the battle's own weather (lookstorm.js)
+    lookStorm.dark(ctx);
+    if (wx) drawWeather(ctx, wx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, G.paused || !!G.over);
+    lookStorm.flash(ctx, k, G.paused || !!G.over);
     lap('wthr');
     if (gesture && gesture.type === 'box' && gesture.moved) {
       const bx = Math.min(gesture.sx, gesture.ex) * DPR, by = Math.min(gesture.sy, gesture.ey) * DPR;

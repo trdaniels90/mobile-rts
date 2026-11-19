@@ -135,7 +135,7 @@ recorder usage at the top of record.js).
   our screenshots only). Owner picked 1, 2 and 3; made 2026-11-19, video sent, verdict pending (see below). The list:** 1 light pools on the ground (lamp posts, window spill, ore glow),
   2 ground dressing (rocks, gravel, puddles, worn paths, painted in once), 3 per-map mood (sun colour, shadow tint, haze; merge
   with day/night), 4 living structures (moving parts, build-up), 5 bigger blasts (fireball, shockwave, debris, lasting craters),
-  6 steel sidebar skin, 7 storms (looks only; ask the mode if they should affect play), 8 grittier structure colours.
+  6 steel sidebar skin, 7 storms (looks only; ask the mode if they should affect play), 8 grittier structure colours (owner, 2026-11-19: a full structure redesign). 7 and 8 made 2026-11-19, verdict pending (see below).
   Recommended: 1-3 first. All drawing only (except 7 if made to affect play). Owner then picked 4, 5 and 6: made 2026-11-19, video sent, verdict pending (see below).
 - **Made 2026-11-19 (proposal items 1-3, owner's picks; video sent, verdict pending).** All drawing only, both modes; each its own
   switch (`?lookoff=pools`, `dress`, `mood`). Recorder: `tools/look/record-pools.js <repo> <out> <map> <pools|dress|mood> [s] [night|rain]`.
@@ -209,6 +209,48 @@ recorder usage at the top of record.js).
     two rivets, a sheen); steel buttons with corner rivets; a hatched well behind the strips; the credits amber and the clock green
     on the glow of a display. The radar: a frame, scan lines, a slow scan bar, and a burst of green static (about 1.1 s, a rolling band)
     when it comes online. Same buttons, layout and hit areas (only colours, borders, shadows and pseudo-elements change).
+- **Made 2026-11-19 (proposal items 7 and 8; videos sent, verdict pending).** Drawing only, both modes, nothing in G; each its
+  own switch (`?lookoff=storms`, `?lookoff=structs`; keys added to LOOK by their own files). Recorder:
+  `tools/look/record-look2.js <repo> <out> <map> <structs|storms> [s]` (one page; structures swapped per frame by `lookStructs.set`).
+  - **Storms** (`src/lookstorm.js`, `lookStorm`): now and then a storm rolls in on this phone's own clock (real seconds while not
+    paused; not G.t), rolled from G.seed: first after `STORM_FIRST` 70-160 s, then every `STORM_GAP` 160-320 s, lasting
+    `STORM_LEN` 70-110 s, building over `STORM_IN` 16 s and clearing over `STORM_OUT` 20 s. Under the rain: a slate multiply
+    (`STORM_DARK` 0.55 at its height, heavier toward the top of the screen) and a murk. The rain: drawWeather gets a stand-in
+    weather `{ kind, lvl, storm, real }` (art.js weatherLevel returns `w.lvl` when set) at 0.12 + 0.88 x the storm's level, or the
+    battle's own rain if heavier; the battle's own lightning (whose bolts land in the battle, world.js) still runs from G.weather
+    only. Over it, at the height (level above 0.6): a strike every `STORM_BOLT_GAP` 3.5-9 s: a full-scene 'screen' flash
+    (`STORM_FLASH` 0.5, flicker 0.7 s; none with reduced motion, `calmFlash`), a forked bolt from the top of the screen (trunk and
+    1-3 branches, glow and white core, 0.32 s), thunder (the game's 'thunder' sound, 0.3-2.5 s later, panned to the bolt). On
+    snow maps a blizzard instead (heavy snow, pale haze, no lightning). Hooks: ui.js (where drawWeather was called:
+    `lookStorm.weather`, `.dark`, `.flash`), art.js weatherLevel (`w.lvl`) and drawWeather (the stand-in skips its lightning).
+  - **Structures redesigned** (`src/lookstructs.js`; owner: "Let's get away from our toy structures look"). Studied from
+    Tiberian Sun and Red Alert 2 screenshots (nothing copied); the principles: squat, wide and layered (stepped plinth, battered
+    lower walls, set-back storeys, buttresses); real materials (weathered concrete with pour lines and joints, riveted plate,
+    ribbed sheet, tar roofs; grime at the foot, rain streaks under top edges, rust); small detail at the right scale (pipes with
+    flanges, vents, fans, ladders, railings, masts with beacons, floodlights, hazard stripes); the team colour as bands, stripes
+    and plates, not whole roofs; a darker, muted palette with strong form shading; each role readable at a glance.
+    - Stage 1 (done): new models for the Construction Yard, Barracks and War Factory of both sides, and the Allied Power Plant and
+      Ore Refinery (`TS_MODELS`, kit `tsConc`, `tsBatter`, `tsPlinth`, `tsPlate`, `tsRibbed`, `tsBand` (3 voxels, the team colour),
+      `tsRoofStripes`, `tsHazard`, `tsPipeX/Y/Z`, `tsRail`, `tsLadder`, `tsVent`, `tsFan`, `tsMast`, `tsFlood`, `tsWinX/Y`,
+      `tsSandbags`, `tsHipRoof`; palette `TSC`). Every model ends with `tsWeather` (saturation x0.88, darker x0.97, near-white
+      walls x0.86, speckle, mud on the lowest 4 voxels of side faces, rain streaks within 12 below a top edge, rust specks on
+      steel). **Every other structure** (Soviet Power Plant and Refinery, Radar Domes, Advanced Power, Service Depot, Helipad,
+      Airfield, Tech Centre, Outpost, the defences) gets `tsWeather` strong only (saturation x0.8, old white walls x0.74).
+    - Left for the next stages: new models for the Soviet Power Plant and Refinery, then the Radar Domes, Advanced Power Plants,
+      Depot, Helipad, Airfield, Tech Centre, Outpost; the defences last (their heads, models.js HEADS, are separate). Watch the
+      team colour: with the darker grade the bands are smaller than the old roofs (make them wider if sides are hard to tell).
+    - Kept, so other code still fits: ids, footprints, model boxes and hit areas; the yard's crane mast and jib pivot (SPINNERS.cy,
+      CRANE_HOOK; roofs under the hook stay below 28); the War Factory's door opening (x 20-52, y 44-46, z 1-16: factoryDoor);
+      the power plants' and refineries' stack tops (plantStacks: world.js smoke); flag poles (FLAG_SPOTS); the Soviet banner rods
+      (BANNERS); the refinery's truck bay (x 24-44, open to the south).
+    - **For the other look sessions:** window glass is still M_GLASS (structLamps, windowSpill find it: the factories now have
+      glazed saw-tooth steps and slit windows, the yard a slanted control-room band), new masts carry an M_GLOW red beacon at
+      their tops, and the stacks are still the highest points (aliveSpots steam). `STRUCTURES[type]` now goes through
+      lookstructs.js (it checks LOOK.structs on each call); models.js is unchanged. If you add moving parts, read the anchors above.
+    - Baked sprites: the sheets in sprites/ are of the earlier models, so while LOOK.structs is on from the start, baked
+      pictures of structures are refused (lookstructs.js wraps spriteCache2.set and spriteAny.set) and these models are rendered
+      while playing (as on a page opened from a file). Nothing rebaked: models.js is untouched, so `bake-sprites --check` is
+      unaffected. If the look becomes the game: move the models into models.js and rebake.
 - **Craters that dig the ground, made 2026-11-19 (owner: "ground marks depending on the explosion can make craters like in
   Tiberian Sun and actually affect the ground where units can go in them"; owner's picks: **both modes**, units dip and are
   slowed, heavy blasts only; video sent, verdict pending).** A rules change (world.js, terrain height section), on this branch only.
