@@ -1784,7 +1784,7 @@ function addBuilding(type, team, cx, cy) {
   };
   for (let y = cy; y < cy + d.h; y++) for (let x = cx; x < cx + d.w; x++) G.bld[idx(x, y)] = b.id;
   if (d.exit) { b.exitCell = idx(cx + Math.floor(d.w / 2), cy + d.h); G.resv[b.exitCell] = 1; }
-  if (G.tctx && !d.camo) bibDecal(G.tctx, cx * CELL, cy * CELL, d.w * CELL, d.h * CELL, b.id * 977);   // (a camouflaged structure leaves no pad to give it away)
+  if (G.tctx && !d.camo) bibDecal(G.tctx, cx * CELL, cy * CELL, d.w * CELL, d.h * CELL, b.id * 977, b.type);   // (a camouflaged structure leaves no pad to give it away)
   if (G.tctx && d.depot) padDecal(G.tctx, cellX(b.exitCell) * CELL, cellY(b.exitCell) * CELL);
   G.entities.push(b); G.byId.set(b.id, b);
   team.stats.built++;

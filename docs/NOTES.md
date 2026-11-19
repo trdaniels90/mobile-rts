@@ -28,7 +28,13 @@ recorder usage at the top of record.js).
     as a voxel-space picture (columns back to front, rock faces with strata, grassy/mossy tops, snowy on winter maps) sorted in with
     the units (ui.js `cliffItems` / kind 'cliff' / `drawCliff`), and a shadow to the screen's right (`cliffShadow`). Pictures are
     made 9 a frame (`cliffItems`), so they pop in at first: needs warming at battle start before release.
-  - Concrete: `concreteDecal` replaces `bibDecal`'s dirt (art.js hook): 12 px slabs on a world grid with joints, grit, oil stains,
+  - **Ground round structures, redone 2026-11-19 (owner, from a Tiberian Sun screenshot: "I don't see any concrete besides
+    the ore refinery and war factory. Even then they're slabs"):** `concreteDecal` now paints ragged patches of worn ground
+    round every structure (dark wet earth on snow, trodden dirt elsewhere; out to `CON_M` 40 px, edges from a world-position
+    noise so neighbouring patches run together) and a concrete slab only under the Ore Refinery and War Factory
+    (`CON_SLABBED`), exactly the footprint, with a neat edge. bibDecal now takes the structure's type (world.js passes it;
+    older saved marks have none: dirt only). The notes below on the earlier concrete are history.
+  - Concrete (earlier): `concreteDecal` replaces `bibDecal`'s dirt (art.js hook): 12 px slabs on a world grid with joints, grit, oil stains,
     cracks, a full outer ring (owner, 2026-11-19: no missing slabs; was 22% left out) with about a third of its slabs weathered and cracked (`worn`), and a little dirt; every pixel from its world position, so pads and tiles join seamlessly.
 - **Made, video sent 2026-11-19 (owner asked for them; verdict pending):** `LOOK.lamps` and `LOOK.ground`.
   - Lamps (`structLamps`, `drawLamps`, in drawLook): from each structure type's voxel model, red beacons on its 1-2 highest

@@ -750,8 +750,8 @@ function charredLook(img, seed) {
 }
 
 // Worn earth around a structure, like the dirt aprons of classic bases.
-function bibDecal(tg, x, y, w, h, seed) {
-  if (typeof LOOK !== 'undefined' && LOOK.concrete) return concreteDecal(tg, x, y, w, h, seed);   // (look.js prototype, off by default)
+function bibDecal(tg, x, y, w, h, seed, type) {   // type: the structure's (look.js concreteDecal; older marks have none)
+  if (typeof LOOK !== 'undefined' && LOOK.concrete) return concreteDecal(tg, x, y, w, h, seed, type);   // (look.js prototype, off by default)
   const r = rng(seed), M = 9;
   const tones = snowy() ? [[92, 90, 88], [108, 105, 102], [124, 122, 119], [142, 140, 138]] : [[66, 56, 42], [79, 67, 49], [92, 78, 57], [105, 90, 66]];   // winter: trodden slush
   // Worked out as pixels and drawn in one go (a pixel at a time, a large pad took 15 ms on a slow phone).
@@ -1211,7 +1211,7 @@ const MARK_BOX = {
   bakeRagdoll: ([fx]) => [fx.P[6], fx.P[7], 48],
 };
 const markBox = (n, a) => {
-  if (n === 'bibDecal') return [a[0] - 12, a[1] - 12, a[0] + a[2] + 12, a[1] + a[3] + 12];
+  if (n === 'bibDecal') { const m = typeof CON_M !== 'undefined' ? CON_M + 2 : 12; return [a[0] - m, a[1] - m, a[0] + a[2] + m, a[1] + a[3] + m]; }
   if (n === 'rubble') return [a[0] - 12, a[1] - 12, a[0] + a[2] + 12, a[1] + a[3] + 12];
   if (n === 'padDecal') return [a[0] - 2, a[1] - 2, a[0] + CELL + 2, a[1] + CELL + 2];
   const [x, y, r] = MARK_BOX[n](a);

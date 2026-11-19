@@ -385,43 +385,48 @@ function drawCliff(g, e) {
   g.setTransform(m); g.upright = up;
 }
 
-// ---- Concrete under structures ------------------------------------------------------------------------------------
-// In place of bibDecal's trodden dirt: square slabs on a world grid (CON_SLAB px, so neighbouring pads meet without a
-// seam), each its own shade, with dark joints, fine grit, oil stains and the odd crack; past the footprint a ring of
-// slabs, some broken off at the outer edge, then a little scattered dirt. Every pixel depends only on its world
-// position (hash3), so overlapping pads and tile edges match (art.js "The ground in tiles").
-const CON_SLAB = 12, CON_M = 12;
-function concreteDecal(tg, x, y, w, h, seed) {
-  const snow = snowy();
-  const M = CON_M, X0 = x - M - 6, Y0 = y - M - 6, W = w + 2 * M + 12, H = h + 2 * M + 12;
+// ---- Ground round structures (Tiberian Sun style; owner, 2026-11-19, from a Tiberian Sun screenshot) ------------------
+// In place of bibDecal's trodden dirt: ragged patches of worn ground round every structure (dark wet earth on snow maps,
+// trodden dirt elsewhere), reaching out up to CON_M px, their edges cut by a noise of the world position so the patches of
+// neighbouring structures run together. A concrete slab only under the structures trucks and vehicles use (CON_SLABBED:
+// Ore Refinery, War Factory), exactly their footprint, with a neat edge; everything else stands on its own base. Every
+// pixel depends only on its world position (hash3), so overlapping marks and tile edges match (art.js "The ground in tiles").
+// (Before: concrete under every structure with a ring of slabs round it, first with gaps, then whole with cracked edges.)
+const CON_SLAB = 12, CON_M = 40, CON_SLABBED = { refinery: 1, factory: 1 };
+function conNoise(x, y, sc, k) {
+  const fx = x / sc, fy = y / sc, i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j, su = u * u * (3 - 2 * u), sv = v * v * (3 - 2 * v);
+  const a = hash3(i, j, k), b = hash3(i + 1, j, k), c = hash3(i, j + 1, k), d = hash3(i + 1, j + 1, k);
+  return (a + (b - a) * su) * (1 - sv) + (c + (d - c) * su) * sv;
+}
+function concreteDecal(tg, x, y, w, h, seed, type) {
+  const snow = snowy(), M = CON_M, X0 = x - M, Y0 = y - M, W = w + 2 * M, H = h + 2 * M;
+  const slab = !!CON_SLABBED[type];
   const c = mkCanvas(W, H), g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
-  const sx0 = Math.floor((x - M) / CON_SLAB), sy0 = Math.floor((y - M) / CON_SLAB), sx1 = Math.floor((x + w + M - 1) / CON_SLAB), sy1 = Math.floor((y + h + M - 1) / CON_SLAB);
-  const inner = (i, j) => (i + 0.5) * CON_SLAB > x - 2 && (i + 0.5) * CON_SLAB < x + w + 2 && (j + 0.5) * CON_SLAB > y - 2 && (j + 0.5) * CON_SLAB < y + h + 2;
-  const slabOn = (i, j) => i >= sx0 && i <= sx1 && j >= sy0 && j <= sy1;   // every slab laid (owner: no missing slabs; the edge cracked instead)
-  // The ring past the footprint: about a third of its slabs weathered (darker, uneven) and some of those cracked.
-  const worn = (i, j) => !inner(i, j) && hash3(i, j, 31) < 0.34;
-  const base = snow ? 150 : 122;
   for (let py = Y0; py < Y0 + H; py++) for (let px = X0; px < X0 + W; px++) {
-    const q = ((py - Y0) * W + px - X0) * 4, i = Math.floor(px / CON_SLAB), j = Math.floor(py / CON_SLAB);
-    if (!slabOn(i, j)) {   // a little dirt kicked over the ground round the edge
-      const dx = Math.max(x - M - px, 0, px - (x + w + M - 1)), dy = Math.max(y - M - py, 0, py - (y + h + M - 1));
-      if (hash3(px, py, 41) < 0.45 - Math.hypot(dx, dy) * 0.08) { const t = 70 + hash3(px, py, 43) * 30; d[q] = t; d[q + 1] = t * 0.86; d[q + 2] = t * 0.66; d[q + 3] = 255; }
+    const q = ((py - Y0) * W + px - X0) * 4;
+    const inside = px >= x && px < x + w && py >= y && py < y + h;
+    if (slab && inside) {   // the slab: pale slabs with joints, grit, a stain or two, a neat edge
+      const i = Math.floor(px / CON_SLAB), j = Math.floor(py / CON_SLAB), lx = px - i * CON_SLAB, ly = py - j * CON_SLAB;
+      let v = (snow ? 158 : 146) + (hash3(i, j, 33) - 0.5) * 12 + (hash3(px, py, 35) - 0.5) * 8;
+      if (lx === 0 || ly === 0) v -= 22; else if (lx === 1 || ly === 1) v += 5;
+      const st = conNoise(px, py, 7, 37);
+      if (st > 0.72) v -= (st - 0.72) * 90;
+      const e = Math.min(px - x, py - y, x + w - 1 - px, y + h - 1 - py);
+      if (e === 0) v -= 38; else if (e === 1) v += 10;   // the edge: a dark line, a lit lip
+      d[q] = v; d[q + 1] = v; d[q + 2] = v + (snow ? 6 : 3); d[q + 3] = 255;
       continue;
     }
-    const lx = px - i * CON_SLAB, ly = py - j * CON_SLAB;
-    let v = base + (hash3(i, j, 33) - 0.5) * 16 + (hash3(px, py, 35) - 0.5) * 9;   // the slab's shade, grit
-    if (lx === 0 || ly === 0) v -= 26; else if (lx === 1 || ly === 1) v += 6;        // joint, and its lit edge
-    const st = hash3(px >> 2, py >> 2, 37) * 0.5 + hash3(px >> 3, py >> 3, 39) * 0.5;  // oil stains
-    if (st > 0.78) v -= (st - 0.78) * 120;
-    if (hash3(i, j, 45) > 0.86 && Math.abs(lx - ly - (hash3(i, j, 47) - 0.5) * 6) < 0.8) v -= 30;   // a crack across the slab
-    if (worn(i, j)) {
-      v -= 10 + hash3(px >> 1, py >> 1, 49) * 12;                                                     // weathered, blotchy
-      const k = hash3(i, j, 51), u = lx + ly * (k - 0.5) * 1.6 - CON_SLAB / 2 - (hash3(i, j, 53) - 0.5) * 6;
-      if (k > 0.35 && Math.abs(u + Math.sin(ly * 0.9 + k * 9) * 1.2) < 0.7) v -= 34;                   // a crack down it
-      if (k < 0.5 && Math.abs(lx - ly + (hash3(i, j, 55) - 0.5) * 4) < 0.6 && lx > 3) v -= 28;         // and one across a corner
-    }
-    const blue = snow ? 6 : 4;
-    d[q] = v; d[q + 1] = v + 1; d[q + 2] = v + blue; d[q + 3] = 255;
+    // Worn ground: out from the footprint as far as the noise lets it.
+    const dx = Math.max(x - px, 0, px - (x + w - 1)), dy = Math.max(y - py, 0, py - (y + h - 1)), dist = Math.hypot(dx, dy);
+    const n = conNoise(px, py, 22, 61) * 0.65 + conNoise(px, py, 8, 63) * 0.35;
+    const reach = M * (0.2 + 0.85 * n);
+    if (dist > reach) continue;
+    const edge = Math.min(1, (reach - dist) / 6), f = conNoise(px, py, 3, 65), grain = hash3(px, py, 67);
+    if (edge < 1 && grain > edge + 0.15) continue;   // a ragged edge
+    let r, gg, b;
+    if (snow) { const t = 62 + f * 22 + grain * 8; r = t; gg = t - 1; b = t + 2; if (grain > 0.93) { r += 60; gg += 62; b += 66; } }   // dark wet earth, flecks of snow
+    else { const t = 58 + f * 22 + grain * 8; r = t; gg = t * 0.86; b = t * 0.66; if (grain > 0.95) { r = gg = b = 96; } }          // trodden earth, pebbles
+    d[q] = r; d[q + 1] = gg; d[q + 2] = b; d[q + 3] = 255;
   }
   g.putImageData(img, 0, 0);
   tg.drawImage(c, X0, Y0);
