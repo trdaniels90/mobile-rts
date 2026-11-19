@@ -82,6 +82,7 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
   }
   ensureWalls();
   genMap(seed);
+  G.hgt = makeHeights(G.mapId);   // hills: the height of the ground (Tiberian Sun look test, with high-ground rules)
   // The ground, painted in tiles as it is looked at, and the marks of battle (art.js makeGround): G.tctx is
   // the ground's layer, G.dctx the layer of bodies and wrecks above it, so later craters and scorch marks
   // never paint over them.
@@ -160,6 +161,62 @@ function spawnPoints(mapId) {
   if (MAPS[mapId] && MAPS[mapId].rows) return MAPS[mapId].spawns.map(([cx, cy]) => ({ cx, cy }));
   const half = SPAWNS_HALF.map((s) => ({ cx: Math.round(s.at[0] * S96), cy: Math.round(s.at[1] * S96) }));
   return half.concat(half.map((s) => ({ cx: MAP - 1 - s.cx, cy: MAP - 1 - s.cy })));
+}
+
+// ---- Terrain height (Tiberian Sun look test: "Height with rules", both modes; docs/NOTES.md "Tiberian Sun look") ----
+// G.hgt: the ground's height at every cell's middle, in world pixels (0 to HG_MAX), the same on every copy of the battle
+// (the server's and every phone's): worked out from the map's own layout and its ground seed, never at random. Rolling hills
+// from two layers of smooth noise, flat low ground near water (so shores, bridges and fords stay level) and level ground
+// round every start position (a base needs flat ground), at that spot's own height. Cliffs keep their own (they block).
+// hgtAt(x, y): the height anywhere, between cell middles smoothly. Rules (all here, so online copies agree):
+//  - sight: +HG_SIGHT cells at the top of a hill (revealAround);
+//  - reach: firing down from high ground reaches up to HG_DOWN further, up a hill up to HG_UP less (distTo);
+//  - speed: up a slope slower, down it a little faster (slopeMul in followPath and slideOut).
+const HG_MAX = 30, HG_SIGHT = 2, HG_DOWN = 0.2, HG_UP = 0.1;
+function makeHeights(mapId) {
+  const h = new Float32Array(NCELLS), seed = MAPS[validMap(mapId)].rows ? 0x2b1d5eed : G.seed;
+  const hash = (i, j, k) => { let v = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(k + seed, 1442695041); v = Math.imul(v ^ (v >>> 13), 1274126177); return ((v ^ (v >>> 16)) >>> 0) / 4294967296; };
+  const S = (a) => a * a * (3 - 2 * a);
+  const vn = (x, y, sc, k) => { const fx = x / sc, fy = y / sc, i = Math.floor(fx), j = Math.floor(fy), u = S(fx - i), v = S(fy - j);
+    const a = hash(i, j, k), b = hash(i + 1, j, k), c = hash(i, j + 1, k), d = hash(i + 1, j + 1, k);
+    return (a + (b - a) * u) * (1 - v) + (c + (d - c) * u) * v; };
+  // How far each cell is from water (in cells, up to 6).
+  const wd = new Uint8Array(NCELLS).fill(255), q = [];
+  for (let c = 0; c < NCELLS; c++) if (G.terr[c] >= 4) { wd[c] = 0; q.push(c); }
+  for (let i = 0; i < q.length; i++) {
+    const c = q[i], x = c % MAP, y = (c / MAP) | 0;
+    if (wd[c] >= 6) continue;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= MAP || ny >= MAP) continue; const n = ny * MAP + nx; if (wd[n] === 255) { wd[n] = wd[c] + 1; q.push(n); } }
+  }
+  const raw = (x, y) => { const n = vn(x, y, 16, 1) * 0.65 + vn(x, y, 7, 2) * 0.35; return HG_MAX * S(Math.max(0, Math.min(1, (n - 0.42) / 0.38))); };
+  const flat = (G.spawns || []).map((p) => [p.cx + 0.5, p.cy + 0.5, 0]);   // every base on level low ground: no side starts with the high ground
+  for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
+    const c = y * MAP + x;
+    let v = raw(x + 0.5, y + 0.5);
+    for (const [fx, fy, fh] of flat) { const d = Math.hypot(x + 0.5 - fx, y + 0.5 - fy); if (d < 13) { const k = S(Math.max(0, Math.min(1, (d - 8) / 5))); v = fh + (v - fh) * k; } }
+    v *= S(Math.min(1, (wd[c] === 255 ? 6 : wd[c]) / 5));   // down to the water's edge
+    h[c] = G.terr[c] >= 4 ? 0 : v;
+  }
+  return h;
+}
+function hgtAt(x, y) {
+  const H = G.hgt;
+  if (!H) return 0;
+  const fx = Math.max(0, Math.min(MAP - 1.001, x / CELL - 0.5)), fy = Math.max(0, Math.min(MAP - 1.001, y / CELL - 0.5));
+  const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, x1 = Math.min(MAP - 1, x0 + 1), y1 = Math.min(MAP - 1, y0 + 1);
+  const a = H[y0 * MAP + x0], b = H[y0 * MAP + x1], c = H[y1 * MAP + x0], d = H[y1 * MAP + x1];
+  return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+}
+// The ground height a unit or structure stands on (aircraft in the air: none of these rules).
+function standH(e) {
+  if (!G.hgt || !e || e.x === undefined || (e.kind === 'unit' && isAirborne(e))) return null;
+  return e.kind === 'bld' ? hgtAt((e.cx + e.w / 2) * CELL, (e.cy + e.h / 2) * CELL) : hgtAt(e.x, e.y);
+}
+// Moving along (mx, my) from (x, y): uphill slower (to 65%), downhill a little faster (to 112%).
+function slopeMul(x, y, mx, my) {
+  if (!G.hgt) return 1;
+  const sl = (hgtAt(x + mx * 8, y + my * 8) - hgtAt(x, y)) / 8;
+  return Math.max(0.65, Math.min(1.12, 1 - sl * 2.2));
 }
 
 function genMap(seed) {
@@ -1691,6 +1748,7 @@ function followPath(u, dt) {
     if (Math.abs(diff) > 0.8) speed = 0; else speed *= Math.max(0.3, Math.cos(diff));
     mx = Math.cos(u.face); my = Math.sin(u.face);
   } else { u.face = want; mx = dx / d; my = dy / d; }
+  speed *= slopeMul(u.x, u.y, mx, my);   // up a hill slower, down it faster
   const step = Math.min(speed * dt, d);
   if (step > 0 && tryMove(u, mx * step, my * step)) { u.anim += step; u.moving = true; }
   return false;
@@ -1757,12 +1815,18 @@ const unitsOf = (tid) => G.entities.filter((e) => e.alive && e.kind === 'unit' &
 const isAirborne = (e) => e.cls === 'air' && e.as !== 'landed';
 
 function distTo(a, e) {
+  let d;
   if (e.kind === 'bld' || e.kind === 'span' || e.kind === 'house') {
     const x0 = e.cx * CELL, y0 = e.cy * CELL;
     const dx = Math.max(x0 - a.x, 0, a.x - (x0 + e.w * CELL)), dy = Math.max(y0 - a.y, 0, a.y - (y0 + e.h * CELL));
-    return Math.hypot(dx, dy);
+    d = Math.hypot(dx, dy);
+  } else d = Math.max(0, Math.hypot(a.x - e.x, a.y - e.y) - (e.def.r || 0) * 0.5);
+  // High ground: from above, as if nearer (a gun reaches further down a hill); from below, as if further.
+  if (G.hgt && a.kind && (a.kind === 'unit' || a.kind === 'bld') && (e.kind === 'unit' || e.kind === 'bld')) {
+    const ha = standH(a), he = standH(e);
+    if (ha !== null && he !== null) { const r = Math.max(-1, Math.min(1, (ha - he) / HG_MAX)); d /= r > 0 ? 1 + HG_DOWN * r : 1 + HG_UP * r; }
   }
-  return Math.max(0, Math.hypot(a.x - e.x, a.y - e.y) - (e.def.r || 0) * 0.5);
+  return d;
 }
 
 const isTank = (t) => t.kind === 'unit' && t.def.draw === 'tank';
@@ -3832,6 +3896,7 @@ function slideOut(u, t, w, dt) {
   let speed = u.def.speed * VET.speed[u.rank || 0] * (u.cls === 'inf' && u.stance === 'prone' ? CRAWL_SPEED : 1);
   if (u.cls === 'veh') { u.face = turnToward(u.face, want, u.def.turn * dt); speed *= Math.max(0, Math.cos(angDiff(want, u.face))); }
   else u.face = want;
+  speed *= slopeMul(u.x, u.y, Math.cos(u.cls === 'veh' ? u.face : want), Math.sin(u.cls === 'veh' ? u.face : want));
   const step = Math.min(speed * dt, d);
   if (step > 0 && tryMove(u, Math.cos(u.cls === 'veh' ? u.face : want) * step, Math.sin(u.cls === 'veh' ? u.face : want) * step)) { u.anim += step; u.moving = true; }
   return true;
@@ -5459,7 +5524,9 @@ function updatePower() {
 function revealAround() {
   for (const e of G.entities) {
     if (!e.alive || (e.def && e.def.scripted)) continue;   // support planes reveal nothing on the way (see damage)
-    const rad = e.kind === 'bld' ? (e.def.sight || 3) + Math.max(e.w, e.h) / 2 : e.def.sight;
+    let rad = e.kind === 'bld' ? (e.def.sight || 3) + Math.max(e.w, e.h) / 2 : e.def.sight;
+    const sh = G.hgt ? standH(e) : null;
+    if (sh) rad += HG_SIGHT * sh / HG_MAX;   // from a hilltop, further
     revealCircle(e.x / CELL, e.y / CELL, rad, G.fog[e.team]);
   }
 }

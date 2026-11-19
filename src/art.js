@@ -89,7 +89,7 @@ const GRASS_TILE_N = 128;
 // ground workers (groundWorkers); everything it uses must be listed there. Every pixel depends only on where it is.
 // The whole-map preparation (noise, cliff cells) is done once, at the first call.
 // theme: 'snow' paints winter: snow for grass, slush for dirt, icy shores, cold water, snowy ridges.
-function groundPixels(terr, seed, roads, cliffs, fords, theme) {
+function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt) {
   const snow = theme === 'snow';
   // A 256-colour era look: a handful of tones per surface, picked with dithered noise.
   // Winter: snow in cold blue shades, the tracks trodden to grey slush, frosted stony shores, dark icy water.
@@ -194,6 +194,11 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme) {
           col = pickTone(SANDS, (wv - 0.36) * 4 + (sp - 0.5) * 0.7);
           if (sp > 0.93) col = snow ? [96, 98, 104] : [92, 86, 74];            // pebbles
         }
+        if (hgt && !(wv > 0.5)) {   // hills (look test): slopes toward the sun (the screen's upper left) lit, the others shaded
+          const h0 = bil(hgt, fx, fy), gx = (bil(hgt, fx + 0.25, fy) - bil(hgt, fx - 0.25, fy)) / (CELL * 0.5), gy = (bil(hgt, fx, fy + 0.25) - bil(hgt, fx, fy - 0.25)) / (CELL * 0.5);
+          const k = (1 + Math.max(-0.45, Math.min(0.4, (gx * 0.937 - gy * 0.351) * 4.2))) * (1 + h0 * 0.005);
+          col = [col[0] * k, col[1] * k, col[2] * k];
+        }
         d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2]; d[p + 3] = 255;
       }
     }
@@ -270,6 +275,7 @@ function groundKey(g) {
   const str = (t) => { for (let i = 0; i < t.length; i++) num(t.charCodeAt(i)); };
   str(JSON.stringify(['live-trees', validMap(g.mapId), MAP, CELL, GROUND_TILE, GROUND_SHEET, groundSeed(g), mapTheme(g.mapId), MAPS[validMap(g.mapId)].bridge || '', g.bridges || []]));
   for (const a of [g.terr, g.road, g.cliff, g.ford]) { num(a ? a.length : -1); if (a) for (let i = 0; i < a.length; i++) num(a[i]); }
+  if (g.hgt) for (let i = 0; i < g.hgt.length; i++) num(Math.round(g.hgt[i] * 16));   // (the hills: look test)
   return (h >>> 0).toString(16);
 }
 
@@ -278,8 +284,8 @@ function groundKey(g) {
 // where it is, so parts painted one by one fit together exactly (the ground tiles, makeGround). The scenery and
 // bridges are prepared once, at the first paint. args: groundPixels' arguments (for the workers).
 // bridgeKind: 'concrete', or timber when not given (`bridge` in MAPS).
-function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind) {
-  const snow = theme === 'snow', px = groundPixels(terr, seed, roads, cliffs, fords, theme);
+function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind, hgt) {
+  const snow = theme === 'snow', px = groundPixels(terr, seed, roads, cliffs, fords, theme, hgt);
   let P = null;   // scenery stamps and bridge pictures
   function prepare() {
     buildScenery();
@@ -373,7 +379,7 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
     g.putImageData(img, ox, oy);
     decorate(g, X0, Y0, w, h, ox, oy);
   }
-  return { paint, decorate, trees: () => { if (!P) prepare(); return P.trees; }, args: [terr, seed, roads, cliffs, fords, theme] };
+  return { paint, decorate, trees: () => { if (!P) prepare(); return P.trees; }, args: [terr, seed, roads, cliffs, fords, theme, hgt] };
 }
 // Wheel ruts along the roads, worked out pixel by pixel (not stroked on the canvas, whose smoothing differs with
 // where a picture's edge falls) so they run on unbroken across the ground's tiles. Each rut darkens or lightens a
@@ -448,9 +454,9 @@ function concreteBridge(g, L, bw, seed, snow) {
 }
 
 // The whole ground in one picture (tests and tools; the game paints it in tiles, makeGround).
-function paintTerrain(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind) {
+function paintTerrain(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind, hgt = typeof G !== 'undefined' && G ? G.hgt : null) {
   const c = mkCanvas(WORLD, WORLD);
-  groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind).paint(c.getContext('2d'), 0, 0, WORLD, WORLD);
+  groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind, hgt).paint(c.getContext('2d'), 0, 0, WORLD, WORLD);
   return c;
 }
 
@@ -1620,7 +1626,7 @@ function newGround(g, legacy) {
   g.tctx = GROUND_LAYER; g.dctx = DECAL_LAYER;
   const id = validMap(g.mapId), man = GroundSheets.manifest, bm = GroundSheets.ok() && man && man.maps && man.maps[id];
   const baked = bm && bm.key === groundKey(g) ? { dir: 'grounds/' + id + '/' } : null;
-  const painter = groundPainter(g.terr, groundSeed(g), g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[id].bridge);
+  const painter = groundPainter(g.terr, groundSeed(g), g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[id].bridge, g.hgt);
   g.ground = makeGround(painter, legacy, baked);
   g.ground.baked = !!baked;
   // The trees, drawn live over the ground (treesInView, drawTree); an old save's ground pictures have them painted in.
@@ -2513,7 +2519,7 @@ function spanRuin(s) {
   const g = c.getContext('2d');
   const terr = G.terr.slice();
   for (const k of s.cells) terr[k] = 4;
-  const painter = (bridges) => groundPainter(terr, groundSeed(G), G.road, bridges, G.cliff, G.ford, mapTheme(G.mapId), m.bridge);
+  const painter = (bridges) => groundPainter(terr, groundSeed(G), G.road, bridges, G.cliff, G.ford, mapTheme(G.mapId), m.bridge, G.hgt);
   g.save();
   g.beginPath();
   for (const k of s.cells) g.rect(cellX(k) * CELL - X0 - M, cellY(k) * CELL - Y0 - M, CELL + 2 * M, CELL + 2 * M);

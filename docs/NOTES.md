@@ -65,6 +65,20 @@ recorder usage at the top of record.js).
   5 / 2.5 puffs a second per spot (was 7 / 3.5), fires' puffs 0.3, craters' 0.22.
 - **Tank turret fix (main game, 2026-11-19, on both branches, not released):** see the commit "Fix: a tank's turret slipped a
   pixel" (art.js `blit`): hull and turret were rounded to pixels separately, twice, so the turret wobbled on the hull.
+- **Terrain height, stage 1 of 3 (2026-11-19; owner's picks: "Height with rules", **both modes**, on the existing maps):**
+  - world.js `makeHeights` -> `G.hgt` (cell middles, world px 0..`HG_MAX` 30): two layers of smooth noise from the map's ground
+    seed (fixed maps: always the same hills), down to 0 within 5 cells of water, and level low ground (0) within 8-13 cells of
+    every start position (fair: no base on a hill). Same on the server and every phone (online games call newWorld with the
+    seed and map). `hgtAt`, `standH` (none for aircraft in the air), `slopeMul`.
+  - Rules: `distTo` divides the distance by 1 + `HG_DOWN` (0.2) x height difference / 30 when the first is higher, 1 - `HG_UP`
+    (0.1) x ... when lower (so reach, acquiring, AI distances all follow; measured 135 px -> 113 down, 150 up); sight +`HG_SIGHT`
+    (2) cells at the top (`revealAround`); speed x `slopeMul` (65% to 112%; 81% up a typical hillside) in followPath and slideOut.
+  - Looks, for now: hill shading painted into the ground (art.js groundPixels `hgt`, also in the workers and `groundKey`): slopes
+    toward the sun lit, the others shaded. Grounds rebaked. Units are NOT drawn raised yet.
+  - **Stage 2 (next):** the ground drawn raised (a view-space ground: tiles warped by height, like the cliffs' column renderer),
+    and everything on it (units, structures, ore, fog, marks, trees, water, tracks, placement) at its height. **Stage 3:** the AI
+    using high ground; a game server for the look branch (online testing); balance with the owner.
+  - Checked: teams.js 1v1 river 4 min, no errors.
 - **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size
