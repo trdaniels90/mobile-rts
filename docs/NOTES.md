@@ -307,6 +307,16 @@ recorder usage at the top of record.js).
   weather for A Bridge Too Far and Twin Lakes (none now), and a skirmish "Conditions" choice (time, weather). Kept as is: weather
   per map (rain 50% on Three Crossings, Lakeside, Village; snow 50% Snowbound, 60% Frostlight; none on A Bridge Too Far, Twin Lakes),
   day and night only on Crossroads Village and Frostlight Valley, mood per map, storms on rain maps, fog on Village.
+- **Real-time lighting demo (WebGL), 2026-11-19 (owner: "show me a video example of how real time lighting would work ... if
+  we went with webgl"; a demo only, nothing in the game changed):** `tools/look/webgl-light.html` (loads the game's data, voxel,
+  models and art scripts) and `tools/look/record-webgl.js` (frames; needs Chromium's SwiftShader WebGL flags, in the script).
+  Top half: the game's way now (renderVox sprites lit once by the fixed sun, a multiply darkness and 'lighter' glows). Bottom:
+  a G-buffer per pixel from the same voxel models (`gbuf`: renderVox's projection, keeping each pixel's colour, material,
+  turned normal, 3D position and occlusion), lit every frame by a WebGL2 shader: ambient and the sun by the day level, the
+  sprites' cast shadows as a sun mask on the ground, up to 6 point lights (a flickering fire, a flare circling the factory,
+  three blasts) with distance fall-off and facing, metal highlights, glowing parts. Not shown: shadows cast by the point lights.
+  For the game this would mean: sprites baked as colour + normal + height pictures (about 3x the sprite memory), the view
+  drawn through WebGL instead of 2D canvas (a large rewrite of art.js/ui.js drawing), and its cost measured on a phone.
 - **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size
