@@ -237,12 +237,12 @@ function lookFxGround(g, x0, y0, x1, y1) {
   const S = lookFxS, up = g.upright, sm = g.imageSmoothingEnabled, on = (x, y, m) => x > x0 - m && x < x1 + m && y > y0 - m && y < y1 + m + 60;
   g.upright = false; g.imageSmoothingEnabled = true;
   for (const m of S.scorch) {
-    if (!on(m.x, m.y, m.R)) continue;
+    if (!LOOK.blasts || !on(m.x, m.y, m.R)) continue;
     const k = m.t / m.life, a = 0.8 * Math.min(1, m.t / 0.3) * (k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4);
     onHill(g, m.x, m.y, () => { g.save(); g.translate(m.x, m.y); g.rotate(m.a); g.globalAlpha = a; g.drawImage(S.pics.scorch, -m.R, -m.R, m.R * 2, m.R * 2); g.restore(); });
   }
   for (const w of S.rings) {
-    if (!on(w.x, w.y, w.R1)) continue;
+    if (!(w.dust ? LOOK.alive : LOOK.blasts) || !on(w.x, w.y, w.R1)) continue;
     const k = w.t / w.life, e = 1 - Math.pow(1 - k, 2.2), R = w.R0 + (w.R1 - w.R0) * e;
     onHill(g, w.x, w.y, () => {
       g.beginPath(); g.ellipse(w.x, w.y, R, R, 0, 0, Math.PI * 2);
@@ -257,20 +257,20 @@ function lookFxGround(g, x0, y0, x1, y1) {
 function lookFxOver(g) {
   if (!G || !lookFxS || lookFxS.g !== G) return;
   const S = lookFxS, up = g.upright; g.upright = true; g.imageSmoothingEnabled = true;
-  for (const p of S.steam) {
+  if (LOOK.alive) for (const p of S.steam) {
     const age = p.t / p.life, R = p.r0 + (p.r1 - p.r0) * Math.sqrt(age), a = p.a * Math.min(1, p.t / 0.2) * (1 - age);
     if (a < 0.01) continue;
     const [wx, wy] = liftPt(p.x, p.y, p.h);
     g.globalAlpha = a; g.drawImage(p.dust ? S.pics.dust : S.pics.steam, wx - R, wy - R, R * 2, R * 2);
   }
   // Fireballs: soot under, flame over. Drawn normally (not added), so many at once stay fire-coloured, never white.
-  for (const p of S.parts) {
+  if (LOOK.blasts) for (const p of S.parts) {
     if (p.k !== 'ball' || p.t < 0) continue;
     const k = p.t / p.life, R = p.R0 + (p.R1 - p.R0) * Math.sqrt(k), [wx, wy] = liftPt(p.x, p.y, p.h);
     if (k > 0.35) { g.globalAlpha = Math.min(1, (k - 0.35) * 3) * (1 - k) * 0.9; g.drawImage(S.pics.soot, wx - R * 1.1, wy - R * 1.1, R * 2.2, R * 2.2); }
     if (k < 0.75) { const f = 1 - k / 0.75; g.globalAlpha = f; g.drawImage(k < 0.25 ? S.pics.hot : S.pics.fire, wx - R, wy - R, R * 2, R * 2); }
   }
-  for (const d of S.debris) {
+  if (LOOK.blasts) for (const d of S.debris) {
     const [wx, wy] = liftPt(d.x, d.y, d.h), fade = Math.min(1, (d.life - d.t) / 0.5);
     const hot = d.hot && d.t < 0.9;
     g.globalAlpha = fade; g.fillStyle = hot ? (d.t < 0.45 ? '#ffd27a' : '#e0702a') : '#26221e';
@@ -279,7 +279,7 @@ function lookFxOver(g) {
   // The flash at the heart, added: bright but short, and each one on its own.
   g.globalCompositeOperation = 'lighter';
   for (const p of S.parts) {
-    if (p.k !== 'core') continue;
+    if (p.k !== 'core' || !LOOK.blasts) continue;
     const k = p.t / p.life, [wx, wy] = liftPt(p.x, p.y, p.h), R = p.R * (0.7 + 0.5 * k);
     g.globalAlpha = 0.75 * (1 - k); g.drawImage(S.pics.core, wx - R, wy - R, R * 2, R * 2);
   }
