@@ -553,16 +553,37 @@ function crater(tg, x, y, rad, seed) {
   oval(x + rad * 0.2, y + ry * 0.08, rad * 0.48, ry * 0.44, 'rgba(84,67,48,0.5)');
   oval(x - rad * 0.06, y, rad * 0.36, ry * 0.3, 'rgba(16,12,8,0.6)');
 }
-// A burnt-out wreck painted into the ground, so it stays for the rest of the battle.
+// Painted into the ground so that on screen it looks just as it did standing on the battle view (iso view): fn draws
+// as on the view (sprites, pixels and lines upright at their spots, uprightCtx) into a scratch picture seen through the
+// view's turn and squash, and that picture goes into the ground through the inverse, which the ground's own transform
+// undoes. Before, a wreck was rendered flat from straight above and a body's pixels and a turret's picture were laid
+// in world coordinates, so on the turned, squashed ground they showed as dark slabs and smears.
+// R: half the scratch picture's size, in screen pixels (the world box it can reach is about R / VIEW.F each way).
+let standPic = null;
+function standOnGround(tg, x, y, R, fn) {
+  const S = 2 * R;
+  if (!standPic || standPic.width < S) standPic = mkCanvas(S, S);
+  const g = uprightCtx(standPic.getContext('2d')), c = VIEW.c, s = VIEW.s, F = VIEW.F;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, standPic.width, standPic.height);
+  g.setTransform(c, s * F, -s, c * F, R - (c * x - s * y), R - (s * F * x + c * F * y));
+  g.upright = true;
+  try { fn(g); } finally { g.upright = false; g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.setTransform(1, 0, 0, 1, 0, 0); }
+  tg.save();
+  tg.translate(x, y); tg.transform(c, -s, s / F, c / F, 0, 0);
+  tg.imageSmoothingEnabled = false;   // (restored with the rest)
+  tg.drawImage(standPic, 0, 0, S, S, -R, -R, S, S);
+  tg.restore();
+}
+// A burnt-out wreck painted into the ground, so it stays for the rest of the battle: the burning hull as it stood (drawHusk).
 // seed: the char pattern (given by the marks list, so a tile painted again shows the same wreck).
 function bakeWreck(tg, x, y, def, face, tface, noTurret, seed = (Math.random() * 1e6) | 0) {
   const fake = { def, face, tface, load: 0 };
-  FLAT_PASS = true;   // (lying in the ground, which is turned and squashed with it: voxel.js)
-  let hs, ts;
-  try { hs = hullSprite(fake, BURNT); ts = !noTurret && turretSprite(fake, BURNT); } finally { FLAT_PASS = false; }
-  if (hs.sh) { tg.globalAlpha = 0.45; tg.drawImage(hs.sh, Math.round(x + hs.sox), Math.round(y + hs.soy)); tg.globalAlpha = 1; }
-  tg.drawImage(charred(hs.img, seed), Math.round(x + hs.ox), Math.round(y + hs.oy));
-  if (ts) tg.drawImage(charred(ts.img, seed + 1), Math.round(x + ts.ox), Math.round(y - turretZ(def) * FLAT_VK + ts.oy));
+  const hs = hullSprite(fake, BURNT), ts = !noTurret && turretSprite(fake, BURNT);
+  standOnGround(tg, x, y, 48, (g) => {
+    if (hs.sh) { g.globalAlpha = 0.45; g.drawImage(hs.sh, Math.round(x + hs.sox), Math.round(y + hs.soy)); g.globalAlpha = 1; }
+    g.drawImage(charred(hs.img, seed), Math.round(x + hs.ox), Math.round(y + hs.oy));
+    if (ts) { const [tx, ty] = liftPt(x, y, turretZ(def) * VK); g.drawImage(charred(ts.img, seed + 1), Math.round(tx + ts.ox), Math.round(ty + ts.oy)); }
+  });
 }
 // A turret blown off by a cook-off, charred, at its height above the ground and turned by rot.
 function turretImg(fx) {
@@ -579,7 +600,7 @@ function drawTurretAt(g, fx, z) {
 function bakeTurret(tg, fx) {
   tg.fillStyle = 'rgba(0,0,0,0.35)';
   tg.beginPath(); tg.ellipse(fx.x + 2, fx.y + 1, 9, 4, 0, 0, 7); tg.fill();
-  drawTurretAt(tg, fx, 0);
+  standOnGround(tg, fx.x, fx.y, 24, (g) => drawTurretAt(g, fx, 0));
 }
 // A fallen soldier: the unit's own sprite tipped onto its side, a shade darker, over a dark stain.
 function bakeCorpse(tg, u, seed, angle) {
@@ -662,12 +683,12 @@ function bakeRagdoll(tg, fx) {
     tg.fillStyle = 'rgba(20,16,12,0.45)';
     tg.beginPath(); tg.ellipse((P[3] + P[6]) / 2, (P[4] + P[7]) / 2 + 1, 5, 3, Math.atan2(P[4] - P[7], P[3] - P[6]), 0, 7); tg.fill();
   }
-  const c = mkCanvas(R * 2, R * 2), g = c.getContext('2d');
-  g.translate(R - cx, R - cy); drawRagBody(g, fx);
-  g.setTransform(1, 0, 0, 1, 0, 0);
-  g.globalCompositeOperation = 'source-atop';
-  g.fillStyle = 'rgba(20,16,12,0.28)'; g.fillRect(0, 0, R * 2, R * 2);
-  tg.drawImage(c, cx - R, cy - R);
+  standOnGround(tg, cx, cy, R, (g) => {   // the body as it lay on the view (drawEffect 'ragdoll'), a shade dimmer
+    drawRagBody(g, fx);
+    g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = 'rgba(20,16,12,0.28)'; g.fillRect(0, 0, R * 2, R * 2);
+  });
 }
 function dimmed(img) {
   const c = mkCanvas(img.width, img.height), g = c.getContext('2d');
@@ -689,6 +710,7 @@ function charred(img, seed) {
 }
 function charredLook(img, seed) {
   const r = rng(seed), c = mkCanvas(img.width, img.height), g = c.getContext('2d');
+  c._ox = img._ox; c._oy = img._oy;   // (still a sprite to uprightCtx)
   g.drawImage(img, 0, 0);
   g.globalCompositeOperation = 'source-atop';
   g.fillStyle = 'rgba(22,18,14,0.62)'; g.fillRect(0, 0, c.width, c.height);
@@ -1040,7 +1062,9 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
 // The paratrooper transports too: the C-130's straight wing (tips 24 out, level with the wing root) and the Il-76's swept,
 // drooping wing (tips well back and lower), each with its fin top (the Il-76's T-tail).
 const PLANE_LIGHTS = { b1: { tip: [-13.5, 17.5, 4.5], tail: [-20, 12.5], top: [-2, 7.4] }, tu22: { tip: [-11.5, 17.5, 5.5], tail: [-20, 14.5], top: [-2, 7.4] },
-  c130: { tip: [1.5, 24, 8.5], tail: [-19.5, 15], top: [-6, 8] }, il76: { tip: [-8.5, 25, 6.5], tail: [-21, 16.5], top: [-6, 8.2] } };
+  c130: { tip: [1.5, 24, 8.5], tail: [-19.5, 15], top: [-6, 8] }, il76: { tip: [-8.5, 25, 6.5], tail: [-21, 16.5], top: [-6, 8.2] },
+  a50: { tip: [-8.5, 25, 6.5], tail: [-21, 16.5], top: [5, 7.9] },   // the A-50's beacon is forward of its rotodome (which covers x -15 to -1)
+  sr71: { tip: [-13.5, 10.5, 3.5], tail: [-17.5, 4], top: [1, 4.8] } };
 function navLights(g, vx, vy, k, t, night, near, vis) {
   const pts = [];
   for (const u of G.entities) {
@@ -1052,9 +1076,9 @@ function navLights(g, vx, vy, k, t, night, near, vis) {
       put(at(-r * 1.5, 0, 3), '255,250,235', 0.85, 2.5);                                    // tail light
       put(at(-1, 0, 12 * VK), '255,40,30', ph < 0.45 ? 1 : 0.15, 4.5);                     // beacon over the cabin
       put(at(1, -r * 0.55, 3), '255,40,30', 0.75, 2.2); put(at(1, r * 0.55, 3), '60,255,90', 0.75, 2.2);
-    } else if (u.def.type === 'bomber' || u.def.type === 'transport' || (u.def.type === 'spyplane' && u.faction === 'soviets')) {
-      // Spots from each plane's own model (b1Model, tu22Model, c130Model, il76Model; voxels, heights x VK).
-      const al = u.faction === 'allies', P = PLANE_LIGHTS[u.def.type === 'bomber' ? (al ? 'b1' : 'tu22') : (al ? 'c130' : 'il76')];
+    } else if (u.def.type === 'bomber' || u.def.type === 'transport' || u.def.type === 'spyplane') {
+      // Spots from each plane's own model (b1Model, tu22Model, c130Model, il76Model and the A-50; voxels, heights x VK).
+      const al = u.faction === 'allies', P = PLANE_LIGHTS[u.def.type === 'bomber' ? (al ? 'b1' : 'tu22') : u.def.type === 'spyplane' ? (al ? 'sr71' : 'a50') : (al ? 'c130' : 'il76')];
       put(at(P.tip[0], -P.tip[1], P.tip[2] * VK), '255,40,30', 0.9, 2.6); put(at(P.tip[0], P.tip[1], P.tip[2] * VK), '60,255,90', 0.9, 2.6);
       put(at(P.tail[0], 0, P.tail[1] * VK), '255,255,255', ph < 0.06 || (ph > 0.16 && ph < 0.22) ? 1 : 0, 6);
       put(at(P.top[0], 0, P.top[1] * VK), '255,40,30', 0.5 + 0.5 * Math.sin((t + u.id) * 6.3), 3.5);
@@ -2845,8 +2869,8 @@ function makeCameo(type, faction, key) {
   let mdl, angle = -0.55, scale;
   const power = type.startsWith('pw:') && type.slice(3);
   if (power) {
-    mdl = power === 'spy' ? (faction === 'soviets' ? il76Model(pal, true) : jetModel(pal, false)) : power === 'para' ? (faction === 'allies' ? c130Model(pal) : il76Model(pal)) : power === 'bomb' ? (faction === 'allies' ? b1Model(pal) : tu22Model(pal)) : power === 'cas' ? (faction === 'allies' ? a10Model(pal) : su25Model(pal)) : cargoModel(pal, power === 'bomb');
-    scale = power === 'spy' ? (faction === 'soviets' ? 1.05 : 1.6) : power === 'cas' ? 1.4 : 1.05;
+    mdl = power === 'spy' ? (faction === 'soviets' ? il76Model(pal, true) : sr71Model(pal)) : power === 'para' ? (faction === 'allies' ? c130Model(pal) : il76Model(pal)) : power === 'bomb' ? (faction === 'allies' ? b1Model(pal) : tu22Model(pal)) : power === 'cas' ? (faction === 'allies' ? a10Model(pal) : su25Model(pal)) : cargoModel(pal, power === 'bomb');
+    scale = power === 'spy' ? (faction === 'soviets' ? 1.05 : 1.3) : power === 'cas' ? 1.4 : 1.05;
   } else if (BUILD_DEFS[type]) {
     mdl = STRUCTURES[type](pal, faction, true);
     angle = 0;
