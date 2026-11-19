@@ -935,41 +935,54 @@ function haloModel(pal) {
   m.paint(-14, -6, 1, 16, 6, 11, (x, y, z, c) => (c === rgbInt(body) && hash3(x >> 2, (y + 8) >> 2, z >> 2) > 0.66 ? shadeInt(body, 0.74) : undefined));   // camouflage
   return m;
 }
-// The Allied Spy Plane, after the Lockheed SR-71 Blackbird: a long, slim body with sharp chines flaring out along
-// the nose into a thin delta wing, two huge engine nacelles at mid-span with pointed inlet spikes, two inward-canted
-// fins on the nacelles, and a small tandem cockpit far forward. Near black, the fin tips in the side's colour.
+// The Allied Spy Plane, after the Lockheed SR-71 Blackbird: a needle nose with broad, flat chines that flare out in a
+// long curve into a thin delta wing; two huge engine nacelles at mid-span reaching well ahead of the wing, each with a
+// long pointed inlet spike; tall fins on top of the nacelles' rear, canted in toward the body; the tail cone past the
+// trailing edge. Matt charcoal with thin red walkway lines on the wing, the fin tips in the side's colour.
 function sr71Model(pal) {
-  const m = new VModel(-21, -12, 21, 12, 10);
-  const body = mixHex(pal.main, '#2b2f38', 0.9), hull = shadeInt(body, 0.72), edge = shadeInt(body, 1.45), nac = shadeInt(body, 1.15), lite = shadeInt(body, 1.35), spike = '#7a7f86', cz = 3;
-  for (let x = -17; x < 21; x++) {                                                // fuselage, a needle nose
-    const r = x > 9 ? Math.max(0.45, 1.5 - (x - 9) * 0.1) : x < -14 ? 1.5 - (-14 - x) * 0.3 : 1.5;
-    m.cylX(x, x + 1, 0, cz, r, x % 6 === 0 ? hull : body, M_METAL);
-  }
-  for (let x = -2; x < 19; x++) {                                                 // chines: a thin lip that widens back into the wing
-    const w = 1.3 + (19 - x) * 0.19;
-    for (let y = Math.floor(-w); y < w; y++) m.set(x, y, cz, Math.abs(y + 0.5) > w - 1 ? edge : body, M_METAL);
-  }
-  for (let y = -11; y <= 11; y++) {                                               // the delta wing, its tips rounded off
-    const a = Math.abs(y + (y < 0 ? 0.5 : -0.5)), lead = a <= 5 ? 1 : Math.round(1 - (a - 5) * 2.4), trail = -17 + Math.max(0, Math.round((a - 8) * 1.3));
-    if (y === 0) continue;
-    const yy = y < 0 ? y : y - 1;
-    for (let x = trail; x <= lead; x++) m.set(x, yy, cz, x === lead || a > 10 ? edge : x === trail ? hull : body, M_METAL);
-  }
-  for (const y of [-5.5, 5.5]) {                                                  // engine nacelles, inlet spikes, exhausts
-    m.cylX(-19, 5, y, cz, 1.6, nac, M_METAL);
-    for (let x = 5; x < 10; x++) m.cylX(x, x + 1, y, cz, Math.max(0.35, 1.2 - (x - 5) * 0.2), spike, M_METAL);
-    m.cylX(-20, -19, y, cz, 1.2, '#0d0d0e');
-    m.cylX(4, 5, y, cz, 1.6, '#0d0d0e');                                         // the dark ring of the inlet round the spike
-    m.cylX(4, 5, y, cz, 0.9, spike, M_METAL);
-    const yi = y < 0 ? -6 : 5, inward = y < 0 ? 1 : -1;                           // fins canted in toward the body
-    for (let z = cz + 2; z < 9; z++) {
-      const lead = Math.round(-11 - (z - 5) * 0.9), trail = Math.round(-18 - (z - 5) * 0.35), fy = yi + (z >= 7 ? inward : 0);
-      for (let x = trail; x <= lead; x++) m.set(x, fy, z, z >= 8 ? pal.main : body, M_METAL);
+  const m = new VModel(-22, -12, 22, 12, 12);
+  const body = '#2e3035', edge = '#5b5f67', under = '#1d1f22', glass = '#38495a', red = '#c0462c', cz = 3, NY = 5.5;
+  const inY = (y, w) => Math.abs(y + 0.5) < w;
+  // The flat planform at wing height: chines (an ogive from the nose tip), the inner wing out to the nacelles, the outer wing.
+  for (let x = -18; x <= 21; x++) for (let y = -12; y < 12; y++) {
+    const a = Math.abs(y + 0.5);
+    let w;
+    if (x > -2) w = 4.6 * Math.pow((21.5 - x) / 23.5, 0.62);           // chine
+    else if (x >= -17) w = NY;                                          // inner wing, fuselage to nacelle
+    else w = 0;
+    let on = a < w;
+    if (!on && a >= NY && a < 11.5) {                                   // outer wing: swept leading edge, straight trailing edge, cut tips
+      const lead = -1 - (a - NY) * 1.6, trail = -17 + Math.max(0, (a - 10) * 1.2);
+      on = x <= lead && x >= trail;
     }
+    if (!on) continue;
+    const rim = !(a + 1 < w) && x > -2 || (a >= NY && x > -1 - (a + 1 - NY) * 1.6) || a >= 11;
+    m.set(x, y, cz, rim ? edge : body, M_METAL);
+    if (x > -2 && a < w * 0.55) m.set(x, y, cz - 1, under, M_METAL);   // the chines thicken toward the body
   }
-  m.box(12, -1, 4, 16, 1, 5, '#2e3a46', M_GLASS);                                 // tandem cockpit glazing
-  m.set(15, -1, 5, '#7f99ad', M_GLASS); m.set(15, 0, 5, '#7f99ad', M_GLASS);
-  m.box(-8, -1, 4, 6, 1, 5, lite, M_METAL);                                       // a pale line along the spine
+  for (let x = -21; x <= 21; x++) {                                     // fuselage: needle nose, pointed tail cone
+    const r = x > 13 ? Math.max(0.35, 1.45 - (x - 13) * 0.14) : x < -16 ? Math.max(0.4, 1.45 - (-16 - x) * 0.21) : 1.45;
+    m.cylX(x, x + 1, 0, cz + 0.4, r, body, M_METAL);
+  }
+  m.ellipsoid(13.2, 0, cz + 1.6, 2.6, 0.95, 0.9, glass, M_GLASS);      // tandem cockpit
+  m.box(13, -1, cz + 2, 14, 1, cz + 3, body, M_METAL);                  // the frame between the two seats
+  for (const sgn of [-1, 1]) {
+    const y = sgn * NY;
+    m.cylX(-19, 2, y, cz, 2.05, body, M_METAL);                          // nacelle
+    m.cylX(1, 2, y, cz, 2.05, '#111214');                                // the inlet ring
+    for (let x = 2; x < 11; x++) m.cylX(x, x + 1, y, cz, Math.max(0.3, 1.45 - (x - 2) * 0.14), x < 4 ? edge : body, M_METAL);   // spike
+    m.cylX(-20, -19, y, cz, 1.7, '#141416');                              // exhaust
+    m.cylX(-19, -18, y, cz, 2.05, under, M_METAL);
+    for (let z = cz + 2; z < 12; z++) {                                   // fin, swept and canted in
+      const lead = Math.round(-10 - (z - 5) * 0.75), trail = Math.round(-18 - (z - 5) * 0.15), fy = Math.round(y - sgn * (z - 5) * 0.32) - (sgn < 0 ? 1 : 0);
+      for (let x = trail; x <= lead; x++) m.set(x, fy, z, z === 11 ? pal.main : body, M_METAL);
+    }
+    // Red walkway lines on the inner wing (the photo's "no step" outlines).
+    const yi = sgn < 0 ? -5 : 2, yo = sgn < 0 ? -3 : 4;
+    for (let x = -15; x <= -4; x++) { m.set(x, sgn < 0 ? -5 : 4, cz, red, M_METAL); }
+    for (let yy = Math.min(yi, yo); yy <= Math.max(yi, yo); yy++) { m.set(-15, yy, cz, red, M_METAL); m.set(-4, yy, cz, red, M_METAL); }
+    for (let x = -15; x <= -4; x++) m.set(x, sgn < 0 ? -3 : 2, cz, red, M_METAL);
+  }
   return m;
 }
 

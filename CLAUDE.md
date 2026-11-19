@@ -186,8 +186,8 @@ share globals. Read this file first; the commit history explains every change in
   solid nose and refuelling probe, the tail glazing faired over, no paratroop doors, and a rotodome on two raked struts over the rear fuselage
   (pale, dark rim and panels, a band of side colour). Sprite key `'Y'` in `hullSprite`; the sidebar cameo
   use it too; the night lights have their own spots (`PLANE_LIGHTS.a50`: the Il-76's wingtips and tail, the beacon moved forward of the dome onto the spine, x 5). Speed, health and size (`r`) unchanged. Not baked (scripted); sprites and ground rebaked for the hash only.
-- The Allied Spy Plane is the SR-71 Blackbird: `sr71Model(pal)` (models.js: slim chined body, delta wing, nacelles with inlet spikes, inward-canted fins with
-  side-colour tips, dark blue-grey), sprite key `'X'`, cameo, and night lights `PLANE_LIGHTS.sr71` (wingtips, tail cone, spine).
+- The Allied Spy Plane is the SR-71 Blackbird: `sr71Model(pal)` (models.js, redrawn from the owner's photo: a needle nose with broad flat chines flaring into the delta wing, big nacelles reaching ahead of the wing with long inlet spikes, tall inward-canted fins with
+  a side-colour tip, the tail cone past the wing, matt charcoal with red walkway lines on the inner wing), sprite key `'X'`, cameo, and night lights `PLANE_LIGHTS.sr71` (wingtips, tail cone, spine).
 
 ## Recent mechanics (2026.10.31 and .31.1)
 
