@@ -6,10 +6,17 @@
 //  - cliffs:   the rock ridges (G.cliff) stand up as tall crags, sorted in with the units (ui.js draw, kind 'cliff')
 //  - concrete: structures sit on concrete slabs instead of trodden dirt (art.js bibDecal)
 //  - lamps:    red beacons blinking on structures' high points, lit windows, searchlights sweeping from defences (drawLook)
-//  - ground:   tank tracks that fade, and large soft patches of drier and lusher grass (lookGround, under the units)
+//  - ground:   tank tracks that fade, large soft patches of drier and lusher grass (lookGround, under the units), debris
+//              scattered round wrecks (bakeWreck), and soft blends where grass meets dirt, road and sand (art.js groundPixels,
+//              LOOK_SOFT: read once when the ground workers start, so switch it with ?lookoff=ground, not at run time)
+//  - water:    ripples moving over open water and foam lapping at the shore (drawWater, under the units)
+// (LOOK_SOFT below: the soft ground blends, read by art.js groundPixels and copied into its workers)
 const LOOK = (() => {
-  const on = !(typeof location !== 'undefined' && /[?&]look=off\b/.test(location.search));
-  return { light: on, cliffs: on, concrete: on, lamps: on, ground: on };
+  const q = typeof location !== 'undefined' ? location.search : '';
+  const on = !/[?&]look=off\b/.test(q), off = (q.match(/[?&]lookoff=([a-z,]+)/) || [, ''])[1].split(',');   // ?lookoff=ground,water: parts off
+  const L = { light: on, cliffs: on, concrete: on, lamps: on, ground: on, water: on };
+  for (const k of off) if (k in L) L[k] = false;
+  return L;
 })();
 
 // ---- Light: grade, sun, clouds, lights --------------------------------------------------------------------------
@@ -326,7 +333,8 @@ function drawLampsOn(g, vx, vy, k, t, near) {
 const TRACK_LIFE = 25, TRACK_MAX = 6000;
 let lookTracks = null, patchPic = null;
 function lookGround(g, x0, y0, x1, y1) {
-  if (!LOOK.ground || !g) return;
+  if (!g) return;
+  if (!LOOK.ground) { drawWater(g, x0, y0, x1, y1); return; }
   if (!patchPic) {
     const N = 128, c = mkCanvas(N, N), x = c.getContext('2d'), img = x.createImageData(N, N);
     const hash = (i, j, p, s) => { let h = (((i % p) + p) % p) * 374761393 + (((j % p) + p) % p) * 668265263 + p * 97 + s * 1013; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -347,6 +355,7 @@ function lookGround(g, x0, y0, x1, y1) {
   pat.setTransform(new DOMMatrix([12, 0, 0, 12, 0, 0]));
   g.save(); g.globalCompositeOperation = 'soft-light'; g.globalAlpha = 1; g.imageSmoothingEnabled = true; g.fillStyle = pat;
   g.fillRect(Math.max(0, x0), Math.max(0, y0), Math.min(WORLD, x1) - Math.max(0, x0), Math.min(WORLD, y1) - Math.max(0, y0)); g.restore();
+  drawWater(g, x0, y0, x1, y1);
   // Tracks.
   if (!lookTracks || lookTracks.g !== G) lookTracks = { g: G, list: [], last: new Map() };
   const T = lookTracks;
@@ -356,7 +365,8 @@ function lookGround(g, x0, y0, x1, y1) {
     if (!l) { T.last.set(e.id, [e.x, e.y]); continue; }
     const dx = e.x - l[0], dy = e.y - l[1], d = Math.hypot(dx, dy);
     if (d < 5) continue;
-    if (d < 30) T.list.push([e.x, e.y, Math.atan2(dy, dx), (e.def.r || 8) * 0.5, G.t]);
+    const tc = cellOfPos(e.x, e.y);
+    if (d < 30 && tc !== false && G.terr[tc] < 4) T.list.push([e.x, e.y, Math.atan2(dy, dx), (e.def.r || 8) * 0.5, G.t]);   // (none on bridges, fords or water)
     l[0] = e.x; l[1] = e.y;
   }
   if (T.list.length > TRACK_MAX || (T.list.length && G.t - T.list[0][4] > TRACK_LIFE)) T.list = T.list.filter((s) => G.t - s[4] < TRACK_LIFE).slice(-TRACK_MAX);
@@ -397,5 +407,117 @@ function drawSkyBeams(g, vx, vy, k, t, night) {
     g.moveTo(sx + nx * W0, sy + ny * W0); g.lineTo(tx + nx * W1, ty + ny * W1); g.lineTo(tx - nx * W1, ty - ny * W1); g.lineTo(sx - nx * W0, sy - ny * W0); g.closePath(); g.fill();
     g.globalAlpha = 0.8 * night; g.drawImage(P.beam, sx - 4 * k, sy - 4 * k, 8 * k, 8 * k);   // the lamp itself
   }
+  g.restore();
+}
+
+var LOOK_SOFT = LOOK.ground;
+
+// ---- Debris round wrecks ----------------------------------------------------------------------------------------
+// Drawn into the ground under each wreck (art.js bakeWreck, a mark: once, kept on the tiles): a scatter of torn metal, rust,
+// grey plates, a few bright scraps and broken track links, thicker near the hull, all from the wreck's own seed so every tile
+// paints it the same. Within 34 px, inside the mark's box (96).
+if (typeof MARK_DRAW !== 'undefined' && MARK_DRAW.bakeWreck) {
+  const f = MARK_DRAW.bakeWreck;
+  MARK_DRAW.bakeWreck = function (tg, x, y, def, face, tface, noTurret, seed) {
+    if (LOOK.ground && tg && tg.fillRect) wreckDebris(tg, x, y, seed | 0, def);
+    return f.apply(this, arguments);
+  };
+}
+function wreckDebris(tg, x, y, seed, def) {
+  const r = rng(seed * 7 + 11), big = def && def.r ? def.r / 9 : 1, snow = snowy();
+  const COL = ['#25231f', '#33302a', '#4a3524', '#5e4129', '#6f6c64', '#8a877d', '#1b1a18'];
+  const n = Math.round(55 * big);
+  for (let i = 0; i < n; i++) {
+    const a = r() * Math.PI * 2, d = (5 + Math.pow(r(), 1.4) * 30) * big, px = x + Math.cos(a) * d, py = y + Math.sin(a) * d * 0.9;
+    const k = r();
+    if (k < 0.12) {   // a broken run of track links
+      tg.fillStyle = '#211f1b'; const ang = r() * Math.PI, c = Math.cos(ang), s = Math.sin(ang);
+      for (let j = 0; j < 4; j++) tg.fillRect(Math.round(px + c * j * 1.6), Math.round(py + s * j * 1.6), 2, 1);
+      continue;
+    }
+    tg.fillStyle = k > 0.94 ? '#b8b2a2' : COL[Math.floor(r() * COL.length)];
+    const w = 1 + Math.floor(r() * 4), h = 1 + Math.floor(r() * 2);
+    tg.fillRect(Math.round(px), Math.round(py), w, h);
+    if (w > 1 && r() < 0.5) { tg.fillStyle = 'rgba(0,0,0,0.35)'; tg.fillRect(Math.round(px) + 1, Math.round(py) + h, w, 1); }   // its shadow
+  }
+  // Ash and soot darkening the ground round it.
+  for (let i = 0; i < 26 * big; i++) {
+    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 30 * big;
+    tg.fillStyle = snow ? 'rgba(40,40,46,0.18)' : 'rgba(20,16,12,0.18)';
+    tg.fillRect(Math.round(x + Math.cos(a) * d), Math.round(y + Math.sin(a) * d * 0.9), 3, 2);
+  }
+}
+
+// ---- Water: ripples and shore foam --------------------------------------------------------------------------------
+// Open water (terr 4) as a mask a quarter of the world's size, from the cells' water field sampled bilinearly (the ground's
+// own shoreline, roughly: it adds a little noise); a band just off the shore for the foam. Each frame, over the water on
+// screen: two layers of thin bright wave crests drifting different ways (added), then foam that swells and ebbs along the
+// shore. Not on winter maps (icy, frozen water). Drawn from lookGround, under everything that stands on the ground.
+const WATER_Q = 4;
+let waterLook = null;
+function waterMasks() {
+  if (waterLook && waterLook.g === G) return waterLook;
+  const Wm = Math.ceil(WORLD / WATER_Q), wet = new Float32Array(NCELLS);
+  for (let i = 0; i < NCELLS; i++) wet[i] = G.terr[i] === 4 ? 1 : 0;
+  const bil = (fx, fy) => {
+    const x0 = Math.max(0, Math.min(MAP - 2, Math.floor(fx))), y0 = Math.max(0, Math.min(MAP - 2, Math.floor(fy)));
+    const tx = Math.max(0, Math.min(1, fx - x0)), ty = Math.max(0, Math.min(1, fy - y0));
+    const a = wet[y0 * MAP + x0], b = wet[y0 * MAP + x0 + 1], c = wet[(y0 + 1) * MAP + x0], d = wet[(y0 + 1) * MAP + x0 + 1];
+    return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+  };
+  const wm = mkCanvas(Wm, Wm), sm = mkCanvas(Wm, Wm), wi = wm.getContext('2d').createImageData(Wm, Wm), si = sm.getContext('2d').createImageData(Wm, Wm);
+  const ss = (a, b, v) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+  let any = false;
+  for (let j = 0; j < Wm; j++) for (let i = 0; i < Wm; i++) {
+    const v = bil((i + 0.5) * WATER_Q / CELL - 0.5, (j + 0.5) * WATER_Q / CELL - 0.5), w = ss(0.52, 0.6, v);
+    if (w <= 0) continue;
+    any = true;
+    const q = (j * Wm + i) * 4;
+    wi.data[q] = wi.data[q + 1] = wi.data[q + 2] = 255; wi.data[q + 3] = Math.round(w * 255);
+    const band = w * (1 - ss(0.6, 0.78, v));
+    si.data[q] = si.data[q + 1] = si.data[q + 2] = 255; si.data[q + 3] = Math.round(band * 255);
+  }
+  wm.getContext('2d').putImageData(wi, 0, 0); sm.getContext('2d').putImageData(si, 0, 0);
+  // The patterns: crests (thin bright arcs from noise bands) and foam (blotchy noise).
+  const N = 128, hash = (i, j, p, s) => { let h = (((i % p) + p) % p) * 374761393 + (((j % p) + p) % p) * 668265263 + p * 97 + s * 1013; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const S = (a) => a * a * (3 - 2 * a);
+  const vn = (u, v, p, s) => { const i = Math.floor(u), j = Math.floor(v), fu = S(u - i), fv = S(v - j);
+    const a = hash(i, j, p, s), b = hash(i + 1, j, p, s), c = hash(i, j + 1, p, s), d = hash(i + 1, j + 1, p, s);
+    return a + (b - a) * fu + (c - a) * fv + (a - b - c + d) * fu * fv; };
+  const mkPat = (fn) => { const c = mkCanvas(N, N), x = c.getContext('2d'), im = x.createImageData(N, N);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const a = fn(i, j), q = (j * N + i) * 4; im.data[q] = 225; im.data[q + 1] = 238; im.data[q + 2] = 248; im.data[q + 3] = Math.round(Math.max(0, Math.min(1, a)) * 255); }
+    x.putImageData(im, 0, 0); return c; };
+  const crest = mkPat((i, j) => { const v = vn(i / N * 4, j / N * 8, 4, 5) * 0.7 + vn(i / N * 8, j / N * 16, 8, 6) * 0.3, f = (v * 9) % 1; return f < 0.07 ? (0.07 - f) / 0.07 * (0.4 + vn(i / N * 6, j / N * 6, 6, 7)) : 0; });
+  const foam = mkPat((i, j) => { const v = vn(i / N * 8, j / N * 8, 8, 8) * 0.6 + vn(i / N * 16, j / N * 16, 16, 9) * 0.4; return S(Math.max(0, Math.min(1, (v - 0.35) / 0.3))); });
+  waterLook = { g: G, wm, sm, any, crest, foam, tmp: mkCanvas(1, 1) };
+  return waterLook;
+}
+function drawWater(g, x0, y0, x1, y1) {
+  if (!LOOK.water || snowy()) return;
+  const W = waterMasks();
+  if (!W.any) return;
+  x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(WORLD, Math.ceil(x1)); y1 = Math.min(WORLD, Math.ceil(y1));
+  if (x1 <= x0 || y1 <= y0) return;
+  const R = 0.5, tw = Math.ceil((x1 - x0) * R), th = Math.ceil((y1 - y0) * R), T = W.tmp;
+  if (T.width < tw || T.height < th) { T.width = Math.max(T.width, tw); T.height = Math.max(T.height, th); }
+  const c = T.getContext('2d'), t = (G && G.t) || 0;
+  const layer = (pat, sc, dx, dy, alpha) => {
+    const P = c.createPattern(pat, 'repeat');
+    P.setTransform(new DOMMatrix([sc * R, 0, 0, sc * R, (-x0 + dx) * R, (-y0 + dy) * R]));
+    c.globalAlpha = alpha; c.fillStyle = P; c.fillRect(0, 0, tw, th);
+  };
+  const mask = (m) => { c.globalAlpha = 1; c.globalCompositeOperation = 'destination-in'; c.imageSmoothingEnabled = true;
+    c.drawImage(m, x0 / WATER_Q, y0 / WATER_Q, (x1 - x0) / WATER_Q, (y1 - y0) / WATER_Q, 0, 0, (x1 - x0) * R, (y1 - y0) * R); c.globalCompositeOperation = 'source-over'; };
+  g.save(); g.imageSmoothingEnabled = true;
+  // Ripples.
+  c.clearRect(0, 0, tw, th);
+  layer(W.crest, 3, t * 7, t * 2.5, 0.8); layer(W.crest, 2.2, -t * 5, t * 4, 0.55);
+  mask(W.wm);
+  g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.3; g.drawImage(T, 0, 0, tw, th, x0, y0, x1 - x0, y1 - y0);
+  // Foam, swelling and ebbing.
+  c.clearRect(0, 0, tw, th);
+  layer(W.foam, 1.5, Math.sin(t * 0.7) * 6, t * 3, 1);
+  mask(W.sm);
+  g.globalCompositeOperation = 'source-over'; g.globalAlpha = 0.45 + 0.25 * Math.sin(t * 1.3); g.drawImage(T, 0, 0, tw, th, x0, y0, x1 - x0, y1 - y0);
   g.restore();
 }

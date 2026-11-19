@@ -84,7 +84,8 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme) {
   const EARTH = snow ? [[98, 94, 92], [116, 112, 108], [134, 130, 126], [152, 150, 148]] : [[66, 55, 39], [80, 67, 47], [96, 81, 57], [112, 95, 67]];
   const SANDS = snow ? [[142, 148, 158], [162, 168, 178], [182, 189, 199]] : [[124, 111, 82], [140, 126, 94], [156, 142, 108]];
   const WATER = snow ? [[30, 48, 68], [38, 58, 80], [48, 70, 94], [60, 84, 108]] : [[52, 80, 108], [62, 92, 122], [74, 106, 138], [90, 122, 154]];
-  const STROKE = snow ? 0.5 : 0.95;   // snow shows the blade tile only as soft wind ripples
+  const STROKE = snow ? 0.5 : 0.95;
+  const SOFT = typeof LOOK_SOFT !== 'undefined' && LOOK_SOFT;   // (look.js test; in the workers, from their constants line)   // snow shows the blade tile only as soft wind ripples
   const pickTone = (pal, v) => pal[Math.max(0, Math.min(pal.length - 1, Math.floor(v * pal.length)))];
   const sm = (t) => t * t * (3 - 2 * t);
   const seedH = Math.imul(seed | 0, 1442695041);
@@ -143,8 +144,11 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme) {
         let col = pickTone(GRASS, hh * 1.1 - 0.12 + (gt - 0.5) * STROKE + (sp - 0.5) * 0.1);
         if (sp > 0.992) col = GRASS[4];
         const near = nearFlag[Math.min(MAP - 1, Math.max(0, Math.round(fy))) * MAP + Math.min(MAP - 1, Math.max(0, Math.round(fx)))];
-        const dv = near & 1 ? bil(dirt, fx, fy) + (hh - 0.5) * 0.3 + (sp - 0.5) * 0.12 : 0;
-        if (dv > 0.42) col = pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6);
+        const dv = near & 1 ? bil(dirt, fx, fy) + (hh - 0.5) * 0.3 + (sp - 0.5) * (SOFT ? 0.03 : 0.12) : 0;
+        if (SOFT && dv > 0.3) {   // (look.js test: grass fades into dirt over a band, worn and darker at the edge)
+          const e = pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6), k = sm(Math.min(1, (dv - 0.3) / 0.2)), wear = 1 - 0.18 * Math.sin(k * Math.PI);
+          col = [(col[0] + (e[0] - col[0]) * k) * wear, (col[1] + (e[1] - col[1]) * k) * wear, (col[2] + (e[2] - col[2]) * k) * wear];
+        } else if (!SOFT && dv > 0.42) col = pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6);
         const wv = near & 2 ? bil(water, fx, fy) + (hh - 0.5) * 0.22 : 0;
         if (wv > 0.5) {
           const crest = ((x * 3 + y * 7 + Math.floor(noise(N1, (x * 3) % WORLD, y) * 30)) % 23 === 0) && sp > 0.4;
@@ -169,6 +173,10 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme) {
             }
             col = [col[0] + (sh[0] - col[0]) * k, col[1] + (sh[1] - col[1]) * k, col[2] + (sh[2] - col[2]) * k];
           }
+        } else if (SOFT && wv > 0.3) {   // (look.js test: the shore's sand fades in from the grass)
+          const sd = pickTone(SANDS, (wv - 0.36) * 4 + (sp - 0.5) * 0.7), k = sm(Math.min(1, (wv - 0.3) / 0.1));
+          col = [col[0] + (sd[0] - col[0]) * k, col[1] + (sd[1] - col[1]) * k, col[2] + (sd[2] - col[2]) * k];
+          if (sp > 0.95 && k > 0.6) col = snow ? [96, 98, 104] : [92, 86, 74];
         } else if (wv > 0.36) {
           col = pickTone(SANDS, (wv - 0.36) * 4 + (sp - 0.5) * 0.7);
           if (sp > 0.93) col = snow ? [96, 98, 104] : [92, 86, 74];            // pebbles
@@ -1230,6 +1238,7 @@ function groundWorkers() {
   try {
     const src = ["'use strict';",
       `const CELL = ${CELL}, CLIFF_H = ${CLIFF_H}, GRASS_TILE = ${JSON.stringify(GRASS_TILE)}, GRASS_TILE_N = ${GRASS_TILE_N};`,
+      `const LOOK_SOFT = ${typeof LOOK_SOFT !== 'undefined' && !!LOOK_SOFT};`,
       'let MAP = 0, WORLD = 0, NCELLS = 0;',
       ...[rng, groundPixels, cliffCells, paintCliffs, paintRuts, fordStone].map(String),
       `let px = null, gen = -1, pvBuf = null;

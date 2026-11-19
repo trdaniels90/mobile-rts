@@ -43,8 +43,19 @@ recorder usage at the top of record.js).
     and darker patches (12 world px a noise pixel), and tank tracks: every 5 px a ground vehicle moves, a pair of tread marks,
     fading over `TRACK_LIFE` 25 s (max 6000; kept in `lookTracks`, not in G, so not saved). The first strength was invisible on
     the dark graded grass; now up to 0.72 alpha.
-- **Next ideas offered to the owner (not started):** water and shorelines (ripples, foam, depth), more ground detail (debris
-  round wrecks, smoother blends between dirt, grass and road), bigger smoke and fires,
+- **Made 2026-11-19 (owner asked: "do this"; verdict pending):**
+  - Debris round wrecks: `wreckDebris`, drawn under each wreck by wrapping `MARK_DRAW.bakeWreck` (a mark, so once, on the tiles;
+    from the wreck's seed, within 35 px: torn metal, rust, plates, bright scraps, track links, ash).
+  - Smoother edges: art.js `groundPixels` with `SOFT` (`LOOK_SOFT`, also written into the ground workers' constants line, so it
+    is fixed when they start: compare with `?lookoff=ground`): grass fades into dirt and road over a band (darker, worn at the
+    middle of it) instead of a dithered cut-off at 0.42, and into the shore's sand. **The baked grounds (`grounds/`) on this
+    branch are rebaked with it**: if the look ever becomes optional, the fixed maps need both bakes or none.
+  - Water (`LOOK.water`, `drawWater` from `lookGround`, under units): open water (terr 4) as a quarter-size mask from the cells'
+    water field, two layers of thin wave crests drifting different ways (added), and foam in a band just off the shore that
+    swells and ebbs. Not on winter maps (icy water). Tank tracks are not laid on bridges, fords or water.
+  - `tools/look/record-ground.js`: before/after as two page loads (`?lookoff=ground,water`), the same staged scene at the
+    crossing nearest River Crossing's middle.
+- **Next ideas offered to the owner (not started):** bigger smoke and fires,
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size
   layers; cliffs add one picture per rock cell); an Options switch was offered; decide per map grade (snow maps colder, rain maps
