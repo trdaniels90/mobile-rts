@@ -1,10 +1,10 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 // Before/after frames for light pools, ground dressing and per-map mood (src/look.js LOOK.pools, .dress, .mood), one page:
-//   node tools/look/record-pools.js <repo> <out dir> <map> <pools|dress|mood> [seconds] [night|rain|dusk]
+//   node tools/look/record-pools.js <repo> <out dir> <map> <pools|dress|mood|fog> [seconds] [night|rain|dusk]
 // Bases built by the AI for 5 minutes, fog lifted, the camera drifting over our base's edge (pools: the lamp posts near our
 // Construction Yard; dress: a worn path near it). before = the part off, after = on (dress: the ground repainted for each).
-// night/dusk: the clock moved on to night or dusk (day/night maps); rain: rain at full strength. Frames: <out>/a, <out>/b.
+// fognight/fogdawn (part fog): the clock moved on to a foggy night or morning. night/dusk: the clock moved on to night or dusk (day/night maps); rain: rain at full strength. Frames: <out>/a, <out>/b.
 const [root, out, map, part, secs = '6', opt = ''] = process.argv.slice(2);
 (async () => {
   const b = await chromium.launch();
@@ -22,7 +22,8 @@ const [root, out, map, part, secs = '6', opt = ''] = process.argv.slice(2);
     G.fog[G.me].fill(1); G.shroudDirty = true;
     if (opt === 'rain') { G.weather = { kind: 'rain', chance: 1 }; window.weatherLevel = () => 1; }
     else if (opt !== 'keepweather') G.weather = null;
-    if (opt === 'night' || opt === 'dusk') { let best = 0, bv = -1; for (let t = G.t; t < G.t + 4000; t += 2) { const d = dayNight(t), v = opt === 'night' ? d.night : d.warm * (1 - d.night); if (v > bv) { bv = v; best = t; } } G.t = best; }
+    if (opt === 'fognight' || opt === 'fogdawn') { let best = 0, bv = -1; for (let t = G.t; t < G.t + 6000; t += 2) { const d = dayNight(t), v = lookFogLevel(t) * (opt === 'fognight' ? d.night : 1 - d.night) + (opt === 'fogdawn' && d.night < 0.05 ? 0.3 : 0) * lookFogLevel(t); if (v > bv) { bv = v; best = t; } } G.t = best; }
+    else if (opt === 'night' || opt === 'dusk') { let best = 0, bv = -1; for (let t = G.t; t < G.t + 4000; t += 2) { const d = dayNight(t), v = opt === 'night' ? d.night : d.warm * (1 - d.night); if (v > bv) { bv = v; best = t; } } G.t = best; }
     const cy = G.entities.find((e) => e.alive && e.team === G.me && e.kind === 'bld' && e.type === 'cy') || G.entities.find((e) => e.alive && e.team === G.me && e.kind === 'bld');
     let x = cy.x + 120, y = cy.y + 100;
     if (part === 'pools') {

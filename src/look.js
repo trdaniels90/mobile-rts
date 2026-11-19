@@ -16,11 +16,12 @@
 //  - pools:    lamp posts with coloured pools of light, window light spilling onto the ground, ore glowing (drawLook / drawNight)
 //  - dress:    rocks, gravel, bushes, puddles, worn paths, cracks and oil painted into the ground tiles once (lookDress)
 //  - mood:     drawLook's colours per map and weather (MOOD); also by day on the day/night maps
+//  - fog:      on grass day/night maps, fog rolling in on some calm, dry nights and lifting in the morning (lookFog)
 // (LOOK_SOFT below: the soft ground blends, read by art.js groundPixels and copied into its workers)
 const LOOK = (() => {
   const q = typeof location !== 'undefined' ? location.search : '';
   const on = !/[?&]look=off\b/.test(q), off = (q.match(/[?&]lookoff=([a-z,]+)/) || [, ''])[1].split(',');   // ?lookoff=ground,water: parts off
-  const L = { light: on, cliffs: on, concrete: on, lamps: on, ground: on, water: on, smoke: on, hills: on, pools: on, dress: on, mood: on };
+  const L = { light: on, cliffs: on, concrete: on, lamps: on, ground: on, water: on, smoke: on, hills: on, pools: on, dress: on, mood: on, fog: on };
   for (const k of off) if (k in L) L[k] = false;
   return L;
 })();
@@ -1052,4 +1053,59 @@ function dressOne(g, it, snow) {
     ell(x, y, rx, rx * 0.7, 'rgba(18,16,18,0.42)'); ell(x + 0.5, y, rx * 0.55, rx * 0.4, 'rgba(10,10,12,0.45)');
     ell(x - rx * 0.3, y - rx * 0.2, rx * 0.4, rx * 0.2, 'rgba(110,90,150,0.12)');   // a faint sheen
   }
+}
+
+// ---- Night and morning fog (LOOK.fog) --------------------------------------------------------------------------------
+// On the grass maps with day and night (Village; not the snow maps): on some nights (FOG_CHANCE, rolled per night from the
+// battle's seed, so every phone of a battle sees the same) fog rolls in after dusk, lies thickest before dawn and lifts in
+// the morning. Only when the weather allows it: never in a battle with rain or snow (G.weather), thinner when the wind
+// gusts (windNow). Two layers of soft tileable noise drifting with the wind over a thin veil, drawn before drawNight (so
+// the night darkens it and lamps' colour shines through it). Looks only: sight and fog of war do not change.
+const FOG_CHANCE = 0.55, FOG_MAX = 0.62;   // share of nights with fog; its greatest opacity
+// The day phase (0 midnight, 0.5 noon, as art.js dayNight): in from 0.82 to 0.95, lifting from 0.26 to 0.38.
+function lookFogLevel(t) {
+  if (!LOOK.fog || !G || G.weather) return 0;
+  const m = MAPS[validMap(G.mapId)];
+  if (!m.daynight || m.theme === 'snow') return 0;
+  const d = t / DAY_LEN + DAY_START, p = d % 1, night = Math.floor(d + 0.2);   // (a night and its morning share a number)
+  const sm = (a) => { a = Math.max(0, Math.min(1, a)); return a * a * (3 - 2 * a); };
+  const env = p > 0.5 ? sm((p - 0.82) / 0.13) : 1 - sm((p - 0.26) / 0.12);
+  if (env <= 0) return 0;
+  let h = Math.imul(night + 1, 374761393) ^ Math.imul((G.seed | 0) + 7, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177);
+  const r = ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  if (r >= FOG_CHANCE) return 0;
+  const thick = 0.6 + 0.4 * (r / FOG_CHANCE);                                     // some nights thicker than others
+  const w = typeof windNow === 'function' ? windNow() : null, gust = w ? Math.hypot(w.x, w.y / 0.6) / WIND : 1;
+  return env * thick * Math.max(0.35, Math.min(1, (1.6 - gust) / 0.7));
+}
+let fogPic = null;
+function lookFog(g, vx, vy, vw, vh, k, t) {
+  const f = lookFogLevel(t);
+  if (f < 0.01) return;
+  if (!fogPic) {   // tileable soft noise (3 octaves) as the alpha of a pale grey
+    const N = 128, c = mkCanvas(N, N), x = c.getContext('2d'), img = x.createImageData(N, N);
+    const hash = (i, j, p) => { let h = (((i % p) + p) % p) * 374761393 + (((j % p) + p) % p) * 668265263 + p * 131; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+    const sm = (a) => a * a * (3 - 2 * a);
+    const vn = (u, v, p) => { const i = Math.floor(u), j = Math.floor(v), fu = sm(u - i), fv = sm(v - j);
+      const a = hash(i, j, p), b = hash(i + 1, j, p), cc = hash(i, j + 1, p), d = hash(i + 1, j + 1, p);
+      return a + (b - a) * fu + (cc - a) * fv + (a - b - cc + d) * fu * fv; };
+    for (let py = 0; py < N; py++) for (let px = 0; px < N; px++) {
+      let v = 0, amp = 0.55, p = 3;
+      for (let o = 0; o < 3; o++) { v += amp * vn(px / N * p, py / N * p, p); amp *= 0.5; p *= 2; }
+      const i = (py * N + px) * 4, a = Math.max(0, Math.min(1, (v - 0.3) / 0.5));
+      img.data[i] = 214; img.data[i + 1] = 222; img.data[i + 2] = 230; img.data[i + 3] = Math.round(255 * a * a);
+    }
+    x.putImageData(img, 0, 0);
+    fogPic = c;
+  }
+  const W = g.canvas.width, H = g.canvas.height, w = typeof windNow === 'function' ? windNow() : { x: 3, y: 1 };
+  g.save(); g.imageSmoothingEnabled = true;
+  g.fillStyle = 'rgb(205,214,224)'; g.globalAlpha = 0.16 * f; g.fillRect(0, 0, W, H);   // the veil
+  // Two banks of fog at different sizes, drifting downwind at different speeds (fixed to the ground: they move with the view).
+  for (const [S, sp, a] of [[9, 0.25, 0.55], [4.5, 0.45, 0.4]]) {
+    const pat = g.createPattern(fogPic, 'repeat'), dx = t * w.x * sp, dy = t * w.y * sp;
+    pat.setTransform(new DOMMatrix([S * k, 0, 0, S * k * 0.7, (-vx + dx) * k, (-vy + dy) * k]));
+    g.fillStyle = pat; g.globalAlpha = Math.min(1, a * f * FOG_MAX / 0.55); g.fillRect(0, 0, W, H);
+  }
+  g.restore();
 }
