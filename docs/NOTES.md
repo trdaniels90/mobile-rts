@@ -884,6 +884,34 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
   workflow by hand with `mac_only` (the `build` job is skipped).
 - Tested here only with a stubbed Electron (`pickBase`, staging, restart offer, unconfirmed-boot fallback); the packaged app is untested.
 
+## Soundtrack (separate files since 2026.11.03.9)
+
+- Four recorded tracks, shuffled: Industry, War, Smash, Rain. Each is an MP3 in `music/<name>.mp3`, listed in `SONGS`
+  in `audio.js` with `rec: '<name>'`. `Music.loadRec` fetches the file (`music/<id>.mp3`) and decodes it on demand;
+  if the fetch or decode fails the song is skipped (`recFailed`). `Music.nextSong` deals a shuffled deck (no immediate
+  repeat), `Music.newMatch` (called from `startMission` and the online start in ui.js) opens a match on a random
+  track. Only the playing track is kept decoded (about 60 to 100 MB).
+- **Adding a track:** put `music/<name>.mp3` in the repo, add it to `SONGS` in `audio.js` and to `TRACKS` in `sw.js`
+  (the service worker downloads the tracks in the background after install, so the soundtrack works offline), credit
+  it in `CREDITS.md`.
+- **The single-file build no longer contains the music.** For the owner's artifact, build to `.build/index.html`,
+  copy `music/` to `.build/music/`, and publish with the Artifact tool's `files` map
+  (`"music/<name>.mp3": ".build/music/<name>.mp3"`) alongside the page, so the page's relative `music/...` URLs work.
+  Each file may be up to 16 MB; the page is now about 2.5 MB. Later releases only need to resend the page
+  (files left out are kept). Remove `.build` afterwards.
+- The owner supplies the tracks (credited in `CREDITS.md`). Convert with ffmpeg: `loudnorm=I=-16:TP=-1.5`,
+  a 2.5 s fade out, 44.1 kHz stereo, 96 kbps.
+- Volume sliders (`musicVol`, `sfxVol` in `Sound.settings`, `setVolume`) scale the buses; full is the original mix.
+
+## Windows app (`desktop/`)
+
+- `main.js` serves the game from `app://game/` (not `file://`, so match reports work and `fetch` of the music works;
+  no service worker, since `ui.js` only registers it on http). `scripts/prep.js` copies the game into `desktop/game`
+  (gitignored) and sets the app version from `src/version.js` as `YEAR.MMDD.N` (semver cannot hold `2026.11.07`).
+- Local test: `cd desktop && npm install && npm start`. Installer: `npm run dist` (Windows). CI does the release.
+- The installer is unsigned, so Windows SmartScreen warns on first run until a code-signing certificate is added.
+- The app's game version equals the web version, so it matches the game server.
+
 ## Claude token tracker (2026.11.16)
 
 - A Stop hook (`.claude/settings.json`) runs `node tools/claude-usage.js` after every Claude turn: it reads the session's
