@@ -1582,3 +1582,10 @@ Owner's match ea39d315 (3 v 3, 40 min, a 120 Hz PC at 2560 x 1370): 117 fps earl
   used dropped first. The slowest frames of the match drew 2,000 to 3,500 trees one by one after a jump (minimap taps:
   up to 8 a minute), with 20 to 33 ms in `list`. Returning to a spot looked at in the last 30 s now uses the blocks at once
   (headless test: 4,000 to 7,000 trees one by one before, none after). Memory: a block is 640 x 640 (1.6 MB).
+
+## Second base only where the army can get out; no jets circling without an Airfield (not released, both modes)
+
+- `aiExpandField` (ai.js) now walks the ground from the main yard (`walkDistances`) and skips any ore field that cannot be reached, or
+  whose road is over twice the straight line plus 20 cells (an island, a pocket behind a lake or trees): a base there could never send its army out.
+- `updateAir` (world.js): a jet with a "wait on the pad" guard order and no Airfield left drops the flag, so it fights or rearms in the air
+  instead of orbiting the base for ever (seen in the owner's screenshot).

@@ -4471,6 +4471,8 @@ function updateAir(u, dt) {
   // The Comanche with its gun spent goes home to rearm unless a tank or Ore Truck is in reach of its missiles: those hit
   // tanks alone, so it would otherwise fly on to the enemy base and hang there without a shot.
   const gunSpent = u.def.standoff && u.ammo <= 0 && !(u.aam > 0 && ((u.target && u.target.alive && missileMark(u.target)) || acquire(u, u.def.weapon2.range * MISSILE_SEEK, [u.def.weapon2])));
+  // (No Airfield left: a "wait on the pad" order means nothing, or the jet would orbit the base for ever.)
+  if (u.order.type === 'guard' && u.order.pad && !padFor(u)) u.order.pad = false;
   if (airEmpty(u) || strikeSpent || gunSpent || u.retreat || u.rearming || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {

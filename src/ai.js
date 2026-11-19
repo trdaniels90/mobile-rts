@@ -314,9 +314,20 @@ const aiBase2 = (team) => aiYards(team).find((b) => Math.hypot(b.cx - team.start
 function aiExpandField(team) {
   const home = team.start, foe = enemyOf(team).start, yards = aiYards(team);
   const theirs = enemyBuildingsOf(team.id).filter((b) => knownTo(team.id, b));
+  // Only fields its units can drive to from the main base (not across a lake or behind cliffs and trees), by a road no more than
+  // twice as long as the straight line (+20 cells): a base on an island or in a pocket could never send its army out.
+  const main = aiMainYard(team);
+  let walk = null;
+  if (main) {
+    const c0 = cellOfPos(main.x, main.y + main.h * CELL / 2 + CELL), c1 = freeCell(c0) ? c0 : nearestFreeCell(c0, 4);
+    if (c1 >= 0) walk = walkDistances(c1);
+  }
+  if (!walk) return null;
   let best = null, bs = 0;
   for (const f of G.oreFields) {
     const dHome = Math.hypot(f.cx - home.cx, f.cy - home.cy);
+    const fc = idx(Math.round(f.cx), Math.round(f.cy)), fw = walk[freeCell(fc) ? fc : (nearestFreeCell(fc, 6) >= 0 ? nearestFreeCell(fc, 6) : 0)];
+    if (!(fw >= 0) || fw > dHome * 2 + 20) continue;
     if (dHome < 20 || dHome > Math.hypot(f.cx - foe.cx, f.cy - foe.cy)) continue;
     if (yards.some((b) => Math.hypot(b.cx - f.cx, b.cy - f.cy) < BASE2_SEP + f.r + 4) || theirs.some((b) => Math.hypot(b.cx - f.cx, b.cy - f.cy) < 15)) continue;
     let ore = 0;
