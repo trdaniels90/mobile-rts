@@ -163,8 +163,8 @@ recorder usage at the top of record.js).
     snow toward a white haze, by weatherLevel x 0.8. The day/night maps (village, frost) now get drawLook too (with the mood), faded
     out as night falls (`night` argument), before drawNight; their lamps still come from drawLampsAlone.
 - **Fog, made 2026-11-19 (owner: "on the grass maps at night and early morning can we add the possibility of fog rolling in if the
-  weather settings are correct for it"; video sent, verdict pending):** `LOOK.fog` (`?lookoff=fog`), look.js `lookFogLevel` / `lookFog`,
-  drawn from ui.js after drawLook and before drawNight (the night darkens it; the pools' colour shines through it). Only on day/night
+  weather settings are correct for it"; video sent, verdict pending):** `LOOK.fog` (`?lookoff=fog`), look.js `lookFogLevel` (when and how thick),
+  drawn into the view before drawLook and drawNight (the night darkens it; the pools' colour shines through it). Only on day/night
   maps that are not snow (Village). On `FOG_CHANCE` 0.55 of nights (rolled per night from G.seed: a night and its morning share one
   roll), never in a battle with rain or snow (G.weather), thinner when the wind gusts (windNow, down to 0.35 of full), each foggy
   night 0.6-1 thick. Day phase (art.js dayNight's: 0 midnight): rolls in from 0.82 to 0.95, lifts from 0.26 to 0.38.
