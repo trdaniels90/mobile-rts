@@ -68,7 +68,10 @@ et = 0;
 while (run('eng2.alive') && et < 60) { step(1); et++; }
 ok('engineer repaired the structure in full', run('!eng2.alive && cyB.hp === cyB.maxHp'), { seconds: et });
 run(`var eng3 = addUnit('engineer', T1, cyB.x, (cyB.cy + cyB.h + 2) * CELL); cyB.hp = 300; commandEngineer([eng3], cyB); 0`);
-ok('an enemy engineer cannot repair it', run(`eng3.order.type !== 'engineer'`));
+ok('an enemy engineer is sent to capture it', run(`eng3.order.type === 'engineer'`));
+et = 0;
+while (run('eng3.alive') && et < 60) { step(1); et++; }
+ok('and captures it (not repaired)', run(`!eng3.alive && cyB.team === T1.id && cyB.hp === 300`), { seconds: et, team: run('cyB.team'), t1: run('T1.id'), hp: run('cyB.hp') });
 
 // Both sides train Engineers at a Barracks.
 run(`for (const T of [T0, T1]) { const c = buildingsOf(T.id).find((b) => b.type === 'cy'); const bk = addBuilding('barracks', T, c.cx + 4, c.cy); bk.buildT = 1; T.credits = 2000; startProduction(T, 'engineer'); } 0`);

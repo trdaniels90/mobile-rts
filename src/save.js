@@ -119,24 +119,38 @@ const SaveGame = (() => {
   // maps had their own sizes do not name their map; they were all 144 cells.
   const fits = (m) => m && m.hbase && m.size === mapSize(m.map);
   const info = () => get(KEY + '-meta').then((m) => (fits(m) ? m : null));
+  // A saved battle's state made a world again (not yet G, no ground): the parts that are not saved, and
+  // fixes for saves from older versions. size: the map's size when it was saved.
+  function revive(state, size) {
+    setMapSize(size);
+    const g = thaw(state);
+    g.byId = new Map(g.entities.map((e) => [e.id, e]));
+    for (const s of g.spans || []) { s.def = SPAN; g.byId.set(s.id, s); }   // bridge spans (world.js addSpan)
+    for (const h of g.houses || []) { h.def = HOUSE; g.byId.set(h.id, h); }   // village houses (world.js genVillage)
+    if (!g.wall || g.wall.length !== NCELLS) { g.wall = new Uint8Array(NCELLS); g.wallTeam = new Uint8Array(NCELLS); g.wallHp = new Uint16Array(NCELLS); g.wallN = 0; }   // walls (a save from before them)
+    // Alliances (team games, 2026.11.05): a save from before has none, each side its own. Allies share
+    // one fog array, which the save keeps as copies: join them up again.
+    g.teams.forEach((t, i) => { if (t.ally === undefined) t.ally = i; });
+    const fogs = new Map();
+    g.fog = g.teams.map((t, i) => fogs.get(t.ally) || fogs.set(t.ally, g.fog[i]).get(t.ally));
+    if (!g.log.waves || g.log.waves.length < g.teams.length) { g.log.waves = g.teams.map((t, i) => (g.log.waves && g.log.waves[i]) || 0); g.log.lastH = g.teams.map((t, i) => (g.log.lastH && g.log.lastH[i]) || 0); }
+    g.seen = g.fog[g.me]; g.selection = []; g.place = null; g.paused = false; g.inFx = false; g.shroudDirty = true;
+    return g;
+  }
+  // The game server (server.js): a saved online co-op battle made the battle again. Its ground has no marks
+  // (the server keeps none), so the scars of the battle are not on the phones' ground after a reload.
+  function adopt(state, size) {
+    const g = revive(state, size);
+    newGround(g, null);
+    G = g;
+    return g;
+  }
   // Puts the saved game in G; resolves to { faction, diffKey, cam } or null.
   async function load() {
     try {
       const rec = await get(KEY);
       if (!rec || !fits(rec.meta)) return null;
-      setMapSize(rec.meta.size);
-      const g = thaw(rec.state);
-      g.byId = new Map(g.entities.map((e) => [e.id, e]));
-      for (const s of g.spans || []) { s.def = SPAN; g.byId.set(s.id, s); }   // bridge spans (world.js addSpan)
-      for (const h of g.houses || []) { h.def = HOUSE; g.byId.set(h.id, h); }   // village houses (world.js genVillage)
-      if (!g.wall || g.wall.length !== NCELLS) { g.wall = new Uint8Array(NCELLS); g.wallTeam = new Uint8Array(NCELLS); g.wallHp = new Uint16Array(NCELLS); g.wallN = 0; }   // walls (a save from before them)
-      // Alliances (team games, 2026.11.05): a save from before has none, each side its own. Allies share
-      // one fog array, which the save keeps as copies: join them up again.
-      g.teams.forEach((t, i) => { if (t.ally === undefined) t.ally = i; });
-      const fogs = new Map();
-      g.fog = g.teams.map((t, i) => fogs.get(t.ally) || fogs.set(t.ally, g.fog[i]).get(t.ally));
-      if (!g.log.waves || g.log.waves.length < g.teams.length) { g.log.waves = g.teams.map((t, i) => (g.log.waves && g.log.waves[i]) || 0); g.log.lastH = g.teams.map((t, i) => (g.log.lastH && g.log.lastH[i]) || 0); }
-      g.seen = g.fog[g.me]; g.selection = []; g.place = null; g.paused = false; g.inFx = false; g.shroudDirty = true;
+      const g = revive(rec.state, rec.meta.size);
       // The ground, painted again with its marks of battle (G.marks). A save from before there were marks kept the
       // ground as two pictures: those are drawn instead of painting (and kept, legacyGround, while this game goes on).
       let legacy = null;
@@ -157,5 +171,5 @@ const SaveGame = (() => {
   }
   const clear = () => Promise.all([tx('readwrite', (s) => s.delete(KEY)), tx('readwrite', (s) => s.delete(KEY + '-meta')), tx('readwrite', (s) => s.delete(KEY + '-pictures'))]);
 
-  return { save, load, info, clear, freeze, thaw };
+  return { save, load, info, clear, freeze, thaw, adopt };
 })();

@@ -386,6 +386,16 @@
     centerOn(cy.x + 40, cy.y - 30);
   }
 
+  // Saved co-op battles: this phone's match row for each (save id -> match id), so a continued battle is the same match.
+  const coopMatches = () => { try { return JSON.parse(localStorage.getItem('rh-coop-matches')) || {}; } catch (_) { return {}; } };
+  // A co-op battle saved and closed (by anyone in it): no result; back to the menu, on the online page that says how to continue.
+  UIBridge.saved = (by) => {
+    Report.park();
+    endPlace();
+    startGame();
+    showMenu('start');
+    Online.open(faction, `${by} saved the battle. To continue it, host a game, have the same friends join, and pick it under Saved co-op battles.`);
+  };
   // An online battle (net.js): o = { seed, faction, me, opponent }.
   UIBridge.start = (o) => {
     Report.quit();
@@ -402,7 +412,17 @@
     // Co-op against the computer is 'pve', with its difficulty; the rest 'pvp'.
     // In co-op the match row's opponent column holds the teammate's name, for the co-op leaderboard.
     // (3 v AI is reported as 'pve' too, with stats.size 3, but has no leaderboard of its own yet: see Report.stats)
-    if (coop) Report.start(o.faction, o.diff || 'normal', 'pve', o.partner || 'Commander'); else Report.start(o.faction, null, 'pvp', o.opponent);
+    if (coop) {
+      // A saved co-op battle continued: this phone carries on its own match row from before, if it played it.
+      const ids = coopMatches(), mine = o.resume !== undefined && o.save ? ids[o.save] : null;
+      if (mine) Report.resume(mine, o.faction, o.diff || 'normal', 'pve', o.partner || 'Commander');
+      else Report.start(o.faction, o.diff || 'normal', 'pve', o.partner || 'Commander');
+      if (o.save && Report.matchId) {
+        ids[o.save] = Report.matchId;
+        const keep = Object.keys(ids).slice(-10);
+        try { localStorage.setItem('rh-coop-matches', JSON.stringify(Object.fromEntries(keep.map((k) => [k, ids[k]])))); } catch (_) {}
+      }
+    } else Report.start(o.faction, null, 'pvp', o.opponent);
     hideMenu();
     eva('Select a structure to build');
   };
@@ -460,7 +480,7 @@
   }
   // Veterancy: one gold chevron per rank at the unit's lower right; an elite unit wears a star.
   function drawRank(g, e) {
-    const r = e.def.r, [ux, uy] = unitSpot(e), x = Math.round(ux + r - 1), y0 = Math.round(uy + (e.cls === 'inf' ? -2 : r - 2));
+    const r = e.cls === 'inf' ? Math.round(e.def.r * INF_SCALE) : e.def.r, [ux, uy] = unitSpot(e), x = Math.round(ux + r - 1), y0 = Math.round(uy + (e.cls === 'inf' ? -2 : r - 2));
     if (e.rank >= VET.at.length) {
       g.fillStyle = '#000'; g.fillRect(x - 3, y0 - 3, 7, 7);
       g.fillStyle = '#ffd65a'; g.fillRect(x - 2, y0, 5, 1); g.fillRect(x, y0 - 2, 1, 5); g.fillRect(x - 1, y0 - 1, 3, 3);
@@ -754,9 +774,9 @@ function draw() {
         if (sel && e.team === G.me && e.rally && e.exitCell !== undefined) { toWorld(); drawRally(v, e, e.rally); onView(); }
         drawHealth(v, e, (bx[0] + bx[2]) / 2, bx[1] - 6, Math.min(48, e.w * CELL - 8));
       } else {
-        const r = e.def.r + 2, [xx, yy] = unitSpot(e, e.cls === 'inf' ? 8 : 3);
-        if (sel) brackets(v, xx - r, yy - r - (e.cls === 'inf' ? 5 : 0), xx + r, yy + r + (e.cls === 'inf' ? 3 : 0));
-        drawHealth(v, e, xx, yy - r - (e.cls === 'inf' ? 10 : 5), Math.max(10, r * 2));
+        const inf = e.cls === 'inf', r = inf ? Math.round(e.def.r * INF_SCALE) + 2 : e.def.r + 2, [xx, yy] = unitSpot(e, inf ? 8 * INF_SCALE : 3);
+        if (sel) brackets(v, xx - r, yy - r - (inf ? 3 : 0), xx + r, yy + r + (inf ? 2 : 0));
+        drawHealth(v, e, xx, yy - r - (inf ? 7 : 5), Math.max(10, r * 2));
       }
     }
 
@@ -767,6 +787,13 @@ function draw() {
       const [tx, ty] = toView(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3);
       v.fillStyle = 'rgba(0,0,0,0.7)'; v.fillRect(tx - 21, ty - 3, 42, 6);
       v.fillStyle = rs.stalled ? '#c98a2a' : '#5ab0ff'; v.fillRect(tx - 20, ty - 2, 40 * rs.progress, 4);
+    }
+    // A Construction Yard being captured (world.js CAPTURE_CY): a yellow bar over it, for both sides.
+    for (const e of G.entities) {
+      if (!e.alive || e.kind !== 'bld' || !(e.capture > 0) || !inView(e) || !visibleToPlayer(e)) continue;
+      const [tx, ty] = toView(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 10);
+      v.fillStyle = 'rgba(0,0,0,0.75)'; v.fillRect(tx - 23, ty - 4, 46, 8);
+      v.fillStyle = Math.floor(G.t * 4) % 2 ? '#ffd23e' : '#f2a020'; v.fillRect(tx - 22, ty - 3, 44 * e.capture, 6);
     }
     // PRIMARY over the building new units come out of, when there is more than one of its type.
     for (const e of G.entities) {
@@ -786,7 +813,10 @@ function draw() {
     }
     toWorld();
     v.imageSmoothingEnabled = true;
-    v.drawImage(shroudCanvas, ox / CELL, oy / CELL, bw / CELL, bh / CELL, ox, oy, bw, bh);
+    // Only the part of the box on the map: Safari (iPhone) stretches and shifts a picture whose source rectangle runs
+    // past its edges instead of clipping it, so the fog slid about while scrolling near the map's edges.
+    const fx0 = Math.max(0, ox), fy0 = Math.max(0, oy), fx1 = Math.min(WORLD, ox + bw), fy1 = Math.min(WORLD, oy + bh);
+    if (fx1 > fx0 && fy1 > fy0) v.drawImage(shroudCanvas, fx0 / CELL, fy0 / CELL, (fx1 - fx0) / CELL, (fy1 - fy0) / CELL, fx0, fy0, fx1 - fx0, fy1 - fy0);
     v.imageSmoothingEnabled = false;
 
     drawPlacement(v);
@@ -967,18 +997,24 @@ function draw() {
         return;
       }
     }
-    // Engineers: tap a destroyed bridge span to rebuild it, or a damaged structure of your side or an ally's to repair it.
+    // Engineers: tap a destroyed bridge span to rebuild it, a damaged structure of your side or an ally's to repair it, or an
+    // enemy structure to capture it (the rest of the selection attacks it meanwhile).
     const engs = G.selection.filter((u) => u.alive && u.kind === 'unit' && u.team === G.me && u.def.engineer);
     if (engs.length) {
       const down = spanAt(w.x, w.y), bld = pick(w.x, w.y, (isTouch ? 16 : 6) / cam.z);
       const job = down && !down.alive ? down : bld && bld.kind === 'bld' && engineerJob(engs[0], bld) ? bld : null;
-      if (job) { commandEngineer(engs, job); marker(job.x, job.y, '#3ed04a'); Sound.ack('inf'); return; }
+      if (job) {
+        commandEngineer(engs, job);
+        const rest = ownUnits().filter((u) => !u.def.engineer && u.def.weapon);
+        if (job.kind === 'bld' && hostile(job.team, G.me) && rest.length) commandAttack(rest, job);
+        marker(job.x, job.y, hostile(job.team, G.me) ? '#ffd23e' : '#3ed04a'); Sound.ack('inf'); return;
+      }
     }
     const slop = (isTouch ? 16 : 6) / cam.z;
     const e = pick(w.x, w.y, slop);
     const mine = ownUnits();
     // Your own transport under the tap with infantry selected: they board it (it comes down beside them).
-    if (e && e.kind === 'unit' && e.alive && e.team === G.me && e.def.lift) {
+    if (e && e.kind === 'unit' && e.alive && e.team === G.me && (e.def.lift || e.def.apc)) {
       const inf = mine.filter((u) => canBoard(u));
       if (inf.length) { commandBoard(inf, e); marker(e.x, e.y, '#3ed04a'); Sound.ack('inf'); return; }
     }
@@ -1711,7 +1747,7 @@ function draw() {
     if (!sel.length) { ui.selbar.hidden = true; selSig = ''; return; }
     ui.selbar.hidden = false;
     const one = sel.length === 1 ? sel[0] : null;
-    ui.selName.textContent = one ? (one.def.name + (one.def.lift ? ` · ${(one.cargo || []).length}/${one.def.carry} aboard` : '') + (one.rank ? ' · ' + VET.names[one.rank] : '') + (hostile(one.team, G.me) ? ' · enemy' : one.team !== G.me ? ' · ally' : '')) : `${sel.length} units`;
+    ui.selName.textContent = one ? (one.def.name + (one.def.carry ? ` · ${(one.cargo || []).length}/${one.def.carry} aboard` : '') + (one.rank ? ' · ' + VET.names[one.rank] : '') + (hostile(one.team, G.me) ? ' · enemy' : one.team !== G.me ? ' · ally' : '')) : `${sel.length} units`;
     const hp = one ? one.hp / one.maxHp : sel.reduce((s, e) => s + e.hp / e.maxHp, 0) / sel.length;
     ui.selHp.style.setProperty('--p', Math.max(0, hp));
     ui.selHp.dataset.state = hp > 0.5 ? 'ok' : hp > 0.25 ? 'warn' : 'low';
@@ -1724,7 +1760,7 @@ function draw() {
     if (fighters.length) btns.push(['span', 'ATTACK GROUND']);
     if (own.some((e) => e.kind === 'unit')) btns.push(['stop', 'STOP']);
     if (own.some((e) => e.inHouse)) btns.push(['exit', 'EXIT']);
-    if (own.some((e) => e.kind === 'unit' && e.def.lift && (e.cargo || []).length)) btns.push(['unload', 'UNLOAD HERE']);
+    if (own.some((e) => e.kind === 'unit' && e.def.carry && (e.cargo || []).length)) btns.push(['unload', 'UNLOAD HERE']);
     if (own.some((e) => canService(e) && e.hp < e.maxHp) && hasBuilt(G.teams[G.me], 'depot')) btns.push(['svc', 'REPAIR']);
     if (bld) {
       if (canRally(bld)) {
@@ -1758,7 +1794,13 @@ function draw() {
       else { commandHunt(own.filter((u) => u.kind === 'unit' && (u.def.weapon || u.cls === 'air'))); eva('Attacking enemy base'); Sound.ack('attack'); }
     }
     else if (act === 'exit') { commandExit(own.filter((u) => u.inHouse)); Sound.ack('inf'); }
-    else if (act === 'unload') { for (const u of own.filter((x) => x.kind === 'unit' && x.def.lift && (x.cargo || []).length)) commandMove([u], u.x, u.y); Sound.ack('air'); }
+    else if (act === 'unload') {
+      const full = own.filter((x) => x.kind === 'unit' && x.def.carry && (x.cargo || []).length);
+      for (const u of full.filter((x) => x.def.lift)) commandMove([u], u.x, u.y);
+      const apcs = full.filter((x) => x.def.apc);
+      if (apcs.length) commandUnload(apcs);
+      Sound.ack(apcs.length ? 'veh' : 'air');
+    }
     else if (act === 'span') { aimSpan = own.filter((u) => u.kind === 'unit' && !u.def.harvester && !u.def.lift && (u.def.weapon || u.cls === 'air')); evaCalm('Tap the ground to attack', 5); }
     else if (act === 'guard') beginGuard(own.filter((u) => u.kind === 'unit' && !u.def.harvester));
     else if (act === 'stop') commandStop(own.filter((u) => u.kind === 'unit'));
@@ -1784,6 +1826,7 @@ function draw() {
     ui.menu.dataset.mode = mode;
     ui.resumeBtn.hidden = mode !== 'pause';
     ui.quitBtn.hidden = mode !== 'pause';
+    $('saveQuitBtn').hidden = mode !== 'pause' || !Net.canSave;
     disarmQuit();
     if (G && !Net.role) G.paused = true;   // (an online battle runs on: the other player is still in it)
     ui.menu.dataset.mode = mode;
@@ -1866,6 +1909,17 @@ function draw() {
     endPlace();
     startGame();
     showMenu('start');
+  });
+  // Online co-op on the game server: save the battle and end it for everyone, to continue later (tap twice).
+  let saveArmed = null;
+  const saveQuit = $('saveQuitBtn');
+  saveQuit.addEventListener('click', () => {
+    if (!Net.canSave) return;
+    if (!saveArmed) { saveQuit.textContent = 'Tap again: save and end it for everyone'; saveArmed = setTimeout(() => { saveArmed = null; saveQuit.textContent = 'Save and leave'; }, 3000); return; }
+    clearTimeout(saveArmed); saveArmed = null;
+    saveQuit.textContent = 'Saving…';
+    Net.saveAndLeave();
+    setTimeout(() => { saveQuit.textContent = 'Save and leave'; }, 8000);
   });
   setInterval(() => { if (!ui.menu.hidden) $('audioStatus').textContent = 'Sound: ' + Sound.status(); }, 500);
   document.addEventListener('visibilitychange', () => { if (document.hidden && G && !G.paused && !G.over) showMenu('pause'); });

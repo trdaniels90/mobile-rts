@@ -6,7 +6,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
 const SRC = path.join(__dirname, '..', 'src');
 // The scripts the battle needs. The drawing scripts are loaded too, because the simulation calls
 // a few of their helpers (decals, the ground picture); their canvases are stubs.
-const SCRIPTS = ['version.js', 'data.js', 'maps.js', 'voxel.js', 'models.js', 'art.js', 'world.js', 'ai.js', 'netcore.js'];
+const SCRIPTS = ['version.js', 'data.js', 'maps.js', 'voxel.js', 'models.js', 'art.js', 'world.js', 'ai.js', 'netcore.js', 'save.js'];
 
 function stubCtx() {
   const img = (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(Math.max(4, (w | 0) * (h | 0) * 4)) });
@@ -38,7 +38,7 @@ function load(opts = {}) {
   const ctx = {
     console, Math, Date, JSON, Map, Set, WeakMap, Promise, Uint8Array, Uint16Array, Int32Array, Int16Array, Uint32Array, Float32Array, Float64Array, Uint8ClampedArray, ArrayBuffer,
     setTimeout, clearTimeout, setInterval, clearInterval, performance: require('perf_hooks').performance,
-    HEADLESS: true,
+    HEADLESS: true, btoa, atob,
     document: { createElement: (t) => (t === 'canvas' ? stubCanvas() : stubEl()), getElementById: () => null, querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, body: stubEl(), documentElement: stubEl(), hidden: false },
     navigator: { userAgent: 'node' }, location: { search: '', hostname: 'server', protocol: 'https:' },
     localStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },

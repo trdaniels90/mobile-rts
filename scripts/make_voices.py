@@ -41,6 +41,7 @@ EVA = {
   'attacking enemy base': 'Attacking enemy base.',
   'unit promoted': 'Unit promoted.',
   'unit promoted to elite': 'Unit promoted to elite.',
+  'construction yard under capture': 'Construction yard under capture.',
 }
 ACKS = {
   'inf': ['Acknowledged.', 'Yes sir.', 'Moving out.', 'Affirmative.', 'Right away.'],

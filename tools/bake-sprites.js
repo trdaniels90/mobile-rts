@@ -56,6 +56,7 @@ const outDir = path.join(root, 'sprites');
               const a = i * T / FACINGS;
               for (const l of looks) hullSprite({ def, faction: f, face: a, ...l }, pal());
               turretSprite({ def, faction: f, tface: a }, pal());
+              if (def.draw === 'apc') turretSprite({ def, faction: f, tface: a, fireT: 1, shots: 1 }, pal());   // the gun kicked back
             }
           }
           for (const type of Object.keys(BUILD_DEFS)) if (BUILD_DEFS[type].factions.includes(f)) { try { structureSprite(type, f); } catch (_) {} }

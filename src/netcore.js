@@ -42,7 +42,7 @@ const NetCore = (() => {
   // ---------------------------------------------------------------------------
   // Fields a remote player never needs: the host's own timers and bookkeeping. `anim` (the walk
   // cycle) the remote copy keeps itself.
-  const SKIP = new Set(['def', 'liftWait', 'cover', 'coverBan', 'healT', 'lowT', 'strafe', 'path', 'pathIdx', 'needPath', 'lastX', 'lastY', 'stuckN', 'stuckT', 'think', 'cd', 'cd2', 'extT', 'sent', 'fan', 'apT', 'apA', 'slideT', 'dockU', 'qSpot', 'qRef', 'dockBest', 'dockBan', 'aiMove', 'stallN', 'pathT', 'waitLeader', 'waitSince', 'waitBan',
+  const SKIP = new Set(['def', 'unloadT', 'capU', 'raidCrew', 'apcBack', 'liftWait', 'cover', 'coverBan', 'healT', 'lowT', 'strafe', 'path', 'pathIdx', 'needPath', 'lastX', 'lastY', 'stuckN', 'stuckT', 'think', 'cd', 'cd2', 'extT', 'sent', 'fan', 'apT', 'apA', 'slideT', 'dockU', 'qSpot', 'qRef', 'dockBest', 'dockBan', 'aiMove', 'stallN', 'pathT', 'waitLeader', 'waitSince', 'waitBan',
     'smokeT', 'revealT', 'dmgSeen', 'dmgHp', 'dropT', 'dmgFxT', 'popK', 'popHold', 'anim', 'htimer', 'hcell', 'crowdT', 'cornerT', 'prog', 'squeezeT', 'nearBest', 'clankT', 'final', 'roll', 'rollTo', 'fireT', 'shotAt', 'twinNext', 'twinTarget', 'plumeT', 'flareT', 'jetOn', 'jetD', 'jetSeen', 'burnT', 'bayHold', 'lockOn', 'bayN', 'lock']);   // fireT: the copy lights the flash itself from `shots`
   const COARSE = new Set(['x', 'y', 'alt']);   // to a tenth of a pixel
   const OBJ = '\u0000';   // marks an object field, kept as JSON for comparing
@@ -165,13 +165,20 @@ const NetCore = (() => {
   // out: G.inFx.)
   let events = [];
   const queueEv = (ev) => { if (hosting && G && !G.inFx && events.length < 400) events.push(ev); };
+  const KEEP_MARKS = 8000;
   const DECALS = ['scorch', 'crater', 'rubble', 'bakeWreck', 'bibDecal', 'padDecal'];
   const ORIG = {};
   const root = typeof window !== 'undefined' ? window : globalThis;
   for (const n of DECALS) {
     ORIG[n] = root[n];
     root[n] = function (...a) {
-      if (hosting) queueEv(['d', n, a.map((v) => (v === G.tctx ? { $c: 't' } : v === G.dctx ? { $c: 'd' } : pack(v)))]);
+      if (hosting) {
+        const ev = ['d', n, a.map((v) => (v === G.tctx ? { $c: 't' } : v === G.dctx ? { $c: 'd' } : pack(v)))];
+        queueEv(ev);
+        // The game server keeps the marks of a co-op battle (G.keepMarks, saved with it), so phones continuing it get its
+        // scars back (server.js sends them with 'marks'); the newest KEEP_MARKS, about 60 B each.
+        if (G && G.keepMarks) { G.keepMarks.push([n, ev[2]]); if (G.keepMarks.length > KEEP_MARKS) G.keepMarks.splice(0, G.keepMarks.length - KEEP_MARKS); }
+      }
       return ORIG[n].apply(this, a);
     };
   }
@@ -193,7 +200,7 @@ const NetCore = (() => {
   const COMMANDS = ['commandMove', 'commandAttack', 'commandHunt', 'commandGuard', 'commandStop', 'startProduction', 'cancelProduction',
     'placeStructure', 'launchPower', 'deployFob', 'setAuto', 'setAssist', 'recallAlly', 'setRepair', 'sellStructure', 'commandRepair', 'sendCredits',
     'setPrimary', 'setRally', 'commandAttackGround', 'commandEngineer', 'placeWalls', 'sellWall', 'commandGarrison', 'commandExit', 'startResearch', 'cancelResearch',
-    'commandBoard', 'commandAirAssault'];
+    'commandBoard', 'commandAirAssault', 'commandUnload'];
   const ORIGC = {};
   for (const f of COMMANDS) ORIGC[f] = root[f];
   function applyCommand(side, m) {

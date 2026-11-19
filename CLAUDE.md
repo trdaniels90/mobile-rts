@@ -319,6 +319,42 @@ share globals. Read this file first; the commit history explains every change in
   video: narrow +-1.5 rad / 13-26 px / 1.25 / 3 s gave 3.87, 19%; wide +-2.4 / 20-36 / 1.5 / 5 s gave 2.7, 4%);
   defenders were already about 2.4. Defenders kill more (7-8 of 24 attackers, was 6): the attackers still win every run.
 
+## Soldiers drawn at 65%, front rank fires first (after 2026.11.18, both modes)
+
+- **65% soldiers** (owner's pick after comparing Red Alert's real sprites, looks only): `INF_SCALE` (data.js) 0.65. `infSprite` renders the voxel models
+  at that scale (`renderVox` option `fit`: offsets in the scaled picture's pixels); muzzles, `aimY` / `aimH`, recoil, flashes, ragdolls (`RAG_PTS` scaled,
+  thinner limbs, smaller head), dropped weapons, blood pools, corpses, paratrooper shadows, selection brackets, health bars and rank chevrons follow.
+  Sidebar pictures and villagers unchanged. Positions, ranges and spacing unchanged. Sprites rebaked.
+- **Front rank** (owner's pick, both modes; the server must match): a soldier coming into reach in a crowd used to step out to his spot round the
+  target (`slideOut`) for up to `SLIDE_MAX` (4 s) without firing. Now `frontRank(u, t)` (world.js) lets one with no friend in front of him (within
+  `FRONT_NEAR` 30 px, nearer the target by `FRONT_GAP` 4 px, within `FRONT_CONE` 1.1 rad of his line to it) fire at once; only those behind step out first.
+  Decided once per target (when `slideT` is 0). Staged 12 v 10 riflemen in sight, 12 seeds: wait from in reach to first shot 1.6 to 0.8 s, soldiers waiting
+  over 0.8 s 4.4 to 2.9. `bunching.js` 4 x 90 s: attackers 3.44 to 3.64 friends in a V2 blast, 6+ 12% to 15% (a narrower cone, 22 px / 0.6 rad, gave 4.18 / 23%).
+- Under consideration, not built: soldiers packed 3 a cell (formation gap 14, friendly soldier spacing 1.2 radii; MP4 shown to the owner).
+- **Group moves stay as they are** (owner, after an MP4 of ours beside a Red Alert-style mock-up: soldiers setting off one by one in a file and packing
+  five to a cell round the tapped cell). `formationSpots` (16 px square grid) and the spacing are unchanged.
+
+## Saved online co-op battles (2 v AI, 3 v AI; not released, online co-op only; the server must match)
+
+- Owner's picks: kept online, autosave plus "Save and leave", the leader seats players, a missing player's side can go to the computer.
+- **Server** (server.js `Saves`, `saveBattle`, `loadSave`): a co-op battle gets `R.saveId` at start and is saved (`SaveGame.freeze` of the room's `G`,
+  gzipped, about 40-200 KB) every `SAVE_EVERY` (120 s), when a player drops (the hold starts), when the room closes with everyone gone, and on `savequit`
+  (any player: saves, sends `saved` with their name, closes the room, battle reported `how: 'saved'`). A battle that ends deletes its save. Stored in Supabase
+  `coop_saves` (`supabase/coop-saves.sql`, applied 2026-11-18; server token functions like server.sql, 60 days kept), in memory without `SERVER_TOKEN`.
+- **Who:** phones send `pids` (a signed-in account's id, `Account.uid`, and the phone's `Report.device`) with create and join. The leader's `saves` lists the
+  newest 8 saves any player in the room was in; `load` sets `R.resume`: mode, map, difficulty and factions are fixed, each player sits in their old place
+  (by pid), an empty human place shows whose it was (`had`) and the leader can give it to the computer (`mate`, any open player place). Saved again, that side
+  stays the player's (`human`). Starting: `SaveGame.adopt` (save.js, the old load's fixups as `revive`; save.js is now in headless.js's SCRIPTS) rebuilds `G`,
+  each side is set to player or computer, peers get a full resync, `start` carries `save` and `resume`.
+- **Phones:** lobby "Saved co-op battles" (leader), a "Continuing a saved battle" note, Continue battle; pause menu "Save and leave" (tap twice, `Net.canSave`);
+  on `saved` everyone goes back to the online page with a note (`UIBridge.saved`, `Report.park`: the match row stays open). A phone that played the battle
+  carries on its own match row (`rh-coop-matches` in localStorage, `Report.resume(.., 'pve', partner)`).
+- **Marks of battle:** the server records none (`HEADLESS`), so in a co-op battle netcore.js keeps every relayed decal (scorch, crater, rubble, wreck, pads) as
+  `[name, packed args]` in `G.keepMarks` (newest `KEEP_MARKS` 8000; a 15-minute 3 v 3 makes about 2,600, 160 KB, 52 KB gzipped), saved with the battle; on
+  continuing, the server sends them in one `marks` message and each phone draws them as relayed decals. Not kept: bodies and blown-off turrets (made on each
+  phone by its effects), burnt trees' looks. A save from another version loads as skirmish saves do.
+- `node tools/sim/server-coop-save.js <repo>` (raw sockets) and `node tools/sim/coop-save-ui.js <repo>` (two browser pages). Not yet tried on real phones or with the live table.
+
 ## Recent mechanics (2026.10.31.2)
 
 - **Map:** "A Bridge Too Far" (`MAPS.bridge`, `src/maps.js`), 144 x 144 cells (`MAP` in data.js). The
@@ -1020,6 +1056,8 @@ Supabase.
 | `ground-tiles.js` | The ground in tiles: every kind of mark in a staged battle, live vs repainted tiles and tile sizes pixel for pixel, save and continue, an old save's scars. `<repo> [maps] [old checkout]` |
 | `give-credits.js` | Giving credits to an ally: the rule headless, the GIVE card in a 2 v 2 skirmish, online co-op through the server and forged orders |
 | `server-coop-mate.js` | Co-op with a computer teammate: two players in a 3 v AI, the leader adds the computer, the battle starts with it on the players' team |
+| `server-coop-save.js` | Saved co-op battles on the server: Save and leave, listing by player, loading with another leader and a missing player, autosave, saved when everyone leaves, deleted when the battle ends |
+| `coop-save-ui.js` | Saved co-op battles in two browser pages: Save and leave from the pause menu, the note, the lobby's list, Continue battle |
 | `bunching.js` | Headless staged fight: how many friends stand inside one V2 blast of each fighting unit, attack and defence, and how the fight went. `<repo> [runs] [seconds]` |
 | `veterancy.js` | Headless: ranks at 2, 4, 8, 16 times own cost destroyed, firepower, armour, speed, reload, elite self-heal, no ranks for Ore Trucks or structures, a staged fight |
 | `bridges.js` | Headless: attack ground, destroyable bridge spans on Twin Lakes (hurt only by an ordered attack, collapse, routes go round), Engineers rebuilding a span and repairing a structure, online snapshot and orders, the computer training and sending an Engineer |
@@ -1032,6 +1070,7 @@ Supabase.
 | `ai-lift.js` | Headless: a Normal 1 v 1 per personality (first air assault, how many, kind, soldiers landed and alive 60 s later), and a turtle reinforcing an outlying refinery |
 | `transport.js` | Headless: transport helicopters (board, drop, park, UNLOAD HERE), Air Assault's balanced pick, shot down with troops aboard, a forged online order, the computer's air assault |
 | `cas.js` | Headless: Close Air Support tiers (needs Tech Center, Airfield, the tier before), the power, strikes by 1-3 planes on a tank column |
+| `apc.js` | Headless: APCs: boarding (5 of 6), unloading, a forged online order, about half escape a destroyed APC at half health; Engineer capture; a computer 1 v 1 with APCs and Engineer raids |
 | `pvp-hardening.js` | A dropped connection (hold, reconnect, resync), a phone going to sleep, surrender, rematch, and an opponent who never returns |
 
 ## Next: PvP
@@ -1211,6 +1250,36 @@ frame-time maths everywhere, so it is not deterministic.
 - Owner's choice: everyone gets both controls (no PC / phone split). `node tools/sim/transport.js <repo>` (boarding, drop, parking, Air Assault mix,
   shot down, a forged online order, a Normal computer flying one: 8 men at about 11 min). Not yet tried: two real phones online, save and continue
   with soldiers aboard in a browser.
+
+## APCs (not released, owner's picks for both modes; the server must match)
+
+- `apc` (Allies, a tracked box with a gunner standing in the hatch at an M2 .50 cal) and `btr` (Soviets, an eight-wheeled boat-hulled carrier with a small
+  heavy-MG turret), both named APC, War Factory, OpenRA's numbers: $850, 300 health, heavy armour, speed 83, 5 aboard (`carry`, `apc: true`). Heavy MG
+  (`sound: 'hmg'`: cal50 / dshk), hits helicopters, not jets. One type per side because wrecks are drawn from the type alone.
+- **Boarding** reuses the transport helicopters' code (and is not behind their `TRANSPORTS` switch): infantry selected + tap your APC = `commandBoard`;
+  `updateBoard` walks them to the APC wherever it is and `climbIn` (plain data in `u.cargo`). UNLOAD HERE = `commandUnload` (netcore `COMMANDS`): it
+  stops and lets one out every `APC_DROP_GAP` (`updateUnload`, `unloadOne`; another order stops it). Pips for those aboard (`cargoPips` in art.js).
+- **Destroyed with soldiers aboard** (owner's pick, `apcEscape` from `kill`, host only, not while a beaten side is wiped): each gets out with `APC_ESCAPE`
+  (0.5) chance at `APC_ESCAPE_HP` (half) the health they had, not under the player's orders; the rest count as lost. The vehicle's own crew may still bail out.
+- **Looks:** `apcHull` / `apcTurret(pal, frame)` and `btrHull` / `btrTurret` (models.js, hulls built with the turret ring at the origin, so turret offset 0);
+  the gun kicks back on alternate rounds of a burst (`apcFrame`: `fireT` and `shots` parity, frame 1, baked); a wreck's turret has no gunner. Sprites rebaked.
+- **Computer** (every personality and difficulty; `aiApcs` in ai.js): up to `APC_MAX` (2, raider 3) in its vehicle picks; an APC waiting at home takes idle
+  staged infantry aboard (no Engineers) and goes out with a wave; loaded in the field it unloads when hurt under half, fighting, hit, or with known enemies within
+  `APC_UNLOAD_R` (7 cells), then hunts (`u.apcBack`). Home APCs that join a defence unload too.
+- **Engineers capture** (owner's picks, both modes; the server must match): `engineerJob` takes a finished enemy structure (not a hidden Pillbox), any kind,
+  Construction Yards included; `updateEngineer` calls `captureBuilding(b, team)` at once and the Engineer is used up. **A Construction Yard takes `CAPTURE_CY`
+  (8 s, owner's pick)**: `b.capture` (0 to 1, synced) and `b.capU` (netcore `SKIP`); reset when the Engineer dies, leaves or is sent elsewhere (`updateBuilding`),
+  one Engineer at a time, "Construction Yard under capture" for the owner, a flashing yellow bar over it (ui.js). The structure keeps its health, takes the
+  new owner's side and faction (so its look and colours; faction-only types such as the Tesla Coil draw fine in either), and lets go of the old owner's rally,
+  primary, docking trucks, based aircraft and a vehicle at its door; the old side counts a building lost (and loses its upgrades with its last Tech Center),
+  the new one `stats.captured`. UI: Engineers selected + tap an enemy structure (the rest of the selection attacks it).
+- **Engineer raids** (Raider only, Normal and Hard; `aiEngRaid`): from 0.6 x its first-wave time, every `ENG_RAID_GAP` (150 s) + up to 60: trains 2 Engineers and
+  an APC if short, loads 2 Engineers + up to 3 soldiers, drives to the least covered spot round the best known enemy structure (`aiEngTarget`: `ENG_VALUE` worth
+  over known guns and seen armed units covering the spot, 12 spots round each), unloads, Engineers capture, soldiers attack it. Engineers left in the field go
+  for the nearest enemy structure within 15 cells. `team.engRaid` is plain data (saved).
+- `node tools/sim/apc.js <repo> [minutes]`: boarding, the sixth soldier left out, driving, unloading, a forged online order, 40 kills with 5 aboard (about half get
+  out, at half health), capture of a power plant and a Construction Yard (the side is out), and a Normal 1 v 1 (balanced against raider): both build and ride APCs,
+  raids happen (1 capture in one 20-minute run, 0 with 3 raids in another). `bridges.js`: an enemy Engineer now captures instead of repairing.
 
 ## Unit veterancy (after 2026.11.14.12, not released, both modes)
 

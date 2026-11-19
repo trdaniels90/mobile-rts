@@ -69,6 +69,7 @@ const SPOT = { name: 'Ground', armor: 'bld', r: 0 };
 const SPAN = { name: 'Bridge', hp: 6000, armor: 'bld', r: 20 };
 // A village house (maps with `village`; world.js genVillage): neutral, hurt by blasts near it and by an ordered attack.
 const HOUSE = { name: 'House', armor: 'bld', r: 20 };
+const INF_SCALE = 0.65;   // soldiers are drawn at this share of their voxel models' size (owner's pick after a Red Alert comparison): sprites, muzzles, aim heights, bodies. Looks only
 const BUILD_UP = 2.5;   // seconds a structure takes to go up once placed (world.js updateBuilding; art.js drawBuildUp); both modes, the server must match
 const WARHEADS = {
   SA:    { inf: 1.0, light: 0.55, heavy: 0.25, bld: 0.3, air: 0.6 },   // small arms
@@ -109,8 +110,9 @@ const UNIT_DEFS = {
     cost: 400, hp: 150, armor: 'inf', speed: 26, sight: 7, r: 7, setup: 1.5, pack: 1.0,
     weapon: { dmg: 12, rof: 1.4, range: 150, wh: 'SA', proj: 'bullet', burst: 6, gap: 0.09, splash: 10, air: true, heliOnly: true, sound: 'hmg' },
   },
-  // Unarmed. Walks into a destroyed bridge span and it is rebuilt, or into a damaged friendly structure and it is
-  // repaired in full; either way the Engineer is used up (world.js commandEngineer). Cost, health, speed and sight
+  // Unarmed. Walks into an enemy structure and captures it at once (Construction Yards too), into a destroyed bridge span
+  // and it is rebuilt, or into a damaged friendly structure and it is repaired in full; either way the Engineer is used up
+  // (world.js commandEngineer, captureBuilding). Cost, health, speed and sight
   // as Red Alert's (its speed 4 is the Rifle Infantry's).
   engineer: {
     name: 'Engineer', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
@@ -183,6 +185,21 @@ const UNIT_DEFS = {
   fob: {
     name: 'Mobile Outpost', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies', 'soviets'], draw: 'fob',
     cost: 1000, hp: 500, armor: 'heavy', speed: 35, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 14 }, deploys: 'outpost',
+  },
+  // Armoured personnel carriers (OpenRA's APC: $850, 300 health, heavy armour, Speed 142, 5 aboard). Infantry selected, tap
+  // the APC: they walk to it and climb in (`carry`); UNLOAD HERE lets them out where it stands. Destroyed with soldiers
+  // aboard, each has APC_ESCAPE (world.js) chance to get out of the wreck, hurt. A heavy machine gun on top for infantry and
+  // helicopters (Allies: a gunner at an M2 in the hatch; Soviets: a small turret). `apc` / `btr`: one type per side so their
+  // wrecks (which are drawn from the type alone) look right.
+  apc: {
+    name: 'APC', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'apc', apc: true, carry: 5,
+    cost: 850, hp: 300, armor: 'heavy', speed: 83, turn: 3.2, sight: 5, r: 9, size: { len: 22, wid: 14, tur: 2, barrel: 9, tz: 11 },
+    weapon: { dmg: 7, rof: 1.2, range: 100, wh: 'SA', proj: 'bullet', air: true, heliOnly: true, burst: 5, gap: 0.08, sound: 'hmg' },
+  },
+  btr: {
+    name: 'APC', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'apc', apc: true, carry: 5,
+    cost: 850, hp: 300, armor: 'heavy', speed: 83, turn: 3.2, sight: 5, r: 9, size: { len: 25, wid: 13, tur: 2, barrel: 10, tz: 10 },
+    weapon: { dmg: 7, rof: 1.2, range: 100, wh: 'SA', proj: 'bullet', air: true, heliOnly: true, burst: 5, gap: 0.08, sound: 'hmg' },
   },
   // Unpacks into a Construction Yard anywhere on the map. Needs a Service Depot.
   mcv: {

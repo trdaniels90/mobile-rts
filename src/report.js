@@ -89,13 +89,15 @@ const Report = (() => {
   // match however often it is saved and continued (and its play time counts once). The insert makes
   // sure the match exists (it may have started offline); if it already does, it is refused, which
   // is fine.
-  function resume(id, side, difficulty) {
+  // Also a saved online co-op battle continued on the phone that played it (mode 'pve', opponent: teammates).
+  function resume(id, side, difficulty, mode = 'skirmish', opponent = null) {
     errs = [];
     try {
-      if (!id || !UUID.test(id)) return start(side, difficulty);
+      if (!id || !UUID.test(id)) return start(side, difficulty, mode, opponent);
       quit();
       if (local) return;
-      const row = { id, device_id: device, mode: 'skirmish', side, difficulty, version: typeof VERSION === 'string' ? VERSION : null };
+      const row = { id, device_id: device, mode, side, difficulty, version: typeof VERSION === 'string' ? VERSION : null };
+      if (opponent) row.opponent = String(opponent).slice(0, 20);
       match = { id, row, ended: false };
       match.saved = insert(match).then(() => true);
     } catch (_) {}
@@ -236,6 +238,10 @@ const Report = (() => {
   }
   // Leaving a match before it is decided (Quit mission, or a new mission from the pause menu),
   // with the debrief numbers so far.
+  // A co-op battle saved to be continued: stop following it without a result (resume picks it up again).
+  function park() {
+    try { if (match && !match.ended) { progress(true); match = null; } } catch (_) {}
+  }
   function quit() {
     try {
       if (!match || match.ended) return;
@@ -291,7 +297,7 @@ const Report = (() => {
   function claim() { return local ? Promise.resolve(null) : post('rpc/claim_device', { p_device: device }, true); }
   // The name for the leaderboard: the commander name of a signed-in player, else the last one typed here.
   const name = () => (typeof Account !== 'undefined' && Account.name) || store('ps-name') || '';
-  return { start, resume, end, quit, oops, noteFrame, get errors() { return errs; }, submitName, board, claim, score, teamStats, get name() { return name(); }, get matchId() { return match && match.id; } };
+  return { start, resume, park, end, quit, get device() { return device; }, oops, noteFrame, get errors() { return errs; }, submitName, board, claim, score, teamStats, get name() { return name(); }, get matchId() { return match && match.id; } };
 })();
 
 // The leaderboard page, on the same paper as What's New, and the name box in the debrief.

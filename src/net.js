@@ -254,7 +254,7 @@ const Net = (() => {
     const finish = (ok, m) => { if (done) return; done = true; clearTimeout(t); if (!ok) { try { ws.close(); } catch (_) {} } then(ok, m, ws); };
     const t = setTimeout(() => finish(false), SERVER_TIMEOUT);
     try { ws = new WebSocket(SERVER); } catch (_) { finish(false); return; }
-    ws.onopen = () => ws.send(JSON.stringify(Object.assign({ name: myName(), v: VERSION, gid: lobby && lobby.gid }, first)));
+    ws.onopen = () => ws.send(JSON.stringify(Object.assign({ name: myName(), v: VERSION, gid: lobby && lobby.gid, pids: myPids() }, first)));
     ws.onerror = () => finish(false);
     ws.onclose = () => finish(false);
     ws.onmessage = (e) => {
@@ -289,6 +289,13 @@ const Net = (() => {
     });
   }
 
+  // This player's ids for the server's saved co-op battles: a signed-in account's and this phone's.
+  function myPids() {
+    const a = [];
+    try { if (typeof Account !== 'undefined' && Account.uid) a.push(Account.uid); } catch (_) {}
+    try { if (Report.device) a.push(Report.device); } catch (_) {}
+    return a;
+  }
   function host(faction) {
     leave();
     lobby = { code: null, me: 'host', gid: newId(), host: { name: myName(), faction, map: DEFAULT_MAP }, guest: null, connected: false, status: 'starting' };
@@ -408,6 +415,12 @@ const Net = (() => {
   function setDiff(diff) { if (onServer() && lobby.me === 'host') send({ k: 'setup', diff }); }
   function setFaction(slot, faction) { if (onServer()) send({ k: 'faction', slot, faction }); }
   function switchTeam() { if (onServer()) send({ k: 'team' }); }
+  // Saved co-op battles (server only): the leader lists them and picks one to continue (id null: a new battle instead).
+  function listSaves() { if (onServer() && lobby.me === 'host') { lobby.saves = 'wait'; send({ k: 'saves' }); listener(); } }
+  function loadSave(id) { if (onServer() && lobby.me === 'host') { lobby.saves = null; lobby.saveErr = null; send({ k: 'load', id: id || null }); listener(); } }
+  // In a co-op battle on the server: save it and end it for everyone, to be continued from the lobby later.
+  const canSave = () => inBattle() && lobby && lobby.via === 'server' && !!lobby.save;
+  function saveAndLeave() { if (canSave()) send({ k: 'savequit' }); }
   function setMate(slot) { if (onServer() && lobby.me === 'host') send({ k: 'mate', slot }); }   // co-op: computer teammate in an open place
   function startBattle() {
     if (lobby && lobby.via === 'server' && lobby.me === 'host' && lobby.connected) { if (lobby.ready) send({ k: 'go' }); return; }   // the server starts it
@@ -436,7 +449,8 @@ const Net = (() => {
       lobby.team = { sides, mode, mates: names((x, i) => x.ally === mine && i !== side) };
     } else { sides = null; lobby.team = null; }
     lobby.oppName = sides ? opp : null;
-    UIBridge.start({ seed, faction, me: side, opponent: opp || 'Commander', partner: lobby.team ? lobby.team.mates.join(' & ') : null, map: validMap(map), sides, diff, mode });
+    UIBridge.start({ seed, faction, me: side, opponent: opp || 'Commander', partner: lobby.team ? lobby.team.mates.join(' & ') : null, map: validMap(map), sides, diff, mode,
+      save: lobby.save || null, resume: lobby.resume });
     if (r === 'guest') {
       // The battle is the host's: start from an empty field and fill it from the snapshots.
       G.remote = true;
@@ -478,10 +492,24 @@ const Net = (() => {
       lobby.host = { name: String((m.host && m.host.name) || 'Commander').slice(0, 20), faction: m.faction, map: validMap(m.map) };
       lobby.guest = m.guest ? { name: String(m.guest.name || 'Commander').slice(0, 20) } : null;
       lobby.mode = m.mode || '1v1'; lobby.diff = m.diff || 'normal'; lobby.slots = Array.isArray(m.slots) ? m.slots : null;
-      lobby.mine = m.mine; lobby.ready = !!m.ready; lobby.players = m.players || 0;
+      lobby.mine = m.mine; lobby.ready = !!m.ready; lobby.players = m.players || 0; lobby.resumeOf = m.resume || null;
+      if (lobby.resumeOf) lobby.saves = null;
       listener();
     } else if (m.k === 'lobby' && lobby.me === 'guest') { lobby.host = Object.assign(lobby.host || { name: 'Commander' }, { faction: m.faction, map: validMap(m.map) }); listener(); }
-    else if (m.k === 'start' && (lobby.me === 'guest' || lobby.via === 'server')) begin('guest', m.seed, m.faction, m.match, m.map, m.side, m.sides, m.diff, m.mode);
+    else if (m.k === 'start' && (lobby.me === 'guest' || lobby.via === 'server')) { lobby.save = m.save || null; lobby.resume = m.resume; begin('guest', m.seed, m.faction, m.match, m.map, m.side, m.sides, m.diff, m.mode); }
+    else if (m.k === 'marks' && role === 'guest' && Array.isArray(m.list)) { for (const x of m.list) if (Array.isArray(x)) playEvent(['d', x[0], x[1]]); }   // a continued co-op battle's scars
+    else if (m.k === 'saves') { lobby.saves = Array.isArray(m.list) ? m.list : []; lobby.savesFailed = !!m.failed; listener(); }
+    else if (m.k === 'err' && m.why === 'save') {
+      if (inBattle()) hooks.eva('The battle could not be saved');
+      else { lobby.saveErr = 'That saved battle could not be loaded.'; listener(); }
+    } else if (m.k === 'saved' && inBattle()) {
+      // Saved and closed by the server: back to the menu, no result (continue it from a co-op lobby).
+      const by = String(m.by || 'A player').slice(0, 20);
+      close(); lobby = null; role = null; endWait(); NetCore.hosting = false;
+      if (G) { G.remote = false; G.hold = false; }
+      hud();
+      UIBridge.saved(by);
+    }
     else if (m.k === 'left' && inBattle()) hooks.eva(`${String(m.name || 'A player').slice(0, 20)} has left: the computer takes over`);
     else if (m.k === 's' && role === 'guest') applySnapshot(m);
     else if (m.k === 'end' && role === 'guest') applyEnd(m);
@@ -694,7 +722,7 @@ const Net = (() => {
   }
 
   return {
-    host, join, leave, swapSides, setMap, setMode, setDiff, setFaction, switchTeam, setMate, startBattle, surrender, watch, rematch, hostTick, guestStep, hookHost, netStats,
+    host, join, leave, swapSides, setMap, setMode, setDiff, setFaction, switchTeam, setMate, startBattle, listSaves, loadSave, saveAndLeave, get canSave() { return canSave(); }, surrender, watch, rematch, hostTick, guestStep, hookHost, netStats,
     get role() { return role; }, get lobby() { return lobby; }, get waiting() { return !!wait; },
     // For tests: drop the connection without a word, and a shorter wait.
     test: { drop() { const L = link; if (L) { try { L.pc.close(); } catch (_) {} } lost(); }, waitLimit(s) { WAIT_LIMIT = s; }, get resyncs() { return resyncs; } },
@@ -706,7 +734,7 @@ const Net = (() => {
 const Online = (() => {
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const SIDE = { allies: 'Allies', soviets: 'Soviets' };
-  let root = null, body = null, faction = 'allies';
+  let root = null, body = null, faction = 'allies', noteMsg = null;
   function build() {
     root = document.createElement('div');
     root.id = 'online';
@@ -725,6 +753,7 @@ const Online = (() => {
       const b = e.target.closest('[data-on]');
       if (!b) return;
       const act = b.dataset.on;
+      if (act === 'host' || act === 'cancel') noteMsg = null;
       if (act === 'host') Net.host(faction);
       else if (act === 'swap') Net.swapSides();
       else if (act === 'start') Net.startBattle();
@@ -734,6 +763,9 @@ const Online = (() => {
       else if (act === 'faction') Net.setFaction(+b.dataset.slot, b.dataset.v);
       else if (act === 'team') Net.switchTeam();
       else if (act === 'mate') Net.setMate(+b.dataset.slot);
+      else if (act === 'saves') Net.listSaves();
+      else if (act === 'load') Net.loadSave(b.dataset.v);
+      else if (act === 'unload') Net.loadSave(null);
     });
     root.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -748,7 +780,7 @@ const Online = (() => {
     if (Net.role) { close(); return; }   // the battle has started
     const L = Net.lobby;
     if (!L || L.failed) {
-      body.innerHTML = `${L && L.failed ? `<p class="on-error" role="alert">${esc(L.failed)}</p>` : ''}
+      body.innerHTML = `${L && L.failed ? `<p class="on-error" role="alert">${esc(L.failed)}</p>` : ''}${noteMsg ? `<p class="lb-intro" role="status"><b>${esc(noteMsg)}</b></p>` : ''}
         <p class="lb-intro">Play one of your friends, phone to phone. One of you hosts and gets a 4-letter code; the other joins with it. The battle runs on the game server (or, if it cannot be reached, on the host's phone).</p>
         <div class="on-btns"><button type="button" class="pf-btn on-go" data-on="host">Host a game</button></div>
         <form class="pf-form"><label for="onCode">Join with a code</label><div class="pf-row">
@@ -787,15 +819,17 @@ const Online = (() => {
   const modes = (map, cur) => Object.keys(BATTLES).filter((k) => k === cur || battleFits(map, k)).map((k) => [k, BATTLES[k].online]);
   const DIFFS = [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']];
   function serverLobby(L) {
-    const lead = L.me === 'host', mode = L.mode || '1v1';
+    const lead = L.me === 'host', mode = L.mode || '1v1', R = L.resumeOf;
     const need = L.slots.filter((x) => !x.ai).length, have = L.slots.filter((x) => !x.ai && x.name).length;
     const pick = (list, cur, act, can) => `<div class="on-modes">${list.map(([k, l]) => `<button type="button" class="pf-btn${k === cur ? ' on-go' : ''}"${can ? ` data-on="${act}" data-v="${k}"` : ' disabled'} aria-pressed="${k === cur}">${l}</button>`).join('')}</div>`;
     const B = battleOf(mode);
     const slot = (x, i) => {
-      const you = i === L.mine, canFlip = you || (lead && x.ai);
-      const who = x.ai ? (x.mate ? 'Computer teammate' : 'Computer') : x.name ? esc(x.name) + (you ? ' (you)' : '') : '<i>open</i>';
-      // Co-op: the leader can give an open place on the players' team to a computer teammate, and take it back.
-      const mate = lead && B.coop && i > 0 && x.ally === 0 && !x.name && (x.mate || !x.ai)
+      const you = i === L.mine, canFlip = !R && (you || (lead && x.ai));
+      const had = x.had ? ` <small>(${esc(x.had)}'s)</small>` : '';
+      const who = (x.ai ? (x.mate ? 'Computer teammate' : 'Computer') : x.name ? esc(x.name) + (you ? ' (you)' : '') : '<i>open</i>') + (x.had && x.had !== x.name ? had : '');
+      // Co-op: the leader can give an open place on the players' team to a computer teammate, and take it back
+      // (a saved battle: any place whose player is not here).
+      const mate = lead && B.coop && (i > 0 || R) && x.ally === 0 && !x.name && (x.mate || !x.ai)
         ? ` <button type="button" class="pf-btn" data-on="mate" data-slot="${i}">${x.mate ? 'Open for a friend' : 'Add computer'}</button>` : '';
       return `<tr${you ? ' class="on-you"' : ''}><td>${who}${mate}</td><td class="on-side" data-faction="${x.faction}">${canFlip ? `<button type="button" class="pf-btn" data-on="faction" data-slot="${i}" data-v="${x.faction === 'allies' ? 'soviets' : 'allies'}">${SIDE[x.faction]}</button>` : SIDE[x.faction]}</td></tr>`;
     };
@@ -805,17 +839,36 @@ const Online = (() => {
     const canMove = B.size > 1 && !B.coop && L.slots.some((x, i) => x.ally !== mineAlly && !x.ai && !x.name);
     body.innerHTML = `<p class="on-code" aria-label="Room code">${esc(L.code)}</p>
       <p class="lb-intro">${have < need ? `Friends join with this code (${have} of ${need} players here).` : lead ? 'Everyone is here. Start when ready.' : 'Everyone is here. The leader starts the battle.'}</p>
-      ${pick(modes(map, mode), mode, 'mode', lead)}
-      ${B.coop ? pick(DIFFS, L.diff || 'normal', 'diff', lead) : ''}
+      ${L.saveErr ? `<p class="on-error" role="alert">${esc(L.saveErr)}</p>` : ''}
+      ${R ? `<p class="lb-intro"><b>Continuing a saved battle</b> (${Math.floor((R.t || 0) / 60)} min in). Everyone takes their own place again; ${lead ? 'give the place of anyone who is not here to the computer, then start.' : 'the leader starts it.'}</p>
+        ${lead ? '<div class="on-btns"><button type="button" class="pf-btn" data-on="unload">New battle instead</button></div>' : ''}` : ''}
+      ${pick(modes(map, mode), mode, 'mode', lead && !R)}
+      ${B.coop ? pick(DIFFS, L.diff || 'normal', 'diff', lead && !R) : ''}
+      ${lead && !R && Object.values(BATTLES).some((x) => x.coop) ? savesHtml(L) : ''}
       <div class="on-teams">${team(0)}${team(1)}</div>
       ${canMove ? '<div class="on-btns"><button type="button" class="pf-btn" data-on="team">Switch team</button></div>' : ''}
-      ${lead ? mapCardsHtml(map, '', mode) : `<p class="lb-intro">Map: <b>${esc(MAPS[map].name)}</b></p>`}
-      <div class="on-btns">${lead ? `<button type="button" class="pf-btn on-go" data-on="start"${L.ready ? '' : ' disabled'}>Start battle</button>` : '<p class="pf-small">Waiting for the leader…</p>'}
+      ${lead && !R ? mapCardsHtml(map, '', mode) : `<p class="lb-intro">Map: <b>${esc(MAPS[map].name)}</b></p>`}
+      <div class="on-btns">${lead ? `<button type="button" class="pf-btn on-go" data-on="start"${L.ready ? '' : ' disabled'}>${R ? 'Continue battle' : 'Start battle'}</button>` : '<p class="pf-small">Waiting for the leader…</p>'}
         <button type="button" class="pf-btn" data-on="cancel">Leave</button></div>`;
   }
-  function open(f) {
+  // Saved co-op battles this room's players were in: a button, then the list to pick from.
+  const ago = (t) => { const m = Math.max(0, Math.round((Date.now() - Date.parse(t)) / 60000)); return m < 60 ? m + ' min ago' : m < 2880 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
+  function savesHtml(L) {
+    if (!Array.isArray(L.saves)) return `<div class="on-btns"><button type="button" class="pf-btn" data-on="saves"${L.saves === 'wait' ? ' disabled' : ''}>${L.saves === 'wait' ? 'Looking…' : 'Saved co-op battles'}</button></div>`;
+    if (!L.saves.length) return `<p class="pf-small">${L.savesFailed ? 'Could not reach the saved battles. Try again later.' : 'No saved co-op battles with the players in this room.'}</p>`;
+    const row = (x) => {
+      const names = (x.players || []).filter((p) => !p.ai).map((p) => esc(p.name || 'Commander')).join(', ');
+      const map = MAPS[validMap(x.map)] ? MAPS[validMap(x.map)].name : x.map;
+      return `<li><button type="button" class="pf-btn" data-on="load" data-v="${esc(x.id)}">Continue</button>
+        <b>${esc(map)}</b>, ${esc((BATTLES[x.mode] && BATTLES[x.mode].online) || x.mode)}, ${esc(x.difficulty || '')}: ${Math.floor((x.game_t || 0) / 60)} min in, saved ${ago(x.saved_at)}<br><small>${names}</small></li>`;
+    };
+    return `<p class="lb-intro">Saved co-op battles:</p><ul class="on-saves">${L.saves.map(row).join('')}</ul>`;
+  }
+  // note: a line to show above the choices (a saved battle).
+  function open(f, note) {
     if (!root) build();
     faction = f || faction;
+    if (note && !Net.lobby) noteMsg = note;
     root.hidden = false;
     render();
   }

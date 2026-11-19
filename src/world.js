@@ -762,7 +762,34 @@ function wallInTheWay(u, goal, out) {
 
 // Engineers: sent to a destroyed bridge span, or to a damaged structure of their own alliance, they walk up to it,
 // put it right at once (the span stands again, the structure is back at full health) and are used up.
-const engineerJob = (u, t) => !!t && (t.kind === 'span' ? !t.alive : t.kind === 'bld' && t.alive && t.hp < t.maxHp && t.buildT >= 1 && t.sellT <= 0 && alliedSides(u.team, t.team));
+// Or to an enemy structure (owner's rule, both modes, classic Red Alert): it walks in and the structure is its side's at once,
+// Construction Yards too (captureBuilding); the Engineer is used up.
+const engineerJob = (u, t) => !!t && (t.kind === 'span' ? !t.alive : t.kind === 'bld' && t.alive && t.buildT >= 1 && t.sellT <= 0 &&
+  (hostile(u.team, t.team) ? !camoHidden(t, u.team) : t.hp < t.maxHp && alliedSides(u.team, t.team)));
+// A structure changes sides: it keeps its health and place, takes the new owner's colours and look (its faction), and what the old
+// owner had tied to it (rally point, primary, Ore Trucks docking, aircraft based there, its door's next vehicle) is let go.
+function captureBuilding(b, team) {
+  const old = G.teams[b.team];
+  if (!old || old === team || !b.alive) return;
+  b.team = team.id; b.faction = team.faction;
+  b.rally = null; b.primary = false; b.repairing = false; b.target = null; b.doorAt = null; b.dockU = null; b.exposed = true; b.capture = 0; b.capU = null;
+  if (G.doorQ) G.doorQ = G.doorQ.filter((d) => d.p !== b.id);   // (a vehicle the old owner had rolling out is lost with it)
+  for (const u of G.entities) {
+    if (!u.alive || u.kind !== 'unit' || u.team !== old.id) continue;
+    if (u.home === b.id) u.home = null;
+    if (u.ref === b) { u.ref = null; if (u.hs === 'unload') u.hs = 'return'; }
+    if (u.target === b) u.target = null;
+  }
+  old.stats.bldLost++; team.stats.bldKilled++;
+  team.stats.captured = (team.stats.captured || 0) + 1;
+  if (b.type === 'cy' || b.type === 'outpost') logEvent(old.id, b.type + ' lost');
+  if (b.type === 'cy') old.cyLostT = G.t;
+  if (b.type === 'tech' && old.upgrades && Object.keys(old.upgrades).length && !hasBuilt(old, 'tech')) { old.upgrades = {}; notify(old, 'upgrade', 'Upgrades lost', 4); }
+  updatePower();
+  say(team.id, 'Building captured');
+  say(old.id, 'Building lost to the enemy');
+  hooks.sfx('place', b.x, b.y);
+}
 // The free cell beside a span or structure nearest the unit that it can walk to.
 function besideSpot(u, t) {
   const here = cellOfPos(u.x, u.y), ring = [];
@@ -784,7 +811,11 @@ function commandEngineer(units, t) {
     goTo(u, p.x, p.y);
   }
 }
-function updateEngineer(u) {
+// Capturing a Construction Yard is not instant (owner's pick, both modes): the Engineer works at it for CAPTURE_CY seconds beside it.
+// b.capture (0 to 1, synced) and b.capU (the Engineer's id) show the bar; killed, moved off or sent elsewhere, it starts again.
+const CAPTURE_CY = 8;
+const captureTime = (b) => (b.type === 'cy' ? CAPTURE_CY : 0);
+function updateEngineer(u, dt) {
   const o = u.order, t = o.target;
   if (!engineerJob(u, t)) { setGuard(u); return; }   // someone else got there first, or it is gone
   // Beside it is enough, and a little further off when it has settled as near as the crowd lets it (followPath).
@@ -796,6 +827,17 @@ function updateEngineer(u) {
   if (t.kind === 'span') {
     t.hp = t.maxHp; setSpan(t, true);
     for (const tm of G.teams) say(tm.id, 'Bridge rebuilt');
+  } else if (hostile(u.team, t.team)) {
+    const need = captureTime(t);
+    if (need) {
+      if (t.capU && t.capU !== u.id && G.byId.get(t.capU) && G.byId.get(t.capU).alive && G.byId.get(t.capU).order.target === t) return;   // (one at a time; the next takes over if he falls)
+      if (t.capU !== u.id) { t.capU = u.id; t.capture = 0; notify(teamOf(t), 'capture', 'Construction Yard under capture', 8); }
+      u.dest = null; u.path = null;
+      t.capture = Math.min(1, (t.capture || 0) + dt / need);
+      if (t.capture < 1) return;
+      t.capture = 0; t.capU = null;
+    }
+    captureBuilding(t, G.teams[u.team]);
   } else {
     t.hp = t.maxHp;
     say(u.team, 'Structure repaired');
@@ -2506,10 +2548,10 @@ function muzzle(src, t) {
     return { x: hx + Math.cos(src.tface) * 13, y: hy + Math.sin(src.tface) * 13, h: (h[3] + 2) * VK };
   }
   if (src.cls === 'air') return { x: src.x + Math.cos(src.face) * 9, y: src.y - (src.alt || 0) + Math.sin(src.face) * 9, h: src.alt || 0 };
-  if (src.cls === 'inf' && src.def.setup) { const r = src.faction === 'soviets' ? 21 : 19; return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - 8, h: 8 }; }   // the MG Team's gun on its mount
+  if (src.cls === 'inf' && src.def.setup) { const r = (src.faction === 'soviets' ? 21 : 19) * INF_SCALE, h = 8 * INF_SCALE; return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - h, h }; }   // the MG Team's gun on its mount
   if (src.cls === 'inf') {
-    const r = src.stance === 'prone' ? 12 : 10;
-    const h = src.stance === 'prone' ? 2 : 11;
+    const r = (src.stance === 'prone' ? 12 : 10) * INF_SCALE;
+    const h = (src.stance === 'prone' ? 2 : 11) * INF_SCALE;
     return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - h, h };
   }
   const s = src.def.size;
@@ -2524,16 +2566,16 @@ const PRONE_TIME = 6, PRONE_COVER = 0.5, CRAWL_SPEED = 0.6;
 // Where shots should land on a target (its body, not its feet).
 function aimY(t) {
   if (t.kind === 'bld' || t.kind === 'house') return t.y - 6;
-  if (t.cls === 'inf' && t.stance === 'prone') return t.y - 2;
-  return t.y - (t.alt || 0) - (t.cls === 'inf' ? 8 : 4);
+  if (t.cls === 'inf' && t.stance === 'prone') return t.y - 2 * INF_SCALE;
+  return t.y - (t.alt || 0) - (t.cls === 'inf' ? 8 * INF_SCALE : 4);
 }
 // The height aimY folds into y (for drawing: shots, sparks and bursts stand that high up the screen).
 function aimH(t) {
   if (!t || t.x === undefined) return 0;
   if (t.kind === 'bld' || t.kind === 'house') return 6;
   if (t.kind === 'spot') return 0;
-  if (t.cls === 'inf' && t.stance === 'prone') return 2;
-  return (t.alt || 0) + (t.cls === 'inf' ? 8 : 4);
+  if (t.cls === 'inf' && t.stance === 'prone') return 2 * INF_SCALE;
+  return (t.alt || 0) + (t.cls === 'inf' ? 8 * INF_SCALE : 4);
 }
 
 function weaponSound(src, w) {
@@ -3114,6 +3156,12 @@ function kill(e, attacker, wh, from) {
   if (e.inHouse) leaveHouse(e);   // (falls in the doorway)
   e.alive = false;
   const team = teamOf(e);
+  if (e.cargo && e.cargo.length && e.def.apc && !G.remote && !WIPING) {   // an APC: some of those aboard get out of the wreck
+    const n = e.cargo.length, out = apcEscape(e);
+    team.stats.lost += n - out;
+    if (attacker && hostile(attacker.team, e.team)) G.teams[attacker.team].stats.killed += n - out;
+    if (out) say(e.team, out === 1 ? 'A soldier got out of the APC' : out + ' soldiers got out of the APC');
+  }
   if (e.cargo && e.cargo.length) {   // a transport shot down: everyone aboard goes with it
     team.stats.lost += e.cargo.length;
     if (attacker && hostile(attacker.team, e.team)) G.teams[attacker.team].stats.killed += e.cargo.length;
@@ -3142,7 +3190,7 @@ function kill(e, attacker, wh, from) {
     team.stats.lost++;
     if (e.cls === 'inf' && e.def.setup) {   // the MG Team: both men go down
       const ca = Math.cos(e.face), sa = Math.sin(e.face);
-      for (const [f, sd] of [[3, -3], [-6, 6]]) ragdoll({ ...e, type: 'rifle', x: e.x + f * ca - sd * sa, y: e.y + f * sa + sd * ca }, wh, from);
+      for (const [f, sd] of [[3, -3], [-6, 6]]) ragdoll({ ...e, type: 'rifle', x: e.x + (f * ca - sd * sa) * INF_SCALE, y: e.y + (f * sa + sd * ca) * INF_SCALE }, wh, from);
     } else if (e.cls === 'inf') {
       ragdoll(e, wh, from);
     } else if (e.cls === 'veh') {
@@ -3214,7 +3262,7 @@ function ragdoll(e, wh, from) {
   // Joints in world space, standing as the soldier stood.
   const n = RAG_PTS.length, ca = Math.cos(e.face), sa = Math.sin(e.face);
   const P = new Float32Array(n * 3), V = new Float32Array(n * 3);
-  RAG_PTS.forEach(([f, sd, z], i) => { P[i * 3] = e.x + f * ca - sd * sa; P[i * 3 + 1] = e.y + f * sa + sd * ca; P[i * 3 + 2] = z; });
+  RAG_PTS.forEach(([f, sd, z], i) => { f *= INF_SCALE; sd *= INF_SCALE; P[i * 3] = e.x + f * ca - sd * sa; P[i * 3 + 1] = e.y + f * sa + sd * ca; P[i * 3 + 2] = z * INF_SCALE; });
   const dx = Math.cos(a), dy = Math.sin(a), px = -dy, py = dx;
   const kick = (i, vx, vy, vz) => { V[i * 3] += vx; V[i * 3 + 1] += vy; V[i * 3 + 2] += vz; };
   if (blast) {
@@ -3222,7 +3270,7 @@ function ragdoll(e, wh, from) {
     const p = 30 + r() * 50, up = 80 + r() * 90;
     const w = [(r() - 0.5) * 2, (r() - 0.5) * 2, (r() - 0.5) * 2], wl = Math.hypot(...w) || 1, ws = 5 + r() * 9;
     for (let i = 0; i < n; i++) {
-      const rx = P[i * 3] - e.x, ry = P[i * 3 + 1] - e.y, rz = P[i * 3 + 2] - 8;
+      const rx = P[i * 3] - e.x, ry = P[i * 3 + 1] - e.y, rz = P[i * 3 + 2] - 8 * INF_SCALE;
       const ox = w[0] / wl * ws, oy = w[1] / wl * ws, oz = w[2] / wl * ws;
       kick(i, dx * p + oy * rz - oz * ry, dy * p * 0.8 + oz * rx - ox * rz, up + ox * ry - oy * rx);
     }
@@ -3240,12 +3288,12 @@ function ragdoll(e, wh, from) {
       fx.burnt = true;
       if (r() < 0.45) fx.stagger = { t: 0.8 + r() * 0.8, a: r() * Math.PI * 2 };
     }
-    if (wh === 'TESLA') { G.effects.push({ type: 'spark', x: e.x, y: e.y, lift: 8, t: 0, life: 0.3 }); fx.burnt = true; fx.shock = 0.5 + r() * 0.3; }
+    if (wh === 'TESLA') { G.effects.push({ type: 'spark', x: e.x, y: e.y, lift: 8 * INF_SCALE, t: 0, life: 0.3 }); fx.burnt = true; fx.shock = 0.5 + r() * 0.3; }
   }
   // The weapon, flung loose from the hands.
-  const wl = e.type === 'rocket' ? 12 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'engineer' ? 0 : 8;
+  const wl = (e.type === 'rocket' ? 12 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'engineer' ? 0 : 8) * INF_SCALE;
   if (wl) {
-    const hx = P[18], hy = P[19], hz = e.type === 'rocket' ? 15 : 10;
+    const hx = P[18], hy = P[19], hz = (e.type === 'rocket' ? 15 : 10) * INF_SCALE;
     fx.gun = { P: new Float32Array([hx - ca * wl / 2, hy - sa * wl / 2, hz, hx + ca * wl / 2, hy + sa * wl / 2, hz + 0.5]), len: wl };
     fx.gun.V = new Float32Array([V[18] * 0.7 + (r() - 0.5) * 40, V[19] * 0.7 + (r() - 0.5) * 40, V[20] * 0.6 + 20 + r() * 30, 0, 0, 0]);
     fx.gun.V.copyWithin(3, 0, 3); fx.gun.V[3] += (r() - 0.5) * 50; fx.gun.V[4] += (r() - 0.5) * 50;
@@ -3325,7 +3373,7 @@ function updateRagdoll(fx, dt) {
   if (fx.still <= 0.3 && fx.age <= 5) return;
   if (G.terr[cellOfPos(Math.max(0, Math.min(WORLD - 1, fx.x)), Math.max(0, Math.min(WORLD - 1, fx.y)))] >= 4) { fx.t = fx.life; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 3, t: 0, life: 0.6, alpha: 0.5, color: '#c9c7c0' }); return; }
   if (fx.burnt) { fx.t = fx.life; bakeRagdoll(G.dctx, fx); return; }
-  fx.pool = { t: 0, dur: 2 + r() * 1.5, r: 3 + r() * 2, seed: (r() * 1e6) | 0, a: r() * Math.PI * 2 };
+  fx.pool = { t: 0, dur: 2 + r() * 1.5, r: (3 + r() * 2) * INF_SCALE, seed: (r() * 1e6) | 0, a: r() * Math.PI * 2 };
 }
 
 // Mobile Outpost: unpack into an Outpost on the spot, or the nearest clear 2x2 ground beside it.
@@ -3567,12 +3615,13 @@ function updateUnit(u, dt) {
   if (u.chute > 0) { u.chute -= dt; if (u.chute <= 0) landChute(u); return; }
   if (u.cls === 'air') { updateAir(u, dt); return; }
   if (u.order.type === 'repair') { updateRepairOrder(u, dt); followPath(u, dt); checkStuck(u, dt); return; }
-  if (u.order.type === 'engineer') { updateEngineer(u); if (u.alive) { followPath(u, dt); checkStuck(u, dt); } return; }
+  if (u.order.type === 'engineer') { updateEngineer(u, dt); if (u.alive) { followPath(u, dt); checkStuck(u, dt); } return; }
   if (u.inHouse) {   // garrisoned (village houses): fires from the windows until given another order
     if (u.order.type === 'garrison' && u.order.target === u.inHouse) { updateGarrison(u, dt); return; }
     const d = u.dest; leaveHouse(u);
     if (d) goTo(u, d.x, d.y, true);
   }
+  if (u.unload) updateUnload(u, dt);
   if (u.order.type === 'board') { updateBoard(u); if (u.alive) { followPath(u, dt); checkStuck(u, dt); } return; }
   if (u.order.type === 'garrison') { updateEnterHouse(u); if (u.alive && !u.inHouse) { followPath(u, dt); checkStuck(u, dt); } return; }
   u.repairing = false;
@@ -3741,6 +3790,21 @@ function fanAngle(u, t, R) {
 // own spot round the target (approachSpot) before it settles: infantry for at most SLIDE_MAX seconds without
 // firing, vehicles (and anything without a fixed gun) while they fire. True while it is stepping.
 const SLIDE_MAX = 4;
+// Front rank (owner's pick, both modes): a soldier coming into reach with no friend in front of him (within FRONT_NEAR px, nearer the
+// target by FRONT_GAP px or more, within FRONT_CONE rad of his line to it) fires at once; only those behind step out to their spots first.
+const FRONT_NEAR = 30, FRONT_GAP = 4, FRONT_CONE = 1.1;
+function frontRank(u, t) {
+  const du = Math.hypot(t.x - u.x, t.y - u.y), a = Math.atan2(t.y - u.y, t.x - u.x);
+  const bs = nearBuckets(u.x, u.y, FRONT_NEAR);
+  for (let bi = 0; bi < bs.length; bi++) for (const e of bs[bi]) {
+    if (e === u || !e.alive || e.kind !== 'unit' || e.team !== u.team || e.cls === 'air' || e.inHouse) continue;
+    const dx = e.x - u.x, dy = e.y - u.y;
+    if (dx * dx + dy * dy > FRONT_NEAR * FRONT_NEAR) continue;
+    if (Math.hypot(t.x - e.x, t.y - e.y) > du - FRONT_GAP) continue;
+    if (Math.abs(angDiff(Math.atan2(dy, dx), a)) < FRONT_CONE) return false;
+  }
+  return true;
+}
 function slideOut(u, t, w, dt) {
   if (u.def.fixed || u.cls === 'air' || !u.def.speed || t.kind === 'unit' && t.cls === 'air' || u.setup > 0) return false;
   const R = fanR(t, w);
@@ -3752,6 +3816,7 @@ function slideOut(u, t, w, dt) {
   const bs = nearBuckets(u.x, u.y, 20);
   for (let bi = 0; bi < bs.length; bi++) for (const e of bs[bi]) if (e !== u && e.alive && e.kind === 'unit' && e.team === u.team && e.cls !== 'air' && Math.abs(e.x - u.x) < 20 && Math.abs(e.y - u.y) < 20) crowd++;
   if (crowd < 1) return false;
+  if (u.cls === 'inf' && u.slideT === 0 && frontRank(u, t)) { u.slideT = SLIDE_MAX; return false; }   // the front rank opens fire where it stands
   u.slideT += dt;
   const want = Math.atan2(dy, dx);
   let speed = u.def.speed * VET.speed[u.rank || 0] * (u.cls === 'inf' && u.stance === 'prone' ? CRAWL_SPEED : 1);
@@ -4666,30 +4731,45 @@ function unloadOne(h, ai) {
   else { setGuard(u, p.x, p.y); u.staged = false; takeOver(u, 'move'); }
   goTo(u, p.x, p.y);
   hooks.sfx('place', h.x, h.y);
+  return u;
 }
 // Infantry ordered aboard walk to where the transport is landing and climb in.
 function updateBoard(u) {
   const h = u.order.target;
-  if (!liftWaiting(h) || h.team !== u.team || (h.cargo || []).length >= h.def.carry) { setGuard(u, u.x, u.y); return; }
-  const o = h.order, d = Math.hypot(o.x - u.x, o.y - u.y), settled = !u.dest && !u.needPath;
-  if (h.as === 'landed' && Math.hypot(h.x - o.x, h.y - o.y) < 6 && (d < LIFT_BOARD_R || (settled && d < CELL * 3))) {
-    (h.cargo || (h.cargo = [])).push({ type: u.type, hp: u.hp, rank: u.rank || 0, kills: u.kills || 0, kw: u.killWorth || 0, born: u.born });
-    if (u.inHouse) leaveHouse(u);
-    u.alive = false;   // aboard (made again when it unloads); not a loss
-    hooks.sfx('place', h.x, h.y);
+  if (h && h.def && h.def.apc) {   // an APC: walk up to it wherever it is and climb in
+    if (!h.alive || h.team !== u.team || (h.cargo || []).length >= h.def.carry) { setGuard(u, u.x, u.y); if (teamOf(u).isAI) { u.staged = true; u.raidCrew = false; } return; }
+    const d = Math.hypot(h.x - u.x, h.y - u.y), settled = !u.dest && !u.needPath;
+    if (d < h.def.r + APC_BOARD_R || (settled && d < CELL * 2.5)) { climbIn(u, h); return; }
+    if (settled || (u.dest && Math.hypot(u.dest.x - h.x, u.dest.y - h.y) > CELL)) goTo(u, h.x, h.y);
     return;
   }
+  if (!liftWaiting(h) || h.team !== u.team || (h.cargo || []).length >= h.def.carry) { setGuard(u, u.x, u.y); return; }
+  const o = h.order, d = Math.hypot(o.x - u.x, o.y - u.y), settled = !u.dest && !u.needPath;
+  if (h.as === 'landed' && Math.hypot(h.x - o.x, h.y - o.y) < 6 && (d < LIFT_BOARD_R || (settled && d < CELL * 3))) { climbIn(u, h); return; }
   if (settled && d > LIFT_BOARD_R) goTo(u, o.x, o.y);
+}
+function climbIn(u, h) {
+  (h.cargo || (h.cargo = [])).push({ type: u.type, hp: u.hp, rank: u.rank || 0, kills: u.kills || 0, kw: u.killWorth || 0, born: u.born });
+  if (u.inHouse) leaveHouse(u);
+  u.alive = false;   // aboard (made again when it unloads); not a loss
+  hooks.sfx('place', h.x, h.y);
 }
 // Infantry selected, a transport tapped: it comes and lands beside them (or waits where it is parked) and they get in.
 function commandBoard(units, h) {
-  if (!h || !h.alive || h.kind !== 'unit' || !h.def.lift) return;
+  if (!h || !h.alive || h.kind !== 'unit' || !(h.def.lift || h.def.apc)) return;
   const inf = units.filter((u) => canBoard(u) && u.team === h.team).sort((a, b) => dist(a, h) - dist(b, h));
   if (!inf.length) return;
   const room = h.def.carry - (h.cargo || []).length - boardersOf(h).filter((b) => !inf.includes(b)).length;
   if (room <= 0) { say(h.team, 'Transport full'); return; }
   const go = inf.slice(0, room);
   if (inf.length > room) say(h.team, 'Transport full');
+  if (h.def.apc) {
+    for (const u of go) {
+      u.order = { type: 'board', target: h }; u.target = null; u.staged = false; u.defending = false; u.homeward = false; u.assisting = false; takeOver(u, 'move');
+      goTo(u, h.x, h.y);
+    }
+    return;
+  }
   if (!liftWaiting(h)) {
     const mx = go.reduce((s, u) => s + u.x, 0) / go.length, my = go.reduce((s, u) => s + u.y, 0) / go.length;
     const parked = h.as === 'landed' && h.order.type === 'guard' && !h.order.pad && Math.hypot(h.x - mx, h.y - my) < CELL * 12;
@@ -4708,6 +4788,37 @@ function liftTo(u, x, y) {
   if (!s) { say(u.team, 'Cannot land there'); if (u.order.type === 'move') setGuard(u); return; }
   for (const b of boardersOf(u)) setGuard(b, b.x, b.y);
   u.order = { type: 'lift', step: 'go', x: s.x, y: s.y }; u.target = null; u.repairHold = false;
+}
+// --- Armoured personnel carriers (APC, `def.apc`) --------------------------------------
+// Boarding as for a transport helicopter (commandBoard, updateBoard: they walk up to the APC wherever it is), the passengers kept
+// as plain data in u.cargo. commandUnload: it stops and lets one out every APC_DROP_GAP (unloadOne), unless given another order.
+// Destroyed with soldiers aboard (kill): each gets out of the wreck with APC_ESCAPE chance, with APC_ESCAPE_HP of the health
+// they had; the rest are lost. Host only, like every new entity.
+const APC_BOARD_R = CELL * 0.9, APC_DROP_GAP = 0.3, APC_ESCAPE = 0.5, APC_ESCAPE_HP = 0.5;
+function commandUnload(units) {
+  for (const u of units) {
+    if (!u || !u.alive || u.kind !== 'unit' || !u.def.apc || !(u.cargo && u.cargo.length)) continue;
+    setGuard(u, u.x, u.y); u.target = null; u.unload = true; u.unloadT = 0;
+  }
+}
+function updateUnload(u, dt) {
+  if (!u.cargo || !u.cargo.length || u.order.type !== 'guard') { u.unload = false; return; }
+  if (u.moving) return;
+  if ((u.unloadT = (u.unloadT || 0) - dt) > 0) return;
+  u.unloadT = APC_DROP_GAP;
+  unloadOne(u);
+  if (!u.cargo.length) u.unload = false;
+}
+function apcEscape(e) {
+  const out = [];
+  for (const r of e.cargo) if (Math.random() < APC_ESCAPE) out.push(Object.assign({}, r, { hp: Math.max(1, Math.round(r.hp * APC_ESCAPE_HP)) }));
+  const n = out.length;
+  e.cargo = out;
+  while (e.cargo.length) {
+    const u = unloadOne(e);
+    if (u && u.alive && !teamOf(u).isAI) { u.manual = false; u.manualFrom = 0; }   // (not an order of the player's: they defend themselves as usual)
+  }
+  return n;
 }
 // Air Assault: the side's idle infantry by a Barracks, as even a mix of kinds as there is, up to a transport's load.
 // prefer (the computer's personalities): kinds taken more than once a round, e.g. { rifle: 3 }.
@@ -4958,6 +5069,10 @@ function dropTroops(plane, x, y) {
 const REPAIR_STEP = 0.00375;   // share of full health restored every quarter second (1.5% a second)
 function updateBuilding(b, dt) {
   const team = teamOf(b);
+  if (b.capU) {   // a capture under way: dropped when its Engineer is gone, sent elsewhere or no longer beside it
+    const e = G.byId.get(b.capU);
+    if (!e || !e.alive || e.order.type !== 'engineer' || e.order.target !== b || distTo(e, b) > CELL * 3) { b.capU = null; b.capture = 0; }
+  }
   b.fireT = Math.max(0, b.fireT - dt);
   b.charge = Math.max(0, b.charge - dt * 1.5);
   if (b.buildT < 1) {
