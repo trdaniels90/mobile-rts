@@ -780,6 +780,13 @@ function captureBuilding(b, team) {
     if (u.ref === b) { u.ref = null; if (u.hs === 'unload') u.hs = 'return'; }
     if (u.target === b) u.target = null;
   }
+  // Every side now friendly to it (the captor and its allies) stops shooting at it: an attack order on it ends where the unit stands, as
+  // when a target dies (a computer's unit goes back to hunting), and its guns and shells in flight leave it alone (updateProjectiles).
+  for (const e of G.entities) {
+    if (!e.alive || e === b || e.team === old.id || hostile(e.team, b.team)) continue;
+    if (e.target === b) e.target = null;
+    if (e.kind === 'unit' && e.order && e.order.type === 'attack' && e.order.target === b) { if (G.teams[e.team].isAI) setHunt(e); else if (e.cls === 'air') setGuard(e); else setGuard(e, e.x, e.y); }
+  }
   old.stats.bldLost++; team.stats.bldKilled++;
   team.stats.captured = (team.stats.captured || 0) + 1;
   if (b.type === 'cy' || b.type === 'outpost') logEvent(old.id, b.type + ' lost');
@@ -2846,7 +2853,7 @@ function updateProjectiles(dt) {
       if (p.decoy) { impact('flak', tx, ty, true, aimH(t)); continue; }   // burst harmlessly on a flare
       if (p.kind === 'fireball') { fireBlast(p, t.alive ? t.x : p.x, t.alive ? t.y : p.y); continue; }
       if (p.atgm) { atgmBlast(p, t, tx, ty); continue; }
-      if (t.alive) damage(t, p.w.dmg, p.w.wh, p.from || null, { x: p.x, y: p.y });
+      if (t.alive && !capturedFriend(t, p.team)) damage(t, p.w.dmg, p.w.wh, p.from || null, { x: p.x, y: p.y });
       impact(p.kind, t.alive ? tx : p.x, t.alive ? ty : p.y, isAirborne(t), t.alive ? aimH(t) : projH(p));
       if ((p.w.wh === 'HE' || p.w.wh === 'GR') && t.kind === 'unit' && !isAirborne(t)) splash(tx, ty, 14, p.w.dmg * 0.4, p.team, t, p.from);
       if (G.houses && G.houses.length && !p.aa && p.kind !== 'bullet' && !isAirborne(t)) houseBlast(tx, ty, HOUSE_SPLASH, p.w.dmg * 0.5, p.w.wh, p.from, t);
@@ -2857,6 +2864,8 @@ function updateProjectiles(dt) {
   G.projectiles = G.projectiles.filter((p) => !p.dead);
 }
 
+// A shell fired at a structure that was captured by the shooter's side or an ally while it flew does it no harm.
+const capturedFriend = (t, team) => t.kind === 'bld' && t.team >= 0 && team != null && team >= 0 && !hostile(t.team, team);
 // An ATGM (Maverick / Kh-29L) hitting: full damage to what it was fired at, a big blast with a little splash round it.
 function atgmBlast(p, t, x, y) {
   const w = p.w, from = p.from || null, h = t.alive ? aimH(t) : projH(p);
@@ -2864,7 +2873,7 @@ function atgmBlast(p, t, x, y) {
   hooks.shake(x, y, 1.5);
   G.effects.push({ type: 'expl', x, y: y + h, lift: h, size: 14, t: 0, life: 0.75, seed: (Math.random() * 1e6) | 0, debris: true });
   G.effects.push({ type: 'smoke', x, y: y + h - 2, lift: h + 2, r: 6, t: 0, life: 1.6, alpha: 0.55, color: '#4a4640', vy: -10 });
-  if (t.alive) damage(t, w.dmg, w.wh, from, { x: p.x, y: p.y });
+  if (t.alive && !capturedFriend(t, p.team)) damage(t, w.dmg, w.wh, from, { x: p.x, y: p.y });
   if (!isAirborne(t)) {
     scorch(G.tctx, x, y, 10, (Math.random() * 1e6) | 0);
     craterAt(x, y, 6);

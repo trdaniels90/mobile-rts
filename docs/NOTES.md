@@ -1513,6 +1513,13 @@ frame-time maths everywhere, so it is not deterministic.
 - `node tools/sim/cas.js <repo> [allies|soviets]`: rules, then 1 / 2 / 3 planes against 6 tanks + 3 riflemen in the open (Allies: 1,170 / 1,615 / 2,400 vehicle damage
   of 2,500, 0 / 3 / 4 of 6 killed), and 3 planes beside a SAM Site.
 
+## Captured structures stop being attacked by the captor's side (bug fix, not released, both modes)
+
+- Owner's report: an ally captured an enemy Tech Center while the owner's units were attacking it, and they destroyed it anyway. `captureBuilding` only stood
+  down the old owner's units. Now every unit and gun no longer hostile to it drops it as a target; an attack order on it ends (a human side's unit holds where it
+  stands, as when a target dies; a computer's goes back to hunting), and a shell or missile in flight does it no harm (`capturedFriend` in `updateProjectiles`
+  and `atgmBlast`). Headless 2 v 2: before, 901 to 344 health in 15 s after the capture; after, no damage.
+
 ## Computer APCs bail out; bigger Close Air Support area (not released, owner's picks for both modes; the server must match)
 
 - `aiApcs` (ai.js): each computer APC rolls `a.bail` once (`APC_BAIL` 0.5). One that rolled it, with soldiers aboard, below `APC_BAIL_HP` (35%) and hit in
