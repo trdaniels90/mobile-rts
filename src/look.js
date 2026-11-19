@@ -39,11 +39,14 @@ const HILL_EDGE = 160, HILL_CH = 32, HILL_LAP = 0.7;
 // share of HG_MAX (reach, sight) or by slope (speed), and none of that changes: only the picture is taller.
 const HILL_DRAW = 2.5;
 let LIFT_V = null;   // the world vector that shows one view pixel straight up
-function gLift(x, y) {
+// Craters (world.js G.dig) are left out of the ground's drawn shape (noDig, hillFit): too small for its chunks. What stands
+// in one sinks DIG_SHOW view px per unit of depth (not x HILL_DRAW), into the pit lookfx.js lookCraters paints.
+const DIG_SHOW = 0.9;
+function gLift(x, y, noDig) {
   if (!LOOK.hills || !G || !G.hgt) return 0;
   const m = Math.min(x, y, WORLD - x, WORLD - y);
   if (m <= 0) return 0;
-  const h = hgtAt(x, y) * VK * HILL_DRAW;
+  const h0 = hgtAt(x, y, true), h = h0 * VK * HILL_DRAW + (G.dig && !noDig ? (hgtAt(x, y) - h0) * DIG_SHOW : 0);
   if (m >= HILL_EDGE) return h;
   const k = m / HILL_EDGE;
   return h * k * k * (3 - 2 * k);
@@ -72,13 +75,13 @@ function hillFit(gx, gy) {
   let f = hillFits.m.get(id);
   if (f) return f;
   const N = HILL_CH, X0 = gx * N, Y0 = gy * N, X1 = X0 + N, Y1 = Y0 + N;
-  const a = gLift(X0, Y0), b = gLift(X1, Y0), c = gLift(X0, Y1), d = gLift(X1, Y1);
+  const a = gLift(X0, Y0, true), b = gLift(X1, Y0, true), c = gLift(X0, Y1, true), d = gLift(X1, Y1, true);
   const Lx = (b - a + d - c) / (2 * N), Ly = (c - a + d - b) / (2 * N), Lc = (a + b + c + d) / 4;
   let occ = false;
   const S = VIEW.s, C = VIEW.c, F = VIEW.F, far = hillMax() / F + 8;
-  for (const [px, py, L] of [[X0, Y0, a], [X1, Y0, b], [X0, Y1, c], [X1, Y1, d], [X0 + N / 2, Y0 + N / 2, gLift(X0 + N / 2, Y0 + N / 2)]]) {
+  for (const [px, py, L] of [[X0, Y0, a], [X1, Y0, b], [X0, Y1, c], [X1, Y1, d], [X0 + N / 2, Y0 + N / 2, gLift(X0 + N / 2, Y0 + N / 2, true)]]) {
     if (L <= 0) continue;
-    for (let t = 4; t < far && !occ; t += 4) if (L - gLift(px - S * t, py - C * t) > t * F + 0.5) occ = true;
+    for (let t = 4; t < far && !occ; t += 4) if (L - gLift(px - S * t, py - C * t, true) > t * F + 0.5) occ = true;
     if (occ) break;
   }
   f = { Lx, Ly, F0: Lc - Lx * (X0 + X1) / 2 - Ly * (Y0 + Y1) / 2, occ, flat: !a && !b && !c && !d };

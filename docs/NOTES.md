@@ -223,9 +223,17 @@ recorder usage at the top of record.js).
   - Online: craterAt passes a 6th argument (1) to the `crater` mark, which the host relays as a decal event; net.js digs the
     guest's copy when it plays it. A server for the look branch is still needed before online tests (the look test page is
     single player).
-  - Looks (lookfx.js, `LOOK.craters`, `?lookoff=craters` hides the bowls only): `lookDug` forgets the raised ground's cached chunk
-    shapes (look.js hillFits) round a new crater so the ground is drawn dipping; `lookCraters` draws a shaded bowl (wall away from
-    the sun dark, near lip lit, thrown earth round it; snow version on snow maps) at its rim's height, under the units.
+  - **Look redone 2026-11-19** (owner: "Redo craters look at Tiberian Sun craters. In that video ours are all glitched out and it
+    looked like a unit was driving through a hill"). Cause: the dip was drawn 2.5x deep through the raised ground's 32 px planar
+    chunks, so crater rims became chunks that hide what is behind them (occ) and were drawn over units in the bowl; and the
+    bowls were big round opaque discs. Now: craters are TS-sized (radius 0.6 + rad / 10 cells, rad x `DIG_K` 0.5 deep, cells
+    no deeper than `DIG_MAX` 7; rules otherwise as above). The drawn ground leaves them out (look.js `gLift(x, y, noDig)`,
+    used by hillFit; world.js `hgtAt(x, y, noDig)`), and what stands in a crater sinks `DIG_SHOW` 0.9 view px per unit of depth
+    (up to about 6 px) into the painted pit. `lookCraters` (lookfx.js, `?lookoff=craters`): one of `CRATER_VAR` 6 pictures per
+    crater (from its position), never turned: a ragged scorched hollow (outline from three sine waves), a faint soot halo, a
+    ring of thrown earth and clods, the pit darkest at its heart, its wall on the sun's side (the screen's upper left, turned
+    into world axes) in shade and the far wall lit, a soft lit lip; soft edges so overlapping craters run together; drawn at
+    the ground's height, 3 x the bowl's radius. `lookDug` is now a no-op.
 - **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size

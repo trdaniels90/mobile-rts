@@ -199,14 +199,14 @@ function makeHeights(mapId) {
   }
   return h;
 }
-function hgtAt(x, y) {
+function hgtAt(x, y, noDig) {   // (noDig: the ground before any crater was dug)
   const H = G.hgt;
   if (!H) return 0;
   const fx = Math.max(0, Math.min(MAP - 1.001, x / CELL - 0.5)), fy = Math.max(0, Math.min(MAP - 1.001, y / CELL - 0.5));
   const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, x1 = Math.min(MAP - 1, x0 + 1), y1 = Math.min(MAP - 1, y0 + 1);
   let a = H[y0 * MAP + x0], b = H[y0 * MAP + x1], c = H[y1 * MAP + x0], d = H[y1 * MAP + x1];
   const D = G.dig;   // craters dug by heavy blasts (digCrater)
-  if (D) { a += D[y0 * MAP + x0]; b += D[y0 * MAP + x1]; c += D[y1 * MAP + x0]; d += D[y1 * MAP + x1]; }
+  if (D && !noDig) { a += D[y0 * MAP + x0]; b += D[y0 * MAP + x1]; c += D[y1 * MAP + x0]; d += D[y1 * MAP + x1]; }
   return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
 }
 // The ground height a unit or structure stands on (aircraft in the air: none of these rules).
@@ -226,15 +226,15 @@ function slopeMul(x, y, mx, my) {
 // G.hgt's heights by hgtAt, so units drive down into a crater and every height rule follows it: slower climbing out
 // (slopeMul), a little less reach and sight from the bottom (distTo, revealAround). Nothing is blocked. Dug by craterAt from
 // DIG_MIN (artillery and V2 rockets, bombs, aircraft crashing, tanks and heavy shells hitting home; not rifles or tank
-// shells); a bowl of radius 1 + rad / 6 cells, rad x DIG_K deep, with a low rim; a cell no deeper than DIG_MAX. A structure
+// shells); a bowl of radius 0.6 + rad / 10 cells (TS-sized: about a cell), rad x DIG_K deep, with a low rim; a cell no deeper than DIG_MAX. A structure
 // placed over a crater fills it (addBuilding). G.craters keeps each one ([x, y, rad], plain data) for drawing (lookfx.js).
 // Online: the host's crater marks carry a flag (net.js digs on the guest's copy too). Saved with G (a typed array).
-const DIG_MIN = 5, DIG_K = 0.55, DIG_MAX = 9;
+const DIG_MIN = 5, DIG_K = 0.5, DIG_MAX = 7;
 function digCrater(x, y, rad) {
   if (!G.hgt) return;
   if (!G.dig) G.dig = new Float32Array(NCELLS);
   if (!G.craters) G.craters = [];
-  const R = 1 + rad / 6, depth = rad * DIG_K, fx = x / CELL - 0.5, fy = y / CELL - 0.5, n = Math.ceil(R * 1.3);
+  const R = 0.6 + rad / 10, depth = rad * DIG_K, fx = x / CELL - 0.5, fy = y / CELL - 0.5, n = Math.ceil(R * 1.3);
   for (let j = Math.floor(fy) - n; j <= Math.ceil(fy) + n; j++) for (let i = Math.floor(fx) - n; i <= Math.ceil(fx) + n; i++) {
     if (i < 0 || j < 0 || i >= MAP || j >= MAP) continue;
     const c = j * MAP + i, d = Math.hypot(i - fx, j - fy) / R;
