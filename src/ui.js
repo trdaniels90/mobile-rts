@@ -598,7 +598,8 @@ function draw() {
     const warp = hillWarp(v, vx, vy);
     let ores = null, occs = null, drawCh = null;
     if (warp) {
-      const chunks = G.ground.chunks(sx, sy, sw, sh).sort((a, b) => a.key - b.key);
+      // (Only the chunks that show: the world box round a turned screen is about three times the screen.)
+      const chunks = G.ground.chunks(sx, sy, sw, sh).filter((c) => { const b = c.box = warp.box(c); return b[2] > vx - 2 && b[0] < vx + VW + 2 && b[3] > vy - 2 && b[1] < vy + VH + 2; }).sort((a, b) => a.key - b.key);
       ores = [];
       for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
         const c = idx(cx, cy), o = G.ore[c];
@@ -607,7 +608,7 @@ function draw() {
       ores.sort((a, b) => a.key - b.key);
       const oreAt = (r) => onHill(v, (r.cx + 0.5) * CELL, (r.cy + 0.5) * CELL, () => drawOre(v, r.cx, r.cy, r.o, r.gem));
       drawCh = (c, withOre) => {
-        warp.set(c); G.ground.drawChunk(v, c, 't'); hillPatch(v, c.X0, c.Y0, c.X1, c.Y1);
+        warp.set(c); G.ground.drawChunk(v, c, 't');
         if (withOre) { warp.flat(); for (const r of ores) { const x = (r.cx + 0.5) * CELL, y = (r.cy + 0.5) * CELL; if (x >= c.X0 && x < c.X1 && y >= c.Y0 && y < c.Y1) oreAt(r); } warp.set(c); }
         G.ground.drawChunk(v, c, 'd');
       };
@@ -619,7 +620,6 @@ function draw() {
       warp.flat();
       while (j < ores.length) oreAt(ores[j++]);
       occs = chunks.filter((c) => warp.fitOf(c).occ);
-      for (const c of occs) c.box = warp.box(c);
     } else {
       G.ground.draw(v, 't', sx, sy, sw, sh, sx, sy);
       for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {   // ore
@@ -918,6 +918,13 @@ function draw() {
     drawPlacement(v);
     lap('bars');   // bars, labels, shroud and placement
     v.setTransform(1, 0, 0, 1, 0, 0);
+    // The look's light (look.js drawLook) on the view canvas, at zoom 1, before it is scaled up to the screen: its blend
+    // passes over the whole picture cost a phone far too much at the screen's own resolution (3 x 3 pixels a view pixel
+    // on an iPhone), and its light is soft, so nothing shows the difference.
+    const daynight = MAPS[validMap(G.mapId)].daynight;
+    if (LOOK.light && !daynight) drawLook(v, vx, vy, VW, VH, 1, G.t);
+    else if (LOOK.light && LOOK.mood) drawLook(v, vx, vy, VW, VH, 1, G.t, dayNight(G.t).night);   // the map's mood by day (look.js), fading out at night
+    lap('night');
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.imageSmoothingEnabled = z < 1;
@@ -926,8 +933,6 @@ function draw() {
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
     ctx.drawImage(view, 0, 0, VW, VH, Math.round(-(cam.x - vx) * k + sx2), Math.round(-(cam.y - vy) * k + sy2), Math.round(VW * k), Math.round(VH * k));
     lap('blit');   // the view put on the screen
-    if (LOOK.light && !MAPS[validMap(G.mapId)].daynight) drawLook(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t);   // (look.js prototype, off by default)
-    else if (LOOK.light && LOOK.mood) drawLook(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, dayNight(G.t).night);   // the map's mood by day (look.js), fading out at night
     if (MAPS[validMap(G.mapId)].daynight) drawNight(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, visibleToPlayer);   // (art.js)
     if (MAPS[validMap(G.mapId)].daynight) drawLampsAlone(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t);   // beacons and lit windows (look.js)
     if (MAPS[validMap(G.mapId)].daynight) drawSkyBeams(ctx, cam.x, cam.y, k, G.t, dayNight(G.t).night);   // the AA Gun's searchlight at night (look.js)

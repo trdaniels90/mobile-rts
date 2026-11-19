@@ -1377,7 +1377,7 @@ function makeGround(painter, legacy, baked) {
   const finishing = new Map();
   function finishSome(k, until) {
     const f = finishing.get(k), list = index[k];
-    if (!f.dr) { f.dr = 1; if (typeof lookDress === 'function') { const [x0, y0] = at(k); lookDress(f.t.g.getContext('2d'), x0, y0); } }   // (look.js test: ground dressing, once a tile)
+    if (!f.dr) { f.dr = 1; if (typeof lookDress === 'function') { const [x0, y0] = at(k), tg = f.t.g.getContext('2d'); lookPatchTile(tg, x0, y0); lookDress(tg, x0, y0); } }   // (look.js test: ground dressing, once a tile)
     while (f.i < list.length) {
       const a = performance.now(), m = G.marks[list[f.i++]];
       drawOn(f.t, k, m);
@@ -1597,6 +1597,8 @@ function makeGround(painter, legacy, baked) {
       for (const k of tilesIn(sx, sy, sw, sh)) {
         const [x0, y0] = at(k), xe = Math.min(x0 + T, WORLD), ye = Math.min(y0 + T, WORLD);
         const a0 = Math.max(x0, Math.floor(sx / N) * N), b0 = Math.max(y0, Math.floor(sy / N) * N), a1 = Math.min(xe, sx + sw), b1 = Math.min(ye, sy + sh);
+        if (a1 <= a0 || b1 <= b0) continue;
+        if (hillTileFlat(k, x0, y0, xe, ye)) { out.push({ k, X0: Math.max(x0, sx), Y0: Math.max(y0, sy), X1: a1, Y1: b1, key: x0 * S + y0 * C, fit: HILL_FLAT_FIT }); continue; }   // flat: one piece
         for (let Y = b0; Y < b1; Y += N) for (let X = a0; X < a1; X += N) out.push({ k, X0: X, Y0: Y, X1: Math.min(X + N, xe), Y1: Math.min(Y + N, ye), key: X * S + Y * C });
       }
       return out;

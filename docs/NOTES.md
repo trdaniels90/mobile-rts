@@ -128,6 +128,19 @@ recorder usage at the top of record.js).
       (look.js; copied into the ground workers and part of `groundKey`; `?hillshade=1` shows the first version): the slope
       term x2.2, its limits widened, lit slopes a little warmer and shaded ones a little cooler. Grounds rebaked. On rain or
       night maps the shaded side is fairly dim: ease it back if the owner finds it too dark.
+  - **Phone speed, 2026-11-19 (owner: "incredibly laggy on a phone"):** measured in headless Chromium at an iPhone's
+    landscape size (844 x 390, 3x pixels), CPU slowed 4x, River Crossing at 5 minutes, our base: the look test ran at a
+    median **433 ms a frame** (the look off: 50-67 ms). Fixed:
+    - drawLook (grade, sun, haze, shade, glows, vignette: several blend passes over the whole picture) now runs on the view
+      canvas at zoom 1, before it is scaled up (ui.js, after the bars), not on the screen canvas at 3x pixels: about 25 times
+      fewer pixels for soft light that looks the same. Its W/H now come from vw/vh x k, not the canvas.
+    - The soft ground patches are painted into each ground tile once (`lookPatchTile`, from makeGround finishSome, with the
+      dressing) instead of a soft-light pass over the view every frame (with the raised ground: one per chunk).
+    - Raised ground: flat tiles drawn in one piece again (`hillTileFlat`, `HILL_FLAT_FIT`), chunks off the screen skipped.
+    - Water (`drawWater`) only round the open water that shows (it worked over the whole box round the turned screen: about
+      50 ms of the slowed frame on River Crossing).
+    - Now **150 ms** median (hills off: 100 ms; look off: 67 ms). Left: the raised ground's chunks (about a third), lookfx and
+      the pools; to measure on a real phone (the owner's) before more work. Profiler: `tools/look/prof.js`.
   - **Stage 3 (next):** the AI using high ground; a game server for the look branch (online testing); balance with the owner;
     the cost of the warped ground on a phone.
   - Checked: teams.js 1v1 river 4 min, no errors.

@@ -69,6 +69,20 @@ function onHill(g, x, y, fn) {
 // its screen column). Chunks are drawn back to front (key: the depth of their back corner), so a hill hides what is behind
 // it; ui.js redraws the hiding chunks (occ) over the units and trees behind them.
 let hillFits = null;
+const HILL_FLAT_FIT = { Lx: 0, Ly: 0, F0: 0, occ: false, flat: true };
+// Whether a ground tile (and a cell round it) is all height 0: drawn in one piece (kept per battle).
+function hillTileFlat(k, x0, y0, x1, y1) {
+  if (!hillFits || hillFits.g !== G || hillFits.h !== G.hgt) hillFits = { g: G, h: G.hgt, m: new Map() };
+  const T = hillFits.t || (hillFits.t = new Map());
+  let f = T.get(k);
+  if (f === undefined) {
+    f = true;
+    const c0 = Math.max(0, Math.floor(x0 / CELL) - 1), c1 = Math.min(MAP - 1, Math.floor(x1 / CELL) + 1), r0 = Math.max(0, Math.floor(y0 / CELL) - 1), r1 = Math.min(MAP - 1, Math.floor(y1 / CELL) + 1);
+    for (let y = r0; y <= r1 && f; y++) for (let x = c0; x <= c1; x++) if (G.hgt[y * MAP + x] > 0) { f = false; break; }
+    T.set(k, f);
+  }
+  return f;
+}
 function hillFit(gx, gy) {
   if (!hillFits || hillFits.g !== G || hillFits.h !== G.hgt) hillFits = { g: G, h: G.hgt, m: new Map() };
   const id = gy * 4096 + gx;
@@ -122,8 +136,8 @@ function hillWarp(g, vx, vy) {
   };
 }
 // The soft patches of the ground (lookGround), for one chunk of it (drawn with the ground's warp, after its tile).
-function hillPatch(g, x0, y0, x1, y1) {
-  if (!LOOK.ground || !patchPic) return;
+function hillPatch(g, x0, y0, x1, y1) {   // (no longer used: the patches are in the tiles, lookPatchTile)
+  return;
   if (!hillPatch.pat || hillPatch.g !== g) { hillPatch.g = g; hillPatch.pat = g.createPattern(patchPic, 'repeat'); hillPatch.pat.setTransform(new DOMMatrix([12, 0, 0, 12, 0, 0])); }
   const op = g.globalCompositeOperation, sm = g.imageSmoothingEnabled;
   g.globalCompositeOperation = 'soft-light'; g.imageSmoothingEnabled = true; g.fillStyle = hillPatch.pat;
@@ -141,7 +155,7 @@ function lookGlowPic(c0, c1, c2) {
 // g: the screen; (vx, vy, vw, vh): the screen on the view plane; k: screen pixels per view pixel; t: battle clock.
 // night: on the day/night maps (Village, Frost) how dark it is (0 by day; drawNight darkens after this), else undefined.
 function drawLook(g, vx, vy, vw, vh, k, t, night) {
-  const W = g.canvas.width, H = g.canvas.height, dn = night === undefined ? 1 : 1 - night, M = lookMood(t), rgba = (c, m) => `rgba(${c[0]},${c[1]},${c[2]},${(c[3] * m).toFixed(3)})`;
+  const W = Math.round(vw * k), H = Math.round(vh * k), dn = night === undefined ? 1 : 1 - night, M = lookMood(t), rgba = (c, m) => `rgba(${c[0]},${c[1]},${c[2]},${(c[3] * m).toFixed(3)})`;
   g.save();
   g.globalCompositeOperation = 'saturation'; g.fillStyle = `rgba(128,128,128,${(M.sat * dn).toFixed(3)})`; g.fillRect(0, 0, W, H);   // muted colours
   const gr = M.grade.map((c) => Math.round(255 - (255 - c) * dn));
@@ -357,7 +371,7 @@ function cliffPic(L, c) {
 }
 // From ui.js draw: the cliff cells round the screen as things to sort in with the units.
 function cliffItems(list, x0, y0, x1, y1, shows) {
-  lookGround(lookView, x0, y0, x1, y1);   // (the ground's patches and tracks first: under the cliffs' shadows)
+  lookGround(lookView, x0, y0, x1, y1, shows && ((x, y) => shows(x, y, 40, 40, 40)));   // (the ground's patches and tracks first: under the cliffs' shadows)
   lookFxGround(lookView, x0, y0, x1, y1);   // lookfx.js: blasts' scorch marks and rings, and the update of its particles
   lookFogGround(lookView, x0, y0, x1, y1);   // fog lying on the ground, under the units
   poolItems(list, x0, y0, x1, y1, shows);   // lamp posts (light pools), with their shadows
@@ -516,10 +530,8 @@ function drawLampsOn(g, vx, vy, k, t, near) {
 // TRACK_LIFE seconds (kept here, not in G: looks only, not saved).
 const TRACK_LIFE = 25, TRACK_MAX = 6000;
 let lookTracks = null, patchPic = null;
-function lookGround(g, x0, y0, x1, y1) {
-  if (!g) return;
-  if (!LOOK.ground) { drawWater(g, x0, y0, x1, y1); return; }
-  if (!patchPic) {
+function patchPicMake() {
+  if (patchPic) return patchPic;
     const N = 128, c = mkCanvas(N, N), x = c.getContext('2d'), img = x.createImageData(N, N);
     const hash = (i, j, p, s) => { let h = (((i % p) + p) % p) * 374761393 + (((j % p) + p) % p) * 668265263 + p * 97 + s * 1013; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
     const sm = (a) => a * a * (3 - 2 * a);
@@ -534,14 +546,21 @@ function lookGround(g, x0, y0, x1, y1) {
     }
     x.putImageData(img, 0, 0);
     patchPic = c;
-  }
-  const pat = g.createPattern(patchPic, 'repeat');
-  pat.setTransform(new DOMMatrix([12, 0, 0, 12, 0, 0]));
-  if (!(LOOK.hills && G.hgt)) {   // (raised ground: drawn with it, chunk by chunk: hillPatch)
-    g.save(); g.globalCompositeOperation = 'soft-light'; g.globalAlpha = 1; g.imageSmoothingEnabled = true; g.fillStyle = pat;
-    g.fillRect(Math.max(0, x0), Math.max(0, y0), Math.min(WORLD, x1) - Math.max(0, x0), Math.min(WORLD, y1) - Math.max(0, y0)); g.restore();
-  }
-  drawWater(g, x0, y0, x1, y1);
+  return patchPic;
+}
+// The patches painted into a ground tile once, when it is finished (art.js makeGround finishSome; they used to be laid over
+// the whole view every frame, which on a phone cost a soft-light pass per chunk of the raised ground).
+function lookPatchTile(g, x0, y0) {
+  if (!LOOK.ground || !G || (typeof HEADLESS !== 'undefined' && HEADLESS)) return;
+  const pat = g.createPattern(patchPicMake(), 'repeat');
+  pat.setTransform(new DOMMatrix([12, 0, 0, 12, -x0, -y0]));
+  g.save(); g.globalCompositeOperation = 'soft-light'; g.imageSmoothingEnabled = true; g.fillStyle = pat;
+  g.fillRect(0, 0, GROUND_TILE, GROUND_TILE); g.restore();
+}
+function lookGround(g, x0, y0, x1, y1, shows) {
+  if (!g) return;
+  if (!LOOK.ground) { drawWater(g, x0, y0, x1, y1, shows); return; }
+  drawWater(g, x0, y0, x1, y1, shows);
   // Tracks.
   if (!lookTracks || lookTracks.g !== G) lookTracks = { g: G, list: [], last: new Map() };
   const T = lookTracks;
@@ -682,10 +701,21 @@ function waterMasks() {
   waterLook = { g: G, wm, sm, any, crest, foam, tmp: mkCanvas(1, 1) };
   return waterLook;
 }
-function drawWater(g, x0, y0, x1, y1) {
+function drawWater(g, x0, y0, x1, y1, shows) {
   if (!LOOK.water || snowy()) return;
   const W = waterMasks();
   if (!W.any) return;
+  if (shows) {   // only round the water that shows (the box round a turned screen is about three times the screen; this was a
+    // third of a phone's frame on River Crossing): the cells of open water on screen, and two cells round them for the foam
+    let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+    const c0 = Math.max(0, Math.floor(x0 / CELL)), c1 = Math.min(MAP - 1, Math.floor(x1 / CELL)), r0 = Math.max(0, Math.floor(y0 / CELL)), r1 = Math.min(MAP - 1, Math.floor(y1 / CELL));
+    for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
+      if (G.terr[cy * MAP + cx] < 4 || !shows((cx + 0.5) * CELL, (cy + 0.5) * CELL)) continue;
+      if (cx < a) a = cx; if (cx > c) c = cx; if (cy < b) b = cy; if (cy > d) d = cy;
+    }
+    if (a === Infinity) return;
+    x0 = Math.max(x0, (a - 2) * CELL); y0 = Math.max(y0, (b - 2) * CELL); x1 = Math.min(x1, (c + 3) * CELL); y1 = Math.min(y1, (d + 3) * CELL);
+  }
   x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(WORLD, Math.ceil(x1)); y1 = Math.min(WORLD, Math.ceil(y1));
   if (x1 <= x0 || y1 <= y0) return;
   const R = 0.5, tw = Math.ceil((x1 - x0) * R), th = Math.ceil((y1 - y0) * R), T = W.tmp;
