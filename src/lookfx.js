@@ -311,74 +311,72 @@ function lookDug(x, y, r) {
   const N = HILL_CH;
   for (let gy = Math.floor((y - r) / N); gy <= Math.floor((y + r) / N); gy++) for (let gx = Math.floor((x - r) / N); gx <= Math.floor((x + r) / N); gx++) hillFits.m.delete(gy * 4096 + gx);
 }
-// The craters (original art; Tiberian Sun's snow craters, from the owner's screenshot, as a style reference only): a spiky
-// star-burst splat in a darker shade of the ground (cool blue-grey on snow, dark earth elsewhere), not a disc and with no
-// raised lip: jagged spikes of thrown earth out from it, streaks running out from the middle, and in the bigger ones
-// (rad >= 8: bombs, V2s, crashes, structures) faint rings round a deeper middle; pale flecks round the edge. CRATER_VAR
-// pictures per kind (from fixed seeds), each crater one of them by its position, turned freely (no strong light in them).
+// The craters (original art; Tiberian Sun's craters, from the owner's screenshot, as a style reference only). Each picture
+// is worked out pixel by pixel from a small height field, then lit like the hills: a star-shaped hollow (its edge pushed out
+// in spikes of many lengths), grooves running out from the middle, a ragged rim of thrown earth or snow, and, in the big
+// ones (rad >= 8), steps round a deeper middle. Each pixel is shaded by its slope toward the low sun (the screen's upper
+// left, in world axes) and coloured from the ground's own tones (snow: white to slate blue; else dry earth to dark soil),
+// with a fine grain, and a hard dithered edge: crisp, not a soft stain. Drawn 1:1 in world pixels, without smoothing.
+// CRATER_VAR pictures per kind, each crater one of them by its position.
 const CRATER_VAR = 4;
 let craterPics = null;
 function craterPic(v, snow, big) {
   const key = v + (snow ? 's' : 'g') + (big ? 'b' : '');
   if (!craterPics) craterPics = new Map();
   if (craterPics.has(key)) return craterPics.get(key);
-  const Z = 96, M = Z / 2, c = mkCanvas(Z, Z), x = c.getContext('2d'), r = rng(1301 + v * 7919 + (big ? 77 : 0));
-  const deep = snow ? [44, 58, 76] : [30, 26, 18], mid = snow ? [78, 96, 118] : [62, 52, 36], pale = snow ? [228, 238, 250] : [150, 132, 100];
-  const col = (k, a) => `rgba(${k[0]},${k[1]},${k[2]},${a})`;
-  // The splat: many tapered streaks thrown out from the middle, of all lengths, a little bent, overlapping (so it is darkest
-  // where most cross: the middle), clumps along some, and loose splotches past the ends.
-  const ray = (a, L, w, colr, al) => {
-    const bend = (r() - 0.5) * 0.5, ex = M + Math.cos(a + bend) * L, ey = M + Math.sin(a + bend) * L, mx = M + Math.cos(a) * L * 0.5, my = M + Math.sin(a) * L * 0.5;
-    const px = -Math.sin(a) * w, py = Math.cos(a) * w;
-    x.beginPath(); x.moveTo(M + px, M + py); x.quadraticCurveTo(mx + px * 0.6, my + py * 0.6, ex, ey); x.quadraticCurveTo(mx - px * 0.6, my - py * 0.6, M - px, M - py); x.closePath();
-    x.fillStyle = col(colr, al.toFixed(2)); x.fill();
+  const Z = big ? 84 : 60, M = Z / 2, R0 = big ? 25 : 17, r = rng(1301 + v * 7919 + (big ? 77 : 0));
+  // The edge: radius by angle, spikes of many lengths.
+  const NS = 64, edge = new Float32Array(NS), grooveP = new Float32Array(NS);
+  const spikes = []; for (let k = 0; k < 48; k++) spikes.push([r() * Math.PI * 2, 0.04 + r() * 0.05, 0.16 * (0.3 + r() * 0.7)]);
+  for (let i = 0; i < NS; i++) {
+    const a = i / NS * Math.PI * 2; let e = 1 + 0.08 * Math.sin(3 * a + v) + 0.06 * Math.sin(5 * a + v * 2);
+    for (const [sa, w, l] of spikes) { let d = Math.abs(a - sa); d = Math.min(d, Math.PI * 2 - d); if (d < w) e += l * (1 - d / w) * (1 - d / w); }
+    edge[i] = e; grooveP[i] = r();
+  }
+  const edgeAt = (a) => { const f = ((a / (Math.PI * 2)) % 1 + 1) % 1 * NS, i = Math.floor(f), t = f - i; return edge[i % NS] * (1 - t) + edge[(i + 1) % NS] * t; };
+  const H = (x, y) => {
+    const dx = x - M, dy = y - M, d = Math.hypot(dx, dy), a = Math.atan2(dy, dx), E = edgeAt(a) * R0, q = d / E;
+    let h;
+    if (q < 1) {
+      h = -(1 - q * q) * (big ? 7 : 5);
+      if (big) h -= 2.5 * Math.max(0, 1 - q / 0.35) + 1.2 * (q < 0.62 ? 1 : 0) * Math.max(0, 1 - Math.abs(q - 0.62) * 8) * 0;
+      if (big) h += 0.9 * Math.sin(q * Math.PI * 3.2) * (1 - q);   // steps round the middle
+      h += (0.35 * Math.sin(a * 17 + v) + 0.25 * Math.sin(a * 29 + v * 3)) * q * edgeAt(a);   // grooves running out, uneven
+    } else h = Math.max(0, 1.6 * (1 - (q - 1) / 0.45)) * (0.6 + 0.4 * Math.sin(a * 11 + v));   // the rim of thrown earth
+    return h;
   };
-  const reach = big ? 44 : 38;
-  for (let i = 0; i < 70; i++) {
-    const a = r() * Math.PI * 2, L = reach * (0.3 + Math.pow(r(), 0.7) * 0.7) * (r() < 0.08 ? 1.15 : 1);
-    ray(a, L, 2 + r() * 4, r() < 0.75 ? mid : deep, 0.16 + r() * 0.22);
-    if (r() < 0.35) { const d = L * (0.5 + r() * 0.4), s = 1.5 + r() * 2.5; x.fillStyle = col(mid, (0.3 + r() * 0.3).toFixed(2)); x.beginPath(); x.ellipse(M + Math.cos(a) * d, M + Math.sin(a) * d, s, s * 0.7, a, 0, 7); x.fill(); }
+  const sv = fromView(-1, -1), sl = Math.hypot(sv[0], sv[1]), lx = sv[0] / sl * 0.75, ly = sv[1] / sl * 0.75, lz = 0.66;
+  const lit = snow ? [246, 250, 255] : [168, 146, 108], mid = snow ? [168, 184, 206] : [104, 86, 60], dark = snow ? [62, 78, 104] : [38, 31, 22];
+  const c = mkCanvas(Z, Z), x = c.getContext('2d'), img = x.createImageData(Z, Z), D = img.data;
+  for (let py = 0; py < Z; py++) for (let px = 0; px < Z; px++) {
+    const dx = px + 0.5 - M, dy = py + 0.5 - M, d = Math.hypot(dx, dy), a = Math.atan2(dy, dx), E = edgeAt(a) * R0, q = d / E;
+    if (q > 1.3) continue;
+    const h = H(px + 0.5, py + 0.5), gx = (H(px + 1.5, py + 0.5) - H(px - 0.5, py + 0.5)) / 2, gy = (H(px + 0.5, py + 1.5) - H(px + 0.5, py - 0.5)) / 2;
+    const n = Math.hypot(gx, gy, 1), sh = (-gx * lx - gy * ly + lz) / n;   // light on this pixel's slope
+    const grain = (r() - 0.5) * 0.12;
+    let k = Math.max(0, Math.min(1, 0.62 + (sh - 0.66) * 2.6 + grain + (h < 0 ? h * 0.065 : 0)));   // 0 dark .. 1 lit: by slope to the sun, and darker deeper
+    if (q >= 1) k = 0.7 + k * 0.3;   // the thrown earth or snow round it: pale, catching the light
+    const col = k < 0.5 ? dark.map((v0, i) => v0 + (mid[i] - v0) * k * 2) : mid.map((v0, i) => v0 + (lit[i] - v0) * (k - 0.5) * 2);
+    // Opacity: solid inside, the rim fading out in a hard dither (crisp, no soft blur).
+    let al = q < 1 ? 1 : Math.max(0, 1 - (q - 1) / 0.3) * 0.7;
+    if (al < 1) al = r() < al ? Math.min(1, 0.55 + al) : 0;
+    const o = (py * Z + px) * 4; D[o] = col[0]; D[o + 1] = col[1]; D[o + 2] = col[2]; D[o + 3] = Math.round(al * (q < 1 ? 235 : 200));
   }
-  for (let i = 0; i < 14; i++) { const a = r() * Math.PI * 2, d = reach * (0.75 + r() * 0.3), s = 0.8 + r() * 1.8; x.fillStyle = col(mid, (0.35 + r() * 0.3).toFixed(2)); x.beginPath(); x.arc(M + Math.cos(a) * d, M + Math.sin(a) * d, s, 0, 7); x.fill(); }
-  if (big) {   // the hollow itself: a ragged body under the middle
-    x.beginPath(); for (let i = 0; i <= 20; i++) { const a = i / 20 * Math.PI * 2, d = 21 * (0.85 + r() * 0.3); i ? x.lineTo(M + Math.cos(a) * d, M + Math.sin(a) * d) : x.moveTo(M + Math.cos(a) * d, M + Math.sin(a) * d); }
-    x.closePath(); x.fillStyle = col(mid, 0.45); x.fill();
-  }
-  const g = x.createRadialGradient(M, M, 0, M, M, big ? 20 : 14); g.addColorStop(0, col(deep, big ? 0.55 : 0.75)); g.addColorStop(1, col(deep, 0));
-  x.fillStyle = g; x.beginPath(); x.arc(M, M, big ? 20 : 14, 0, 7); x.fill();
-  // Fine streaks over it, dark and pale.
-  x.lineCap = 'round';
-  for (let i = 0; i < 26; i++) {
-    const a = r() * Math.PI * 2, d0 = 3 + r() * 8, d1 = 12 + r() * (reach - 16);
-    x.strokeStyle = r() < 0.65 ? col(deep, (0.25 + r() * 0.3).toFixed(2)) : col(pale, (0.12 + r() * 0.18).toFixed(2)); x.lineWidth = 0.5 + r() * 0.9;
-    x.beginPath(); x.moveTo(M + Math.cos(a) * d0, M + Math.sin(a) * d0); x.lineTo(M + Math.cos(a + (r() - 0.5) * 0.2) * d1, M + Math.sin(a + (r() - 0.5) * 0.2) * d1); x.stroke();
-  }
-  if (big) {   // ragged rings round a deeper middle (in broken arcs), each wall a little lighter than the floor inside it
-    for (const [R, a] of [[19, 0.28], [12, 0.32]]) for (let k = 0; k < 7; k++) {
-      const a0 = k / 7 * Math.PI * 2 + r() * 0.4, a1 = a0 + 0.5 + r() * 0.4, rr = R + (r() - 0.5) * 3;
-      x.lineWidth = 1.6; x.strokeStyle = col(pale, (a * 0.55).toFixed(2)); x.beginPath(); x.arc(M, M, rr, a0, a1); x.stroke();
-      x.lineWidth = 1.1; x.strokeStyle = col(deep, a.toFixed(2)); x.beginPath(); x.arc(M, M, rr - 1.6, a0, a1); x.stroke();
-    }
-    x.fillStyle = col(deep, 0.6); x.beginPath(); x.ellipse(M, M, 5 + r() * 2, 4 + r() * 2, r() * 3, 0, 7); x.fill();
-  }
-  for (let i = 0; i < 40; i++) {   // pale flecks of snow or dirt thrown round the edge
-    const a = r() * Math.PI * 2, d = 26 + r() * 18;
-    x.fillStyle = col(pale, (0.35 + r() * 0.5).toFixed(2)); x.fillRect(M + Math.cos(a) * d, M + Math.sin(a) * d, 1 + (r() < 0.3), 1);
-  }
+  x.putImageData(img, 0, 0);
   craterPics.set(key, c);
   return c;
 }
 function lookCraters(g, on) {
   if (!LOOK.craters || !G.craters || !G.craters.length) return;
-  const snow = typeof mapTheme === 'function' && mapTheme(G.mapId) === 'snow';
+  const snow = typeof mapTheme === 'function' && mapTheme(G.mapId) === 'snow', sm = g.imageSmoothingEnabled;
+  g.imageSmoothingEnabled = false;
   for (const [x, y, rad] of G.craters) {
-    const R = (0.6 + rad / 10) * CELL;   // world.js digCrater's bowl
-    if (!on(x, y, R) || !fxSeen(x, y)) continue;
-    const h = ((x * 73856093) ^ (y * 19349663)) >>> 0, [tx, ty] = liftPt(0, 0, gLift(x, y, true));   // at the drawn ground's height
-    g.save(); g.translate(x + tx, y + ty); g.rotate((h % 628) / 100);
-    g.drawImage(craterPic(h % CRATER_VAR, snow, rad >= 8), -R * 1.3, -R * 1.3, R * 2.6, R * 2.6);
-    g.restore();
+    if (!on(x, y, 50) || !fxSeen(x, y)) continue;
+    const h = ((x * 73856093) ^ (y * 19349663)) >>> 0, [tx, ty] = liftPt(0, 0, gLift(x, y, true)), pic = craterPic(h % CRATER_VAR, snow, rad >= 8);   // at the drawn ground's height
+    const s = rad >= 8 ? 0.85 + Math.min(0.4, (rad - 8) * 0.12) : 0.8 + (rad - 5) * 0.1, w = pic.width * s;   // (world.js digCrater's bowl: about this size)
+    g.drawImage(pic, Math.round(x + tx - w / 2), Math.round(y + ty - w / 2), w, w);
   }
+  g.imageSmoothingEnabled = sm;
 }
 
 // ---- Steel sidebar ----------------------------------------------------------------------------------------------------

@@ -293,6 +293,13 @@ recorder usage at the top of record.js).
     crashes, structures) also a ragged hollow and two broken rings round a deeper middle; pale flecks round the edge.
     `CRATER_VAR` 4 per kind, turned by the crater's position, 2.6 x the bowl's radius. The blasts' own scorch mark (lookfx)
     is left out where a crater was dug (its black soot hid the colour).
+  - **Redrawn a third time 2026-11-19** (owner: "idk these still dont look good"): the splats read as soft stains, the reference's
+    as holes. Now each picture is worked out pixel by pixel from a small height field and lit like the hills (`craterPic`): a
+    round-ish hollow with 48 short spikes in its edge, uneven grooves running out, steps round a deeper middle in the big ones
+    (rad >= 8), a low rim of thrown earth; each pixel's tone from its slope toward the sun (upper left of the screen, in world
+    axes) and its depth (darker deeper), between the ground's own dark, middle and lit tones (snow: slate blue to white; else
+    dark soil to dry earth), with grain; the rim pale, its edge a hard dither. 60 px (84 big) pictures drawn 1:1 in world
+    pixels, scaled 0.8-1.25 by rad, without smoothing; not turned (lit from the sun's side).
 - **Service Depot pad hidden on raised ground (owner, 2026-11-19: "the service depot repair cross on the ground wasn't level cause
   of the hill. Maybe remove it?"):** art.js padDecal draws nothing while `LOOK.hills` is on (the mark is still recorded, so saves
   and online play are unchanged; `?lookoff=hills` shows it again).
