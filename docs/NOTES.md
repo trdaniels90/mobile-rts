@@ -1592,3 +1592,7 @@ Owner's match ea39d315 (3 v 3, 40 min, a 120 Hz PC at 2560 x 1370): 117 fps earl
 - Close Air Support (`updateCas`, world.js): a strike on an area near the map edge left the plane circling for ever, because `flyJet` pins it
   inside the world and the area ended up inside its turning circle. A turn that takes over `CAS_TURN_MAX` (6) seconds is given up and the plane leaves.
   Checked by flying an A-10 at three edge spots: before, two still flew after 90 s; after, all left.
+
+## Ally picker was invisible (not released, team games, both modes)
+
+- With 2+ allies the Ally button builds `#allyPick` (`allyPicker`, ui.js), but style.css only styled `#autoPick`, so the card was never shown and the button seemed to do nothing (owner, 3 v AI online). `#allyPick` now shares the overlay rules. With one ally the button still toggles at once.
