@@ -33,9 +33,12 @@ recorder usage at the top of record.js).
 - **Made, video sent 2026-11-19 (owner asked for them; verdict pending):** `LOOK.lamps` and `LOOK.ground`.
   - Lamps (`structLamps`, `drawLamps`, in drawLook): from each structure type's voxel model, red beacons on its 1-2 highest
     points (blink 0.14 of every 1.6 s, own phase per structure), a warm glow per 4 x 4 x 4 block of window glass facing the camera
-    (up to 10; out below 30% health), and a searchlight sweeping 52 px out from ground defences. Owner's picks (2026-11-19): the camouflaged pillbox has no
-    light of any kind (no beacon, window or structure glow: nothing may give it away); anti-aircraft (AA Gun, SAM Site) shine
-    up into the sky instead, sweeping overhead, and lock on the nearest enemy aircraft they can see within `AA_LOOK` (320 px).
+    (up to 10; out below 30% health). **Defences give off no light at all** (owner, 2026-11-19: "it doesn't look correct on
+    them"; no beacons, windows or structure glow, and on day/night maps not the night pool of light in drawNight either, art.js
+    hook), with one exception: the **Allied AA Gun's searchlight, at night only** (`drawSkyBeams`, after drawNight on day/night
+    maps, fading in with `dayNight().night`): a beam up into the sky, sweeping overhead, locked on the nearest enemy aircraft it
+    can see within `AA_LOOK` (320 px). Dropped earlier tries: ground searchlights on every defence, SAM beams, AA beams by day.
+    Note for the main game: its own night lighting puts a pool of light round every structure, the camouflaged pillbox included.
   - Ground (`lookGround`, called from `cliffItems`, so under units and cliff shadows): a fixed soft-light noise of drier, lusher
     and darker patches (12 world px a noise pixel), and tank tracks: every 5 px a ground vehicle moves, a pair of tread marks,
     fading over `TRACK_LIFE` 25 s (max 6000; kept in `lookTracks`, not in G, so not saved). The first strength was invisible on
