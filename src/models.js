@@ -1521,19 +1521,51 @@ function infModel(pal, faction, type, frame) {
     m.box(2, -1, 13, R ? 13 : 11, 0, 14, C.gun, M_METAL); m.box(-1, -1, 12, 3, 0, 14, wood); m.box(5, -1, 11, 6, 0, 13, C.gun, M_METAL);
     if (R) m.box(5, -1, 13, 9, 0, 14, wood);                                  // wooden handguard
   } else if (pose === 'sam') {
-    // RedEye: a long, slim tube on the shoulder pointed up at the sky, with a boxy gripstock and
-    // battery under it, a seeker head at the front and a flip-up sight. Pale with an orange band
-    // for the Allies; olive with a red band for the Soviets.
-    const body = sov ? '#5f6a3c' : '#d9dbd0', band = sov ? '#c8281e' : '#e8742a', dk = sov ? '#2f3520' : '#4c5058';
-    const x0 = -6, z0 = 12, x1 = 11, z1 = 26, n = 18;
-    for (let i = 0; i <= n; i++) {
-      const k = i / n, x = Math.round(x0 + (x1 - x0) * k), z = Math.round(z0 + (z1 - z0) * k);
-      m.box(x - 1, 2.5, z - 1, x + 1, 4.5, z + 1, (i === 6 || i === 7 || i === 12) ? band : i >= 17 ? dk : body, M_METAL);
+    // The anti-air launcher, on the right shoulder pointed up at the sky: a thick tube (3 voxels, so it reads at the
+    // 65% infantry size) along the line A (rear) to F (front), with flared ends and the parts that make each side's
+    // silhouette. Allies, Stinger-style: olive drab with a yellow band, a big square IFF antenna standing up off the
+    // left side, the gripstock and its battery under the middle, a sight frame on the right. Soviets, Igla-style:
+    // green with a red band, a needle spike on the nose, a long thermal battery forward under the grip, a sight box on the left.
+    const A = [-7.5, 3.5, 11], F = [10.5, 3.5, 26];
+    const dx = F[0] - A[0], dz = F[2] - A[2], L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L;   // along the tube; (uz, -ux) points under it
+    const at = (k, under = 0, side = 0) => [A[0] + dx * k + uz * under, A[1] + side, A[2] + dz * k - ux * under];
+    // a solid capsule from P to Q of radius r, coloured by col(t) along it
+    const seg = (P, Q, r, col, mat) => {
+      const ex = Q[0] - P[0], ey = Q[1] - P[1], ez = Q[2] - P[2], ll = ex * ex + ey * ey + ez * ez || 1;
+      for (let x = Math.floor(Math.min(P[0], Q[0]) - r); x <= Math.max(P[0], Q[0]) + r; x++)
+        for (let y = Math.floor(Math.min(P[1], Q[1]) - r); y <= Math.max(P[1], Q[1]) + r; y++)
+          for (let z = Math.max(0, Math.floor(Math.min(P[2], Q[2]) - r)); z <= Math.max(P[2], Q[2]) + r; z++) {
+            const wx = x + 0.5 - P[0], wy = y + 0.5 - P[1], wz = z + 0.5 - P[2];
+            const t = Math.max(0, Math.min(1, (wx * ex + wy * ey + wz * ez) / ll));
+            if ((wx - ex * t) ** 2 + (wy - ey * t) ** 2 + (wz - ez * t) ** 2 <= r * r) { const c = typeof col === 'function' ? col(t) : col; if (c) m.set(x, y, z, c, mat); }
+          }
+    };
+    const body = sov ? '#55663a' : '#4e5636', bodyHi = sov ? '#6c7f48' : '#646d46', band = sov ? '#c8281e' : '#e0b531';
+    const dk = '#2a2c26', metal = '#7b8087';
+    seg(at(0.04), at(0.95), 1.6, (t) => (t > 0.78 && t < 0.84) || (!sov && t > 0.12 && t < 0.16) ? band : t > 0.3 && t < 0.62 ? bodyHi : body, M_METAL);   // the tube
+    seg(at(0), at(0.06), 1.9, '#3d4036', M_METAL);                                   // flared rear (blast) cap
+    seg(at(0.94), at(1), 1.8, sov ? '#3d4036' : '#3c4a52', M_METAL);                 // front cap (the Stinger's a blue-grey cover)
+    if (sov) {
+      seg(at(1), at(1.13), 0.6, '#c9c6b8', M_METAL);                                 // the nose spike
+      seg(at(0.4, 2), at(0.42, 4), 1, dk, M_METAL);                                  // gripstock
+      seg(at(0.47, 2.6), at(0.78, 2.6), 0.9, '#3a4026', M_METAL);                    // long thermal battery forward under the grip
+      m.set(...at(0.79, 2.6).map(Math.round), '#c8281e');                            // its red cap
+      seg(at(0.7, 0, -2.4), at(0.8, 0, -2.4), 0.8, dk, M_METAL);                     // sight box on the left
+      seg(at(0.72, 1.5, -2.4), at(0.72, -1.2, -2.4), 0.5, dk, M_METAL);
+    } else {
+      seg(at(0.38, 2), at(0.41, 4.2), 1, dk, M_METAL);                               // gripstock
+      seg(at(0.48, 2.2), at(0.58, 2.2), 1, '#1f211c', M_METAL);                      // battery unit under it
+      // the IFF antenna: a square frame standing up off the left side, a grid of wires inside
+      const g0 = at(0.6, -1.4, -2.3), g1 = at(0.76, -1.4, -2.3), up = [-uz, 0, ux];
+      const gc = (u, v) => [g0[0] + (g1[0] - g0[0]) * u + up[0] * v, g0[1], g0[2] + (g1[2] - g0[2]) * u + up[2] * v];
+      for (let i = 0; i <= 12; i++) for (let j = 0; j <= 12; j++) {
+        const u = i / 12, v = j / 12 * 3.5, edge = i === 0 || i === 12 || j === 0 || j === 12;
+        if (edge || i % 4 === 0 || j % 4 === 0) m.set(...gc(u, v).map(Math.floor), edge ? '#8d938a' : '#5d625c', M_METAL);
+      }
+      seg(at(0.68, -1, -1.2), at(0.68, -1.4, -2.3), 0.5, metal, M_METAL);              // its mount
+      seg(at(0.84, 0, 2.3), at(0.84, -2.2, 2.3), 0.5, dk, M_METAL);                  // sight frame on the right
+      seg(at(0.78, -2.2, 2.3), at(0.9, -2.2, 2.3), 0.5, dk, M_METAL);
     }
-    m.ellipsoid(12, 3.5, 26.5, 1.6, 1.6, 1.8, dk, M_METAL);                         // seeker head
-    m.box(-7, 2, 11, -5, 5, 14, dk, M_METAL);                                        // rear cone
-    m.box(2, 2, 12, 5, 5, 15, dk, M_METAL); m.box(3, 3, 10, 4, 4, 12, '#6a4426');   // gripstock, grip
-    m.box(0, 5, 16, 2, 6, 19, sov ? '#3a4026' : '#7b8087', M_METAL);                 // flip-up sight
   } else if (type === 'rocket') {
     m.cylX(-7, 7, 3.5, 15.5, 1.5, tube);                                      // launcher tube on the right shoulder
     m.box(7, 2, 14, 9, 5, 17, tubeD); m.box(-8, 2, 14, -7, 5, 17, tubeD);    // muzzle and exhaust
