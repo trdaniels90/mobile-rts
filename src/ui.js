@@ -813,7 +813,10 @@ function draw() {
     }
     toWorld();
     v.imageSmoothingEnabled = true;
-    v.drawImage(shroudCanvas, ox / CELL, oy / CELL, bw / CELL, bh / CELL, ox, oy, bw, bh);
+    // Only the part of the box on the map: Safari (iPhone) stretches and shifts a picture whose source rectangle runs
+    // past its edges instead of clipping it, so the fog slid about while scrolling near the map's edges.
+    const fx0 = Math.max(0, ox), fy0 = Math.max(0, oy), fx1 = Math.min(WORLD, ox + bw), fy1 = Math.min(WORLD, oy + bh);
+    if (fx1 > fx0 && fy1 > fy0) v.drawImage(shroudCanvas, fx0 / CELL, fy0 / CELL, (fx1 - fx0) / CELL, (fy1 - fy0) / CELL, fx0, fy0, fx1 - fx0, fy1 - fy0);
     v.imageSmoothingEnabled = false;
 
     drawPlacement(v);
