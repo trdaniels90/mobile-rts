@@ -303,6 +303,10 @@ recorder usage at the top of record.js).
 - **Service Depot pad hidden on raised ground (owner, 2026-11-19: "the service depot repair cross on the ground wasn't level cause
   of the hill. Maybe remove it?"):** art.js padDecal draws nothing while `LOOK.hills` is on (the mark is still recorded, so saves
   and online play are unchanged; `?lookoff=hills` shows it again).
+- **Lighting and weather per map, decided 2026-11-19 (owner picked "A": leave it as it is).** Offered: per-map defaults plus
+  weather for A Bridge Too Far and Twin Lakes (none now), and a skirmish "Conditions" choice (time, weather). Kept as is: weather
+  per map (rain 50% on Three Crossings, Lakeside, Village; snow 50% Snowbound, 60% Frostlight; none on A Bridge Too Far, Twin Lakes),
+  day and night only on Crossroads Village and Frostlight Valley, mood per map, storms on rain maps, fog on Village.
 - **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size
