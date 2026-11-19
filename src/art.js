@@ -1064,7 +1064,7 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
 const PLANE_LIGHTS = { b1: { tip: [-13.5, 17.5, 4.5], tail: [-20, 12.5], top: [-2, 7.4] }, tu22: { tip: [-11.5, 17.5, 5.5], tail: [-20, 14.5], top: [-2, 7.4] },
   c130: { tip: [1.5, 24, 8.5], tail: [-19.5, 15], top: [-6, 8] }, il76: { tip: [-8.5, 25, 6.5], tail: [-21, 16.5], top: [-6, 8.2] },
   a50: { tip: [-8.5, 25, 6.5], tail: [-21, 16.5], top: [5, 7.9] },   // the A-50's beacon is forward of its rotodome (which covers x -15 to -1)
-  sr71: { tip: [-13.5, 10.5, 3.5], tail: [-17.5, 4], top: [1, 4.8] } };
+  sr71: { tip: [-13, 11, 3.5], tail: [-21, 3.4], top: [1, 4.9] } };
 function navLights(g, vx, vy, k, t, night, near, vis) {
   const pts = [];
   for (const u of G.entities) {
