@@ -30,15 +30,21 @@ const LOOK = (() => {
 // shroud) in HILL_CH px squares, each through its own affine transform fitted to the lift at its four corners, drawn a
 // little larger than itself so neighbours overlap (no seams). The hills are smooth and gentle (no slope hides the ground
 // behind it), so nothing needs sorting. Rules, saves and online play do not change: this is drawing only.
-const HILL_EDGE = 72, HILL_CH = 32, HILL_LAP = 0.6;
+const HILL_EDGE = 160, HILL_CH = 32, HILL_LAP = 0.7;
+// HILL_DRAW: the hills are drawn this many times as tall as the rules' heights (G.hgt). The rules compare heights as a
+// share of HG_MAX (reach, sight) or by slope (speed), and none of that changes: only the picture is taller.
+const HILL_DRAW = 2.5;
 let LIFT_V = null;   // the world vector that shows one view pixel straight up
 function gLift(x, y) {
   if (!LOOK.hills || !G || !G.hgt) return 0;
   const m = Math.min(x, y, WORLD - x, WORLD - y);
   if (m <= 0) return 0;
-  const h = hgtAt(x, y) * VK;
-  return m >= HILL_EDGE ? h : h * (m / HILL_EDGE);
+  const h = hgtAt(x, y) * VK * HILL_DRAW;
+  if (m >= HILL_EDGE) return h;
+  const k = m / HILL_EDGE;
+  return h * k * k * (3 - 2 * k);
 }
+const hillMax = () => HG_MAX * VK * HILL_DRAW;
 // The world point that shows where (x, y) does on the raised ground (for things drawn in world coordinates).
 function hillPt(x, y, extra) { return liftPt(x, y, gLift(x, y) + (extra || 0)); }
 // fn() drawn with g's transform moved up the screen by the lift at (x, y).
@@ -50,41 +56,61 @@ function onHill(g, x, y, fn) {
   g.translate(LIFT_V[0] * L, LIFT_V[1] * L);
   try { return fn(); } finally { g.setTransform(m); }
 }
-// Whether G.hgt is 0 all over a world box (and a cell round it): drawn flat in one piece. Kept per battle, per 256 px square.
-let hillFlat = null;
-function hillFlatBox(x0, y0) {
-  if (!hillFlat || hillFlat.g !== G || hillFlat.h !== G.hgt) hillFlat = { g: G, h: G.hgt, m: new Map() };
-  const S = 256, k = Math.floor(y0 / S) * 4096 + Math.floor(x0 / S);
-  let f = hillFlat.m.get(k);
-  if (f === undefined) {
-    f = true;
-    const bx = Math.floor(x0 / S) * S, by = Math.floor(y0 / S) * S;
-    const c0 = Math.max(0, Math.floor(bx / CELL) - 1), c1 = Math.min(MAP - 1, Math.floor((bx + S) / CELL) + 1), r0 = Math.max(0, Math.floor(by / CELL) - 1), r1 = Math.min(MAP - 1, Math.floor((by + S) / CELL) + 1);
-    for (let y = r0; y <= r1 && f; y++) for (let x = c0; x <= c1; x++) if (G.hgt[y * MAP + x] > 0) { f = false; break; }
-    hillFlat.m.set(k, f);
+// The ground in HILL_CH px chunks on a fixed world grid, each drawn through an affine transform fitted to the lift at its
+// corners (a plane: Lc + Lx (x - mid) + Ly (y - mid)). Worked out once a battle per chunk (hillFit), with `occ`: whether
+// the chunk hides ground behind it (some point of it stands higher on the screen than ground up to hillMax() behind it in
+// its screen column). Chunks are drawn back to front (key: the depth of their back corner), so a hill hides what is behind
+// it; ui.js redraws the hiding chunks (occ) over the units and trees behind them.
+let hillFits = null;
+function hillFit(gx, gy) {
+  if (!hillFits || hillFits.g !== G || hillFits.h !== G.hgt) hillFits = { g: G, h: G.hgt, m: new Map() };
+  const id = gy * 4096 + gx;
+  let f = hillFits.m.get(id);
+  if (f) return f;
+  const N = HILL_CH, X0 = gx * N, Y0 = gy * N, X1 = X0 + N, Y1 = Y0 + N;
+  const a = gLift(X0, Y0), b = gLift(X1, Y0), c = gLift(X0, Y1), d = gLift(X1, Y1);
+  const Lx = (b - a + d - c) / (2 * N), Ly = (c - a + d - b) / (2 * N), Lc = (a + b + c + d) / 4;
+  let occ = false;
+  const S = VIEW.s, C = VIEW.c, F = VIEW.F, far = hillMax() / F + 8;
+  for (const [px, py, L] of [[X0, Y0, a], [X1, Y0, b], [X0, Y1, c], [X1, Y1, d], [X0 + N / 2, Y0 + N / 2, gLift(X0 + N / 2, Y0 + N / 2)]]) {
+    if (L <= 0) continue;
+    for (let t = 4; t < far && !occ; t += 4) if (L - gLift(px - S * t, py - C * t) > t * F + 0.5) occ = true;
+    if (occ) break;
   }
+  f = { Lx, Ly, F0: Lc - Lx * (X0 + X1) / 2 - Ly * (Y0 + Y1) / 2, occ, flat: !a && !b && !c && !d };
+  hillFits.m.set(id, f);
   return f;
 }
 // The ground's warp for one frame of the view canvas g (top left (vx, vy) on the view plane), or null (hills off).
-// each(x0, y0, x1, y1, fn): fn(X0, Y0, X1, Y1) for every chunk of the world box with g's transform set for it (the box
-// in one piece where it is flat); the transform is left in the plain world one after.
+//  set(c): g's transform for chunk c ({ X0, Y0, X1, Y1 } inside one grid chunk); flat(): the plain world transform;
+//  each(x0, y0, x1, y1, fn): fn(X0, Y0, X1, Y1) for the chunks of a world box, back to front, each with its transform
+//  set (left in the plain world transform after); box(c): chunk c's box on the view plane.
 function hillWarp(g, vx, vy) {
   if (!LOOK.hills || !G || !G.hgt) return null;
-  const C = VIEW.c, S = VIEW.s, F = VIEW.F;
-  const flatT = () => g.setTransform(C, S * F, -S, C * F, -vx, -vy);
+  const C = VIEW.c, S = VIEW.s, F = VIEW.F, N = HILL_CH;
+  const flat = () => g.setTransform(C, S * F, -S, C * F, -vx, -vy);
+  const fitOf = (c) => c.fit || (c.fit = hillFit(Math.floor(c.X0 / N), Math.floor(c.Y0 / N)));
+  const set = (c) => { const f = fitOf(c); g.setTransform(C, S * F - f.Lx, -S, C * F - f.Ly, -vx, -vy - f.F0); };
   return {
+    flat, set, fitOf,
+    box(c) {
+      const f = fitOf(c);
+      let a = Infinity, b = Infinity, cc = -Infinity, d = -Infinity;
+      for (const [x, y] of [[c.X0, c.Y0], [c.X1, c.Y0], [c.X0, c.Y1], [c.X1, c.Y1]]) {
+        const X = x * C - y * S, Y = (x * S + y * C) * F - (f.F0 + f.Lx * x + f.Ly * y);
+        a = Math.min(a, X); b = Math.min(b, Y); cc = Math.max(cc, X); d = Math.max(d, Y);
+      }
+      return [a, b, cc, d];
+    },
     each(x0, y0, x1, y1, fn) {
-      if (hillFlatBox(x0, y0) && hillFlatBox(x1 - 1, y1 - 1) && hillFlatBox(x1 - 1, y0) && hillFlatBox(x0, y1 - 1)) { flatT(); fn(x0, y0, x1, y1); return; }
-      const N = HILL_CH;
+      const list = [];
       for (let cy = Math.floor(y0 / N) * N; cy < y1; cy += N) for (let cx = Math.floor(x0 / N) * N; cx < x1; cx += N) {
         const X0 = Math.max(x0, cx), Y0 = Math.max(y0, cy), X1 = Math.min(x1, cx + N), Y1 = Math.min(y1, cy + N);
-        if (X1 <= X0 || Y1 <= Y0) continue;
-        const a = gLift(X0, Y0), b = gLift(X1, Y0), c = gLift(X0, Y1), d = gLift(X1, Y1);
-        const Lx = (b - a + d - c) / (2 * (X1 - X0)), Ly = (c - a + d - b) / (2 * (Y1 - Y0)), Lc = (a + b + c + d) / 4;
-        g.setTransform(C, S * F - Lx, -S, C * F - Ly, -vx, -vy - Lc + Lx * (X0 + X1) / 2 + Ly * (Y0 + Y1) / 2);
-        fn(X0, Y0, X1, Y1);
+        if (X1 > X0 && Y1 > Y0) list.push({ X0, Y0, X1, Y1, key: cx * S + cy * C });
       }
-      flatT();
+      list.sort((p, q) => p.key - q.key);
+      for (const c of list) { set(c); fn(c.X0, c.Y0, c.X1, c.Y1); }
+      flat();
     },
   };
 }

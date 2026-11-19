@@ -345,7 +345,19 @@
     // down the screen by the lift there (the hills are gentle, so this settles at once).
     const X = cam.x + sx / cam.z, Y = cam.y + sy / cam.z;
     let [x, y] = fromView(X, Y);
-    for (let i = 0; i < 4; i++) { const L = gLift(x, y); if (!L) break; [x, y] = fromView(X, Y + L); }
+    if (!(LOOK.hills && G && G.hgt)) return { x, y };
+    // The nearest ground in this screen column that shows at Y: from as far in front as the highest hill could show
+    // there, back until a point of the ground stands at or above Y (a hill in front hides what is behind it).
+    const M = hillMax();
+    for (let d = M + 2; d >= 0; d -= 2) {
+      const [px, py] = fromView(X, Y + d);
+      if (d - gLift(px, py) <= 0) {   // the ground here shows at or above Y: the answer lies between this step and the last
+        let lo = d, hi = d + 2;
+        for (let i = 0; i < 6; i++) { const m = (lo + hi) / 2, [qx, qy] = fromView(X, Y + m); if (m - gLift(qx, qy) <= 0) lo = m; else hi = m; }
+        [x, y] = fromView(X, Y + lo);
+        return { x, y };
+      }
+    }
     return { x, y };
   };
 
@@ -578,19 +590,45 @@ function draw() {
       v.drawImage(e, -P * CELL, -P * CELL, (MAP + 2 * P) * CELL, (MAP + 2 * P) * CELL);
       v.imageSmoothingEnabled = false;
     }
-    const warp = hillWarp(v, vx, vy);   // the raised ground (look.js), or null
-    G.ground.draw(v, 't', sx, sy, sw, sh, sx, sy, warp, warp && hillPatch);
-    if (past) edgeSeam(v, ox, oy, bw, bh);
-
-    // Ore
     const c0 = Math.max(0, Math.floor(ox / CELL)), c1 = Math.min(MAP - 1, Math.floor((ox + bw) / CELL));
     const r0 = Math.max(0, Math.floor(oy / CELL)), r1 = Math.min(MAP - 1, Math.floor((oy + bh) / CELL));
-    for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
-      const c = idx(cx, cy), o = G.ore[c];
-      if (o && onScr((cx + 0.5) * CELL, (cy + 0.5) * CELL, 40, 40, 40)) onHill(v, (cx + 0.5) * CELL, (cy + 0.5) * CELL, () => drawOre(v, cx, cy, o, G.gem[c]));
+    // The raised ground (look.js hillWarp): the ground in chunks, back to front, each with its patches (hillPatch), the
+    // ore whose cells lie behind its back corner (each on the ground under it) and its layer of wrecks and bodies. The
+    // chunks that hide ground behind them (occ) are kept to be drawn again over the units and trees behind them.
+    const warp = hillWarp(v, vx, vy);
+    let ores = null, occs = null, drawCh = null;
+    if (warp) {
+      const chunks = G.ground.chunks(sx, sy, sw, sh).sort((a, b) => a.key - b.key);
+      ores = [];
+      for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
+        const c = idx(cx, cy), o = G.ore[c];
+        if (o && onScr((cx + 0.5) * CELL, (cy + 0.5) * CELL, 40, 40, 40)) ores.push({ cx, cy, o, gem: G.gem[c], key: viewDepth((cx + 0.5) * CELL, (cy + 0.5) * CELL) + 40 });
+      }
+      ores.sort((a, b) => a.key - b.key);
+      const oreAt = (r) => onHill(v, (r.cx + 0.5) * CELL, (r.cy + 0.5) * CELL, () => drawOre(v, r.cx, r.cy, r.o, r.gem));
+      drawCh = (c, withOre) => {
+        warp.set(c); G.ground.drawChunk(v, c, 't'); hillPatch(v, c.X0, c.Y0, c.X1, c.Y1);
+        if (withOre) { warp.flat(); for (const r of ores) { const x = (r.cx + 0.5) * CELL, y = (r.cy + 0.5) * CELL; if (x >= c.X0 && x < c.X1 && y >= c.Y0 && y < c.Y1) oreAt(r); } warp.set(c); }
+        G.ground.drawChunk(v, c, 'd');
+      };
+      let j = 0;
+      for (const c of chunks) {
+        if (j < ores.length && ores[j].key < c.key) { warp.flat(); while (j < ores.length && ores[j].key < c.key) oreAt(ores[j++]); }
+        drawCh(c, false);
+      }
+      warp.flat();
+      while (j < ores.length) oreAt(ores[j++]);
+      occs = chunks.filter((c) => warp.fitOf(c).occ);
+      for (const c of occs) c.box = warp.box(c);
+    } else {
+      G.ground.draw(v, 't', sx, sy, sw, sh, sx, sy);
+      for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {   // ore
+        const c = idx(cx, cy), o = G.ore[c];
+        if (o && onScr((cx + 0.5) * CELL, (cy + 0.5) * CELL, 40, 40, 40)) drawOre(v, cx, cy, o, G.gem[c]);
+      }
+      G.ground.draw(v, 'd', sx, sy, sw, sh, sx, sy);
     }
-
-    G.ground.draw(v, 'd', sx, sy, sw, sh, sx, sy, warp);
+    if (past) edgeSeam(v, ox, oy, bw, bh);
     // Walls and gates on explored ground (art.js wallPic). A gate stands open while one of its own alliance is beside it.
     const wallsHere = [];   // (sorted in with the units below, art.js drawWallIso)
     if (G.wallN) {
@@ -692,11 +730,29 @@ function draw() {
       else if (e.kind === 'cliff') { drawCliff(v, e); lap('bld'); }
       else { drawUnit(v, e, G.t); lap('unit'); DP.nUnit++; }
     };
+    // On the raised ground, a chunk that hides ground behind it (occs) is drawn again just before the first thing standing
+    // less than 6 px behind its back corner, if something drawn before it (further back) shows where it does (drawnBox).
+    let oi = 0;
+    const drawn = [];
+    const drawnBox = (e) => {
+      if (big(e)) return bldBox(e);
+      const [hx, hy] = hillAt(e), [X, Y] = toView(...hillPt(hx, hy));
+      if (e.kind === 'cliff') return [X + e.p.X0, Y + e.p.Y0, X + e.p.X0 + e.p.c.width, Y + e.p.Y0 + e.p.c.height];
+      return [X - 30, Y - (e.kind === 'tree' ? 90 : 70), X + 30, Y + 12];
+    };
+    const reHill = (c) => {
+      const b = c.box;
+      if (!drawn.some((d) => d[0] < b[2] && d[2] > b[0] && d[1] < b[3] && d[3] > b[1])) return;
+      const up = v.upright; v.upright = false;
+      drawCh(c, true); toWorld(); v.upright = up;
+    };
     for (const e of ground) {
+      if (occs) { while (oi < occs.length && occs[oi].key - 6 <= e._key) reHill(occs[oi++]); drawn.push(drawnBox(e)); }
       if (e.kind === 'tree') { drawTree(v, e); lap('tree'); DP.nTree++; continue; }   // (lifted in drawTree)
       const [hx, hy] = hillAt(e);
       onHill(v, hx, hy, () => drawOne(e));
     }
+    if (occs) while (oi < occs.length) reHill(occs[oi++]);
     lookSmoke(v);   // bigger smoke and fires over the units (look.js test)
     lap('misc');
     if (past) {   // haze over the outer woods past the map's edge

@@ -100,6 +100,24 @@ recorder usage at the top of record.js).
     - Not lifted (on low ground anyway): water and its foam (heights are 0 near water), bridges and broken spans, pigeons.
     - Left for later: structures stand at their middle's height, their pads follow the slope (bases are on level ground, so
       only an expansion on a hillside shows it); the minimap and debrief are flat; the camera's edge limits ignore the lift.
+  - **Taller hills, made 2026-11-19 (owner: "lets tackle this"; video sent, verdict pending):** the hills are drawn
+    `HILL_DRAW` (2.5) times as tall as `G.hgt` (up to about 62 view px). **No rule changes:** reach and sight compare heights as
+    a share of `HG_MAX`, and slope speed uses `G.hgt` itself, so only the picture is taller (no mode question needed: both
+    modes play exactly as before). `HILL_EDGE` 160 px, smoothstep, at the map's edge.
+    - Hills now hide what is behind them. The ground is drawn as a list of chunks (art.js makeGround `chunks` / `drawChunk`,
+      `HILL_CH` 32 px on a world grid) sorted back to front by their back corner's depth, each with its patches and its wrecks
+      layer; ore is merged into that order (key: its cell's middle + 40 px, so flat ground in front never clips it).
+      `hillFit` (look.js, worked out once a battle per chunk) holds the chunk's plane and `occ`: whether some point of it
+      stands higher on the screen than ground up to `hillMax()` behind it in its column (it hides ground).
+    - Units, trees, structures, cliffs: ui.js draws an `occ` chunk again (`reHill`, with its ore) just before the first thing
+      in the sorted list standing less than 6 px behind its back corner, if something already drawn shows where it does
+      (`drawnBox`). Things drawn after the list (shots, effects, smoke, aircraft) are never hidden; tank tracks, tree shadows
+      and cliff shadows behind a crest can show through it (not yet sorted). The far view's tree blocks are off with hills
+      (trees one by one, so hills can hide them: measure the cost on a big screen zoomed out).
+    - Taps: `s2w` walks its screen column from as far in front as the highest hill could show, back to the first ground
+      that stands at or above the tap (then a few halvings): the nearest ground under the finger, not ground hidden behind.
+    - The baked hill shading (art.js groundPixels `hgt`) is unchanged: it may need to be stronger for the taller hills (that
+      would mean rebaking the grounds).
   - **Stage 3 (next):** the AI using high ground; a game server for the look branch (online testing); balance with the owner;
     the cost of the warped ground on a phone.
   - Checked: teams.js 1v1 river 4 min, no errors.

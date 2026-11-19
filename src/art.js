@@ -931,7 +931,7 @@ function isoTreeBlocks(g, list, rim, vx, vy, VW, VH) {
   const n = list.length;
   treeFar = treeFar ? n > TREE_NEAR_N : n > TREE_FAR_N;
   const T = G.ground && G.ground.trees;
-  if (!treeFar || !T) { treeShadows(g, list); dropTreeBlocks(); return list; }
+  if (!treeFar || !T || (LOOK.hills && G.hgt)) { treeShadows(g, list); dropTreeBlocks(); return list; }   // (raised ground, look.js: trees one by one, so hills can hide them)
   if (!treeBlocks || treeBlocks.trees !== T || treeBlocks.rim !== rim) {
     const map = new Map(), add = (src, tr, i, k) => { let b = map.get(k); if (!b) map.set(k, b = { idx: [], c: null, sig: -1, used: 0 }); b.idx.push([src, i]); };
     T.forEach((tr, i) => add(T, tr, i, treeKey(tr.x, tr.y)));
@@ -1579,26 +1579,31 @@ function makeGround(painter, legacy, baked) {
       trim(GROUND_ROOMY ? n * n : Math.max(140, seen.length * 3));
     },
     // Draws one layer ('t' the ground, 'd' the wrecks and bodies) of world rect (sx, sy, sw, sh) into g at (dx, dy).
-    // warp (look.js hillWarp, the raised ground; then dx, dy must be sx, sy): the tile drawn in chunks, each through its
-    // own transform; after(g, x0, y0, x1, y1): drawn over each chunk of the ground layer with it (look.js hillPatch).
-    draw(g, layer, sx, sy, sw, sh, dx, dy, warp, after) {
-      if (sw <= 0 || sh <= 0) return;
-      if (warp) {
-        const g0 = g, L = HILL_LAP;
-        for (const k of tilesIn(sx, sy, sw, sh)) {
-          const [x0, y0] = at(k), ix = Math.max(sx, x0), iy = Math.max(sy, y0), iw = Math.min(sx + sw, x0 + T, WORLD) - ix, ih = Math.min(sy + sh, y0 + T, WORLD) - iy;
-          if (iw <= 0 || ih <= 0) continue;
-          const t = tiles.get(k), c = t && (layer === 't' ? t.g : t.d);
-          if (t ? !c : layer !== 't') continue;
-          if (t) t.born = 0;
-          // A chunk: its own source, drawn a little larger (HILL_LAP) so neighbours overlap.
-          const put = c ? (X0, Y0, X1, Y1) => g0.drawImage(c, X0 - x0, Y0 - y0, X1 - X0, Y1 - Y0, X0 - L, Y0 - L, X1 - X0 + 2 * L, Y1 - Y0 + 2 * L)
-            : pvDone[k] ? (X0, Y0, X1, Y1) => { g0.imageSmoothingEnabled = true; g0.drawImage(preview, X0 / PV, Y0 / PV, (X1 - X0) / PV, (Y1 - Y0) / PV, X0 - L, Y0 - L, X1 - X0 + 2 * L, Y1 - Y0 + 2 * L); g0.imageSmoothingEnabled = false; }
-              : (X0, Y0, X1, Y1) => g0.drawImage(lowRes(), X0 / CELL, Y0 / CELL, (X1 - X0) / CELL, (Y1 - Y0) / CELL, X0 - L, Y0 - L, X1 - X0 + 2 * L, Y1 - Y0 + 2 * L);
-          warp.each(ix, iy, ix + iw, iy + ih, (X0, Y0, X1, Y1) => { put(X0, Y0, X1, Y1); if (after) after(g0, X0, Y0, X1, Y1); });
-        }
-        return;
+    // The raised ground (look.js hillWarp): the chunks (HILL_CH px squares of the world grid, inside one tile) of world
+    // rect (sx, sy, sw, sh), and one layer of one chunk drawn in g (its transform already set: hillWarp set).
+    chunks(sx, sy, sw, sh) {
+      const N = HILL_CH, out = [], S = VIEW.s, C = VIEW.c;
+      if (sw <= 0 || sh <= 0) return out;
+      for (const k of tilesIn(sx, sy, sw, sh)) {
+        const [x0, y0] = at(k), xe = Math.min(x0 + T, WORLD), ye = Math.min(y0 + T, WORLD);
+        const a0 = Math.max(x0, Math.floor(sx / N) * N), b0 = Math.max(y0, Math.floor(sy / N) * N), a1 = Math.min(xe, sx + sw), b1 = Math.min(ye, sy + sh);
+        for (let Y = b0; Y < b1; Y += N) for (let X = a0; X < a1; X += N) out.push({ k, X0: X, Y0: Y, X1: Math.min(X + N, xe), Y1: Math.min(Y + N, ye), key: X * S + Y * C });
       }
+      return out;
+    },
+    drawChunk(g, c, layer) {
+      const t = tiles.get(c.k), [x0, y0] = at(c.k), L = HILL_LAP, { X0, Y0, X1, Y1 } = c, w = X1 - X0, h = Y1 - Y0;
+      if (t) {
+        t.born = 0;
+        const img = layer === 't' ? t.g : t.d;
+        if (img) g.drawImage(img, X0 - x0, Y0 - y0, w, h, X0 - L, Y0 - L, w + 2 * L, h + 2 * L);
+      } else if (layer === 't') {
+        if (pvDone[c.k]) { g.imageSmoothingEnabled = true; g.drawImage(preview, X0 / PV, Y0 / PV, w / PV, h / PV, X0 - L, Y0 - L, w + 2 * L, h + 2 * L); g.imageSmoothingEnabled = false; }
+        else g.drawImage(lowRes(), X0 / CELL, Y0 / CELL, w / CELL, h / CELL, X0 - L, Y0 - L, w + 2 * L, h + 2 * L);
+      }
+    },
+    draw(g, layer, sx, sy, sw, sh, dx, dy) {
+      if (sw <= 0 || sh <= 0) return;
       for (const k of tilesIn(sx, sy, sw, sh)) {
         const t = tiles.get(k), [x0, y0] = at(k);
         const ix = Math.max(sx, x0), iy = Math.max(sy, y0), iw = Math.min(sx + sw, x0 + T, WORLD) - ix, ih = Math.min(sy + sh, y0 + T, WORLD) - iy;
