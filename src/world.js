@@ -772,7 +772,7 @@ function captureBuilding(b, team) {
   const old = G.teams[b.team];
   if (!old || old === team || !b.alive) return;
   b.team = team.id; b.faction = team.faction;
-  b.rally = null; b.primary = false; b.repairing = false; b.target = null; b.doorAt = null; b.dockU = null; b.exposed = true;
+  b.rally = null; b.primary = false; b.repairing = false; b.target = null; b.doorAt = null; b.dockU = null; b.exposed = true; b.capture = 0; b.capU = null;
   if (G.doorQ) G.doorQ = G.doorQ.filter((d) => d.p !== b.id);   // (a vehicle the old owner had rolling out is lost with it)
   for (const u of G.entities) {
     if (!u.alive || u.kind !== 'unit' || u.team !== old.id) continue;
@@ -811,7 +811,11 @@ function commandEngineer(units, t) {
     goTo(u, p.x, p.y);
   }
 }
-function updateEngineer(u) {
+// Capturing a Construction Yard is not instant (owner's pick, both modes): the Engineer works at it for CAPTURE_CY seconds beside it.
+// b.capture (0 to 1, synced) and b.capU (the Engineer's id) show the bar; killed, moved off or sent elsewhere, it starts again.
+const CAPTURE_CY = 8;
+const captureTime = (b) => (b.type === 'cy' ? CAPTURE_CY : 0);
+function updateEngineer(u, dt) {
   const o = u.order, t = o.target;
   if (!engineerJob(u, t)) { setGuard(u); return; }   // someone else got there first, or it is gone
   // Beside it is enough, and a little further off when it has settled as near as the crowd lets it (followPath).
@@ -824,6 +828,15 @@ function updateEngineer(u) {
     t.hp = t.maxHp; setSpan(t, true);
     for (const tm of G.teams) say(tm.id, 'Bridge rebuilt');
   } else if (hostile(u.team, t.team)) {
+    const need = captureTime(t);
+    if (need) {
+      if (t.capU && t.capU !== u.id && G.byId.get(t.capU) && G.byId.get(t.capU).alive && G.byId.get(t.capU).order.target === t) return;   // (one at a time; the next takes over if he falls)
+      if (t.capU !== u.id) { t.capU = u.id; t.capture = 0; notify(teamOf(t), 'capture', 'Construction Yard under capture', 8); }
+      u.dest = null; u.path = null;
+      t.capture = Math.min(1, (t.capture || 0) + dt / need);
+      if (t.capture < 1) return;
+      t.capture = 0; t.capU = null;
+    }
     captureBuilding(t, G.teams[u.team]);
   } else {
     t.hp = t.maxHp;
@@ -3602,7 +3615,7 @@ function updateUnit(u, dt) {
   if (u.chute > 0) { u.chute -= dt; if (u.chute <= 0) landChute(u); return; }
   if (u.cls === 'air') { updateAir(u, dt); return; }
   if (u.order.type === 'repair') { updateRepairOrder(u, dt); followPath(u, dt); checkStuck(u, dt); return; }
-  if (u.order.type === 'engineer') { updateEngineer(u); if (u.alive) { followPath(u, dt); checkStuck(u, dt); } return; }
+  if (u.order.type === 'engineer') { updateEngineer(u, dt); if (u.alive) { followPath(u, dt); checkStuck(u, dt); } return; }
   if (u.inHouse) {   // garrisoned (village houses): fires from the windows until given another order
     if (u.order.type === 'garrison' && u.order.target === u.inHouse) { updateGarrison(u, dt); return; }
     const d = u.dest; leaveHouse(u);
@@ -5056,6 +5069,10 @@ function dropTroops(plane, x, y) {
 const REPAIR_STEP = 0.00375;   // share of full health restored every quarter second (1.5% a second)
 function updateBuilding(b, dt) {
   const team = teamOf(b);
+  if (b.capU) {   // a capture under way: dropped when its Engineer is gone, sent elsewhere or no longer beside it
+    const e = G.byId.get(b.capU);
+    if (!e || !e.alive || e.order.type !== 'engineer' || e.order.target !== b || distTo(e, b) > CELL * 3) { b.capU = null; b.capture = 0; }
+  }
   b.fireT = Math.max(0, b.fireT - dt);
   b.charge = Math.max(0, b.charge - dt * 1.5);
   if (b.buildT < 1) {

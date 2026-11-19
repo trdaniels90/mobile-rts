@@ -1267,7 +1267,9 @@ frame-time maths everywhere, so it is not deterministic.
   staged infantry aboard (no Engineers) and goes out with a wave; loaded in the field it unloads when hurt under half, fighting, hit, or with known enemies within
   `APC_UNLOAD_R` (7 cells), then hunts (`u.apcBack`). Home APCs that join a defence unload too.
 - **Engineers capture** (owner's picks, both modes; the server must match): `engineerJob` takes a finished enemy structure (not a hidden Pillbox), any kind,
-  Construction Yards included; `updateEngineer` calls `captureBuilding(b, team)` at once and the Engineer is used up. The structure keeps its health, takes the
+  Construction Yards included; `updateEngineer` calls `captureBuilding(b, team)` at once and the Engineer is used up. **A Construction Yard takes `CAPTURE_CY`
+  (8 s, owner's pick)**: `b.capture` (0 to 1, synced) and `b.capU` (netcore `SKIP`); reset when the Engineer dies, leaves or is sent elsewhere (`updateBuilding`),
+  one Engineer at a time, "Construction Yard under capture" for the owner, a flashing yellow bar over it (ui.js). The structure keeps its health, takes the
   new owner's side and faction (so its look and colours; faction-only types such as the Tesla Coil draw fine in either), and lets go of the old owner's rally,
   primary, docking trucks, based aircraft and a vehicle at its door; the old side counts a building lost (and loses its upgrades with its last Tech Center),
   the new one `stats.captured`. UI: Engineers selected + tap an enemy structure (the rest of the selection attacks it).

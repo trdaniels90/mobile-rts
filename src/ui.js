@@ -788,6 +788,13 @@ function draw() {
       v.fillStyle = 'rgba(0,0,0,0.7)'; v.fillRect(tx - 21, ty - 3, 42, 6);
       v.fillStyle = rs.stalled ? '#c98a2a' : '#5ab0ff'; v.fillRect(tx - 20, ty - 2, 40 * rs.progress, 4);
     }
+    // A Construction Yard being captured (world.js CAPTURE_CY): a yellow bar over it, for both sides.
+    for (const e of G.entities) {
+      if (!e.alive || e.kind !== 'bld' || !(e.capture > 0) || !inView(e) || !visibleToPlayer(e)) continue;
+      const [tx, ty] = toView(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 10);
+      v.fillStyle = 'rgba(0,0,0,0.75)'; v.fillRect(tx - 23, ty - 4, 46, 8);
+      v.fillStyle = Math.floor(G.t * 4) % 2 ? '#ffd23e' : '#f2a020'; v.fillRect(tx - 22, ty - 3, 44 * e.capture, 6);
+    }
     // PRIMARY over the building new units come out of, when there is more than one of its type.
     for (const e of G.entities) {
       if (!e.alive || !e.primary || e.kind !== 'bld' || e.team !== G.me || !inView(e) || producersOfType(e).length < 2) continue;

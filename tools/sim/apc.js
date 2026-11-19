@@ -64,7 +64,18 @@ for (const fac of ['allies', 'soviets']) {
     const e1 = addUnit('engineer', me, pw.x, pw.y + CELL * 4), e2 = addUnit('engineer', me, ecy.x - CELL * 4, ecy.y);
     for (const e of [e1, e2]) e.hp = e.maxHp = 1e6;   // (the enemy's starting units would shoot them)
     r.jobEnemy = engineerJob(e1, pw); r.jobOwnFull = engineerJob(e1, buildingsOf(0)[0]);
-    commandEngineer([e1], pw); commandEngineer([e2], ecy); step(20);
+    commandEngineer([e1], pw); commandEngineer([e2], ecy);
+    // The power plant goes at once; the Construction Yard takes CAPTURE_CY (8 s) with the Engineer beside it.
+    let arrived = -1, done = -1;
+    for (let i = 0; i < 20 * 30; i++) { update(1 / 30); if (arrived < 0 && ecy.capture > 0) arrived = G.t; if (done < 0 && ecy.team === 0) done = G.t; }
+    r.cyTook = +(done - arrived).toFixed(1);
+    // Killed half way: the bar resets and the Yard stays.
+    const cy2 = addBuilding('cy', foe, ecy.cx + 9, ecy.cy + 6); cy2.buildT = 1;
+    const e3 = addUnit('engineer', me, cy2.x - CELL * 3, cy2.y); e3.hp = e3.maxHp = 1e6;
+    commandEngineer([e3], cy2);
+    for (let i = 0; i < 30 * 30 && !(cy2.capture > 0.5); i++) update(1 / 30);
+    r.halfWay = +(cy2.capture || 0).toFixed(2); kill(e3, null); step(1);
+    r.afterKill = [cy2.team, cy2.capture || 0];
     r.power = [pw.team, pw.faction]; r.cy = [ecy.team, ecy.faction]; r.engsUsed = !e1.alive && !e2.alive; r.captured = me.stats.captured;
     step(10); r.foeOut = !!foe.out || !inTheFight(1);
     return JSON.stringify(r);
@@ -99,7 +110,7 @@ for (const fac of ['allies', 'soviets']) {
 }
 console.log(JSON.stringify(out));
 const cap = out.capture, ai = out.ai;
-const capOk = cap.jobEnemy && !cap.jobOwnFull && cap.power.join() === '0,allies' && cap.cy.join() === '0,allies' && cap.engsUsed && cap.captured === 2;
+const capOk = cap.cyTook >= 7.5 && cap.cyTook <= 9 && cap.halfWay >= 0.5 && cap.afterKill.join() === '1,0' && cap.jobEnemy && !cap.jobOwnFull && cap.power.join() === '0,allies' && cap.cy.join() === '0,allies' && cap.engsUsed && cap.captured === 2;
 const aiOk = ai.errors === 0 && ai.apcs[0] > 0 && ai.apcs[1] > 0 && ai.rode[0] + ai.rode[1] > 0 && ai.raids > 0;
 console.log('capture', capOk ? 'ok' : 'FAIL', 'ai', aiOk ? 'ok' : 'FAIL');
 const ok = capOk && aiOk && Object.entries(out).filter(([k]) => k === 'allies' || k === 'soviets').map(([, v]) => v).every((r) => r.buildable === true && r.aboard === 5 && r.leftOut === 1 && r.drove >= 6 && r.unloaded === 5 && r.cargoAfter === 0 &&
