@@ -36,7 +36,7 @@ const [root, out, map, part, secs = '12'] = process.argv.slice(2);
   // The storm's own clock for frame f: build-up fast (0-16 s in the first quarter), the height in real time, clearing fast.
   const q1 = Math.round(N * 0.22), q3 = Math.round(N * 0.8);
   const stormAt = (f) => (f < q1 ? 16 * f / q1 : f < q3 ? 16 + (f - q1) / 15 : 75 + 20 * (f - q3) / (N - q3));
-  const strikes = new Set([q1 + 8, q1 + 40, q1 + 75, q1 + 100].filter((f) => f < q3));
+  const strikes = new Map([[q1 + 6, 0], [q1 + 30, 1], [q1 + 60, 0], [q1 + 85, 0], [q1 + 105, 1]].filter(([f]) => f < q3));
   for (let f = 0; f < N; f++) {
     await p.evaluate(() => { const ps = window.__ps; spriteSpend = -1e9; G.paused = false; ps.update(1 / 30); ps.update(1 / 30); G.paused = true; });
     if (part === 'structs') {
@@ -45,7 +45,7 @@ const [root, out, map, part, secs = '12'] = process.argv.slice(2);
     } else await p.evaluate((f) => { const [x, y] = window.__bases[0]; __aim(x - 40 + f * 0.4, y + 10, 1.4); }, f);
     for (const [dir, on] of [['a', false], ['b', true]]) {
       if (part === 'structs') await p.evaluate((on) => { LOOK.storms = false; lookStructs.set(on); spriteSpend = -1e9; }, on);
-      else await p.evaluate(([on, u, hit]) => { LOOK.storms = on; lookStorm.at(u); if (on && hit) lookStorm.strike(); G.paused = false; }, [on, stormAt(f), strikes.has(f)]);
+      else await p.evaluate(([on, u, hit]) => { LOOK.storms = on; lookStorm.at(u); if (on && hit !== undefined) lookStorm.strike(hit); G.paused = false; }, [on, stormAt(f), strikes.get(f)]);
       await raf();
       await p.evaluate(() => { G.paused = true; });
       if (part === 'structs') { await p.evaluate(() => { spriteSpend = -1e9; }); await raf(); }

@@ -936,7 +936,7 @@ function draw() {
     const wx = lookStorm.weather(G.paused || !!G.over);   // a passing storm's heavier stand-in, or the battle's own weather (lookstorm.js)
     lookStorm.dark(ctx);
     if (wx) drawWeather(ctx, wx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, G.paused || !!G.over);
-    lookStorm.flash(ctx, k, G.paused || !!G.over);
+    lookStorm.flash(ctx, k, G.paused || !!G.over, cam.x, cam.y);
     lap('wthr');
     if (gesture && gesture.type === 'box' && gesture.moved) {
       const bx = Math.min(gesture.sx, gesture.ex) * DPR, by = Math.min(gesture.sy, gesture.ey) * DPR;

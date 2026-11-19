@@ -775,6 +775,7 @@ let bibPic = null;
 // A Service Depot's repair pad, painted on the ground in front of it: concrete inside a yellow and
 // black border, with a white cross.
 function padDecal(tg, x, y) {
+  if (typeof LOOK !== 'undefined' && LOOK.hills) return;   // (look test: on raised ground the flat pad sat crooked under the depot; owner: remove it)
   tg.fillStyle = '#6b6b63'; tg.fillRect(x, y, CELL, CELL);
   for (let i = 0; i < CELL; i++) for (const [px, py] of [[x + i, y], [x + i, y + CELL - 1], [x, y + i], [x + CELL - 1, y + i]]) {
     tg.fillStyle = ((px + py) >> 1) % 2 ? '#d8b13a' : '#1d1d1a'; tg.fillRect(px, py, 1, 1);

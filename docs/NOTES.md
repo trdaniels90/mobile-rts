@@ -218,9 +218,13 @@ recorder usage at the top of record.js).
     (`STORM_DARK` 0.55 at its height, heavier toward the top of the screen) and a murk. The rain: drawWeather gets a stand-in
     weather `{ kind, lvl, storm, real }` (art.js weatherLevel returns `w.lvl` when set) at 0.12 + 0.88 x the storm's level, or the
     battle's own rain if heavier; the battle's own lightning (whose bolts land in the battle, world.js) still runs from G.weather
-    only. Over it, at the height (level above 0.6): a strike every `STORM_BOLT_GAP` 3.5-9 s: a full-scene 'screen' flash
-    (`STORM_FLASH` 0.5, flicker 0.7 s; none with reduced motion, `calmFlash`), a forked bolt from the top of the screen (trunk and
-    1-3 branches, glow and white core, 0.32 s), thunder (the game's 'thunder' sound, 0.3-2.5 s later, panned to the bolt). On
+    only. Over it, at the height (level above 0.6): sheet lightning every `STORM_SKY_GAP` 4-10 s (the scene flashes, 'screen',
+    up to `STORM_FLASH` 0.5 x 0.55-0.9, flicker 0.7 s; distant thunder 0.4-2.6 s later), and rarer, every `STORM_BOLT_GAP` 16-32 s,
+    a bolt that comes down on a spot of dry land on the screen (lifted with the hills; trunk and 1-3 branches from the top of the
+    screen, glow and white core, 0.45 s, a flash where it lands; full flash and loud, close thunder). Owner, 2026-11-19, after the
+    first video: "cut back on the lightning bolts, sky can flash but I want the bolts to be rarer and actually strike the ground"
+    (the first try had a bolt every 3.5-9 s ending in mid-air). Looks only: these bolts hurt and burn nothing (asked the owner
+    whether they should, as the rain's do, and in which mode). No full-screen flash with reduced motion (`calmFlash`). On
     snow maps a blizzard instead (heavy snow, pale haze, no lightning). Hooks: ui.js (where drawWeather was called:
     `lookStorm.weather`, `.dark`, `.flash`), art.js weatherLevel (`w.lvl`) and drawWeather (the stand-in skips its lightning).
   - **Structures redesigned** (`src/lookstructs.js`; owner: "Let's get away from our toy structures look"). Studied from
@@ -283,6 +287,9 @@ recorder usage at the top of record.js).
     crashes, structures) also a ragged hollow and two broken rings round a deeper middle; pale flecks round the edge.
     `CRATER_VAR` 4 per kind, turned by the crater's position, 2.6 x the bowl's radius. The blasts' own scorch mark (lookfx)
     is left out where a crater was dug (its black soot hid the colour).
+- **Service Depot pad hidden on raised ground (owner, 2026-11-19: "the service depot repair cross on the ground wasn't level cause
+  of the hill. Maybe remove it?"):** art.js padDecal draws nothing while `LOOK.hills` is on (the mark is still recorded, so saves
+  and online play are unchanged; `?lookoff=hills` shows it again).
 - **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size
