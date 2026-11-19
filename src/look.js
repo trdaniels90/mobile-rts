@@ -402,6 +402,14 @@ function drawLamps(g, vx, vy, k, t, near) {
   if (!lampPics) drawLamps.init();
   drawLampsOn(g, vx, vy, k, t, near);
 }
+// On the day/night maps (Village, Frost) drawLook is not used (art.js drawNight lights them instead), so the lamps are
+// drawn on their own, after drawNight (ui.js). They were missing there (owner, 2026-11-19: "my buildings as allies had no lights").
+function drawLampsAlone(g, vx, vy, vw, vh, k, t) {
+  if (!LOOK.lamps || !G) return;
+  if (!lampPics) drawLamps.init();
+  const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
+  drawLampsOn(g, vx, vy, k, t, near);
+}
 drawLamps.init = () => {
   lampPics = { red: lookGlowPic('rgba(255,90,70,1)', 'rgba(255,30,20,0.45)', 'rgba(255,0,0,0)'),
     win: lookGlowPic('rgba(255,226,160,1)', 'rgba(255,180,90,0.4)', 'rgba(255,140,40,0)'), beam: lookGlowPic('rgba(255,250,225,0.9)', 'rgba(255,245,210,0.35)', 'rgba(255,240,200,0)') };

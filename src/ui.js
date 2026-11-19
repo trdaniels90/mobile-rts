@@ -927,6 +927,7 @@ function draw() {
     lap('blit');   // the view put on the screen
     if (LOOK.light && !MAPS[validMap(G.mapId)].daynight) drawLook(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t);   // (look.js prototype, off by default)
     if (MAPS[validMap(G.mapId)].daynight) drawNight(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, visibleToPlayer);   // (art.js)
+    if (MAPS[validMap(G.mapId)].daynight) drawLampsAlone(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t);   // beacons and lit windows (look.js)
     if (MAPS[validMap(G.mapId)].daynight) drawSkyBeams(ctx, cam.x, cam.y, k, G.t, dayNight(G.t).night);   // the AA Gun's searchlight at night (look.js)
     lap('night');
     if (G.weather) drawWeather(ctx, G.weather, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, G.paused || !!G.over);

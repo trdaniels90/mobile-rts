@@ -38,6 +38,8 @@ recorder usage at the top of record.js).
     hook), with one exception: the **Allied AA Gun's searchlight, at night only** (`drawSkyBeams`, after drawNight on day/night
     maps, fading in with `dayNight().night`): a beam up into the sky, sweeping overhead, locked on the nearest enemy aircraft it
     can see within `AA_LOOK` (320 px). Dropped earlier tries: ground searchlights on every defence, SAM beams, AA beams by day.
+    On the day/night maps (Village, Frost), where drawLook is not used, the beacons and windows were missing (owner,
+    2026-11-19: "my buildings as allies had no lights"): now drawn there on their own, after drawNight (`drawLampsAlone`).
     Note for the main game: its own night lighting puts a pool of light round every structure, the camouflaged pillbox included.
   - Ground (`lookGround`, called from `cliffItems`, so under units and cliff shadows): a fixed soft-light noise of drier, lusher
     and darker patches (12 world px a noise pixel), and tank tracks: every 5 px a ground vehicle moves, a pair of tread marks,
