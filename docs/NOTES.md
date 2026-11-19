@@ -209,6 +209,23 @@ recorder usage at the top of record.js).
     two rivets, a sheen); steel buttons with corner rivets; a hatched well behind the strips; the credits amber and the clock green
     on the glow of a display. The radar: a frame, scan lines, a slow scan bar, and a burst of green static (about 1.1 s, a rolling band)
     when it comes online. Same buttons, layout and hit areas (only colours, borders, shadows and pseudo-elements change).
+- **Craters that dig the ground, made 2026-11-19 (owner: "ground marks depending on the explosion can make craters like in
+  Tiberian Sun and actually affect the ground where units can go in them"; owner's picks: **both modes**, units dip and are
+  slowed, heavy blasts only; video sent, verdict pending).** A rules change (world.js, terrain height section), on this branch only.
+  - `G.dig` (Float32Array per cell, saved with G) is added to G.hgt's heights in `hgtAt`, so every height rule follows it: units
+    drive down into a crater, climb out slower (slopeMul: 65% at the steepest), reach a little less and see a little less from the
+    bottom (distTo, revealAround). Nothing is blocked. G.hgt itself is untouched (the painted hill shading and ground keys stay).
+  - `craterAt` digs from rad `DIG_MIN` 5 (artillery 5, V2 9, bombs 8, aircraft crashing 9, tanks destroyed 5, the hit at
+    world.js "craterAt(x, y, 6)"; not rifles, tank shells or flak) and a destroyed structure now leaves one (rad 6 + up to 4 by
+    size; not 1-cell defences). `digCrater`: a bowl of radius 1 + rad / 6 cells, rad x `DIG_K` 0.55 deep (rad 9: about 4.5 of HG_MAX
+    30 at the middle, 11 view px), a low rim (+12%), a cell no deeper than `DIG_MAX` 9; not in water, cliffs or under structures.
+    A structure placed on dug ground fills it (`fillCraters`, from addBuilding). `G.craters` ([x, y, rad], the newest 400) for drawing.
+  - Online: craterAt passes a 6th argument (1) to the `crater` mark, which the host relays as a decal event; net.js digs the
+    guest's copy when it plays it. A server for the look branch is still needed before online tests (the look test page is
+    single player).
+  - Looks (lookfx.js, `LOOK.craters`, `?lookoff=craters` hides the bowls only): `lookDug` forgets the raised ground's cached chunk
+    shapes (look.js hillFits) round a new crater so the ground is drawn dipping; `lookCraters` draws a shaded bowl (wall away from
+    the sun dark, near lip lit, thrown earth round it; snow version on snow maps) at its rim's height, under the units.
 - **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
 - **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size

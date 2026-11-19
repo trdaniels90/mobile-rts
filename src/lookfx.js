@@ -17,7 +17,7 @@
 (() => {
   const q = typeof location !== 'undefined' ? location.search : '';
   const on = !/[?&]look=off\b/.test(q), off = (q.match(/[?&]lookoff=([a-z,]+)/) || [, ''])[1].split(',');
-  for (const k of ['alive', 'blasts', 'sidebar']) LOOK[k] = on && !off.includes(k);
+  for (const k of ['alive', 'blasts', 'sidebar', 'craters']) LOOK[k] = on && !off.includes(k);
 })();
 
 const FX_MAX = 700, DEBRIS_MAX = 260, SCORCH_MAX = 120, SCORCH_LIFE = 70, STEAM_MAX = 260, BLASTS_PER_FRAME = 10;
@@ -232,10 +232,13 @@ function fxUpdate() {
 }
 // From look.js cliffItems (the world transform set, before the sorted list): update, then scorch marks and rings.
 function lookFxGround(g, x0, y0, x1, y1) {
-  if (!G || !(LOOK.blasts || LOOK.alive)) return;
-  fxUpdate();
-  const S = lookFxS, up = g.upright, sm = g.imageSmoothingEnabled, on = (x, y, m) => x > x0 - m && x < x1 + m && y > y0 - m && y < y1 + m + 60;
+  if (!G) return;
+  const on = (x, y, m) => x > x0 - m && x < x1 + m && y > y0 - m && y < y1 + m + 60, up = g.upright, sm = g.imageSmoothingEnabled;
   g.upright = false; g.imageSmoothingEnabled = true;
+  lookCraters(g, on);   // dug craters (world.js digCrater), under the scorch marks
+  if (!(LOOK.blasts || LOOK.alive)) { g.upright = up; g.imageSmoothingEnabled = sm; return; }
+  fxUpdate();
+  const S = lookFxS;
   for (const m of S.scorch) {
     if (!LOOK.blasts || !on(m.x, m.y, m.R)) continue;
     const k = m.t / m.life, a = 0.8 * Math.min(1, m.t / 0.3) * (k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4);
@@ -295,6 +298,56 @@ function lookFxLights(add) {
     if (p.k === 'core') add(p.x, p.y, p.R * 9, 1 - k, 'warm', h);
     else if (k < 0.6) add(p.x, p.y, p.R1 * 4, 0.6 * (1 - k / 0.6), 'warm', h);
   }
+}
+
+// ---- Craters that dig the ground (world.js digCrater: rules, both modes; here only their look) ---------------------------
+// lookDug: the raised ground's cached shape (look.js hillFits, per HILL_CH chunk) is forgotten round a new crater, so the
+// ground there is drawn dipping. lookCraters (from lookFxGround, under the units): each crater in G.craters as a shaded bowl
+// (the wall facing the low sun lit, the near wall in shadow, a raised lip of thrown earth), at the height of its rim.
+function lookDug(x, y, r) {
+  if (typeof hillFits === 'undefined' || !hillFits || hillFits.g !== G) return;
+  const N = HILL_CH;
+  for (let gy = Math.floor((y - r) / N); gy <= Math.floor((y + r) / N); gy++) for (let gx = Math.floor((x - r) / N); gx <= Math.floor((x + r) / N); gx++) hillFits.m.delete(gy * 4096 + gx);
+}
+let craterPics = null;
+function craterPic(snow) {
+  if (!craterPics) craterPics = {};
+  if (craterPics[snow]) return craterPics[snow];
+  const c = mkCanvas(96, 96), x = c.getContext('2d'), r = rng(snow ? 91 : 19), M = 48;
+  const earth = snow ? [150, 150, 158] : [96, 78, 56], dark = snow ? [52, 54, 66] : [20, 15, 10], lit = snow ? [250, 252, 255] : [182, 156, 112];
+  const col = (k, a) => `rgba(${k[0]},${k[1]},${k[2]},${a})`;
+  // The lip of thrown earth, ragged.
+  for (let i = 0; i < 140; i++) {
+    const a = r() * Math.PI * 2, d = 30 + r() * 14, s = 2 + r() * 4;
+    x.fillStyle = col(r() < 0.35 ? dark : earth, (0.25 + r() * 0.35).toFixed(2)); x.beginPath(); x.arc(M + Math.cos(a) * d, M + Math.sin(a) * d, s, 0, 7); x.fill();
+  }
+  let g = x.createRadialGradient(M, M, 18, M, M, 40); g.addColorStop(0, col(earth, 0.95)); g.addColorStop(0.75, col(earth, 0.7)); g.addColorStop(1, col(earth, 0));
+  x.fillStyle = g; x.beginPath(); x.arc(M, M, 40, 0, 7); x.fill();
+  // The bowl: shaded on the side away from the sun (sun from the screen's upper left: the bowl's upper-left wall is in its own
+  // shadow, the lower-right wall faces the light), darkest at the bottom.
+  x.save(); x.beginPath(); x.arc(M, M, 31, 0, 7); x.clip();
+  g = x.createLinearGradient(M - 31, M - 31, M + 31, M + 31); g.addColorStop(0, col(dark, 1)); g.addColorStop(0.45, col(dark, 0.85)); g.addColorStop(0.7, col(earth, 1)); g.addColorStop(1, col(lit, 1));
+  x.fillStyle = g; x.fillRect(0, 0, 96, 96);
+  g = x.createRadialGradient(M - 3, M - 3, 0, M - 3, M - 3, 18); g.addColorStop(0, col(dark, 0.95)); g.addColorStop(1, col(dark, 0));
+  x.fillStyle = g; x.fillRect(0, 0, 96, 96);
+  for (let i = 0; i < 70; i++) { x.fillStyle = col(r() < 0.5 ? lit : dark, (0.3 + r() * 0.4).toFixed(2)); x.fillRect(M - 28 + r() * 56, M - 28 + r() * 56, 1 + (r() < 0.3), 1); }
+  x.restore();
+  x.strokeStyle = col(lit, 0.8); x.lineWidth = 2.5; x.beginPath(); x.arc(M, M, 31, Math.PI * 0.05, Math.PI * 0.95); x.stroke();   // the lit lip, near side
+  x.strokeStyle = col(dark, 0.6); x.beginPath(); x.arc(M, M, 31, Math.PI * 1.05, Math.PI * 1.95); x.stroke();
+  return (craterPics[snow] = c);
+}
+function lookCraters(g, on) {
+  if (!LOOK.craters || !G.craters || !G.craters.length) return;
+  const pic = craterPic(typeof mapTheme === 'function' && mapTheme(G.mapId) === 'snow');
+  for (const [x, y, rad] of G.craters) {
+    const R = (1 + rad / 6) * CELL * 0.95;
+    if (!on(x, y, R) || !fxSeen(x, y)) continue;
+    // At the height of its rim (the ground round it, as drawn), not of its bottom.
+    let L = 0; for (const [dx, dy] of [[R, 0], [-R, 0], [0, R], [0, -R]]) L += gLift(x + dx, y + dy); L /= 4;
+    const [tx, ty] = liftPt(0, 0, L);
+    g.globalAlpha = 1; g.drawImage(pic, x + tx - R * 1.2, y + ty - R * 1.2, R * 2.4, R * 2.4);
+  }
+  g.globalAlpha = 1;
 }
 
 // ---- Steel sidebar ----------------------------------------------------------------------------------------------------

@@ -204,7 +204,9 @@ function hgtAt(x, y) {
   if (!H) return 0;
   const fx = Math.max(0, Math.min(MAP - 1.001, x / CELL - 0.5)), fy = Math.max(0, Math.min(MAP - 1.001, y / CELL - 0.5));
   const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, x1 = Math.min(MAP - 1, x0 + 1), y1 = Math.min(MAP - 1, y0 + 1);
-  const a = H[y0 * MAP + x0], b = H[y0 * MAP + x1], c = H[y1 * MAP + x0], d = H[y1 * MAP + x1];
+  let a = H[y0 * MAP + x0], b = H[y0 * MAP + x1], c = H[y1 * MAP + x0], d = H[y1 * MAP + x1];
+  const D = G.dig;   // craters dug by heavy blasts (digCrater)
+  if (D) { a += D[y0 * MAP + x0]; b += D[y0 * MAP + x1]; c += D[y1 * MAP + x0]; d += D[y1 * MAP + x1]; }
   return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
 }
 // The ground height a unit or structure stands on (aircraft in the air: none of these rules).
@@ -217,6 +219,38 @@ function slopeMul(x, y, mx, my) {
   if (!G.hgt) return 1;
   const sl = (hgtAt(x + mx * 8, y + my * 8) - hgtAt(x, y)) / 8;
   return Math.max(0.65, Math.min(1.12, 1 - sl * 2.2));
+}
+
+// Craters that dig the ground (owner, 2026-11-19: "ground marks depending on the explosion can make craters like in Tiberian
+// Sun and actually affect the ground where units can go in them"; both modes, heavy blasts only). G.dig: per cell, added to
+// G.hgt's heights by hgtAt, so units drive down into a crater and every height rule follows it: slower climbing out
+// (slopeMul), a little less reach and sight from the bottom (distTo, revealAround). Nothing is blocked. Dug by craterAt from
+// DIG_MIN (artillery and V2 rockets, bombs, aircraft crashing, tanks and heavy shells hitting home; not rifles or tank
+// shells); a bowl of radius 1 + rad / 6 cells, rad x DIG_K deep, with a low rim; a cell no deeper than DIG_MAX. A structure
+// placed over a crater fills it (addBuilding). G.craters keeps each one ([x, y, rad], plain data) for drawing (lookfx.js).
+// Online: the host's crater marks carry a flag (net.js digs on the guest's copy too). Saved with G (a typed array).
+const DIG_MIN = 5, DIG_K = 0.55, DIG_MAX = 9;
+function digCrater(x, y, rad) {
+  if (!G.hgt) return;
+  if (!G.dig) G.dig = new Float32Array(NCELLS);
+  if (!G.craters) G.craters = [];
+  const R = 1 + rad / 6, depth = rad * DIG_K, fx = x / CELL - 0.5, fy = y / CELL - 0.5, n = Math.ceil(R * 1.3);
+  for (let j = Math.floor(fy) - n; j <= Math.ceil(fy) + n; j++) for (let i = Math.floor(fx) - n; i <= Math.ceil(fx) + n; i++) {
+    if (i < 0 || j < 0 || i >= MAP || j >= MAP) continue;
+    const c = j * MAP + i, d = Math.hypot(i - fx, j - fy) / R;
+    if (d >= 1.3 || G.terr[c] >= 4 || G.bld[c] || (G.cliff && G.cliff[c])) continue;
+    const v = d < 1 ? -depth * (1 - d * d) : depth * 0.12 * Math.sin((d - 1) / 0.3 * Math.PI);   // the bowl, then a low rim
+    G.dig[c] = Math.max(-DIG_MAX, Math.min(1.5, G.dig[c] + v));
+  }
+  G.craters.push([Math.round(x), Math.round(y), rad]);
+  if (G.craters.length > 400) G.craters.shift();
+  if (typeof lookDug === 'function') lookDug(x, y, (R * 1.3 + 1) * CELL);   // (the raised ground's cached shape there)
+}
+// A structure fills the craters under it.
+function fillCraters(cx, cy, w, h) {
+  if (!G.dig) return;
+  for (let y = cy; y < cy + h; y++) for (let x = cx; x < cx + w; x++) if (inMap(x, y)) G.dig[idx(x, y)] = 0;
+  if (typeof lookDug === 'function') lookDug((cx + w / 2) * CELL, (cy + h / 2) * CELL, (Math.max(w, h) / 2 + 2) * CELL);
 }
 
 function genMap(seed) {
@@ -1783,6 +1817,7 @@ function addBuilding(type, team, cx, cy) {
     fireT: 0, smokeT: Math.random(), charge: 0, think: 0, hitT: -99,
   };
   for (let y = cy; y < cy + d.h; y++) for (let x = cx; x < cx + d.w; x++) G.bld[idx(x, y)] = b.id;
+  fillCraters(cx, cy, d.w, d.h);   // (craters under it filled: digCrater)
   if (d.exit) { b.exitCell = idx(cx + Math.floor(d.w / 2), cy + d.h); G.resv[b.exitCell] = 1; }
   if (G.tctx && !d.camo) bibDecal(G.tctx, cx * CELL, cy * CELL, d.w * CELL, d.h * CELL, b.id * 977, b.type);   // (a camouflaged structure leaves no pad to give it away)
   if (G.tctx && d.depot) padDecal(G.tctx, cellX(b.exitCell) * CELL, cellY(b.exitCell) * CELL);
@@ -3012,7 +3047,9 @@ function bombBlast(p) {
 function craterAt(x, y, rad) {
   const c = cellOfPos(x, y);
   if (G.terr[c] >= 4 || G.bld[c]) return;
-  crater(G.tctx, x, y, rad, (Math.random() * 1e6) | 0);
+  const dig = rad >= DIG_MIN && !!G.hgt;   // heavy blasts dig the ground (digCrater); the flag tells an online guest's copy to dig too
+  crater(G.tctx, x, y, rad, (Math.random() * 1e6) | 0, dig ? 1 : 0);
+  if (dig) digCrater(x, y, rad);
 }
 // Ammunition cook-off: the tank's rounds go up, blowing the turret off into the air, spinning,
 // while flame roars out of the hull and more rounds keep popping. The turret crashes down
@@ -3309,6 +3346,7 @@ function kill(e, attacker, wh, from) {
           t: -i * 0.18, life: 0.8, seed: seed + i, debris: i % 2 === 0 });
       }
       rubble(G.tctx, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL, seed);
+      if (!e.def.defense || e.w * e.h > 1) craterAt(e.x, e.y, 6 + Math.min(4, e.w * e.h * 0.5));   // its fall digs a crater (digCrater)
       notify(team, 'slost', 'Structure lost', 4);
     }
   }
