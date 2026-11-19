@@ -881,7 +881,7 @@ function drawTree(g, e) {
   const stiff = (tr.pine ? 0.7 : 1) * (1 - 0.65 * p), c = -sway * stiff;   // burnt trees hardly move
   // A shear on the screen about the tree's foot: the top moves, the foot stays. Drawn with the canvas's own drawImage,
   // so the shear is kept (uprightCtx would set it aside).
-  const fx = Math.round(tf.a * tr.x + tf.c * tr.y + tf.e), fy = Math.round(tf.b * tr.x + tf.d * tr.y + tf.f);
+  const fx = Math.round(tf.a * tr.x + tf.c * tr.y + tf.e), fy = Math.round(tf.b * tr.x + tf.d * tr.y + tf.f - gLift(tr.x, tr.y));   // (on the raised ground: look.js)
   const draw = (img, ox, oy, dy) => CanvasRenderingContext2D.prototype.drawImage.call(g, img, fx + Math.round(ox), fy + Math.round(oy) + (dy || 0));
   // (No save() / restore(): thousands of trees show zoomed out on a big screen. What is changed is put back below.)
   g.setTransform(1, 0, c, 1, -c * fy, 0);
@@ -918,10 +918,10 @@ let treeBlocks = null, treeFar = false;   // { trees, rim, map: key -> { idx: [[
 function treeKey(x, y) { const [X, Y] = toView(x, y); return Math.floor(Y / TREE_BLOCK) * 65536 + Math.floor(X / TREE_BLOCK) + 32768; }
 // The shadows of a list of trees (from treesInView / rimInView), the living tree's fading as it burns.
 function treeShadows(g, list) {
-  for (const { tr, p } of list) {
+  for (const { tr, p } of list) onHill(g, tr.x, tr.y, () => {   // (on the raised ground: look.js)
     if (p < 1) { g.globalAlpha = 0.45 * (1 - p); g.drawImage(tr.s.sh, Math.round(tr.x + tr.s.sox), Math.round(tr.y + tr.s.soy)); }
     if (p > 0) { g.globalAlpha = 0.45 * p; g.drawImage(tr.burnt.sh, Math.round(tr.x + tr.burnt.sox), Math.round(tr.y + tr.burnt.soy)); }
-  }
+  });
   g.globalAlpha = 1;
 }
 // list: the trees on screen (treesInView, rimInView). Draws the shadows of the trees it does not hand back; returns the
@@ -1052,7 +1052,7 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
   if (!nightCv || nightCv.width !== nW || nightCv.height !== nH) nightCv = mkCanvas(nW, nH);
   const n = nightCv.getContext('2d'), lights = [];
   const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
-  const add = (x, y, r, a, warmLight, h) => { [x, y] = toView(...liftPt(x, y, h || 0)); if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };   // (vx, vy: the camera on the view plane)
+  const add = (x, y, r, a, warmLight, h) => { [x, y] = toView(...liftPt(x, y, (h || 0) + gLift(x, y))); if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };   // (vx, vy: the camera on the view plane)
   // Street lamps, lit windows, buildings' own lights, fires and blasts.
   for (const p of G.props || []) if (p.k === 'lamp' && p.up) add(p.x + 4.5, p.y, 52, 1, true, 8);
   for (const h of G.houses || []) {
@@ -1579,8 +1579,26 @@ function makeGround(painter, legacy, baked) {
       trim(GROUND_ROOMY ? n * n : Math.max(140, seen.length * 3));
     },
     // Draws one layer ('t' the ground, 'd' the wrecks and bodies) of world rect (sx, sy, sw, sh) into g at (dx, dy).
-    draw(g, layer, sx, sy, sw, sh, dx, dy) {
+    // warp (look.js hillWarp, the raised ground; then dx, dy must be sx, sy): the tile drawn in chunks, each through its
+    // own transform; after(g, x0, y0, x1, y1): drawn over each chunk of the ground layer with it (look.js hillPatch).
+    draw(g, layer, sx, sy, sw, sh, dx, dy, warp, after) {
       if (sw <= 0 || sh <= 0) return;
+      if (warp) {
+        const g0 = g, L = HILL_LAP;
+        for (const k of tilesIn(sx, sy, sw, sh)) {
+          const [x0, y0] = at(k), ix = Math.max(sx, x0), iy = Math.max(sy, y0), iw = Math.min(sx + sw, x0 + T, WORLD) - ix, ih = Math.min(sy + sh, y0 + T, WORLD) - iy;
+          if (iw <= 0 || ih <= 0) continue;
+          const t = tiles.get(k), c = t && (layer === 't' ? t.g : t.d);
+          if (t ? !c : layer !== 't') continue;
+          if (t) t.born = 0;
+          // A chunk: its own source, drawn a little larger (HILL_LAP) so neighbours overlap.
+          const put = c ? (X0, Y0, X1, Y1) => g0.drawImage(c, X0 - x0, Y0 - y0, X1 - X0, Y1 - Y0, X0 - L, Y0 - L, X1 - X0 + 2 * L, Y1 - Y0 + 2 * L)
+            : pvDone[k] ? (X0, Y0, X1, Y1) => { g0.imageSmoothingEnabled = true; g0.drawImage(preview, X0 / PV, Y0 / PV, (X1 - X0) / PV, (Y1 - Y0) / PV, X0 - L, Y0 - L, X1 - X0 + 2 * L, Y1 - Y0 + 2 * L); g0.imageSmoothingEnabled = false; }
+              : (X0, Y0, X1, Y1) => g0.drawImage(lowRes(), X0 / CELL, Y0 / CELL, (X1 - X0) / CELL, (Y1 - Y0) / CELL, X0 - L, Y0 - L, X1 - X0 + 2 * L, Y1 - Y0 + 2 * L);
+          warp.each(ix, iy, ix + iw, iy + ih, (X0, Y0, X1, Y1) => { put(X0, Y0, X1, Y1); if (after) after(g0, X0, Y0, X1, Y1); });
+        }
+        return;
+      }
       for (const k of tilesIn(sx, sy, sw, sh)) {
         const t = tiles.get(k), [x0, y0] = at(k);
         const ix = Math.max(sx, x0), iy = Math.max(sy, y0), iw = Math.min(sx + sw, x0 + T, WORLD) - ix, ih = Math.min(sy + sh, y0 + T, WORLD) - iy;

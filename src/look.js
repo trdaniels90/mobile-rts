@@ -10,15 +10,93 @@
 //              scattered round wrecks (bakeWreck), and soft blends where grass meets dirt, road and sand (art.js groundPixels,
 //              LOOK_SOFT: read once when the ground workers start, so switch it with ?lookoff=ground, not at run time)
 //  - water:    ripples moving over open water and foam lapping at the shore (drawWater, under the units)
+//  - hills:    the ground drawn raised by its height (G.hgt, terrain height stage 2), and everything on it standing at that
+//              height (gLift; ground warped in chunks by hillWarp from art.js makeGround's draw; ?lookoff=hills: flat as before)
 //  - smoke:    tall smoke columns leaning with the wind, bigger flames and embers from damaged structures and fires (lookSmoke, over the units)
 // (LOOK_SOFT below: the soft ground blends, read by art.js groundPixels and copied into its workers)
 const LOOK = (() => {
   const q = typeof location !== 'undefined' ? location.search : '';
   const on = !/[?&]look=off\b/.test(q), off = (q.match(/[?&]lookoff=([a-z,]+)/) || [, ''])[1].split(',');   // ?lookoff=ground,water: parts off
-  const L = { light: on, cliffs: on, concrete: on, lamps: on, ground: on, water: on, smoke: on };
+  const L = { light: on, cliffs: on, concrete: on, lamps: on, ground: on, water: on, smoke: on, hills: on };
   for (const k of off) if (k in L) L[k] = false;
   return L;
 })();
+
+// ---- Raised ground (terrain height, stage 2: looks only) ------------------------------------------------------------
+// The ground (G.hgt, world.js hgtAt: the rules' own heights) is drawn raised: a point at height h shows h x VK view pixels
+// up the screen. gLift(x, y) is that lift, faded to nothing over the outer HILL_EDGE px of the map, so the land past the
+// edge (drawn flat) meets it. Everything standing on the ground is drawn through it: onHill moves a world transform up
+// the screen by the lift under one spot (units, structures, trees, ore...), and hillWarp draws the ground tiles (and the
+// shroud) in HILL_CH px squares, each through its own affine transform fitted to the lift at its four corners, drawn a
+// little larger than itself so neighbours overlap (no seams). The hills are smooth and gentle (no slope hides the ground
+// behind it), so nothing needs sorting. Rules, saves and online play do not change: this is drawing only.
+const HILL_EDGE = 72, HILL_CH = 32, HILL_LAP = 0.6;
+let LIFT_V = null;   // the world vector that shows one view pixel straight up
+function gLift(x, y) {
+  if (!LOOK.hills || !G || !G.hgt) return 0;
+  const m = Math.min(x, y, WORLD - x, WORLD - y);
+  if (m <= 0) return 0;
+  const h = hgtAt(x, y) * VK;
+  return m >= HILL_EDGE ? h : h * (m / HILL_EDGE);
+}
+// The world point that shows where (x, y) does on the raised ground (for things drawn in world coordinates).
+function hillPt(x, y, extra) { return liftPt(x, y, gLift(x, y) + (extra || 0)); }
+// fn() drawn with g's transform moved up the screen by the lift at (x, y).
+function onHill(g, x, y, fn) {
+  const L = gLift(x, y);
+  if (!L) return fn();
+  if (!LIFT_V) LIFT_V = fromView(0, -1);
+  const m = g.getTransform();
+  g.translate(LIFT_V[0] * L, LIFT_V[1] * L);
+  try { return fn(); } finally { g.setTransform(m); }
+}
+// Whether G.hgt is 0 all over a world box (and a cell round it): drawn flat in one piece. Kept per battle, per 256 px square.
+let hillFlat = null;
+function hillFlatBox(x0, y0) {
+  if (!hillFlat || hillFlat.g !== G || hillFlat.h !== G.hgt) hillFlat = { g: G, h: G.hgt, m: new Map() };
+  const S = 256, k = Math.floor(y0 / S) * 4096 + Math.floor(x0 / S);
+  let f = hillFlat.m.get(k);
+  if (f === undefined) {
+    f = true;
+    const bx = Math.floor(x0 / S) * S, by = Math.floor(y0 / S) * S;
+    const c0 = Math.max(0, Math.floor(bx / CELL) - 1), c1 = Math.min(MAP - 1, Math.floor((bx + S) / CELL) + 1), r0 = Math.max(0, Math.floor(by / CELL) - 1), r1 = Math.min(MAP - 1, Math.floor((by + S) / CELL) + 1);
+    for (let y = r0; y <= r1 && f; y++) for (let x = c0; x <= c1; x++) if (G.hgt[y * MAP + x] > 0) { f = false; break; }
+    hillFlat.m.set(k, f);
+  }
+  return f;
+}
+// The ground's warp for one frame of the view canvas g (top left (vx, vy) on the view plane), or null (hills off).
+// each(x0, y0, x1, y1, fn): fn(X0, Y0, X1, Y1) for every chunk of the world box with g's transform set for it (the box
+// in one piece where it is flat); the transform is left in the plain world one after.
+function hillWarp(g, vx, vy) {
+  if (!LOOK.hills || !G || !G.hgt) return null;
+  const C = VIEW.c, S = VIEW.s, F = VIEW.F;
+  const flatT = () => g.setTransform(C, S * F, -S, C * F, -vx, -vy);
+  return {
+    each(x0, y0, x1, y1, fn) {
+      if (hillFlatBox(x0, y0) && hillFlatBox(x1 - 1, y1 - 1) && hillFlatBox(x1 - 1, y0) && hillFlatBox(x0, y1 - 1)) { flatT(); fn(x0, y0, x1, y1); return; }
+      const N = HILL_CH;
+      for (let cy = Math.floor(y0 / N) * N; cy < y1; cy += N) for (let cx = Math.floor(x0 / N) * N; cx < x1; cx += N) {
+        const X0 = Math.max(x0, cx), Y0 = Math.max(y0, cy), X1 = Math.min(x1, cx + N), Y1 = Math.min(y1, cy + N);
+        if (X1 <= X0 || Y1 <= Y0) continue;
+        const a = gLift(X0, Y0), b = gLift(X1, Y0), c = gLift(X0, Y1), d = gLift(X1, Y1);
+        const Lx = (b - a + d - c) / (2 * (X1 - X0)), Ly = (c - a + d - b) / (2 * (Y1 - Y0)), Lc = (a + b + c + d) / 4;
+        g.setTransform(C, S * F - Lx, -S, C * F - Ly, -vx, -vy - Lc + Lx * (X0 + X1) / 2 + Ly * (Y0 + Y1) / 2);
+        fn(X0, Y0, X1, Y1);
+      }
+      flatT();
+    },
+  };
+}
+// The soft patches of the ground (lookGround), for one chunk of it (drawn with the ground's warp, after its tile).
+function hillPatch(g, x0, y0, x1, y1) {
+  if (!LOOK.ground || !patchPic) return;
+  if (!hillPatch.pat || hillPatch.g !== g) { hillPatch.g = g; hillPatch.pat = g.createPattern(patchPic, 'repeat'); hillPatch.pat.setTransform(new DOMMatrix([12, 0, 0, 12, 0, 0])); }
+  const op = g.globalCompositeOperation, sm = g.imageSmoothingEnabled;
+  g.globalCompositeOperation = 'soft-light'; g.imageSmoothingEnabled = true; g.fillStyle = hillPatch.pat;
+  g.fillRect(x0 - HILL_LAP, y0 - HILL_LAP, x1 - x0 + 2 * HILL_LAP, y1 - y0 + 2 * HILL_LAP);
+  g.globalCompositeOperation = op; g.imageSmoothingEnabled = sm;
+}
 
 // ---- Light: grade, sun, clouds, lights --------------------------------------------------------------------------
 let lookPics = null;
@@ -43,7 +121,7 @@ function drawLook(g, vx, vy, vw, vh, k, t) {
     blue: lookGlowPic('rgba(170,210,255,1)', 'rgba(90,150,255,0.5)', 'rgba(60,100,255,0)'), sh: mkCanvas(1, 1), gl: mkCanvas(1, 1) };
   const L = lookPics, lights = [];
   const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
-  const add = (x, y, r, a, col, h) => { [x, y] = toView(...liftPt(x, y, h || 0)); if (near(x, y, r)) lights.push([x, y, r, Math.max(0, Math.min(1, a)), col]); };
+  const add = (x, y, r, a, col, h) => { [x, y] = toView(...liftPt(x, y, (h || 0) + gLift(x, y))); if (near(x, y, r)) lights.push([x, y, r, Math.max(0, Math.min(1, a)), col]); };
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.defense || !G.seen[idx(e.cx, e.cy)]) continue;   // (defences give off no light: owner)
     add((e.cx + e.w / 2) * CELL, (e.cy + e.h) * CELL - 4, 20 + e.w * 8, 0.45, 'warm');
@@ -210,7 +288,7 @@ function cliffItems(list, x0, y0, x1, y1, shows) {
     if (p) list.push({ kind: 'cliff', x, y, p });
   }
   // The shadows now, on the ground under everything (the list is drawn after).
-  for (const e of list) if (e.kind === 'cliff') cliffShadow(lookView, e);
+  for (const e of list) if (e.kind === 'cliff') onHill(lookView, e.x, e.y, () => cliffShadow(lookView, e));
 }
 let lookView = null;   // the view canvas's context, set by ui.js before cliffItems
 function cliffShadow(g, e) {
@@ -303,7 +381,7 @@ drawLamps.init = () => {
     win: lookGlowPic('rgba(255,226,160,1)', 'rgba(255,180,90,0.4)', 'rgba(255,140,40,0)'), beam: lookGlowPic('rgba(255,250,225,0.9)', 'rgba(255,245,210,0.35)', 'rgba(255,240,200,0)') };
 };
 function drawLampsOn(g, vx, vy, k, t, near) {
-  const P = lampPics, scr = (x, y, h) => { const [X, Y] = toView(...liftPt(x, y, h)); return [(X - vx) * k, (Y - vy) * k, X, Y]; };
+  const P = lampPics, scr = (x, y, h) => { const [X, Y] = toView(...liftPt(x, y, h + gLift(x, y))); return [(X - vx) * k, (Y - vy) * k, X, Y]; };
   g.save(); g.globalCompositeOperation = 'lighter';
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.defense || !G.seen[idx(e.cx, e.cy)]) continue;   // defences: no lamps at all (owner: it did not look right on them)
@@ -354,8 +432,10 @@ function lookGround(g, x0, y0, x1, y1) {
   }
   const pat = g.createPattern(patchPic, 'repeat');
   pat.setTransform(new DOMMatrix([12, 0, 0, 12, 0, 0]));
-  g.save(); g.globalCompositeOperation = 'soft-light'; g.globalAlpha = 1; g.imageSmoothingEnabled = true; g.fillStyle = pat;
-  g.fillRect(Math.max(0, x0), Math.max(0, y0), Math.min(WORLD, x1) - Math.max(0, x0), Math.min(WORLD, y1) - Math.max(0, y0)); g.restore();
+  if (!(LOOK.hills && G.hgt)) {   // (raised ground: drawn with it, chunk by chunk: hillPatch)
+    g.save(); g.globalCompositeOperation = 'soft-light'; g.globalAlpha = 1; g.imageSmoothingEnabled = true; g.fillStyle = pat;
+    g.fillRect(Math.max(0, x0), Math.max(0, y0), Math.min(WORLD, x1) - Math.max(0, x0), Math.min(WORLD, y1) - Math.max(0, y0)); g.restore();
+  }
   drawWater(g, x0, y0, x1, y1);
   // Tracks.
   if (!lookTracks || lookTracks.g !== G) lookTracks = { g: G, list: [], last: new Map() };
@@ -375,7 +455,8 @@ function lookGround(g, x0, y0, x1, y1) {
   for (const [x, y, a, w, t0] of T.list) {
     if (x < x0 - 10 || x > x1 + 10 || y < y0 - 10 || y > y1 + 10) continue;
     const f = 1 - (G.t - t0) / TRACK_LIFE, b = Math.min(B - 1, Math.floor(f * B)), c = Math.cos(a), s = Math.sin(a), P = paths[b];
-    for (const o of [-w, w]) { const px = x - s * o, py = y + c * o; P.moveTo(px - c * 3, py - s * 3); P.lineTo(px + c * 3, py + s * 3); }
+    const [hx, hy] = hillPt(x, y), lx = hx - x, ly = hy - y;   // (on the raised ground)
+    for (const o of [-w, w]) { const px = x - s * o + lx, py = y + c * o + ly; P.moveTo(px - c * 3, py - s * 3); P.lineTo(px + c * 3, py + s * 3); }
   }
   g.save(); g.lineWidth = 2.2; g.lineCap = 'butt';
   for (let b = 0; b < B; b++) { g.strokeStyle = snow ? `rgba(60,70,92,${(0.18 + b * 0.12).toFixed(2)})` : `rgba(22,17,10,${(0.2 + b * 0.13).toFixed(2)})`; g.stroke(paths[b]); }
@@ -388,7 +469,7 @@ function lookGround(g, x0, y0, x1, y1) {
 function drawSkyBeams(g, vx, vy, k, t, night) {
   if (!LOOK.lamps || night < 0.05) return;
   if (!lampPics) drawLamps.init();
-  const P = lampPics, scr = (x, y, h) => { const [X, Y] = toView(...liftPt(x, y, h)); return [(X - vx) * k, (Y - vy) * k]; };
+  const P = lampPics, scr = (x, y, h) => { const [X, Y] = toView(...liftPt(x, y, h + gLift(x, y))); return [(X - vx) * k, (Y - vy) * k]; };
   g.save(); g.globalCompositeOperation = 'lighter';
   for (const e of G.entities) {
     if (!e.alive || e.type !== 'aagun' || e.buildT < 1 || !G.seen[idx(e.cx, e.cy)]) continue;
@@ -567,7 +648,7 @@ function lookSmoke(g) {
     const spots = damageSpots(e.type, e.faction), stage = f < 0.3 ? 2 : 1, ox = e.cx * CELL, oy = e.cy * CELL;
     spots.forEach((sp, i) => {
       if (sp.s > stage) return;
-      const x = ox + sp.x, y = oy + sp.y, h = sp.z * VK;
+      const x = ox + sp.x, y = oy + sp.y, h = sp.z * VK + gLift(ox + e.w * CELL / 2, oy + e.h * CELL / 2);
       emit('b' + e.id + '.' + i, stage === 2 ? 5 : 2.5, () => P.push({ x: x + (r() - 0.5) * 4, y, h, r0: 3 + r() * 2, r1: (stage === 2 ? 34 : 24) + r() * 8, rise: 18 + r() * 8, t: 0, life: 5 + r() * 3, a: stage === 2 ? 0.38 : 0.28, dark: true }));
       if (stage === 2) fires.push([x, y, h, 0.75, e.id * 13 + i]);
     });
@@ -578,10 +659,11 @@ function lookSmoke(g) {
     if (fx.type === 'fire' && fx.t < fx.life) {
       const k = 1 - fx.t / fx.life;
       const key = ((fx.x / 14) | 0) * 100003 + ((fx.y / 14) | 0);   // nearby flames of one fire: one bigger flame
-      if (!seenFire.has(key)) { seenFire.add(key); fires.push([fx.x, fx.y + 6, 0, 0.4 + 0.25 * k, key]); }
-      if (r() < dt * 2.2) P.length < SMOKE_MAX && P.push({ x: fx.x, y: fx.y + 6, h: 8, r0: 3, r1: 18 + r() * 6, rise: 18 + r() * 6, t: 0, life: 2.6 + r() * 1.5, a: 0.3, dark: true });
+      const gl = gLift(fx.x, fx.y);
+      if (!seenFire.has(key)) { seenFire.add(key); fires.push([fx.x, fx.y + 6, gl, 0.4 + 0.25 * k, key]); }
+      if (r() < dt * 2.2) P.length < SMOKE_MAX && P.push({ x: fx.x, y: fx.y + 6, h: 8 + gl, r0: 3, r1: 18 + r() * 6, rise: 18 + r() * 6, t: 0, life: 2.6 + r() * 1.5, a: 0.3, dark: true });
     } else if (fx.type === 'smoulder') {
-      if (r() < dt * 1.5) P.length < SMOKE_MAX && P.push({ x: fx.x + (r() - 0.5) * 6, y: fx.y, h: 2, r0: 2, r1: 12 + r() * 4, rise: 10 + r() * 4, t: 0, life: 2.5 + r(), a: 0.22, dark: false });
+      if (r() < dt * 1.5) P.length < SMOKE_MAX && P.push({ x: fx.x + (r() - 0.5) * 6, y: fx.y, h: 2 + gLift(fx.x, fx.y), r0: 2, r1: 12 + r() * 4, rise: 10 + r() * 4, t: 0, life: 2.5 + r(), a: 0.22, dark: false });
     }
   }
   // Move the smoke on.

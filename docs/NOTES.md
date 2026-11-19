@@ -75,9 +75,33 @@ recorder usage at the top of record.js).
     (2) cells at the top (`revealAround`); speed x `slopeMul` (65% to 112%; 81% up a typical hillside) in followPath and slideOut.
   - Looks, for now: hill shading painted into the ground (art.js groundPixels `hgt`, also in the workers and `groundKey`): slopes
     toward the sun lit, the others shaded. Grounds rebaked. Units are NOT drawn raised yet.
-  - **Stage 2 (next):** the ground drawn raised (a view-space ground: tiles warped by height, like the cliffs' column renderer),
-    and everything on it (units, structures, ore, fog, marks, trees, water, tracks, placement) at its height. **Stage 3:** the AI
-    using high ground; a game server for the look branch (online testing); balance with the owner.
+  - **Stage 2, made 2026-11-19 (video sent; verdict pending): the ground drawn raised** (`LOOK.hills`, look.js "Raised ground";
+    `?lookoff=hills` draws it flat as in stage 1). Drawing only: rules, saves and online play are unchanged.
+    - `gLift(x, y)`: `hgtAt` x VK view px up the screen (up to about 25), faded to 0 over the outer `HILL_EDGE` (72 px) of the
+      map so the flat land past the edge meets it. `hillPt` (a world point lifted), `onHill(g, x, y, fn)` (fn drawn with the
+      world transform moved up by the lift there).
+    - The ground: not a view-space picture per tile after all, but `hillWarp` (look.js) + makeGround's `draw(..., warp, after)`
+      (art.js): each tile drawn in `HILL_CH` (32 px) chunks, each through its own affine transform fitted to the lift at its
+      four corners, drawn `HILL_LAP` (0.6 px) larger so neighbours overlap (no seams seen). Tiles whose 256 px square (and a
+      cell round it) is all height 0 are drawn in one piece (`hillFlatBox`: bases and shores). No per-tile pictures, so marks,
+      stand-ins and the baked ground work as before; the cost is one drawImage per chunk per layer (some hundreds a frame on
+      a phone; zoomed far out on a big screen a few thousand: measure before release). The hills are gentle (steepest slope
+      well under what would hide the ground behind it from this camera), so nothing needs sorting.
+    - The ground layer and the wrecks layer ('t', 'd') warp; the soft patches (lookGround) are drawn per chunk with the ground
+      (`hillPatch`); the shroud is drawn in chunks too (only where some cell round it is dark, ui.js `shroudClear`).
+    - Lifted by the ground under them: units (aircraft too, above the ground under them), structures (at their footprint's
+      middle), houses, props, villagers, hens, walls, cliffs and their shadows, ore (per cell), trees and their shadows (in
+      drawTree / treeShadows, so the far view's tree blocks too), husks and bodies, effects (a tracer's far end by its own
+      spot), shots, the flame tower's jet, smoke and embers (look.js lookSmoke), tank tracks, structure glows and lamps,
+      the AA searchlight's target, the night lights (art.js drawNight), the rally line, the placement grid and ghost, wall
+      lines, power circles, selection brackets, health bars, ranks and the labels over structures.
+    - Taps: `s2w` gives the point of the raised ground under the finger (a few steps down the screen by the lift);
+      `pick` and the double-tap select compare on the screen with the lifted spots.
+    - Not lifted (on low ground anyway): water and its foam (heights are 0 near water), bridges and broken spans, pigeons.
+    - Left for later: structures stand at their middle's height, their pads follow the slope (bases are on level ground, so
+      only an expansion on a hillside shows it); the minimap and debrief are flat; the camera's edge limits ignore the lift.
+  - **Stage 3 (next):** the AI using high ground; a game server for the look branch (online testing); balance with the owner;
+    the cost of the warped ground on a phone.
   - Checked: teams.js 1v1 river 4 min, no errors.
 - **Next ideas offered to the owner (not started):**
   real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.

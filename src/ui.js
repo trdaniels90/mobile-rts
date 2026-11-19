@@ -340,7 +340,14 @@
   }
   function centerOn(x, y) { [x, y] = toView(x, y); cam.x = x - W / cam.z / 2; cam.y = y - H / cam.z / 2; clampCam(); }
   // Screen point to the world point on the ground under it.
-  const s2w = (sx, sy) => { const [x, y] = fromView(cam.x + sx / cam.z, cam.y + sy / cam.z); return { x, y }; };
+  const s2w = (sx, sy) => {
+    // The point of the (raised: look.js gLift) ground that shows at screen (sx, sy): the flat point, then a few steps
+    // down the screen by the lift there (the hills are gentle, so this settles at once).
+    const X = cam.x + sx / cam.z, Y = cam.y + sy / cam.z;
+    let [x, y] = fromView(X, Y);
+    for (let i = 0; i < 4; i++) { const L = gLift(x, y); if (!L) break; [x, y] = fromView(X, Y + L); }
+    return { x, y };
+  };
 
   // ---------------------------------------------------------------------------
   // Game start
@@ -503,6 +510,12 @@
     g.fillRect(x1 - L + 1, y1, L, 1); g.fillRect(x1, y1 - L + 1, 1, L);
   }
   const seenAt = (x, y) => G.seen[cellOfPos(x, y)];
+  // Whether every cell of a world box (and one round it) has been seen: no shroud to draw there.
+  const shroudClear = (x0, y0, x1, y1) => {
+    const c0 = Math.max(0, Math.floor(x0 / CELL) - 1), c1 = Math.min(MAP - 1, Math.floor(x1 / CELL) + 1), r0 = Math.max(0, Math.floor(y0 / CELL) - 1), r1 = Math.min(MAP - 1, Math.floor(y1 / CELL) + 1);
+    for (let y = r0; y <= r1; y++) for (let x = c0; x <= c1; x++) if (!G.seen[y * MAP + x]) return false;
+    return true;
+  };
   const houseSeen = (h) => G.seen[idx(h.cx, h.cy)] || G.seen[idx(h.cx + h.w - 1, h.cy + h.h - 1)];
   const visibleToPlayer = (e) => !e.inHouse && (alliedSides(e.team, G.me) || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y)));
 
@@ -565,7 +578,8 @@ function draw() {
       v.drawImage(e, -P * CELL, -P * CELL, (MAP + 2 * P) * CELL, (MAP + 2 * P) * CELL);
       v.imageSmoothingEnabled = false;
     }
-    G.ground.draw(v, 't', sx, sy, sw, sh, sx, sy);
+    const warp = hillWarp(v, vx, vy);   // the raised ground (look.js), or null
+    G.ground.draw(v, 't', sx, sy, sw, sh, sx, sy, warp, warp && hillPatch);
     if (past) edgeSeam(v, ox, oy, bw, bh);
 
     // Ore
@@ -573,10 +587,10 @@ function draw() {
     const r0 = Math.max(0, Math.floor(oy / CELL)), r1 = Math.min(MAP - 1, Math.floor((oy + bh) / CELL));
     for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
       const c = idx(cx, cy), o = G.ore[c];
-      if (o && onScr((cx + 0.5) * CELL, (cy + 0.5) * CELL, 40, 40, 40)) drawOre(v, cx, cy, o, G.gem[c]);
+      if (o && onScr((cx + 0.5) * CELL, (cy + 0.5) * CELL, 40, 40, 40)) onHill(v, (cx + 0.5) * CELL, (cy + 0.5) * CELL, () => drawOre(v, cx, cy, o, G.gem[c]));
     }
 
-    G.ground.draw(v, 'd', sx, sy, sw, sh, sx, sy);
+    G.ground.draw(v, 'd', sx, sy, sw, sh, sx, sy, warp);
     // Walls and gates on explored ground (art.js wallPic). A gate stands open while one of its own alliance is beside it.
     const wallsHere = [];   // (sorted in with the units below, art.js drawWallIso)
     if (G.wallN) {
@@ -611,7 +625,7 @@ function draw() {
     for (const s of G.spans || []) if (!s.alive && s.x > ox - 400 && s.x < ox + bw + 400 && s.y > oy - 400 && s.y < oy + bh + 400) { const p = spanRuin(s); v.drawImage(p.c, p.x, p.y); }
     const x0 = ox - 80, y0 = oy - 80, x1 = ox + bw + 80, y1 = oy + bh + 80;
     const inView = (e) => e.x > x0 && e.x < x1 && e.y > y0 && e.y < y1 && onScr(e.x, e.y);
-    for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0 && onScr(fx.x, fx.y)) drawEffect(v, fx);
+    for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0 && onScr(fx.x, fx.y)) onHill(v, fx.x, fx.y, () => drawEffect(v, fx));
     const treeShows = (x, y) => onScr(x, y, 60, 30, 90);
     lap('gnd');   // the ground, ore, walls' list, wrecks and bodies
     let trees = treesInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows, true);   // swaying in the wind, burning (art.js): sorted in with the units below
@@ -666,16 +680,22 @@ function draw() {
     ground.sort((a, b) => a._key - b._key);
     v.upright = true;   // from here on, pictures, pixels and labels stand upright (art.js uprightCtx)
     lap('list');   // tree shadows, the lists and the sort
-    for (const e of ground) {
+    // Each on the raised ground (look.js onHill): a structure or house at the middle of its footprint.
+    const hillAt = (e) => (big(e) ? [(e.cx + e.w / 2) * CELL, (e.cy + e.h / 2) * CELL] : [posOf(e).x, posOf(e).y]);
+    const drawOne = (e) => {
       if (e.kind === 'bld') { drawStructure(v, e, G.t); lap('bld'); }
       else if (e.kind === 'house') { drawHouse(v, e); lap('bld'); }
       else if (e.kind === 'prop') { drawProp(v, e); lap('misc'); }
       else if (e.kind === 'folk') { drawFolk(v, e.v); lap('misc'); }
       else if (e.kind === 'hen') { drawHen(v, e.v); lap('misc'); }
-      else if (e.kind === 'tree') { drawTree(v, e); lap('tree'); DP.nTree++; }
       else if (e.kind === 'wall') { drawWallIso(v, e); lap('bld'); }
       else if (e.kind === 'cliff') { drawCliff(v, e); lap('bld'); }
       else { drawUnit(v, e, G.t); lap('unit'); DP.nUnit++; }
+    };
+    for (const e of ground) {
+      if (e.kind === 'tree') { drawTree(v, e); lap('tree'); DP.nTree++; continue; }   // (lifted in drawTree)
+      const [hx, hy] = hillAt(e);
+      onHill(v, hx, hy, () => drawOne(e));
     }
     lookSmoke(v);   // bigger smoke and fires over the units (look.js test)
     lap('misc');
@@ -686,9 +706,14 @@ function draw() {
       v.imageSmoothingEnabled = false; v.upright = up;
     }
     lap('edge');
-    for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') flameJet(v, e);
-    for (let p of G.projectiles) {
-      if (p.delay > 0) continue;
+    for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') onHill(v, (e.cx + e.w / 2) * CELL, (e.cy + e.h / 2) * CELL, () => flameJet(v, e));
+    // Shots, each moved up by the raised ground under it (look.js onHill).
+    for (const p0 of G.projectiles) {
+      if (p0.delay > 0) continue;
+      const gx = p0.gy !== undefined ? p0.gx : p0.kind === 'bomb' ? p0.tx : p0.x, gy = p0.gy !== undefined ? p0.gy : p0.kind === 'bomb' ? p0.ty : p0.y;
+      onHill(v, gx, gy, () => drawShot(p0));
+    }
+    function drawShot(p) {
       if (p.gy !== undefined) { const [lx, ly] = liftPt(p.gx, p.gy, p.gy - p.y); p = { ...p, x: lx, y: ly }; }   // a lobbed shell or grenade: its height up the screen
       else if (p.kind === 'bomb') { const [lx, ly] = liftPt(p.tx, p.ty, p.ty - p.y); p = { ...p, x: lx, y: ly }; }   // falling on (tx, ty)
       else if (p.h0 !== undefined && p.kind !== 'fireball') { const h = projH(p), [lx, ly] = liftPt(p.x, p.y + h, h); p = { ...p, x: lx, y: ly }; }   // a shell or missile between its gun's height and its target's (world.js projH)
@@ -696,7 +721,7 @@ function draw() {
       if (p.kind === 'bomb') {
         v.fillStyle = 'rgba(0,0,0,0.35)'; v.fillRect(Math.round(p.tx - 1), Math.round(p.ty), 3, 2);
         v.fillStyle = '#1d1f18'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 2), 3, 5);
-        continue;
+        return;
       }
       if (p.kind === 'lob') {
         v.fillStyle = 'rgba(0,0,0,0.3)'; v.fillRect(Math.round(p.gx - 1), Math.round(p.gy), 3, 2);   // shadow on the ground
@@ -713,19 +738,19 @@ function draw() {
             for (let i = -L; i <= L; i++) { v.fillStyle = i > L - 2 ? '#b8302a' : '#c9c7bd'; v.fillRect(Math.round(x + bx * i), Math.round(y + by * i), 2, 2); }
           });
         } else { v.fillStyle = '#2a2a24'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 2); }
-        continue;
+        return;
       }
       if (p.kind === 'grenade') {
         v.fillStyle = 'rgba(0,0,0,0.35)'; v.fillRect(Math.round(p.gx - 1), Math.round(p.gy), 3, 2);
         v.fillStyle = '#2d351c'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 3, 3);
         v.fillStyle = '#6f7d48'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 1, 1);
-        continue;
+        return;
       }
-      if (p.kind === 'fireball') { fireStream(v, p); continue; }
+      if (p.kind === 'fireball') { fireStream(v, p); return; }
       if (p.kind === 'shell') { v.fillStyle = '#ffe9a0'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 2); v.fillStyle = 'rgba(255,200,90,0.5)'; v.fillRect(Math.round(p.x - ca * 3), Math.round(p.y - sa * 3), 1, 1); }
       else if (p.kind === 'flak') { v.fillStyle = '#ffd36a'; v.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
       else if (p.atgm) {   // a long-range anti-tank missile: a slim white body, dark seeker, a bright motor
-        if (p.drop > 0) { v.fillStyle = '#d8d6cc'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 3, 2); continue; }
+        if (p.drop > 0) { v.fillStyle = '#d8d6cc'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 3, 2); return; }
         for (let i = -3; i <= 2; i++) { v.fillStyle = i >= 2 ? '#3a3a34' : '#eceae2'; v.fillRect(Math.round(p.x + ca * i), Math.round(p.y + sa * i), 2, 2); }
         v.fillStyle = '#ffd27a'; v.fillRect(Math.round(p.x - ca * 5 - 1), Math.round(p.y - sa * 5 - 1), 3, 3);
         v.fillStyle = '#ff8a2a'; v.fillRect(Math.round(p.x - ca * 7), Math.round(p.y - sa * 7), 2, 2);
@@ -738,15 +763,17 @@ function draw() {
     for (const fx of G.effects) {
       if (!(fx.t >= 0 && fx.type !== 'husk' && fx.type !== 'corpse' && fx.x > x0 && fx.x < x1 && fx.y > y0 && fx.y < y1 && fxShows(fx))) continue;
       DP.nFx++;
-      if (!fx.lift) { drawEffect(v, fx); continue; }
-      // Up in the air (rising smoke and flames, world.js updateEffects): drawn that high straight up the screen.
-      const gx = fx.x, gy = fx.y;
-      [fx.x, fx.y] = liftPt(gx, gy, fx.lift);
-      try { drawEffect(v, fx); } finally { fx.x = gx; fx.y = gy; }
+      // Up in the air (rising smoke and flames, world.js updateEffects): drawn that high straight up the screen; and on the
+      // raised ground (look.js gLift; a tracer's or bolt's far end by the ground there).
+      const gx = fx.x, gy = fx.y, hx = fx.x2, hy = fx.y2, L = (fx.lift || 0) + gLift(gx, gy), L2 = hx !== undefined ? gLift(hx, hy) : 0;
+      if (!L && !L2) { drawEffect(v, fx); continue; }
+      [fx.x, fx.y] = liftPt(gx, gy, L);
+      if (L2) [fx.x2, fx.y2] = liftPt(hx, hy, L2);
+      try { drawEffect(v, fx); } finally { fx.x = gx; fx.y = gy; if (L2) { fx.x2 = hx; fx.y2 = hy; } }
     }
     lap('fx');   // shots and effects
     air.sort((a, b) => (a.alt || 0) - (b.alt || 0) || a.y - b.y);
-    for (const e of air) drawUnit(v, e, G.t);
+    for (const e of air) onHill(v, e.x, e.y, () => drawUnit(v, e, G.t));   // (above the raised ground under them)
     if (G.birds) drawBirds(v, true, x0, y0, x1, y1);   // pigeons in the air and on the church roof
 
     // Bars, brackets and labels are drawn flat on the view plane (screen pixels), at their things' projected spots.
@@ -788,21 +815,21 @@ function draw() {
     const rs = G.teams[G.me].research;
     if (rs) for (const e of G.entities) {
       if (!e.alive || e.kind !== 'bld' || e.type !== 'tech' || e.team !== G.me || e.buildT < 1 || !inView(e)) continue;
-      const [tx, ty] = toView(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3);
+      const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3));
       v.fillStyle = 'rgba(0,0,0,0.7)'; v.fillRect(tx - 21, ty - 3, 42, 6);
       v.fillStyle = rs.stalled ? '#c98a2a' : '#5ab0ff'; v.fillRect(tx - 20, ty - 2, 40 * rs.progress, 4);
     }
     // A Construction Yard being captured (world.js CAPTURE_CY): a yellow bar over it, for both sides.
     for (const e of G.entities) {
       if (!e.alive || e.kind !== 'bld' || !(e.capture > 0) || !inView(e) || !visibleToPlayer(e)) continue;
-      const [tx, ty] = toView(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 10);
+      const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 10));
       v.fillStyle = 'rgba(0,0,0,0.75)'; v.fillRect(tx - 23, ty - 4, 46, 8);
       v.fillStyle = Math.floor(G.t * 4) % 2 ? '#ffd23e' : '#f2a020'; v.fillRect(tx - 22, ty - 3, 44 * e.capture, 6);
     }
     // PRIMARY over the building new units come out of, when there is more than one of its type.
     for (const e of G.entities) {
       if (!e.alive || !e.primary || e.kind !== 'bld' || e.team !== G.me || !inView(e) || producersOfType(e).length < 2) continue;
-      const [tx, ty] = toView(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3);
+      const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3));
       v.font = 'bold 7px monospace'; v.textAlign = 'center'; v.textBaseline = 'middle';
       v.fillStyle = 'rgba(0,0,0,0.65)'; v.fillRect(tx - 18, ty - 4.5, 36, 9);
       v.fillStyle = '#f2d24a'; v.fillText('PRIMARY', tx, ty + 0.5);
@@ -820,7 +847,15 @@ function draw() {
     // Only the part of the box on the map: Safari (iPhone) stretches and shifts a picture whose source rectangle runs
     // past its edges instead of clipping it, so the fog slid about while scrolling near the map's edges.
     const fx0 = Math.max(0, ox), fy0 = Math.max(0, oy), fx1 = Math.min(WORLD, ox + bw), fy1 = Math.min(WORLD, oy + bh);
-    if (fx1 > fx0 && fy1 > fy0) v.drawImage(shroudCanvas, fx0 / CELL, fy0 / CELL, (fx1 - fx0) / CELL, (fy1 - fy0) / CELL, fx0, fy0, fx1 - fx0, fy1 - fy0);
+    if (fx1 > fx0 && fy1 > fy0) {
+      if (warp) {   // on the raised ground, in chunks (look.js hillWarp); only where some of it is dark
+        const L = HILL_LAP;
+        warp.each(fx0, fy0, fx1, fy1, (X0, Y0, X1, Y1) => {
+          if (shroudClear(X0, Y0, X1, Y1)) return;
+          v.drawImage(shroudCanvas, X0 / CELL, Y0 / CELL, (X1 - X0) / CELL, (Y1 - Y0) / CELL, X0 - L, Y0 - L, X1 - X0 + 2 * L, Y1 - Y0 + 2 * L);
+        });
+      } else v.drawImage(shroudCanvas, fx0 / CELL, fy0 / CELL, (fx1 - fx0) / CELL, (fy1 - fy0) / CELL, fx0, fy0, fx1 - fx0, fy1 - fy0);
+    }
     v.imageSmoothingEnabled = false;
 
     drawPlacement(v);
@@ -852,11 +887,11 @@ function draw() {
 
   // A dashed line from a building to its rally point and a small flag there.
   function drawRally(v, b, r) {
-    const sx = cellX(b.exitCell) * CELL + CELL / 2, sy = cellY(b.exitCell) * CELL + CELL / 2;
+    const [sx, sy] = hillPt(cellX(b.exitCell) * CELL + CELL / 2, cellY(b.exitCell) * CELL + CELL / 2), [rx, ry] = hillPt(r.x, r.y);   // (on the raised ground: look.js)
     v.strokeStyle = 'rgba(94,224,96,0.85)'; v.lineWidth = 1;
-    v.setLineDash([4, 3]); v.beginPath(); v.moveTo(sx, sy); v.lineTo(r.x, r.y); v.stroke(); v.setLineDash([]);   // (on the ground)
-    v.fillStyle = '#5ee060'; v.beginPath(); v.arc(r.x, r.y, 2, 0, 7); v.fill();
-    const [fx, fy] = onScreen(v, r.x, r.y, 0);   // the flag stands up the screen
+    v.setLineDash([4, 3]); v.beginPath(); v.moveTo(sx, sy); v.lineTo(rx, ry); v.stroke(); v.setLineDash([]);   // (on the ground)
+    v.fillStyle = '#5ee060'; v.beginPath(); v.arc(rx, ry, 2, 0, 7); v.fill();
+    const [fx, fy] = onScreen(v, rx, ry, 0);   // the flag stands up the screen
     screenDraw(v, () => {
       v.strokeStyle = 'rgba(94,224,96,0.85)'; v.lineWidth = 1;
       v.beginPath(); v.moveTo(fx, fy); v.lineTo(fx, fy - 12); v.stroke();
@@ -868,9 +903,11 @@ function draw() {
     if (p && p.rally && p.x !== undefined) { drawRally(v, p.rally, p); return; }
     if (p && (p.power || p.guard) && p.x !== undefined) {
       const r = p.guard ? Math.max(...p.guard.filter((u) => u.alive).map(guardReach), CELL) : p.power === 'spy' ? POWERS.spy.reveal * CELL : p.power === 'cas' ? POWERS.cas.r : p.power === 'para' || p.power === 'assault' ? 40 : 60;
-      v.strokeStyle = p.guard ? '#5ee060' : '#ff5a4a'; v.lineWidth = 1;
-      v.setLineDash([4, 3]); v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.stroke(); v.setLineDash([]);
-      v.beginPath(); v.moveTo(p.x - 8, p.y); v.lineTo(p.x + 8, p.y); v.moveTo(p.x, p.y - 8); v.lineTo(p.x, p.y + 8); v.stroke();
+      onHill(v, p.x, p.y, () => {
+        v.strokeStyle = p.guard ? '#5ee060' : '#ff5a4a'; v.lineWidth = 1;
+        v.setLineDash([4, 3]); v.beginPath(); v.arc(p.x, p.y, r, 0, 7); v.stroke(); v.setLineDash([]);
+        v.beginPath(); v.moveTo(p.x - 8, p.y); v.lineTo(p.x + 8, p.y); v.moveTo(p.x, p.y - 8); v.lineTo(p.x, p.y + 8); v.stroke();
+      });
       return;
     }
     if (p && p.wall) {   // a line of wall: the cells it would take, green where a piece can stand
@@ -878,9 +915,9 @@ function draw() {
       const team = G.teams[G.me], blds = buildingsOf(team.id);
       for (const c of wallLine(p.wall, p.ax, p.ay, p.bx, p.by)) {
         v.fillStyle = (WALLS[p.wall].gate ? gateCellOk(team, c, blds) : wallOk(team, c, blds)) ? 'rgba(90,230,110,0.45)' : 'rgba(220,40,30,0.45)';
-        v.fillRect(cellX(c) * CELL, cellY(c) * CELL, CELL, CELL);
+        onHill(v, (cellX(c) + 0.5) * CELL, (cellY(c) + 0.5) * CELL, () => v.fillRect(cellX(c) * CELL, cellY(c) * CELL, CELL, CELL));
       }
-      v.strokeStyle = '#f2f2ea'; v.lineWidth = 1; v.strokeRect(p.ax * CELL + 0.5, p.ay * CELL + 0.5, CELL - 1, CELL - 1);
+      v.strokeStyle = '#f2f2ea'; v.lineWidth = 1; onHill(v, (p.ax + 0.5) * CELL, (p.ay + 0.5) * CELL, () => v.strokeRect(p.ax * CELL + 0.5, p.ay * CELL + 0.5, CELL - 1, CELL - 1));
       return;
     }
     if (!p || p.cx === undefined) return;
@@ -888,6 +925,10 @@ function draw() {
     const team = G.teams[G.me];
     p.ok = canPlace(team, p.type, p.cx, p.cy, 0);
     drawVar = team.variant | 0;
+    const hx = (p.cx + d.w / 2) * CELL, hy = (p.cy + d.h / 2) * CELL;   // (on the raised ground, as the structure will stand: look.js)
+    onHill(v, hx, hy, () => drawPlacing(v, p, d, team));
+  }
+  function drawPlacing(v, p, d, team) {
     drawGhost(v, p.type, team.faction, p.cx, p.cy);
     for (let y = 0; y < d.h; y++) for (let x = 0; x < d.w; x++) {
       const c = idx(p.cx + x, p.cy + y);
@@ -956,12 +997,13 @@ function draw() {
   function bldBox(e) {
     const xs = [], ys = [];
     for (const [x, y] of [[e.cx, e.cy], [e.cx + e.w, e.cy], [e.cx, e.cy + e.h], [e.cx + e.w, e.cy + e.h]]) { const p = toView(x * CELL, y * CELL); xs.push(p[0]); ys.push(p[1]); }
-    return [Math.min(...xs), Math.min(...ys) - CELL * 0.8 * VK, Math.max(...xs), Math.max(...ys)];
+    const L = gLift((e.cx + e.w / 2) * CELL, (e.cy + e.h / 2) * CELL);   // (on the raised ground: look.js)
+    return [Math.min(...xs), Math.min(...ys) - CELL * 0.8 * VK - L, Math.max(...xs), Math.max(...ys) - L];
   }
   // A unit on the view plane, raised by its height and h more.
-  const unitSpot = (e, h) => toView(...liftPt(e.x, e.y, (e.alt || 0) + (h || 0)));
+  const unitSpot = (e, h) => toView(...liftPt(e.x, e.y, (e.alt || 0) + (h || 0) + gLift(e.x, e.y)));
   function pick(wx, wy, slop) {
-    const [X, Y] = toView(wx, wy);
+    const [X, Y] = toView(...hillPt(wx, wy));   // (the tap's spot: s2w gives the point on the raised ground)
     let best = null, bd = Infinity;
     for (const e of G.entities) {
       if (!e.alive || !visibleToPlayer(e) || (e.def && e.def.scripted)) continue;
@@ -1069,7 +1111,7 @@ function draw() {
       }
       if (dbl && e.kind === 'unit') {
         const vx = cam.x, vy = cam.y, vw = W / cam.z, vh = H / cam.z;
-        select(unitsOf(G.me).filter((u) => { const [x, y] = toView(u.x, u.y); return u.type === e.type && !u.chute && x > vx && x < vx + vw && y > vy && y < vy + vh; }));
+        select(unitsOf(G.me).filter((u) => { const [x, y] = toView(...hillPt(u.x, u.y)); return u.type === e.type && !u.chute && x > vx && x < vx + vw && y > vy && y < vy + vh; }));
         return;
       }
       if (shift && e.kind === 'unit') {
