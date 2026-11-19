@@ -1388,7 +1388,7 @@ function makeGround(painter, legacy, baked) {
     if (f.i < list.length) return false;
     finishing.delete(k);
     f.t.used = frameNo;
-    tiles.set(k, f.t); finished++;
+    f.t.ver = (f.t.ver || 0) + 1; tiles.set(k, f.t); finished++;   // (ver: gl.js uploads a tile again when it changes)
     if (!pvDone[k] && pool) { const [x0, y0] = at(k), g = pvCtx(); g.imageSmoothingEnabled = true; g.drawImage(f.t.g, 0, 0, Math.min(T, WORLD - x0), Math.min(T, WORLD - y0), x0 / PV, y0 / PV, Math.min(T, WORLD - x0) / PV, Math.min(T, WORLD - y0) / PV); pvMark(k); }
     return true;
   }
@@ -1478,6 +1478,7 @@ function makeGround(painter, legacy, baked) {
     if (m[0] === 'd' && !t.d) t.d = tileCanvas();
     const [x0, y0] = at(k), bx = Math.floor(m[3]), by = Math.floor(m[4]), w = Math.ceil(m[5]) - bx + 1, h = Math.ceil(m[6]) - by + 1;
     (m[0] === 't' ? t.g : t.d).getContext('2d').drawImage(scratch, 0, 0, w, h, bx - x0, by - y0, w, h);
+    t.ver = (t.ver || 0) + 1;   // (gl.js: upload it again)
   }
   function drawOn(t, k, m) { markPic(m); copyOn(t, k, m); }
   // Paints some more of tile k (rows STRIP at a time until `until`, or all of it); true once it is done.
@@ -1588,6 +1589,9 @@ function makeGround(painter, legacy, baked) {
       this.blocky = blocky;     // of those, with no preview yet: the flat minimap colours
       trim(GROUND_ROOMY ? n * n : Math.max(140, seen.length * 3));
     },
+    // For the WebGL renderer (gl.js): the tile size, tiles across, a tile's corner, the tiles of a box, a painted tile
+    // ({ g, d, ver }) or none, and the stand-in for unpainted ground (a pixel a cell).
+    gl: { T, n, at, tilesIn: (sx, sy, sw, sh) => tilesIn(sx, sy, sw, sh), tile: (k) => tiles.get(k), low: () => lowRes() },
     // Draws one layer ('t' the ground, 'd' the wrecks and bodies) of world rect (sx, sy, sw, sh) into g at (dx, dy).
     // The raised ground (look.js hillWarp): the chunks (HILL_CH px squares of the world grid, inside one tile) of world
     // rect (sx, sy, sw, sh), and one layer of one chunk drawn in g (its transform already set: hillWarp set).

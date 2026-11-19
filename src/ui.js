@@ -597,7 +597,31 @@ function draw() {
     // chunks that hide ground behind them (occ) are kept to be drawn again over the units and trees behind them.
     const warp = hillWarp(v, vx, vy);
     let ores = null, occs = null, drawCh = null;
-    if (warp) {
+    const glGround = GLR.ground(v, vx, vy, VW, VH, sx, sy, sw, sh);   // gl.js: the ground drawn by WebGL (stage 1), or false
+    if (glGround) {
+      // Ore over it, back to front, each on the ground under it. On the raised ground, the chunks that hide ground behind
+      // them are still kept (2D) to be drawn again over the units behind them (reHill).
+      const list = [];
+      for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
+        const c = idx(cx, cy), o = G.ore[c];
+        if (o && onScr((cx + 0.5) * CELL, (cy + 0.5) * CELL, 40, 40, 40)) list.push({ cx, cy, o, gem: G.gem[c], key: viewDepth((cx + 0.5) * CELL, (cy + 0.5) * CELL) });
+      }
+      list.sort((a, b) => a.key - b.key);
+      for (const r of list) onHill(v, (r.cx + 0.5) * CELL, (r.cy + 0.5) * CELL, () => drawOre(v, r.cx, r.cy, r.o, r.gem));
+      if (warp) {
+        const chunks = G.ground.chunks(sx, sy, sw, sh).sort((a, b) => a.key - b.key);
+        ores = list.map((r) => ({ ...r, key: r.key + 40 }));
+        const oreAt = (r) => onHill(v, (r.cx + 0.5) * CELL, (r.cy + 0.5) * CELL, () => drawOre(v, r.cx, r.cy, r.o, r.gem));
+        drawCh = (c, withOre) => {
+          warp.set(c); G.ground.drawChunk(v, c, 't'); hillPatch(v, c.X0, c.Y0, c.X1, c.Y1);
+          if (withOre) { warp.flat(); for (const r of ores) { const x = (r.cx + 0.5) * CELL, y = (r.cy + 0.5) * CELL; if (x >= c.X0 && x < c.X1 && y >= c.Y0 && y < c.Y1) oreAt(r); } warp.set(c); }
+          G.ground.drawChunk(v, c, 'd');
+        };
+        occs = chunks.filter((c) => warp.fitOf(c).occ);
+        for (const c of occs) c.box = warp.box(c);
+        warp.flat();
+      }
+    } else if (warp) {
       const chunks = G.ground.chunks(sx, sy, sw, sh).sort((a, b) => a.key - b.key);
       ores = [];
       for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {

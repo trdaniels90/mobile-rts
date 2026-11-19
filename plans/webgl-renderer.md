@@ -45,6 +45,20 @@ renderer does, at least as fast on a phone.
 5. **Finish.** Baked normal sheets, phone measurements (iPhone first), the missing pieces from the parity list, then merge
    into `claude/ts-look`.
 
+## Progress
+
+- **Stage 1 (2026-11-19): the ground in WebGL** (`src/gl.js`, `GLR.ground`, called from ui.js draw before the 2D ground).
+  The tiles (`G.ground.gl`: a new accessor in art.js makeGround; tiles carry `ver`, bumped when painted or marked, so they
+  are uploaded again) are textures (at most `TEX_MAX` 140, least recently drawn let go; up to 6 new uploads a frame, the
+  stand-in until then), laid on a mesh every `GL_STEP` 16 world px lifted by `gLift(x, y, true)`, depth from viewDepth so a
+  hill hides the ground behind it. The wrecks layer and the look's soft patches (soft-light, as hillPatch) in the shader.
+  The finished ground is put into the 2D view canvas (`drawImage` of the GL canvas), so everything after it is unchanged;
+  ore is drawn over it in 2D, and the hill chunks that hide units (`occs`) are still the 2D ones. Checked
+  (`tools/look/gl-compare.js`): the same picture as `?gl=off` on Twin Lakes and River Crossing, no errors.
+  **To measure on a phone:** copying the GL canvas into the 2D canvas can make the GPU wait (seen as "GPU stall due to
+  ReadPixels" in headless Chromium's software GL, where the ground took 23-31 ms against 6-8 ms in 2D; not a real GPU). This
+  hybrid is a step: from stage 2 the pictures move into WebGL and the 2D canvas only keeps the HUD bits on top.
+
 ## Parity list (what the 2D renderer draws, to tick off)
 
 Ground tiles and marks, hills, edge haze past the map, ore, shroud and fog of war, trees and their shadows, cliffs and their
