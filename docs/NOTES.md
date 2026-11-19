@@ -1563,3 +1563,22 @@ frame-time maths everywhere, so it is not deterministic.
 ## Defences build in their own slot (not released, both modes; the server must match)
 
 - Owner's request: a power plant and a Pillbox can be built at the same time. `catOf` (data.js) gives `defense: true` structures the category `'defense'`: `team.queues.defense` is a second single slot like `queues.structure` (`isBuildCat`), with its own progress, READY and placing (`placeStructure` picks the slot by type). Same Construction Yard boost. The computer does it too (`aiThink` places and starts per slot; `aiNextStructure(team, c, slot)` picks defences for the defence slot and everything else for the main slot, power first when a defence needs it; what is queued counts as built). Headless 1 v 1 `bridge`, 8 min: no errors, `rebuild.js` unchanged. `pendingStructure` (world.js) still gives either queued item. Old saves have no `queues.defense` (treated as empty).
+
+## Smoother big fights: fixed simulation steps, tree blocks kept (after 2026.11.19, not released, both modes, performance only)
+
+Owner's match ea39d315 (3 v 3, 40 min, a 120 Hz PC at 2560 x 1370): 117 fps early, 50 to 60 once 700+ units were out, and
+20 to 37 frames over 50 ms a minute in the big fights (minutes 16, 17, 21, 22, 30).
+- **Fixed steps** (`ui.js` frame, `STEP`, `Smooth`): the battle is stepped at 1/30 s whatever the screen's rate (the game server
+  and the tests already were). Before, every frame ran `update(dt)`, and a step costs nearly the same however short, so a
+  120 Hz screen did about 3 x the work: a 16-minute 3 v 3 on Lakeside cost 577 ms of CPU per game second at 120 steps a second,
+  184 at 30 (Frostlight 744 against 243). Between steps `Smooth` draws units, shots and effects part of the way from where
+  they were before the last step (x, y, headings turned the short way, height, roll, walk cycle, shots' and effects'
+  progress) and `G.t` likewise, then puts every value back straight after `draw` (in a `finally`), so nothing else ever
+  sees them. Moves of over 4 cells in a step are jumps and are not blended. Drawing is at most one step (33 ms) behind. Not
+  for an online guest (`guestStep` glides its own copy). Checked: hashing every unit, shot and effect after each step and
+  after each frame's drawing gives the same values (only the draw sort key `_key` differs).
+- **Tree blocks** (`art.js` isoTreeBlocks, far views): blocks are made for up to `TREE_BLOCK_MS` (5 ms) a frame (at least 3,
+  as before) and kept `TREE_BLOCK_KEEP` (30 s, was 5 s) up to twice the blocks a screen shows (at least 24), least recently
+  used dropped first. The slowest frames of the match drew 2,000 to 3,500 trees one by one after a jump (minimap taps:
+  up to 8 a minute), with 20 to 33 ms in `list`. Returning to a spot looked at in the last 30 s now uses the blocks at once
+  (headless test: 4,000 to 7,000 trees one by one before, none after). Memory: a block is 640 x 640 (1.6 MB).

@@ -1929,6 +1929,69 @@ function draw() {
   // ---------------------------------------------------------------------------
   let last = performance.now(), updMs = 0;
   const camWas = { x: 0, y: 0 };
+  // The battle is simulated in fixed steps of 1/30 s, as on the game server and in the tests, whatever the screen's
+  // rate. Before, every frame ran a step: a 120 Hz screen ran four times the work for the same battle (a 3 v 3 with
+  // 700 units: 577 ms of CPU per game second instead of 184), and big fights stuttered. Between steps, what moves is
+  // drawn part of the way from where it was at the last step to where it is now (Smooth), so it still glides at
+  // the screen's rate; the drawing is at most one step (33 ms) behind the battle.
+  const STEP = 1 / 30;
+  let stepAcc = 0;
+  const Smooth = (() => {
+    // What is blended, per list: positions, headings (turned the short way round), heights, progress.
+    const ENT = ['x', 'y', 'face', 'tface', 'alt', 'roll', 'anim'], SHOT = ['x', 'y', 'gx', 'gy', 't', 'a'], FX = ['x', 'y', 'lift', 't'];
+    const ANG = new Set(['face', 'tface', 'a']), FAR = CELL * 4;   // (moved further in one step: a jump, not blended)
+    // Each thing's record: [step number, its values before the step..., its values now (filled in by apply)].
+    let was = new WeakMap(), n = 0, t0 = 0, g0 = null, held = null;
+    const back = [];
+    const keepList = (list, F) => {
+      for (const o of list) {
+        let r = was.get(o);
+        if (!r || r.length !== 2 * F.length + 1) was.set(o, r = new Array(2 * F.length + 1));
+        r[0] = n; for (let i = 0; i < F.length; i++) r[i + 1] = o[F[i]];
+      }
+    };
+    // Just before a step: where everything is now.
+    function keep() {
+      n++; t0 = G.t; g0 = G;
+      keepList(G.entities, ENT); keepList(G.projectiles, SHOT); keepList(G.effects, FX);
+    }
+    // For drawing: everything that was there before the last step is put part of the way (k, 0 to 1) back from now
+    // to then; restore() puts it all back, before anything else reads it.
+    function blend(list, F, j) {
+      const L = F.length;
+      for (const o of list) {
+        const r = was.get(o);
+        if (!r || r[0] !== n) continue;
+        const jump = Math.abs(o.x - r[1]) > FAR || Math.abs(o.y - r[2]) > FAR;
+        back.push(o, r, F, 0);   // (and which values were changed, a bit each: only those are put back)
+        const at = back.length - 1;
+        for (let i = 0; i < L; i++) {
+          const f = F[i], a = r[i + 1], b = o[f];
+          r[L + i + 1] = b;
+          if (typeof a !== 'number' || typeof b !== 'number' || a === b || !isFinite(a) || !isFinite(b)) continue;
+          if (jump && i < 2) continue;
+          if (!ANG.has(f) && Math.abs(b - a) > FAR && f !== 't' && f !== 'anim') continue;
+          back[at] |= 1 << i;
+          o[f] = ANG.has(f) ? b - angDiff(b, a) * j : b - (b - a) * j;
+        }
+      }
+    }
+    function apply(k) {
+      back.length = 0; held = null;
+      if (!G || G !== g0 || k >= 1) return;
+      const j = 1 - k;
+      blend(G.entities, ENT, j); blend(G.projectiles, SHOT, j); blend(G.effects, FX, j);
+      held = { t: G.t, g: G };
+      if (G.t - t0 < STEP * 1.5) G.t = t0 + (G.t - t0) * k;
+    }
+    function restore() {
+      const h = held; held = null;
+      for (let i = 0; i < back.length; i += 4) { const o = back[i], r = back[i + 1], F = back[i + 2], set = back[i + 3], L = F.length; for (let q = 0; q < L; q++) if (set & (1 << q)) o[F[q]] = r[L + q + 1]; }
+      back.length = 0;
+      if (h) h.g.t = h.t;
+    }
+    return { keep, apply, restore };
+  })();
   // Deploying: a battle (new, continued or online) starts behind a short card while this battle's sprite sheets load
   // (art.js SpriteSheets) and the ground on screen is painted (art.js makeGround), so its first seconds do not
   // stutter. A skirmish is held meanwhile; an online battle runs on (others are in it). Never longer than LOAD_MAX ms.
@@ -1970,13 +2033,14 @@ function draw() {
       // game carries on, instead of the loop stopping and the battle freezing on both phones.
       const u0 = performance.now();
       if (Net.role === 'guest') guard('guest', () => Net.guestStep(dt));
-      else guard('update', () => { while (dt > 0) { const step = Math.min(dt, 1 / 30); dt -= step; update(step); } });
+      else guard('update', () => { stepAcc += dt; while (stepAcc >= STEP) { stepAcc -= STEP; Smooth.keep(); update(STEP); } });
       guard('net', () => Net.hostTick(total));
       updMs = performance.now() - u0;
     }
     guard('beaten', beaten);
     const d0 = performance.now();
-    guard('draw', draw);
+    // (A guest's copy glides on its own, net.js guestStep.)
+    try { if (G && Net.role !== 'guest' && !G.paused) guard('smooth', () => Smooth.apply(stepAcc / STEP)); guard('draw', draw); } finally { Smooth.restore(); }
     const d1 = performance.now();
     guard('sidebar', () => updateSidebar(1 / 60));
     guard('radar', () => drawRadar(1 / 60));
