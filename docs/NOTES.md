@@ -29,7 +29,7 @@ recorder usage at the top of record.js).
     the units (ui.js `cliffItems` / kind 'cliff' / `drawCliff`), and a shadow to the screen's right (`cliffShadow`). Pictures are
     made 9 a frame (`cliffItems`), so they pop in at first: needs warming at battle start before release.
   - Concrete: `concreteDecal` replaces `bibDecal`'s dirt (art.js hook): 12 px slabs on a world grid with joints, grit, oil stains,
-    cracks, a broken outer ring and a little dirt; every pixel from its world position, so pads and tiles join seamlessly.
+    cracks, a full outer ring (owner, 2026-11-19: no missing slabs; was 22% left out) with about a third of its slabs weathered and cracked (`worn`), and a little dirt; every pixel from its world position, so pads and tiles join seamlessly.
 - **Made, video sent 2026-11-19 (owner asked for them; verdict pending):** `LOOK.lamps` and `LOOK.ground`.
   - Lamps (`structLamps`, `drawLamps`, in drawLook): from each structure type's voxel model, red beacons on its 1-2 highest
     points (blink 0.14 of every 1.6 s, own phase per structure), a warm glow per 4 x 4 x 4 block of window glass facing the camera

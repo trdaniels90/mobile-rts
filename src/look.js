@@ -396,7 +396,9 @@ function concreteDecal(tg, x, y, w, h, seed) {
   const c = mkCanvas(W, H), g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
   const sx0 = Math.floor((x - M) / CON_SLAB), sy0 = Math.floor((y - M) / CON_SLAB), sx1 = Math.floor((x + w + M - 1) / CON_SLAB), sy1 = Math.floor((y + h + M - 1) / CON_SLAB);
   const inner = (i, j) => (i + 0.5) * CON_SLAB > x - 2 && (i + 0.5) * CON_SLAB < x + w + 2 && (j + 0.5) * CON_SLAB > y - 2 && (j + 0.5) * CON_SLAB < y + h + 2;
-  const slabOn = (i, j) => i >= sx0 && i <= sx1 && j >= sy0 && j <= sy1 && (inner(i, j) || hash3(i, j, 31) > 0.22);
+  const slabOn = (i, j) => i >= sx0 && i <= sx1 && j >= sy0 && j <= sy1;   // every slab laid (owner: no missing slabs; the edge cracked instead)
+  // The ring past the footprint: about a third of its slabs weathered (darker, uneven) and some of those cracked.
+  const worn = (i, j) => !inner(i, j) && hash3(i, j, 31) < 0.34;
   const base = snow ? 150 : 122;
   for (let py = Y0; py < Y0 + H; py++) for (let px = X0; px < X0 + W; px++) {
     const q = ((py - Y0) * W + px - X0) * 4, i = Math.floor(px / CON_SLAB), j = Math.floor(py / CON_SLAB);
@@ -411,6 +413,12 @@ function concreteDecal(tg, x, y, w, h, seed) {
     const st = hash3(px >> 2, py >> 2, 37) * 0.5 + hash3(px >> 3, py >> 3, 39) * 0.5;  // oil stains
     if (st > 0.78) v -= (st - 0.78) * 120;
     if (hash3(i, j, 45) > 0.86 && Math.abs(lx - ly - (hash3(i, j, 47) - 0.5) * 6) < 0.8) v -= 30;   // a crack across the slab
+    if (worn(i, j)) {
+      v -= 10 + hash3(px >> 1, py >> 1, 49) * 12;                                                     // weathered, blotchy
+      const k = hash3(i, j, 51), u = lx + ly * (k - 0.5) * 1.6 - CON_SLAB / 2 - (hash3(i, j, 53) - 0.5) * 6;
+      if (k > 0.35 && Math.abs(u + Math.sin(ly * 0.9 + k * 9) * 1.2) < 0.7) v -= 34;                   // a crack down it
+      if (k < 0.5 && Math.abs(lx - ly + (hash3(i, j, 55) - 0.5) * 4) < 0.6 && lx > 3) v -= 28;         // and one across a corner
+    }
     const blue = snow ? 6 : 4;
     d[q] = v; d[q + 1] = v + 1; d[q + 2] = v + blue; d[q + 3] = 255;
   }
