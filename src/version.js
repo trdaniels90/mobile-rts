@@ -4,6 +4,23 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.19', date: '19 November 2026', title: 'APCs and captures', groups: [
+    ['New', [
+      'APCs for both sides, built at the War Factory: carry 5 soldiers, with a heavy machine gun that can hit helicopters. Select infantry and tap your APC to board; if it is destroyed, about half of those aboard escape.',
+      'Engineers can now capture enemy structures. Most are taken at once; a Construction Yard takes 8 seconds, and its owner hears "Construction Yard under capture". Kill the Engineer or drive him off to stop it.',
+      'The computer uses APCs too, and some computer opponents send Engineers in APCs to capture your buildings.',
+      'Online co-op battles (2 v AI and 3 v AI) can be saved and continued later, scorch marks and wrecks included. Use Save and leave on the pause menu; the battle is also saved every 2 minutes.',
+    ]],
+    ['Changed', [
+      'Soldiers are drawn smaller, closer to Red Alert proportions, and those at the front of a crowd open fire straight away.',
+      'Close Air Support now fires long-range guided missiles.',
+      'New looks: the Soviet Spy Plane is a Beriev A-50 with its radar dome, the Allied one an SR-71 Blackbird, and Rocket Soldiers carry new launchers.',
+    ]],
+    ['Fixed', [
+      'The fog of war no longer shows unexplored ground as revealed near the edges of the map.',
+      'Wrecks, bodies and blown-off turrets on the ground now look as they did standing.',
+    ]],
+  ] },
   { v: '2026.11.17.19', date: '17 November 2026', title: 'No more piles', groups: [
     ['Fixed', [
       'Units no longer heap up in one big pile at home after a fight. Defenders going back, squads pulling back and waves gathering before an attack now each take their own spot, instead of all crowding onto one point and shoving each other round.',
