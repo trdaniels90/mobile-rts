@@ -3400,6 +3400,7 @@ function deployFob(u) {
   const team = G.teams[u.team];
   u.alive = false;
   const b = addBuilding(u.def.deploys, team, spot.cx, spot.cy);
+  b.hp = Math.max(1, Math.round(b.maxHp * Math.min(1, u.hp / u.maxHp)));   // the damage comes with it: same share of health
   hooks.sfx('place', b.x, b.y); hooks.sfx('build', b.x, b.y);
   updatePower();
   return b;
