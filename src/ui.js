@@ -744,7 +744,7 @@ function draw() {
     lap('list');   // tree shadows, the lists and the sort
     // Each on the raised ground (look.js onHill): a structure or house at the middle of its footprint.
     const hillAt = (e) => (big(e) ? [(e.cx + e.w / 2) * CELL, (e.cy + e.h / 2) * CELL] : [posOf(e).x, posOf(e).y]);
-    const drawOne = (e) => {
+    const drawOne = (e, v) => {   // (v: the view canvas, or gl.js's recorder while WebGL draws the list)
       if (e.kind === 'bld') { drawStructure(v, e, G.t); lookAlive(v, e); lap('bld'); }   // (lookAlive: lookfx.js, living structures)
       else if (e.kind === 'house') { drawHouse(v, e); lap('bld'); }
       else if (e.kind === 'prop') { drawProp(v, e); lap('misc'); }
@@ -770,12 +770,18 @@ function draw() {
       const up = v.upright; v.upright = false;
       drawCh(c, true); toWorld(); v.upright = up;
     };
+    // gl.js (stage 2): with the ground in WebGL, the list's pictures become WebGL quads (in this order, each tested against
+    // the ground's depth at its base, so a hill hides what stands behind it: no reHill), the rest drawn on a layer above.
+    const glList = glGround ? GLR.listBegin(v) : null, lv = glList || v;
+    if (glList) occs = null;
     for (const e of ground) {
       if (occs) { while (oi < occs.length && occs[oi].key - 6 <= e._key) reHill(occs[oi++]); drawn.push(drawnBox(e)); }
-      if (e.kind === 'tree') { drawTree(v, e); lap('tree'); DP.nTree++; continue; }   // (lifted in drawTree)
+      if (glList) GLR.listDepth(e._key + (big(e) ? 2 : e.kind === 'tree' ? 14 : e.kind === 'cliff' ? 16 : 10));
+      if (e.kind === 'tree') { drawTree(lv, e); lap('tree'); DP.nTree++; continue; }   // (lifted in drawTree)
       const [hx, hy] = hillAt(e);
-      onHill(v, hx, hy, () => drawOne(e));
+      onHill(lv, hx, hy, () => drawOne(e, lv));
     }
+    if (glList) GLR.listEnd(v);
     if (occs) while (oi < occs.length) reHill(occs[oi++]);
     lookSmoke(v);   // bigger smoke and fires over the units (look.js test)
     lookFxOver(v);   // lookfx.js: steam, fireballs and debris over the units

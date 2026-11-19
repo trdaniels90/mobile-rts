@@ -59,6 +59,21 @@ renderer does, at least as fast on a phone.
   ReadPixels" in headless Chromium's software GL, where the ground took 23-31 ms against 6-8 ms in 2D; not a real GPU). This
   hybrid is a step: from stage 2 the pictures move into WebGL and the 2D canvas only keeps the HUD bits on top.
 
+- **Stage 2a (2026-11-19): the sorted list's pictures in WebGL** (`GLR.listBegin` / `listDepth` / `listEnd`, from ui.js
+  draw). While the list draws, a stand-in for the view canvas (a Proxy over a 2D layer) records every drawImage as a quad,
+  worked out exactly as art.js uprightCtx draws it (and trees' own sheared draw through `_rawDraw`), with its alpha and
+  'lighter' adding; anything else (pixels, lines, paths, text, other blends) goes to the 2D layer. listEnd draws the quads in
+  the list's order over the ground (one texture per picture, kept in a WeakMap; premultiplied alpha), each tested against
+  the ground's depth at its sort key + a margin (structures 2, units 10, trees 14, cliffs 16 view px) without writing
+  depth, then puts the GL canvas and the layer into the view canvas. The hill chunks redrawn over units (`reHill`) are not
+  needed with it: the ground's depth hides what is behind a crest. Checked in one page, the same frame both ways
+  (`GLR.paused`, `tools/look/gl-compare.js <repo> <prefix> <map> [fight]`): about 1% of pixels differ (texture sampling
+  on the bent ground), Twin Lakes and a 9-minute River Crossing with about 700 pictures in WebGL, no errors.
+  Known for now: the 2D layer's bits (flags, sparks, crane cables, the infantry's pixels drawn as rects) are over all the
+  pictures, so one behind a unit shows through it; two copies of the GL canvas into 2D a frame (phone cost unknown).
+  **Next (2b):** normal and height maps for the pictures (renderVox's G-buffer output, and normal sheets for the baked
+  sprites), atlases instead of a texture per picture.
+
 ## Parity list (what the 2D renderer draws, to tick off)
 
 Ground tiles and marks, hills, edge haze past the map, ore, shroud and fog of war, trees and their shadows, cliffs and their

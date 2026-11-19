@@ -889,7 +889,7 @@ function drawTree(g, e) {
   // A shear on the screen about the tree's foot: the top moves, the foot stays. Drawn with the canvas's own drawImage,
   // so the shear is kept (uprightCtx would set it aside).
   const fx = Math.round(tf.a * tr.x + tf.c * tr.y + tf.e), fy = Math.round(tf.b * tr.x + tf.d * tr.y + tf.f - gLift(tr.x, tr.y));   // (on the raised ground: look.js)
-  const draw = (img, ox, oy, dy) => CanvasRenderingContext2D.prototype.drawImage.call(g, img, fx + Math.round(ox), fy + Math.round(oy) + (dy || 0));
+  const draw = (img, ox, oy, dy) => (g._rawDraw || CanvasRenderingContext2D.prototype.drawImage).call(g, img, fx + Math.round(ox), fy + Math.round(oy) + (dy || 0));   // (_rawDraw: gl.js's recorder)
   // (No save() / restore(): thousands of trees show zoomed out on a big screen. What is changed is put back below.)
   g.setTransform(1, 0, c, 1, -c * fy, 0);
   if (p < 1) { g.globalAlpha = 1 - p * p; draw(tr.s.img, tr.s.ox, tr.s.oy); }
@@ -979,7 +979,7 @@ function isoTreeBlocks(g, list, rim, vx, vy, VW, VH) {
   }
   shown = (bx1 - bx0 + 1) * (by1 - by0 + 1);
   g.setTransform(1, 0, 0, 1, -vx, -vy);   // view plane
-  for (let k = 0; k < order.length; k += 3) CanvasRenderingContext2D.prototype.drawImage.call(g, order[k].c, order[k + 1] * TREE_BLOCK - TREE_BLOCK_PAD, order[k + 2] * TREE_BLOCK - TREE_BLOCK_PAD);
+  for (let k = 0; k < order.length; k += 3) (g._rawDraw || CanvasRenderingContext2D.prototype.drawImage).call(g, order[k].c, order[k + 1] * TREE_BLOCK - TREE_BLOCK_PAD, order[k + 2] * TREE_BLOCK - TREE_BLOCK_PAD);
   g.setTransform(m);
   // The rest: burning trees, and trees of blocks not made yet.
   const rest = list.filter((e) => e.p > 0 && e.p < 1 || !ready.has(treeKey(e.x, e.y)));

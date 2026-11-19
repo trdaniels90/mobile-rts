@@ -97,14 +97,14 @@ void main() {
   // Draws the ground of world box (sx, sy, sw, sh) into the 2D view canvas v (VW x VH, top left (vx, vy) on the view
   // plane). False when WebGL cannot: the caller draws it the 2D way.
   R.ground = (v, vx, vy, VW, VH, sx, sy, sw, sh) => {
-    if (failed || !G || !G.ground || !G.ground.gl) return false;
+    if (failed || R.paused || !G || !G.ground || !G.ground.gl) return false;   // (paused: tools draw a frame the 2D way to compare)
     try {
       if (!gl && !init()) return false;
       state(); S.frame++; R.frames++;
       const A = G.ground.gl;
       if (cv.width !== VW || cv.height !== VH) { cv.width = VW; cv.height = VH; }
       gl.viewport(0, 0, VW, VH); gl.clearColor(0, 0, 0, 0); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-      gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.disable(gl.BLEND);
+      gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.depthMask(true); gl.disable(gl.BLEND);
       gl.useProgram(P);
       gl.uniform2f(loc.uCam, vx, vy); gl.uniform2f(loc.uSize, VW, VH); gl.uniform1f(loc.uTile, A.T); gl.uniform1f(loc.uWorld, WORLD);
       // The stand-in (a pixel a cell) for tiles not painted yet; the look's soft patches.
@@ -132,6 +132,103 @@ void main() {
       const keep = v.getTransform(); v.setTransform(1, 0, 0, 1, 0, 0); v.drawImage(cv, 0, 0); v.setTransform(keep);
       return true;
     } catch (err) { failed = true; console.warn('WebGL ground off:', err); return false; }
+  };
+  // ---- Stage 2: the sorted list's pictures (units, structures, trees, cliffs, walls, houses, props...) ------------------
+  // listBegin(v) gives a stand-in for the view canvas: its drawImage calls are recorded as quads (worked out exactly as
+  // art.js uprightCtx draws them: an upright picture at its rounded anchor, anything else through the transform), and
+  // everything else it is asked to draw (pixels, lines, text) goes to a 2D layer of the same size. listDepth(d) sets the
+  // depth (a viewDepth) of what follows, set before each thing in the list from its sort key plus a margin so its own
+  // lower edge is not cut by the ground just in front of it. listEnd(v) draws the quads in order over the ground (tested
+  // against its depth, not writing their own: the list's order decides between them), then puts them and the layer into v.
+  const VS2 = `#version 300 es
+in vec2 aP; in vec2 aUV; in float aD; uniform vec2 uSize; out vec2 vUV;
+void main() { vec2 s = aP / uSize * 2.0 - 1.0; gl_Position = vec4(s.x, -s.y, aD, 1.0); vUV = aUV; }`;
+  const FS2 = `#version 300 es
+precision mediump float; in vec2 vUV; out vec4 o; uniform sampler2D uTex; uniform float uA;
+void main() { vec4 c = texture(uTex, vUV); o = c * uA; }`;
+  let P2 = null, loc2 = null, layer = null, lctx = null, rec = null, depth = 0, texOf = new WeakMap(), vbuf2 = null;
+  function init2() {
+    const mk = (t, src) => { const h = gl.createShader(t); gl.shaderSource(h, src); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(h)); return h; };
+    P2 = gl.createProgram(); gl.attachShader(P2, mk(gl.VERTEX_SHADER, VS2)); gl.attachShader(P2, mk(gl.FRAGMENT_SHADER, FS2)); gl.linkProgram(P2);
+    if (!gl.getProgramParameter(P2, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(P2));
+    loc2 = {}; for (const n of ['uSize', 'uTex', 'uA']) loc2[n] = gl.getUniformLocation(P2, n); for (const n of ['aP', 'aUV', 'aD']) loc2[n] = gl.getAttribLocation(P2, n);
+    vbuf2 = gl.createBuffer();
+    layer = mkCanvas(64, 64); lctx = uprightCtx(layer.getContext('2d'));
+  }
+  function spriteTex(img) {
+    let e = texOf.get(img);
+    const w = img.width, h = img.height;
+    if (e && e.w === w && e.h === h) return e.t;
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+    const t = e ? e.t : gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    texOf.set(img, { t, w, h });
+    return t;
+  }
+  R.listBegin = (v) => {
+    if (failed || !gl) return null;
+    try { if (!P2) init2(); } catch (err) { failed = true; console.warn('WebGL list off:', err); return null; }
+    if (layer.width !== cv.width || layer.height !== cv.height) { layer.width = cv.width; layer.height = cv.height; lctx = uprightCtx(layer.getContext('2d')); }
+    lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.clearRect(0, 0, layer.width, layer.height);
+    lctx.setTransform(v.getTransform()); lctx.upright = v.upright; lctx.imageSmoothingEnabled = false; lctx.globalAlpha = 1; lctx.globalCompositeOperation = 'source-over';
+    rec = [];
+    const draw = (img, ...a) => {
+      if (!img || !img.width || !img.height || (img.complete === false)) return;
+      const op = lctx.globalCompositeOperation;
+      if (op !== 'source-over' && op !== 'lighter') return lctx.drawImage(img, ...a);   // (other blends: on the 2D layer)
+      const n = a.length, j = n === 8 ? 4 : 0, dx = a[j], dy = a[j + 1];
+      const w = n === 2 ? img.width : a[j + 2], h = n === 2 ? img.height : a[j + 3];
+      const sx = n === 8 ? a[0] : 0, sy = n === 8 ? a[1] : 0, sw = n === 8 ? a[2] : img.width, sh = n === 8 ? a[3] : img.height;
+      const m = lctx.getTransform(), sprite = img._ox !== undefined;
+      let q;
+      if (!sprite && !lctx.upright) {
+        const P = (x, y) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f];
+        q = [...P(dx, dy), ...P(dx + w, dy), ...P(dx, dy + h), ...P(dx + w, dy + h)];
+      } else {
+        const ax = sprite ? dx - img._ox - sx : dx + w / 2, ay = sprite ? dy - img._oy - sy : dy + h / 2;
+        const X = Math.round(m.a * ax + m.c * ay + m.e + dx - ax), Y = Math.round(m.b * ax + m.d * ay + m.f + dy - ay);
+        q = [X, Y, X + w, Y, X, Y + h, X + w, Y + h];
+      }
+      rec.push({ img, q, u0: sx / img.width, v0: sy / img.height, u1: (sx + sw) / img.width, v1: (sy + sh) / img.height, a: lctx.globalAlpha, add: op === 'lighter', d: depth });
+    };
+    // The canvas's own drawImage (trees, with their sway's shear): through the transform as it is, no upright anchor.
+    const rawDraw = function (img, ...a) { const up = lctx.upright, ox = img._ox; lctx.upright = false; if (ox !== undefined) img._ox = undefined; try { draw(img, ...a); } finally { lctx.upright = up; if (ox !== undefined) img._ox = ox; } };
+    return new Proxy(lctx, {
+      get(t, k) { if (k === 'drawImage') return draw; if (k === '_rawDraw') return rawDraw; const x = t[k]; return typeof x === 'function' ? x.bind(t) : x; },
+      set(t, k, val) { t[k] = val; return true; },
+    });
+  };
+  R.listDepth = (d) => { depth = 1 - 2 * (d + 64) / (2 * WORLD + 128); };
+  R.listEnd = (v) => {
+    if (!rec) return;
+    try {
+      gl.useProgram(P2); gl.viewport(0, 0, cv.width, cv.height);
+      gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);   // (the ground's depth stays)
+      gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(false); gl.enable(gl.BLEND);
+      gl.uniform2f(loc2.uSize, cv.width, cv.height); gl.uniform1i(loc2.uTex, 0); gl.activeTexture(gl.TEXTURE0);
+      const f = new Float32Array(rec.length * 30);
+      let o = 0;
+      for (const r of rec) {
+        const [x0, y0, x1, y1, x2, y2, x3, y3] = r.q;
+        for (const [x, y, u, vv] of [[x0, y0, r.u0, r.v0], [x1, y1, r.u1, r.v0], [x2, y2, r.u0, r.v1], [x1, y1, r.u1, r.v0], [x3, y3, r.u1, r.v1], [x2, y2, r.u0, r.v1]]) { f[o++] = x; f[o++] = y; f[o++] = u; f[o++] = vv; f[o++] = r.d; }
+      }
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbuf2); gl.bufferData(gl.ARRAY_BUFFER, f, gl.STREAM_DRAW);
+      for (const n of ['aP', 'aUV', 'aD']) gl.enableVertexAttribArray(loc2[n]);
+      gl.vertexAttribPointer(loc2.aP, 2, gl.FLOAT, false, 20, 0); gl.vertexAttribPointer(loc2.aUV, 2, gl.FLOAT, false, 20, 8); gl.vertexAttribPointer(loc2.aD, 1, gl.FLOAT, false, 20, 16);
+      let add = null;
+      rec.forEach((r, i) => {
+        if (r.add !== add) { add = r.add; gl.blendFunc(gl.ONE, add ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA); }
+        gl.bindTexture(gl.TEXTURE_2D, spriteTex(r.img)); gl.uniform1f(loc2.uA, r.a);
+        gl.drawArrays(gl.TRIANGLES, i * 6, 6);
+      });
+      gl.depthMask(true); gl.disable(gl.BLEND);
+      R.quads = rec.length;
+      const keep = v.getTransform(); v.setTransform(1, 0, 0, 1, 0, 0); v.drawImage(cv, 0, 0); v.drawImage(layer, 0, 0); v.setTransform(keep);
+    } catch (err) { failed = true; console.warn('WebGL list off:', err); }
+    rec = null;
   };
   R.off = () => { failed = true; };
   return R;
