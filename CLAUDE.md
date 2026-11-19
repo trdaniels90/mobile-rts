@@ -112,6 +112,10 @@ when a track changes). Details, adding a track and ffmpeg settings: "Soundtrack"
   wish: it must not touch the main game until it is ready). To work on it: `git fetch origin claude/ts-look`, check it out,
   read "Tiberian Sun look" in its `docs/NOTES.md`, and push there (the one exception to the branch rule above). Its test page
   is a separate artifact; never release it to the owner's build, the test build or the Windows app until the owner says so.
+- **TS test link** (owner, 2026-11-19): a built copy of `claude/ts-look` sits in `ts/` on `main`, served at
+  https://trdaniels90.github.io/mobile-rts/ts/ (own version `-ts`, own save slot, phone-to-phone online only). It is not the test
+  build: never touch `ts/` in a normal release. Update it only when the owner asks: on `claude/ts-look` run
+  `tools/look/build-ts.sh <dir>`, copy `<dir>` over `ts/` on this branch, commit, push, then `git push origin HEAD:main`.
 
 ## Feature notes (`docs/NOTES.md`)
 
