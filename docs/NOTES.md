@@ -75,8 +75,8 @@ recorder usage at the top of record.js).
   pixel" (art.js `blit`): hull and turret were rounded to pixels separately, twice, so the turret wobbled on the hull.
 - **Terrain height, stage 1 of 3 (2026-11-19; owner's picks: "Height with rules", **both modes**, on the existing maps):**
   - world.js `makeHeights` -> `G.hgt` (cell middles, world px 0..`HG_MAX` 30): two layers of smooth noise from the map's ground
-    seed (fixed maps: always the same hills), down to 0 within 5 cells of water, and level low ground (0) within 8-13 cells of
-    every start position (fair: no base on a hill). Same on the server and every phone (online games call newWorld with the
+    seed (fixed maps: always the same hills), down to 0 within 5 cells of water, and level ground round every start position
+    (see "Flat starting bases" below; was 8-13 cells). Same on the server and every phone (online games call newWorld with the
     seed and map). `hgtAt`, `standH` (none for aircraft in the air), `slopeMul`.
   - Rules: `distTo` divides the distance by 1 + `HG_DOWN` (0.2) x height difference / 30 when the first is higher, 1 - `HG_UP`
     (0.1) x ... when lower (so reach, acquiring, AI distances all follow; measured 135 px -> 113 down, 150 up); sight +`HG_SIGHT`
@@ -1967,6 +1967,22 @@ reasons are in `plans/webgl-renderer.md`; the short version:
 - **Checking:** `tools/look/gl-compare.js <repo> <prefix> <map> [fight|fightfx] [rain|snow]` draws one paused moment the 2D
   way and with WebGL (flat light, sun off: about 1-2% of pixels differ, the hills' sampling) and lit.
 - **Phone:** the owner's iPhone: 60 fps zoomed all the way out at the start of a battle (16 before the zoomed-out fixes).
+
+## Flat starting bases: low ground or a broad hilltop (2026-11-20, not released, both modes)
+
+Owner: "The ai doesn't really know how to make walls with the hills in the base, I saw an ore factory in between the walls.
+Let's make it so the starting bases are always flat either on low ground or they're starting on a huge hilltop."
+- world.js `makeHeights`: the ground is level out to `BASE_FLAT` (21) cells from every start (a whole base and the computer's
+  wall ring, `aiPlanRing`: buildings within 16 cells plus `RING_MARGIN` 3), easing into the hills over `BASE_EASE` (9). Before,
+  only 8 cells were level (fading by 13): 20-65% of the ground within 16 cells of a start was off-level on most maps.
+- All starts on a map alike (no side gets the high ground): low ground (0), or with `startHill: true` in `MAPS` a hilltop at
+  `HG_MAX`, used only if every start is at least `BASE_FLAT` + 5 cells from water (heights fall to 0 at shores), else low.
+  **Crossroads Village** is the hilltop map (water 27 cells from each start); every other map is low ground (water 10-19 cells
+  from most starts, too close for a level hilltop).
+- Hills left on land (cells over 3 px): Bridge 33% -> 8% (8 starts on a small map), River 45 -> 21, Snowbound 49 -> 35,
+  Lakeside 43 -> 26, Twin Lakes 44 -> 21, Frostlight 51 -> 40, Village 51 -> 78 (the four hilltops).
+- Baked grounds rebaked (hill shading). Saves keep the heights they were made with. Online: the server must be redeployed
+  with it (heights are worked out on each copy).
 
 ## Map check: cliffs, routes, ore (2026-11-20, `tools/sim/map-check.js`)
 

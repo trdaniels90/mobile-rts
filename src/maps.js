@@ -792,6 +792,7 @@ const MAPS = {
     teamSize: 2,
     // Village houses (world.js genVillage): rolled from the battle's seed on the plots in `lots`, so every battle has
     // its own village. Neutral; hurt by blasts near them and by an ordered attack (ATTACK GROUND), down to rubble.
+    startHill: true,   // every base on a broad hilltop (world.js makeHeights)
     village: true,
     weather: { kind: 'rain', chance: 0.5 },   // as Lakeside: rain in half the battles, with lightning (art.js drawWeather, world.js lightningStrikes)
     daynight: true,   // day and night come round (art.js dayNight; looks only)

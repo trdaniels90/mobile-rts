@@ -172,7 +172,7 @@ function spawnPoints(mapId) {
 //  - sight: +HG_SIGHT cells at the top of a hill (revealAround);
 //  - reach: firing down from high ground reaches up to HG_DOWN further, up a hill up to HG_UP less (distTo);
 //  - speed: up a slope slower, down it a little faster (slopeMul in followPath and slideOut).
-const HG_MAX = 30, HG_SIGHT = 2, HG_DOWN = 0.2, HG_UP = 0.1;
+const HG_MAX = 30, HG_SIGHT = 2, HG_DOWN = 0.2, HG_UP = 0.1, BASE_FLAT = 21, BASE_EASE = 9;
 function makeHeights(mapId) {
   const h = new Float32Array(NCELLS), seed = MAPS[validMap(mapId)].rows ? 0x2b1d5eed : G.seed;
   const hash = (i, j, k) => { let v = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(k + seed, 1442695041); v = Math.imul(v ^ (v >>> 13), 1274126177); return ((v ^ (v >>> 16)) >>> 0) / 4294967296; };
@@ -189,11 +189,17 @@ function makeHeights(mapId) {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= MAP || ny >= MAP) continue; const n = ny * MAP + nx; if (wd[n] === 255) { wd[n] = wd[c] + 1; q.push(n); } }
   }
   const raw = (x, y) => { const n = vn(x, y, 16, 1) * 0.65 + vn(x, y, 7, 2) * 0.35; return HG_MAX * S(Math.max(0, Math.min(1, (n - 0.42) / 0.38))); };
-  const flat = (G.spawns || []).map((p) => [p.cx + 0.5, p.cy + 0.5, 0]);   // every base on level low ground: no side starts with the high ground
+  // Every base on level ground out to BASE_FLAT cells (a whole base and the AI's wall ring round it), then easing into the
+  // hills over BASE_EASE. All starts alike, so no side starts with the high ground: low ground (0), or on a map with
+  // `startHill` a broad hilltop (HG_MAX), but only if every start is far enough from water (heights drop to 0 at shores).
+  const sp = G.spawns || [], hillOk = MAPS[validMap(mapId)].startHill && sp.every((p) => {
+    for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) if (G.terr[y * MAP + x] >= 4 && Math.hypot(x - p.cx, y - p.cy) < BASE_FLAT + 5) return false;
+    return true; });
+  const flat = sp.map((p) => [p.cx + 0.5, p.cy + 0.5, hillOk ? HG_MAX : 0]);
   for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
     const c = y * MAP + x;
     let v = raw(x + 0.5, y + 0.5);
-    for (const [fx, fy, fh] of flat) { const d = Math.hypot(x + 0.5 - fx, y + 0.5 - fy); if (d < 13) { const k = S(Math.max(0, Math.min(1, (d - 8) / 5))); v = fh + (v - fh) * k; } }
+    for (const [fx, fy, fh] of flat) { const d = Math.hypot(x + 0.5 - fx, y + 0.5 - fy); if (d < BASE_FLAT + BASE_EASE) { const k = S(Math.max(0, Math.min(1, (d - BASE_FLAT) / BASE_EASE))); v = fh + (v - fh) * k; } }
     v *= S(Math.min(1, (wd[c] === 255 ? 6 : wd[c]) / 5));   // down to the water's edge
     h[c] = G.terr[c] >= 4 ? 0 : v;
   }
