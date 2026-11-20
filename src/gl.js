@@ -43,10 +43,10 @@ const GLR = (() => {
   const GL_STEP = 16, TEX_MAX = 140;
   let FW = 1, FH = 1, cv = null, gl = null, P = null, loc = null, failed = false;
   const VS = `#version 300 es
-in vec2 aP; in float aD; in vec2 aW; uniform vec2 uCam, uSize; out vec2 vW;
-void main() { vec2 s = (aP - uCam) / uSize * 2.0 - 1.0; gl_Position = vec4(s.x, -s.y, aD, 1.0); vW = aW; }`;
+in vec2 aP; in float aD; in vec2 aW; in vec2 aN; uniform vec2 uCam, uSize; out vec2 vW; out vec2 vN;
+void main() { vec2 s = (aP - uCam) / uSize * 2.0 - 1.0; gl_Position = vec4(s.x, -s.y, aD, 1.0); vW = aW; vN = aN; }`;
   const FS = `#version 300 es
-precision highp float; in vec2 vW; layout(location = 0) out vec4 o; layout(location = 1) out vec4 o1;
+precision highp float; in vec2 vW; in vec2 vN; layout(location = 0) out vec4 o; layout(location = 1) out vec4 o1;
 uniform sampler2D uT, uD, uLow, uPatch; uniform vec2 uT0; uniform float uTile, uWorld, uLowOnly, uPatchK, uPatchS;
 float sl(float b, float s) { float d = b <= 0.25 ? ((16.0 * b - 12.0) * b + 4.0) * b : sqrt(b); return s <= 0.5 ? b - (1.0 - 2.0 * s) * b * (1.0 - b) : b + (2.0 * s - 1.0) * (d - b); }
 void main() {
@@ -54,7 +54,7 @@ void main() {
   vec4 c = uLowOnly > 0.5 ? texture(uLow, vW / uWorld) : texture(uT, uv);
   vec4 d = texture(uD, uv); c.rgb = mix(c.rgb, d.rgb, d.a * (1.0 - uLowOnly));
   if (uPatchK > 0.0) { vec4 p = texture(uPatch, vW / uPatchS); vec3 s = vec3(sl(c.r, p.r), sl(c.g, p.g), sl(c.b, p.b)); c.rgb = mix(c.rgb, s, p.a * uPatchK); }
-  o = vec4(c.rgb, 1.0); o1 = vec4(0.0, 0.0, 0.0, 1.0);   // (o1: the normals' layer; the ground: none, lit flat)
+  o = vec4(c.rgb, 1.0); o1 = vec4(vN * 0.5 + 0.5, 0.0, 1.0);   // (o1: the normals' layer; the ground's from the hills (stage 5): flat ground (0, 0) is lit as 2D)
 }`;
   function init() {
     // Stage 5: the WebGL canvas is on the page, under the 2D one (#game), the size of the screen: the frame is drawn
@@ -72,7 +72,7 @@ void main() {
     gl.useProgram(P);
     loc = {};
     for (const n of ['uCam', 'uSize', 'uT', 'uD', 'uLow', 'uPatch', 'uT0', 'uTile', 'uWorld', 'uLowOnly', 'uPatchK', 'uPatchS']) loc[n] = gl.getUniformLocation(P, n);
-    for (const n of ['aP', 'aD', 'aW']) loc[n] = gl.getAttribLocation(P, n);
+    for (const n of ['aP', 'aD', 'aW', 'aN']) loc[n] = gl.getAttribLocation(P, n);
     gl.uniform1i(loc.uT, 0); gl.uniform1i(loc.uD, 1); gl.uniform1i(loc.uLow, 2); gl.uniform1i(loc.uPatch, 3);
     R.buf = gl.createBuffer(); R.ibuf = gl.createBuffer();
     R.none = texFrom(null);
@@ -100,11 +100,16 @@ void main() {
     let m = S.mesh.get(k);
     if (m) return m;
     const [x0, y0] = A.at(k), T = A.T, N = Math.ceil(Math.min(T, WORLD - x0) / GL_STEP), M = Math.ceil(Math.min(T, WORLD - y0) / GL_STEP);
-    const v = new Float32Array((N + 1) * (M + 1) * 5), D = 2 * WORLD;
+    const v = new Float32Array((N + 1) * (M + 1) * 7), D = 2 * WORLD, E = GL_STEP / 2, lift = (x, y) => (typeof gLift === 'function' ? gLift(x, y, true) : 0);
     let o = 0;
     for (let j = 0; j <= M; j++) for (let i = 0; i <= N; i++) {
       const x = Math.min(x0 + i * GL_STEP, WORLD, x0 + T), y = Math.min(y0 + j * GL_STEP, WORLD, y0 + T), L = typeof gLift === 'function' ? gLift(x, y, true) : 0, [X, Y] = toView(x, y);
       v[o++] = X; v[o++] = Y - L; v[o++] = 1 - 2 * (x * VIEW.s + y * VIEW.c + 64) / (D + 128); v[o++] = x; v[o++] = y;
+      // (stage 5) The surface's direction from the drawn height (view px up; world units of height: / VK), turned with the
+      // view as the pictures' normal maps are (x right, y toward the camera): x and y kept, the shader works out z.
+      const hx = (lift(x + E, y) - lift(x - E, y)) / (2 * E * VK), hy = (lift(x, y + E) - lift(x, y - E)) / (2 * E * VK), nl = Math.hypot(hx, hy, 1);
+      const nx = -hx / nl, ny = -hy / nl;
+      v[o++] = nx * VIEW.c - ny * VIEW.s; v[o++] = nx * VIEW.s + ny * VIEW.c;
     }
     const ix = new Uint16Array(N * M * 6);
     o = 0;
@@ -154,7 +159,7 @@ void main() {
       gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, pk ? S.patch : R.none);
       gl.uniform1f(loc.uPatchK, pk); gl.uniform1f(loc.uPatchS, pk ? patchPic.width * 12 : 1);
       gl.bindBuffer(gl.ARRAY_BUFFER, R.buf); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, R.ibuf);
-      gl.enableVertexAttribArray(loc.aP); gl.enableVertexAttribArray(loc.aD); gl.enableVertexAttribArray(loc.aW);
+      gl.enableVertexAttribArray(loc.aP); gl.enableVertexAttribArray(loc.aD); gl.enableVertexAttribArray(loc.aW); gl.enableVertexAttribArray(loc.aN);
       let up = 0;
       for (const k of A.tilesIn(sx, sy, sw, sh)) {
         const t = A.tile(k), m = meshOf(k, A), [x0, y0] = A.at(k);
@@ -164,7 +169,7 @@ void main() {
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, e ? e.g : R.none);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, e && e.d ? e.d : R.none);
         gl.bufferData(gl.ARRAY_BUFFER, m.v, gl.STREAM_DRAW); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.ix, gl.STREAM_DRAW);
-        gl.vertexAttribPointer(loc.aP, 2, gl.FLOAT, false, 20, 0); gl.vertexAttribPointer(loc.aD, 1, gl.FLOAT, false, 20, 8); gl.vertexAttribPointer(loc.aW, 2, gl.FLOAT, false, 20, 12);
+        gl.vertexAttribPointer(loc.aP, 2, gl.FLOAT, false, 28, 0); gl.vertexAttribPointer(loc.aD, 1, gl.FLOAT, false, 28, 8); gl.vertexAttribPointer(loc.aW, 2, gl.FLOAT, false, 28, 12); gl.vertexAttribPointer(loc.aN, 2, gl.FLOAT, false, 28, 20);
         gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_SHORT, 0);
       }
       return true;   // (kept in the GL canvas: listBegin records what is drawn over it, listEnd puts the frame into v once)
@@ -293,6 +298,7 @@ void main() {
     c.getContext('2d').putImageData(d, 0, 0);
     return c;
   }
+  R.nrmPic = nrmPic;   // (tools/bake-normals.js)
   function withNormal(img, e) {
     if (e.n || nrmSpend > NRM_MS) return;
     const t0 = performance.now(), c = img._nrm !== undefined ? img._nrm : (img._nrm = nrmPic(img));
@@ -564,8 +570,10 @@ void main() {
     vec2 g = vec2(lightAt(uv + vec2(d.x, 0.0)) - lightAt(uv - vec2(d.x, 0.0)), lightAt(uv - vec2(0.0, d.y)) - lightAt(uv + vec2(0.0, d.y)));   // (x right, y toward the camera: down the view)
     // Sides facing the light brighter, sides turned away darker, as much as the light has a clear direction here (the
     // slope's steepness) and less on tops (facing up): on average as bright as 2D, so the pictures keep their colours.
-    float m = length(g), w = m > 1e-4 ? smoothstep(0.0, 0.05, m) * (1.0 - 0.6 * n.z) : 0.0;
+    bool ground = nn.b < 0.004;   // (blue: the pictures' height, never 0; the ground's 0)
+    float m = length(g), w = m > 1e-4 ? smoothstep(0.0, 0.05, m) * (ground ? 1.0 : 1.0 - 0.6 * n.z) : 0.0;
     float f = m > 1e-4 ? dot(n.xy, g / m) : 0.0;
+    if (ground) f = clamp(f * 3.0, -1.0, 1.0);   // (the hills are gentle: their slopes facing a light catch it as a wall would)
     nf = 1.0 + uNrmK * w * (f > 0.0 ? 0.75 * f : 0.3 * f);   // (turned away: only a little darker, so a blast's glow is not lost on what stands round it)
   }
   vec2 s = (P + uOrg - uCam) / uScr;   // where on the screen (0..1)

@@ -216,7 +216,7 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt) {
 // sheets (faction and team colour 0-2, or 'burnt'); a sprite not loaded yet, or not baked, is rendered as before. Only
 // over http(s) and in the Windows app (a page opened from a file cannot read pictures back, which tests rely on).
 const SpriteSheets = (() => {
-  let man = null, manP = null;
+  let man = null, manP = null, nmanP = null;
   const loaded = new Set();
   const ok = () => typeof location !== 'undefined' && /^(https?|app):$/.test(location.protocol) && typeof createImageBitmap === 'function' && typeof fetch === 'function'
     && !(typeof HEADLESS !== 'undefined' && HEADLESS);
@@ -229,11 +229,20 @@ const SpriteSheets = (() => {
     if (!r.ok) return;
     const bmp = await createImageBitmap(await r.blob());
     const cut = (x, y, w, h) => createImageBitmap(bmp, x, y, w, h);
+    // With the WebGL renderer (gl.js), the sheet's normal maps too (tools/bake-normals.js: normals/, the same layout),
+    // if they were baked from these very sprites: each picture's goes with it (img._nrm), so it is not worked out in play.
+    let nbmp = null;
+    if (typeof GLR !== 'undefined' && GLR.on) {
+      const nm = await (nmanP || (nmanP = fetch('normals/manifest.json').then((x) => (x.ok ? x.json() : null)).catch(() => null)));
+      const ns = nm && nm.sprites === m.hash && nm.sheets.find((x) => x.of === sh.file);
+      if (ns) { const r2 = await fetch('normals/' + ns.file).catch(() => null); if (r2 && r2.ok) nbmp = await createImageBitmap(await r2.blob()).catch(() => null); }
+    }
     for (let i = 0; i < sh.sprites.length; i += 64) {   // a few at a time, so loading never holds up a frame
       await Promise.all(sh.sprites.slice(i, i + 64).map(async (e) => {
         if (spriteCache2.has(e[0])) return;
         const s = { img: await cut(e[1], e[2], e[3], e[4]), ox: e[5], oy: e[6] };
         s.img._ox = e[5]; s.img._oy = e[6];   // (uprightCtx)
+        if (nbmp) s.img._nrm = await createImageBitmap(nbmp, e[1], e[2], e[3], e[4]);
         if (e.length > 7) { s.sh = await cut(e[7], e[8], e[9], e[10]); s.sox = e[11]; s.soy = e[12]; s.sh._ox = e[11]; s.sh._oy = e[12]; }
         if (spriteCache2.has(e[0])) return;
         spriteCache2.set(e[0], s);
@@ -242,6 +251,7 @@ const SpriteSheets = (() => {
       }));
     }
     if (bmp.close) bmp.close();
+    if (nbmp && nbmp.close) nbmp.close();
   }
   let chain = Promise.resolve(), pending = 0;
   function need(names) {

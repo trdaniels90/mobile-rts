@@ -171,6 +171,27 @@ renderer does, at least as fast on a phone.
   add about as much again as the baked sprites to the download, so only if the phone shows the cost); light on the hills
   (ground normals from the drawn heights); the sun per pixel (needs unlit colours); then the merge into `claude/ts-look`.
 
+- **Stage 5, part 2 (2026-11-20): test page, baked normal maps, lights on the hills** (owner: "Send me a test link then
+  start on baked normal maps, lights on hills").
+  **Test page:** a private claude.ai artifact, "Red Horizon WebGL test" (https://claude.ai/artifact/6S1WxGVinXN11GquWv8wcx,
+  slug 2bfb9b16-67a5-4107-b45f-c48711aa4045): the single file built from this branch, version `-gl` (never the real game's
+  server or rooms), its own save slot (`red-horizon-gl`), the readout always on (`GL_STATS`) with a **2D / WebGL** button that
+  switches the same battle (GLR.paused). Only index.html is published: sprites and the ground are drawn at run time there
+  (the first minute paints them; measure after that). An artifact page passes only `#name` to the page, so `#glstats`
+  works too. Not the owner's build, the test build or the TS link.
+  **Baked normal maps:** `tools/bake-normals.js <repo> [--check]` writes `normals/<sheet>.webp` in the same layout as each
+  sprite sheet (gl.js's own nrmPic, run on the same pictures rendered as tools/bake-sprites.js renders them; the team
+  colours share their sheet's shapes, so allies1 / allies2 / soviets1 / soviets2 point at one file each: 1.8 MB in all) and
+  `normals/manifest.json` (its `sprites` hash must match sprites/manifest.json's, its own hash covers nrmPic: `--check`
+  says stale after a sprite rebake or a change to nrmPic). art.js SpriteSheets loads a sheet's normal maps with it when
+  WebGL draws, cut to each picture (`img._nrm`), so gl.js does not work them out in play. Checked over http: 4,319 of 4,322
+  pictures in a battle had theirs from the sheets. 5 structures are drawn differently on this branch than baked (no
+  normal map, as at run time). sw.js caches the main ones. **Rebake after tools/bake-sprites.js.**
+  **Lights on the hills:** the ground's mesh carries the surface's direction at each vertex (from the drawn height gLift,
+  turned with the view like the pictures' normal maps) into the normals layer (blue 0 marks ground); the light pass lights
+  slopes facing a light more and slopes turned away a little less (the slope's facing x3, as the hills are gentle). Flat
+  ground is lit as before. Village at night after 9 minutes: 0.74% of pixels differ from 2D with flat light, 1.0% lit.
+
 ## Parity list (what the 2D renderer draws, to tick off)
 
 Ground tiles and marks, hills, edge haze past the map, ore, shroud and fog of war, trees and their shadows, cliffs and their
