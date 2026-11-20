@@ -140,17 +140,21 @@ void main() {
   // lower edge is not cut by the ground just in front of it. listEnd(v) draws the quads in order over the ground (tested
   // against its depth, not writing their own: the list's order decides between them), then puts them and the layer into v.
   const VS2 = `#version 300 es
-in vec2 aP; in vec2 aUV; in float aD; uniform vec2 uSize; out vec2 vUV;
-void main() { vec2 s = aP / uSize * 2.0 - 1.0; gl_Position = vec4(s.x, -s.y, aD, 1.0); vUV = aUV; }`;
+in vec2 aP; in vec2 aUV; in float aD; in float aA; uniform vec2 uSize; out vec2 vUV; out float vA;
+void main() { vec2 s = aP / uSize * 2.0 - 1.0; gl_Position = vec4(s.x, -s.y, aD, 1.0); vUV = aUV; vA = aA; }`;
   const FS2 = `#version 300 es
-precision mediump float; in vec2 vUV; out vec4 o; uniform sampler2D uTex; uniform float uA;
-void main() { vec4 c = texture(uTex, vUV); o = c * uA; }`;
+precision mediump float; in vec2 vUV; in float vA; out vec4 o; uniform sampler2D uTex, uNrm; uniform float uShowN, uHasN;
+void main() {
+  vec4 c = texture(uTex, vUV);
+  if (uShowN > 0.5) { vec4 nn = texture(uNrm, vUV); vec3 n = uHasN > 0.5 && nn.a > 0.5 ? nn.rgb : vec3(0.25); c = vec4(n * c.a, c.a); }   // (alpha 0 in the normal atlas: no normal map there)   // (?gl=normals: the normal maps)
+  o = c * vA;
+}`;
   let P2 = null, loc2 = null, layer = null, lctx = null, rec = null, depth = 0, texOf = new WeakMap(), vbuf2 = null;
   function init2() {
     const mk = (t, src) => { const h = gl.createShader(t); gl.shaderSource(h, src); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(h)); return h; };
     P2 = gl.createProgram(); gl.attachShader(P2, mk(gl.VERTEX_SHADER, VS2)); gl.attachShader(P2, mk(gl.FRAGMENT_SHADER, FS2)); gl.linkProgram(P2);
     if (!gl.getProgramParameter(P2, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(P2));
-    loc2 = {}; for (const n of ['uSize', 'uTex', 'uA']) loc2[n] = gl.getUniformLocation(P2, n); for (const n of ['aP', 'aUV', 'aD']) loc2[n] = gl.getAttribLocation(P2, n);
+    loc2 = {}; for (const n of ['uSize', 'uTex', 'uNrm', 'uShowN', 'uHasN']) loc2[n] = gl.getUniformLocation(P2, n); for (const n of ['aP', 'aUV', 'aD', 'aA']) loc2[n] = gl.getAttribLocation(P2, n);
     vbuf2 = gl.createBuffer();
     layer = mkCanvas(64, 64); lctx = uprightCtx(layer.getContext('2d'));
   }
@@ -166,6 +170,111 @@ void main() { vec4 c = texture(uTex, vUV); o = c * uA; }`;
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     texOf.set(img, { t, w, h });
     return t;
+  }
+  // ---- Stage 2b: atlases and normal maps -----------------------------------------------------------------------
+  // Pictures up to PIC_MAX px a side are packed into ATL_N textures of ATL px (shelf by shelf, uploaded into place with
+  // texSubImage2D); when all are full, the least recently drawn one is emptied. Each atlas has a twin of the same layout
+  // for normal maps: a picture's normal map (red, green: its surface's direction turned with the view; blue: height) is
+  // worked out from its voxel model (nrmPic, the same projection as voxel.js renderVox) when first drawn, at most NRM_MS
+  // ms a frame, and put at the same spot. Larger pictures keep a texture of their own (spriteTex).
+  const ATL = 2048, ATL_N = 3, PIC_MAX = 400, NRM_MS = 3;
+  const SHOW_N = /[?&]gl=normals\b/.test(q);
+  let atl = null, nrmSpend = 0;
+  const place = new WeakMap();
+  function atlasFor(img) {
+    if (img.width > PIC_MAX || img.height > PIC_MAX) return null;
+    if (!atl) atl = [];
+    let e = place.get(img);
+    if (e && atl[e.a] && atl[e.a].gen === e.gen && e.w === img.width && e.h === img.height) { atl[e.a].used = S.frame; return e; }
+    const w = img.width, h = img.height;
+    let a = atl.findIndex((A) => A && fits(A, w, h));
+    if (a < 0 && atl.length < ATL_N) { a = atl.length; atl.push(newAtlas()); }
+    if (a < 0) {   // all full: empty the one drawn least lately (its pictures go in again as they are drawn)
+      a = 0; for (let i = 1; i < atl.length; i++) if (atl[i].used < atl[a].used) a = i;
+      if (atl[a].used === S.frame) return null;   // (all in use this very frame: draw this one on its own)
+      atl[a].gen++; atl[a].sh = { x: 0, y: 0, h: 0 };
+    }
+    const A = atl[a], sh = A.sh;
+    if (sh.x + w > ATL) { sh.y += sh.h + 1; sh.x = 0; sh.h = 0; }
+    e = { a, gen: A.gen, x: sh.x, y: sh.y, w, h, n: false };
+    sh.x += w + 1; sh.h = Math.max(sh.h, h);
+    gl.bindTexture(gl.TEXTURE_2D, A.t); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, e.x, e.y, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    A.used = S.frame; place.set(img, e);
+    return e;
+  }
+  function fits(A, w, h) { const sh = A.sh; return (sh.x + w <= ATL && sh.y + Math.max(sh.h, h) <= ATL) || (sh.y + sh.h + 1 + h <= ATL && w <= ATL); }
+  function newAtlas() {
+    const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, ATL, ATL);
+      for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; };
+    return { t: mk(), n: mk(), gen: 0, used: 0, sh: { x: 0, y: 0, h: 0 } };
+  }
+  // A picture's normal map, from its voxel model: voxel.js renderVox's projection and painter's order, kept per pixel as
+  // the surface's direction and height instead of a lit colour (null: not from a model, or it would not line up).
+  function nrmPic(img) {
+    const V = img._vox;
+    if (!V || typeof renderVox !== 'function') return null;
+    const m = V.m || model(V.mkey, V.build), s = m.surf || (m.surf = surfaceOf(m)), opts = V.opts || {};
+    let angle = V.angle;
+    const scale = opts.scale || 1, SS = SUPER * scale;
+    if (!opts.flat) angle += VIEW.rot;
+    const F = opts.flat ? 1 : VIEW.F, VKk = opts.flat ? FLAT_VK : VIEW_VK, ca = Math.cos(angle), sa = Math.sin(angle), ext = 0.5 * (Math.abs(ca) + Math.abs(sa)), n = s.n;
+    const px = new Float32Array(n), py = new Float32Array(n);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const cx = s.xs[i] + 0.5, cy = s.ys[i] + 0.5 + (m.py || 0), xr = cx * ca - cy * sa, yr = (cx * sa + cy * ca) * F, z = s.zs[i];
+      px[i] = xr; py[i] = yr;
+      minX = Math.min(minX, xr - ext); maxX = Math.max(maxX, xr + ext); minY = Math.min(minY, yr - ext * F - (z + 1) * VKk); maxY = Math.max(maxY, yr + ext * F - z * VKk);
+    }
+    minX = Math.floor(minX); minY = Math.floor(minY);
+    const W = Math.max(1, Math.ceil((maxX - minX) * scale) + 1), H = Math.max(1, Math.ceil((maxY - minY) * scale) + 1);
+    if (W !== img.width || H !== img.height) return null;
+    const BW = W * SUPER, BH = H * SUPER, buf = new Uint32Array(BW * BH), order = new Uint32Array(n), key = new Float64Array(n);
+    for (let i = 0; i < n; i++) { order[i] = i; key[i] = py[i] / F * VKk + s.zs[i] * F; }
+    order.sort((p, q2) => key[p] - key[q2]);
+    for (let k = 0; k < n; k++) {
+      const i = order[k], z = s.zs[i], nxr = s.nx[i] * ca - s.ny[i] * sa, nyr = s.nx[i] * sa + s.ny[i] * ca;
+      const pix = (255 << 24) | (Math.min(255, Math.round((z + 0.5) * 3)) << 16) | (Math.round((nyr * 0.5 + 0.5) * 255) << 8) | Math.round((nxr * 0.5 + 0.5) * 255);
+      const x0 = Math.floor((px[i] - ext - minX) * SS), x1 = Math.ceil((px[i] + ext - minX) * SS);
+      const y0 = Math.floor((py[i] - ext * F - (z + 1) * VKk - minY) * SS), y1 = Math.ceil((py[i] + ext * F - z * VKk - minY) * SS);
+      for (let yy = Math.max(0, y0); yy < Math.min(BH, y1); yy++) { const row = yy * BW; for (let xx = Math.max(0, x0); xx < Math.min(BW, x1); xx++) buf[row + xx] = pix; }
+    }
+    const c = mkCanvas(W, H), d = c.getContext('2d').createImageData(W, H), D = d.data;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {   // the middle sample of each pixel (crisp: directions are not averaged)
+      const p = buf[(y * SUPER + (SUPER >> 1)) * BW + x * SUPER + (SUPER >> 1)] || buf[(y * SUPER) * BW + x * SUPER];
+      if (!p) continue;
+      const o = (y * W + x) * 4; D[o] = p & 255; D[o + 1] = (p >> 8) & 255; D[o + 2] = (p >> 16) & 255; D[o + 3] = 255;
+    }
+    c.getContext('2d').putImageData(d, 0, 0);
+    return c;
+  }
+  function withNormal(img, e) {
+    if (e.n || nrmSpend > NRM_MS) return;
+    const t0 = performance.now(), c = img._nrm !== undefined ? img._nrm : (img._nrm = nrmPic(img));
+    nrmSpend += performance.now() - t0;
+    e.n = true;
+    if (!c) { e.none = true; if (img._vox) R.nrmMismatch = (R.nrmMismatch || 0) + 1; else if (!img._shade) R.nrmNone = (R.nrmNone || 0) + 1; return; }   // (counts: a model's picture that did not line up; a picture not from a model)
+    gl.bindTexture(gl.TEXTURE_2D, atl[e.a].n); gl.texSubImage2D(gl.TEXTURE_2D, 0, e.x, e.y, gl.RGBA, gl.UNSIGNED_BYTE, c);
+    R.normals = (R.normals || 0) + 1;
+  }
+  // Which picture each sprite came from (models.js sprite, wrapped here: models.js and voxel.js are not changed, as the
+  // baked sprites' check hashes them), so its normal map can be worked out later; baked sprites get it when first asked for.
+  if (typeof renderVox === 'function') {   // every voxel picture: its model, facing and options
+    const origR = renderVox;
+    renderVox = function (m, angle, opts) { const out = origR(m, angle, opts); if (out && out.img && !(opts && opts.normal)) { out.img._vox = { m, angle, opts }; if (out.sh) out.sh._shade = true; } return out; };   // (_shade: a cast shadow, flat: no normal map)
+  }
+  if (typeof sprite === 'function') {
+    const orig = sprite;
+    sprite = function (mkey, build, angle, fkey, opts) {
+      const s2 = orig(mkey, build, angle, fkey, opts);
+      if (s2 && s2.img && !s2.img._vox) {
+        const flat = FLAT_PASS, k = (flat ? mkey + '~flat' : mkey) + '|' + fkey;
+        if (spriteCache2.get(k) === s2) s2.img._vox = { mkey: flat ? mkey + '~flat' : mkey, build, angle, opts: flat ? Object.assign({}, opts, { flat: true }) : opts };
+      }
+      return s2;
+    };
   }
   // Bits that are not pictures (pixels, lines, paths, text, unusual blends) are drawn on the 2D layer and, before the next
   // picture or the next thing in the list, cut out of it at the box they cover into a per-frame atlas (ATLAS px squares),
@@ -285,22 +394,41 @@ void main() { vec4 c = texture(uTex, vUV); o = c * uA; }`;
         gl.bindTexture(gl.TEXTURE_2D, a.t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, a.c);
       }
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-      const f = new Float32Array(rec.length * 30);
+      nrmSpend = 0;
+      // Where each quad's picture is: an atlas (with its normal map), a texture of its own, or this frame's bits.
+      for (const r of rec) {
+        if (r.atlas !== undefined) { r.tex = atlases[r.atlas].t; continue; }
+        const e = atlasFor(r.img);
+        if (e) {
+          withNormal(r.img, e);
+          const iw = r.img.width, ih = r.img.height;
+          r.tex = atl[e.a].t; r.ntex = atl[e.a].n;
+          r.u0 = (e.x + r.u0 * iw) / ATL; r.u1 = (e.x + r.u1 * iw) / ATL; r.v0 = (e.y + r.v0 * ih) / ATL; r.v1 = (e.y + r.v1 * ih) / ATL;
+        } else r.tex = spriteTex(r.img);
+      }
+      const f = new Float32Array(rec.length * 36);
       let o = 0;
       for (const r of rec) {
         const [x0, y0, x1, y1, x2, y2, x3, y3] = r.q;
-        for (const [x, y, u, vv] of [[x0, y0, r.u0, r.v0], [x1, y1, r.u1, r.v0], [x2, y2, r.u0, r.v1], [x1, y1, r.u1, r.v0], [x3, y3, r.u1, r.v1], [x2, y2, r.u0, r.v1]]) { f[o++] = x; f[o++] = y; f[o++] = u; f[o++] = vv; f[o++] = r.d; }
+        for (const [x, y, u, vv] of [[x0, y0, r.u0, r.v0], [x1, y1, r.u1, r.v0], [x2, y2, r.u0, r.v1], [x1, y1, r.u1, r.v0], [x3, y3, r.u1, r.v1], [x2, y2, r.u0, r.v1]]) { f[o++] = x; f[o++] = y; f[o++] = u; f[o++] = vv; f[o++] = r.d; f[o++] = r.a; }
       }
+      gl.useProgram(P2);
       gl.bindBuffer(gl.ARRAY_BUFFER, vbuf2); gl.bufferData(gl.ARRAY_BUFFER, f, gl.STREAM_DRAW);
-      for (const n of ['aP', 'aUV', 'aD']) gl.enableVertexAttribArray(loc2[n]);
-      gl.vertexAttribPointer(loc2.aP, 2, gl.FLOAT, false, 20, 0); gl.vertexAttribPointer(loc2.aUV, 2, gl.FLOAT, false, 20, 8); gl.vertexAttribPointer(loc2.aD, 1, gl.FLOAT, false, 20, 16);
-      let b = -1;
+      for (const n of ['aP', 'aUV', 'aD', 'aA']) gl.enableVertexAttribArray(loc2[n]);
+      gl.vertexAttribPointer(loc2.aP, 2, gl.FLOAT, false, 24, 0); gl.vertexAttribPointer(loc2.aUV, 2, gl.FLOAT, false, 24, 8); gl.vertexAttribPointer(loc2.aD, 1, gl.FLOAT, false, 24, 16); gl.vertexAttribPointer(loc2.aA, 1, gl.FLOAT, false, 24, 20);
+      gl.uniform1i(loc2.uNrm, 1); gl.uniform1f(loc2.uShowN, SHOW_N ? 1 : 0);
       const BF = [[gl.ONE, gl.ONE_MINUS_SRC_ALPHA], [gl.ONE, gl.ONE], [gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA], [gl.ONE, gl.ONE_MINUS_SRC_COLOR]];
-      rec.forEach((r, i) => {
-        if (r.b !== b) { b = r.b; gl.blendFunc(BF[b][0], BF[b][1]); }
-        gl.bindTexture(gl.TEXTURE_2D, r.atlas !== undefined ? atlases[r.atlas].t : spriteTex(r.img)); gl.uniform1f(loc2.uA, r.a);
-        gl.drawArrays(gl.TRIANGLES, i * 6, 6);
-      });
+      let start = 0, calls = 0;
+      for (let i = 1; i <= rec.length; i++) {   // runs of the same texture and blend in one call
+        const a = rec[start], r = rec[i];
+        if (r && r.tex === a.tex && r.b === a.b && r.ntex === a.ntex) continue;
+        gl.blendFunc(BF[a.b][0], BF[a.b][1]);
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, a.ntex || R.none); gl.uniform1f(loc2.uHasN, a.ntex ? 1 : 0);
+        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, a.tex);
+        gl.drawArrays(gl.TRIANGLES, start * 6, (i - start) * 6); calls++;
+        start = i;
+      }
+      R.calls = calls;
       gl.depthMask(true); gl.disable(gl.BLEND);
       R.quads = rec.length;
       const keep = v.getTransform(); v.setTransform(1, 0, 0, 1, 0, 0); v.drawImage(cv, 0, 0); v.setTransform(keep);   // (the one copy a frame)

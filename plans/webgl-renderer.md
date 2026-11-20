@@ -83,6 +83,19 @@ renderer does, at least as fast on a phone.
   **Next (2b):** normal and height maps for the pictures (renderVox's G-buffer output, and normal sheets for the baked
   sprites), atlases instead of a texture per picture.
 
+- **Stage 2b (2026-11-20): atlases and normal maps.** Pictures up to `PIC_MAX` 400 px go into `ATL_N` 3 atlases of `ATL`
+  2048 px (shelves, texSubImage2D into place; when all are full the least recently drawn is emptied and refilled as
+  pictures are drawn); larger ones keep their own texture. Quads are drawn in runs of the same texture and blend, alpha per
+  vertex: a Twin Lakes frame of about 1,200 quads in 19-20 calls (was one call a quad). Each atlas has a twin of the same
+  layout for normal maps: red and green the surface's direction turned with the view (x right, y toward the camera), blue
+  the height (3 per voxel), alpha 0 where there is none. `nrmPic` works one out from the picture's voxel model (the same
+  projection, painter's order and size as voxel.js renderVox, the middle sample of each pixel, not averaged), at most
+  `NRM_MS` 3 ms a frame, when a picture is first drawn. Which model a picture came from: gl.js wraps `renderVox` (every
+  voxel picture: `img._vox`; its cast shadow `_shade`, flat, none needed) and `sprite` (baked sprites, tagged when first
+  asked for). **models.js and voxel.js are not changed** (the baked sprites' check hashes them). `?gl=normals` shows the
+  normal maps instead of the colours. Pictures not from a model (glows, flames, the 2D bits, lamp posts, cliffs' and
+  tanks' tracks) have none: lit flat in stage 4. Checked: the same picture as the 2D way (1.4% of pixels, as before).
+
 ## Parity list (what the 2D renderer draws, to tick off)
 
 Ground tiles and marks, hills, edge haze past the map, ore, shroud and fog of war, trees and their shadows, cliffs and their
