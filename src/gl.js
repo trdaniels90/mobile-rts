@@ -284,7 +284,16 @@ void main() {
   const grow = (b, x, y, r) => { if (!b) return [x - r, y - r, x + r, y + r]; b[0] = Math.min(b[0], x - r); b[1] = Math.min(b[1], y - r); b[2] = Math.max(b[2], x + r); b[3] = Math.max(b[3], y + r); return b; };
   const tp = (x, y) => { const m = lctx.getTransform(); return [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]; };
   const scl = () => { const m = lctx.getTransform(); return Math.hypot(m.a, m.b) + Math.hypot(m.c, m.d); };
-  const mark = (b) => { if (!b) return; dirty = dirty ? grow(grow(dirty, b[0], b[1], 0), b[2], b[3], 0) : b.slice(); };
+  // (stage 3) The blend the bits are drawn with: when it changes between two WebGL does, what is on the layer is cut out
+  // first and drawn with its own (a glow drawn 'lighter' adds, as in 2D); other blends act on the layer as it is.
+  let dirtyOp = 'source-over';
+  const mark = (b) => {
+    if (!b) return;
+    const op = lctx.globalCompositeOperation;
+    if (BLENDS[op] === undefined) R.unsupported[op] = (R.unsupported[op] || 0) + 1;
+    else if (op !== dirtyOp) { if (dirty) flush(); dirtyOp = op; }
+    dirty = dirty ? grow(grow(dirty, b[0], b[1], 0), b[2], b[3], 0) : b.slice();
+  };
   function atlasSpot(w, h) {
     if (w > ATLAS || h > ATLAS) return null;
     if (!shelf || shelf.x + w > ATLAS) { if (shelf) { shelf.y += shelf.h; shelf.x = 0; shelf.h = 0; } }
@@ -309,7 +318,8 @@ void main() {
       const pw = Math.min(PC, x1 - px), ph = Math.min(PC, y1 - py), at = atlasSpot(pw, ph);
       if (!at) continue;
       atlases[at.i].c.getContext('2d').drawImage(layer, px, py, pw, ph, at.x, at.y, pw, ph);
-      rec.push({ atlas: at.i, q: [px, py, px + pw, py, px, py + ph, px + pw, py + ph], u0: at.x / ATLAS, v0: at.y / ATLAS, u1: (at.x + pw) / ATLAS, v1: (at.y + ph) / ATLAS, a: 1, b: 0, d: depth });
+      rec.push({ atlas: at.i, q: [px, py, px + pw, py, px, py + ph, px + pw, py + ph], u0: at.x / ATLAS, v0: at.y / ATLAS, u1: (at.x + pw) / ATLAS, v1: (at.y + ph) / ATLAS, a: 1, b: BLENDS[dirtyOp] || 0, d: depth });
+      R.bits = (R.bits || 0) + 1;
     }
     const m = raw.getTransform(); raw.setTransform(1, 0, 0, 1, 0, 0); raw.clearRect(x0, y0, w, h); raw.setTransform(m);
   }
@@ -321,7 +331,7 @@ void main() {
     lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.clearRect(0, 0, layer.width, layer.height);
     lctx.setTransform(v.getTransform()); lctx.upright = v.upright; lctx.imageSmoothingEnabled = false; lctx.globalAlpha = 1; lctx.globalCompositeOperation = 'source-over';
     lctx.fillStyle = '#000'; lctx.strokeStyle = '#000'; lctx.lineWidth = 1;
-    rec = []; dirty = null; pathBox = null; shelf = null; depth = -1;
+    rec = []; dirty = null; dirtyOp = 'source-over'; pathBox = null; shelf = null; depth = -1; R.bits = 0;
     for (const a of atlases) a.used = false;
     const draw = (img, ...a) => {
       if (!img || !img.width || !img.height || (img.complete === false)) return;
@@ -340,13 +350,12 @@ void main() {
       }
       const op = lctx.globalCompositeOperation, b = BLENDS[op];
       if (b === undefined) {   // a blend WebGL is not asked to do: drawn on the layer, cut out in order like the other bits
-        R.unsupported[op] = (R.unsupported[op] || 0) + 1;
-        lctx.drawImage(img, ...a);
         mark([Math.min(q[0], q[2], q[4], q[6]), Math.min(q[1], q[3], q[5], q[7]), Math.max(q[0], q[2], q[4], q[6]), Math.max(q[1], q[3], q[5], q[7])]);
+        lctx.drawImage(img, ...a);
         return;
       }
       flush();
-      rec.push({ img, q, u0: sx / img.width, v0: sy / img.height, u1: (sx + sw) / img.width, v1: (sy + sh) / img.height, a: lctx.globalAlpha, b, d: depth });
+      rec.push({ img, q, u0: sx / img.width, v0: sy / img.height, u1: (sx + sw) / img.width, v1: (sy + sh) / img.height, a: lctx.globalAlpha, b, d: depth, s: lctx.imageSmoothingEnabled && (Math.abs(w) !== sw || Math.abs(h) !== sh) ? 1 : 0 });   // (s: stretched with smoothing on, as the haze past the edge: sampled smooth)
     };
     // The canvas's own drawImage (trees, with their sway's shear): through the transform as it is, no upright anchor.
     const rawDraw = function (img, ...a) { const up = lctx.upright, ox = img._ox; lctx.upright = false; if (ox !== undefined) img._ox = undefined; try { draw(img, ...a); } finally { lctx.upright = up; if (ox !== undefined) img._ox = ox; } };
@@ -421,13 +430,16 @@ void main() {
       let start = 0, calls = 0;
       for (let i = 1; i <= rec.length; i++) {   // runs of the same texture and blend in one call
         const a = rec[start], r = rec[i];
-        if (r && r.tex === a.tex && r.b === a.b && r.ntex === a.ntex) continue;
+        if (r && r.tex === a.tex && r.b === a.b && r.ntex === a.ntex && (r.s | 0) === (a.s | 0)) continue;
+        if (!R.linS) { R.linS = gl.createSampler(); for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.samplerParameteri(R.linS, k, gl.LINEAR); gl.samplerParameteri(R.linS, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.samplerParameteri(R.linS, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); }
+        gl.bindSampler(0, a.s ? R.linS : null);
         gl.blendFunc(BF[a.b][0], BF[a.b][1]);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, a.ntex || R.none); gl.uniform1f(loc2.uHasN, a.ntex ? 1 : 0);
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, a.tex);
         gl.drawArrays(gl.TRIANGLES, start * 6, (i - start) * 6); calls++;
         start = i;
       }
+      gl.bindSampler(0, null);
       R.calls = calls;
       gl.depthMask(true); gl.disable(gl.BLEND);
       R.quads = rec.length;

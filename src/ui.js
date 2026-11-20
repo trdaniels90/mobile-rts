@@ -773,8 +773,11 @@ function draw() {
       const [hx, hy] = hillAt(e);
       onHill(lv, hx, hy, () => drawOne(e, lv));
     }
-    if (glList) { GLR.listEnd(realV); v = realV; toWorld(); v.upright = true; v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over'; }
+    // gl.js (stage 3): the recording goes on past the list: smoke, blasts, the edge's haze, shots, effects and aircraft are
+    // WebGL quads too (shots and effects tested against the ground's depth at their spot), the frame put into the view after them.
+    const glDepth = glList ? (d) => GLR.listDepth(d) : () => {};
     if (occs) while (oi < occs.length) reHill(occs[oi++]);
+    glDepth(null);
     lookSmoke(v);   // bigger smoke and fires over the units (look.js test)
     lookFxOver(v);   // lookfx.js: steam, fireballs and debris over the units
     lap('misc');
@@ -785,11 +788,13 @@ function draw() {
       v.imageSmoothingEnabled = false; v.upright = up;
     }
     lap('edge');
-    for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') onHill(v, (e.cx + e.w / 2) * CELL, (e.cy + e.h / 2) * CELL, () => flameJet(v, e));
+    glDepth(null);
+    for (const e of ground) if (e.kind === 'bld' && e.type === 'ftur') { glDepth(e._key + 2); onHill(v, (e.cx + e.w / 2) * CELL, (e.cy + e.h / 2) * CELL, () => flameJet(v, e)); }
     // Shots, each moved up by the raised ground under it (look.js onHill).
     for (const p0 of G.projectiles) {
       if (p0.delay > 0) continue;
       const gx = p0.gy !== undefined ? p0.gx : p0.kind === 'bomb' ? p0.tx : p0.x, gy = p0.gy !== undefined ? p0.gy : p0.kind === 'bomb' ? p0.ty : p0.y;
+      glDepth(viewDepth(gx, gy) + 10);
       onHill(v, gx, gy, () => drawShot(p0));
     }
     function drawShot(p) {
@@ -845,15 +850,18 @@ function draw() {
       // Up in the air (rising smoke and flames, world.js updateEffects): drawn that high straight up the screen; and on the
       // raised ground (look.js gLift; a tracer's or bolt's far end by the ground there).
       const gx = fx.x, gy = fx.y, hx = fx.x2, hy = fx.y2, L = (fx.lift || 0) + gLift(gx, gy), L2 = hx !== undefined ? gLift(hx, hy) : 0;
+      glDepth(viewDepth(gx, gy) + 10);
       if (!L && !L2) { drawEffect(v, fx); continue; }
       [fx.x, fx.y] = liftPt(gx, gy, L);
       if (L2) [fx.x2, fx.y2] = liftPt(hx, hy, L2);
       try { drawEffect(v, fx); } finally { fx.x = gx; fx.y = gy; if (L2) { fx.x2 = hx; fx.y2 = hy; } }
     }
     lap('fx');   // shots and effects
+    glDepth(null);
     air.sort((a, b) => (a.alt || 0) - (b.alt || 0) || a.y - b.y);
     for (const e of air) onHill(v, e.x, e.y, () => drawUnit(v, e, G.t));   // (above the raised ground under them)
     if (G.birds) drawBirds(v, true, x0, y0, x1, y1);   // pigeons in the air and on the church roof
+    if (glList) { GLR.listEnd(realV); v = realV; toWorld(); v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over'; }
 
     // Bars, brackets and labels are drawn flat on the view plane (screen pixels), at their things' projected spots.
     v.upright = false;

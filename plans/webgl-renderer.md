@@ -96,6 +96,27 @@ renderer does, at least as fast on a phone.
   normal maps instead of the colours. Pictures not from a model (glows, flames, the 2D bits, lamp posts, cliffs' and
   tanks' tracks) have none: lit flat in stage 4. Checked: the same picture as the 2D way (1.4% of pixels, as before).
 
+- **Stage 3 (2026-11-20): effects in WebGL** (owner: "Start stage 3"). The recording now runs past the list to the end of
+  the aircraft (ui.js draw: `GLR.listEnd` after the birds), so the look's smoke, embers and fog over the units (look.js
+  `lookSmoke`), the bigger blasts, steam and debris (lookfx.js `lookFxOver`), the haze past the map's edge, the flame jet,
+  shots and tracers, the game's effects (explosions, smoke, fire, flak, sparks, bolts) and aircraft with their shadows are
+  WebGL quads, and the frame is put into the view once after them. Shots, effects and the flame jet are tested against the
+  ground's depth at their spot (+10 view px; the jet at its turret), so a hill in front hides them; smoke, the haze and
+  aircraft are over everything (depth null), as in 2D. Two fixes in the recorder: (1) 2D bits drawn with a blend WebGL does
+  (a glow drawn 'lighter', a 'screen' flash) are cut out with that blend, not as plain paint (the layer is cut whenever
+  the blend changes; other blends still act on the layer as it is); (2) a picture stretched with smoothing on (the edge's
+  haze) is sampled smooth (a LINEAR sampler for its run). Blasts keep their own 2D drawing code, so the owner's rules hold
+  as before (overlapping blasts do not pile into white: same blend, same alpha; defences give off no light).
+  Checked (`tools/look/gl-compare.js <repo> <prefix> bridge fightfx`, new: the camera on the most blasts and smoke, six
+  blasts and fires set off there): 1.1% of pixels differ (the bent ground's sampling, as before), no page errors,
+  `GLR.unsupported` empty; River Crossing after 9 minutes of fighting 0.9%. Counts: 960-1,610 quads a frame in 31-63 calls,
+  11-26 of them cut-out 2D bits (`GLR.bits`). The effects are mostly pictures already (blast frames, puffs), so no particle
+  batch is needed yet.
+  **Left 2D for stage 4:** the weather (rain, snow) and the storms' darkening and lightning (lookstorm.js) are drawn on the
+  screen canvas after `drawNight` / `drawLook`, at screen resolution; drawn in the view before them, rain would be darkened
+  by the night and lose its screen-sharp lines. They move with the night and mood into the light pass (stage 4).
+  HUD bits (brackets, bars, labels, rally lines, placement), the shroud and the minimap stay 2D on top, as planned.
+
 ## Parity list (what the 2D renderer draws, to tick off)
 
 Ground tiles and marks, hills, edge haze past the map, ore, shroud and fog of war, trees and their shadows, cliffs and their
