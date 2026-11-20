@@ -5,6 +5,7 @@
   const canvas = $('game'), ctx = canvas.getContext('2d');
   const radar = $('radar'), rctx = radar.getContext('2d');
   const view = mkCanvas(64, 64), vctx = view.getContext('2d');
+  const softCv = {};   // (draw's soft layers for WebGL: the edge's haze and mist)
   // One pixel per cell: remade when a battle is on a map of another size (afterNewWorld).
   let shroudCanvas, sctx, shroudImg, miniTerrain, mtctx;
   const mapPictures = () => {
@@ -554,7 +555,8 @@ function draw() {
     v.upright = false;
     v.setTransform(1, 0, 0, 1, 0, 0);
     v.imageSmoothingEnabled = false;
-    v.fillStyle = G ? `rgb(${hazeRGB()})` : '#000'; v.fillRect(0, 0, VW, VH);
+    const glWill = !!G && GLR.ready && GLR.ready();   // (gl.js will draw this frame: the view is then not filled nor given the edge here)
+    if (!glWill) { v.fillStyle = G ? `rgb(${hazeRGB()})` : '#000'; v.fillRect(0, 0, VW, VH); }
     if (!G) return;
     // A bridge span destroyed or rebuilt: the minimap's terrain follows.
     const sig = (G.spans || []).map((s) => (s.alive ? 1 : 0)).join('');
@@ -585,8 +587,22 @@ function draw() {
     });
     G.ground.update(sx, sy, sw, sh, 6, 3);
     const toWorld = () => v.setTransform(VIEW.c, VIEW.s * VIEW.F, -VIEW.s, VIEW.c * VIEW.F, -vx, -vy);   // world -> view canvas
+    // gl.js (stage 5): a soft, wide drawing (the haze and the mist past the map's edge) drawn at a quarter of the view's size
+    // and stretched up smoothly: one picture for WebGL, not megapixels of gradients cut out of its 2D layer every frame.
+    const soft = (name, fn) => {
+      const Q = 4, w = Math.ceil(VW / Q), h = Math.ceil(VH / Q);
+      const c = softCv[name] || (softCv[name] = mkCanvas(w, h));
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+      const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, h);
+      g.setTransform(VIEW.c / Q, VIEW.s * VIEW.F / Q, -VIEW.s / Q, VIEW.c * VIEW.F / Q, -vx / Q, -vy / Q);
+      fn(g);
+      c._ver = (c._ver || 0) + 1; c._own = true;
+      const m = v.getTransform(), up = v.upright, sm = v.imageSmoothingEnabled;
+      v.upright = false; v.setTransform(1, 0, 0, 1, 0, 0); v.imageSmoothingEnabled = true; v.drawImage(c, 0, 0, w * Q, h * Q);
+      v.setTransform(m); v.upright = up; v.imageSmoothingEnabled = sm;
+    };
     toWorld();
-    if (past) {   // past the map's edge: its land carried on, fading into haze
+    if (past && !glWill) {   // past the map's edge: its land carried on, fading into haze
       v.imageSmoothingEnabled = true;
       const e = edgePic(), P = EDGE_PAD;
       v.drawImage(e, -P * CELL, -P * CELL, (MAP + 2 * P) * CELL, (MAP + 2 * P) * CELL);
@@ -650,7 +666,7 @@ function draw() {
       }
       G.ground.draw(v, 'd', sx, sy, sw, sh, sx, sy);
     }
-    if (past) edgeSeam(v, ox, oy, bw, bh);
+    if (past) { if (glRec) soft('seam', (g) => edgeSeam(g, ox, oy, bw, bh)); else edgeSeam(v, ox, oy, bw, bh); }
     // Walls and gates on explored ground (art.js wallPic). A gate stands open while one of its own alliance is beside it.
     const wallsHere = [];   // (sorted in with the units below, art.js drawWallIso)
     if (G.wallN) {
@@ -790,7 +806,7 @@ function draw() {
     if (past) {   // haze over the outer woods past the map's edge
       const up = v.upright; v.upright = false; v.imageSmoothingEnabled = true;
       const P = EDGE_PAD; v.drawImage(edgeVeil(), -P * CELL, -P * CELL, (MAP + 2 * P) * CELL, (MAP + 2 * P) * CELL);
-      edgeMist(v, ox, oy, bw, bh, onScr);
+      if (glRec) soft('mist', (g) => edgeMist(g, ox, oy, bw, bh, onScr)); else edgeMist(v, ox, oy, bw, bh, onScr);
       v.imageSmoothingEnabled = false; v.upright = up;
     }
     lap('edge');
@@ -867,6 +883,93 @@ function draw() {
     air.sort((a, b) => (a.alt || 0) - (b.alt || 0) || a.y - b.y);
     for (const e of air) onHill(v, e.x, e.y, () => drawUnit(v, e, G.t));   // (above the raised ground under them)
     if (G.birds) drawBirds(v, true, x0, y0, x1, y1);   // pigeons in the air and on the church roof
+    // The HUD (stage 5: with WebGL, recorded after the light and the weather, so the view and the screen's canvas need not
+    // be cleared and scaled up over the whole screen for it: see the light pass's over() above).
+    const hud = () => {
+      // Bars, brackets and labels are drawn flat on the view plane (screen pixels), at their things' projected spots.
+      v.upright = false;
+      const onView = () => v.setTransform(1, 0, 0, 1, -vx, -vy);
+      onView();
+      // Bridge spans: health while under fire or while a ground target is being picked.
+      for (const s of G.spans || []) {
+        if (!G.seen[idx(Math.floor(s.x / CELL), Math.floor(s.y / CELL))]) continue;
+        if (s.alive && (G.t - s.hitT < 3 || aimSpan)) drawHealth(v, s, ...toView(...liftPt(s.x, s.y, 2)), 40);
+      }
+      for (const h of G.houses || []) {
+        if (!h.alive || !houseSeen(h) || !inView(h)) continue;
+        const held = h.n && G.selection.some((u) => u.inHouse === h), bx = bldBox(h);
+        if (held) brackets(v, ...bx);
+        if (held || G.t - h.hitT < 3 || aimSpan) drawHealth(v, h, (bx[0] + bx[2]) / 2, bx[1] - 6, Math.min(40, h.w * 14));
+      }
+      // Selection brackets and health bars.
+      for (const e of G.entities) {
+        if (!inView(e) || !visibleToPlayer(e)) continue;
+        const sel = G.selection.includes(e);
+        const recent = G.t - e.hitT < 3;
+        if (e.rank && e.kind === 'unit') drawRank(v, e);
+        if (!sel && !recent) continue;
+        if (e.kind === 'bld') {
+          const bx = bldBox(e);
+          if (sel) brackets(v, ...bx);
+          if (sel && e.team === G.me && e.rally && e.exitCell !== undefined) { toWorld(); drawRally(v, e, e.rally); onView(); }
+          drawHealth(v, e, (bx[0] + bx[2]) / 2, bx[1] - 6, Math.min(48, e.w * CELL - 8));
+        } else {
+          const inf = e.cls === 'inf', r = inf ? Math.round(e.def.r * INF_SCALE) + 2 : e.def.r + 2, [xx, yy] = unitSpot(e, inf ? 8 * INF_SCALE : 3);
+          if (sel) brackets(v, xx - r, yy - r - (inf ? 3 : 0), xx + r, yy + r + (inf ? 2 : 0));
+          drawHealth(v, e, xx, yy - r - (inf ? 7 : 5), Math.max(10, r * 2));
+        }
+      }
+
+      // Research under way: a bar under each of this side's Tech Centers.
+      const rs = G.teams[G.me].research;
+      if (rs) for (const e of G.entities) {
+        if (!e.alive || e.kind !== 'bld' || e.type !== 'tech' || e.team !== G.me || e.buildT < 1 || !inView(e)) continue;
+        const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3));
+        v.fillStyle = 'rgba(0,0,0,0.7)'; v.fillRect(tx - 21, ty - 3, 42, 6);
+        v.fillStyle = rs.stalled ? '#c98a2a' : '#5ab0ff'; v.fillRect(tx - 20, ty - 2, 40 * rs.progress, 4);
+      }
+      // A Construction Yard being captured (world.js CAPTURE_CY): a yellow bar over it, for both sides.
+      for (const e of G.entities) {
+        if (!e.alive || e.kind !== 'bld' || !(e.capture > 0) || !inView(e) || !visibleToPlayer(e)) continue;
+        const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 10));
+        v.fillStyle = 'rgba(0,0,0,0.75)'; v.fillRect(tx - 23, ty - 4, 46, 8);
+        v.fillStyle = Math.floor(G.t * 4) % 2 ? '#ffd23e' : '#f2a020'; v.fillRect(tx - 22, ty - 3, 44 * e.capture, 6);
+      }
+      // PRIMARY over the building new units come out of, when there is more than one of its type.
+      for (const e of G.entities) {
+        if (!e.alive || !e.primary || e.kind !== 'bld' || e.team !== G.me || !inView(e) || producersOfType(e).length < 2) continue;
+        const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3));
+        v.font = 'bold 7px monospace'; v.textAlign = 'center'; v.textBaseline = 'middle';
+        v.fillStyle = 'rgba(0,0,0,0.65)'; v.fillRect(tx - 18, ty - 4.5, 36, 9);
+        v.fillStyle = '#f2d24a'; v.fillText('PRIMARY', tx, ty + 0.5);
+      }
+
+      // Shroud: black where the player has never looked, softened at the edges.
+      if (G.shroudDirty) {
+        G.shroudDirty = false;
+        const d = shroudImg.data;
+        for (let i = 0; i < NCELLS; i++) { d[i * 4 + 3] = G.seen[i] ? 0 : 255; }
+        sctx.putImageData(shroudImg, 0, 0);
+      shroudCanvas._ver = (shroudCanvas._ver || 0) + 1; shroudCanvas._own = true;   // (gl.js: changed, upload it again; a texture of its own)
+      }
+      toWorld();
+      v.imageSmoothingEnabled = true;
+      // Only the part of the box on the map: Safari (iPhone) stretches and shifts a picture whose source rectangle runs
+      // past its edges instead of clipping it, so the fog slid about while scrolling near the map's edges.
+      const fx0 = Math.max(0, ox), fy0 = Math.max(0, oy), fx1 = Math.min(WORLD, ox + bw), fy1 = Math.min(WORLD, oy + bh);
+      if (fx1 > fx0 && fy1 > fy0) {
+        if (warp) {   // on the raised ground, in chunks (look.js hillWarp); only where some of it is dark
+          const L = HILL_LAP;
+          warp.each(fx0, fy0, fx1, fy1, (X0, Y0, X1, Y1) => {
+            if (shroudClear(X0, Y0, X1, Y1)) return;
+            v.drawImage(shroudCanvas, X0 / CELL, Y0 / CELL, (X1 - X0) / CELL, (Y1 - Y0) / CELL, X0 - L, Y0 - L, X1 - X0 + 2 * L, Y1 - Y0 + 2 * L);
+          });
+        } else v.drawImage(shroudCanvas, fx0 / CELL, fy0 / CELL, (fx1 - fx0) / CELL, (fy1 - fy0) / CELL, fx0, fy0, fx1 - fx0, fy1 - fy0);
+      }
+      v.imageSmoothingEnabled = false;
+
+  drawPlacement(v);
+    };
     // gl.js (stage 4): the light pass (the mood, the night, the lights; the pictures' lit sides from their normal maps), then
     // what goes over the light, drawn in the view's pixels through the same recording: lamps, beacons, navigation lights,
     // searchlights, the pools by night, the storm's darkening, rain and snow, lightning (the 2D way draws them on the screen
@@ -883,94 +986,14 @@ function draw() {
         lookStorm.dark(g);
         if (wx) drawWeather(g, wx, vx, vy, VW, VH, 1, G.t, still);
         lookStorm.flash(g, 1, still, vx, vy);
+        v = g; toWorld(); v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over';
+        try { hud(); } finally { v = realV; }
       } });
       v = realV;
-      if (GLR.lit) { v.setTransform(1, 0, 0, 1, 0, 0); v.clearRect(0, 0, view.width, view.height); }   // (stage 5: the frame is in WebGL; the view keeps the HUD bits)
       toWorld(); v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over'; }
 
-    // Bars, brackets and labels are drawn flat on the view plane (screen pixels), at their things' projected spots.
-    v.upright = false;
     lap('air');   // aircraft and birds
-    const onView = () => v.setTransform(1, 0, 0, 1, -vx, -vy);
-    onView();
-    // Bridge spans: health while under fire or while a ground target is being picked.
-    for (const s of G.spans || []) {
-      if (!G.seen[idx(Math.floor(s.x / CELL), Math.floor(s.y / CELL))]) continue;
-      if (s.alive && (G.t - s.hitT < 3 || aimSpan)) drawHealth(v, s, ...toView(...liftPt(s.x, s.y, 2)), 40);
-    }
-    for (const h of G.houses || []) {
-      if (!h.alive || !houseSeen(h) || !inView(h)) continue;
-      const held = h.n && G.selection.some((u) => u.inHouse === h), bx = bldBox(h);
-      if (held) brackets(v, ...bx);
-      if (held || G.t - h.hitT < 3 || aimSpan) drawHealth(v, h, (bx[0] + bx[2]) / 2, bx[1] - 6, Math.min(40, h.w * 14));
-    }
-    // Selection brackets and health bars.
-    for (const e of G.entities) {
-      if (!inView(e) || !visibleToPlayer(e)) continue;
-      const sel = G.selection.includes(e);
-      const recent = G.t - e.hitT < 3;
-      if (e.rank && e.kind === 'unit') drawRank(v, e);
-      if (!sel && !recent) continue;
-      if (e.kind === 'bld') {
-        const bx = bldBox(e);
-        if (sel) brackets(v, ...bx);
-        if (sel && e.team === G.me && e.rally && e.exitCell !== undefined) { toWorld(); drawRally(v, e, e.rally); onView(); }
-        drawHealth(v, e, (bx[0] + bx[2]) / 2, bx[1] - 6, Math.min(48, e.w * CELL - 8));
-      } else {
-        const inf = e.cls === 'inf', r = inf ? Math.round(e.def.r * INF_SCALE) + 2 : e.def.r + 2, [xx, yy] = unitSpot(e, inf ? 8 * INF_SCALE : 3);
-        if (sel) brackets(v, xx - r, yy - r - (inf ? 3 : 0), xx + r, yy + r + (inf ? 2 : 0));
-        drawHealth(v, e, xx, yy - r - (inf ? 7 : 5), Math.max(10, r * 2));
-      }
-    }
-
-    // Research under way: a bar under each of this side's Tech Centers.
-    const rs = G.teams[G.me].research;
-    if (rs) for (const e of G.entities) {
-      if (!e.alive || e.kind !== 'bld' || e.type !== 'tech' || e.team !== G.me || e.buildT < 1 || !inView(e)) continue;
-      const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3));
-      v.fillStyle = 'rgba(0,0,0,0.7)'; v.fillRect(tx - 21, ty - 3, 42, 6);
-      v.fillStyle = rs.stalled ? '#c98a2a' : '#5ab0ff'; v.fillRect(tx - 20, ty - 2, 40 * rs.progress, 4);
-    }
-    // A Construction Yard being captured (world.js CAPTURE_CY): a yellow bar over it, for both sides.
-    for (const e of G.entities) {
-      if (!e.alive || e.kind !== 'bld' || !(e.capture > 0) || !inView(e) || !visibleToPlayer(e)) continue;
-      const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 10));
-      v.fillStyle = 'rgba(0,0,0,0.75)'; v.fillRect(tx - 23, ty - 4, 46, 8);
-      v.fillStyle = Math.floor(G.t * 4) % 2 ? '#ffd23e' : '#f2a020'; v.fillRect(tx - 22, ty - 3, 44 * e.capture, 6);
-    }
-    // PRIMARY over the building new units come out of, when there is more than one of its type.
-    for (const e of G.entities) {
-      if (!e.alive || !e.primary || e.kind !== 'bld' || e.team !== G.me || !inView(e) || producersOfType(e).length < 2) continue;
-      const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3));
-      v.font = 'bold 7px monospace'; v.textAlign = 'center'; v.textBaseline = 'middle';
-      v.fillStyle = 'rgba(0,0,0,0.65)'; v.fillRect(tx - 18, ty - 4.5, 36, 9);
-      v.fillStyle = '#f2d24a'; v.fillText('PRIMARY', tx, ty + 0.5);
-    }
-
-    // Shroud: black where the player has never looked, softened at the edges.
-    if (G.shroudDirty) {
-      G.shroudDirty = false;
-      const d = shroudImg.data;
-      for (let i = 0; i < NCELLS; i++) { d[i * 4 + 3] = G.seen[i] ? 0 : 255; }
-      sctx.putImageData(shroudImg, 0, 0);
-    }
-    toWorld();
-    v.imageSmoothingEnabled = true;
-    // Only the part of the box on the map: Safari (iPhone) stretches and shifts a picture whose source rectangle runs
-    // past its edges instead of clipping it, so the fog slid about while scrolling near the map's edges.
-    const fx0 = Math.max(0, ox), fy0 = Math.max(0, oy), fx1 = Math.min(WORLD, ox + bw), fy1 = Math.min(WORLD, oy + bh);
-    if (fx1 > fx0 && fy1 > fy0) {
-      if (warp) {   // on the raised ground, in chunks (look.js hillWarp); only where some of it is dark
-        const L = HILL_LAP;
-        warp.each(fx0, fy0, fx1, fy1, (X0, Y0, X1, Y1) => {
-          if (shroudClear(X0, Y0, X1, Y1)) return;
-          v.drawImage(shroudCanvas, X0 / CELL, Y0 / CELL, (X1 - X0) / CELL, (Y1 - Y0) / CELL, X0 - L, Y0 - L, X1 - X0 + 2 * L, Y1 - Y0 + 2 * L);
-        });
-      } else v.drawImage(shroudCanvas, fx0 / CELL, fy0 / CELL, (fx1 - fx0) / CELL, (fy1 - fy0) / CELL, fx0, fy0, fx1 - fx0, fy1 - fy0);
-    }
-    v.imageSmoothingEnabled = false;
-
-    drawPlacement(v);
+    if (!GLR.lit) hud();
     lap('bars');   // bars, labels, shroud and placement
     v.setTransform(1, 0, 0, 1, 0, 0);
 
@@ -979,9 +1002,12 @@ function draw() {
     const k = z * DPR;
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
     // gl.js (stage 5): the WebGL frame onto its own canvas under this one, at the same spot; this one cleared over it.
+    // The HUD is in the WebGL frame too, so the view is not put on the screen then (only this canvas cleared).
     if (GLR.lit && GLR.present(canvas, Math.round(-(cam.x - vx) * k + sx2), Math.round(-(cam.y - vy) * k + sy2), Math.round(VW * k), Math.round(VH * k), z < 1)) ctx.clearRect(0, 0, canvas.width, canvas.height);
-    else { if (GLR.hide) GLR.hide(); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-    ctx.drawImage(view, 0, 0, VW, VH, Math.round(-(cam.x - vx) * k + sx2), Math.round(-(cam.y - vy) * k + sy2), Math.round(VW * k), Math.round(VH * k));
+    else {
+      if (GLR.hide) GLR.hide(); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(view, 0, 0, VW, VH, Math.round(-(cam.x - vx) * k + sx2), Math.round(-(cam.y - vy) * k + sy2), Math.round(VW * k), Math.round(VH * k));
+    }
     lap('blit');   // the view put on the screen
     if (GLR.lit) { lap('night'); lap('wthr'); }   // (gl.js: lit, with the weather, in the view already)
     else {

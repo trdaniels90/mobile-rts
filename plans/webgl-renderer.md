@@ -192,6 +192,26 @@ renderer does, at least as fast on a phone.
   slopes facing a light more and slopes turned away a little less (the slope's facing x3, as the hills are gentle). Flat
   ground is lit as before. Village at night after 9 minutes: 0.74% of pixels differ from 2D with flat light, 1.0% lit.
 
+- **Stage 5, part 3 (2026-11-20): zoomed out** (owner: "Zoomed out all the way my iPhone got 16fps"). Profiled at the
+  phone's widest zoom (2/3: the view 1.5x the screen each way) on an 844 x 390 screen at 3x, headless: the CPU's draw went
+  from 59 ms a frame to 23 ms (2D: 150 ms there). What it was, and what changed:
+  - **The haze and mist past the map's edge** (ui.js edgeSeam, edgeMist: big soft gradients, always in view zoomed out)
+    were cut out of the 2D layer every frame (megapixels copied, about 1,560 rows of the bits atlas uploaded a frame).
+    With WebGL they are drawn at a quarter of the view's size into their own canvas (ui.js `soft`) and stretched up
+    smoothly as one picture (they are soft: no visible change). Pictures that change are drawn again into their texture
+    when their `_ver` changes (also the shroud's); `_own` keeps them out of the atlases (stretched smooth: no bleeding).
+  - **The HUD** (bars, brackets, labels, rally lines, the shroud, the placement grid) is recorded too, after the light and
+    the weather (ui.js `hud`, called from the light pass's over() or, the 2D way, as before): the view is no longer
+    filled, cleared, or scaled over the whole 3x screen every frame; with WebGL the game's canvas is only cleared.
+  - **Solid rectangles** (fillRect in one colour, a blend WebGL does, not clipped: lamps' pixels, windows, bars, rain's
+    haze...) are coloured quads of their own (a white pixel tinted, `aC`), not cut out of the layer: cut-outs (a canvas
+    copy each, about 1.4 ms headless) went from 13-25 a frame to 1-2.
+  - The stand-in's methods are bound once a frame, not at every call; the light pass skips the light's direction on
+    flat ground and tops.
+  Same picture as 2D (1.26% of pixels differ with flat light). Twin Lakes at the start, 960 x 540: WebGL 36.7 fps, draw
+  4.1 ms; 2D 21.0 fps, 35.9 ms. The test page is updated. Still unknown: the phone's GPU time (the light pass at the
+  view's size, the screen at 3x).
+
 ## Parity list (what the 2D renderer draws, to tick off)
 
 Ground tiles and marks, hills, edge haze past the map, ore, shroud and fog of war, trees and their shadows, cliffs and their

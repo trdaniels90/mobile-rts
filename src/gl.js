@@ -183,16 +183,16 @@ void main() {
   // lower edge is not cut by the ground just in front of it. listEnd(v) draws the quads in order over the ground (tested
   // against its depth, not writing their own: the list's order decides between them), then puts them and the layer into v.
   const VS2 = `#version 300 es
-in vec2 aP; in vec2 aUV; in float aD; in float aA; uniform vec2 uSize; out vec2 vUV; out float vA;
-void main() { vec2 s = aP / uSize * 2.0 - 1.0; gl_Position = vec4(s.x, -s.y, aD, 1.0); vUV = aUV; vA = aA; }`;
+in vec2 aP; in vec2 aUV; in float aD; in float aA; in vec3 aC; uniform vec2 uSize; out vec2 vUV; out float vA; out vec3 vC;
+void main() { vec2 s = aP / uSize * 2.0 - 1.0; gl_Position = vec4(s.x, -s.y, aD, 1.0); vUV = aUV; vA = aA; vC = aC; }`;
   const FS2 = `#version 300 es
-precision mediump float; in vec2 vUV; in float vA; layout(location = 0) out vec4 o; layout(location = 1) out vec4 o1;
+precision mediump float; in vec2 vUV; in float vA; in vec3 vC; layout(location = 0) out vec4 o; layout(location = 1) out vec4 o1;
 uniform sampler2D uTex, uNrm; uniform float uShowN, uHasN, uOver;
 void main() {
   vec4 c = texture(uTex, vUV), nn = texture(uNrm, vUV);
   bool has = uHasN > 0.5 && nn.a > 0.5;   // (alpha 0 in the normal atlas: no normal map there)
   if (uShowN > 0.5) { vec3 n = has ? nn.rgb : vec3(0.25); c = vec4(n * c.a, c.a); }   // (?gl=normals: the normal maps)
-  o = c * vA;
+  o = vec4(c.rgb * vC, c.a) * vA;   // (vC: a solid rectangle's colour on the white pixel; 1 for pictures)
   // Stage 4: the normals' layer (premultiplied like the colour; rgb 0: no normal, lit flat). Only pictures laid over
   // what is under them write it; added, multiplied and screened ones leave it as it is.
   o1 = uOver > 0.5 ? vec4(has ? nn.rgb : vec3(0.0), 1.0) * (c.a * vA) : vec4(0.0);
@@ -202,21 +202,21 @@ void main() {
     const mk = (t, src) => { const h = gl.createShader(t); gl.shaderSource(h, src); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(h)); return h; };
     P2 = gl.createProgram(); gl.attachShader(P2, mk(gl.VERTEX_SHADER, VS2)); gl.attachShader(P2, mk(gl.FRAGMENT_SHADER, FS2)); gl.linkProgram(P2);
     if (!gl.getProgramParameter(P2, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(P2));
-    loc2 = {}; for (const n of ['uSize', 'uTex', 'uNrm', 'uShowN', 'uHasN', 'uOver']) loc2[n] = gl.getUniformLocation(P2, n); for (const n of ['aP', 'aUV', 'aD', 'aA']) loc2[n] = gl.getAttribLocation(P2, n);
+    loc2 = {}; for (const n of ['uSize', 'uTex', 'uNrm', 'uShowN', 'uHasN', 'uOver']) loc2[n] = gl.getUniformLocation(P2, n); for (const n of ['aP', 'aUV', 'aD', 'aA', 'aC']) loc2[n] = gl.getAttribLocation(P2, n);
     vbuf2 = gl.createBuffer();
     layer = mkCanvas(64, 64); lctx = uprightCtx(layer.getContext('2d'));
   }
   function spriteTex(img) {
     let e = texOf.get(img);
     const w = img.width, h = img.height;
-    if (e && e.w === w && e.h === h) return e.t;
+    if (e && e.w === w && e.h === h && e.ver === img._ver) return e.t;
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     const t = e ? e.t : gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-    texOf.set(img, { t, w, h });
+    texOf.set(img, { t, w, h, ver: img._ver });   // (_ver: a picture that changes, drawn again into its texture when it has)
     return t;
   }
   // ---- Stage 2b: atlases and normal maps -----------------------------------------------------------------------
@@ -230,7 +230,7 @@ void main() {
   let atl = null, nrmSpend = 0;
   const place = new WeakMap();
   function atlasFor(img) {
-    if (img.width > PIC_MAX || img.height > PIC_MAX) return null;
+    if (img.width > PIC_MAX || img.height > PIC_MAX || img._own) return null;   // (_own: changes often or is stretched smooth: a texture of its own)
     if (!atl) atl = [];
     let e = place.get(img);
     if (e && atl[e.a] && atl[e.a].gen === e.gen && e.w === img.width && e.h === img.height) { atl[e.a].used = S.frame; return e; }
@@ -336,11 +336,27 @@ void main() {
   // (stage 3) The blend the bits are drawn with: when it changes between two WebGL does, what is on the layer is cut out
   // first and drawn with its own (a glow drawn 'lighter' adds, as in 2D); other blends act on the layer as it is.
   let dirtyOp = 'source-over';
+  // A fill style that is one colour: [r, g, b, a] in 0..1 (the canvas gives it back as #rrggbb or rgba(...)), else null.
+  let clipped = false; const clipStack = [], solids = new Map();
+  function solid(fs) {
+    if (typeof fs !== 'string') return null;
+    let c = solids.get(fs);
+    if (c === undefined) {
+      let m;
+      if (fs[0] === '#' && fs.length === 7) c = [parseInt(fs.slice(1, 3), 16) / 255, parseInt(fs.slice(3, 5), 16) / 255, parseInt(fs.slice(5, 7), 16) / 255, 1];
+      else if ((m = fs.match(/^rgba?\(\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\s*\)$/))) c = [m[1] / 255, m[2] / 255, m[3] / 255, m[4] === undefined ? 1 : +m[4]];
+      else c = null;
+      if (solids.size > 4000) solids.clear();
+      solids.set(fs, c);
+    }
+    return c;
+  }
   const mark = (b) => {
     if (!b) return;
     const op = lctx.globalCompositeOperation;
     if (BLENDS[op] === undefined) R.unsupported[op] = (R.unsupported[op] || 0) + 1;
     else if (op !== dirtyOp) { if (dirty) flush(); dirtyOp = op; }
+    if (R.bitLog && (b[2] - b[0]) * (b[3] - b[1]) > 50000) R.bitLog.push([Math.round(b[2] - b[0]), Math.round(b[3] - b[1]), (new Error().stack.split('\n').slice(3, 6).join(' < ')).replace(/file:[^ ]*src\//g, '')]);
     dirty = dirty ? grow(grow(dirty, b[0], b[1], 0), b[2], b[3], 0) : b.slice();
   };
   function atlasSpot(w, h) {
@@ -359,6 +375,10 @@ void main() {
   }
   function flush() {
     if (!dirty) return;
+    const tf = performance.now(); R.flushN = (R.flushN || 0) + 1;
+    try { flush1(); } finally { R.flushMs = (R.flushMs || 0) + performance.now() - tf; }
+  }
+  function flush1() {
     const W = layer.width, H = layer.height, x0 = Math.max(0, Math.floor(dirty[0]) - 1), y0 = Math.max(0, Math.floor(dirty[1]) - 1);
     const x1 = Math.min(W, Math.ceil(dirty[2]) + 1), y1 = Math.min(H, Math.ceil(dirty[3]) + 1), w = x1 - x0, h = y1 - y0;
     dirty = null;
@@ -368,6 +388,7 @@ void main() {
       const pw = Math.min(PC, x1 - px), ph = Math.min(PC, y1 - py), at = atlasSpot(pw, ph);
       if (!at) continue;
       atlases[at.i].c.getContext('2d').drawImage(layer, px, py, pw, ph, at.x, at.y, pw, ph);
+      if (R.bitLog) R.bitLog.push([pw, ph]);
       rec.push({ atlas: at.i, q: [px, py, px + pw, py, px, py + ph, px + pw, py + ph], u0: at.x / ATLAS, v0: at.y / ATLAS, u1: (at.x + pw) / ATLAS, v1: (at.y + ph) / ATLAS, a: 1, b: BLENDS[dirtyOp] || 0, d: depth });
       R.bits = (R.bits || 0) + 1;
     }
@@ -423,7 +444,23 @@ void main() {
       rect(x, y, w, h) { for (const [p, q] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]) { const [X, Y] = tp(p, q); pathBox = grow(pathBox, X, Y, 0); } lctx.rect(x, y, w, h); },
       fill(...a) { mark(pathBox && [pathBox[0] - 1, pathBox[1] - 1, pathBox[2] + 1, pathBox[3] + 1]); lctx.fill(...a); },
       stroke(...a) { const r = lw(); mark(pathBox && [pathBox[0] - r, pathBox[1] - r, pathBox[2] + r, pathBox[3] + r]); lctx.stroke(...a); },
-      fillRect(x, y, w, h) { box4(x, y, w, h, 1); lctx.fillRect(x, y, w, h); },
+      // (stage 5) A solid rectangle in a blend WebGL does, not clipped: a coloured quad of its own in the order (no cut-out).
+      fillRect(x, y, w, h) {
+        const C = clipped ? null : solid(lctx.fillStyle), b = BLENDS[lctx.globalCompositeOperation];
+        if (C && b !== undefined && w && h) {
+          flush();
+          let q;
+          if (lctx.upright) { const m = lctx.getTransform(), cx = x + w / 2, cy = y + h / 2, X = m.a * cx + m.c * cy + m.e, Y = m.b * cx + m.d * cy + m.f, hw = Math.abs(w) / 2, hh = Math.abs(h) / 2; q = [X - hw, Y - hh, X + hw, Y - hh, X - hw, Y + hh, X + hw, Y + hh]; }
+          else q = [...tp(x, y), ...tp(x + w, y), ...tp(x, y + h), ...tp(x + w, y + h)];
+          rec.push({ q, u0: 0, v0: 0, u1: 1, v1: 1, a: lctx.globalAlpha * C[3], b, d: depth, col: C });
+          R.rects = (R.rects || 0) + 1;
+          return;
+        }
+        box4(x, y, w, h, 1); lctx.fillRect(x, y, w, h);
+      },
+      save() { clipStack.push(clipped); lctx.save(); },
+      restore() { clipped = clipStack.length ? clipStack.pop() : false; lctx.restore(); },
+      clip(...a) { clipped = true; lctx.clip(...a); },
       strokeRect(x, y, w, h) { box4(x, y, w, h, lw()); lctx.strokeRect(x, y, w, h); },
       fillText(t, x, y, ...k) { const wd = lctx.measureText(t).width, f = parseFloat(lctx.font) || 12, m = lctx.getTransform(), X = m.a * x + m.c * y + m.e, Y = m.b * x + m.d * y + m.f; mark([X - wd - 4, Y - f * 1.5, X + wd + 4, Y + f]); lctx.fillText(t, x, y, ...k); },
       strokeText(t, x, y, ...k) { const wd = lctx.measureText(t).width, f = parseFloat(lctx.font) || 12, m = lctx.getTransform(), X = m.a * x + m.c * y + m.e, Y = m.b * x + m.d * y + m.f; mark([X - wd - 6, Y - f * 1.5, X + wd + 6, Y + f]); lctx.strokeText(t, x, y, ...k); },
@@ -433,8 +470,10 @@ void main() {
       if (lctx.upright) { const m = lctx.getTransform(), cx = x + w / 2, cy = y + h / 2, X = m.a * cx + m.c * cy + m.e, Y = m.b * cx + m.d * cy + m.f; mark([X - Math.abs(w) / 2 - r, Y - Math.abs(h) / 2 - r, X + Math.abs(w) / 2 + r, Y + Math.abs(h) / 2 + r]); return; }
       let b = null; for (const [p, q] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]) { const [X, Y] = tp(p, q); b = grow(b, X, Y, r); } mark(b);
     }
+    const bound = new Map();   // (the canvas's own methods, bound once a frame, not at every call)
+    clipped = false; clipStack.length = 0;
     return new Proxy(lctx, {
-      get(t, k) { if (k === 'drawImage') return draw; if (k === '_rawDraw') return rawDraw; if (hooks[k]) return hooks[k]; const x = t[k]; return typeof x === 'function' ? x.bind(t) : x; },
+      get(t, k) { if (k === 'drawImage') return draw; if (k === '_rawDraw') return rawDraw; if (hooks[k]) return hooks[k]; const x = t[k]; if (typeof x !== 'function') return x; let f = bound.get(k); if (!f) bound.set(k, f = x.bind(t)); return f; },
       set(t, k, val) { t[k] = val; return true; },
     });
   };
@@ -460,6 +499,7 @@ void main() {
     // Where each quad's picture is: an atlas (with its normal map), a texture of its own, or this frame's bits.
     for (const r of rec) {
       if (r.atlas !== undefined) { r.tex = atlases[r.atlas].t; continue; }
+      if (r.col) { if (!R.white) { R.white = texFrom(null); gl.bindTexture(gl.TEXTURE_2D, R.white); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255])); } r.tex = R.white; continue; }
       const e = atlasFor(r.img);
       if (e) {
         withNormal(r.img, e);
@@ -474,19 +514,20 @@ void main() {
     gl.depthMask(true); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
   }
   // Quads ({ q, u0..v1, d, a, b, tex, ntex, s }) in runs of the same texture, blend and sampling; P2 in use. Returns the calls.
-  let qbuf = new Float32Array(36 * 512);
+  const VQ = 54;   // floats a quad: 6 corners of position, uv, depth, alpha, colour
+  let qbuf = new Float32Array(VQ * 512);
   function drawQuads(list, normals) {
-    if (qbuf.length < list.length * 36) qbuf = new Float32Array(Math.ceil(list.length * 1.5) * 36);   // (kept from frame to frame)
+    if (qbuf.length < list.length * VQ) qbuf = new Float32Array(Math.ceil(list.length * 1.5) * VQ);   // (kept from frame to frame)
     const f = qbuf;
     let o = 0;
     for (const r of list) {
-      const Q = r.q, d = r.d, a = r.a;
-      const put = (x, y, u, vv) => { f[o++] = x; f[o++] = y; f[o++] = u; f[o++] = vv; f[o++] = d; f[o++] = a; };
+      const Q = r.q, d = r.d, a = r.a, C = r.col, cr = C ? C[0] : 1, cg = C ? C[1] : 1, cb = C ? C[2] : 1;
+      const put = (x, y, u, vv) => { f[o++] = x; f[o++] = y; f[o++] = u; f[o++] = vv; f[o++] = d; f[o++] = a; f[o++] = cr; f[o++] = cg; f[o++] = cb; };
       put(Q[0], Q[1], r.u0, r.v0); put(Q[2], Q[3], r.u1, r.v0); put(Q[4], Q[5], r.u0, r.v1); put(Q[2], Q[3], r.u1, r.v0); put(Q[6], Q[7], r.u1, r.v1); put(Q[4], Q[5], r.u0, r.v1);
     }
     gl.bindBuffer(gl.ARRAY_BUFFER, vbuf2); gl.bufferData(gl.ARRAY_BUFFER, f, gl.STREAM_DRAW, 0, o);
-    for (const n of ['aP', 'aUV', 'aD', 'aA']) gl.enableVertexAttribArray(loc2[n]);
-    gl.vertexAttribPointer(loc2.aP, 2, gl.FLOAT, false, 24, 0); gl.vertexAttribPointer(loc2.aUV, 2, gl.FLOAT, false, 24, 8); gl.vertexAttribPointer(loc2.aD, 1, gl.FLOAT, false, 24, 16); gl.vertexAttribPointer(loc2.aA, 1, gl.FLOAT, false, 24, 20);
+    for (const n of ['aP', 'aUV', 'aD', 'aA', 'aC']) gl.enableVertexAttribArray(loc2[n]);
+    gl.vertexAttribPointer(loc2.aP, 2, gl.FLOAT, false, 36, 0); gl.vertexAttribPointer(loc2.aUV, 2, gl.FLOAT, false, 36, 8); gl.vertexAttribPointer(loc2.aD, 1, gl.FLOAT, false, 36, 16); gl.vertexAttribPointer(loc2.aA, 1, gl.FLOAT, false, 36, 20); gl.vertexAttribPointer(loc2.aC, 3, gl.FLOAT, false, 36, 24);
     gl.uniform1i(loc2.uNrm, 1); gl.uniform1f(loc2.uShowN, normals && SHOW_N ? 1 : 0);
     if (!R.linS) { R.linS = gl.createSampler(); for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.samplerParameteri(R.linS, k, gl.LINEAR); gl.samplerParameteri(R.linS, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.samplerParameteri(R.linS, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); }
     const BF = [[gl.ONE, gl.ONE_MINUS_SRC_ALPHA], [gl.ONE, gl.ONE], [gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA], [gl.ONE, gl.ONE_MINUS_SRC_COLOR]];
@@ -564,8 +605,9 @@ void main() {
   vec3 c = texture(uScene, uv).rgb;
   float nf = 1.0;   // how much this pixel's surface faces the light here (1: flat, as 2D)
   vec4 nn = texture(uNrm, uv);
-  if (uNrmK > 0.0 && nn.a > 0.5 && nn.r + nn.g > 0.01) {
-    vec2 nxy = nn.rg / nn.a * 2.0 - 1.0; vec3 n = vec3(nxy, sqrt(max(0.0, 1.0 - dot(nxy, nxy))));
+  vec2 nxy = nn.a > 0.5 ? nn.rg / nn.a * 2.0 - 1.0 : vec2(0.0);
+  if (uNrmK > 0.0 && nn.a > 0.5 && nn.r + nn.g > 0.01 && dot(nxy, nxy) > 0.0004) {   // (flat ground and tops: lit as 2D, no lookups)
+    vec3 n = vec3(nxy, sqrt(max(0.0, 1.0 - dot(nxy, nxy))));
     vec2 d = 2.0 / uHalf;
     vec2 g = vec2(lightAt(uv + vec2(d.x, 0.0)) - lightAt(uv - vec2(d.x, 0.0)), lightAt(uv - vec2(0.0, d.y)) - lightAt(uv + vec2(0.0, d.y)));   // (x right, y toward the camera: down the view)
     // Sides facing the light brighter, sides turned away darker, as much as the light has a clear direction here (the
@@ -725,18 +767,23 @@ void main() { o = texture(uLit, vUV); }`;
     if (!rec) return;
     try {
       R.calls = 0; R.quads = 0; R.bitRows = 0;
+      const t0 = performance.now();
       flush();
       sceneFb(FW, FH); drawRec(true);
+      const t1 = performance.now();
       lightPass(L || null);
+      const t2 = performance.now();
       R.overQuads = 0;
       if (L && L.over) {   // what goes over the light, recorded the same way, drawn into the lit frame without depth
         const g = R.listBegin(v, true);
         if (g) { L.over(g); flush(); const n = R.quads; drawRec(false); R.overQuads = R.quads - n; }
       }
       R.lit = true;   // (ui.js clears the view for the HUD bits and calls present)
+      R.ms = { rec: t1 - t0, light: t2 - t1, over: performance.now() - t2 };   // (CPU time of each part; the GPU's runs after)
     } catch (err) { failed = true; console.warn('WebGL list off:', err); }
     rec = null;
   };
   R.off = () => { failed = true; };
+  R.ready = () => !failed && !R.paused && !!G && !!G.ground && !!G.ground.gl;   // (this frame will be drawn by WebGL, as far as can be told before)
   return R;
 })();
