@@ -42,10 +42,12 @@ share globals. Read this file first (feature notes are in `docs/NOTES.md`); the 
    then `.1`, `.2`... on the same day. `VERSION` is the first entry. The menu shows its title, and
    What's New carries a NEW badge until it is read.
 2. Check every script with `node --check`, and that the baked sprites are current: `node tools/bake-sprites.js <repo> --check`
-   (if stale, rebake: `node tools/bake-sprites.js <repo>`, see "Baked sprites" in `docs/NOTES.md`), and the baked ground: `node tools/bake-ground.js <repo> --check`.
+   (if stale, rebake: `node tools/bake-sprites.js <repo>`, see "Baked sprites" in `docs/NOTES.md`), and the baked ground: `node tools/bake-ground.js <repo> --check`, and (once the WebGL renderer is in) the baked
+   normal maps: `node tools/bake-normals.js <repo> --check` (rebake with `node tools/bake-normals.js <repo>` after every sprite
+   rebake; see "WebGL renderer" in `docs/NOTES.md`).
 3. Build the single file: `python3 scripts/build-single-file.py <out.html>`. Load it in headless
    Playwright and start a game to check it runs without errors.
-4. **Owner's build:** publish `<out.html>` (and, when they changed, the files in `sprites/` as `sprites/<name>` and in `grounds/` as `grounds/<path>`) to the artifact URL above with the Artifact tool
+4. **Owner's build:** publish `<out.html>` (and, when they changed, the files in `sprites/` as `sprites/<name>` and in `grounds/` as `grounds/<path>`, and in `normals/` as `normals/<name>`) to the artifact URL above with the Artifact tool
    (artifact slug `d3b16e49-e1b0-4114-9609-965e7c8a302b`; `get_artifact` for the base version).
    `publish_files` only reads files inside the repo folder, so build to `.build/index.html`, publish,
    then `rm -rf .build` (it is not gitignored, and the Stop hook complains about untracked files).
@@ -108,14 +110,13 @@ when a track changes). Details, adding a track and ffmpeg settings: "Soundtrack"
 
 ## Work in progress
 
-- **Tiberian Sun look** (lighting, cloud shadows, tall cliffs, concrete) lives ONLY on the branch `claude/ts-look` (owner's
-  wish: it must not touch the main game until it is ready). To work on it: `git fetch origin claude/ts-look`, check it out,
-  read "Tiberian Sun look" in its `docs/NOTES.md`, and push there (the one exception to the branch rule above). Its test page
-  is a separate artifact; never release it to the owner's build, the test build or the Windows app until the owner says so.
-- **TS test link** (owner, 2026-11-19): a built copy of `claude/ts-look` sits in `ts/` on `main`, served at
-  https://trdaniels90.github.io/mobile-rts/ts/ (own version `-ts`, own save slot, phone-to-phone online only). It is not the test
-  build: never touch `ts/` in a normal release. Update it only when the owner asks: on `claude/ts-look` run
-  `tools/look/build-ts.sh <dir>`, copy `<dir>` over `ts/` on this branch, commit, push, then `git push origin HEAD:main`.
+- **Tiberian Sun look and the WebGL renderer** (hills with rules, lighting, storms, heavier structures, craters, WebGL2
+  drawing with `?gl=off` for the 2D way) were developed on `claude/ts-look` and `claude/webgl`, and merged into the main
+  game on 2026-11-20 (owner: "Merge it to the main build"). Work on them here, on `claude/cross-platform-game-k2d9lb`.
+  Notes: "Tiberian Sun look" and "WebGL renderer" in `docs/NOTES.md`, and `plans/webgl-renderer.md`.
+- **TS test link** (`ts/` on `main`, https://trdaniels90.github.io/mobile-rts/ts/): the older separate test copy of the look.
+  Now that the look is in the main game it is out of date; never touch `ts/` in a normal release, and remove it only when
+  the owner says.
 
 ## Feature notes (`docs/NOTES.md`)
 

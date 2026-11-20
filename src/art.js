@@ -89,7 +89,7 @@ const GRASS_TILE_N = 128;
 // ground workers (groundWorkers); everything it uses must be listed there. Every pixel depends only on where it is.
 // The whole-map preparation (noise, cliff cells) is done once, at the first call.
 // theme: 'snow' paints winter: snow for grass, slush for dirt, icy shores, cold water, snowy ridges.
-function groundPixels(terr, seed, roads, cliffs, fords, theme) {
+function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt) {
   const snow = theme === 'snow';
   // A 256-colour era look: a handful of tones per surface, picked with dithered noise.
   // Winter: snow in cold blue shades, the tracks trodden to grey slush, frosted stony shores, dark icy water.
@@ -97,7 +97,8 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme) {
   const EARTH = snow ? [[98, 94, 92], [116, 112, 108], [134, 130, 126], [152, 150, 148]] : [[66, 55, 39], [80, 67, 47], [96, 81, 57], [112, 95, 67]];
   const SANDS = snow ? [[142, 148, 158], [162, 168, 178], [182, 189, 199]] : [[124, 111, 82], [140, 126, 94], [156, 142, 108]];
   const WATER = snow ? [[30, 48, 68], [38, 58, 80], [48, 70, 94], [60, 84, 108]] : [[52, 80, 108], [62, 92, 122], [74, 106, 138], [90, 122, 154]];
-  const STROKE = snow ? 0.5 : 0.95;   // snow shows the blade tile only as soft wind ripples
+  const STROKE = snow ? 0.5 : 0.95;
+  const SOFT = typeof LOOK_SOFT !== 'undefined' && LOOK_SOFT;   // (look.js test; in the workers, from their constants line)   // snow shows the blade tile only as soft wind ripples
   const pickTone = (pal, v) => pal[Math.max(0, Math.min(pal.length - 1, Math.floor(v * pal.length)))];
   const sm = (t) => t * t * (3 - 2 * t);
   const seedH = Math.imul(seed | 0, 1442695041);
@@ -156,8 +157,11 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme) {
         let col = pickTone(GRASS, hh * 1.1 - 0.12 + (gt - 0.5) * STROKE + (sp - 0.5) * 0.1);
         if (sp > 0.992) col = GRASS[4];
         const near = nearFlag[Math.min(MAP - 1, Math.max(0, Math.round(fy))) * MAP + Math.min(MAP - 1, Math.max(0, Math.round(fx)))];
-        const dv = near & 1 ? bil(dirt, fx, fy) + (hh - 0.5) * 0.3 + (sp - 0.5) * 0.12 : 0;
-        if (dv > 0.42) col = pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6);
+        const dv = near & 1 ? bil(dirt, fx, fy) + (hh - 0.5) * 0.3 + (sp - 0.5) * (SOFT ? 0.03 : 0.12) : 0;
+        if (SOFT && dv > 0.3) {   // (look.js test: grass fades into dirt over a band, worn and darker at the edge)
+          const e = pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6), k = sm(Math.min(1, (dv - 0.3) / 0.2)), wear = 1 - 0.18 * Math.sin(k * Math.PI);
+          col = [(col[0] + (e[0] - col[0]) * k) * wear, (col[1] + (e[1] - col[1]) * k) * wear, (col[2] + (e[2] - col[2]) * k) * wear];
+        } else if (!SOFT && dv > 0.42) col = pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6);
         const wv = near & 2 ? bil(water, fx, fy) + (hh - 0.5) * 0.22 : 0;
         if (wv > 0.5) {
           const crest = ((x * 3 + y * 7 + Math.floor(noise(N1, (x * 3) % WORLD, y) * 30)) % 23 === 0) && sp > 0.4;
@@ -182,9 +186,22 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme) {
             }
             col = [col[0] + (sh[0] - col[0]) * k, col[1] + (sh[1] - col[1]) * k, col[2] + (sh[2] - col[2]) * k];
           }
+        } else if (SOFT && wv > 0.3) {   // (look.js test: the shore's sand fades in from the grass)
+          const sd = pickTone(SANDS, (wv - 0.36) * 4 + (sp - 0.5) * 0.7), k = sm(Math.min(1, (wv - 0.3) / 0.1));
+          col = [col[0] + (sd[0] - col[0]) * k, col[1] + (sd[1] - col[1]) * k, col[2] + (sd[2] - col[2]) * k];
+          if (sp > 0.95 && k > 0.6) col = snow ? [96, 98, 104] : [92, 86, 74];
         } else if (wv > 0.36) {
           col = pickTone(SANDS, (wv - 0.36) * 4 + (sp - 0.5) * 0.7);
           if (sp > 0.93) col = snow ? [96, 98, 104] : [92, 86, 74];            // pebbles
+        }
+        if (hgt && !(wv > 0.5)) {   // hills (look test): slopes toward the sun (the screen's upper left) lit, the others shaded
+          const h0 = bil(hgt, fx, fy), gx = (bil(hgt, fx + 0.25, fy) - bil(hgt, fx - 0.25, fy)) / (CELL * 0.5), gy = (bil(hgt, fx, fy + 0.25) - bil(hgt, fx, fy - 0.25)) / (CELL * 0.5);
+          // HILL_SHADE: how strongly (1: the first version; owner 2026-11-19: "too faint"). Lit slopes a little warmer,
+          // shaded ones a little cooler.
+          const HS = typeof HILL_SHADE !== 'undefined' ? HILL_SHADE : 1;
+          const lit = Math.max(-0.45 - 0.12 * (HS - 1), Math.min(0.4 + 0.1 * (HS - 1), (gx * 0.937 - gy * 0.351) * 4.2 * HS));
+          const k = (1 + lit) * (1 + h0 * 0.005 * HS), wt = HS > 1 ? lit * 0.12 : 0;
+          col = [col[0] * k * (1 + wt), col[1] * k, col[2] * k * (1 - wt)];
         }
         d[p] = col[0]; d[p + 1] = col[1]; d[p + 2] = col[2]; d[p + 3] = 255;
       }
@@ -199,7 +216,7 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme) {
 // sheets (faction and team colour 0-2, or 'burnt'); a sprite not loaded yet, or not baked, is rendered as before. Only
 // over http(s) and in the Windows app (a page opened from a file cannot read pictures back, which tests rely on).
 const SpriteSheets = (() => {
-  let man = null, manP = null;
+  let man = null, manP = null, nmanP = null;
   const loaded = new Set();
   const ok = () => typeof location !== 'undefined' && /^(https?|app):$/.test(location.protocol) && typeof createImageBitmap === 'function' && typeof fetch === 'function'
     && !(typeof HEADLESS !== 'undefined' && HEADLESS);
@@ -212,11 +229,20 @@ const SpriteSheets = (() => {
     if (!r.ok) return;
     const bmp = await createImageBitmap(await r.blob());
     const cut = (x, y, w, h) => createImageBitmap(bmp, x, y, w, h);
+    // With the WebGL renderer (gl.js), the sheet's normal maps too (tools/bake-normals.js: normals/, the same layout),
+    // if they were baked from these very sprites: each picture's goes with it (img._nrm), so it is not worked out in play.
+    let nbmp = null;
+    if (typeof GLR !== 'undefined' && GLR.on) {
+      const nm = await (nmanP || (nmanP = fetch('normals/manifest.json').then((x) => (x.ok ? x.json() : null)).catch(() => null)));
+      const ns = nm && nm.sprites === m.hash && nm.sheets.find((x) => x.of === sh.file);
+      if (ns) { const r2 = await fetch('normals/' + ns.file).catch(() => null); if (r2 && r2.ok) nbmp = await createImageBitmap(await r2.blob()).catch(() => null); }
+    }
     for (let i = 0; i < sh.sprites.length; i += 64) {   // a few at a time, so loading never holds up a frame
       await Promise.all(sh.sprites.slice(i, i + 64).map(async (e) => {
         if (spriteCache2.has(e[0])) return;
         const s = { img: await cut(e[1], e[2], e[3], e[4]), ox: e[5], oy: e[6] };
         s.img._ox = e[5]; s.img._oy = e[6];   // (uprightCtx)
+        if (nbmp) s.img._nrm = await createImageBitmap(nbmp, e[1], e[2], e[3], e[4]);
         if (e.length > 7) { s.sh = await cut(e[7], e[8], e[9], e[10]); s.sox = e[11]; s.soy = e[12]; s.sh._ox = e[11]; s.sh._oy = e[12]; }
         if (spriteCache2.has(e[0])) return;
         spriteCache2.set(e[0], s);
@@ -225,6 +251,7 @@ const SpriteSheets = (() => {
       }));
     }
     if (bmp.close) bmp.close();
+    if (nbmp && nbmp.close) nbmp.close();
   }
   let chain = Promise.resolve(), pending = 0;
   function need(names) {
@@ -262,6 +289,8 @@ function groundKey(g) {
   const str = (t) => { for (let i = 0; i < t.length; i++) num(t.charCodeAt(i)); };
   str(JSON.stringify(['live-trees', validMap(g.mapId), MAP, CELL, GROUND_TILE, GROUND_SHEET, groundSeed(g), mapTheme(g.mapId), MAPS[validMap(g.mapId)].bridge || '', g.bridges || []]));
   for (const a of [g.terr, g.road, g.cliff, g.ford]) { num(a ? a.length : -1); if (a) for (let i = 0; i < a.length; i++) num(a[i]); }
+  if (g.hgt) for (let i = 0; i < g.hgt.length; i++) num(Math.round(g.hgt[i] * 16));   // (the hills: look test)
+  if (g.hgt && typeof HILL_SHADE !== 'undefined' && HILL_SHADE !== 1) num(Math.round(HILL_SHADE * 100));   // (their shading's strength)
   return (h >>> 0).toString(16);
 }
 
@@ -270,8 +299,8 @@ function groundKey(g) {
 // where it is, so parts painted one by one fit together exactly (the ground tiles, makeGround). The scenery and
 // bridges are prepared once, at the first paint. args: groundPixels' arguments (for the workers).
 // bridgeKind: 'concrete', or timber when not given (`bridge` in MAPS).
-function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind) {
-  const snow = theme === 'snow', px = groundPixels(terr, seed, roads, cliffs, fords, theme);
+function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind, hgt) {
+  const snow = theme === 'snow', px = groundPixels(terr, seed, roads, cliffs, fords, theme, hgt);
   let P = null;   // scenery stamps and bridge pictures
   function prepare() {
     buildScenery();
@@ -365,7 +394,7 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
     g.putImageData(img, ox, oy);
     decorate(g, X0, Y0, w, h, ox, oy);
   }
-  return { paint, decorate, trees: () => { if (!P) prepare(); return P.trees; }, args: [terr, seed, roads, cliffs, fords, theme] };
+  return { paint, decorate, trees: () => { if (!P) prepare(); return P.trees; }, args: [terr, seed, roads, cliffs, fords, theme, hgt] };
 }
 // Wheel ruts along the roads, worked out pixel by pixel (not stroked on the canvas, whose smoothing differs with
 // where a picture's edge falls) so they run on unbroken across the ground's tiles. Each rut darkens or lightens a
@@ -440,9 +469,9 @@ function concreteBridge(g, L, bw, seed, snow) {
 }
 
 // The whole ground in one picture (tests and tools; the game paints it in tiles, makeGround).
-function paintTerrain(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind) {
+function paintTerrain(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind, hgt = typeof G !== 'undefined' && G ? G.hgt : null) {
   const c = mkCanvas(WORLD, WORLD);
-  groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind).paint(c.getContext('2d'), 0, 0, WORLD, WORLD);
+  groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeKind, hgt).paint(c.getContext('2d'), 0, 0, WORLD, WORLD);
   return c;
 }
 
@@ -736,7 +765,8 @@ function charredLook(img, seed) {
 }
 
 // Worn earth around a structure, like the dirt aprons of classic bases.
-function bibDecal(tg, x, y, w, h, seed) {
+function bibDecal(tg, x, y, w, h, seed, type) {   // type: the structure's (look.js concreteDecal; older marks have none)
+  if (typeof LOOK !== 'undefined' && LOOK.concrete) return concreteDecal(tg, x, y, w, h, seed, type);   // (look.js prototype, off by default)
   const r = rng(seed), M = 9;
   const tones = snowy() ? [[92, 90, 88], [108, 105, 102], [124, 122, 119], [142, 140, 138]] : [[66, 56, 42], [79, 67, 49], [92, 78, 57], [105, 90, 66]];   // winter: trodden slush
   // Worked out as pixels and drawn in one go (a pixel at a time, a large pad took 15 ms on a slow phone).
@@ -755,6 +785,7 @@ let bibPic = null;
 // A Service Depot's repair pad, painted on the ground in front of it: concrete inside a yellow and
 // black border, with a white cross.
 function padDecal(tg, x, y) {
+  if (typeof LOOK !== 'undefined' && LOOK.hills) return;   // (look test: on raised ground the flat pad sat crooked under the depot; owner: remove it)
   tg.fillStyle = '#6b6b63'; tg.fillRect(x, y, CELL, CELL);
   for (let i = 0; i < CELL; i++) for (const [px, py] of [[x + i, y], [x + i, y + CELL - 1], [x, y + i], [x + CELL - 1, y + i]]) {
     tg.fillStyle = ((px + py) >> 1) % 2 ? '#d8b13a' : '#1d1d1a'; tg.fillRect(px, py, 1, 1);
@@ -798,6 +829,7 @@ function rollWeather(mapId, seed) {
 }
 // How hard it is raining or snowing at battle time t: 0.2 (a drizzle, a few flakes) to 1, changing over a minute or two.
 function weatherLevel(w, t) {
+  if (w.lvl !== undefined) return w.lvl;   // (look test: a storm's stand-in weather, lookstorm.js)
   const h = (i) => { let x = Math.imul(i, 374761393) ^ Math.imul(w.seed, 668265263); x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
   const f = t / 70, i = Math.floor(f), u = f - i, s = u * u * (3 - 2 * u);
   return 0.2 + 0.8 * (h(i) + (h(i + 1) - h(i)) * s);
@@ -866,8 +898,8 @@ function drawTree(g, e) {
   const stiff = (tr.pine ? 0.7 : 1) * (1 - 0.65 * p), c = -sway * stiff;   // burnt trees hardly move
   // A shear on the screen about the tree's foot: the top moves, the foot stays. Drawn with the canvas's own drawImage,
   // so the shear is kept (uprightCtx would set it aside).
-  const fx = Math.round(tf.a * tr.x + tf.c * tr.y + tf.e), fy = Math.round(tf.b * tr.x + tf.d * tr.y + tf.f);
-  const draw = (img, ox, oy, dy) => CanvasRenderingContext2D.prototype.drawImage.call(g, img, fx + Math.round(ox), fy + Math.round(oy) + (dy || 0));
+  const fx = Math.round(tf.a * tr.x + tf.c * tr.y + tf.e), fy = Math.round(tf.b * tr.x + tf.d * tr.y + tf.f - gLift(tr.x, tr.y));   // (on the raised ground: look.js)
+  const draw = (img, ox, oy, dy) => (g._rawDraw || CanvasRenderingContext2D.prototype.drawImage).call(g, img, fx + Math.round(ox), fy + Math.round(oy) + (dy || 0));   // (_rawDraw: gl.js's recorder)
   // (No save() / restore(): thousands of trees show zoomed out on a big screen. What is changed is put back below.)
   g.setTransform(1, 0, c, 1, -c * fy, 0);
   if (p < 1) { g.globalAlpha = 1 - p * p; draw(tr.s.img, tr.s.ox, tr.s.oy); }
@@ -903,10 +935,10 @@ let treeBlocks = null, treeFar = false;   // { trees, rim, map: key -> { idx: [[
 function treeKey(x, y) { const [X, Y] = toView(x, y); return Math.floor(Y / TREE_BLOCK) * 65536 + Math.floor(X / TREE_BLOCK) + 32768; }
 // The shadows of a list of trees (from treesInView / rimInView), the living tree's fading as it burns.
 function treeShadows(g, list) {
-  for (const { tr, p } of list) {
+  for (const { tr, p } of list) onHill(g, tr.x, tr.y, () => {   // (on the raised ground: look.js)
     if (p < 1) { g.globalAlpha = 0.45 * (1 - p); g.drawImage(tr.s.sh, Math.round(tr.x + tr.s.sox), Math.round(tr.y + tr.s.soy)); }
     if (p > 0) { g.globalAlpha = 0.45 * p; g.drawImage(tr.burnt.sh, Math.round(tr.x + tr.burnt.sox), Math.round(tr.y + tr.burnt.soy)); }
-  }
+  });
   g.globalAlpha = 1;
 }
 // list: the trees on screen (treesInView, rimInView). Draws the shadows of the trees it does not hand back; returns the
@@ -916,7 +948,7 @@ function isoTreeBlocks(g, list, rim, vx, vy, VW, VH) {
   const n = list.length;
   treeFar = treeFar ? n > TREE_NEAR_N : n > TREE_FAR_N;
   const T = G.ground && G.ground.trees;
-  if (!treeFar || !T) { treeShadows(g, list); dropTreeBlocks(); return list; }
+  if (!treeFar || !T || (LOOK.hills && G.hgt)) { treeShadows(g, list); dropTreeBlocks(); return list; }   // (raised ground, look.js: trees one by one, so hills can hide them)
   if (!treeBlocks || treeBlocks.trees !== T || treeBlocks.rim !== rim) {
     const map = new Map(), add = (src, tr, i, k) => { let b = map.get(k); if (!b) map.set(k, b = { idx: [], c: null, sig: -1, used: 0 }); b.idx.push([src, i]); };
     T.forEach((tr, i) => add(T, tr, i, treeKey(tr.x, tr.y)));
@@ -957,7 +989,7 @@ function isoTreeBlocks(g, list, rim, vx, vy, VW, VH) {
   }
   shown = (bx1 - bx0 + 1) * (by1 - by0 + 1);
   g.setTransform(1, 0, 0, 1, -vx, -vy);   // view plane
-  for (let k = 0; k < order.length; k += 3) CanvasRenderingContext2D.prototype.drawImage.call(g, order[k].c, order[k + 1] * TREE_BLOCK - TREE_BLOCK_PAD, order[k + 2] * TREE_BLOCK - TREE_BLOCK_PAD);
+  for (let k = 0; k < order.length; k += 3) (g._rawDraw || CanvasRenderingContext2D.prototype.drawImage).call(g, order[k].c, order[k + 1] * TREE_BLOCK - TREE_BLOCK_PAD, order[k + 2] * TREE_BLOCK - TREE_BLOCK_PAD);
   g.setTransform(m);
   // The rest: burning trees, and trees of blocks not made yet.
   const rest = list.filter((e) => e.p > 0 && e.p < 1 || !ready.has(treeKey(e.x, e.y)));
@@ -1018,6 +1050,15 @@ const nightLevel = () => dayNight(G ? G.t : 0).night;
 // Darkness over the view, with holes where there is light, then the lights' warm glow on top. Dusk and dawn tint it amber.
 let nightCv = null, lightPic = null;
 const NIGHT_RES = 0.5;   // the night layer's size as a share of the screen's (see drawNight)
+function nightLightPic() {   // a light's soft hole in the darkness (also gl.js's light pass)
+  if (!lightPic) {
+    lightPic = mkCanvas(64, 64);
+    const c = lightPic.getContext('2d'), gr = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = gr; c.fillRect(0, 0, 64, 64);
+  }
+  return lightPic;
+}
 function drawNight(g, vx, vy, vw, vh, k, t, vis) {
   const { night, warm } = dayNight(t);
   const W = g.canvas.width, H = g.canvas.height;
@@ -1025,21 +1066,25 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
     g.save(); g.globalCompositeOperation = 'multiply'; g.fillStyle = `rgba(255,170,110,${(0.32 * warm).toFixed(3)})`; g.fillRect(0, 0, W, H); g.restore();
   }
   if (night < 0.01) return;
-  if (!lightPic) {
-    lightPic = mkCanvas(64, 64);
-    const c = lightPic.getContext('2d'), gr = c.createRadialGradient(32, 32, 0, 32, 32, 32);
-    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-    c.fillStyle = gr; c.fillRect(0, 0, 64, 64);
-  }
+  nightLightPic();
   // The darkness is soft shade and blurred pools of light, so it is drawn at NIGHT_RES of the screen and stretched up
   // smoothly: on a 3x phone the full-size layer cost about 8 ms of GPU time a frame (match 3c189abc: 60 to about 43 fps at night).
   const nW = Math.max(1, Math.round(W * NIGHT_RES)), nH = Math.max(1, Math.round(H * NIGHT_RES)), nk = k * nW / W;
   if (!nightCv || nightCv.width !== nW || nightCv.height !== nH) nightCv = mkCanvas(nW, nH);
-  const n = nightCv.getContext('2d'), lights = [];
+  const n = nightCv.getContext('2d'), lights = nightLights(vx, vy, vw, vh, night);
   const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
-  const add = (x, y, r, a, warmLight, h) => { [x, y] = toView(...liftPt(x, y, h || 0)); if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };   // (vx, vy: the camera on the view plane)
+  n.globalCompositeOperation = 'source-over'; n.clearRect(0, 0, nW, nH);
+  drawNightRest(g, vx, vy, k, t, night, near, vis, n, nW, nH, nk, W, H, lights);
+}
+// drawNight's lights, as [view x, view y, radius, strength, warm] (also read by gl.js's light pass): street lamps, the
+// look's pools, lit windows, structures (not defences, with the look's lamps), fires, blasts and bolts.
+function nightLights(vx, vy, vw, vh, night) {
+  const lights = [];
+  const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
+  const add = (x, y, r, a, warmLight, h) => { [x, y] = toView(...liftPt(x, y, (h || 0) + gLift(x, y))); if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };   // (vx, vy: the camera on the view plane)
   // Street lamps, lit windows, buildings' own lights, fires and blasts.
   for (const p of G.props || []) if (p.k === 'lamp' && p.up) add(p.x + 4.5, p.y, 52, 1, true, 8);
+  if (typeof lookNightLights === 'function') lookNightLights(add, night);   // (look.js test: lamp posts' pools, window spill, ore)
   for (const h of G.houses || []) {
     if (!h.alive || !G.seen[idx(h.cx, h.cy)]) continue;
     const fi = FORT_INFO.get(h.type);
@@ -1047,6 +1092,7 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
   }
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || !(G.seen[idx(e.cx, e.cy)])) continue;
+    if (typeof LOOK !== 'undefined' && LOOK.lamps && e.def.defense) continue;   // (look.js test: defences give off no light, owner)
     add((e.cx + e.w / 2) * CELL, (e.cy + e.h) * CELL - 4, 26 + e.w * 10, 0.75, true);
   }
   for (const fx of G.effects) {
@@ -1056,7 +1102,9 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
     else if (fx.type === 'bolt') add(fx.x, fx.y, 260, 1, false);
   }
   for (const b of G.bolts || []) add(b.x, b.y, 50, Math.min(1, b.t / 3), true);
-  n.globalCompositeOperation = 'source-over'; n.clearRect(0, 0, nW, nH);
+  return lights;
+}
+function drawNightRest(g, vx, vy, k, t, night, near, vis, n, nW, nH, nk, W, H, lights) {
   n.fillStyle = `rgba(6,12,34,${(0.62 * night).toFixed(3)})`; n.fillRect(0, 0, nW, nH);
   n.globalCompositeOperation = 'destination-out';
   for (const [x, y, r, a] of lights) {
@@ -1134,7 +1182,7 @@ function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {
   g.fillStyle = rain ? `rgba(14,22,34,${(0.1 + 0.16 * L).toFixed(3)})` : `rgba(214,222,236,${(0.04 + 0.08 * L).toFixed(3)})`;
   g.fillRect(0, 0, g.canvas.width, g.canvas.height);
   if (rain) {
-    lightning(g, w, t, k, paused);
+    if (!w.storm || w.real) lightning(g, w.real || w, t, k, paused);   // (a storm's stand-in: the battle's own lightning only)
     const wind = 70;
     g.strokeStyle = 'rgba(180,200,220,0.5)'; g.lineWidth = Math.max(1, Math.round(k * 0.6));
     g.beginPath();
@@ -1194,7 +1242,7 @@ const MARK_BOX = {
   bakeRagdoll: ([fx]) => [fx.P[6], fx.P[7], 48],
 };
 const markBox = (n, a) => {
-  if (n === 'bibDecal') return [a[0] - 12, a[1] - 12, a[0] + a[2] + 12, a[1] + a[3] + 12];
+  if (n === 'bibDecal') { const m = typeof CON_M !== 'undefined' ? CON_M + 2 : 12; return [a[0] - m, a[1] - m, a[0] + a[2] + m, a[1] + a[3] + m]; }
   if (n === 'rubble') return [a[0] - 12, a[1] - 12, a[0] + a[2] + 12, a[1] + a[3] + 12];
   if (n === 'padDecal') return [a[0] - 2, a[1] - 2, a[0] + CELL + 2, a[1] + CELL + 2];
   const [x, y, r] = MARK_BOX[n](a);
@@ -1241,6 +1289,8 @@ function groundWorkers() {
   try {
     const src = ["'use strict';",
       `const CELL = ${CELL}, CLIFF_H = ${CLIFF_H}, GRASS_TILE = ${JSON.stringify(GRASS_TILE)}, GRASS_TILE_N = ${GRASS_TILE_N};`,
+      `const LOOK_SOFT = ${typeof LOOK_SOFT !== 'undefined' && !!LOOK_SOFT};`,
+      `const HILL_SHADE = ${typeof HILL_SHADE !== 'undefined' ? HILL_SHADE : 1};`,
       'let MAP = 0, WORLD = 0, NCELLS = 0;',
       ...[rng, groundPixels, cliffCells, paintCliffs, paintRuts, fordStone].map(String),
       `let px = null, gen = -1, pvBuf = null;
@@ -1351,6 +1401,7 @@ function makeGround(painter, legacy, baked) {
   const finishing = new Map();
   function finishSome(k, until) {
     const f = finishing.get(k), list = index[k];
+    if (!f.dr) { f.dr = 1; if (typeof lookDress === 'function') { const [x0, y0] = at(k), tg = f.t.g.getContext('2d'); lookPatchTile(tg, x0, y0); lookDress(tg, x0, y0); } }   // (look.js test: ground dressing, once a tile)
     while (f.i < list.length) {
       const a = performance.now(), m = G.marks[list[f.i++]];
       drawOn(f.t, k, m);
@@ -1361,7 +1412,7 @@ function makeGround(painter, legacy, baked) {
     if (f.i < list.length) return false;
     finishing.delete(k);
     f.t.used = frameNo;
-    tiles.set(k, f.t); finished++;
+    f.t.ver = (f.t.ver || 0) + 1; tiles.set(k, f.t); finished++;   // (ver: gl.js uploads a tile again when it changes)
     if (!pvDone[k] && pool) { const [x0, y0] = at(k), g = pvCtx(); g.imageSmoothingEnabled = true; g.drawImage(f.t.g, 0, 0, Math.min(T, WORLD - x0), Math.min(T, WORLD - y0), x0 / PV, y0 / PV, Math.min(T, WORLD - x0) / PV, Math.min(T, WORLD - y0) / PV); pvMark(k); }
     return true;
   }
@@ -1451,6 +1502,7 @@ function makeGround(painter, legacy, baked) {
     if (m[0] === 'd' && !t.d) t.d = tileCanvas();
     const [x0, y0] = at(k), bx = Math.floor(m[3]), by = Math.floor(m[4]), w = Math.ceil(m[5]) - bx + 1, h = Math.ceil(m[6]) - by + 1;
     (m[0] === 't' ? t.g : t.d).getContext('2d').drawImage(scratch, 0, 0, w, h, bx - x0, by - y0, w, h);
+    t.ver = (t.ver || 0) + 1;   // (gl.js: upload it again)
   }
   function drawOn(t, k, m) { markPic(m); copyOn(t, k, m); }
   // Paints some more of tile k (rows STRIP at a time until `until`, or all of it); true once it is done.
@@ -1561,7 +1613,35 @@ function makeGround(painter, legacy, baked) {
       this.blocky = blocky;     // of those, with no preview yet: the flat minimap colours
       trim(GROUND_ROOMY ? n * n : Math.max(140, seen.length * 3));
     },
+    // For the WebGL renderer (gl.js): the tile size, tiles across, a tile's corner, the tiles of a box, a painted tile
+    // ({ g, d, ver }) or none, and the stand-in for unpainted ground (a pixel a cell).
+    gl: { T, n, at, tilesIn: (sx, sy, sw, sh) => tilesIn(sx, sy, sw, sh), tile: (k) => tiles.get(k), low: () => lowRes() },
     // Draws one layer ('t' the ground, 'd' the wrecks and bodies) of world rect (sx, sy, sw, sh) into g at (dx, dy).
+    // The raised ground (look.js hillWarp): the chunks (HILL_CH px squares of the world grid, inside one tile) of world
+    // rect (sx, sy, sw, sh), and one layer of one chunk drawn in g (its transform already set: hillWarp set).
+    chunks(sx, sy, sw, sh) {
+      const N = HILL_CH, out = [], S = VIEW.s, C = VIEW.c;
+      if (sw <= 0 || sh <= 0) return out;
+      for (const k of tilesIn(sx, sy, sw, sh)) {
+        const [x0, y0] = at(k), xe = Math.min(x0 + T, WORLD), ye = Math.min(y0 + T, WORLD);
+        const a0 = Math.max(x0, Math.floor(sx / N) * N), b0 = Math.max(y0, Math.floor(sy / N) * N), a1 = Math.min(xe, sx + sw), b1 = Math.min(ye, sy + sh);
+        if (a1 <= a0 || b1 <= b0) continue;
+        if (hillTileFlat(k, x0, y0, xe, ye)) { out.push({ k, X0: Math.max(x0, sx), Y0: Math.max(y0, sy), X1: a1, Y1: b1, key: x0 * S + y0 * C, fit: HILL_FLAT_FIT }); continue; }   // flat: one piece
+        for (let Y = b0; Y < b1; Y += N) for (let X = a0; X < a1; X += N) out.push({ k, X0: X, Y0: Y, X1: Math.min(X + N, xe), Y1: Math.min(Y + N, ye), key: X * S + Y * C });
+      }
+      return out;
+    },
+    drawChunk(g, c, layer) {
+      const t = tiles.get(c.k), [x0, y0] = at(c.k), L = HILL_LAP, { X0, Y0, X1, Y1 } = c, w = X1 - X0, h = Y1 - Y0;
+      if (t) {
+        t.born = 0;
+        const img = layer === 't' ? t.g : t.d;
+        if (img) g.drawImage(img, X0 - x0, Y0 - y0, w, h, X0 - L, Y0 - L, w + 2 * L, h + 2 * L);
+      } else if (layer === 't') {
+        if (pvDone[c.k]) { g.imageSmoothingEnabled = true; g.drawImage(preview, X0 / PV, Y0 / PV, w / PV, h / PV, X0 - L, Y0 - L, w + 2 * L, h + 2 * L); g.imageSmoothingEnabled = false; }
+        else g.drawImage(lowRes(), X0 / CELL, Y0 / CELL, w / CELL, h / CELL, X0 - L, Y0 - L, w + 2 * L, h + 2 * L);
+      }
+    },
     draw(g, layer, sx, sy, sw, sh, dx, dy) {
       if (sw <= 0 || sh <= 0) return;
       for (const k of tilesIn(sx, sy, sw, sh)) {
@@ -1609,7 +1689,7 @@ function newGround(g, legacy) {
   g.tctx = GROUND_LAYER; g.dctx = DECAL_LAYER;
   const id = validMap(g.mapId), man = GroundSheets.manifest, bm = GroundSheets.ok() && man && man.maps && man.maps[id];
   const baked = bm && bm.key === groundKey(g) ? { dir: 'grounds/' + id + '/' } : null;
-  const painter = groundPainter(g.terr, groundSeed(g), g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[id].bridge);
+  const painter = groundPainter(g.terr, groundSeed(g), g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[id].bridge, g.hgt);
   g.ground = makeGround(painter, legacy, baked);
   g.ground.baked = !!baked;
   // The trees, drawn live over the ground (treesInView, drawTree); an old save's ground pictures have them painted in.
@@ -2502,7 +2582,7 @@ function spanRuin(s) {
   const g = c.getContext('2d');
   const terr = G.terr.slice();
   for (const k of s.cells) terr[k] = 4;
-  const painter = (bridges) => groundPainter(terr, groundSeed(G), G.road, bridges, G.cliff, G.ford, mapTheme(G.mapId), m.bridge);
+  const painter = (bridges) => groundPainter(terr, groundSeed(G), G.road, bridges, G.cliff, G.ford, mapTheme(G.mapId), m.bridge, G.hgt);
   g.save();
   g.beginPath();
   for (const k of s.cells) g.rect(cellX(k) * CELL - X0 - M, cellY(k) * CELL - Y0 - M, CELL + 2 * M, CELL + 2 * M);

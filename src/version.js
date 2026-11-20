@@ -4,6 +4,22 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.20', date: '20 November 2026', title: 'A new look: hills, light and weather', groups: [
+    ['New', [
+      'Hills on every map. High ground matters: units on a hilltop see further, fire from high ground reaches further and up a hill a little less, and vehicles slow down going uphill. Hills hide what is behind them.',
+      'Light and shadow: a low sun, cloud shadows drifting over the battlefield, and every map with its own mood. On the maps with day and night, the sun moves across the sky through the day, and lit windows, beacons and lamp posts glow after dark.',
+      'Lights from fires, explosions and lamps fall on the side of units, buildings and hills that faces them.',
+      'Passing storms: the sky darkens, rain or snow gets heavier, and lightning flashes. Now and then a bolt strikes the ground and starts a fire.',
+      'Fog rolls in over the low ground on some calm nights and lifts in the morning.',
+      'Heavy blasts leave craters in the ground, and vehicles drive down into them.',
+      'Rebuilt structures: heavier, weathered buildings with concrete, steel and team-colour stripes, worn ground round them, beacons on their roofs and searchlights on the Allied AA Gun at night.',
+      'Bigger smoke columns and fires from damaged buildings, bolder explosions with flying debris, rippling water with foam on the shore, and tank tracks that fade.',
+    ]],
+    ['Changed', [
+      'The battlefield is now drawn by your graphics chip (WebGL), which makes big battles and zooming out much smoother, especially on phones.',
+      'Rocky ridges stand up as tall cliffs, and the rock always matches where units can and cannot go.',
+    ]],
+  ] },
   { v: '2026.11.19.2', date: '19 November 2026', title: 'Steadier tanks, smarter expansions', groups: [
     ['Fixed', [
       'Tank turrets no longer wobble on their hulls, and tanks glide instead of jolting as they drive.',

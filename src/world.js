@@ -82,6 +82,7 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
   }
   ensureWalls();
   genMap(seed);
+  G.hgt = makeHeights(G.mapId);   // hills: the height of the ground (Tiberian Sun look test, with high-ground rules)
   // The ground, painted in tiles as it is looked at, and the marks of battle (art.js makeGround): G.tctx is
   // the ground's layer, G.dctx the layer of bodies and wrecks above it, so later craters and scorch marks
   // never paint over them.
@@ -160,6 +161,96 @@ function spawnPoints(mapId) {
   if (MAPS[mapId] && MAPS[mapId].rows) return MAPS[mapId].spawns.map(([cx, cy]) => ({ cx, cy }));
   const half = SPAWNS_HALF.map((s) => ({ cx: Math.round(s.at[0] * S96), cy: Math.round(s.at[1] * S96) }));
   return half.concat(half.map((s) => ({ cx: MAP - 1 - s.cx, cy: MAP - 1 - s.cy })));
+}
+
+// ---- Terrain height (Tiberian Sun look test: "Height with rules", both modes; docs/NOTES.md "Tiberian Sun look") ----
+// G.hgt: the ground's height at every cell's middle, in world pixels (0 to HG_MAX), the same on every copy of the battle
+// (the server's and every phone's): worked out from the map's own layout and its ground seed, never at random. Rolling hills
+// from two layers of smooth noise, flat low ground near water (so shores, bridges and fords stay level) and level ground
+// round every start position (a base needs flat ground), at that spot's own height. Cliffs keep their own (they block).
+// hgtAt(x, y): the height anywhere, between cell middles smoothly. Rules (all here, so online copies agree):
+//  - sight: +HG_SIGHT cells at the top of a hill (revealAround);
+//  - reach: firing down from high ground reaches up to HG_DOWN further, up a hill up to HG_UP less (distTo);
+//  - speed: up a slope slower, down it a little faster (slopeMul in followPath and slideOut).
+const HG_MAX = 30, HG_SIGHT = 2, HG_DOWN = 0.2, HG_UP = 0.1;
+function makeHeights(mapId) {
+  const h = new Float32Array(NCELLS), seed = MAPS[validMap(mapId)].rows ? 0x2b1d5eed : G.seed;
+  const hash = (i, j, k) => { let v = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(k + seed, 1442695041); v = Math.imul(v ^ (v >>> 13), 1274126177); return ((v ^ (v >>> 16)) >>> 0) / 4294967296; };
+  const S = (a) => a * a * (3 - 2 * a);
+  const vn = (x, y, sc, k) => { const fx = x / sc, fy = y / sc, i = Math.floor(fx), j = Math.floor(fy), u = S(fx - i), v = S(fy - j);
+    const a = hash(i, j, k), b = hash(i + 1, j, k), c = hash(i, j + 1, k), d = hash(i + 1, j + 1, k);
+    return (a + (b - a) * u) * (1 - v) + (c + (d - c) * u) * v; };
+  // How far each cell is from water (in cells, up to 6).
+  const wd = new Uint8Array(NCELLS).fill(255), q = [];
+  for (let c = 0; c < NCELLS; c++) if (G.terr[c] >= 4) { wd[c] = 0; q.push(c); }
+  for (let i = 0; i < q.length; i++) {
+    const c = q[i], x = c % MAP, y = (c / MAP) | 0;
+    if (wd[c] >= 6) continue;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= MAP || ny >= MAP) continue; const n = ny * MAP + nx; if (wd[n] === 255) { wd[n] = wd[c] + 1; q.push(n); } }
+  }
+  const raw = (x, y) => { const n = vn(x, y, 16, 1) * 0.65 + vn(x, y, 7, 2) * 0.35; return HG_MAX * S(Math.max(0, Math.min(1, (n - 0.42) / 0.38))); };
+  const flat = (G.spawns || []).map((p) => [p.cx + 0.5, p.cy + 0.5, 0]);   // every base on level low ground: no side starts with the high ground
+  for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
+    const c = y * MAP + x;
+    let v = raw(x + 0.5, y + 0.5);
+    for (const [fx, fy, fh] of flat) { const d = Math.hypot(x + 0.5 - fx, y + 0.5 - fy); if (d < 13) { const k = S(Math.max(0, Math.min(1, (d - 8) / 5))); v = fh + (v - fh) * k; } }
+    v *= S(Math.min(1, (wd[c] === 255 ? 6 : wd[c]) / 5));   // down to the water's edge
+    h[c] = G.terr[c] >= 4 ? 0 : v;
+  }
+  return h;
+}
+function hgtAt(x, y, noDig) {   // (noDig: the ground before any crater was dug)
+  const H = G.hgt;
+  if (!H) return 0;
+  const fx = Math.max(0, Math.min(MAP - 1.001, x / CELL - 0.5)), fy = Math.max(0, Math.min(MAP - 1.001, y / CELL - 0.5));
+  const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0, x1 = Math.min(MAP - 1, x0 + 1), y1 = Math.min(MAP - 1, y0 + 1);
+  let a = H[y0 * MAP + x0], b = H[y0 * MAP + x1], c = H[y1 * MAP + x0], d = H[y1 * MAP + x1];
+  const D = G.dig;   // craters dug by heavy blasts (digCrater)
+  if (D && !noDig) { a += D[y0 * MAP + x0]; b += D[y0 * MAP + x1]; c += D[y1 * MAP + x0]; d += D[y1 * MAP + x1]; }
+  return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+}
+// The ground height a unit or structure stands on (aircraft in the air: none of these rules).
+function standH(e) {
+  if (!G.hgt || !e || e.x === undefined || (e.kind === 'unit' && isAirborne(e))) return null;
+  return e.kind === 'bld' ? hgtAt((e.cx + e.w / 2) * CELL, (e.cy + e.h / 2) * CELL) : hgtAt(e.x, e.y);
+}
+// Moving along (mx, my) from (x, y): uphill slower (to 65%), downhill a little faster (to 112%).
+function slopeMul(x, y, mx, my) {
+  if (!G.hgt) return 1;
+  const sl = (hgtAt(x + mx * 8, y + my * 8) - hgtAt(x, y)) / 8;
+  return Math.max(0.65, Math.min(1.12, 1 - sl * 2.2));
+}
+
+// Craters that dig the ground (owner, 2026-11-19: "ground marks depending on the explosion can make craters like in Tiberian
+// Sun and actually affect the ground where units can go in them"; both modes, heavy blasts only). G.dig: per cell, added to
+// G.hgt's heights by hgtAt, so units drive down into a crater and every height rule follows it: slower climbing out
+// (slopeMul), a little less reach and sight from the bottom (distTo, revealAround). Nothing is blocked. Dug by craterAt from
+// DIG_MIN (artillery and V2 rockets, bombs, aircraft crashing, tanks and heavy shells hitting home; not rifles or tank
+// shells); a bowl of radius 0.6 + rad / 10 cells (TS-sized: about a cell), rad x DIG_K deep, with a low rim; a cell no deeper than DIG_MAX. A structure
+// placed over a crater fills it (addBuilding). G.craters keeps each one ([x, y, rad], plain data) for drawing (lookfx.js).
+// Online: the host's crater marks carry a flag (net.js digs on the guest's copy too). Saved with G (a typed array).
+const DIG_MIN = 5, DIG_K = 0.5, DIG_MAX = 7;
+function digCrater(x, y, rad) {
+  if (!G.hgt) return;
+  if (!G.dig) G.dig = new Float32Array(NCELLS);
+  if (!G.craters) G.craters = [];
+  const R = 0.6 + rad / 10, depth = rad * DIG_K, fx = x / CELL - 0.5, fy = y / CELL - 0.5, n = Math.ceil(R * 1.3);
+  for (let j = Math.floor(fy) - n; j <= Math.ceil(fy) + n; j++) for (let i = Math.floor(fx) - n; i <= Math.ceil(fx) + n; i++) {
+    if (i < 0 || j < 0 || i >= MAP || j >= MAP) continue;
+    const c = j * MAP + i, d = Math.hypot(i - fx, j - fy) / R;
+    if (d >= 1.3 || G.terr[c] >= 4 || G.bld[c] || (G.cliff && G.cliff[c])) continue;
+    const v = d < 1 ? -depth * (1 - d * d) : depth * 0.12 * Math.sin((d - 1) / 0.3 * Math.PI);   // the bowl, then a low rim
+    G.dig[c] = Math.max(-DIG_MAX, Math.min(1.5, G.dig[c] + v));
+  }
+  G.craters.push([Math.round(x), Math.round(y), rad]);
+  if (G.craters.length > 400) G.craters.shift();
+  if (typeof lookDug === 'function') lookDug(x, y, (R * 1.3 + 1) * CELL);   // (the raised ground's cached shape there)
+}
+// A structure fills the craters under it.
+function fillCraters(cx, cy, w, h) {
+  if (!G.dig) return;
+  for (let y = cy; y < cy + h; y++) for (let x = cx; x < cx + w; x++) if (inMap(x, y)) G.dig[idx(x, y)] = 0;
+  if (typeof lookDug === 'function') lookDug((cx + w / 2) * CELL, (cy + h / 2) * CELL, (Math.max(w, h) / 2 + 2) * CELL);
 }
 
 function genMap(seed) {
@@ -1691,6 +1782,7 @@ function followPath(u, dt) {
     if (Math.abs(diff) > 0.8) speed = 0; else speed *= Math.max(0.3, Math.cos(diff));
     mx = Math.cos(u.face); my = Math.sin(u.face);
   } else { u.face = want; mx = dx / d; my = dy / d; }
+  speed *= slopeMul(u.x, u.y, mx, my);   // up a hill slower, down it faster
   const step = Math.min(speed * dt, d);
   if (step > 0 && tryMove(u, mx * step, my * step)) { u.anim += step; u.moving = true; }
   return false;
@@ -1725,8 +1817,9 @@ function addBuilding(type, team, cx, cy) {
     fireT: 0, smokeT: Math.random(), charge: 0, think: 0, hitT: -99,
   };
   for (let y = cy; y < cy + d.h; y++) for (let x = cx; x < cx + d.w; x++) G.bld[idx(x, y)] = b.id;
+  fillCraters(cx, cy, d.w, d.h);   // (craters under it filled: digCrater)
   if (d.exit) { b.exitCell = idx(cx + Math.floor(d.w / 2), cy + d.h); G.resv[b.exitCell] = 1; }
-  if (G.tctx && !d.camo) bibDecal(G.tctx, cx * CELL, cy * CELL, d.w * CELL, d.h * CELL, b.id * 977);   // (a camouflaged structure leaves no pad to give it away)
+  if (G.tctx && !d.camo) bibDecal(G.tctx, cx * CELL, cy * CELL, d.w * CELL, d.h * CELL, b.id * 977, b.type);   // (a camouflaged structure leaves no pad to give it away)
   if (G.tctx && d.depot) padDecal(G.tctx, cellX(b.exitCell) * CELL, cellY(b.exitCell) * CELL);
   G.entities.push(b); G.byId.set(b.id, b);
   team.stats.built++;
@@ -1757,12 +1850,18 @@ const unitsOf = (tid) => G.entities.filter((e) => e.alive && e.kind === 'unit' &
 const isAirborne = (e) => e.cls === 'air' && e.as !== 'landed';
 
 function distTo(a, e) {
+  let d;
   if (e.kind === 'bld' || e.kind === 'span' || e.kind === 'house') {
     const x0 = e.cx * CELL, y0 = e.cy * CELL;
     const dx = Math.max(x0 - a.x, 0, a.x - (x0 + e.w * CELL)), dy = Math.max(y0 - a.y, 0, a.y - (y0 + e.h * CELL));
-    return Math.hypot(dx, dy);
+    d = Math.hypot(dx, dy);
+  } else d = Math.max(0, Math.hypot(a.x - e.x, a.y - e.y) - (e.def.r || 0) * 0.5);
+  // High ground: from above, as if nearer (a gun reaches further down a hill); from below, as if further.
+  if (G.hgt && a.kind && (a.kind === 'unit' || a.kind === 'bld') && (e.kind === 'unit' || e.kind === 'bld')) {
+    const ha = standH(a), he = standH(e);
+    if (ha !== null && he !== null) { const r = Math.max(-1, Math.min(1, (ha - he) / HG_MAX)); d /= r > 0 ? 1 + HG_DOWN * r : 1 + HG_UP * r; }
   }
-  return Math.max(0, Math.hypot(a.x - e.x, a.y - e.y) - (e.def.r || 0) * 0.5);
+  return d;
 }
 
 const isTank = (t) => t.kind === 'unit' && t.def.draw === 'tank';
@@ -2948,7 +3047,9 @@ function bombBlast(p) {
 function craterAt(x, y, rad) {
   const c = cellOfPos(x, y);
   if (G.terr[c] >= 4 || G.bld[c]) return;
-  crater(G.tctx, x, y, rad, (Math.random() * 1e6) | 0);
+  const dig = rad >= DIG_MIN && !!G.hgt;   // heavy blasts dig the ground (digCrater); the flag tells an online guest's copy to dig too
+  crater(G.tctx, x, y, rad, (Math.random() * 1e6) | 0, dig ? 1 : 0);
+  if (dig) digCrater(x, y, rad);
 }
 // Ammunition cook-off: the tank's rounds go up, blowing the turret off into the air, spinning,
 // while flame roars out of the hull and more rounds keep popping. The turret crashes down
@@ -3245,6 +3346,7 @@ function kill(e, attacker, wh, from) {
           t: -i * 0.18, life: 0.8, seed: seed + i, debris: i % 2 === 0 });
       }
       rubble(G.tctx, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL, seed);
+      if (!e.def.defense || e.w * e.h > 1) craterAt(e.x, e.y, 6 + Math.min(4, e.w * e.h * 0.5));   // its fall digs a crater (digCrater)
       notify(team, 'slost', 'Structure lost', 4);
     }
   }
@@ -3832,6 +3934,7 @@ function slideOut(u, t, w, dt) {
   let speed = u.def.speed * VET.speed[u.rank || 0] * (u.cls === 'inf' && u.stance === 'prone' ? CRAWL_SPEED : 1);
   if (u.cls === 'veh') { u.face = turnToward(u.face, want, u.def.turn * dt); speed *= Math.max(0, Math.cos(angDiff(want, u.face))); }
   else u.face = want;
+  speed *= slopeMul(u.x, u.y, Math.cos(u.cls === 'veh' ? u.face : want), Math.sin(u.cls === 'veh' ? u.face : want));
   const step = Math.min(speed * dt, d);
   if (step > 0 && tryMove(u, Math.cos(u.cls === 'veh' ? u.face : want) * step, Math.sin(u.cls === 'veh' ? u.face : want) * step)) { u.anim += step; u.moving = true; }
   return true;
@@ -5459,7 +5562,9 @@ function updatePower() {
 function revealAround() {
   for (const e of G.entities) {
     if (!e.alive || (e.def && e.def.scripted)) continue;   // support planes reveal nothing on the way (see damage)
-    const rad = e.kind === 'bld' ? (e.def.sight || 3) + Math.max(e.w, e.h) / 2 : e.def.sight;
+    let rad = e.kind === 'bld' ? (e.def.sight || 3) + Math.max(e.w, e.h) / 2 : e.def.sight;
+    const sh = G.hgt ? standH(e) : null;
+    if (sh) rad += HG_SIGHT * sh / HG_MAX;   // from a hilltop, further
     revealCircle(e.x / CELL, e.y / CELL, rad, G.fog[e.team]);
   }
 }
@@ -5746,6 +5851,7 @@ function update(dt) {
   if ((T.log -= dt) <= 0 && !G.over) { T.log = 15; logSample(); for (const t of G.teams) if (!t.isAI) adviseTrucks(t); }
   if (!G.over && (T.stuck = (T.stuck === undefined ? 5 : T.stuck) - dt) <= 0) { T.stuck = 5; stuckWatch(); pileWatch(); }
   lightningStrikes(dt);
+  stormStrikes(dt);
   updateEffects(dt);
   sweepDead();
   rollCredits(dt);
@@ -5934,10 +6040,44 @@ function lightningStrikes(dt) {
     return f.t > 0;
   });
 }
+// Storms (look branch, proposal item 7; owner, 2026-11-19: their bolts land as the rain's do, both modes, and rarely). Now and
+// then a storm rolls in, planned from the battle's seed on the battle's clock (G.t), so the host, the server and every phone
+// agree: the first after STORM_FIRST s, then every STORM_GAP, lasting STORM_LEN, building over STORM_IN and clearing over
+// STORM_OUT (stormLevel: 0 to 1). At its height (above 0.6) each second has a STORM_BOLT_P chance of a bolt (boltStrike, as
+// the rain's: it scorches, sets trees alight, a building or span burns). The host decides (not guests); none on snow maps
+// (a blizzard there, looks only). The look (darker sky, heavy rain, sheet lightning) is src/lookstorm.js.
+const STORM_FIRST = [70, 160], STORM_GAP = [160, 320], STORM_LEN = [70, 110], STORM_IN = 16, STORM_OUT = 20, STORM_BOLT_P = 1 / 75;
+let stormPlan = null;
+function stormLevel(t) {
+  if (!G) return 0;
+  if (!stormPlan || stormPlan.seed !== G.seed) {
+    const h = Math.imul((G.seed | 0) ^ 0x2f6b1d3a, 0x9e3779b1), r = rng(h ^ (h >>> 15));
+    stormPlan = { seed: G.seed, r, list: [], end: 0 };
+  }
+  const P = stormPlan, span = (a) => a[0] + P.r() * (a[1] - a[0]);
+  while (P.end <= t) { const st = P.end + span(P.list.length ? STORM_GAP : STORM_FIRST), len = span(STORM_LEN); P.list.push([st, len]); P.end = st + len; }
+  const sm = (v) => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+  for (const [st, len] of P.list) { const u = t - st; if (u >= 0 && u <= len) return Math.min(sm(u / STORM_IN), sm((len - u) / STORM_OUT)); }
+  return 0;
+}
+const stormSnowy = () => mapTheme(G.mapId) === 'snow' || !!(G.weather && G.weather.kind === 'snow');
+function stormStrikes(dt) {
+  if (G.remote || stormSnowy()) return;
+  const t0 = G.stormT === undefined ? G.t - dt : G.stormT;
+  G.stormT = G.t;
+  if (G.t - t0 >= 2) return;
+  for (let s = Math.floor(t0); s <= Math.floor(G.t); s++) {
+    if (stormLevel(s) < 0.6) continue;
+    let h = Math.imul((G.seed | 0) ^ 0x6a09e667, 0x2c1b3c6d) + Math.imul(s, 0x297a2d39);
+    const r = rng(h ^ (h >>> 15)); r();
+    const at = r();
+    if (r() < STORM_BOLT_P && s + at > t0 && s + at <= G.t) boltStrike();
+  }
+}
 // Where a bolt comes down: anywhere on the map's dry land (bridges included), every spot as likely as any other.
 // Whatever stands there takes it: a building, a bridge span, a wood (its trees catch) or open ground.
-function boltStrike() {
-  let c = -1;
+function boltStrike(at) {   // (at: a cell, for recorders)
+  let c = at === undefined ? -1 : at;
   for (let i = 0; i < 200 && c < 0; i++) { const k = Math.floor(Math.random() * NCELLS); if (G.terr[k] !== 4) c = k; }
   if (c < 0) return;
   const x = (cellX(c) + Math.random()) * CELL, y = (cellY(c) + Math.random()) * CELL;

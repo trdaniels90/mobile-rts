@@ -57,3 +57,4 @@ Supabase.
 | `stuck.js` | Finds computer units sitting still with an order, and Ore Trucks not mining or unloading. `<repo> [minutes] [map] [1v1\|2v2] [seed]` |
 | `truck-queue.js` | Headless: 8 full trucks sent to one refinery queue at the dock; how long until all are unloaded. `<repo> [trucks]` |
 | `wipe-out.js` | A defeated side in a team game loses everything it has left |
+| `map-check.js` | Every map's ground, no battle played (`<repo> [seeds for the generated map]`, about a minute): starts reach each other (also with breakable bridges down, and not only through one-cell gaps), every ore and gem cell open and reachable, the nearest field to each start, unreachable pockets, and the drawn cliffs (look.js crags) against the blocked cells |

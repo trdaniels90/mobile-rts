@@ -2,6 +2,349 @@
 
 Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the section for the part of the game you are changing; add notes for new features here, newest last.
 
+## Tiberian Sun look (WORK IN PROGRESS, prototype off by default; looks only, both modes)
+
+**Goal (owner, 2026-11-19):** bring the game's look closer to Tiberian Sun's (original work only, nothing copied). A prototype in
+`src/look.js` (`LOOK.light`, `LOOK.cliffs`, `LOOK.concrete`).
+- **Kept apart (owner: "I don't want this touching the main game until it is ready"):** it lives ONLY on the branch
+  `claude/ts-look`; the main branch `claude/cross-platform-game-k2d9lb` has none of it (only a pointer in CLAUDE.md). Never release
+  it to the owner's build, the test build or the Windows app until the owner says it is ready. Bring the main branch in now and
+  then (`git merge origin/claude/cross-platform-game-k2d9lb`) so the look test shows the current game. On this branch the look is
+  ON unless the address has `?look=off`; the menu's version line says "Look test".
+- **Look test page** (shareable, the owner shares it from claude.ai): artifact https://claude.ai/artifact/PiiUht6h9D94h1KR1DD2gP
+  (slug `b7fc1b4a-ebb5-41ce-bf4c-f9fab9d9fbb0`). Update it like the owner's build (CLAUDE.md "Releasing" step 3-4: single file to `.build/index.html` plus
+  `sprites/`, `grounds/`, `music/`), but from this branch and to this slug. Single player only: a claude.ai page blocks
+  connections to other hosts, so online play and match reports do not work there (which keeps look tests out of the stats).
+  For online testing later: a test build on GitHub Pages would need the owner's OK (Pages serves `main`). Owner reviews each step as a before/after MP4 (`tools/look/record.js` makes the frames, `tools/look/video.sh` the MP4;
+recorder usage at the top of record.js).
+- **Done, owner liked it ("good starting point", "looks better"):** `drawLook` (ui.js, after the view is put on the screen, not on
+  day/night maps): saturation -26%, a cool multiply grade, a low sun from the upper left (soft-light gradient), a light shade with
+  holes where fires, blasts, Tesla bolts and structures glow, their warm glow added once at 0.3 ('lighten' buffer, so overlapping
+  blasts never pile up; owner said the first version's flames were overwhelming), a vignette. `cloudShadows`: a tileable noise
+  cut into clouds, fixed to the ground, drifting (9, 3.5) view px a second, multiplied over the picture.
+- **Made, video sent, waiting on the owner's verdict:** tall cliffs and concrete (video of 2026-11-19).
+  - Cliffs: `G.cliff` ridges stand up as flat-topped plateaus (Tiberian Sun style mesas): paintCliffs' own mound sum (cut from its
+    source, so the crag stands on its painted foot), steep sides to `CLIFF_TOP` (34) and lone rocks lower (`big`), drawn per cell
+    as a voxel-space picture (columns back to front, rock faces with strata, grassy/mossy tops, snowy on winter maps) sorted in with
+    the units (ui.js `cliffItems` / kind 'cliff' / `drawCliff`), and a shadow to the screen's right (`cliffShadow`). Pictures are
+    made 9 a frame (`cliffItems`), so they pop in at first: needs warming at battle start before release.
+  - **Ground round structures, redone 2026-11-19 (owner, from a Tiberian Sun screenshot: "I don't see any concrete besides
+    the ore refinery and war factory. Even then they're slabs"):** `concreteDecal` now paints ragged patches of worn ground
+    round every structure (dark wet earth on snow, trodden dirt elsewhere; out to `CON_M` 40 px, edges from a world-position
+    noise so neighbouring patches run together) and a concrete slab only under the Ore Refinery and War Factory
+    (`CON_SLABBED`), exactly the footprint, with a neat edge. bibDecal now takes the structure's type (world.js passes it;
+    older saved marks have none: dirt only). The notes below on the earlier concrete are history.
+  - Concrete (earlier): `concreteDecal` replaces `bibDecal`'s dirt (art.js hook): 12 px slabs on a world grid with joints, grit, oil stains,
+    cracks, a full outer ring (owner, 2026-11-19: no missing slabs; was 22% left out) with about a third of its slabs weathered and cracked (`worn`), and a little dirt; every pixel from its world position, so pads and tiles join seamlessly.
+- **Made, video sent 2026-11-19 (owner asked for them; verdict pending):** `LOOK.lamps` and `LOOK.ground`.
+  - Lamps (`structLamps`, `drawLamps`, in drawLook): from each structure type's voxel model, red beacons on its 1-2 highest
+    points (blink 0.14 of every 1.6 s, own phase per structure), a warm glow per 4 x 4 x 4 block of window glass facing the camera
+    (up to 10; out below 30% health). **Defences give off no light at all** (owner, 2026-11-19: "it doesn't look correct on
+    them"; no beacons, windows or structure glow, and on day/night maps not the night pool of light in drawNight either, art.js
+    hook), with one exception: the **Allied AA Gun's searchlight, at night only** (`drawSkyBeams`, after drawNight on day/night
+    maps, fading in with `dayNight().night`): a beam up into the sky, sweeping overhead, locked on the nearest enemy aircraft it
+    can see within `AA_LOOK` (320 px). Dropped earlier tries: ground searchlights on every defence, SAM beams, AA beams by day.
+    On the day/night maps (Village, Frost), where drawLook is not used, the beacons and windows were missing (owner,
+    2026-11-19: "my buildings as allies had no lights"): now drawn there on their own, after drawNight (`drawLampsAlone`).
+    Note for the main game: its own night lighting puts a pool of light round every structure, the camouflaged pillbox included.
+  - Ground (`lookGround`, called from `cliffItems`, so under units and cliff shadows): a fixed soft-light noise of drier, lusher
+    and darker patches (12 world px a noise pixel), and tank tracks: every 5 px a ground vehicle moves, a pair of tread marks,
+    fading over `TRACK_LIFE` 25 s (max 6000; kept in `lookTracks`, not in G, so not saved). The first strength was invisible on
+    the dark graded grass; now up to 0.72 alpha.
+- **Made 2026-11-19 (owner asked: "do this"; verdict pending):**
+  - Debris round wrecks: `wreckDebris`, drawn under each wreck by wrapping `MARK_DRAW.bakeWreck` (a mark, so once, on the tiles;
+    from the wreck's seed, within 35 px: torn metal, rust, plates, bright scraps, track links, ash).
+  - Smoother edges: art.js `groundPixels` with `SOFT` (`LOOK_SOFT`, also written into the ground workers' constants line, so it
+    is fixed when they start: compare with `?lookoff=ground`): grass fades into dirt and road over a band (darker, worn at the
+    middle of it) instead of a dithered cut-off at 0.42, and into the shore's sand. **The baked grounds (`grounds/`) on this
+    branch are rebaked with it**: if the look ever becomes optional, the fixed maps need both bakes or none.
+  - Water (`LOOK.water`, `drawWater` from `lookGround`, under units): open water (terr 4) as a quarter-size mask from the cells'
+    water field, two layers of thin wave crests drifting different ways (added), and foam in a band just off the shore that
+    swells and ebbs. Not on winter maps (icy water). Tank tracks are not laid on bridges, fords or water.
+  - `tools/look/record-ground.js`: before/after as two page loads (`?lookoff=ground,water`), the same staged scene at the
+    crossing nearest River Crossing's middle.
+- **Made 2026-11-19 (owner asked; verdict pending): bigger smoke and fires** (`LOOK.smoke`, `lookSmoke`, from ui.js after the
+  sorted list, so over the units): the look's own particles (not in G: not saved, not online), fed from structures below 60%
+  health (dark smoke from their `damageSpots`, thicker below 30%, where the spots also burn with flames; not the camouflaged
+  pillbox), 'fire' effects (one flame per 14 px cluster, so a wreck's many small flames make one, and a puff now and then) and
+  smouldering craters (thin grey). Puffs rise, swell, lean more with `windNow()` as they age and fade (life 5-8 s; max
+  `SMOKE_MAX` 1400); flames from 6 drawn frames, added; embers. The first try had a big flame on every small flame (far too
+  much), now merged and smaller. Thinned at the owner's word ("thin the smoke a bit"): structures' smoke 0.38 / 0.28 opacity (was 0.55 / 0.4) and
+  5 / 2.5 puffs a second per spot (was 7 / 3.5), fires' puffs 0.3, craters' 0.22.
+- **Tank turret fix (main game, 2026-11-19, on both branches, not released):** see the commit "Fix: a tank's turret slipped a
+  pixel" (art.js `blit`): hull and turret were rounded to pixels separately, twice, so the turret wobbled on the hull.
+- **Terrain height, stage 1 of 3 (2026-11-19; owner's picks: "Height with rules", **both modes**, on the existing maps):**
+  - world.js `makeHeights` -> `G.hgt` (cell middles, world px 0..`HG_MAX` 30): two layers of smooth noise from the map's ground
+    seed (fixed maps: always the same hills), down to 0 within 5 cells of water, and level low ground (0) within 8-13 cells of
+    every start position (fair: no base on a hill). Same on the server and every phone (online games call newWorld with the
+    seed and map). `hgtAt`, `standH` (none for aircraft in the air), `slopeMul`.
+  - Rules: `distTo` divides the distance by 1 + `HG_DOWN` (0.2) x height difference / 30 when the first is higher, 1 - `HG_UP`
+    (0.1) x ... when lower (so reach, acquiring, AI distances all follow; measured 135 px -> 113 down, 150 up); sight +`HG_SIGHT`
+    (2) cells at the top (`revealAround`); speed x `slopeMul` (65% to 112%; 81% up a typical hillside) in followPath and slideOut.
+  - Looks, for now: hill shading painted into the ground (art.js groundPixels `hgt`, also in the workers and `groundKey`): slopes
+    toward the sun lit, the others shaded. Grounds rebaked. Units are NOT drawn raised yet.
+  - **Stage 2, made 2026-11-19 (video sent; verdict pending): the ground drawn raised** (`LOOK.hills`, look.js "Raised ground";
+    `?lookoff=hills` draws it flat as in stage 1). Drawing only: rules, saves and online play are unchanged.
+    - `gLift(x, y)`: `hgtAt` x VK view px up the screen (up to about 25), faded to 0 over the outer `HILL_EDGE` (72 px) of the
+      map so the flat land past the edge meets it. `hillPt` (a world point lifted), `onHill(g, x, y, fn)` (fn drawn with the
+      world transform moved up by the lift there).
+    - The ground: not a view-space picture per tile after all, but `hillWarp` (look.js) + makeGround's `draw(..., warp, after)`
+      (art.js): each tile drawn in `HILL_CH` (32 px) chunks, each through its own affine transform fitted to the lift at its
+      four corners, drawn `HILL_LAP` (0.6 px) larger so neighbours overlap (no seams seen). Tiles whose 256 px square (and a
+      cell round it) is all height 0 are drawn in one piece (`hillFlatBox`: bases and shores). No per-tile pictures, so marks,
+      stand-ins and the baked ground work as before; the cost is one drawImage per chunk per layer (some hundreds a frame on
+      a phone; zoomed far out on a big screen a few thousand: measure before release). The hills are gentle (steepest slope
+      well under what would hide the ground behind it from this camera), so nothing needs sorting.
+    - The ground layer and the wrecks layer ('t', 'd') warp; the soft patches (lookGround) are drawn per chunk with the ground
+      (`hillPatch`); the shroud is drawn in chunks too (only where some cell round it is dark, ui.js `shroudClear`).
+    - Lifted by the ground under them: units (aircraft too, above the ground under them), structures (at their footprint's
+      middle), houses, props, villagers, hens, walls, cliffs and their shadows, ore (per cell), trees and their shadows (in
+      drawTree / treeShadows, so the far view's tree blocks too), husks and bodies, effects (a tracer's far end by its own
+      spot), shots, the flame tower's jet, smoke and embers (look.js lookSmoke), tank tracks, structure glows and lamps,
+      the AA searchlight's target, the night lights (art.js drawNight), the rally line, the placement grid and ghost, wall
+      lines, power circles, selection brackets, health bars, ranks and the labels over structures.
+    - Taps: `s2w` gives the point of the raised ground under the finger (a few steps down the screen by the lift);
+      `pick` and the double-tap select compare on the screen with the lifted spots.
+    - Not lifted (on low ground anyway): water and its foam (heights are 0 near water), bridges and broken spans, pigeons.
+    - Left for later: structures stand at their middle's height, their pads follow the slope (bases are on level ground, so
+      only an expansion on a hillside shows it); the minimap and debrief are flat; the camera's edge limits ignore the lift.
+  - **Taller hills, made 2026-11-19 (owner: "lets tackle this"; video sent, verdict pending):** the hills are drawn
+    `HILL_DRAW` (2.5) times as tall as `G.hgt` (up to about 62 view px). **No rule changes:** reach and sight compare heights as
+    a share of `HG_MAX`, and slope speed uses `G.hgt` itself, so only the picture is taller (no mode question needed: both
+    modes play exactly as before). `HILL_EDGE` 160 px, smoothstep, at the map's edge.
+    - Hills now hide what is behind them. The ground is drawn as a list of chunks (art.js makeGround `chunks` / `drawChunk`,
+      `HILL_CH` 32 px on a world grid) sorted back to front by their back corner's depth, each with its patches and its wrecks
+      layer; ore is merged into that order (key: its cell's middle + 40 px, so flat ground in front never clips it).
+      `hillFit` (look.js, worked out once a battle per chunk) holds the chunk's plane and `occ`: whether some point of it
+      stands higher on the screen than ground up to `hillMax()` behind it in its column (it hides ground).
+    - Units, trees, structures, cliffs: ui.js draws an `occ` chunk again (`reHill`, with its ore) just before the first thing
+      in the sorted list standing less than 6 px behind its back corner, if something already drawn shows where it does
+      (`drawnBox`). Things drawn after the list (shots, effects, smoke, aircraft) are never hidden; tank tracks, tree shadows
+      and cliff shadows behind a crest can show through it (not yet sorted). The far view's tree blocks are off with hills
+      (trees one by one, so hills can hide them: measure the cost on a big screen zoomed out).
+    - Taps: `s2w` walks its screen column from as far in front as the highest hill could show, back to the first ground
+      that stands at or above the tap (then a few halvings): the nearest ground under the finger, not ground hidden behind.
+    - Hill shading stronger (owner, 2026-11-19: "too faint"; picked A from a still of Now / A 2.2 / B 3.5): `HILL_SHADE` 2.2
+      (look.js; copied into the ground workers and part of `groundKey`; `?hillshade=1` shows the first version): the slope
+      term x2.2, its limits widened, lit slopes a little warmer and shaded ones a little cooler. Grounds rebaked. On rain or
+      night maps the shaded side is fairly dim: ease it back if the owner finds it too dark.
+  - **Phone speed, 2026-11-19 (owner: "incredibly laggy on a phone"):** measured in headless Chromium at an iPhone's
+    landscape size (844 x 390, 3x pixels), CPU slowed 4x, River Crossing at 5 minutes, our base: the look test ran at a
+    median **433 ms a frame** (the look off: 50-67 ms). Fixed:
+    - drawLook (grade, sun, haze, shade, glows, vignette: several blend passes over the whole picture) now runs on the view
+      canvas at zoom 1, before it is scaled up (ui.js, after the bars), not on the screen canvas at 3x pixels: about 25 times
+      fewer pixels for soft light that looks the same. Its W/H now come from vw/vh x k, not the canvas.
+    - The soft ground patches are painted into each ground tile once (`lookPatchTile`, from makeGround finishSome, with the
+      dressing) instead of a soft-light pass over the view every frame (with the raised ground: one per chunk).
+    - Raised ground: flat tiles drawn in one piece again (`hillTileFlat`, `HILL_FLAT_FIT`), chunks off the screen skipped.
+    - Water (`drawWater`) only round the open water that shows (it worked over the whole box round the turned screen: about
+      50 ms of the slowed frame on River Crossing).
+    - Now **150 ms** median (hills off: 100 ms; look off: 67 ms). Left: the raised ground's chunks (about a third), lookfx and
+      the pools; to measure on a real phone (the owner's) before more work. Profiler: `tools/look/prof.js`.
+  - **Stage 3 (next):** the AI using high ground; a game server for the look branch (online testing); balance with the owner;
+    the cost of the warped ground on a phone.
+  - Checked: teams.js 1v1 river 4 min, no errors.
+- **Proposal of 2026-11-19 (page https://claude.ai/artifact/BCzR1QoVMcAXYE8N3mcFkP, slug `52a7f35d-f1d8-4fb0-adf4-dbd0b9aa2f04`;
+  our screenshots only). Owner picked 1, 2 and 3; made 2026-11-19, video sent, verdict pending (see below). The list:** 1 light pools on the ground (lamp posts, window spill, ore glow),
+  2 ground dressing (rocks, gravel, puddles, worn paths, painted in once), 3 per-map mood (sun colour, shadow tint, haze; merge
+  with day/night), 4 living structures (moving parts, build-up), 5 bigger blasts (fireball, shockwave, debris, lasting craters),
+  6 steel sidebar skin, 7 storms (looks only; ask the mode if they should affect play), 8 grittier structure colours (owner, 2026-11-19: a full structure redesign). 7 and 8 made 2026-11-19, verdict pending (see below).
+  Recommended: 1-3 first. All drawing only (except 7 if made to affect play). Owner then picked 4, 5 and 6: made 2026-11-19, video sent, verdict pending (see below).
+- **Made 2026-11-19 (proposal items 1-3, owner's picks; video sent, verdict pending).** All drawing only, both modes; each its own
+  switch (`?lookoff=pools`, `dress`, `mood`). Recorder: `tools/look/record-pools.js <repo> <out> <map> <pools|dress|mood> [s] [night|rain]`.
+  - **Light pools** (`LOOK.pools`, look.js "Light pools"): lamp posts of our own design (plinth, slim post with a lit edge, bent arm,
+    hooded head lit from below; 28 view px tall, `postPic`) placed once a battle from the ground seed (`poolLampsFor`, not in G):
+    along every road line every `POOL_GAP` 150 world px, 1.7 cells off it, sides alternating, and 7 in a ring `POOL_RING` 8.5 cells
+    (+-1) round each start position; only on grass or dirt, 3 cells from water, ore, cliffs, trees, other lamps and the village's
+    own street lamps. Colours: 70% warm yellow, 18% cool blue, 12% red (ring: 80% warm). Hidden while a structure or wall stands
+    on its cell. Sorted in with the units as a picture (pushed as kind 'cliff' with `post`, so ui.js needed no change), with a
+    shadow to the lower right. Pools (`poolLights`): radius `POOL_R` 46 view px squashed to the ground's slant (VIEW.F), holes in
+    drawLook's shade and coloured light screened on at `POOL_DAY` 0.55, so units passing through are lit; a small glow at the head.
+    Window spill: up to 4 warm spots (22 px) on the ground just in front of a structure's lit windows (`windowSpill`, not
+    defences, not below 30% health). Ore glows faint gold, gems violet (every other cell on screen, 30 px, by amount).
+    Day/night maps: drawNight's own darkness gets the pools as holes (`lookNightLights`, one line in art.js drawNight) and their
+    colour after it (`lookNightPools`, ui.js, x night), so they grow with the night; by day they come from drawLook (x day).
+  - **Ground dressing** (`LOOK.dress`, look.js "Ground dressing"): painted into each ground tile once (art.js makeGround's
+    `finishSome` calls `lookDress` before the marks, so pads, scorches and wrecks cover it; nothing per frame). Placed once a
+    battle from the ground seed (`dressFor`, not in G), per cell: grass 5% rock clusters, 5% gravel, 7% bushes, 1.5% puddles;
+    dirt 8% gravel, 5% rocks, 4% puddles; road cells 12% cracks, 8% oil, 6% gravel, 4% puddles; plus worn paths (two ruts and
+    trodden dirt) from each start position to its two nearest ore fields (within 40 cells, not their first 12% nor last 10%).
+    Never on or next to water, ore, cliffs, or on trees, fords and bridges. No puddles on snow maps (rocks and bushes snow-capped).
+    Each detail from its own seed, so one split between tiles matches.
+  - **Per-map mood** (`LOOK.mood`, `MOOD` / `lookMood`): drawLook's saturation cut, multiply grade, sun and shadow tints (soft-light),
+    a haze ('screen', thicker toward the top of the screen), the shade's tint, the vignette and the pools' day strength, per map
+    id: bridge as before (BASE), river green-grey, lakes cool and misty, twinlakes dry late-summer warm, village golden, snow theme
+    (snowbound, frost) cold and bright, a desert theme warm (no desert map yet). Rain pulls toward an overcast grey and falling
+    snow toward a white haze, by weatherLevel x 0.8. The day/night maps (village, frost) now get drawLook too (with the mood), faded
+    out as night falls (`night` argument), before drawNight; their lamps still come from drawLampsAlone.
+- **Fog, made 2026-11-19 (owner: "on the grass maps at night and early morning can we add the possibility of fog rolling in if the
+  weather settings are correct for it"; video sent, verdict pending):** `LOOK.fog` (`?lookoff=fog`), look.js `lookFogLevel` (when and how thick),
+  drawn into the view before drawLook and drawNight (the night darkens it; the pools' colour shines through it). Only on day/night
+  maps that are not snow (Village). On `FOG_CHANCE` 0.55 of nights (rolled per night from G.seed: a night and its morning share one
+  roll), never in a battle with rain or snow (G.weather), thinner when the wind gusts (windNow, down to 0.35 of full), each foggy
+  night 0.6-1 thick. Day phase (art.js dayNight's: 0 midnight): rolls in from 0.82 to 0.95, lifts from 0.26 to 0.38.
+  - First try (a screen-wide veil and drifting noise) rejected by the owner: "It now looks like it's just a screen filter". Now it
+    **lies on the ground** (look.js `fogField` / `fogFrame` / `lookFogGround` / `lookFogOver`): a density field fixed to the world
+    (`FOG_Q` 8 world px a pixel), thick in low ground (gone above 45% of HG_MAX), thicker within 4 cells of water, cut into banks
+    with clear gaps by a fixed noise; each frame thinned by a second noise drifting downwind (0.12 of the wind, 0.15-1). Drawn in
+    the world transform: 4 sheets under the units (from cliffItems, after the ground; lifted 0/4/9/15 view px, 0.8/0.5/0.35/0.22)
+    so banks have a soft top, and 2 lighter sheets over the units (from lookSmoke, under the smoke; 0/7 px, 0.45/0.25), so
+    structures, trees and units stand out of it. Up to `FOG_MAX` 0.75, x (1 - 0.35 x night) (milky in the dark otherwise).
+    Drawn flat (not warped with the raised ground): it lies only in low ground, where the lift is about 0.
+  Looks only: sight and the fog of war are unchanged (making it cut sight would be a gameplay change: ask the mode).
+  Recorder: `record-pools.js <repo> <out> village fog 6 fognight|fogdawn`.
+- **Made 2026-11-19 (proposal items 4-6, owner's picks; video sent, verdict pending).** All drawing only, both modes, nothing in G
+  (the look's own particles in `lookFxS`, src/lookfx.js); each its own switch (`?lookoff=alive`, `blasts`, `sidebar`; the three
+  keys are added to LOOK by lookfx.js itself). Hooks, each marked "lookfx": ui.js drawOne (`lookAlive` after drawStructure),
+  ui.js after lookSmoke (`lookFxOver`), ui.js drawRadar (`lookRadar(on)`), look.js cliffItems (`lookFxGround`: the update, then
+  ground marks), look.js drawLook (`lookFxLights`). Recorder: `tools/look/record-fx.js <repo> <out> <map> <alive|blasts|sidebar> [s]`.
+  - **Living structures** (`LOOK.alive`): stacks found from each type's voxel model (`aliveSpots`: the highest columns, at least
+    70% of the top, 9 voxels apart; `ALIVE_STEAM` refinery 2, factory 2, power 2, apower 3). White steam from them (1.1 puffs a
+    second a stack, 2.4 from a producing factory, x0.3 on low power; life 1.8-2.6 s, max `STEAM_MAX` 260; none below 60% health,
+    where the look's dark smoke takes over). Power plants' glow breathes at their stacks (cool blue Allies, amber Soviets;
+    stutters on low power). The Allied Radar Dome gets a small dish turning on its roof (the Soviet one already turns) with a
+    green blink. While producing (own side and allies only, so nothing gives away the enemy's work): the War Factory's amber
+    beacon sweeps twice a second, a Barracks / Helipad / Airfield's green door lamp blinks. Not below 30% health; defences none
+    (owner's rule: no light from defences). **Build-up:** the game already builds each structure layer by layer from its model
+    with scaffold and sparks over `BUILD_UP` (2.5 s, a rule shared with the server, so not changed to 1 s); the look adds a glowing
+    plane in the team colour at the height reached, with lit corners, and a dust ring and dust puffs round the footprint when it is done.
+  - **Bigger blasts** (`LOOK.blasts`): every new 'expl' effect the player can see (the game's own sizes 5-20 already follow the
+    weapon and what was destroyed: shells 9, tanks 16, a structure's death a run of 10-18) gets: a core flash ('lighter', 0.14 s +),
+    a fireball of 1-7 balls swelling, rising and cooling yellow > orange > soot (drawn normally, not added, so many at once stay
+    fire-coloured), from size 10 a shockwave ring on the ground (pressure front and a dust ring, out to about 4-7 x size), debris
+    chunks (0.55 per size, a share glowing hot) that fly, fall at 330 px/s2 and bounce (x0.35), dark smoke handed to lookSmoke's
+    puffs, and a scorch mark (soot rays) that fades over `SCORCH_LIFE` 70 s (x0.7-1 by size; max `SCORCH_MAX` 120). Its light goes
+    through drawLook's shared 'lighten' buffer, so overlapping blasts never pile up into white. Caps: `FX_MAX` 700 balls and cores,
+    `DEBRIS_MAX` 260, `BLASTS_PER_FRAME` 10.
+  - **Steel sidebar** (`LOOK.sidebar`): CSS injected by lookfx.js (`STEEL_CSS`, body class `lk-steel`): dark brushed plate with rows
+    of rivets down both edges and along the top strip, a team-colour trim (`--accent`: blue Allies, red Soviets) on the sidebar's
+    inner edge, under the top strip, round the radar, the power bar and along each build icon's foot; build icons framed (bevel,
+    two rivets, a sheen); steel buttons with corner rivets; a hatched well behind the strips; the credits amber and the clock green
+    on the glow of a display. The radar: a frame, scan lines, a slow scan bar, and a burst of green static (about 1.1 s, a rolling band)
+    when it comes online. Same buttons, layout and hit areas (only colours, borders, shadows and pseudo-elements change).
+- **Made 2026-11-19 (proposal items 7 and 8; videos sent, verdict pending).** Drawing only, both modes, nothing in G; each its
+  own switch (`?lookoff=storms`, `?lookoff=structs`; keys added to LOOK by their own files). Recorder:
+  `tools/look/record-look2.js <repo> <out> <map> <structs|storms> [s]` (one page; structures swapped per frame by `lookStructs.set`).
+  - **Storms** (world.js `stormLevel` / `stormStrikes`, src/lookstorm.js `lookStorm`). **Their bolts are a rules change, both
+    modes (owner, 2026-11-19: "yes to both but make the lightning more rare"); the rest is looks only.** Now and then a storm rolls
+    in, planned from G.seed on the battle clock G.t (so the host, the server and every phone agree): the first after `STORM_FIRST`
+    70-160 s, then every `STORM_GAP` 160-320 s, lasting `STORM_LEN` 70-110 s, building over `STORM_IN` 16 s, clearing over
+    `STORM_OUT` 20 s. At its height (level above 0.6) each second has a `STORM_BOLT_P` 1/75 chance of a bolt (seeded per second):
+    world.js `boltStrike`, as the rain's lightning (a visible bolt, a scorch, trees alight, a building or span burns for BOLT_BURN
+    10 s losing BOLT_DMG 10%). The host decides (`G.remote` skips), guests get the bolt and its fires as usual; `G.stormT` (a number,
+    saved). None on snow maps. Measured headless: 20 min on River Crossing, about 225 s of storm height, 3 bolts (about 1-2 a storm).
+    - Looks (lookstorm.js, `?lookoff=storms` hides only these): under the rain a slate multiply (`STORM_DARK` 0.55 at the height,
+      heavier toward the top of the screen) and a murk; the rain is drawWeather given a stand-in weather `{ kind, lvl, storm, real }`
+      (art.js weatherLevel returns `w.lvl`) at 0.12 + 0.88 x the level, or the battle's own rain if heavier (its own lightning still
+      runs from G.weather only). Sheet lightning, this phone's own (local clock, looks only): every `STORM_SKY_GAP` 4-10 s the
+      scene flashes ('screen', up to `STORM_FLASH` 0.5 x 0.55-0.9, flicker 0.7 s) with distant thunder. Every bolt that lands on
+      the screen (a new 'bolt' effect) gives a full flash and close thunder panned to it. No full-screen flash with reduced motion
+      (`calmFlash`). On snow maps a blizzard (heavy snow, pale haze, no lightning).
+    - History: first made looks only with a drawn bolt every 3.5-9 s ending in mid-air; owner: "cut back on the lightning bolts, sky
+      can flash but I want the bolts to be rarer and actually strike the ground as before"; then asked whether storm bolts should
+      hurt and burn as the rain's do: "yes to both" (both modes), rarer.
+    - Hooks: ui.js where drawWeather is called (`lookStorm.weather`, `.dark`, `.flash`), art.js weatherLevel (`w.lvl`) and
+      drawWeather (the stand-in skips its lightning), world.js update (`stormStrikes`), boltStrike(at) takes a cell (recorders).
+      A game server for the look branch (online tests) must carry this world.js.
+  - **Structures redesigned** (`src/lookstructs.js`; owner: "Let's get away from our toy structures look"). Studied from
+    Tiberian Sun and Red Alert 2 screenshots (nothing copied); the principles: squat, wide and layered (stepped plinth, battered
+    lower walls, set-back storeys, buttresses); real materials (weathered concrete with pour lines and joints, riveted plate,
+    ribbed sheet, tar roofs; grime at the foot, rain streaks under top edges, rust); small detail at the right scale (pipes with
+    flanges, vents, fans, ladders, railings, masts with beacons, floodlights, hazard stripes); the team colour as bands, stripes
+    and plates, not whole roofs; a darker, muted palette with strong form shading; each role readable at a glance.
+    - Stage 1 (done): new models for the Construction Yard, Barracks and War Factory of both sides, and the Allied Power Plant and
+      Ore Refinery (`TS_MODELS`, kit `tsConc`, `tsBatter`, `tsPlinth`, `tsPlate`, `tsRibbed`, `tsBand` (3 voxels, the team colour),
+      `tsRoofStripes`, `tsHazard`, `tsPipeX/Y/Z`, `tsRail`, `tsLadder`, `tsVent`, `tsFan`, `tsMast`, `tsFlood`, `tsWinX/Y`,
+      `tsSandbags`, `tsHipRoof`; palette `TSC`). Every model ends with `tsWeather` (saturation x0.88, darker x0.97, near-white
+      walls x0.86, speckle, mud on the lowest 4 voxels of side faces, rain streaks within 12 below a top edge, rust specks on
+      steel). **Every other structure** (Soviet Power Plant and Refinery, Radar Domes, Advanced Power, Service Depot, Helipad,
+      Airfield, Tech Centre, Outpost, the defences) gets `tsWeather` strong only (saturation x0.8, old white walls x0.74).
+    - Left for the next stages: new models for the Soviet Power Plant and Refinery, then the Radar Domes, Advanced Power Plants,
+      Depot, Helipad, Airfield, Tech Centre, Outpost; the defences last (their heads, models.js HEADS, are separate). Watch the
+      team colour: with the darker grade the bands are smaller than the old roofs (make them wider if sides are hard to tell).
+    - Kept, so other code still fits: ids, footprints, model boxes and hit areas; the yard's crane mast and jib pivot (SPINNERS.cy,
+      CRANE_HOOK; roofs under the hook stay below 28); the War Factory's door opening (x 20-52, y 44-46, z 1-16: factoryDoor);
+      the power plants' and refineries' stack tops (plantStacks: world.js smoke); flag poles (FLAG_SPOTS); the Soviet banner rods
+      (BANNERS); the refinery's truck bay (x 24-44, open to the south).
+    - **For the other look sessions:** window glass is still M_GLASS (structLamps, windowSpill find it: the factories now have
+      glazed saw-tooth steps and slit windows, the yard a slanted control-room band), new masts carry an M_GLOW red beacon at
+      their tops, and the stacks are still the highest points (aliveSpots steam). `STRUCTURES[type]` now goes through
+      lookstructs.js (it checks LOOK.structs on each call); models.js is unchanged. If you add moving parts, read the anchors above.
+    - Baked sprites: the sheets in sprites/ are of the earlier models, so while LOOK.structs is on from the start, baked
+      pictures of structures are refused (lookstructs.js wraps spriteCache2.set and spriteAny.set) and these models are rendered
+      while playing (as on a page opened from a file). Nothing rebaked: models.js is untouched, so `bake-sprites --check` is
+      unaffected. If the look becomes the game: move the models into models.js and rebake.
+- **Craters that dig the ground, made 2026-11-19 (owner: "ground marks depending on the explosion can make craters like in
+  Tiberian Sun and actually affect the ground where units can go in them"; owner's picks: **both modes**, units dip and are
+  slowed, heavy blasts only; video sent, verdict pending).** A rules change (world.js, terrain height section), on this branch only.
+  - `G.dig` (Float32Array per cell, saved with G) is added to G.hgt's heights in `hgtAt`, so every height rule follows it: units
+    drive down into a crater, climb out slower (slopeMul: 65% at the steepest), reach a little less and see a little less from the
+    bottom (distTo, revealAround). Nothing is blocked. G.hgt itself is untouched (the painted hill shading and ground keys stay).
+  - `craterAt` digs from rad `DIG_MIN` 5 (artillery 5, V2 9, bombs 8, aircraft crashing 9, tanks destroyed 5, the hit at
+    world.js "craterAt(x, y, 6)"; not rifles, tank shells or flak) and a destroyed structure now leaves one (rad 6 + up to 4 by
+    size; not 1-cell defences). `digCrater`: a bowl of radius 1 + rad / 6 cells, rad x `DIG_K` 0.55 deep (rad 9: about 4.5 of HG_MAX
+    30 at the middle, 11 view px), a low rim (+12%), a cell no deeper than `DIG_MAX` 9; not in water, cliffs or under structures.
+    A structure placed on dug ground fills it (`fillCraters`, from addBuilding). `G.craters` ([x, y, rad], the newest 400) for drawing.
+  - Online: craterAt passes a 6th argument (1) to the `crater` mark, which the host relays as a decal event; net.js digs the
+    guest's copy when it plays it. A server for the look branch is still needed before online tests (the look test page is
+    single player).
+  - **Look redone 2026-11-19** (owner: "Redo craters look at Tiberian Sun craters. In that video ours are all glitched out and it
+    looked like a unit was driving through a hill"). Cause: the dip was drawn 2.5x deep through the raised ground's 32 px planar
+    chunks, so crater rims became chunks that hide what is behind them (occ) and were drawn over units in the bowl; and the
+    bowls were big round opaque discs. Now: craters are TS-sized (radius 0.6 + rad / 10 cells, rad x `DIG_K` 0.5 deep, cells
+    no deeper than `DIG_MAX` 7; rules otherwise as above). The drawn ground leaves them out (look.js `gLift(x, y, noDig)`,
+    used by hillFit; world.js `hgtAt(x, y, noDig)`), and what stands in a crater sinks `DIG_SHOW` 0.9 view px per unit of depth
+    (up to about 6 px) into the painted pit. `lookCraters` (lookfx.js, `?lookoff=craters`): one of `CRATER_VAR` 6 pictures per
+    crater (from its position), never turned: a ragged scorched hollow (outline from three sine waves), a faint soot halo, a
+    ring of thrown earth and clods, the pit darkest at its heart, its wall on the sun's side (the screen's upper left, turned
+    into world axes) in shade and the far wall lit, a soft lit lip; soft edges so overlapping craters run together; drawn at
+    the ground's height, 3 x the bowl's radius. `lookDug` is now a no-op.
+  - **Look redone again 2026-11-19** from the owner's Tiberian Sun snow screenshot (style reference only; original art): not a
+    pit with a lip but a splat in a darker shade of the ground (cool blue-grey on snow, dark earth elsewhere). `craterPic(v, snow,
+    big)`: 70 tapered, slightly bent streaks of all lengths thrown out from the middle (overlapping, so darkest there), clumps
+    and loose splotches past the ends, a soft dark middle, fine dark and pale streaks; the big ones (rad >= 8: bombs, V2s,
+    crashes, structures) also a ragged hollow and two broken rings round a deeper middle; pale flecks round the edge.
+    `CRATER_VAR` 4 per kind, turned by the crater's position, 2.6 x the bowl's radius. The blasts' own scorch mark (lookfx)
+    is left out where a crater was dug (its black soot hid the colour).
+  - **Redrawn a third time 2026-11-19** (owner: "idk these still dont look good"): the splats read as soft stains, the reference's
+    as holes. Now each picture is worked out pixel by pixel from a small height field and lit like the hills (`craterPic`): a
+    round-ish hollow with 48 short spikes in its edge, uneven grooves running out, steps round a deeper middle in the big ones
+    (rad >= 8), a low rim of thrown earth; each pixel's tone from its slope toward the sun (upper left of the screen, in world
+    axes) and its depth (darker deeper), between the ground's own dark, middle and lit tones (snow: slate blue to white; else
+    dark soil to dry earth), with grain; the rim pale, its edge a hard dither. 60 px (84 big) pictures drawn 1:1 in world
+    pixels, scaled 0.8-1.25 by rad, without smoothing; not turned (lit from the sun's side).
+- **Service Depot pad hidden on raised ground (owner, 2026-11-19: "the service depot repair cross on the ground wasn't level cause
+  of the hill. Maybe remove it?"):** art.js padDecal draws nothing while `LOOK.hills` is on (the mark is still recorded, so saves
+  and online play are unchanged; `?lookoff=hills` shows it again).
+- **Lighting and weather per map, decided 2026-11-19 (owner picked "A": leave it as it is).** Offered: per-map defaults plus
+  weather for A Bridge Too Far and Twin Lakes (none now), and a skirmish "Conditions" choice (time, weather). Kept as is: weather
+  per map (rain 50% on Three Crossings, Lakeside, Village; snow 50% Snowbound, 60% Frostlight; none on A Bridge Too Far, Twin Lakes),
+  day and night only on Crossroads Village and Frostlight Valley, mood per map, storms on rain maps, fog on Village.
+- **Real-time lighting demo (WebGL), 2026-11-19 (owner: "show me a video example of how real time lighting would work ... if
+  we went with webgl"; a demo only, nothing in the game changed):** `tools/look/webgl-light.html` (loads the game's data, voxel,
+  models and art scripts) and `tools/look/record-webgl.js` (frames; needs Chromium's SwiftShader WebGL flags, in the script).
+  Top half: the game's way now (renderVox sprites lit once by the fixed sun, a multiply darkness and 'lighter' glows). Bottom:
+  a G-buffer per pixel from the same voxel models (`gbuf`: renderVox's projection, keeping each pixel's colour, material,
+  turned normal, 3D position and occlusion), lit every frame by a WebGL2 shader: ambient and the sun by the day level, the
+  sprites' cast shadows as a sun mask on the ground, up to 6 point lights (a flickering fire, a flare circling the factory,
+  three blasts) with distance fall-off and facing, metal highlights, glowing parts. Not shown: shadows cast by the point lights.
+  For the game this would mean: sprites baked as colour + normal + height pictures (about 3x the sprite memory), the view
+  drawn through WebGL instead of 2D canvas (a large rewrite of art.js/ui.js drawing), and its cost measured on a phone.
+- **TS test link for testers, 2026-11-19 (owner: "Update the test build for this new TS so I can start testing it", picked "Separate
+  TS link"):** https://trdaniels90.github.io/mobile-rts/ts/ , the folder `ts/` on `main` (and `claude/cross-platform-game-k2d9lb`),
+  built by `tools/look/build-ts.sh` from this branch: VERSION + '-ts' (the server and room codes check the version, so TS phones
+  only play other TS phones, phone to phone; no team games), its own saved game (IndexedDB 'red-horizon-ts'), its own baked ground
+  (`ts/grounds`), sprites, music and map pictures from the main site (`../`; the script stops if they differ from main), `<meta
+  charset>` added (the single file has none). It registers no service worker of its own and its update check finds no
+  `ts/src/version.js` (so no restart offer: testers reload). Match reports still go to Supabase, with the `-ts` version (filter
+  them out of the leaderboard and stats if needed). The main game, the Windows app (its workflow only runs on src/version.js or
+  desktop/) and the server are unchanged.
+- **Next ideas offered to the owner (not started):**
+  real terrain height (gameplay, a big project on its own branch; ask single player / online / both), a Tiberian Sun-style sidebar.
+- **Before switching it on for players:** owner's OK; test the cost on a phone (the grade is 4 full-screen passes plus two half-size
+  layers; cliffs add one picture per rock cell); an Options switch was offered; decide per map grade (snow maps colder, rain maps
+  cloudier); day/night maps (village, frost) use drawNight instead, so merge the two; cliffs on the minimap and in the debrief are flat.
+
 ## Iso view (branch `claude/iso-view`, test only: not for players until the bugs are fixed, owner's call)
 
 - Tiberian Sun style camera: the world is turned 45 degrees (cells show as diamonds) and seen from about 33 degrees.
@@ -1596,3 +1939,44 @@ Owner's match ea39d315 (3 v 3, 40 min, a 120 Hz PC at 2560 x 1370): 117 fps earl
 ## Ally picker was invisible (not released, team games, both modes)
 
 - With 2+ allies the Ally button builds `#allyPick` (`allyPicker`, ui.js), but style.css only styled `#autoPick`, so the card was never shown and the button seemed to do nothing (owner, 3 v AI online). `#allyPick` now shares the overlay rules. With one ally the button still toggles at once.
+
+## WebGL renderer (`src/gl.js`, from branch `claude/webgl`, merged into `claude/ts-look` 2026-11-20)
+
+The whole battlefield is drawn by WebGL2 when it can; `?gl=off` (and no WebGL2, a lost context, or `GLR.paused`) draws
+it the 2D way as before. Drawing only: rules, saves and online play do not change. The full history, measurements and
+reasons are in `plans/webgl-renderer.md`; the short version:
+
+- **How:** the ground is a mesh lifted by the hills (tiles as textures). From the ground to the HUD, ui.js draw draws
+  into a stand-in for the view canvas (`GLR.listBegin`): pictures become quads (atlases, normal-map twins), solid
+  rectangles, thin and thick straight lines, convex shapes and whole ellipses become coloured quads and triangles, big
+  gradient fills are drawn small and stretched, and anything else (curves, clipped drawing, unusual blends) is cut out of
+  a 2D layer into a per-frame atlas, in its place in the order. `GLR.listDepth` sets what is tested against the hills'
+  depth. `GLR.listEnd` draws the scene (colour and normals), the light pass (the look's mood, the night, lights from
+  `lookDayLights` / `nightLights`, the side of a picture or a hill facing a light lit more, the sun where it is in the
+  day on day/night maps), then what goes over the light (lamps, weather, storms) and the HUD; `GLR.present` puts it on
+  its own canvas (`#gl`) under the game's.
+- **Switches:** `?gl=off` the 2D way; `?gl=flatlight` no normal-map lighting; `?gl=nosun` the baked sun; `?gl=normals`
+  shows the normal maps; `?glstats` (or `#glstats`) a speed readout with a 2D / WebGL button.
+- **Baked normal maps:** `tools/bake-normals.js <repo> [--check]` writes `normals/` in the sprite sheets' layout (team
+  colours share one sheet; structures are left out while lookstructs.js redraws them). **Rebake after every
+  `tools/bake-sprites.js`**, and after a change to gl.js `nrmPic` (`--check` says so). Releases publish `normals/` with
+  `sprites/` (CLAUDE.md, Releasing step 4; tools/look/build-ts.sh copies it). Missing or stale, the game works them out
+  in play (at most 3 ms a frame).
+- **Do not change** `src/models.js` or `src/voxel.js` for it (the sprite bake's check hashes them): gl.js wraps
+  `renderVox` and `sprite` to know which model a picture came from.
+- **Checking:** `tools/look/gl-compare.js <repo> <prefix> <map> [fight|fightfx] [rain|snow]` draws one paused moment the 2D
+  way and with WebGL (flat light, sun off: about 1-2% of pixels differ, the hills' sampling) and lit.
+- **Phone:** the owner's iPhone: 60 fps zoomed all the way out at the start of a battle (16 before the zoomed-out fixes).
+
+## Map check: cliffs, routes, ore (2026-11-20, `tools/sim/map-check.js`)
+
+Owner: "Check all the maps and make sure cliffs are correct and don't block off routes, make sure all the ore and gems are
+fine." Every map (Bridge Crossing over several seeds) passes: every start reaches every other over open ground (Twin Lakes
+also with its bridges down), none only through one-cell gaps; every ore and gem cell is open ground and reachable; each
+start has an ore field 10-31 cells away. Open pockets nothing reaches are left as they are: forest corners (Bridge),
+clearings behind trees at map edges (Frost, Lakes), a strip behind a creek loop and a cliff at Snowbound's west edge; none
+holds ore or a start. Fixed (looks only, look.js cliffLookFor): the tall crags now agree with the rules cell by cell: rock
+fades off ore and gem cells it reached (Twin Lakes 32,85, Snowbound 152,139) and off open cells it mostly covered (River
+90,82, Snowbound 132,37), and a blocked cliff cell its rock hardly reached gets a boulder (River 105,86). Costs 16-42 ms
+once a battle on a desktop. Rules, saves and online play unchanged.
+

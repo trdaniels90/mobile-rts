@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Real-time lighting demo (look test)</title>
+<style>body{margin:0;background:#000}canvas{display:block;image-rendering:pixelated}</style></head>
+<body>
+<!-- A demo, not the game: what WebGL real-time lighting would look like on our voxel art (owner's question, 2026-11-19).
+     Top: the way the game lights now (sprites lit once by a fixed sun, a darkness layer and 2D glows added on top).
+     Bottom: the same scene and lights, each pixel lit every frame in a WebGL shader from the voxel models' own surface
+     directions (renderVox's normals, kept per pixel instead of baked into the colour).
+     Recorded by tools/look/record-webgl.js; ?t=<seconds> shows one moment. -->
+<canvas id="out" width="480" height="540" style="width:960px;height:1080px"></canvas>
+<script src="../../src/version.js"></script>
+<script src="../../src/data.js"></script>
+<script src="../../src/maps.js"></script>
+<script src="../../src/voxel.js"></script>
+<script src="../../src/models.js"></script>
+<script src="../../src/art.js"></script>
+<script>
+'use strict';
+const W = 480, H = 270, OY = 10;
+const scr = (X, Y, z) => [X, Y * VIEW.F + OY - (z || 0) * VK];
+// ---- Models (the game's own) -----------------------------------------------------------------------------------
+const pal = palFor('allies'), spal = palFor('soviets');
+function merge(a, b, dz) {   // b on top of a, raised dz voxels (a tank's turret on its hull)
+  const m = new VModel(Math.min(a.x0, b.x0), Math.min(a.y0, b.y0), Math.max(a.x0 + a.w, b.x0 + b.w), Math.max(a.y0 + a.h, b.y0 + b.h), Math.max(a.d, b.d + dz));
+  for (const [s, oz] of [[a, 0], [b, dz]]) for (let z = 0; z < s.d; z++) for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) {
+    const i = (z * s.h + y) * s.w + x; if (s.col[i] < 0) continue;
+    const j = m.idx(x + s.x0, y + s.y0, z + oz); if (j >= 0) { m.col[j] = s.col[i]; m.mat[j] = s.mat[i]; }
+  }
+  return m;
+}
+const tank = (p, size) => merge(tankHull(p, size), tankTurret(p, size), TURRET_Z.tank);
+const MODELS = {
+  factory: STRUCTURES.factory(pal, 'allies'), power: STRUCTURES.power(pal, 'allies'),
+  mtank: tank(pal, UNIT_DEFS_SIZE('mtank')), ltank: tank(pal, UNIT_DEFS_SIZE('ltank')), htank: tank(spal, UNIT_DEFS_SIZE('htank')), harv: harvModel(pal, true),
+};
+function UNIT_DEFS_SIZE(t) { const d = typeof defOf === 'function' ? defOf(t) : null; return d && d.size || 1; }
+// The scene: [model, X, Y on the ground (view-aligned, unsquashed), facing (radians; rate for one that turns)].
+const SCENE = [['factory', 140, 120, 0], ['power', 340, 95, 0], ['harv', 395, 255, 1.2], ['mtank', 110, 330, 0.4], ['htank', 245, 355, -2.4, 0.5], ['ltank', 335, 320, 2.2]];
+// ---- G-buffer pictures: renderVox's projection, but per pixel the surface's colour, direction and 3D position ---------
+function gbuf(m, angle) {
+  const s = m.surf || (m.surf = surfaceOf(m)), a = angle + VIEW.rot, ca = Math.cos(a), sa = Math.sin(a), F = VIEW.F, ext = 0.5 * (Math.abs(ca) + Math.abs(sa));
+  const n = s.n, px = new Float32Array(n), py = new Float32Array(n), pu = new Float32Array(n);
+  let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+  for (let i = 0; i < n; i++) {
+    const cx = s.xs[i] + 0.5, cy = s.ys[i] + 0.5, xr = cx * ca - cy * sa, yu = cx * sa + cy * ca, z = s.zs[i];
+    px[i] = xr; pu[i] = yu; py[i] = yu * F;
+    minX = Math.min(minX, xr - ext); maxX = Math.max(maxX, xr + ext); minY = Math.min(minY, py[i] - ext * F - (z + 1) * VK); maxY = Math.max(maxY, py[i] + ext * F - z * VK);
+  }
+  minX = Math.floor(minX); minY = Math.floor(minY);
+  const w = Math.ceil(maxX - minX) + 1, h = Math.ceil(maxY - minY) + 1, id = new Int32Array(w * h).fill(-1);
+  const order = Array.from({ length: n }, (_, i) => i).sort((p, q) => (py[p] / F * VK + s.zs[p] * F) - (py[q] / F * VK + s.zs[q] * F));
+  for (const i of order) {
+    const z = s.zs[i], x0 = Math.floor(px[i] - ext - minX), x1 = Math.ceil(px[i] + ext - minX), y0 = Math.floor(py[i] - ext * F - (z + 1) * VK - minY), y1 = Math.ceil(py[i] + ext * F - z * VK - minY);
+    for (let y = Math.max(0, y0); y < Math.min(h, y1); y++) for (let x = Math.max(0, x0); x < Math.min(w, x1); x++) id[y * w + x] = i;
+  }
+  const nr = (i) => [s.nx[i] * ca - s.ny[i] * sa, s.nx[i] * sa + s.ny[i] * ca, s.nz[i]];
+  return { w, h, ox: minX, oy: minY, id, s, px, pu, nr };
+}
+// ---- The ground (a plain original grass and dirt, the same for both) ---------------------------------------------
+const ground = mkCanvas(W, H);
+{
+  const g = ground.getContext('2d'), img = g.createImageData(W, H), d = img.data, r = rng(5);
+  const vn = (x, y, sc) => { const fx = x / sc, fy = y / sc, i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j, hh = (a, b) => hash3(a, b, 7);
+    return (hh(i, j) * (1 - u) + hh(i + 1, j) * u) * (1 - v) + (hh(i, j + 1) * (1 - u) + hh(i + 1, j + 1) * u) * v; };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const Y = (y - OY) / VIEW.F, dirt = Math.max(0, 1 - Math.hypot((x - 230) / 260, (Y - 240) / 220)) * 1.6 + vn(x, Y, 40) * 0.5 - 0.55;
+    const k = Math.max(0, Math.min(1, dirt * 2)), nz = vn(x, Y, 6) * 0.25 + r() * 0.08;
+    const c = [86 + (122 - 86) * k, 104 + (100 - 104) * k, 48 + (70 - 48) * k].map((v) => v * (0.85 + nz));
+    const o = (y * W + x) * 4; d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+}
+// ---- Lights at time t --------------------------------------------------------------------------------------------
+// day: 1 by day, down to 0.12 at night. Fire: flickering, orange. Flare: circling the factory. Blasts: two, short.
+function lightsAt(t) {
+  const day = t < 2 ? 1 : t < 5 ? 1 - (t - 2) / 3 * 0.88 : 0.12;
+  const L = [];
+  const fl = 0.8 + 0.2 * Math.sin(t * 17) * Math.sin(t * 7.3 + 1);
+  L.push({ p: [230, 245, 22], c: [1.0, 0.55, 0.18], r: 170, k: 1.9 * fl });
+  const a = t * 1.4; L.push({ p: [150 + Math.cos(a) * 110, 130 + Math.sin(a) * 95, 34], c: [0.85, 0.9, 1.0], r: 170, k: 1.5 });
+  for (const [t0, x, y] of [[5.6, 190, 380], [7.6, 380, 300], [9.0, 80, 280]]) if (t >= t0 && t < t0 + 0.7) { const q = (t - t0) / 0.7; L.push({ p: [x, y, 22 + q * 12], c: [1.0, 0.8, 0.5], r: 220, k: 3.2 * (1 - q) * (1 - q) }); }
+  return { day, L };
+}
+// ---- Top: the game's way now ----------------------------------------------------------------------------------
+const sprites = new Map();
+function preLit(name, ang) { const k = name + ang.toFixed(3); if (!sprites.has(k)) sprites.set(k, renderVox(MODELS[name], ang)); return sprites.get(k); }
+const glowPic = (() => { const c = mkCanvas(64, 64), x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,255,255,0.4)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return c; })();
+function items(t) { return SCENE.map(([n, X, Y, f, rate]) => ({ n, X, Y, f: f + (rate || 0) * t })).sort((a, b) => a.Y - b.Y); }
+function drawNow(g, t) {
+  const { day, L } = lightsAt(t);
+  g.drawImage(ground, 0, 0);
+  for (const it of items(t)) { const s = preLit(it.n, it.f), [x, y] = scr(it.X, it.Y); g.globalAlpha = 0.45; g.drawImage(s.sh, Math.round(x + s.sox), Math.round(y + s.soy)); g.globalAlpha = 1; }
+  for (const it of items(t)) { const s = preLit(it.n, it.f), [x, y] = scr(it.X, it.Y); g.drawImage(s.img, Math.round(x + s.ox), Math.round(y + s.oy)); }
+  // Darkness (night) and the lights as soft glows added on top (as drawLook / drawNight do).
+  g.save(); g.globalCompositeOperation = 'multiply'; const v = Math.round(255 * (0.25 + 0.75 * day)); g.fillStyle = `rgb(${v},${v},${Math.min(255, v + 25)})`; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = 'lighter';
+  for (const l of L) { const [x, y] = scr(l.p[0], l.p[1], l.p[2]), R = l.r * 0.55; g.globalAlpha = Math.min(1, 0.32 * l.k * (1.2 - day * 0.6)); g.drawImage(tint(l.c), x - R, y - R * 0.7, R * 2, R * 1.4); }
+  g.restore();
+  flames(g, t);
+}
+const tints = new Map();
+function tint(c) { const k = c.join(); if (!tints.has(k)) { const t = mkCanvas(64, 64), x = t.getContext('2d'); x.drawImage(glowPic, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = `rgb(${c.map((v) => Math.round(v * 255))})`; x.fillRect(0, 0, 64, 64); tints.set(k, t); } return tints.get(k); }
+function flames(g, t) {   // the fire itself, the flare and the blasts' flashes (the same pictures in both)
+  const { L } = lightsAt(t);
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 5; i++) { const [x, y] = scr(230 + Math.sin(i * 2.1) * 7, 245 + Math.cos(i * 1.7) * 5, 0), hh = 12 + 6 * Math.sin(t * 13 + i * 2); g.fillStyle = i % 2 ? 'rgba(255,150,40,0.8)' : 'rgba(255,220,120,0.8)'; g.beginPath(); g.moveTo(x - 3, y); g.quadraticCurveTo(x, y - hh * 1.4, x + 3, y); g.fill(); }
+  const [fx, fy] = scr(L[1].p[0], L[1].p[1], L[1].p[2]); g.drawImage(tint([1, 1, 1]), fx - 6, fy - 6, 12, 12);
+  for (const l of L.slice(2)) { const [x, y] = scr(l.p[0], l.p[1], l.p[2]), R = 26 * Math.min(1, l.k / 2); g.globalAlpha = Math.min(1, l.k / 2.5); g.drawImage(tint([1, 0.75, 0.4]), x - R, y - R, R * 2, R * 2); }
+  g.restore();
+}
+// ---- Bottom: WebGL, each pixel lit every frame -------------------------------------------------------------------
+const gl = document.createElement('canvas'); gl.width = W; gl.height = H;
+const GL = gl.getContext('webgl2', { preserveDrawingBuffer: true });
+const VS = `#version 300 es
+in vec2 p; out vec2 uv; void main(){ uv = p * 0.5 + 0.5; uv.y = 1.0 - uv.y; gl_Position = vec4(p, 0, 1); }`;
+const FS = `#version 300 es
+precision highp float; in vec2 uv; out vec4 o;
+uniform sampler2D tA, tN, tP; uniform vec3 sun; uniform float day; uniform int nl; uniform vec3 lp[6], lc[6]; uniform float lr[6], lk[6];
+void main(){
+  vec4 A = texture(tA, uv), N = texture(tN, uv), P = texture(tP, uv);
+  vec3 n = normalize(N.xyz * 2.0 - 1.0); float sh = N.w, mat = A.w * 4.0;
+  vec3 amb = mix(vec3(0.07, 0.09, 0.16), vec3(0.52, 0.52, 0.55), day);
+  vec3 lit = amb * P.w + vec3(1.0, 0.95, 0.85) * 0.78 * day * max(0.0, dot(n, sun)) * sh;
+  vec3 spec = vec3(0.0); vec3 V = normalize(vec3(0.0, 0.6, 0.8));
+  for (int i = 0; i < 6; i++) { if (i >= nl) break;
+    vec3 d = lp[i] - P.xyz; float dist = length(d); float att = clamp(1.0 - dist / lr[i], 0.0, 1.0); att *= att;
+    vec3 l = d / max(dist, 0.001); float df = max(0.0, dot(n, l));
+    lit += lc[i] * lk[i] * att * df;
+    if (mat > 0.5 && mat < 1.5) spec += lc[i] * lk[i] * att * pow(max(0.0, dot(n, normalize(l + V))), 14.0) * 0.6;
+  }
+  vec3 c = A.rgb * lit + spec;
+  if (mat > 2.5 && mat < 3.5) c = A.rgb * 1.1;   // glowing parts light themselves
+  o = vec4(c, 1.0);
+}`;
+function prog() {
+  const mk = (t, s) => { const sh = GL.createShader(t); GL.shaderSource(sh, s); GL.compileShader(sh); if (!GL.getShaderParameter(sh, GL.COMPILE_STATUS)) throw new Error(GL.getShaderInfoLog(sh)); return sh; };
+  const p = GL.createProgram(); GL.attachShader(p, mk(GL.VERTEX_SHADER, VS)); GL.attachShader(p, mk(GL.FRAGMENT_SHADER, FS)); GL.linkProgram(p); GL.useProgram(p);
+  const b = GL.createBuffer(); GL.bindBuffer(GL.ARRAY_BUFFER, b); GL.bufferData(GL.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), GL.STATIC_DRAW);
+  const loc = GL.getAttribLocation(p, 'p'); GL.enableVertexAttribArray(loc); GL.vertexAttribPointer(loc, 2, GL.FLOAT, false, 0, 0);
+  return p;
+}
+const P = prog();
+const tex = (unit, name) => { const t = GL.createTexture(); GL.activeTexture(GL.TEXTURE0 + unit); GL.bindTexture(GL.TEXTURE_2D, t); for (const k of [GL.TEXTURE_MIN_FILTER, GL.TEXTURE_MAG_FILTER]) GL.texParameteri(GL.TEXTURE_2D, k, GL.NEAREST); GL.uniform1i(GL.getUniformLocation(P, name), unit); return t; };
+const TA = tex(0, 'tA'), TN = tex(1, 'tN'), TP = tex(2, 'tP');
+const bufA = new Uint8Array(W * H * 4), bufN = new Uint8Array(W * H * 4), bufP = new Float32Array(W * H * 4);
+const groundPx = ground.getContext('2d').getImageData(0, 0, W, H).data;
+const shadowMask = mkCanvas(W, H), smx = shadowMask.getContext('2d');
+const gbufs = new Map();
+function gb(name, ang) { const k = name + ang.toFixed(3); if (!gbufs.has(k)) gbufs.set(k, gbuf(MODELS[name], ang)); return gbufs.get(k); }
+function drawGL(t) {
+  const { day, L } = lightsAt(t), its = items(t);
+  // The sun's shadows on the ground (the same cast shadows as the sprites), as a mask.
+  smx.clearRect(0, 0, W, H); for (const it of its) { const s = preLit(it.n, it.f), [x, y] = scr(it.X, it.Y); smx.drawImage(s.sh, Math.round(x + s.sox), Math.round(y + s.soy)); }
+  const shd = smx.getImageData(0, 0, W, H).data;
+  for (let i = 0; i < W * H; i++) {   // the ground: flat, facing up
+    const o = i * 4, x = i % W, y = (i / W) | 0;
+    bufA[o] = groundPx[o]; bufA[o + 1] = groundPx[o + 1]; bufA[o + 2] = groundPx[o + 2]; bufA[o + 3] = 0;
+    bufN[o] = 128; bufN[o + 1] = 128; bufN[o + 2] = 255; bufN[o + 3] = 255 - shd[o + 3] * 0.75;
+    bufP[o] = x; bufP[o + 1] = (y - OY) / VIEW.F; bufP[o + 2] = 0; bufP[o + 3] = 1;
+  }
+  for (const it of its) {   // each model, back to front, pixel by pixel
+    const B = gb(it.n, it.f), s = B.s, [sx, sy] = scr(it.X, it.Y);
+    for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) {
+      const i = B.id[y * B.w + x]; if (i < 0) continue;
+      const X = Math.round(sx + B.ox) + x, Y = Math.round(sy + B.oy) + y; if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+      const o = (Y * W + X) * 4, c = s.col[i], n = B.nr(i), mt = s.mat[i];
+      bufA[o] = (c >> 16) & 255; bufA[o + 1] = (c >> 8) & 255; bufA[o + 2] = c & 255; bufA[o + 3] = Math.round(mt / 4 * 255);
+      bufN[o] = (n[0] * 0.5 + 0.5) * 255; bufN[o + 1] = (n[1] * 0.5 + 0.5) * 255; bufN[o + 2] = (n[2] * 0.5 + 0.5) * 255; bufN[o + 3] = 255;
+      bufP[o] = it.X + B.px[i]; bufP[o + 1] = it.Y + B.pu[i]; bufP[o + 2] = s.zs[i] + 0.5; bufP[o + 3] = s.ao[i];
+    }
+  }
+  GL.activeTexture(GL.TEXTURE0); GL.bindTexture(GL.TEXTURE_2D, TA); GL.texImage2D(GL.TEXTURE_2D, 0, GL.RGBA, W, H, 0, GL.RGBA, GL.UNSIGNED_BYTE, bufA);
+  GL.activeTexture(GL.TEXTURE1); GL.bindTexture(GL.TEXTURE_2D, TN); GL.texImage2D(GL.TEXTURE_2D, 0, GL.RGBA, W, H, 0, GL.RGBA, GL.UNSIGNED_BYTE, bufN);
+  GL.activeTexture(GL.TEXTURE2); GL.bindTexture(GL.TEXTURE_2D, TP); GL.texImage2D(GL.TEXTURE_2D, 0, GL.RGBA32F, W, H, 0, GL.RGBA, GL.FLOAT, bufP);
+  GL.uniform3fv(GL.getUniformLocation(P, 'sun'), LIGHT); GL.uniform1f(GL.getUniformLocation(P, 'day'), day); GL.uniform1i(GL.getUniformLocation(P, 'nl'), L.length);
+  const f = (k) => L.flatMap((l) => l[k]);
+  GL.uniform3fv(GL.getUniformLocation(P, 'lp'), f('p')); GL.uniform3fv(GL.getUniformLocation(P, 'lc'), f('c'));
+  GL.uniform1fv(GL.getUniformLocation(P, 'lr'), L.map((l) => l.r)); GL.uniform1fv(GL.getUniformLocation(P, 'lk'), L.map((l) => l.k));
+  GL.viewport(0, 0, W, H); GL.drawArrays(GL.TRIANGLE_STRIP, 0, 4);
+}
+const out = document.getElementById('out').getContext('2d');
+window.frame = (t) => {
+  out.clearRect(0, 0, W, 2 * H);
+  out.save(); out.beginPath(); out.rect(0, 0, W, H); out.clip(); drawNow(out, t); out.restore();
+  drawGL(t); out.save(); out.translate(0, H); out.drawImage(gl, 0, 0); flames(out, t); out.restore();
+  out.fillStyle = '#000'; out.fillRect(0, H - 1, W, 2);
+};
+const q = location.search.match(/t=([0-9.]+)/); window.frame(q ? +q[1] : 6.5);
+</script>
+</body></html>

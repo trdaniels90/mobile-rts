@@ -39,7 +39,7 @@ const outDir = path.join(root, 'grounds'), QUALITY = 0.8;
     const dir = path.join(outDir, id); fs.mkdirSync(dir, { recursive: true });
     const n = await p.evaluate((id) => {
       newWorld('allies', 'hard', 1, 0, false, id);
-      window.__painter = groundPainter(G.terr, groundSeed(G), G.road, G.bridges, G.cliff, G.ford, mapTheme(id), MAPS[id].bridge);
+      window.__painter = groundPainter(G.terr, groundSeed(G), G.road, G.bridges, G.cliff, G.ford, mapTheme(id), MAPS[id].bridge, G.hgt);
       window.__pv = mkCanvas(Math.ceil(WORLD / 4), Math.ceil(WORLD / 4));
       return Math.ceil(WORLD / GROUND_SHEET);
     }, id);
