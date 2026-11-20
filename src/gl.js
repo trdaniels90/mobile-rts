@@ -8,9 +8,27 @@
 const GLR = (() => {
   const q = typeof location !== 'undefined' ? location.search : '';
   const R = { on: typeof document !== 'undefined' && !/[?&]gl=off\b/.test(q), ground: () => false, frames: 0 };
+  // ?gl=stats (stage 5, for measuring on a phone; with ?gl=off too): frames a second, the draw's CPU time a frame (art.js
+  // drawParts, summed), which way the frame was drawn, and WebGL's quads and draw calls, twice a second in a corner.
+  if (/[?&]gl=stats\b/.test(q) || /[?&]glstats\b/.test(q)) {
+    const T = ['gnd', 'list', 'tree', 'bld', 'unit', 'misc', 'edge', 'fx', 'air', 'bars', 'blit', 'night', 'wthr'];
+    let box = null, n = 0, ms = 0, worst = 0, t0 = performance.now();
+    const tick = () => {
+      requestAnimationFrame(tick);
+      if (typeof drawParts !== 'object' || typeof document === 'undefined') return;
+      let d = 0; for (const k of T) d += drawParts[k] || 0;
+      n++; ms += d; worst = Math.max(worst, d);
+      const now = performance.now();
+      if (now - t0 < 500) return;
+      if (!box) { box = document.createElement('div'); box.style.cssText = 'position:fixed;left:4px;top:calc(var(--ts, 0px) + 4px);z-index:99;pointer-events:none;font:11px/1.3 monospace;color:#cfe;background:rgba(0,0,0,0.6);padding:2px 5px;white-space:pre'; document.body.appendChild(box); }
+      box.textContent = `${(n * 1000 / (now - t0)).toFixed(0)} fps  draw ${(ms / n).toFixed(1)} ms (worst ${worst.toFixed(1)})\n${R.on && R.lit ? `WebGL ${R.quads || 0} quads ${R.calls || 0} calls` : '2D'}`;
+      n = 0; ms = 0; worst = 0; t0 = now;
+    };
+    requestAnimationFrame(tick);
+  }
   if (!R.on) return R;
   const GL_STEP = 16, TEX_MAX = 140;
-  let cv = null, gl = null, P = null, loc = null, failed = false;
+  let FW = 1, FH = 1, cv = null, gl = null, P = null, loc = null, failed = false;
   const VS = `#version 300 es
 in vec2 aP; in float aD; in vec2 aW; uniform vec2 uCam, uSize; out vec2 vW;
 void main() { vec2 s = (aP - uCam) / uSize * 2.0 - 1.0; gl_Position = vec4(s.x, -s.y, aD, 1.0); vW = aW; }`;
@@ -26,8 +44,13 @@ void main() {
   o = vec4(c.rgb, 1.0); o1 = vec4(0.0, 0.0, 0.0, 1.0);   // (o1: the normals' layer; the ground: none, lit flat)
 }`;
   function init() {
-    cv = document.createElement('canvas');
-    gl = cv.getContext('webgl2', { alpha: true, antialias: false, premultipliedAlpha: true, preserveDrawingBuffer: true });
+    // Stage 5: the WebGL canvas is on the page, under the 2D one (#game), the size of the screen: the frame is drawn
+    // into it (R.present) instead of being copied into the 2D view, which keeps only the HUD bits, the shroud and the
+    // placement grid (on a transparent view and screen).
+    cv = document.createElement('canvas'); cv.id = 'gl';
+    cv.style.cssText = 'position:fixed;left:0;top:var(--ts);display:none;pointer-events:none';
+    const game = document.getElementById('game'); if (game && game.parentNode) game.parentNode.insertBefore(cv, game);
+    gl = cv.getContext('webgl2', { alpha: false, antialias: false, depth: false, premultipliedAlpha: true, preserveDrawingBuffer: false });
     if (!gl) { failed = true; return false; }
     cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); failed = true; });
     const mk = (t, s) => { const h = gl.createShader(t); gl.shaderSource(h, s); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(h)); return h; };
@@ -103,7 +126,7 @@ void main() {
       if (!gl && !init()) return false;
       state(); S.frame++; R.frames++;
       const A = G.ground.gl;
-      if (cv.width !== VW || cv.height !== VH) { cv.width = VW; cv.height = VH; }
+      FW = VW; FH = VH;   // (the frame's size: the view's)
       sceneFb(VW, VH);   // (stage 4: into the scene's framebuffer, colour and normals; the light pass draws it into the canvas)
       gl.viewport(0, 0, VW, VH); gl.clearColor(0, 0, 0, 0); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.depthMask(true); gl.disable(gl.BLEND);
@@ -307,11 +330,12 @@ void main() {
     if (!shelf || shelf.y + h > ATLAS) {
       const i = shelf ? shelf.i + 1 : 0;
       if (!atlases[i]) atlases[i] = { c: mkCanvas(ATLAS, ATLAS), t: null };
-      atlases[i].c.getContext('2d').clearRect(0, 0, ATLAS, ATLAS); atlases[i].used = true;
+      atlases[i].c.getContext('2d').clearRect(0, 0, ATLAS, atlases[i].h || ATLAS); atlases[i].used = true; atlases[i].h = 0;
       shelf = { i, x: 0, y: 0, h: 0 };
     }
     const at = { i: shelf.i, x: shelf.x, y: shelf.y };
     shelf.x += w + 1; shelf.h = Math.max(shelf.h, h + 1);
+    atlases[shelf.i].h = Math.max(atlases[shelf.i].h || 0, shelf.y + h + 1);   // (how far down it is used: only that is uploaded)
     return at;
   }
   function flush() {
@@ -334,8 +358,8 @@ void main() {
   R.listBegin = (v, over) => {
     if (failed || !gl) return null;
     if (!over) R.lit = false;
-    try { if (!P2) init2(); } catch (err) { failed = true; console.warn('WebGL list off:', err); try { lightPass(null); copyOut(v); } catch (e2) { /* nothing more to do */ } return null; }   // (the ground at least)
-    if (layer.width !== cv.width || layer.height !== cv.height) { layer.width = cv.width; layer.height = cv.height; lctx = uprightCtx(layer.getContext('2d')); }
+    try { if (!P2) init2(); } catch (err) { failed = true; console.warn('WebGL list off:', err); return null; }
+    if (layer.width !== FW || layer.height !== FH) { layer.width = FW; layer.height = FH; lctx = uprightCtx(layer.getContext('2d')); }
     lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.clearRect(0, 0, layer.width, layer.height);
     if (over) { lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.upright = false; } else { lctx.setTransform(v.getTransform()); lctx.upright = v.upright; }   // (over: screen px of the canvas) lctx.imageSmoothingEnabled = false; lctx.globalAlpha = 1; lctx.globalCompositeOperation = 'source-over';
     lctx.fillStyle = '#000'; lctx.strokeStyle = '#000'; lctx.lineWidth = 1;
@@ -401,14 +425,16 @@ void main() {
   // Draws the recorded quads (into the bound framebuffer: the scene's, tested against the ground's depth; or the canvas,
   // without depth, for what goes over the light pass).
   function drawRec(useDepth) {
-    gl.useProgram(P2); gl.viewport(0, 0, cv.width, cv.height);
+    gl.useProgram(P2); gl.viewport(0, 0, FW, FH);
     if (useDepth) { gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); } else gl.disable(gl.DEPTH_TEST);
     gl.depthMask(false); gl.enable(gl.BLEND);
-    gl.uniform2f(loc2.uSize, cv.width, cv.height); gl.uniform1i(loc2.uTex, 0); gl.activeTexture(gl.TEXTURE0);
+    gl.uniform2f(loc2.uSize, FW, FH); gl.uniform1i(loc2.uTex, 0); gl.activeTexture(gl.TEXTURE0);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     for (const a of atlases) if (a.used) {   // this frame's bits, uploaded once
-      if (!a.t) { a.t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, a.t); for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); }
-      gl.bindTexture(gl.TEXTURE_2D, a.t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, a.c);
+      if (!a.t) { a.t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, a.t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, ATLAS, ATLAS); for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); }
+      const uh = Math.min(ATLAS, a.h || ATLAS);   // (stage 5: only the rows in use, not the whole 1024 px square)
+      gl.bindTexture(gl.TEXTURE_2D, a.t); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, ATLAS, uh, gl.RGBA, gl.UNSIGNED_BYTE, a.c);
+      R.bitRows = (R.bitRows || 0) + uh;
     }
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     nrmSpend = 0;
@@ -429,14 +455,17 @@ void main() {
     gl.depthMask(true); gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
   }
   // Quads ({ q, u0..v1, d, a, b, tex, ntex, s }) in runs of the same texture, blend and sampling; P2 in use. Returns the calls.
+  let qbuf = new Float32Array(36 * 512);
   function drawQuads(list, normals) {
-    const f = new Float32Array(list.length * 36);
+    if (qbuf.length < list.length * 36) qbuf = new Float32Array(Math.ceil(list.length * 1.5) * 36);   // (kept from frame to frame)
+    const f = qbuf;
     let o = 0;
     for (const r of list) {
-      const [x0, y0, x1, y1, x2, y2, x3, y3] = r.q;
-      for (const [x, y, u, vv] of [[x0, y0, r.u0, r.v0], [x1, y1, r.u1, r.v0], [x2, y2, r.u0, r.v1], [x1, y1, r.u1, r.v0], [x3, y3, r.u1, r.v1], [x2, y2, r.u0, r.v1]]) { f[o++] = x; f[o++] = y; f[o++] = u; f[o++] = vv; f[o++] = r.d; f[o++] = r.a; }
+      const Q = r.q, d = r.d, a = r.a;
+      const put = (x, y, u, vv) => { f[o++] = x; f[o++] = y; f[o++] = u; f[o++] = vv; f[o++] = d; f[o++] = a; };
+      put(Q[0], Q[1], r.u0, r.v0); put(Q[2], Q[3], r.u1, r.v0); put(Q[4], Q[5], r.u0, r.v1); put(Q[2], Q[3], r.u1, r.v0); put(Q[6], Q[7], r.u1, r.v1); put(Q[4], Q[5], r.u0, r.v1);
     }
-    gl.bindBuffer(gl.ARRAY_BUFFER, vbuf2); gl.bufferData(gl.ARRAY_BUFFER, f, gl.STREAM_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbuf2); gl.bufferData(gl.ARRAY_BUFFER, f, gl.STREAM_DRAW, 0, o);
     for (const n of ['aP', 'aUV', 'aD', 'aA']) gl.enableVertexAttribArray(loc2[n]);
     gl.vertexAttribPointer(loc2.aP, 2, gl.FLOAT, false, 24, 0); gl.vertexAttribPointer(loc2.aUV, 2, gl.FLOAT, false, 24, 8); gl.vertexAttribPointer(loc2.aD, 1, gl.FLOAT, false, 24, 16); gl.vertexAttribPointer(loc2.aA, 1, gl.FLOAT, false, 24, 20);
     gl.uniform1i(loc2.uNrm, 1); gl.uniform1f(loc2.uShowN, normals && SHOW_N ? 1 : 0);
@@ -575,7 +604,7 @@ void main() {
   }
   function lightPass(L) {
     if (!P3) init3();
-    const W = cv.width, H = cv.height, hw = Math.max(1, Math.round(W / 2)), hh = Math.max(1, Math.round(H / 2)), B = lightBufs(hw, hh);
+    const W = FW, H = FH, hw = Math.max(1, Math.round(W / 2)), hh = Math.max(1, Math.round(H / 2)), B = lightBufs(hw, hh);
     const dnMap = !!(L && G && typeof MAPS !== 'undefined' && MAPS[validMap(G.mapId)].daynight), DN = dnMap ? dayNight(G.t) : { night: 0, warm: 0 };
     const look = !!(L && typeof LOOK !== 'undefined' && LOOK.light && (!dnMap || LOOK.mood) && typeof lookDayLights === 'function');
     const nightArg = dnMap ? DN.night : undefined, dn = nightArg === undefined ? 1 : 1 - nightArg, nightOn = !!L && dnMap && DN.night >= 0.01;
@@ -602,7 +631,7 @@ void main() {
     to(3, 0, 0, 0, 0); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR);
     splat(dayL.filter((l) => l[4][0] === 'p').map(([x, y, r, a, col, f]) => [Lp[col], x - r, y - r * f, r * 2, r * 2 * f, a * POOL_DAY]), L, hw, hh, sc);
     // The scene, lit, into the canvas.
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H); gl.disable(gl.BLEND);
+    litFb(W, H); gl.viewport(0, 0, W, H); gl.disable(gl.BLEND);
     gl.useProgram(P3);
     const bind = (u, t, i) => { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, t); gl.uniform1i(loc3[u], i); };
     if (look && !cloudT && typeof cloudShadowPic === 'function') cloudT = texFrom(cloudShadowPic(), true);
@@ -622,21 +651,68 @@ void main() {
     gl.drawArrays(gl.TRIANGLES, 0, 3); R.calls++;
     gl.activeTexture(gl.TEXTURE0);
   }
-  function copyOut(v) { const keep = v.getTransform(); v.setTransform(1, 0, 0, 1, 0, 0); v.drawImage(cv, 0, 0); v.setTransform(keep); }   // (the one copy a frame)
+  // The lit frame (the view's size), then put on the screen by present.
+  let LIT = null, P4 = null, loc4 = null;
+  function litFb(w, h) {
+    if (!LIT || LIT.w !== w || LIT.h !== h) {
+      if (LIT) { gl.deleteTexture(LIT.t); gl.deleteFramebuffer(LIT.f); }
+      const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, w, h);
+      for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+      LIT = { w, h, t, f };
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, LIT.f);
+  }
+  const VS4 = `#version 300 es
+in vec2 aQ; uniform vec4 uRect; uniform vec2 uScreen; out vec2 vUV;
+void main() { vec2 p = uRect.xy + aQ * uRect.zw; vUV = vec2(aQ.x, 1.0 - aQ.y); gl_Position = vec4(p.x / uScreen.x * 2.0 - 1.0, 1.0 - p.y / uScreen.y * 2.0, 0.0, 1.0); }`;
+  const FS4 = `#version 300 es
+precision mediump float; in vec2 vUV; out vec4 o; uniform sampler2D uLit;
+void main() { o = texture(uLit, vUV); }`;
+  // The lit frame onto the screen (ui.js, where the 2D way puts the view on the screen): its rectangle on the canvas (x,
+  // y, w, h in canvas px, the camera's offset and shake included), smoothed when zoomed out, as the 2D way. The page's
+  // canvas (#game) is cleared over it and keeps the HUD bits.
+  R.present = (game, x, y, w, h, smooth) => {
+    if (failed || !LIT) return false;
+    try {
+      if (!P4) {
+        const mk = (t, src) => { const sh = gl.createShader(t); gl.shaderSource(sh, src); gl.compileShader(sh); if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh; };
+        P4 = gl.createProgram(); gl.attachShader(P4, mk(gl.VERTEX_SHADER, VS4)); gl.attachShader(P4, mk(gl.FRAGMENT_SHADER, FS4)); gl.linkProgram(P4);
+        if (!gl.getProgramParameter(P4, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(P4));
+        loc4 = { aQ: gl.getAttribLocation(P4, 'aQ'), uRect: gl.getUniformLocation(P4, 'uRect'), uScreen: gl.getUniformLocation(P4, 'uScreen'), uLit: gl.getUniformLocation(P4, 'uLit') };
+        R.unit = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, R.unit); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1]), gl.STATIC_DRAW);
+      }
+      if (cv.width !== game.width || cv.height !== game.height) { cv.width = game.width; cv.height = game.height; }
+      if (cv.style.width !== game.style.width || cv.style.height !== game.style.height) { cv.style.width = game.style.width; cv.style.height = game.style.height; }
+      if (cv.style.display) cv.style.display = '';
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, cv.width, cv.height);
+      gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(P4);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, LIT.t); gl.uniform1i(loc4.uLit, 0);
+      if (!R.linS) { R.linS = gl.createSampler(); for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.samplerParameteri(R.linS, k, gl.LINEAR); gl.samplerParameteri(R.linS, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.samplerParameteri(R.linS, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); }
+      gl.bindSampler(0, smooth ? R.linS : null);
+      gl.uniform4f(loc4.uRect, x, y, w, h); gl.uniform2f(loc4.uScreen, cv.width, cv.height);
+      gl.bindBuffer(gl.ARRAY_BUFFER, R.unit); gl.enableVertexAttribArray(loc4.aQ); gl.vertexAttribPointer(loc4.aQ, 2, gl.FLOAT, false, 8, 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 6); R.calls++;
+      gl.bindSampler(0, null);
+      return true;
+    } catch (err) { failed = true; console.warn('WebGL present off:', err); return false; }
+  };
+  R.hide = () => { if (cv && !cv.style.display) cv.style.display = 'none'; };   // (a frame drawn the 2D way: the page's canvas covers it all)
   R.listEnd = (v, L) => {
     if (!rec) return;
     try {
-      R.calls = 0; R.quads = 0;
+      R.calls = 0; R.quads = 0; R.bitRows = 0;
       flush();
-      sceneFb(cv.width, cv.height); drawRec(true);
+      sceneFb(FW, FH); drawRec(true);
       lightPass(L || null);
       R.overQuads = 0;
-      if (L && L.over) {   // what goes over the light, recorded the same way, drawn into the canvas without depth
+      if (L && L.over) {   // what goes over the light, recorded the same way, drawn into the lit frame without depth
         const g = R.listBegin(v, true);
         if (g) { L.over(g); flush(); const n = R.quads; drawRec(false); R.overQuads = R.quads - n; }
       }
-      copyOut(v);
-      R.lit = !!L;
+      R.lit = true;   // (ui.js clears the view for the HUD bits and calls present)
     } catch (err) { failed = true; console.warn('WebGL list off:', err); }
     rec = null;
   };

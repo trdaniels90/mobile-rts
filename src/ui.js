@@ -884,7 +884,9 @@ function draw() {
         if (wx) drawWeather(g, wx, vx, vy, VW, VH, 1, G.t, still);
         lookStorm.flash(g, 1, still, vx, vy);
       } });
-      v = realV; toWorld(); v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over'; }
+      v = realV;
+      if (GLR.lit) { v.setTransform(1, 0, 0, 1, 0, 0); v.clearRect(0, 0, view.width, view.height); }   // (stage 5: the frame is in WebGL; the view keeps the HUD bits)
+      toWorld(); v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over'; }
 
     // Bars, brackets and labels are drawn flat on the view plane (screen pixels), at their things' projected spots.
     v.upright = false;
@@ -975,8 +977,10 @@ function draw() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.imageSmoothingEnabled = z < 1;
     const k = z * DPR;
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
+    // gl.js (stage 5): the WebGL frame onto its own canvas under this one, at the same spot; this one cleared over it.
+    if (GLR.lit && GLR.present(canvas, Math.round(-(cam.x - vx) * k + sx2), Math.round(-(cam.y - vy) * k + sy2), Math.round(VW * k), Math.round(VH * k), z < 1)) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    else { if (GLR.hide) GLR.hide(); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
     ctx.drawImage(view, 0, 0, VW, VH, Math.round(-(cam.x - vx) * k + sx2), Math.round(-(cam.y - vy) * k + sy2), Math.round(VW * k), Math.round(VH * k));
     lap('blit');   // the view put on the screen
     if (GLR.lit) { lap('night'); lap('wthr'); }   // (gl.js: lit, with the weather, in the view already)

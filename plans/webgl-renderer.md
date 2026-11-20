@@ -148,6 +148,29 @@ renderer does, at least as fast on a phone.
   sun on top would light them twice); ground normals from the hills; measurements on a phone; then merge into
   `claude/ts-look`.
 
+- **Stage 5, part 1 (2026-11-20): no copy back, measuring** (owner: "Start stage 5").
+  **No copy of the WebGL frame into the 2D view any more** (the "GPU stall due to ReadPixels" kind of cost, likely the
+  biggest one on a phone): the WebGL canvas (`#gl`) is on the page under the game's canvas (`#game`), the size of the
+  screen. The light pass and what goes over it go into a frame buffer the view's size (`litFb`), and `GLR.present`
+  (ui.js, where the 2D way puts the view on the screen) draws it onto the screen at the camera's offset with the shake,
+  scaled up (smoothed when zoomed out, as 2D). The view canvas is cleared after the recording and keeps only what is
+  drawn after it (health bars, brackets, labels, rally lines, the shroud, the placement grid), and the game's canvas is
+  cleared over the WebGL one instead of filled black. A frame drawn the 2D way (`?gl=off`, no WebGL2, a lost context,
+  `GLR.paused`) hides `#gl` and fills black as before. The WebGL canvas has no depth or kept buffer of its own (depth is
+  in the scene's framebuffer).
+  Smaller: the per-frame bits atlas uploads only the rows in use (`texSubImage2D` of the used height, not the whole 1024 px
+  square: about 800 rows a frame on Twin Lakes), and the vertex array is kept from frame to frame.
+  **`?glstats`** (or `?gl=stats`; with `?gl=off&glstats` for the 2D way): frames a second, the draw's CPU time (art.js
+  drawParts summed, average and worst), and WebGL's quads and draw calls, in the top left corner, twice a second.
+  Measured headless (software GL, so not a phone, but both ways on the same machine): Twin Lakes at the start, 960 x 540:
+  WebGL 29.7 fps, draw 9.8 ms a frame; 2D 18.0 fps, 42.8 ms. Checked: the same picture as the 2D way (1.3% of pixels
+  differ with flat light), the HUD over the WebGL frame, no errors.
+  **Left for stage 5:** the owner's phone measurement (iPhone first: `?glstats` and `?gl=off&glstats` on the same battle;
+  needs a test page with this branch, only when the owner asks); baked normal sheets (the normal maps are worked out at
+  run time, at most 3 ms a frame, so a picture seen for the first time is lit flat for a frame or two; baking them would
+  add about as much again as the baked sprites to the download, so only if the phone shows the cost); light on the hills
+  (ground normals from the drawn heights); the sun per pixel (needs unlit colours); then the merge into `claude/ts-look`.
+
 ## Parity list (what the 2D renderer draws, to tick off)
 
 Ground tiles and marks, hills, edge haze past the map, ore, shroud and fog of war, trees and their shadows, cliffs and their
