@@ -228,6 +228,7 @@ void main() {
   const ATL = 2048, ATL_N = 3, PIC_MAX = 400, NRM_MS = 3;
   const SHOW_N = /[?&]gl=normals\b/.test(q);
   let atl = null, nrmSpend = 0;
+  const whiteAt = new WeakMap();   // texture -> the uv of its white pixel (atlases): coloured shapes drawn from it join the pictures' runs
   const place = new WeakMap();
   function atlasFor(img) {
     if (img.width > PIC_MAX || img.height > PIC_MAX || img._own) return null;   // (_own: changes often or is stretched smooth: a texture of its own)
@@ -243,7 +244,7 @@ void main() {
       atl[a].gen++; atl[a].sh = { x: 0, y: 0, h: 0 };
     }
     const A = atl[a], sh = A.sh;
-    if (sh.x + w > ATL) { sh.y += sh.h + 1; sh.x = 0; sh.h = 0; }
+    if (sh.x + w > ATL - 2) { sh.y += sh.h + 1; sh.x = 0; sh.h = 0; }   // (ATL - 2: the last column keeps a white pixel, for coloured shapes in the same run)
     e = { a, gen: A.gen, x: sh.x, y: sh.y, w, h, n: false };
     sh.x += w + 1; sh.h = Math.max(sh.h, h);
     gl.bindTexture(gl.TEXTURE_2D, A.t); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
@@ -252,12 +253,15 @@ void main() {
     A.used = S.frame; place.set(img, e);
     return e;
   }
-  function fits(A, w, h) { const sh = A.sh; return (sh.x + w <= ATL && sh.y + Math.max(sh.h, h) <= ATL) || (sh.y + sh.h + 1 + h <= ATL && w <= ATL); }
+  function fits(A, w, h) { const sh = A.sh; return (sh.x + w <= ATL - 2 && sh.y + Math.max(sh.h, h) <= ATL) || (sh.y + sh.h + 1 + h <= ATL && w <= ATL - 2); }
   function newAtlas() {
     const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, ATL, ATL);
       for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; };
-    return { t: mk(), n: mk(), gen: 0, used: 0, sh: { x: 0, y: 0, h: 0 } };
+    const A = { t: mk(), n: mk(), gen: 0, used: 0, sh: { x: 0, y: 0, h: 0 } };
+    gl.bindTexture(gl.TEXTURE_2D, A.t); gl.texSubImage2D(gl.TEXTURE_2D, 0, ATL - 1, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));   // (the white pixel)
+    whiteAt.set(A.t, [(ATL - 0.5) / ATL, 0.5 / ATL]);
+    return A;
   }
   // A picture's normal map, from its voxel model: voxel.js renderVox's projection and painter's order, kept per pixel as
   // the surface's direction and height instead of a lit colour (null: not from a model, or it would not line up).
@@ -331,13 +335,29 @@ void main() {
   const ATLAS = 1024, BLENDS = { 'source-over': 0, lighter: 1, multiply: 2, screen: 3 };
   let atlases = [], shelf = null, dirty = null, pathBox = null;
   const grow = (b, x, y, r) => { if (!b) return [x - r, y - r, x + r, y + r]; b[0] = Math.min(b[0], x - r); b[1] = Math.min(b[1], y - r); b[2] = Math.max(b[2], x + r); b[3] = Math.max(b[3], y + r); return b; };
-  const tp = (x, y) => { const m = lctx.getTransform(); return [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]; };
-  const scl = () => { const m = lctx.getTransform(); return Math.hypot(m.a, m.b) + Math.hypot(m.c, m.d); };
+  // The stand-in's transform, read from the canvas once until it is changed through the stand-in (getTransform makes a new
+  // matrix each time: it was a good part of the cost of recording each unit).
+  let mCache = null;
+  const curM = () => mCache || (mCache = lctx.getTransform());
+  const tp = (x, y) => { const m = curM(); return [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]; };
+  const scl = () => { const m = curM(); return Math.hypot(m.a, m.b) + Math.hypot(m.c, m.d); };
   // (stage 3) The blend the bits are drawn with: when it changes between two WebGL does, what is on the layer is cut out
   // first and drawn with its own (a glow drawn 'lighter' adds, as in 2D); other blends act on the layer as it is.
   let dirtyOp = 'source-over';
   // A fill style that is one colour: [r, g, b, a] in 0..1 (the canvas gives it back as #rrggbb or rgba(...)), else null.
-  let clipped = false; const clipStack = [], solids = new Map();
+  let clipped = false, segs = [], segOk = true, last = null, softN = 0, subs = [], curved = false;
+  // A polygon (screen px, x y x y...) that turns one way only (a triangle fan fills it exactly).
+  const convex = (P) => {
+    const n = P.length / 2; if (n < 3) return false;
+    let sg = 0;
+    for (let i = 0; i < n; i++) {
+      const ax = P[2 * i], ay = P[2 * i + 1], bx = P[(2 * i + 2) % P.length], by = P[(2 * i + 3) % P.length], cx = P[(2 * i + 4) % P.length], cy = P[(2 * i + 5) % P.length];
+      const cr = (bx - ax) * (cy - by) - (by - ay) * (cx - bx);
+      if (Math.abs(cr) < 1e-6) continue;
+      if (!sg) sg = Math.sign(cr); else if (Math.sign(cr) !== sg) return false;
+    }
+    return sg !== 0;
+  }; const clipStack = [], solids = new Map(), softPool = [];
   function solid(fs) {
     if (typeof fs !== 'string') return null;
     let c = solids.get(fs);
@@ -356,16 +376,16 @@ void main() {
     const op = lctx.globalCompositeOperation;
     if (BLENDS[op] === undefined) R.unsupported[op] = (R.unsupported[op] || 0) + 1;
     else if (op !== dirtyOp) { if (dirty) flush(); dirtyOp = op; }
-    if (R.bitLog && (b[2] - b[0]) * (b[3] - b[1]) > 50000) R.bitLog.push([Math.round(b[2] - b[0]), Math.round(b[3] - b[1]), (new Error().stack.split('\n').slice(3, 6).join(' < ')).replace(/file:[^ ]*src\//g, '')]);
+    if (R.bitLog) R.bitLog.push([Math.round(b[2] - b[0]), Math.round(b[3] - b[1]), (new Error().stack.split('\n').slice(3, 6).join(' < ')).replace(/file:[^ ]*src\//g, '')]);
     dirty = dirty ? grow(grow(dirty, b[0], b[1], 0), b[2], b[3], 0) : b.slice();
   };
   function atlasSpot(w, h) {
-    if (w > ATLAS || h > ATLAS) return null;
-    if (!shelf || shelf.x + w > ATLAS) { if (shelf) { shelf.y += shelf.h; shelf.x = 0; shelf.h = 0; } }
+    if (w > ATLAS - 2 || h > ATLAS) return null;
+    if (!shelf || shelf.x + w > ATLAS - 2) { if (shelf) { shelf.y += shelf.h; shelf.x = 0; shelf.h = 0; } }
     if (!shelf || shelf.y + h > ATLAS) {
       const i = shelf ? shelf.i + 1 : 0;
       if (!atlases[i]) atlases[i] = { c: mkCanvas(ATLAS, ATLAS), t: null };
-      atlases[i].c.getContext('2d').clearRect(0, 0, ATLAS, atlases[i].h || ATLAS); atlases[i].used = true; atlases[i].h = 0;
+      const ac = atlases[i].c.getContext('2d'); ac.clearRect(0, 0, ATLAS, atlases[i].h || ATLAS); ac.fillStyle = '#fff'; ac.fillRect(ATLAS - 1, 0, 1, 1); atlases[i].used = true; atlases[i].h = 1;   // (top right: a white pixel, see whiteAt)
       shelf = { i, x: 0, y: 0, h: 0 };
     }
     const at = { i: shelf.i, x: shelf.x, y: shelf.y };
@@ -403,14 +423,14 @@ void main() {
     lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.clearRect(0, 0, layer.width, layer.height);
     if (over) { lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.upright = false; } else { lctx.setTransform(v.getTransform()); lctx.upright = v.upright; }   // (over: screen px of the canvas) lctx.imageSmoothingEnabled = false; lctx.globalAlpha = 1; lctx.globalCompositeOperation = 'source-over';
     lctx.fillStyle = '#000'; lctx.strokeStyle = '#000'; lctx.lineWidth = 1;
-    rec = []; dirty = null; dirtyOp = 'source-over'; pathBox = null; shelf = null; depth = -1; if (!over) R.bits = 0;
+    rec = []; dirty = null; dirtyOp = 'source-over'; pathBox = null; shelf = null; depth = -1; if (!over) { R.bits = 0; softN = 0; }
     for (const a of atlases) a.used = false;
     const draw = (img, ...a) => {
       if (!img || !img.width || !img.height || (img.complete === false)) return;
       const n = a.length, j = n === 8 ? 4 : 0, dx = a[j], dy = a[j + 1];
       const w = n === 2 ? img.width : a[j + 2], h = n === 2 ? img.height : a[j + 3];
       const sx = n === 8 ? a[0] : 0, sy = n === 8 ? a[1] : 0, sw = n === 8 ? a[2] : img.width, sh = n === 8 ? a[3] : img.height;
-      const m = lctx.getTransform(), sprite = img._ox !== undefined;
+      const m = curM(), sprite = img._ox !== undefined;
       let q;
       if (!sprite && !lctx.upright) {
         const P = (x, y) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f];
@@ -434,44 +454,97 @@ void main() {
     // What a drawing call covers on the layer (screen px), so it can be cut out.
     const lw = () => (lctx.lineWidth || 1) * scl() / 2 + 2;
     const hooks = {
-      beginPath() { pathBox = null; lctx.beginPath(); },
-      moveTo(x, y) { const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, 0); lctx.moveTo(x, y); },
-      lineTo(x, y) { const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, 0); lctx.lineTo(x, y); },
-      quadraticCurveTo(a, b, x, y) { for (const [p, q] of [[a, b], [x, y]]) { const [X, Y] = tp(p, q); pathBox = grow(pathBox, X, Y, 0); } lctx.quadraticCurveTo(a, b, x, y); },
-      bezierCurveTo(a, b, c, d, x, y) { for (const [p, q] of [[a, b], [c, d], [x, y]]) { const [X, Y] = tp(p, q); pathBox = grow(pathBox, X, Y, 0); } lctx.bezierCurveTo(a, b, c, d, x, y); },
-      arc(x, y, r, ...k) { const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, r * scl()); lctx.arc(x, y, r, ...k); },
-      ellipse(x, y, rx, ry, ...k) { const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, Math.max(rx, ry) * scl()); lctx.ellipse(x, y, rx, ry, ...k); },
-      rect(x, y, w, h) { for (const [p, q] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]) { const [X, Y] = tp(p, q); pathBox = grow(pathBox, X, Y, 0); } lctx.rect(x, y, w, h); },
-      fill(...a) { mark(pathBox && [pathBox[0] - 1, pathBox[1] - 1, pathBox[2] + 1, pathBox[3] + 1]); lctx.fill(...a); },
-      stroke(...a) { const r = lw(); mark(pathBox && [pathBox[0] - r, pathBox[1] - r, pathBox[2] + r, pathBox[3] + r]); lctx.stroke(...a); },
+      beginPath() { pathBox = null; segs = []; segOk = true; last = null; subs = []; curved = false; lctx.beginPath(); },
+      closePath() { const P = subs[subs.length - 1]; if (P && last && P.length >= 4) { segs.push(last[0], last[1], P[0], P[1]); last = [P[0], P[1]]; } else segOk = false; lctx.closePath(); },
+      moveTo(x, y) { const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, 0); last = [X, Y]; subs.push([X, Y]); lctx.moveTo(x, y); },
+      lineTo(x, y) { const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, 0); if (last) segs.push(last[0], last[1], X, Y); else segOk = false; last = [X, Y]; if (subs.length) subs[subs.length - 1].push(X, Y); else subs.push([X, Y]); lctx.lineTo(x, y); },
+      quadraticCurveTo(a, b, x, y) { segOk = false; curved = true; for (const [p, q] of [[a, b], [x, y]]) { const [X, Y] = tp(p, q); pathBox = grow(pathBox, X, Y, 0); } lctx.quadraticCurveTo(a, b, x, y); },
+      bezierCurveTo(a, b, c, d, x, y) { segOk = false; curved = true; for (const [p, q] of [[a, b], [c, d], [x, y]]) { const [X, Y] = tp(p, q); pathBox = grow(pathBox, X, Y, 0); } lctx.bezierCurveTo(a, b, c, d, x, y); },
+      arc(x, y, r, ...k) { segOk = false; curved = true; const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, r * scl()); lctx.arc(x, y, r, ...k); },
+      ellipse(x, y, rx, ry, ...k) { segOk = false; curved = true; const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, Math.max(rx, ry) * scl()); lctx.ellipse(x, y, rx, ry, ...k); },
+      rect(x, y, w, h) { segOk = false; { const P = []; for (const [p2, q2] of [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]) P.push(...tp(p2, q2)); subs.push(P); last = null; } for (const [p, q] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]) { const [X, Y] = tp(p, q); pathBox = grow(pathBox, X, Y, 0); } lctx.rect(x, y, w, h); },
+      fill(...a) {
+        // (stage 5) Straight-sided shapes, each convex (walls' faces, prisms, flags), in one colour and a blend WebGL does,
+        // not clipped: WebGL triangles in their place in the order, not a cut-out.
+        const C = (!a.length || a[0] === 'nonzero') && !curved && subs.length && !clipped ? solid(lctx.fillStyle) : null, b = BLENDS[lctx.globalCompositeOperation];
+        if (C && b !== undefined && subs.every(convex)) {
+          flush();
+          const al = lctx.globalAlpha * C[3];
+          for (const P of subs) for (let i = 2; i + 3 < P.length; i += 2) rec.push({ q: [P[0], P[1], P[i], P[i + 1], P[i + 2], P[i + 3], P[i + 2], P[i + 3]], u0: 0, v0: 0, u1: 1, v1: 1, a: al, b, d: depth, col: C });
+          R.polys = (R.polys || 0) + subs.length;
+          return;
+        }
+        mark(pathBox && [pathBox[0] - 1, pathBox[1] - 1, pathBox[2] + 1, pathBox[3] + 1]); lctx.fill(...a);
+      },
+      stroke(...a) {
+        // (stage 5) Straight lines only, in one colour and a blend WebGL does, not clipped (rain, cables, rally lines):
+        // each a thin coloured quad, not a cut-out of the box round them all (rain's was the whole view, every frame).
+        const C = !a.length && segOk && !clipped && segs.length ? solid(lctx.strokeStyle) : null, b = BLENDS[lctx.globalCompositeOperation];
+        const hw = Math.max(0.5, (lctx.lineWidth || 1) * scl() / 4);   // (half the width; thin lines only: thick ones need joins)
+        if (C && b !== undefined && hw <= 1.5 && segs.length <= 16000 && !lctx.getLineDash().length) {
+          flush();
+          const hw2 = hw, al = lctx.globalAlpha * C[3];   // (scl: the sum of both axes' scales)
+          for (let i = 0; i < segs.length; i += 4) {
+            const x0 = segs[i], y0 = segs[i + 1], x1 = segs[i + 2], y1 = segs[i + 3], L = Math.hypot(x1 - x0, y1 - y0) || 1, nx = -(y1 - y0) / L * hw, ny = (x1 - x0) / L * hw;
+            rec.push({ q: [x0 + nx, y0 + ny, x1 + nx, y1 + ny, x0 - nx, y0 - ny, x1 - nx, y1 - ny], u0: 0, v0: 0, u1: 1, v1: 1, a: al, b, d: depth, col: C });
+          }
+          R.lines = (R.lines || 0) + segs.length / 4;
+          return;
+        }
+        const r = lw(); mark(pathBox && [pathBox[0] - r, pathBox[1] - r, pathBox[2] + r, pathBox[3] + r]); lctx.stroke(...a); },
       // (stage 5) A solid rectangle in a blend WebGL does, not clipped: a coloured quad of its own in the order (no cut-out).
       fillRect(x, y, w, h) {
         const C = clipped ? null : solid(lctx.fillStyle), b = BLENDS[lctx.globalCompositeOperation];
         if (C && b !== undefined && w && h) {
           flush();
           let q;
-          if (lctx.upright) { const m = lctx.getTransform(), cx = x + w / 2, cy = y + h / 2, X = m.a * cx + m.c * cy + m.e, Y = m.b * cx + m.d * cy + m.f, hw = Math.abs(w) / 2, hh = Math.abs(h) / 2; q = [X - hw, Y - hh, X + hw, Y - hh, X - hw, Y + hh, X + hw, Y + hh]; }
+          if (lctx.upright) { const m = curM(), cx = x + w / 2, cy = y + h / 2, X = m.a * cx + m.c * cy + m.e, Y = m.b * cx + m.d * cy + m.f, hw = Math.abs(w) / 2, hh = Math.abs(h) / 2; q = [X - hw, Y - hh, X + hw, Y - hh, X - hw, Y + hh, X + hw, Y + hh]; }
           else q = [...tp(x, y), ...tp(x + w, y), ...tp(x, y + h), ...tp(x + w, y + h)];
           rec.push({ q, u0: 0, v0: 0, u1: 1, v1: 1, a: lctx.globalAlpha * C[3], b, d: depth, col: C });
           R.rects = (R.rects || 0) + 1;
           return;
         }
+        // A big fill with a gradient (a storm's darkening, a haze): drawn at a quarter size into a canvas of its own and
+        // stretched up smoothly as one picture (gradients are smooth), not cut out of the layer at full size.
+        const G2 = lctx.fillStyle;
+        if (!clipped && !lctx.upright && b !== undefined && typeof CanvasGradient !== 'undefined' && G2 instanceof CanvasGradient && Math.abs(w * h) * scl() * scl() / 4 > 40000) {
+          let bx = null; for (const [p2, q2] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]) { const [X, Y] = tp(p2, q2); bx = grow(bx, X, Y, 0); }
+          const X0 = Math.max(0, Math.floor(bx[0])), Y0 = Math.max(0, Math.floor(bx[1])), X1 = Math.min(layer.width, Math.ceil(bx[2])), Y1 = Math.min(layer.height, Math.ceil(bx[3]));
+          if (X1 <= X0 || Y1 <= Y0) return;
+          flush();
+          const Q = 4, cw = Math.ceil((X1 - X0) / Q), ch = Math.ceil((Y1 - Y0) / Q);
+          const c = softPool[softN] || (softPool[softN] = mkCanvas(cw, ch)); softN++;
+          if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
+          const g = c.getContext('2d'), m = curM();
+          g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cw, ch);
+          g.setTransform(m.a / Q, m.b / Q, m.c / Q, m.d / Q, (m.e - X0) / Q, (m.f - Y0) / Q); g.fillStyle = G2; g.fillRect(x, y, w, h);
+          c._ver = (c._ver || 0) + 1; c._own = true;
+          rec.push({ img: c, q: [X0, Y0, X1, Y0, X0, Y1, X1, Y1], u0: 0, v0: 0, u1: (X1 - X0) / Q / cw, v1: (Y1 - Y0) / Q / ch, a: lctx.globalAlpha, b, d: depth, s: 1 });
+          R.softFills = (R.softFills || 0) + 1;
+          return;
+        }
         box4(x, y, w, h, 1); lctx.fillRect(x, y, w, h);
       },
       save() { clipStack.push(clipped); lctx.save(); },
-      restore() { clipped = clipStack.length ? clipStack.pop() : false; lctx.restore(); },
+      restore() { clipped = clipStack.length ? clipStack.pop() : false; mCache = null; lctx.restore(); },
+      setTransform(...a) { mCache = null; lctx.setTransform(...a); },
+      resetTransform() { mCache = null; lctx.resetTransform(); },
+      transform(...a) { mCache = null; lctx.transform(...a); },
+      translate(x, y) { mCache = null; lctx.translate(x, y); },
+      scale(x, y) { mCache = null; lctx.scale(x, y); },
+      rotate(a) { mCache = null; lctx.rotate(a); },
       clip(...a) { clipped = true; lctx.clip(...a); },
       strokeRect(x, y, w, h) { box4(x, y, w, h, lw()); lctx.strokeRect(x, y, w, h); },
-      fillText(t, x, y, ...k) { const wd = lctx.measureText(t).width, f = parseFloat(lctx.font) || 12, m = lctx.getTransform(), X = m.a * x + m.c * y + m.e, Y = m.b * x + m.d * y + m.f; mark([X - wd - 4, Y - f * 1.5, X + wd + 4, Y + f]); lctx.fillText(t, x, y, ...k); },
-      strokeText(t, x, y, ...k) { const wd = lctx.measureText(t).width, f = parseFloat(lctx.font) || 12, m = lctx.getTransform(), X = m.a * x + m.c * y + m.e, Y = m.b * x + m.d * y + m.f; mark([X - wd - 6, Y - f * 1.5, X + wd + 6, Y + f]); lctx.strokeText(t, x, y, ...k); },
+      fillText(t, x, y, ...k) { const wd = lctx.measureText(t).width, f = parseFloat(lctx.font) || 12, m = curM(), X = m.a * x + m.c * y + m.e, Y = m.b * x + m.d * y + m.f; mark([X - wd - 4, Y - f * 1.5, X + wd + 4, Y + f]); lctx.fillText(t, x, y, ...k); },
+      strokeText(t, x, y, ...k) { const wd = lctx.measureText(t).width, f = parseFloat(lctx.font) || 12, m = curM(), X = m.a * x + m.c * y + m.e, Y = m.b * x + m.d * y + m.f; mark([X - wd - 6, Y - f * 1.5, X + wd + 6, Y + f]); lctx.strokeText(t, x, y, ...k); },
       putImageData() { R.unsupported.putImageData = 1; },
     };
     function box4(x, y, w, h, r) {
-      if (lctx.upright) { const m = lctx.getTransform(), cx = x + w / 2, cy = y + h / 2, X = m.a * cx + m.c * cy + m.e, Y = m.b * cx + m.d * cy + m.f; mark([X - Math.abs(w) / 2 - r, Y - Math.abs(h) / 2 - r, X + Math.abs(w) / 2 + r, Y + Math.abs(h) / 2 + r]); return; }
+      if (lctx.upright) { const m = curM(), cx = x + w / 2, cy = y + h / 2, X = m.a * cx + m.c * cy + m.e, Y = m.b * cx + m.d * cy + m.f; mark([X - Math.abs(w) / 2 - r, Y - Math.abs(h) / 2 - r, X + Math.abs(w) / 2 + r, Y + Math.abs(h) / 2 + r]); return; }
       let b = null; for (const [p, q] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]) { const [X, Y] = tp(p, q); b = grow(b, X, Y, r); } mark(b);
     }
     const bound = new Map();   // (the canvas's own methods, bound once a frame, not at every call)
-    clipped = false; clipStack.length = 0;
+    clipped = false; clipStack.length = 0; mCache = null; segs = []; segOk = true; subs = []; curved = false; last = null;
     return new Proxy(lctx, {
       get(t, k) { if (k === 'drawImage') return draw; if (k === '_rawDraw') return rawDraw; if (hooks[k]) return hooks[k]; const x = t[k]; if (typeof x !== 'function') return x; let f = bound.get(k); if (!f) bound.set(k, f = x.bind(t)); return f; },
       set(t, k, val) { t[k] = val; return true; },
@@ -489,7 +562,7 @@ void main() {
     gl.uniform2f(loc2.uSize, FW, FH); gl.uniform1i(loc2.uTex, 0); gl.activeTexture(gl.TEXTURE0);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     for (const a of atlases) if (a.used) {   // this frame's bits, uploaded once
-      if (!a.t) { a.t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, a.t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, ATLAS, ATLAS); for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); }
+      if (!a.t) { a.t = gl.createTexture(); whiteAt.set(a.t, [(ATLAS - 0.5) / ATLAS, 0.5 / ATLAS]); gl.bindTexture(gl.TEXTURE_2D, a.t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, ATLAS, ATLAS); for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); }
       const uh = Math.min(ATLAS, a.h || ATLAS);   // (stage 5: only the rows in use, not the whole 1024 px square)
       gl.bindTexture(gl.TEXTURE_2D, a.t); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, ATLAS, uh, gl.RGBA, gl.UNSIGNED_BYTE, a.c);
       R.bitRows = (R.bitRows || 0) + uh;
@@ -497,7 +570,10 @@ void main() {
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     nrmSpend = 0;
     // Where each quad's picture is: an atlas (with its normal map), a texture of its own, or this frame's bits.
+    let prev = null;
     for (const r of rec) {
+      if (r.col && prev && whiteAt.has(prev.tex) && !prev.s) { const w2 = whiteAt.get(prev.tex); r.tex = prev.tex; r.ntex = prev.ntex; r.u0 = r.u1 = w2[0]; r.v0 = r.v1 = w2[1]; prev = r; continue; }
+      prev = r;
       if (r.atlas !== undefined) { r.tex = atlases[r.atlas].t; continue; }
       if (r.col) { if (!R.white) { R.white = texFrom(null); gl.bindTexture(gl.TEXTURE_2D, R.white); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255])); } r.tex = R.white; continue; }
       const e = atlasFor(r.img);

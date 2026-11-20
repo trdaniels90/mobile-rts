@@ -215,6 +215,22 @@ renderer does, at least as fast on a phone.
 - **Phone measurement (owner, 2026-11-20):** on the owner's iPhone, zoomed out all the way, WebGL went from 16 fps (before
   part 3) to 60 fps (the test page after part 3, the screen's own limit). The 2D way's number on the same battle: not given yet.
 
+- **Stage 5, part 4 (2026-11-20): late in a battle** (owner: "the 60 fps was at the start. No idea what it'll be towards
+  the end of the match"; their iPhone's screen is 120 Hz). Profiled after 14 minutes of AI against AI at the widest zoom
+  (165-253 units, 460-730 effects, a passing storm), headless: the CPU's draw 43-91 ms a frame, now 35 ms (2D: 155-170 ms).
+  - **More drawn as WebGL shapes, fewer cut-outs:** thin straight lines (stroke of moveTo/lineTo/closePath, one colour,
+    half-width up to 1.5 px: rain, cables) as thin quads; filled straight-sided convex shapes (walls' faces, prisms) as
+    triangles; a big fill with a gradient (the storm's darkening) at a quarter size in a canvas of its own, stretched.
+    Anything clipped, curved, dashed, thick or in a blend WebGL does not do still goes through the layer.
+  - **Fewer draw calls:** every atlas keeps a white pixel (top right; shelves stop 2 px short), so a coloured shape takes
+    the texture of the picture before it and joins its run: Village in rain went from 905 calls and 421 cut-outs a frame
+    to 50 and 6.
+  - The stand-in's transform is read once until changed through it (getTransform makes a new matrix each call).
+  Same picture as 2D: Village at night in rain 1.6% of pixels differ, Twin Lakes 2.1% (the hills' sampling). Test page
+  updated. **120 Hz:** the game asks for a frame on every screen refresh (requestAnimationFrame, no cap of its own); on
+  iPhones Safari gives pages at most 60 a second unless its "Prefer Page Rendering Updates near 60fps" feature flag is off
+  (and Low Power Mode holds it at 60); the Claude app's page view may hold 60 as well.
+
 ## Parity list (what the 2D renderer draws, to tick off)
 
 Ground tiles and marks, hills, edge haze past the map, ore, shroud and fog of war, trees and their shadows, cliffs and their
