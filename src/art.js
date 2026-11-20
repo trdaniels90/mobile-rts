@@ -216,7 +216,7 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt) {
 // sheets (faction and team colour 0-2, or 'burnt'); a sprite not loaded yet, or not baked, is rendered as before. Only
 // over http(s) and in the Windows app (a page opened from a file cannot read pictures back, which tests rely on).
 const SpriteSheets = (() => {
-  let man = null, manP = null;
+  let man = null, manP = null, nmanP = null;
   const loaded = new Set();
   const ok = () => typeof location !== 'undefined' && /^(https?|app):$/.test(location.protocol) && typeof createImageBitmap === 'function' && typeof fetch === 'function'
     && !(typeof HEADLESS !== 'undefined' && HEADLESS);
@@ -229,11 +229,20 @@ const SpriteSheets = (() => {
     if (!r.ok) return;
     const bmp = await createImageBitmap(await r.blob());
     const cut = (x, y, w, h) => createImageBitmap(bmp, x, y, w, h);
+    // With the WebGL renderer (gl.js), the sheet's normal maps too (tools/bake-normals.js: normals/, the same layout),
+    // if they were baked from these very sprites: each picture's goes with it (img._nrm), so it is not worked out in play.
+    let nbmp = null;
+    if (typeof GLR !== 'undefined' && GLR.on) {
+      const nm = await (nmanP || (nmanP = fetch('normals/manifest.json').then((x) => (x.ok ? x.json() : null)).catch(() => null)));
+      const ns = nm && nm.sprites === m.hash && nm.sheets.find((x) => x.of === sh.file);
+      if (ns) { const r2 = await fetch('normals/' + ns.file).catch(() => null); if (r2 && r2.ok) nbmp = await createImageBitmap(await r2.blob()).catch(() => null); }
+    }
     for (let i = 0; i < sh.sprites.length; i += 64) {   // a few at a time, so loading never holds up a frame
       await Promise.all(sh.sprites.slice(i, i + 64).map(async (e) => {
         if (spriteCache2.has(e[0])) return;
         const s = { img: await cut(e[1], e[2], e[3], e[4]), ox: e[5], oy: e[6] };
         s.img._ox = e[5]; s.img._oy = e[6];   // (uprightCtx)
+        if (nbmp) s.img._nrm = await createImageBitmap(nbmp, e[1], e[2], e[3], e[4]);
         if (e.length > 7) { s.sh = await cut(e[7], e[8], e[9], e[10]); s.sox = e[11]; s.soy = e[12]; s.sh._ox = e[11]; s.sh._oy = e[12]; }
         if (spriteCache2.has(e[0])) return;
         spriteCache2.set(e[0], s);
@@ -242,6 +251,7 @@ const SpriteSheets = (() => {
       }));
     }
     if (bmp.close) bmp.close();
+    if (nbmp && nbmp.close) nbmp.close();
   }
   let chain = Promise.resolve(), pending = 0;
   function need(names) {
@@ -889,7 +899,7 @@ function drawTree(g, e) {
   // A shear on the screen about the tree's foot: the top moves, the foot stays. Drawn with the canvas's own drawImage,
   // so the shear is kept (uprightCtx would set it aside).
   const fx = Math.round(tf.a * tr.x + tf.c * tr.y + tf.e), fy = Math.round(tf.b * tr.x + tf.d * tr.y + tf.f - gLift(tr.x, tr.y));   // (on the raised ground: look.js)
-  const draw = (img, ox, oy, dy) => CanvasRenderingContext2D.prototype.drawImage.call(g, img, fx + Math.round(ox), fy + Math.round(oy) + (dy || 0));
+  const draw = (img, ox, oy, dy) => (g._rawDraw || CanvasRenderingContext2D.prototype.drawImage).call(g, img, fx + Math.round(ox), fy + Math.round(oy) + (dy || 0));   // (_rawDraw: gl.js's recorder)
   // (No save() / restore(): thousands of trees show zoomed out on a big screen. What is changed is put back below.)
   g.setTransform(1, 0, c, 1, -c * fy, 0);
   if (p < 1) { g.globalAlpha = 1 - p * p; draw(tr.s.img, tr.s.ox, tr.s.oy); }
@@ -979,7 +989,7 @@ function isoTreeBlocks(g, list, rim, vx, vy, VW, VH) {
   }
   shown = (bx1 - bx0 + 1) * (by1 - by0 + 1);
   g.setTransform(1, 0, 0, 1, -vx, -vy);   // view plane
-  for (let k = 0; k < order.length; k += 3) CanvasRenderingContext2D.prototype.drawImage.call(g, order[k].c, order[k + 1] * TREE_BLOCK - TREE_BLOCK_PAD, order[k + 2] * TREE_BLOCK - TREE_BLOCK_PAD);
+  for (let k = 0; k < order.length; k += 3) (g._rawDraw || CanvasRenderingContext2D.prototype.drawImage).call(g, order[k].c, order[k + 1] * TREE_BLOCK - TREE_BLOCK_PAD, order[k + 2] * TREE_BLOCK - TREE_BLOCK_PAD);
   g.setTransform(m);
   // The rest: burning trees, and trees of blocks not made yet.
   const rest = list.filter((e) => e.p > 0 && e.p < 1 || !ready.has(treeKey(e.x, e.y)));
@@ -1040,6 +1050,15 @@ const nightLevel = () => dayNight(G ? G.t : 0).night;
 // Darkness over the view, with holes where there is light, then the lights' warm glow on top. Dusk and dawn tint it amber.
 let nightCv = null, lightPic = null;
 const NIGHT_RES = 0.5;   // the night layer's size as a share of the screen's (see drawNight)
+function nightLightPic() {   // a light's soft hole in the darkness (also gl.js's light pass)
+  if (!lightPic) {
+    lightPic = mkCanvas(64, 64);
+    const c = lightPic.getContext('2d'), gr = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = gr; c.fillRect(0, 0, 64, 64);
+  }
+  return lightPic;
+}
 function drawNight(g, vx, vy, vw, vh, k, t, vis) {
   const { night, warm } = dayNight(t);
   const W = g.canvas.width, H = g.canvas.height;
@@ -1047,17 +1066,20 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
     g.save(); g.globalCompositeOperation = 'multiply'; g.fillStyle = `rgba(255,170,110,${(0.32 * warm).toFixed(3)})`; g.fillRect(0, 0, W, H); g.restore();
   }
   if (night < 0.01) return;
-  if (!lightPic) {
-    lightPic = mkCanvas(64, 64);
-    const c = lightPic.getContext('2d'), gr = c.createRadialGradient(32, 32, 0, 32, 32, 32);
-    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-    c.fillStyle = gr; c.fillRect(0, 0, 64, 64);
-  }
+  nightLightPic();
   // The darkness is soft shade and blurred pools of light, so it is drawn at NIGHT_RES of the screen and stretched up
   // smoothly: on a 3x phone the full-size layer cost about 8 ms of GPU time a frame (match 3c189abc: 60 to about 43 fps at night).
   const nW = Math.max(1, Math.round(W * NIGHT_RES)), nH = Math.max(1, Math.round(H * NIGHT_RES)), nk = k * nW / W;
   if (!nightCv || nightCv.width !== nW || nightCv.height !== nH) nightCv = mkCanvas(nW, nH);
-  const n = nightCv.getContext('2d'), lights = [];
+  const n = nightCv.getContext('2d'), lights = nightLights(vx, vy, vw, vh, night);
+  const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
+  n.globalCompositeOperation = 'source-over'; n.clearRect(0, 0, nW, nH);
+  drawNightRest(g, vx, vy, k, t, night, near, vis, n, nW, nH, nk, W, H, lights);
+}
+// drawNight's lights, as [view x, view y, radius, strength, warm] (also read by gl.js's light pass): street lamps, the
+// look's pools, lit windows, structures (not defences, with the look's lamps), fires, blasts and bolts.
+function nightLights(vx, vy, vw, vh, night) {
+  const lights = [];
   const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
   const add = (x, y, r, a, warmLight, h) => { [x, y] = toView(...liftPt(x, y, (h || 0) + gLift(x, y))); if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };   // (vx, vy: the camera on the view plane)
   // Street lamps, lit windows, buildings' own lights, fires and blasts.
@@ -1080,7 +1102,9 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
     else if (fx.type === 'bolt') add(fx.x, fx.y, 260, 1, false);
   }
   for (const b of G.bolts || []) add(b.x, b.y, 50, Math.min(1, b.t / 3), true);
-  n.globalCompositeOperation = 'source-over'; n.clearRect(0, 0, nW, nH);
+  return lights;
+}
+function drawNightRest(g, vx, vy, k, t, night, near, vis, n, nW, nH, nk, W, H, lights) {
   n.fillStyle = `rgba(6,12,34,${(0.62 * night).toFixed(3)})`; n.fillRect(0, 0, nW, nH);
   n.globalCompositeOperation = 'destination-out';
   for (const [x, y, r, a] of lights) {
@@ -1388,7 +1412,7 @@ function makeGround(painter, legacy, baked) {
     if (f.i < list.length) return false;
     finishing.delete(k);
     f.t.used = frameNo;
-    tiles.set(k, f.t); finished++;
+    f.t.ver = (f.t.ver || 0) + 1; tiles.set(k, f.t); finished++;   // (ver: gl.js uploads a tile again when it changes)
     if (!pvDone[k] && pool) { const [x0, y0] = at(k), g = pvCtx(); g.imageSmoothingEnabled = true; g.drawImage(f.t.g, 0, 0, Math.min(T, WORLD - x0), Math.min(T, WORLD - y0), x0 / PV, y0 / PV, Math.min(T, WORLD - x0) / PV, Math.min(T, WORLD - y0) / PV); pvMark(k); }
     return true;
   }
@@ -1478,6 +1502,7 @@ function makeGround(painter, legacy, baked) {
     if (m[0] === 'd' && !t.d) t.d = tileCanvas();
     const [x0, y0] = at(k), bx = Math.floor(m[3]), by = Math.floor(m[4]), w = Math.ceil(m[5]) - bx + 1, h = Math.ceil(m[6]) - by + 1;
     (m[0] === 't' ? t.g : t.d).getContext('2d').drawImage(scratch, 0, 0, w, h, bx - x0, by - y0, w, h);
+    t.ver = (t.ver || 0) + 1;   // (gl.js: upload it again)
   }
   function drawOn(t, k, m) { markPic(m); copyOn(t, k, m); }
   // Paints some more of tile k (rows STRIP at a time until `until`, or all of it); true once it is done.
@@ -1588,6 +1613,9 @@ function makeGround(painter, legacy, baked) {
       this.blocky = blocky;     // of those, with no preview yet: the flat minimap colours
       trim(GROUND_ROOMY ? n * n : Math.max(140, seen.length * 3));
     },
+    // For the WebGL renderer (gl.js): the tile size, tiles across, a tile's corner, the tiles of a box, a painted tile
+    // ({ g, d, ver }) or none, and the stand-in for unpainted ground (a pixel a cell).
+    gl: { T, n, at, tilesIn: (sx, sy, sw, sh) => tilesIn(sx, sy, sw, sh), tile: (k) => tiles.get(k), low: () => lowRes() },
     // Draws one layer ('t' the ground, 'd' the wrecks and bodies) of world rect (sx, sy, sw, sh) into g at (dx, dy).
     // The raised ground (look.js hillWarp): the chunks (HILL_CH px squares of the world grid, inside one tile) of world
     // rect (sx, sy, sw, sh), and one layer of one chunk drawn in g (its transform already set: hillWarp set).

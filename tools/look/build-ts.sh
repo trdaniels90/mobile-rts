@@ -29,4 +29,5 @@ s = re.sub(r"'maps/([a-z]+)\.png", r"'../maps/\1.png", s)
 open(p, 'w').write('<meta charset="utf-8">\n' + s)
 PY
 rm -rf "$out/grounds"; cp -r grounds "$out/grounds"
+if [ -d normals ]; then rm -rf "$out/normals"; cp -r normals "$out/normals"; fi   # (the WebGL renderer's baked normal maps: this branch's, beside the page)
 echo "built $out"

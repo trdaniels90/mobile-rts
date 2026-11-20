@@ -1939,3 +1939,32 @@ Owner's match ea39d315 (3 v 3, 40 min, a 120 Hz PC at 2560 x 1370): 117 fps earl
 ## Ally picker was invisible (not released, team games, both modes)
 
 - With 2+ allies the Ally button builds `#allyPick` (`allyPicker`, ui.js), but style.css only styled `#autoPick`, so the card was never shown and the button seemed to do nothing (owner, 3 v AI online). `#allyPick` now shares the overlay rules. With one ally the button still toggles at once.
+
+## WebGL renderer (`src/gl.js`, from branch `claude/webgl`, merged into `claude/ts-look` 2026-11-20)
+
+The whole battlefield is drawn by WebGL2 when it can; `?gl=off` (and no WebGL2, a lost context, or `GLR.paused`) draws
+it the 2D way as before. Drawing only: rules, saves and online play do not change. The full history, measurements and
+reasons are in `plans/webgl-renderer.md`; the short version:
+
+- **How:** the ground is a mesh lifted by the hills (tiles as textures). From the ground to the HUD, ui.js draw draws
+  into a stand-in for the view canvas (`GLR.listBegin`): pictures become quads (atlases, normal-map twins), solid
+  rectangles, thin and thick straight lines, convex shapes and whole ellipses become coloured quads and triangles, big
+  gradient fills are drawn small and stretched, and anything else (curves, clipped drawing, unusual blends) is cut out of
+  a 2D layer into a per-frame atlas, in its place in the order. `GLR.listDepth` sets what is tested against the hills'
+  depth. `GLR.listEnd` draws the scene (colour and normals), the light pass (the look's mood, the night, lights from
+  `lookDayLights` / `nightLights`, the side of a picture or a hill facing a light lit more, the sun where it is in the
+  day on day/night maps), then what goes over the light (lamps, weather, storms) and the HUD; `GLR.present` puts it on
+  its own canvas (`#gl`) under the game's.
+- **Switches:** `?gl=off` the 2D way; `?gl=flatlight` no normal-map lighting; `?gl=nosun` the baked sun; `?gl=normals`
+  shows the normal maps; `?glstats` (or `#glstats`) a speed readout with a 2D / WebGL button.
+- **Baked normal maps:** `tools/bake-normals.js <repo> [--check]` writes `normals/` in the sprite sheets' layout (team
+  colours share one sheet; structures are left out while lookstructs.js redraws them). **Rebake after every
+  `tools/bake-sprites.js`**, and after a change to gl.js `nrmPic` (`--check` says so). Releases publish `normals/` with
+  `sprites/` (CLAUDE.md, Releasing step 4; tools/look/build-ts.sh copies it). Missing or stale, the game works them out
+  in play (at most 3 ms a frame).
+- **Do not change** `src/models.js` or `src/voxel.js` for it (the sprite bake's check hashes them): gl.js wraps
+  `renderVox` and `sprite` to know which model a picture came from.
+- **Checking:** `tools/look/gl-compare.js <repo> <prefix> <map> [fight|fightfx] [rain|snow]` draws one paused moment the 2D
+  way and with WebGL (flat light, sun off: about 1-2% of pixels differ, the hills' sampling) and lit.
+- **Phone:** the owner's iPhone: 60 fps zoomed all the way out at the start of a battle (16 before the zoomed-out fixes).
+
