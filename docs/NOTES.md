@@ -1993,3 +1993,10 @@ long the card held, `full`: LOAD_MAX ran out with the ground or sheets not ready
 Headless (desktop CPU): Frostlight 3 v 3 at a phone's 440 x 894 x 3 runs out the 3 s card with ground still missing (as the
 phone did: 21 frames with stand-in ground after the card); A Bridge Too Far once had a 750 ms frame under the card,
 534 ms of it the ground. No freeze of seconds reproduced headless (SwiftShader WebGL is slow on every frame).
+
+## Phones draw at 2x, not 3x (after 2026.11.20, not released, both modes, looks and heat only)
+
+Owner: "while playing my phone is getting really hot"; picked "Draw at 2x on phones" (over a 30 fps battery saver). `ui.js`
+layout: `DPR` is at most 2 on a touch screen (`(pointer: coarse)`), 3 elsewhere as before. An iPhone at 440 x 894 CSS px drew
+the battle at 1320 x 2088 (2.76 MP, twice a frame with the WebGL light pass's normals); now 880 x 1392 (1.22 MP, 56% fewer).
+Everything sized by `DPR` follows (view, WebGL canvas, radar, snapZ).

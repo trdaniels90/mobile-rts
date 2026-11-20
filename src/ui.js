@@ -114,7 +114,10 @@
   // Layout & camera
   // ---------------------------------------------------------------------------
   function layout() {
-    DPR = Math.min(window.devicePixelRatio || 1, 3);
+    // Phones and tablets (a touch screen) draw at most 2 pixels a CSS pixel: an iPhone's 3 is 2.25 x the pixels for an
+    // edge hard to see at arm's length, and the phone ran hot (owner, 2026-11-20). Desktops keep up to 3.
+    const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+    DPR = Math.min(window.devicePixelRatio || 1, touch ? 2 : 3);
     const r = ui.sidebar.getBoundingClientRect(), top = Math.round(ui.topstrip.getBoundingClientRect().bottom);
     const portrait = window.innerHeight > window.innerWidth;
     W = portrait ? window.innerWidth : Math.max(100, Math.round(r.left));
