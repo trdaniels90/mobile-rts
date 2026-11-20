@@ -28,7 +28,7 @@ const { chromium } = require('playwright');
       const [X, Y] = toView(px, py); __ps.cam.z = 1.2; __ps.cam.x = X - 400 / 1.2; __ps.cam.y = Y - 270 / 1.2;
     });
     await p.evaluate(() => { G.paused = true; }); await p.waitForTimeout(6000);
-    const t = await p.evaluate(async () => { const a = performance.now(); let n = 0; while (performance.now() - a < 2000) { await new Promise((r) => requestAnimationFrame(r)); n++; } return { fps: n / 2, gnd: drawParts.gnd && drawParts.gnd.toFixed(2), glFrames: GLR.frames, quads: GLR.quads }; });
+    const t = await p.evaluate(async () => { const a = performance.now(); let n = 0; while (performance.now() - a < 2000) { await new Promise((r) => requestAnimationFrame(r)); n++; } return { fps: n / 2, gnd: drawParts.gnd && drawParts.gnd.toFixed(2), glFrames: GLR.frames, quads: GLR.quads, unsup: GLR.unsupported }; });
     for (const m of ['off', 'on']) { await p.evaluate((m) => { GLR.paused = m === 'off'; }, m); await p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); await p.screenshot({ path: `${process.argv[3]}_${m}.png` }); }
     console.log(mode, JSON.stringify(t), errs.slice(0, 3));
     await p.close();

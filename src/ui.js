@@ -548,7 +548,9 @@ function draw() {
     const ox = Math.floor(Math.min(...corners.map((c) => c[0]))), oy = Math.floor(Math.min(...corners.map((c) => c[1])));
     const bw = Math.ceil(Math.max(...corners.map((c) => c[0]))) - ox, bh = Math.ceil(Math.max(...corners.map((c) => c[1]))) - oy;
     if (view.width < VW || view.height < VH) { view.width = VW + 64; view.height = VH + 64; }
-    const v = uprightCtx(vctx);
+    let v = uprightCtx(vctx);   // (let: gl.js's recorder stands in for it from the ground to the end of the list)
+    const realV = v;
+    let glRec = false;
     v.upright = false;
     v.setTransform(1, 0, 0, 1, 0, 0);
     v.imageSmoothingEnabled = false;
@@ -599,28 +601,18 @@ function draw() {
     let ores = null, occs = null, drawCh = null;
     const glGround = GLR.ground(v, vx, vy, VW, VH, sx, sy, sw, sh);   // gl.js: the ground drawn by WebGL (stage 1), or false
     if (glGround) {
-      // Ore over it, back to front, each on the ground under it. On the raised ground, the chunks that hide ground behind
-      // them are still kept (2D) to be drawn again over the units behind them (reHill).
+      // gl.js: from here to the end of the list, what is drawn into the view is recorded into WebGL (over its ground, in
+      // order), and the frame is put into the view once at the end (GLR.listEnd). Ore first, each tested against the
+      // ground's depth (a hill hides ore behind it); then marks on the ground (no depth), then the list.
+      v = GLR.listBegin(realV) || realV; glRec = v !== realV;
       const list = [];
       for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
         const c = idx(cx, cy), o = G.ore[c];
         if (o && onScr((cx + 0.5) * CELL, (cy + 0.5) * CELL, 40, 40, 40)) list.push({ cx, cy, o, gem: G.gem[c], key: viewDepth((cx + 0.5) * CELL, (cy + 0.5) * CELL) });
       }
       list.sort((a, b) => a.key - b.key);
-      for (const r of list) onHill(v, (r.cx + 0.5) * CELL, (r.cy + 0.5) * CELL, () => drawOre(v, r.cx, r.cy, r.o, r.gem));
-      if (warp) {
-        const chunks = G.ground.chunks(sx, sy, sw, sh).sort((a, b) => a.key - b.key);
-        ores = list.map((r) => ({ ...r, key: r.key + 40 }));
-        const oreAt = (r) => onHill(v, (r.cx + 0.5) * CELL, (r.cy + 0.5) * CELL, () => drawOre(v, r.cx, r.cy, r.o, r.gem));
-        drawCh = (c, withOre) => {
-          warp.set(c); G.ground.drawChunk(v, c, 't'); hillPatch(v, c.X0, c.Y0, c.X1, c.Y1);
-          if (withOre) { warp.flat(); for (const r of ores) { const x = (r.cx + 0.5) * CELL, y = (r.cy + 0.5) * CELL; if (x >= c.X0 && x < c.X1 && y >= c.Y0 && y < c.Y1) oreAt(r); } warp.set(c); }
-          G.ground.drawChunk(v, c, 'd');
-        };
-        occs = chunks.filter((c) => warp.fitOf(c).occ);
-        for (const c of occs) c.box = warp.box(c);
-        warp.flat();
-      }
+      for (const r of list) { if (glRec) GLR.listDepth(r.key + 12); onHill(v, (r.cx + 0.5) * CELL, (r.cy + 0.5) * CELL, () => drawOre(v, r.cx, r.cy, r.o, r.gem)); }
+      if (glRec) GLR.listDepth(null);
     } else if (warp) {
       const chunks = G.ground.chunks(sx, sy, sw, sh).sort((a, b) => a.key - b.key);
       ores = [];
@@ -687,7 +679,8 @@ function draw() {
     for (const s of G.spans || []) if (!s.alive && s.x > ox - 400 && s.x < ox + bw + 400 && s.y > oy - 400 && s.y < oy + bh + 400) { const p = spanRuin(s); v.drawImage(p.c, p.x, p.y); }
     const x0 = ox - 80, y0 = oy - 80, x1 = ox + bw + 80, y1 = oy + bh + 80;
     const inView = (e) => e.x > x0 && e.x < x1 && e.y > y0 && e.y < y1 && onScr(e.x, e.y);
-    for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0 && onScr(fx.x, fx.y)) onHill(v, fx.x, fx.y, () => drawEffect(v, fx));
+    for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0 && onScr(fx.x, fx.y)) { if (glRec) GLR.listDepth(viewDepth(fx.x, fx.y) + 10); onHill(v, fx.x, fx.y, () => drawEffect(v, fx)); }
+    if (glRec) GLR.listDepth(null);
     const treeShows = (x, y) => onScr(x, y, 60, 30, 90);
     lap('gnd');   // the ground, ore, walls' list, wrecks and bodies
     let trees = treesInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows, true);   // swaying in the wind, burning (art.js): sorted in with the units below
@@ -772,8 +765,7 @@ function draw() {
     };
     // gl.js (stage 2): with the ground in WebGL, the list's pictures become WebGL quads (in this order, each tested against
     // the ground's depth at its base, so a hill hides what stands behind it: no reHill), the rest drawn on a layer above.
-    const glList = glGround ? GLR.listBegin(v) : null, lv = glList || v;
-    if (glList) occs = null;
+    const glList = glRec, lv = v;
     for (const e of ground) {
       if (occs) { while (oi < occs.length && occs[oi].key - 6 <= e._key) reHill(occs[oi++]); drawn.push(drawnBox(e)); }
       if (glList) GLR.listDepth(e._key + (big(e) ? 2 : e.kind === 'tree' ? 14 : e.kind === 'cliff' ? 16 : 10));
@@ -781,7 +773,7 @@ function draw() {
       const [hx, hy] = hillAt(e);
       onHill(lv, hx, hy, () => drawOne(e, lv));
     }
-    if (glList) GLR.listEnd(v);
+    if (glList) { GLR.listEnd(realV); v = realV; toWorld(); v.upright = true; v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over'; }
     if (occs) while (oi < occs.length) reHill(occs[oi++]);
     lookSmoke(v);   // bigger smoke and fires over the units (look.js test)
     lookFxOver(v);   // lookfx.js: steam, fireballs and debris over the units

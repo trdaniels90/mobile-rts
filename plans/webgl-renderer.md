@@ -71,6 +71,15 @@ renderer does, at least as fast on a phone.
   on the bent ground), Twin Lakes and a 9-minute River Crossing with about 700 pictures in WebGL, no errors.
   Known for now: the 2D layer's bits (flags, sparks, crane cables, the infantry's pixels drawn as rects) are over all the
   pictures, so one behind a unit shows through it; two copies of the GL canvas into 2D a frame (phone cost unknown).
+  **Fixed 2026-11-20 (owner: "Fix the previous 2 things"):** (1) the 2D layer's bits are cut out of it, at the box each
+  drawing call covers (paths, rects, text tracked through the stand-in), into a per-frame atlas (`ATLAS` 1024 px squares,
+  big boxes in 512 px pieces) before the next picture or list item, and drawn as quads in their own place in the order:
+  nothing shows through what stands in front of it. Blends WebGL does: source-over, lighter, multiply, screen (others go
+  through the layer, counted in `GLR.unsupported`: none seen). (2) One copy a frame: the ground stays in the GL canvas,
+  recording starts right after it (ore with depth, husks and bodies with depth, then the ground marks: tank tracks,
+  shadows, fog sheets, craters, without depth), and listEnd puts the whole frame into the view once. Measured headless
+  (software GL): the ground's lap 1-3 ms (was 23-35 ms with two copies); 1.0-1.5% of pixels differ, as before; up to 1,353
+  quads a frame in a battle.
   **Next (2b):** normal and height maps for the pictures (renderVox's G-buffer output, and normal sheets for the baked
   sprites), atlases instead of a texture per picture.
 
