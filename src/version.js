@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.20.2', date: '20 November 2026', title: 'Quicker starts', groups: [
+    ['Fixed', [
+      'The game no longer freezes for a second or two when it opens or when a battle starts: the battlefield is now prepared in the background while the Deploying forces card is shown.',
+    ]],
+  ] },
   { v: '2026.11.20.1', date: '20 November 2026', title: 'Flat bases, cooler phones', groups: [
     ['Changed', [
       'Every starting base is on level ground, big enough for a whole base and its walls, so the computer no longer builds walls across hills. On Crossroads Village every base sits on a broad hilltop.',
