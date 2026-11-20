@@ -119,7 +119,7 @@ const Report = (() => {
     const fallen = G.log.fallen.filter((u) => u.team === G.me).map(({ team, ...u }) => u);   // this device's side, as the stats page expects
     for (const u of alive.concat(fallen)) names[u.type] = UNIT_DEFS[u.type].name;
     const out = { player: G.me, teams: G.teams.map((t) => ({ faction: t.faction, ai: t.isAI, ally: t.ally, style: t.isAI ? t.style || null : undefined, waves: t.waves || 0, stats: t.stats })),
-      log: { samples: G.log.samples, events: G.log.events, fallen, alive, waves: G.log.waves }, names };
+      log: { samples: G.log.samples, events: G.log.events, fallen, alive, waves: G.log.waves }, names, map: G.mapId || null };
     if (errs.length) out.errors = errs;
     // Team battles: sides per alliance (2 for 2 v 2 and co-op, 3 for 3 v 3 and 3 v AI), so boards can tell them apart.
     if (G.teams.length > 2) out.size = G.teams.filter((t) => t.ally === G.teams[G.me].ally).length;
@@ -164,19 +164,36 @@ const Report = (() => {
   // (stutters), the worst frame, the average time a frame spent in the simulation and in drawing, camera jumps
   // (more than half a screen in one frame, as from a minimap tap), frames with ground still painting on screen
   // (art.js makeGround, the stand-in colours), and units alive. Kept in G.perf, so a saved game keeps its minutes.
-  let frameAt = 0, prev = null;
-  function noteFrame(now, upd, drw, camJump, other) {
+  // Freezes (`fz`): frames that came 0.4 s or more after the one before, also while loading (`st` 'load': the
+  // Deploying forces card) or paused, none hidden in the minutes (they leave out gaps over a second, as a pause looks
+  // the same); not when the phone was locked or the app put away in between. `load`: how long the card held the
+  // battle (`full`: LOAD_MAX ran out first).
+  let frameAt = 0, prev = null, hidAt = 0, gWas = null;
+  try { document.addEventListener('visibilitychange', () => { hidAt = performance.now(); }); } catch (_) {}
+  function noteFrame(now, upd, drw, camJump, other, state, load) {
     try {
-      const gap = (now - frameAt) / 1000;
-      frameAt = now;
+      const gap = (now - frameAt) / 1000, away = hidAt > frameAt || gWas !== G;
+      frameAt = now; gWas = G;
       // This frame's parts. A long gap before this frame was spent in the previous frame's work (or outside the
       // game's code after it), so long frames are put down to `prev`.
       const gm = G && G.ground ? G.ground.ms || 0 : 0;
       const cur = { upd, drw, gnd: gm, spr: typeof spriteMs === 'number' ? spriteMs : 0, sprN: typeof spriteN === 'number' ? spriteN : 0,
-        oth: other || 0, tiles: G && G.ground ? G.ground.made || 0 : 0 };
+        oth: other || 0, tiles: G && G.ground ? G.ground.made || 0 : 0, dp: drw > 100 && typeof drawParts === 'object' ? { ...drawParts } : null };
       const p = prev; prev = cur;
-      if (!G || G.over || G.paused || G.hold || gap > 1 || document.hidden) return;   // a gap over a second is a pause
-      const P = G.perf || (G.perf = { min: [] }), i = Math.min(180, Math.floor(G.t / 60));
+      if (!G || G.over) return;
+      const P = G.perf || (G.perf = { min: [] });
+      if (load && !P.load) P.load = load;
+      if (gap >= 0.4 && p && !away && !document.hidden) {
+        if (!P.fz) P.fz = [];
+        P.fzN = (P.fzN || 0) + 1; P.fzMs = (P.fzMs || 0) + Math.round(gap * 1000);
+        if (P.fz.length < 8) {
+          const r = (v) => Math.round(v);
+          P.fz.push({ t: r(G.t), st: state || '', gap: r(gap * 1000), upd: r(p.upd), drw: r(p.drw), gnd: r(p.gnd), spr: r(p.spr), sprN: p.sprN, oth: r(p.oth),
+            tiles: p.tiles, miss: G.ground ? G.ground.missing || 0 : 0, gl: typeof GLR === 'object' && GLR && GLR.on ? 1 : 0, dp: p.dp ? partsOf(p.dp, 1) : undefined });
+        }
+      }
+      if (state || G.paused || G.hold || gap > 1 || document.hidden) return;   // a gap over a second is a pause
+      const i = Math.min(180, Math.floor(G.t / 60));
       const m = P.min[i] || (P.min[i] = { m: i, f: 0, ft: 0, slow: 0, long: 0, worst: 0, upd: 0, drw: 0, jumps: 0, wait: 0, units: 0 });
       m.f++; m.ft += gap; m.upd += upd; m.drw += drw;
       // The worst of each part, the ground's share of drawing and the tiles it finished: a stutter none of these
@@ -227,6 +244,9 @@ const Report = (() => {
     if (!G || !G.perf) return null;
     let sc = {};
     try { sc = { cores: navigator.hardwareConcurrency || null, w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1 }; } catch (_) {}
+    try { sc.gl = typeof GLR === 'object' && GLR && GLR.on ? 1 : 0; } catch (_) {}
+    if (G.perf.load) sc.load = G.perf.load;
+    if (G.perf.fzN) { sc.fzN = G.perf.fzN; sc.fzMs = G.perf.fzMs; sc.fz = G.perf.fz; }
     return { ...sc, minutes: G.perf.min.filter(Boolean).map((m) => ({ m: m.m, fps: m.ft ? Math.round(m.f / m.ft) : null, slow: m.slow, long: m.long,
       worst: Math.round(m.worst), upd: +(m.upd / m.f).toFixed(1), drw: +(m.drw / m.f).toFixed(1), jumps: m.jumps, wait: m.wait, units: m.units,
       wu: Math.round(m.wu || 0), wd: Math.round(m.wd || 0), wg: Math.round(m.wg || 0), wo: Math.round(m.wo || 0), gnd: +((m.gnd || 0) / m.f).toFixed(1), tiles: m.tiles || 0, lx: m.lx || 0, lf: m.lf || [],

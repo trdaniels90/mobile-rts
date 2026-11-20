@@ -1980,3 +1980,16 @@ fades off ore and gem cells it reached (Twin Lakes 32,85, Snowbound 152,139) and
 90,82, Snowbound 132,37), and a blocked cliff cell its rock hardly reached gets a boulder (River 105,86). Costs 16-42 ms
 once a battle on a desktop. Rules, saves and online play unchanged.
 
+
+## Freezes in the match report (after 2026.11.20, not released, both modes, reporting only)
+
+Owner: the screen would not move for a few seconds at the start of a 3 v 3 on the phone (match 5e6aa20b, 2026.11.20, WebGL).
+The report showed nothing: the minutes leave out gaps over a second (a pause looks the same) and nothing was noted while
+the Deploying forces card held the battle. Now `stats.frames` also has `fz` (up to 8 frames that came 0.4 s or more after
+the one before, also while loading, `st` 'load', or paused; not when the phone was locked or the app put away: `hidAt`;
+each with the previous frame's simulation, drawing, ground, sprites made, other work, tiles finished, ground tiles still
+missing, WebGL or not, and drawing by part when drawing took over 100 ms), `fzN` and `fzMs` (all of them), `load` (how
+long the card held, `full`: LOAD_MAX ran out with the ground or sheets not ready) and `gl`; and `stats.map` the map id.
+Headless (desktop CPU): Frostlight 3 v 3 at a phone's 440 x 894 x 3 runs out the 3 s card with ground still missing (as the
+phone did: 21 frames with stand-in ground after the card); A Bridge Too Far once had a 750 ms frame under the card,
+534 ms of it the ground. No freeze of seconds reproduced headless (SwiftShader WebGL is slow on every frame).

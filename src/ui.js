@@ -2207,7 +2207,7 @@ function draw() {
     if (!loadFor || loadFor.g !== G) loadFor = { g: G, since: now, done: false };
     if (loadFor.done) return false;
     const t = now - loadFor.since, ready = SpriteSheets.ready() && G.ground && G.ground.missing === 0 && t > LOAD_MIN;
-    if (ready || t > LOAD_MAX) { loadFor.done = true; showLoading(false); return false; }
+    if (ready || t > LOAD_MAX) { loadFor.done = true; loadFor.t = { ms: Math.round(t), full: !ready }; showLoading(false); return false; }
     if (t > 120) showLoading(true);   // (a fast device is ready before the card would even show)
     return true;
   }
@@ -2251,9 +2251,9 @@ function draw() {
     guard('radar', () => drawRadar(1 / 60));
     guard('cameos', warmCameos);
     if (G && !G.paused) guard('sprites', () => warmSprites(2, ...Object.values(s2w(W / 2, H / 2))));
-    if (G && !G.paused && !(loadFor && loadFor.g === G && !loadFor.done)) {   // how smoothly this device runs the battle (Report: stats.frames)
+    if (G) {   // how smoothly this device runs the battle (Report: stats.frames); paused and loading frames too (freezes)
       const jump = Math.abs(cam.x - camWas.x) > W / cam.z / 2 || Math.abs(cam.y - camWas.y) > H / cam.z / 2;
-      Report.noteFrame(now, updMs, d1 - d0, jump, performance.now() - d1);
+      Report.noteFrame(now, updMs, d1 - d0, jump, performance.now() - d1, G.paused ? 'pause' : held || (loadFor && loadFor.g === G && !loadFor.done) ? 'load' : null, loadFor && loadFor.g === G && loadFor.done && loadFor.t);
     }
     camWas.x = cam.x; camWas.y = cam.y; updMs = 0;
   }
