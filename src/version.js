@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.20.4', date: '20 November 2026', title: 'Crash reports', groups: [
+    ['Fixed', [
+      'If the game crashes, it now remembers its last moments and sends them when it is next opened, so the cause can be found and fixed.',
+    ]],
+  ] },
   { v: '2026.11.20.3', date: '20 November 2026', title: 'No more black screens on PC', groups: [
     ['Fixed', [
       'The Windows app could go black and silent a minute into a battle on some new graphics cards. The app now runs on a much newer engine, and if the game ever crashes it reloads by itself instead of leaving a black window.',
