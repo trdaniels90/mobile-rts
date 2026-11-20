@@ -244,7 +244,7 @@ const Report = (() => {
     if (!G || !G.perf) return null;
     let sc = {};
     try { sc = { cores: navigator.hardwareConcurrency || null, w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1 }; } catch (_) {}
-    try { sc.gl = typeof GLR === 'object' && GLR && GLR.on ? 1 : 0; } catch (_) {}
+    try { sc.gl = typeof GLR === 'object' && GLR && GLR.on ? 1 : 0; if (GLR.crashed || GLR.crashedAt()) sc.glCrash = GLR.crashedAt() || 1; } catch (_) {}
     if (G.perf.load) sc.load = G.perf.load;
     if (G.perf.fzN) { sc.fzN = G.perf.fzN; sc.fzMs = G.perf.fzMs; sc.fz = G.perf.fz; }
     return { ...sc, minutes: G.perf.min.filter(Boolean).map((m) => ({ m: m.m, fps: m.ft ? Math.round(m.f / m.ft) : null, slow: m.slow, long: m.long,

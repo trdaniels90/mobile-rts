@@ -37,6 +37,13 @@ function createWindow() {
   Menu.setApplicationMenu(MAC ? Menu.buildFromTemplate([{ role: 'appMenu' }, { label: 'View', submenu: [{ role: 'togglefullscreen' }] }, { role: 'windowMenu' }]) : null);
   win.webContents.on('did-finish-load', () => { win.webContents.setZoomFactor(loadZoom()); if (content) content.confirm(); });
   win.loadURL('app://game/index.html');
+  // The game's page died (a graphics driver crash took the window black, 2026.11.20, RTX 5080): load it again rather than
+  // leave a black window. The game sees it died drawing with WebGL (gl.js crash guard) and comes back with the 2D way.
+  let reloads = 0;
+  win.webContents.on('render-process-gone', (e, d) => {
+    if (d.reason === 'clean-exit' || win.isDestroyed() || ++reloads > 3) return;
+    setTimeout(() => { if (!win.isDestroyed()) win.loadURL('app://game/index.html'); }, 500);
+  });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('before-input-event', (e, i) => {
     if (i.type !== 'keyDown') return;

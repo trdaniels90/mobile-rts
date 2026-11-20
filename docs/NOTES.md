@@ -1974,6 +1974,16 @@ reasons are in `plans/webgl-renderer.md`; the short version:
 - **Checking:** `tools/look/gl-compare.js <repo> <prefix> <map> [fight|fightfx] [rain|snow]` draws one paused moment the 2D
   way and with WebGL (flat light, sun off: about 1-2% of pixels differ, the hills' sampling) and lit.
 - **Phone:** the owner's iPhone: 60 fps zoomed all the way out at the start of a battle (16 before the zoomed-out fixes).
+- **Crash guard and the Options switch (2026.11.20, a tester's RTX 5080 in the Windows app on Electron 33: placing a
+  structure flashed the window black, no sound; `?gl=off` played).** `localStorage` `rh-gl-live` is set by `R.present`
+  while WebGL draws on a visible page and cleared on `pagehide`, on the page being hidden and on a lost context. Found
+  set at launch, the page died drawing with WebGL: `rh-gl` becomes `'off'` (the 2D way), `rh-gl-crash` keeps the time,
+  `GLR.crashed` is true, the menu's **WebGL graphics** button says why, and match reports carry `frames.glCrash`.
+  The button (`GLR.pref`) takes effect at the next launch. `?gl=off` still forces the 2D way for one load.
+- The Windows app (`desktop/main.js`) loads the page again on `render-process-gone` (up to 3 times), so a crash comes
+  back to the menu in the 2D way instead of a black window; Electron went from 33 to 45 in the same change (newer
+  Chromium and ANGLE for new graphics cards). Checked under xvfb with Playwright's `_electron` and
+  `forcefullyCrashRenderer()`.
 
 ## Flat starting bases: low ground or a broad hilltop (2026-11-20, not released, both modes)
 

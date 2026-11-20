@@ -7,7 +7,24 @@
 // shader. The result is put into the 2D view canvas as its ground (ui.js draw), so everything drawn after it is unchanged.
 const GLR = (() => {
   const q = typeof location !== 'undefined' ? location.search : '';
-  const R = { on: typeof document !== 'undefined' && !/[?&]gl=off\b/.test(q), ground: () => false, frames: 0 };
+  // The player's choice (Options: WebGL graphics, localStorage rh-gl 'off'), and the crash guard: rh-gl-live is set while
+  // WebGL draws on a visible page and cleared when the page is hidden or closed, so finding it set at launch means the
+  // page died drawing with WebGL (an RTX 5080 in the Windows app, 2026.11.20: the window went black). WebGL is then
+  // switched off, R.crashed tells the menu and the match report.
+  const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (_) {} return null; };
+  let crashed = false;
+  if (typeof document !== 'undefined' && ls('rh-gl-live') === '1') { crashed = true; ls('rh-gl', 'off'); ls('rh-gl-crash', String(Date.now())); ls('rh-gl-live', null); }
+  const R = { on: typeof document !== 'undefined' && !/[?&]gl=off\b/.test(q) && ls('rh-gl') !== 'off', ground: () => false, frames: 0, crashed };
+  R.pref = (on) => { ls('rh-gl', on ? null : 'off'); if (on) ls('rh-gl-crash', null); };   // (takes effect at the next launch)
+  R.wanted = () => ls('rh-gl') !== 'off';
+  R.crashedAt = () => +ls('rh-gl-crash') || 0;
+  let live = false;
+  const unlive = () => { if (live) { live = false; ls('rh-gl-live', null); } };
+  if (typeof document !== 'undefined') {
+    addEventListener('pagehide', unlive);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) unlive(); });
+  }
+  R.markLive = () => { if (!live && !document.hidden) { live = true; ls('rh-gl-live', '1'); } };
   // ?gl=stats (stage 5, for measuring on a phone; with ?gl=off too): frames a second, the draw's CPU time a frame (art.js
   // drawParts, summed), which way the frame was drawn, and WebGL's quads and draw calls, twice a second in a corner.
   // (#glstats too: a claude.ai artifact passes only the address's #name to the page. A button switches the same battle
@@ -65,7 +82,7 @@ void main() {
     const game = document.getElementById('game'); if (game && game.parentNode) game.parentNode.insertBefore(cv, game);
     gl = cv.getContext('webgl2', { alpha: false, antialias: false, depth: false, premultipliedAlpha: true, preserveDrawingBuffer: false });
     if (!gl) { failed = true; return false; }
-    cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); failed = true; });
+    cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); failed = true; unlive(); });   // (handled: the 2D way carries on)
     const mk = (t, s) => { const h = gl.createShader(t); gl.shaderSource(h, s); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(h)); return h; };
     P = gl.createProgram(); gl.attachShader(P, mk(gl.VERTEX_SHADER, VS)); gl.attachShader(P, mk(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(P);
     if (!gl.getProgramParameter(P, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(P));
@@ -896,6 +913,7 @@ void main() { o = texture(uLit, vUV); }`;
       gl.bindBuffer(gl.ARRAY_BUFFER, R.unit); gl.enableVertexAttribArray(loc4.aQ); gl.vertexAttribPointer(loc4.aQ, 2, gl.FLOAT, false, 8, 0);
       gl.drawArrays(gl.TRIANGLES, 0, 6); R.calls++;
       gl.bindSampler(0, null);
+      R.markLive();
       return true;
     } catch (err) { failed = true; console.warn('WebGL present off:', err); return false; }
   };

@@ -1,7 +1,7 @@
 {
   "name": "red-horizon",
   "productName": "Red Horizon",
-  "version": "2026.1107.0",
+  "version": "2026.1120.2",
   "description": "Red Horizon: an RTS homage to Red Alert 1 for PC",
   "author": "trdaniels90",
   "private": true,
@@ -19,7 +19,7 @@
     "electron-updater": "^6.3.9"
   },
   "devDependencies": {
-    "electron": "^33.2.1",
+    "electron": "^45.4.1",
     "electron-builder": "^25.1.8"
   },
   "build": {
