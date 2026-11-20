@@ -117,6 +117,37 @@ renderer does, at least as fast on a phone.
   by the night and lose its screen-sharp lines. They move with the night and mood into the light pass (stage 4).
   HUD bits (brackets, bars, labels, rally lines, placement), the shroud and the minimap stay 2D on top, as planned.
 
+- **Stage 4 (2026-11-20): the light pass, with the weather and storms** (owner: "start stage 4 and include the weather and
+  storms in stage 4"). The ground and the pictures are drawn into the scene's framebuffer (gl.js `sceneFb`): colour, and a
+  second layer with the pictures' normals (from the normal atlases; written only by pictures laid over, rgb 0 where there
+  is none). The light pass (`lightPass`, shader FS3) then draws the scene into the canvas lit as the 2D way lit the screen
+  after the view: look.js drawLook (the map's mood: saturation, grade, the low sun's soft-light gradient, haze, cloud
+  shadows, the shade with holes, the glow, the pools by day, the vignette) and art.js drawNight (dusk's amber, the
+  darkness with holes, the warm light), from the same light lists (new: `lookDayLights` and `nightLights`, split out of
+  drawLook and drawNight, which use them as before) splatted with the same pictures into four half-size buffers: holes
+  (red drawLook's, green the night's; dst x (1 - alpha), as destination-out), glow (MAX blend: each spot as bright as its
+  brightest light, so overlapping blasts never pile up into white), the night's warm light (added), the pools (screened).
+  Defences give off no light (the lists, unchanged).
+  **New with WebGL:** where a picture has a normal map, the side facing a light gets more of it (up to x1.75) and the side
+  turned away a little less (down to x0.7): the light's direction at a pixel is the slope of the light buffers, weighted by
+  how clear it is, less on tops; on average as bright as 2D. `GLR.nrmK` (0.85; `?gl=flatlight` 0: flat, as 2D).
+  Then what goes over the light is recorded through the same stand-in into the canvas (`L.over` from ui.js, in the view's
+  pixels, k = 1): the lamps and beacons (drawLamps / drawLampsAlone), navigation lights, the AA searchlight, the pools by
+  night, the storm's darkening, rain and snow (drawWeather) and lightning (lookstorm.js dark / flash); the screen pass in
+  ui.js skips all of these when `GLR.lit`. The land past the map's edge is drawn into the scene too (depth 1: only where
+  there is no ground), so it is lit.
+  Changes from the 2D way, on purpose: the HUD bits and the shroud are drawn after the light (health bars and brackets no
+  longer darkened at night or graded; unexplored ground stays black under haze); rain, snow and lamps are drawn in the
+  view's pixels and scaled up with it (on a 3x phone rain streaks are about a third thicker, as pixel art like the rest).
+  Checked (`tools/look/gl-compare.js`, now three shots: `_off` 2D, `_on` WebGL with flat light, `_lit` with the normal
+  maps; a 6th argument `rain` / `snow` sets the weather): Twin Lakes 1.5% of pixels differ (flat) / 2.3% (lit); Village
+  at night in rain after a 9-minute battle 1.3% / 1.6% (the rest is the rain's streaks); Bridge blasts and smoke
+  1.4-2.1% / 2.2-2.6% (blasts' own flicker between shots); no errors, `GLR.unsupported` empty. Counts: 950-1,220 quads
+  in the scene, 250-365 light splats into the buffers, 90-125 quads over the light, 35-95 draw calls a frame.
+  **Next (stage 5):** the sun per pixel would need unlit colours (the voxel pictures are lit by renderVox, so N.L from the
+  sun on top would light them twice); ground normals from the hills; measurements on a phone; then merge into
+  `claude/ts-look`.
+
 ## Parity list (what the 2D renderer draws, to tick off)
 
 Ground tiles and marks, hills, edge haze past the map, ore, shroud and fog of war, trees and their shadows, cliffs and their

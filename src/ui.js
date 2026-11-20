@@ -605,6 +605,12 @@ function draw() {
       // order), and the frame is put into the view once at the end (GLR.listEnd). Ore first, each tested against the
       // ground's depth (a hill hides ore behind it); then marks on the ground (no depth), then the list.
       v = GLR.listBegin(realV) || realV; glRec = v !== realV;
+      if (glRec && past) {   // (stage 4: past the map's edge into the scene too, behind the ground (depth 1: only where it is not), so it is lit)
+        GLR.listDepth(-64); v.imageSmoothingEnabled = true;
+        const e = edgePic(), P = EDGE_PAD;
+        v.drawImage(e, -P * CELL, -P * CELL, (MAP + 2 * P) * CELL, (MAP + 2 * P) * CELL);
+        v.imageSmoothingEnabled = false; GLR.listDepth(null);
+      }
       const list = [];
       for (let cy = r0; cy <= r1; cy++) for (let cx = c0; cx <= c1; cx++) {
         const c = idx(cx, cy), o = G.ore[c];
@@ -861,7 +867,24 @@ function draw() {
     air.sort((a, b) => (a.alt || 0) - (b.alt || 0) || a.y - b.y);
     for (const e of air) onHill(v, e.x, e.y, () => drawUnit(v, e, G.t));   // (above the raised ground under them)
     if (G.birds) drawBirds(v, true, x0, y0, x1, y1);   // pigeons in the air and on the church roof
-    if (glList) { GLR.listEnd(realV); v = realV; toWorld(); v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over'; }
+    // gl.js (stage 4): the light pass (the mood, the night, the lights; the pictures' lit sides from their normal maps), then
+    // what goes over the light, drawn in the view's pixels through the same recording: lamps, beacons, navigation lights,
+    // searchlights, the pools by night, the storm's darkening, rain and snow, lightning (the 2D way draws them on the screen
+    // after the view: see below, skipped when GLR.lit).
+    if (glList) { const kk = cam.z * DPR, dnMap = MAPS[validMap(G.mapId)].daynight, still = G.paused || !!G.over;
+      GLR.listEnd(realV, { vx, vy, cam: [cam.x, cam.y], sw: canvas.width / kk, sh: canvas.height / kk, over: (g) => {
+        const night = dayNight(G.t).night, near = (x, y, m) => x > vx - m && y > vy - m && x < vx + VW + m && y < vy + VH + m;
+        if (LOOK.light && !dnMap && LOOK.lamps) drawLamps(g, vx, vy, 1, G.t, near);
+        if (dnMap) {
+          if (night >= 0.01) navLights(g, vx, vy, 1, G.t, night, near, visibleToPlayer);
+          drawLampsAlone(g, vx, vy, VW, VH, 1, G.t); drawSkyBeams(g, vx, vy, 1, G.t, night); lookNightPools(g, vx, vy, VW, VH, 1, night);
+        }
+        const wx = lookStorm.weather(still);
+        lookStorm.dark(g);
+        if (wx) drawWeather(g, wx, vx, vy, VW, VH, 1, G.t, still);
+        lookStorm.flash(g, 1, still, vx, vy);
+      } });
+      v = realV; toWorld(); v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over'; }
 
     // Bars, brackets and labels are drawn flat on the view plane (screen pixels), at their things' projected spots.
     v.upright = false;
@@ -956,6 +979,8 @@ function draw() {
     const sx2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0, sy2 = shakeAmp > 0.3 ? (Math.random() - 0.5) * 2 * shakeAmp * DPR : 0;
     ctx.drawImage(view, 0, 0, VW, VH, Math.round(-(cam.x - vx) * k + sx2), Math.round(-(cam.y - vy) * k + sy2), Math.round(VW * k), Math.round(VH * k));
     lap('blit');   // the view put on the screen
+    if (GLR.lit) { lap('night'); lap('wthr'); }   // (gl.js: lit, with the weather, in the view already)
+    else {
     if (LOOK.light && !MAPS[validMap(G.mapId)].daynight) drawLook(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t);   // (look.js prototype, off by default)
     else if (LOOK.light && LOOK.mood) drawLook(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, dayNight(G.t).night);   // the map's mood by day (look.js), fading out at night
     if (MAPS[validMap(G.mapId)].daynight) drawNight(ctx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, visibleToPlayer);   // (art.js)
@@ -968,6 +993,7 @@ function draw() {
     if (wx) drawWeather(ctx, wx, cam.x, cam.y, canvas.width / k, canvas.height / k, k, G.t, G.paused || !!G.over);
     lookStorm.flash(ctx, k, G.paused || !!G.over, cam.x, cam.y);
     lap('wthr');
+    }
     if (gesture && gesture.type === 'box' && gesture.moved) {
       const bx = Math.min(gesture.sx, gesture.ex) * DPR, by = Math.min(gesture.sy, gesture.ey) * DPR;
       ctx.strokeStyle = '#f2f2ea'; ctx.lineWidth = DPR;

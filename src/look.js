@@ -156,8 +156,14 @@ function drawLook(g, vx, vy, vw, vh, k, t, night) {
   }
   if (dn > 0.02) { g.globalAlpha = dn; cloudShadows(g, vx, vy, k, t); g.globalAlpha = 1; }
   g.restore();
+  const L = lookPics, lights = lookDayLights(vx, vy, vw, vh, night);
+  drawLookLights(g, vx, vy, vw, vh, k, t, night, M, dn, lights, W, H, rgba, L);
+}
+// drawLook's lights, as [view x, view y, radius, strength, picture, squash] (also read by gl.js's light pass): structures
+// (not defences), fires, blasts, bolts, the bigger blasts (lookfx.js) and, by day, the light pools.
+function lookDayLights(vx, vy, vw, vh, night) {
+  const dn = night === undefined ? 1 : 1 - night, M = lookMood(G.t), lights = [];
   lookPoolPics();
-  const L = lookPics, lights = [];
   const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
   const add = (x, y, r, a, col, h, f) => { [x, y] = toView(...liftPt(x, y, (h || 0) + gLift(x, y))); if (near(x, y, r)) lights.push([x, y, r, Math.max(0, Math.min(1, a)), col, f || 1]); };
   for (const e of G.entities) {
@@ -180,6 +186,10 @@ function drawLook(g, vx, vy, vw, vh, k, t, night) {
     const box = [Math.min(...cs.map((c) => c[0])) - 40, Math.min(...cs.map((c) => c[1])) - 40, Math.max(...cs.map((c) => c[0])) + 40, Math.max(...cs.map((c) => c[1])) + 80];
     poolLights(add, M.pool * dn, box);
   }
+  return lights;
+}
+function drawLookLights(g, vx, vy, vw, vh, k, t, night, M, dn, lights, W, H, rgba, L) {
+  const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
   // A light shade over everything with soft holes where things glow (at half size, stretched up smoothly), then the
   // glow itself added once: each spot as bright as its brightest light ('lighten'), so overlapping blasts never pile
   // up into a white blob (owner, after the first video). Pools on the ground are squashed to the ground's slant (f).
@@ -243,6 +253,13 @@ function lookMood(t) {
 // drifting with the wind; multiplied over the picture, so they darken without hiding anything.
 let cloudPic = null;
 function cloudShadows(g, vx, vy, k, t) {
+  cloudShadowPic();
+  const S = 7, dx = t * 9, dy = t * 3.5;   // a noise pixel is 7 view pixels (clouds a few hundred across); drift, view px a second
+  const pat = g.createPattern(cloudPic, 'repeat');
+  pat.setTransform(new DOMMatrix([S * k, 0, 0, S * k * 0.75, (-vx + dx) * k, (-vy + dy) * k]));
+  g.save(); g.imageSmoothingEnabled = true; g.globalCompositeOperation = 'multiply'; g.fillStyle = pat; g.fillRect(0, 0, g.canvas.width, g.canvas.height); g.restore();
+}
+function cloudShadowPic() {   // (also gl.js's light pass)
   if (!cloudPic) {
     const N = 256, c = mkCanvas(N, N), x = c.getContext('2d'), img = x.createImageData(N, N);
     const hash = (i, j, p) => { let h = (((i % p) + p) % p) * 374761393 + (((j % p) + p) % p) * 668265263 + p * 97; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -259,10 +276,7 @@ function cloudShadows(g, vx, vy, k, t) {
     x.putImageData(img, 0, 0);
     cloudPic = c;
   }
-  const S = 7, dx = t * 9, dy = t * 3.5;   // a noise pixel is 7 view pixels (clouds a few hundred across); drift, view px a second
-  const pat = g.createPattern(cloudPic, 'repeat');
-  pat.setTransform(new DOMMatrix([S * k, 0, 0, S * k * 0.75, (-vx + dx) * k, (-vy + dy) * k]));
-  g.save(); g.imageSmoothingEnabled = true; g.globalCompositeOperation = 'multiply'; g.fillStyle = pat; g.fillRect(0, 0, g.canvas.width, g.canvas.height); g.restore();
+  return cloudPic;
 }
 
 // ---- Cliffs: the rock ridges stand up -----------------------------------------------------------------------------

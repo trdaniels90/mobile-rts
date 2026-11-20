@@ -1040,6 +1040,15 @@ const nightLevel = () => dayNight(G ? G.t : 0).night;
 // Darkness over the view, with holes where there is light, then the lights' warm glow on top. Dusk and dawn tint it amber.
 let nightCv = null, lightPic = null;
 const NIGHT_RES = 0.5;   // the night layer's size as a share of the screen's (see drawNight)
+function nightLightPic() {   // a light's soft hole in the darkness (also gl.js's light pass)
+  if (!lightPic) {
+    lightPic = mkCanvas(64, 64);
+    const c = lightPic.getContext('2d'), gr = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = gr; c.fillRect(0, 0, 64, 64);
+  }
+  return lightPic;
+}
 function drawNight(g, vx, vy, vw, vh, k, t, vis) {
   const { night, warm } = dayNight(t);
   const W = g.canvas.width, H = g.canvas.height;
@@ -1047,17 +1056,20 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
     g.save(); g.globalCompositeOperation = 'multiply'; g.fillStyle = `rgba(255,170,110,${(0.32 * warm).toFixed(3)})`; g.fillRect(0, 0, W, H); g.restore();
   }
   if (night < 0.01) return;
-  if (!lightPic) {
-    lightPic = mkCanvas(64, 64);
-    const c = lightPic.getContext('2d'), gr = c.createRadialGradient(32, 32, 0, 32, 32, 32);
-    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.45, 'rgba(255,255,255,0.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-    c.fillStyle = gr; c.fillRect(0, 0, 64, 64);
-  }
+  nightLightPic();
   // The darkness is soft shade and blurred pools of light, so it is drawn at NIGHT_RES of the screen and stretched up
   // smoothly: on a 3x phone the full-size layer cost about 8 ms of GPU time a frame (match 3c189abc: 60 to about 43 fps at night).
   const nW = Math.max(1, Math.round(W * NIGHT_RES)), nH = Math.max(1, Math.round(H * NIGHT_RES)), nk = k * nW / W;
   if (!nightCv || nightCv.width !== nW || nightCv.height !== nH) nightCv = mkCanvas(nW, nH);
-  const n = nightCv.getContext('2d'), lights = [];
+  const n = nightCv.getContext('2d'), lights = nightLights(vx, vy, vw, vh, night);
+  const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
+  n.globalCompositeOperation = 'source-over'; n.clearRect(0, 0, nW, nH);
+  drawNightRest(g, vx, vy, k, t, night, near, vis, n, nW, nH, nk, W, H, lights);
+}
+// drawNight's lights, as [view x, view y, radius, strength, warm] (also read by gl.js's light pass): street lamps, the
+// look's pools, lit windows, structures (not defences, with the look's lamps), fires, blasts and bolts.
+function nightLights(vx, vy, vw, vh, night) {
+  const lights = [];
   const near = (x, y, m) => x > vx - m && y > vy - m && x < vx + vw + m && y < vy + vh + m;
   const add = (x, y, r, a, warmLight, h) => { [x, y] = toView(...liftPt(x, y, (h || 0) + gLift(x, y))); if (near(x, y, r)) lights.push([x, y, r, a, warmLight]); };   // (vx, vy: the camera on the view plane)
   // Street lamps, lit windows, buildings' own lights, fires and blasts.
@@ -1080,7 +1092,9 @@ function drawNight(g, vx, vy, vw, vh, k, t, vis) {
     else if (fx.type === 'bolt') add(fx.x, fx.y, 260, 1, false);
   }
   for (const b of G.bolts || []) add(b.x, b.y, 50, Math.min(1, b.t / 3), true);
-  n.globalCompositeOperation = 'source-over'; n.clearRect(0, 0, nW, nH);
+  return lights;
+}
+function drawNightRest(g, vx, vy, k, t, night, near, vis, n, nW, nH, nk, W, H, lights) {
   n.fillStyle = `rgba(6,12,34,${(0.62 * night).toFixed(3)})`; n.fillRect(0, 0, nW, nH);
   n.globalCompositeOperation = 'destination-out';
   for (const [x, y, r, a] of lights) {
