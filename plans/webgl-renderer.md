@@ -212,6 +212,9 @@ renderer does, at least as fast on a phone.
   4.1 ms; 2D 21.0 fps, 35.9 ms. The test page is updated. Still unknown: the phone's GPU time (the light pass at the
   view's size, the screen at 3x).
 
+- **Phone measurement (owner, 2026-11-20):** on the owner's iPhone, zoomed out all the way, WebGL went from 16 fps (before
+  part 3) to 60 fps (the test page after part 3, the screen's own limit). The 2D way's number on the same battle: not given yet.
+
 ## Parity list (what the 2D renderer draws, to tick off)
 
 Ground tiles and marks, hills, edge haze past the map, ore, shroud and fog of war, trees and their shadows, cliffs and their
