@@ -308,8 +308,27 @@ function cliffLookFor() {
   const mk = (0, eval)('(' + src.slice(0, cut) + 'return o; }; return height; })');
   const cells = G.cliff ? cliffCells(G.terr, G.cliff) : new Map(), mound = mk(null, cells, groundSeed(G), false);
   // A plateau: from the painted foot the rock rises steeply to a flat top CLIFF_TOP high, with a little roughness.
+  // Ore and gems the painted rock reaches (a cell or two on some maps, tools/sim/map-check.js): the crag fades out over them
+  // so the ore stays in sight (looks only; the cells were always open and harvestable).
+  const oreCell = new Set(); if (G.ore) for (let c = 0; c < NCELLS; c++) if (G.ore[c]) oreCell.add(c);
+  // Likewise the rock agrees with the rules cell by cell: an open cell next to a cliff that its rock would mostly cover
+  // fades as ore does (it looked blocked), and a cliff cell its rock hardly reaches gets a boulder (it looked open).
+  const bare = new Set();
+  if (G.cliff) {
+    const cov = (c) => { let k = 0; for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) if (mound((c % MAP + (i + 0.5) / 4) * CELL, (((c / MAP) | 0) + (j + 0.5) / 4) * CELL) > 0.5) k++; return k / 16; };
+    const near = new Set();
+    for (let c = 0; c < NCELLS; c++) if (G.cliff[c]) { if (cov(c) < 0.25) bare.add(c); const x = c % MAP, y = (c / MAP) | 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const nx = x + i, ny = y + j; if (nx >= 0 && ny >= 0 && nx < MAP && ny < MAP && !G.cliff[ny * MAP + nx] && !G.block[ny * MAP + nx]) near.add(ny * MAP + nx); } }
+    for (const c of near) if (!oreCell.has(c) && cov(c) > 0.5) oreCell.add(c);
+  }
+  const oreFade = (x, y) => {
+    const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL); let d = 9;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (oreCell.has((cy + j) * MAP + cx + i)) d = Math.min(d, Math.hypot(x / CELL - (cx + i + 0.5), y / CELL - (cy + j + 0.5)));
+    if (d >= 1.2) return 1;
+    const k = Math.max(0, Math.min(1, (d - 0.55) / 0.65)); return k * k * (3 - 2 * k);
+  };
   const height = (x, y) => {
-    const q = mound(x, y) - 0.5;
+    let q = (mound(x, y) - 0.5) * (oreCell.size ? oreFade(x, y) : 1);
+    if (bare.size) { const c = Math.floor(y / CELL) * MAP + Math.floor(x / CELL); if (bare.has(c)) q = Math.max(q, 0.12 * (1 - Math.hypot(x / CELL - (c % MAP + 0.5), y / CELL - ((c / MAP | 0) + 0.5)) / 0.75)); }
     if (q <= 0) return 0;
     const s = Math.min(1, q / 0.22), l = cells.get(Math.floor(y / CELL) * MAP + Math.floor(x / CELL));
     const big = Math.min(1, 0.3 + (l ? l.length / 2 : 0) / 9);   // a lone rock stays a boulder; a ridge rises full height

@@ -1968,3 +1968,15 @@ reasons are in `plans/webgl-renderer.md`; the short version:
   way and with WebGL (flat light, sun off: about 1-2% of pixels differ, the hills' sampling) and lit.
 - **Phone:** the owner's iPhone: 60 fps zoomed all the way out at the start of a battle (16 before the zoomed-out fixes).
 
+## Map check: cliffs, routes, ore (2026-11-20, `tools/sim/map-check.js`)
+
+Owner: "Check all the maps and make sure cliffs are correct and don't block off routes, make sure all the ore and gems are
+fine." Every map (Bridge Crossing over several seeds) passes: every start reaches every other over open ground (Twin Lakes
+also with its bridges down), none only through one-cell gaps; every ore and gem cell is open ground and reachable; each
+start has an ore field 10-31 cells away. Open pockets nothing reaches are left as they are: forest corners (Bridge),
+clearings behind trees at map edges (Frost, Lakes), a strip behind a creek loop and a cliff at Snowbound's west edge; none
+holds ore or a start. Fixed (looks only, look.js cliffLookFor): the tall crags now agree with the rules cell by cell: rock
+fades off ore and gem cells it reached (Twin Lakes 32,85, Snowbound 152,139) and off open cells it mostly covered (River
+90,82, Snowbound 132,37), and a blocked cliff cell its rock hardly reached gets a boulder (River 105,86). Costs 16-42 ms
+once a battle on a desktop. Rules, saves and online play unchanged.
+
