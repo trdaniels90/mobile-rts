@@ -1,2 +1,4 @@
 'use strict';
-// Nothing exposed to the game yet; kept so the window runs with context isolation on.
+// What the window gives the game: the app's crash log and graphics driver (main.js), for the game's crash report.
+const { contextBridge, ipcRenderer } = require('electron');
+contextBridge.exposeInMainWorld('rhDesktop', { crashLog: () => ipcRenderer.invoke('rh-crash-log') });

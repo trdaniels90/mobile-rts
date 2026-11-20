@@ -149,3 +149,14 @@ grant execute on function public.match_end(uuid, uuid, text, integer, jsonb) to 
 grant execute on function public.match_name(uuid, uuid, text) to anon, authenticated;
 grant execute on function public.get_leaderboard(text, integer) to anon, authenticated;
 revoke all on function public.team_score(jsonb, integer, text) from public, anon, authenticated;
+
+-- A match whose page died (report.js, the black box, 2026.11.20.4): its last moments and the Windows app's crash log,
+-- sent at the next launch, kept under stats.crash. Only the device that played it; at most 20 KB.
+create or replace function public.match_crash(p_id uuid, p_device uuid, p_crash jsonb)
+returns void language sql security definer set search_path = '' as $$
+  update public.matches
+  set stats = coalesce(stats, '{}'::jsonb) || jsonb_build_object('crash', p_crash)
+  where id = p_id and device_id = p_device and octet_length(p_crash::text) <= 20000;
+$$;
+revoke all on function public.match_crash(uuid, uuid, jsonb) from public;
+grant execute on function public.match_crash(uuid, uuid, jsonb) to anon, authenticated;

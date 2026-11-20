@@ -24,6 +24,7 @@ const GLR = (() => {
     addEventListener('pagehide', unlive);
     document.addEventListener('visibilitychange', () => { if (document.hidden) unlive(); });
   }
+  const note = (w) => { try { if (typeof Report !== 'undefined' && Report.crumb) Report.crumb('gl ' + w); } catch (_) {} };   // (the black box, report.js)
   R.markLive = () => { if (!live && !document.hidden) { live = true; ls('rh-gl-live', '1'); } };
   // ?gl=stats (stage 5, for measuring on a phone; with ?gl=off too): frames a second, the draw's CPU time a frame (art.js
   // drawParts, summed), which way the frame was drawn, and WebGL's quads and draw calls, twice a second in a corner.
@@ -82,7 +83,9 @@ void main() {
     const game = document.getElementById('game'); if (game && game.parentNode) game.parentNode.insertBefore(cv, game);
     gl = cv.getContext('webgl2', { alpha: false, antialias: false, depth: false, premultipliedAlpha: true, preserveDrawingBuffer: false });
     if (!gl) { failed = true; return false; }
-    cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); failed = true; unlive(); });   // (handled: the 2D way carries on)
+    try { const ext = gl.getExtension('WEBGL_debug_renderer_info'); R.gpu = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)).slice(0, 160); } catch (_) {}
+    cv.addEventListener('webglcontextrestored', () => note('context restored'));
+    cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); failed = true; unlive(); note('context lost'); });   // (handled: the 2D way carries on)
     const mk = (t, s) => { const h = gl.createShader(t); gl.shaderSource(h, s); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(h)); return h; };
     P = gl.createProgram(); gl.attachShader(P, mk(gl.VERTEX_SHADER, VS)); gl.attachShader(P, mk(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(P);
     if (!gl.getProgramParameter(P, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(P));
@@ -190,7 +193,7 @@ void main() {
         gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_SHORT, 0);
       }
       return true;   // (kept in the GL canvas: listBegin records what is drawn over it, listEnd puts the frame into v once)
-    } catch (err) { failed = true; console.warn('WebGL ground off:', err); return false; }
+    } catch (err) { failed = true; console.warn('WebGL ground off:', err); note('ground off: ' + (err && err.message)); return false; }
   };
   // ---- Stage 2: the sorted list's pictures (units, structures, trees, cliffs, walls, houses, props...) ------------------
   // listBegin(v) gives a stand-in for the view canvas: its drawImage calls are recorded as quads (worked out exactly as
@@ -443,7 +446,7 @@ void main() {
   R.listBegin = (v, over) => {
     if (failed || !gl) return null;
     if (!over) R.lit = false;
-    try { if (!P2) init2(); } catch (err) { failed = true; console.warn('WebGL list off:', err); return null; }
+    try { if (!P2) init2(); } catch (err) { failed = true; console.warn('WebGL list off:', err); note('list off: ' + (err && err.message)); return null; }
     if (layer.width !== FW || layer.height !== FH) { layer.width = FW; layer.height = FH; lctx = uprightCtx(layer.getContext('2d')); }
     lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.clearRect(0, 0, layer.width, layer.height);
     if (over) { lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.upright = false; } else { lctx.setTransform(v.getTransform()); lctx.upright = v.upright; }   // (over: screen px of the canvas) lctx.imageSmoothingEnabled = false; lctx.globalAlpha = 1; lctx.globalCompositeOperation = 'source-over';
@@ -913,9 +916,10 @@ void main() { o = texture(uLit, vUV); }`;
       gl.bindBuffer(gl.ARRAY_BUFFER, R.unit); gl.enableVertexAttribArray(loc4.aQ); gl.vertexAttribPointer(loc4.aQ, 2, gl.FLOAT, false, 8, 0);
       gl.drawArrays(gl.TRIANGLES, 0, 6); R.calls++;
       gl.bindSampler(0, null);
+      if (!live) note('drawing ' + cv.width + 'x' + cv.height);
       R.markLive();
       return true;
-    } catch (err) { failed = true; console.warn('WebGL present off:', err); return false; }
+    } catch (err) { failed = true; console.warn('WebGL present off:', err); note('present off: ' + (err && err.message)); return false; }
   };
   R.hide = () => { if (cv && !cv.style.display) cv.style.display = 'none'; };   // (a frame drawn the 2D way: the page's canvas covers it all)
   R.listEnd = (v, L) => {
@@ -935,7 +939,7 @@ void main() { o = texture(uLit, vUV); }`;
       }
       R.lit = true;   // (ui.js clears the view for the HUD bits and calls present)
       R.ms = { rec: t1 - t0, light: t2 - t1, over: performance.now() - t2 };   // (CPU time of each part; the GPU's runs after)
-    } catch (err) { failed = true; console.warn('WebGL list off:', err); }
+    } catch (err) { failed = true; console.warn('WebGL list off:', err); note('list off: ' + (err && err.message)); }
     rec = null;
   };
   R.off = () => { failed = true; };

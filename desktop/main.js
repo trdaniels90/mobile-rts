@@ -3,7 +3,7 @@
 // file://, so the game treats it as a real site: match reports work and fetch() of the music
 // works). Windows updates come from GitHub Releases through electron-updater; the unsigned Mac app
 // updates its game files instead (content-update.js).
-const { app, BrowserWindow, protocol, net, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, protocol, net, dialog, Menu, shell, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -18,6 +18,24 @@ const content = MAC ? require('./content-update') : null;
 if (!app.requestSingleInstanceLock()) app.quit();
 
 let win = null;
+// Crash log (2026.11.20.4): a tester's RTX 5080 took the window black a minute into battles. Which process died (the
+// game's page or the graphics process), why and its exit code are kept in userData/crash-log.json, with the graphics
+// driver, and handed to the game at its next start (preload.js rhDesktop.crashLog), which sends them with its own last
+// moments (report.js, the black box). A main-process crash is caught by crashReporter's local dumps only.
+const crashFile = () => path.join(app.getPath('userData'), 'crash-log.json');
+function readCrashes() { try { return JSON.parse(fs.readFileSync(crashFile(), 'utf8')) || []; } catch (_) { return []; } }
+function logCrash(e) {
+  try { const l = readCrashes(); l.push({ at: new Date().toISOString(), ...e }); fs.writeFileSync(crashFile(), JSON.stringify(l.slice(-10))); } catch (_) {}
+}
+app.on('child-process-gone', (ev, d) => { if (d.reason !== 'clean-exit') logCrash({ kind: d.type, name: d.name || null, reason: d.reason, code: d.exitCode }); });
+ipcMain.handle('rh-crash-log', async () => {
+  const log = readCrashes();
+  try { fs.unlinkSync(crashFile()); } catch (_) {}
+  let gpu = null;
+  try { const g = await app.getGPUInfo('basic'); gpu = (g.gpuDevice || []).map((x) => ({ v: x.vendorId, d: x.deviceId, drv: x.driverVersion, on: !!x.active })); } catch (_) {}
+  let feat = null; try { const f = app.getGPUFeatureStatus(); feat = { webgl2: f.webgl2, gpu_compositing: f.gpu_compositing }; } catch (_) {}
+  return { log, gpu, feat, electron: process.versions.electron, chrome: process.versions.chrome, os: process.getSystemVersion ? process.getSystemVersion() : null };
+});
 // Interface zoom (Ctrl +, Ctrl -, Ctrl 0), remembered between runs. The game redraws at the new size.
 const zoomFile = () => path.join(app.getPath('userData'), 'zoom.json');
 function loadZoom() { try { return Math.min(2.5, Math.max(0.5, JSON.parse(fs.readFileSync(zoomFile(), 'utf8')).z || 1)); } catch (_) { return 1; } }
@@ -41,9 +59,11 @@ function createWindow() {
   // leave a black window. The game sees it died drawing with WebGL (gl.js crash guard) and comes back with the 2D way.
   let reloads = 0;
   win.webContents.on('render-process-gone', (e, d) => {
+    logCrash({ kind: 'page', reason: d.reason, code: d.exitCode });
     if (d.reason === 'clean-exit' || win.isDestroyed() || ++reloads > 3) return;
     setTimeout(() => { if (!win.isDestroyed()) win.loadURL('app://game/index.html'); }, 500);
   });
+  win.on('unresponsive', () => logCrash({ kind: 'page', reason: 'unresponsive' }));
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('before-input-event', (e, i) => {
     if (i.type !== 'keyDown') return;

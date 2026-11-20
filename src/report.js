@@ -66,6 +66,7 @@ const Report = (() => {
       if (old) { old.n++; return; }
       if (errs.length >= 6) return;
       const stack = String((e && e.stack) || '').split('\n').slice(0, 6).map((l) => l.trim().replace(/^.*\/(src\/)/, '$1')).join(' | ').slice(0, 600);
+      try { crumb('err ' + where + ': ' + msg); } catch (_) {}
       errs.push({ where, msg, stack, t: G ? Math.round(G.t) : null, n: 1, v: typeof VERSION === 'string' ? VERSION : null });
       try { console.error('[' + where + ']', e); } catch (_) {}
     } catch (_) {}
@@ -83,6 +84,7 @@ const Report = (() => {
       if (opponent) row.opponent = String(opponent).slice(0, 20);
       match = { id: row.id, row, ended: false };
       match.saved = insert(match);
+      crumbs = []; crumb('start ' + mode);
     } catch (_) {}
   }
   // A saved skirmish continued: carry on its match rather than start another, so one game is one
@@ -100,6 +102,7 @@ const Report = (() => {
       if (opponent) row.opponent = String(opponent).slice(0, 20);
       match = { id, row, ended: false };
       match.saved = insert(match).then(() => true);
+      crumbs = []; crumb('resume ' + mode);
     } catch (_) {}
   }
   function finish(result, seconds, stats) {
@@ -317,7 +320,46 @@ const Report = (() => {
   function claim() { return local ? Promise.resolve(null) : post('rpc/claim_device', { p_device: device }, true); }
   // The name for the leaderboard: the commander name of a signed-in player, else the last one typed here.
   const name = () => (typeof Account !== 'undefined' && Account.name) || store('ps-name') || '';
-  return { start, resume, park, end, quit, get device() { return device; }, oops, noteFrame, get errors() { return errs; }, submitName, board, claim, score, teamStats, get name() { return name(); }, get matchId() { return match && match.id; } };
+  // The black box (2026.11.20.4): a tester's PC (RTX 5080, Windows app) went black a minute into battles, before the first
+  // beat, and left nothing. While a match runs, its last moments (events, the frame's state) are kept in localStorage every
+  // second with open: true, set false when the page is hidden or closed. Found open at launch, the page died: it is sent
+  // to the match's row (rpc/match_crash, stats.crash) with the Windows app's own crash log (desktop/main.js), if any.
+  let crumbs = [], crumbAt = 0;
+  function crumb(what) {
+    try {
+      crumbs.push([G ? Math.round(G.t * 10) / 10 : null, String(what).slice(0, 120)]);
+      if (crumbs.length > 24) crumbs.shift();
+      saveCrumb(true);
+    } catch (_) {}
+  }
+  function saveCrumb(open) {
+    try {
+      if (!match || match.ended) return;
+      const g = typeof GLR === 'object' && GLR ? GLR : {};
+      let mem = null; try { mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : null; } catch (_) {}
+      const c = { id: match.id, v: typeof VERSION === 'string' ? VERSION : null, at: Date.now(), open: open && !document.hidden, t: G ? Math.round(G.t) : null,
+        gl: g.on ? 1 : 0, lit: g.lit ? 1 : 0, glFrames: g.frames || 0, gpu: g.gpu || null, glq: g.quads || 0, glc: g.calls || 0, glms: g.ms || null,
+        w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1, mem, ents: G ? G.entities.length : null, ev: crumbs };
+      store('rh-crumb', JSON.stringify(c));
+    } catch (_) {}
+  }
+  try {
+    setInterval(() => saveCrumb(true), 1000);
+    addEventListener('pagehide', () => saveCrumb(false));
+    document.addEventListener('visibilitychange', () => saveCrumb(!document.hidden));
+  } catch (_) {}
+  // At launch: the last match's black box, if the page died during it.
+  try {
+    const last = JSON.parse(store('rh-crumb') || 'null');
+    try { localStorage.removeItem('rh-crumb'); } catch (_) {}
+    const desk = typeof window !== 'undefined' && window.rhDesktop && window.rhDesktop.crashLog ? window.rhDesktop.crashLog() : Promise.resolve(null);
+    Promise.resolve(desk).catch(() => null).then((d) => {
+      if (local || !last || !last.id || !UUID.test(last.id)) return;
+      if (!last.open && !(d && d.log && d.log.length)) return;
+      post('rpc/match_crash', { p_id: last.id, p_device: device, p_crash: { ...last, desktop: d || undefined, glNow: typeof GLR === 'object' && GLR ? { on: GLR.on, crashed: !!GLR.crashed } : null } });
+    });
+  } catch (_) {}
+  return { crumb, start, resume, park, end, quit, get device() { return device; }, oops, noteFrame, get errors() { return errs; }, submitName, board, claim, score, teamStats, get name() { return name(); }, get matchId() { return match && match.id; } };
 })();
 
 // The leaderboard page, on the same paper as What's New, and the name box in the debrief.

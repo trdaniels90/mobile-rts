@@ -1984,6 +1984,16 @@ reasons are in `plans/webgl-renderer.md`; the short version:
   back to the menu in the 2D way instead of a black window; Electron went from 33 to 45 in the same change (newer
   Chromium and ANGLE for new graphics cards). Checked under xvfb with Playwright's `_electron` and
   `forcefullyCrashRenderer()`.
+- **The black box (2026.11.20.4; 2026.11.20.3 still went black on the RTX 5080).** `report.js` keeps a match's last
+  moments in `localStorage` `rh-crumb` every second (`Report.crumb(what)` events: start, `placed <type>` from
+  `placeStructure`, `gl ...` from gl.js (context lost or restored, a stage switched off, the first frame drawn), errors;
+  plus `GLR.gpu` (the unmasked renderer string), quads, calls, heap, screen) with `open: true`, written `false` on
+  `pagehide` and on the page being hidden. Found open at launch: `rpc/match_crash` (`supabase/schema.sql`) puts it in
+  the match row as `stats.crash`. The Windows app logs `render-process-gone`, `child-process-gone` (GPU) and
+  `unresponsive` to `userData/crash-log.json` with the exit code; `preload.js` gives the game `rhDesktop.crashLog()`
+  (the log, emptied as read, the driver from `app.getGPUInfo('basic')`, Electron and Chrome versions), sent along.
+  Query: `select started_at, stats->'crash' from matches where stats ? 'crash' order by started_at desc`.
+  Tested with Playwright's `_electron` and `forcefullyCrashRenderer()`; route the Supabase host so no test rows land.
 
 ## Flat starting bases: low ground or a broad hilltop (2026-11-20, not released, both modes)
 

@@ -5317,6 +5317,7 @@ function placeStructure(team, type, cx, cy) {
   if (!q || !q.ready || q.type !== type || !canPlace(team, type, cx, cy, team.isAI ? 1 : 0)) return false;
   team.queues[slot] = null;
   const b = addBuilding(type, team, cx, cy);
+  if (team.id === G.me && typeof Report !== 'undefined' && Report.crumb) Report.crumb('placed ' + type);
   hooks.sfx('place', b.x, b.y);
   hooks.sfx('build', b.x, b.y);
   if (type === 'refinery') {
