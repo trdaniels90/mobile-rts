@@ -560,6 +560,10 @@ function draw() {
     v.imageSmoothingEnabled = false;
     const glWill = !!G && GLR.ready && GLR.ready();   // (gl.js will draw this frame: the view is then not filled nor given the edge here)
     if (!glWill) { v.fillStyle = G ? `rgb(${hazeRGB()})` : '#000'; v.fillRect(0, 0, VW, VH); }
+    // With WebGL the view canvas is never shown, but a few things are still drawn on it: cleared whole every frame, else
+    // Chrome keeps every drawing command on it, waiting to draw them (2026.11.20.5: ~100 KB a frame at 1280x720, ~40 s
+    // to a crash at a tester's 2560x1370 x1.5 and 115 frames a second, in the Windows app).
+    else v.clearRect(0, 0, v.canvas.width, v.canvas.height);
     if (!G) return;
     // A bridge span destroyed or rebuilt: the minimap's terrain follows.
     const sig = (G.spans || []).map((s) => (s.alive ? 1 : 0)).join('');

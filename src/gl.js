@@ -110,7 +110,7 @@ void main() {
   let S = null;
   function state() {
     if (!S || S.G !== G || S.ground !== G.ground) {
-      if (S) { for (const e of S.tex.values()) { gl.deleteTexture(e.g); if (e.d) gl.deleteTexture(e.d); } if (S.low) gl.deleteTexture(S.low); }
+      if (S) { for (const e of S.tex.values()) { gl.deleteTexture(e.g); if (e.d) gl.deleteTexture(e.d); } if (S.low) gl.deleteTexture(S.low); for (const m of S.mesh.values()) { gl.deleteBuffer(m.vb); gl.deleteBuffer(m.ib); } }
       S = { G, ground: G.ground, tex: new Map(), mesh: new Map(), low: null, lowSrc: null, patch: null, frame: 0 };
     }
     return S;
@@ -134,7 +134,12 @@ void main() {
     const ix = new Uint16Array(N * M * 6);
     o = 0;
     for (let j = 0; j < M; j++) for (let i = 0; i < N; i++) { const a = j * (N + 1) + i, b = a + 1, c = a + N + 1, d = c + 1; ix[o++] = a; ix[o++] = b; ix[o++] = c; ix[o++] = b; ix[o++] = d; ix[o++] = c; }
-    m = { v, ix, n: ix.length };
+    // Each tile's mesh in buffers of its own, uploaded once (2026.11.20.5): re-sending every tile's mesh every frame
+    // (bufferData STREAM_DRAW, tens a frame) grew the page's memory about 6 MB a second; on a tester's RTX 5080 at 115
+    // frames a second the Windows app's page crashed some 40 s into each battle.
+    const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, v, gl.STATIC_DRAW);
+    const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, ix, gl.STATIC_DRAW);
+    m = { vb, ib, n: ix.length };
     S.mesh.set(k, m);
     return m;
   }
@@ -178,7 +183,6 @@ void main() {
       if (pk && !S.patch) S.patch = texFrom(patchPic, true);
       gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, pk ? S.patch : R.none);
       gl.uniform1f(loc.uPatchK, pk); gl.uniform1f(loc.uPatchS, pk ? patchPic.width * 12 : 1);
-      gl.bindBuffer(gl.ARRAY_BUFFER, R.buf); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, R.ibuf);
       gl.enableVertexAttribArray(loc.aP); gl.enableVertexAttribArray(loc.aD); gl.enableVertexAttribArray(loc.aW); gl.enableVertexAttribArray(loc.aN);
       let up = 0;
       for (const k of A.tilesIn(sx, sy, sw, sh)) {
@@ -188,7 +192,7 @@ void main() {
         gl.uniform2f(loc.uT0, x0, y0); gl.uniform1f(loc.uLowOnly, e ? 0 : 1);
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, e ? e.g : R.none);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, e && e.d ? e.d : R.none);
-        gl.bufferData(gl.ARRAY_BUFFER, m.v, gl.STREAM_DRAW); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.ix, gl.STREAM_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, m.vb); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ib);
         gl.vertexAttribPointer(loc.aP, 2, gl.FLOAT, false, 28, 0); gl.vertexAttribPointer(loc.aD, 1, gl.FLOAT, false, 28, 8); gl.vertexAttribPointer(loc.aW, 2, gl.FLOAT, false, 28, 12); gl.vertexAttribPointer(loc.aN, 2, gl.FLOAT, false, 28, 20);
         gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_SHORT, 0);
       }
@@ -634,6 +638,7 @@ void main() {
   // Quads ({ q, u0..v1, d, a, b, tex, ntex, s }) in runs of the same texture, blend and sampling; P2 in use. Returns the calls.
   const VQ = 54;   // floats a quad: 6 corners of position, uv, depth, alpha, colour
   let qbuf = new Float32Array(VQ * 512);
+  let vcap = 0;   // (floats vbuf2 holds)
   function drawQuads(list, normals) {
     if (qbuf.length < list.length * VQ) qbuf = new Float32Array(Math.ceil(list.length * 1.5) * VQ);   // (kept from frame to frame)
     const f = qbuf;
@@ -643,7 +648,11 @@ void main() {
       const put = (x, y, u, vv) => { f[o++] = x; f[o++] = y; f[o++] = u; f[o++] = vv; f[o++] = d; f[o++] = a; f[o++] = cr; f[o++] = cg; f[o++] = cb; };
       put(Q[0], Q[1], r.u0, r.v0); put(Q[2], Q[3], r.u1, r.v0); put(Q[4], Q[5], r.u0, r.v1); put(Q[2], Q[3], r.u1, r.v0); put(Q[6], Q[7], r.u1, r.v1); put(Q[4], Q[5], r.u0, r.v1);
     }
-    gl.bindBuffer(gl.ARRAY_BUFFER, vbuf2); gl.bufferData(gl.ARRAY_BUFFER, f, gl.STREAM_DRAW, 0, o);
+    // (the buffer's storage made once and grown, filled with bufferSubData: making it again every call, several times a
+    // frame, grew the page's memory; see meshOf)
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbuf2);
+    if (vcap < o) { vcap = Math.max(o, f.length); gl.bufferData(gl.ARRAY_BUFFER, vcap * 4, gl.DYNAMIC_DRAW); }
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, f, 0, o);
     for (const n of ['aP', 'aUV', 'aD', 'aA', 'aC']) gl.enableVertexAttribArray(loc2[n]);
     gl.vertexAttribPointer(loc2.aP, 2, gl.FLOAT, false, 36, 0); gl.vertexAttribPointer(loc2.aUV, 2, gl.FLOAT, false, 36, 8); gl.vertexAttribPointer(loc2.aD, 1, gl.FLOAT, false, 36, 16); gl.vertexAttribPointer(loc2.aA, 1, gl.FLOAT, false, 36, 20); gl.vertexAttribPointer(loc2.aC, 3, gl.FLOAT, false, 36, 24);
     gl.uniform1i(loc2.uNrm, 1); gl.uniform1f(loc2.uShowN, normals && SHOW_N ? 1 : 0);

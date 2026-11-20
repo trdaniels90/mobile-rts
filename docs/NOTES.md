@@ -1994,6 +1994,15 @@ reasons are in `plans/webgl-renderer.md`; the short version:
   (the log, emptied as read, the driver from `app.getGPUInfo('basic')`, Electron and Chrome versions), sent along.
   Query: `select started_at, stats->'crash' from matches where stats ? 'crash' order by started_at desc`.
   Tested with Playwright's `_electron` and `forcefullyCrashRenderer()`; route the Supabase host so no test rows land.
+- **The crash itself (2026.11.20.5): a memory leak in WebGL frames.** The black box's report (crashed 41 s in, the page,
+  exit code -36861, which is only "no crash handler") led to it: with WebGL the page grew ~100 KB a frame at 1280x720,
+  linearly (476 -> 1495 MB in 220 s; 2D flat at ~400 MB). Chrome's memory-infra dump showed one growing `malloc`
+  directMap block. Cause: `ui.js` draw never fills or clears the view canvas when WebGL draws the frame (`glWill`), yet a
+  few things still draw on it, so Chrome kept every recorded command on that never-shown canvas. Fix: a full
+  `clearRect` of it each WebGL frame (flat at ~450 MB over 4 min). At the tester's 3576x2022 and 115 fps it was
+  hundreds of MB a second. Also: ground meshes in buffers made once (`meshOf`), `drawQuads` fills a kept buffer with
+  `bufferSubData`. Finding a leak like it again: sample the renderer's RSS (`ps`) with WebGL on and `?gl=off`, then
+  turn WebGL calls into no-ops one kind at a time (MB per 1000 frames), and dump `disabled-by-default-memory-infra`.
 
 ## Flat starting bases: low ground or a broad hilltop (2026-11-20, not released, both modes)
 
