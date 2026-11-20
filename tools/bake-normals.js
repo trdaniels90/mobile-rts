@@ -2,8 +2,8 @@
 // layout as sprites/<sheet> (the same spot for every picture), and normals/manifest.json. The game loads them with the
 // sprite sheets when WebGL draws (art.js SpriteSheets), so a picture's normal map is not worked out while you play
 // (gl.js nrmPic, at most 3 ms a frame). Worked out by gl.js's own nrmPic in headless Chromium, from the same models.
-// Red, green: the surface's direction turned with the view; blue: height; alpha 0 where there is none (pictures not from
-// one voxel model, cast shadows).
+// Red, green: the surface's direction turned with the view; blue: height (2 and up; 1: a glowing part); alpha 0 where there
+// is none (pictures not from one voxel model, cast shadows, and structures while lookstructs.js redraws them).
 //   node tools/bake-normals.js <repo>           bake (after tools/bake-sprites.js)
 //   node tools/bake-normals.js <repo> --check   exit 1 if stale (the sprites were rebaked, or nrmPic changed)
 // The sprites are rendered here as tools/bake-sprites.js renders them (the same sets; keep them in step): every picture
@@ -69,6 +69,7 @@ const outDir = path.join(root, 'normals');
       let n = 0, none = 0, odd = 0;
       for (const e of sh.sprites) {
         const s = spriteCache2.get(e[0]);
+        if (e[0][0] === 'S' && typeof LOOK !== 'undefined' && LOOK.structs) { none++; continue; }   // (structures: refused from the sheets on this branch, lookstructs.js; their normal maps are worked out in play from the new models)
         if (!s) return { err: 'picture ' + e[0] + ' did not come out: run tools/bake-sprites.js first, or bring this tool in step with it' };
         if (s.img.width !== e[3] || s.img.height !== e[4]) { none++; odd++; continue; }   // (drawn differently on this branch than baked, as some structures: no normal map, as at run time)
         const c = GLR.nrmPic(s.img);

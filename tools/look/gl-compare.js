@@ -36,7 +36,7 @@ const { chromium } = require('playwright');
     await p.evaluate(() => { G.paused = true; }); await p.waitForTimeout(6000);
     const t = await p.evaluate(async () => { const a = performance.now(); let n = 0; while (performance.now() - a < 2000) { await new Promise((r) => requestAnimationFrame(r)); n++; } return { fps: n / 2, gnd: drawParts.gnd && drawParts.gnd.toFixed(2), glFrames: GLR.frames, quads: GLR.quads, unsup: GLR.unsupported, calls: GLR.calls, bits: GLR.bits, lights: GLR.lights, lightQuads: GLR.lightQuads, overQuads: GLR.overQuads, lit: GLR.lit, bitRows: GLR.bitRows, normals: GLR.normals, none: GLR.nrmNone, mismatch: GLR.nrmMismatch, fxNear: window.__fxn, fx: G.effects.length, shots: G.projectiles.length }; });
     // off: the 2D way; on: WebGL with flat light (GLR.nrmK 0, to compare with 2D); lit: WebGL with the normal maps' light (stage 4)
-    for (const m of ['off', 'on', 'lit']) { await p.evaluate((m) => { GLR.paused = m === 'off'; if (GLR.on) GLR.nrmK = m === 'on' ? 0 : 0.85; }, m); await p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); await p.screenshot({ path: `${process.argv[3]}_${m}.png` }); }
+    for (const m of ['off', 'on', 'lit']) { await p.evaluate((m) => { GLR.paused = m === 'off'; if (GLR.on) { GLR.nrmK = m === 'on' ? 0 : 0.85; GLR.sun = m !== 'on'; } }, m); await p.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); await p.screenshot({ path: `${process.argv[3]}_${m}.png` }); }
     console.log(mode, JSON.stringify(t), errs.slice(0, 3));
     await p.close();
   }

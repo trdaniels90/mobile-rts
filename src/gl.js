@@ -288,7 +288,7 @@ void main() {
     order.sort((p, q2) => key[p] - key[q2]);
     for (let k = 0; k < n; k++) {
       const i = order[k], z = s.zs[i], nxr = s.nx[i] * ca - s.ny[i] * sa, nyr = s.nx[i] * sa + s.ny[i] * ca;
-      const pix = (255 << 24) | (Math.min(255, Math.round((z + 0.5) * 3)) << 16) | (Math.round((nyr * 0.5 + 0.5) * 255) << 8) | Math.round((nxr * 0.5 + 0.5) * 255);
+      const pix = (255 << 24) | ((typeof M_GLOW !== 'undefined' && s.mat[i] === M_GLOW ? 1 : Math.min(255, Math.max(2, Math.round((z + 0.5) * 3)))) << 16)   // (blue: height, 2 and up; 1: a glowing part, which the sun does not light) | (Math.round((nyr * 0.5 + 0.5) * 255) << 8) | Math.round((nxr * 0.5 + 0.5) * 255);
       const x0 = Math.floor((px[i] - ext - minX) * SS), x1 = Math.ceil((px[i] + ext - minX) * SS);
       const y0 = Math.floor((py[i] - ext * F - (z + 1) * VKk - minY) * SS), y1 = Math.ceil((py[i] + ext * F - z * VKk - minY) * SS);
       for (let yy = Math.max(0, y0); yy < Math.min(BH, y1); yy++) { const row = yy * BW; for (let xx = Math.max(0, x0); xx < Math.min(BW, x1); xx++) buf[row + xx] = pix; }
@@ -345,7 +345,18 @@ void main() {
   // first and drawn with its own (a glow drawn 'lighter' adds, as in 2D); other blends act on the layer as it is.
   let dirtyOp = 'source-over';
   // A fill style that is one colour: [r, g, b, a] in 0..1 (the canvas gives it back as #rrggbb or rgba(...)), else null.
-  let clipped = false, segs = [], segOk = true, last = null, softN = 0, subs = [], curved = false;
+  let clipped = false, segs = [], segOk = true, last = null, softN = 0, subs = [], curved = false, shut = false;
+  // A whole ellipse (centre, radii, turn, start and end angles) as a new subpath of 24 sides, if it starts one; else false.
+  function whole(x, y, rx, ry, rot, a0, a1) {
+    if (!(Math.abs(a1 - a0) >= Math.PI * 2 - 1e-6) || !(rx > 0 && ry > 0)) return false;
+    const L = subs[subs.length - 1];
+    if (L && (L.length > 2 || shut)) return false;   // (joined to what came before)
+    if (L) subs.pop();
+    const P = [], c = Math.cos(rot || 0), sn = Math.sin(rot || 0), N = 24;
+    for (let i = 0; i < N; i++) { const t = i / N * Math.PI * 2, ex = Math.cos(t) * rx, ey = Math.sin(t) * ry; P.push(...tp(x + ex * c - ey * sn, y + ex * sn + ey * c)); }
+    subs.push(P); shut = true; last = null;
+    return true;
+  }
   // A polygon (screen px, x y x y...) that turns one way only (a triangle fan fills it exactly).
   const convex = (P) => {
     const n = P.length / 2; if (n < 3) return false;
@@ -376,7 +387,6 @@ void main() {
     const op = lctx.globalCompositeOperation;
     if (BLENDS[op] === undefined) R.unsupported[op] = (R.unsupported[op] || 0) + 1;
     else if (op !== dirtyOp) { if (dirty) flush(); dirtyOp = op; }
-    if (R.bitLog) R.bitLog.push([Math.round(b[2] - b[0]), Math.round(b[3] - b[1]), (new Error().stack.split('\n').slice(3, 6).join(' < ')).replace(/file:[^ ]*src\//g, '')]);
     dirty = dirty ? grow(grow(dirty, b[0], b[1], 0), b[2], b[3], 0) : b.slice();
   };
   function atlasSpot(w, h) {
@@ -395,8 +405,7 @@ void main() {
   }
   function flush() {
     if (!dirty) return;
-    const tf = performance.now(); R.flushN = (R.flushN || 0) + 1;
-    try { flush1(); } finally { R.flushMs = (R.flushMs || 0) + performance.now() - tf; }
+    flush1();
   }
   function flush1() {
     const W = layer.width, H = layer.height, x0 = Math.max(0, Math.floor(dirty[0]) - 1), y0 = Math.max(0, Math.floor(dirty[1]) - 1);
@@ -408,7 +417,6 @@ void main() {
       const pw = Math.min(PC, x1 - px), ph = Math.min(PC, y1 - py), at = atlasSpot(pw, ph);
       if (!at) continue;
       atlases[at.i].c.getContext('2d').drawImage(layer, px, py, pw, ph, at.x, at.y, pw, ph);
-      if (R.bitLog) R.bitLog.push([pw, ph]);
       rec.push({ atlas: at.i, q: [px, py, px + pw, py, px, py + ph, px + pw, py + ph], u0: at.x / ATLAS, v0: at.y / ATLAS, u1: (at.x + pw) / ATLAS, v1: (at.y + ph) / ATLAS, a: 1, b: BLENDS[dirtyOp] || 0, d: depth });
       R.bits = (R.bits || 0) + 1;
     }
@@ -454,14 +462,16 @@ void main() {
     // What a drawing call covers on the layer (screen px), so it can be cut out.
     const lw = () => (lctx.lineWidth || 1) * scl() / 2 + 2;
     const hooks = {
-      beginPath() { pathBox = null; segs = []; segOk = true; last = null; subs = []; curved = false; lctx.beginPath(); },
+      beginPath() { pathBox = null; segs = []; segOk = true; last = null; subs = []; curved = false; shut = false; lctx.beginPath(); },
       closePath() { const P = subs[subs.length - 1]; if (P && last && P.length >= 4) { segs.push(last[0], last[1], P[0], P[1]); last = [P[0], P[1]]; } else segOk = false; lctx.closePath(); },
-      moveTo(x, y) { const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, 0); last = [X, Y]; subs.push([X, Y]); lctx.moveTo(x, y); },
-      lineTo(x, y) { const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, 0); if (last) segs.push(last[0], last[1], X, Y); else segOk = false; last = [X, Y]; if (subs.length) subs[subs.length - 1].push(X, Y); else subs.push([X, Y]); lctx.lineTo(x, y); },
+      moveTo(x, y) { const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, 0); last = [X, Y]; subs.push([X, Y]); shut = false; lctx.moveTo(x, y); },
+      lineTo(x, y) { if (shut) curved = true; const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, 0); if (last) segs.push(last[0], last[1], X, Y); else segOk = false; last = [X, Y]; if (subs.length) subs[subs.length - 1].push(X, Y); else subs.push([X, Y]); lctx.lineTo(x, y); },
       quadraticCurveTo(a, b, x, y) { segOk = false; curved = true; for (const [p, q] of [[a, b], [x, y]]) { const [X, Y] = tp(p, q); pathBox = grow(pathBox, X, Y, 0); } lctx.quadraticCurveTo(a, b, x, y); },
       bezierCurveTo(a, b, c, d, x, y) { segOk = false; curved = true; for (const [p, q] of [[a, b], [c, d], [x, y]]) { const [X, Y] = tp(p, q); pathBox = grow(pathBox, X, Y, 0); } lctx.bezierCurveTo(a, b, c, d, x, y); },
-      arc(x, y, r, ...k) { segOk = false; curved = true; const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, r * scl()); lctx.arc(x, y, r, ...k); },
-      ellipse(x, y, rx, ry, ...k) { segOk = false; curved = true; const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, Math.max(rx, ry) * scl()); lctx.ellipse(x, y, rx, ry, ...k); },
+      // (stage 5) A whole circle or ellipse begun on its own (after beginPath or moveTo) is a convex polygon for fill();
+      // a part of one is a curve (the layer).
+      arc(x, y, r, ...k) { segOk = false; if (!whole(x, y, r, r, 0, k[0], k[1])) curved = true; const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, r * scl()); lctx.arc(x, y, r, ...k); },
+      ellipse(x, y, rx, ry, ...k) { segOk = false; if (!whole(x, y, rx, ry, k[0], k[1], k[2])) curved = true; const [X, Y] = tp(x, y); pathBox = grow(pathBox, X, Y, Math.max(rx, ry) * scl()); lctx.ellipse(x, y, rx, ry, ...k); },
       rect(x, y, w, h) { segOk = false; { const P = []; for (const [p2, q2] of [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]) P.push(...tp(p2, q2)); subs.push(P); last = null; } for (const [p, q] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]) { const [X, Y] = tp(p, q); pathBox = grow(pathBox, X, Y, 0); } lctx.rect(x, y, w, h); },
       fill(...a) {
         // (stage 5) Straight-sided shapes, each convex (walls' faces, prisms, flags), in one colour and a blend WebGL does,
@@ -480,13 +490,25 @@ void main() {
         // (stage 5) Straight lines only, in one colour and a blend WebGL does, not clipped (rain, cables, rally lines):
         // each a thin coloured quad, not a cut-out of the box round them all (rain's was the whole view, every frame).
         const C = !a.length && segOk && !clipped && segs.length ? solid(lctx.strokeStyle) : null, b = BLENDS[lctx.globalCompositeOperation];
-        const hw = Math.max(0.5, (lctx.lineWidth || 1) * scl() / 4);   // (half the width; thin lines only: thick ones need joins)
-        if (C && b !== undefined && hw <= 1.5 && segs.length <= 16000 && !lctx.getLineDash().length) {
+        const hw = Math.max(0.5, (lctx.lineWidth || 1) * scl() / 4);   // (half the width)
+        if (C && b !== undefined && segs.length <= 16000 && !lctx.getLineDash().length) {
           flush();
           const hw2 = hw, al = lctx.globalAlpha * C[3];   // (scl: the sum of both axes' scales)
           for (let i = 0; i < segs.length; i += 4) {
             const x0 = segs[i], y0 = segs[i + 1], x1 = segs[i + 2], y1 = segs[i + 3], L = Math.hypot(x1 - x0, y1 - y0) || 1, nx = -(y1 - y0) / L * hw, ny = (x1 - x0) / L * hw;
             rec.push({ q: [x0 + nx, y0 + ny, x1 + nx, y1 + ny, x0 - nx, y0 - ny, x1 - nx, y1 - ny], u0: 0, v0: 0, u1: 1, v1: 1, a: al, b, d: depth, col: C });
+          }
+          // Thick lines: their joins and round caps as small round fans, square caps carried on by half the width.
+          if (hw > 1.5) {
+            const cap = lctx.lineCap, fan = (cx, cy) => { const N = 10; for (let i = 0; i < N; i++) { const t0 = i / N * Math.PI * 2, t1 = (i + 1) / N * Math.PI * 2; rec.push({ q: [cx, cy, cx + Math.cos(t0) * hw, cy + Math.sin(t0) * hw, cx + Math.cos(t1) * hw, cy + Math.sin(t1) * hw, cx + Math.cos(t1) * hw, cy + Math.sin(t1) * hw], u0: 0, v0: 0, u1: 1, v1: 1, a: al, b, d: depth, col: C }); } };
+            for (let i = 0; i < segs.length; i += 4) {
+              const joinedBefore = i > 0 && segs[i] === segs[i - 2] && segs[i + 1] === segs[i - 1], joinedAfter = i + 4 < segs.length && segs[i + 2] === segs[i + 4] && segs[i + 3] === segs[i + 5];
+              if (joinedAfter) fan(segs[i + 2], segs[i + 3]);
+              if (cap === 'round') { if (!joinedBefore) fan(segs[i], segs[i + 1]); if (!joinedAfter) fan(segs[i + 2], segs[i + 3]); }
+              else if (cap === 'square') { const x0 = segs[i], y0 = segs[i + 1], x1 = segs[i + 2], y1 = segs[i + 3], L = Math.hypot(x1 - x0, y1 - y0) || 1, dx = (x1 - x0) / L * hw, dy = (y1 - y0) / L * hw, nx = -dy, ny = dx;
+                if (!joinedBefore) rec.push({ q: [x0 - dx + nx, y0 - dy + ny, x0 + nx, y0 + ny, x0 - dx - nx, y0 - dy - ny, x0 - nx, y0 - ny], u0: 0, v0: 0, u1: 1, v1: 1, a: al, b, d: depth, col: C });
+                if (!joinedAfter) rec.push({ q: [x1 + nx, y1 + ny, x1 + dx + nx, y1 + dy + ny, x1 - nx, y1 - ny, x1 + dx - nx, y1 + dy - ny], u0: 0, v0: 0, u1: 1, v1: 1, a: al, b, d: depth, col: C }); }
+            }
           }
           R.lines = (R.lines || 0) + segs.length / 4;
           return;
@@ -673,6 +695,7 @@ precision highp float; out vec4 o;
 uniform sampler2D uScene, uNrm, uSh, uGlow, uWarm, uPool, uCloud;
 uniform vec2 uSize, uOrg, uCam, uScr, uHalf;
 uniform float uLook, uSat, uGlowK, uCloudK, uWarmK, uNight, uT, uNrmK;
+uniform float uSunK, uSunSt, uGroundSt, uHD, uHS, uAmb; uniform vec3 uBakeL, uSunL, uSunC; uniform vec2 uRot, uSunG;
 uniform vec3 uGrade; uniform vec4 uSun, uShade, uHaze, uTint, uVig;
 float sl(float b, float s) { float d = b <= 0.25 ? ((16.0 * b - 12.0) * b + 4.0) * b : sqrt(b); return s <= 0.5 ? b - (1.0 - 2.0 * s) * b * (1.0 - b) : b + (2.0 * s - 1.0) * (d - b); }
 float lightAt(vec2 uv) { vec4 h = texture(uSh, uv); return (1.0 - h.r) + (1.0 - h.g) + dot(texture(uGlow, uv).rgb + texture(uWarm, uv).rgb, vec3(0.333)); }
@@ -681,6 +704,18 @@ void main() {
   vec3 c = texture(uScene, uv).rgb;
   float nf = 1.0;   // how much this pixel's surface faces the light here (1: flat, as 2D)
   vec4 nn = texture(uNrm, uv);
+  if (uSunK > 0.0 && nn.a > 0.5 && nn.r + nn.g > 0.01) {   // (rg 0: a picture with no normal map, left as it is)   // (stage 5) the sun where it is now, not where the pictures and the ground were lit from
+    vec2 sq = nn.rg / nn.a * 2.0 - 1.0; float bz = nn.b / nn.a; vec3 sn = vec3(sq, sqrt(max(0.0, 1.0 - dot(sq, sq))));
+    if (bz < 0.5 / 255.0) {   // the ground: art.js groundPixels' hill shading, from its slope (the drawn one, back to the world's axes)
+      vec2 nw = vec2(sn.x * uRot.x + sn.y * uRot.y, -sn.x * uRot.y + sn.y * uRot.x), gr = -nw / (max(sn.z, 0.2) * uHD);
+      float lo = -0.45 - 0.12 * (uHS - 1.0), hi = 0.4 + 0.1 * (uHS - 1.0);
+      float l0 = clamp(dot(gr, vec2(0.937, -0.351)) * 4.2 * uHS, lo, hi), l1 = clamp(dot(gr, uSunG) * 4.2 * uHS * uGroundSt, lo, hi);
+      c *= (1.0 + l1 * (l1 > 0.0 ? uSunC : vec3(1.0))) / (1.0 + l0);
+    } else if (bz > 1.5 / 255.0) {   // a voxel picture: voxel.js renderVox's light (0.5 + 0.68 x the sun on it), new over old
+      c *= (uAmb + 0.68 * uSunSt * max(0.0, dot(sn, uSunL)) * uSunC) / (0.5 + 0.68 * max(0.0, dot(sn, uBakeL)));
+    }
+    c = min(c, 1.0);
+  }
   vec2 nxy = nn.a > 0.5 ? nn.rg / nn.a * 2.0 - 1.0 : vec2(0.0);
   if (uNrmK > 0.0 && nn.a > 0.5 && nn.r + nn.g > 0.01 && dot(nxy, nxy) > 0.0004) {   // (flat ground and tops: lit as 2D, no lookups)
     vec3 n = vec3(nxy, sqrt(max(0.0, 1.0 - dot(nxy, nxy))));
@@ -688,7 +723,7 @@ void main() {
     vec2 g = vec2(lightAt(uv + vec2(d.x, 0.0)) - lightAt(uv - vec2(d.x, 0.0)), lightAt(uv - vec2(0.0, d.y)) - lightAt(uv + vec2(0.0, d.y)));   // (x right, y toward the camera: down the view)
     // Sides facing the light brighter, sides turned away darker, as much as the light has a clear direction here (the
     // slope's steepness) and less on tops (facing up): on average as bright as 2D, so the pictures keep their colours.
-    bool ground = nn.b < 0.004;   // (blue: the pictures' height, never 0; the ground's 0)
+    bool ground = nn.b < 0.002 * nn.a;   // (blue: the pictures' height, 2/255 and up, or 1/255 a glowing part; the ground's 0)
     float m = length(g), w = m > 1e-4 ? smoothstep(0.0, 0.05, m) * (ground ? 1.0 : 1.0 - 0.6 * n.z) : 0.0;
     float f = m > 1e-4 ? dot(n.xy, g / m) : 0.0;
     if (ground) f = clamp(f * 3.0, -1.0, 1.0);   // (the hills are gentle: their slopes facing a light catch it as a wall would)
@@ -723,7 +758,7 @@ void main() {
     P3 = gl.createProgram(); gl.attachShader(P3, mk(gl.VERTEX_SHADER, VS3)); gl.attachShader(P3, mk(gl.FRAGMENT_SHADER, FS3)); gl.linkProgram(P3);
     if (!gl.getProgramParameter(P3, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(P3));
     loc3 = { aQ: gl.getAttribLocation(P3, 'aQ') };
-    for (const n of ['uScene', 'uNrm', 'uSh', 'uGlow', 'uWarm', 'uPool', 'uCloud', 'uSize', 'uOrg', 'uCam', 'uScr', 'uHalf', 'uLook', 'uSat', 'uGlowK', 'uCloudK', 'uWarmK', 'uNight', 'uT', 'uNrmK', 'uGrade', 'uSun', 'uShade', 'uHaze', 'uTint', 'uVig']) loc3[n] = gl.getUniformLocation(P3, n);
+    for (const n of ['uScene', 'uNrm', 'uSh', 'uGlow', 'uWarm', 'uPool', 'uCloud', 'uSize', 'uOrg', 'uCam', 'uScr', 'uHalf', 'uLook', 'uSat', 'uGlowK', 'uCloudK', 'uWarmK', 'uNight', 'uT', 'uNrmK', 'uGrade', 'uSun', 'uShade', 'uHaze', 'uTint', 'uVig', 'uSunK', 'uSunSt', 'uGroundSt', 'uHD', 'uHS', 'uBakeL', 'uSunL', 'uRot', 'uSunG', 'uAmb', 'uSunC']) loc3[n] = gl.getUniformLocation(P3, n);
     tri = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, tri); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
   }
   // Soft pictures (lights) into a light buffer: [picture, view x, view y, w, h, alpha]; the blend set by the caller.
@@ -741,6 +776,25 @@ void main() {
     R.lightQuads += quads.length;
     if (quads.length) R.calls += drawQuads(quads, false);
   }
+  // (stage 5) The sun over the day on the maps with day and night (art.js dayNight's day: DAY_LEN, DAY_START): it comes
+  // round from one side in the morning to the other in the evening (up to SUN_SWING radians either side of where the
+  // pictures and the hills were lit from, at noon: no change then, and never so far that the cast shadows, which stay
+  // where they were baked, look wrong), lower and so raking at dawn and dusk; at night only a moon from the baked side.
+  // Maps without day and night keep the baked sun (no change). ?gl=nosun: off.
+  const SUN_SWING = 1.2, MOON = 0.45;
+  R.sun = !/[?&]gl=nosun\b/.test(q);
+  function sunNow(t) {
+    const p = (t / DAY_LEN + DAY_START) % 1, h = Math.sin((p - 0.25) * Math.PI * 2);
+    const day = Math.max(0, Math.min(1, (h + 0.05) / 0.35)), sm = day * day * (3 - 2 * day);
+    const th = Math.max(-SUN_SWING, Math.min(SUN_SWING, (p - 0.5) * 4)) * sm, e = Math.max(0, Math.min(1, h)) * sm + (1 - sm);
+    const ct = Math.cos(th), st2 = Math.sin(th), lx = LIGHT[0] * ct - LIGHT[1] * st2, ly = LIGHT[0] * st2 + LIGHT[1] * ct;
+    const k = 1 + (1 - e) * 2, ll = Math.hypot(lx * k, ly * k, LIGHT[2]);   // (low sun: more of it from the side)
+    const gx = 0.937 * ct - (-0.351) * st2, gy = 0.937 * st2 + (-0.351) * ct;
+    const low = (1 - e) * sm;   // (a low sun: less light from the sky round it, and warmer)
+    return { l: [lx * k / ll, ly * k / ll, LIGHT[2] / ll], g: [gx, gy], st: sm + (1 - sm) * MOON, gst: (sm * (1 + (1 - e) * 0.8)) + (1 - sm) * MOON, th, e,
+      amb: 0.5 - 0.1 * low, col: [1 + 0.1 * low, 1 - 0.03 * low, 1 - 0.16 * low] };
+  }
+  R.sunNow = sunNow;
   function lightPass(L) {
     if (!P3) init3();
     const W = FW, H = FH, hw = Math.max(1, Math.round(W / 2)), hh = Math.max(1, Math.round(H / 2)), B = lightBufs(hw, hh);
@@ -778,6 +832,13 @@ void main() {
     gl.uniform2f(loc3.uSize, W, H); gl.uniform2f(loc3.uHalf, hw, hh);
     gl.uniform2f(loc3.uOrg, L ? L.vx : 0, L ? L.vy : 0); gl.uniform2f(loc3.uCam, L ? L.cam[0] : 0, L ? L.cam[1] : 0); gl.uniform2f(loc3.uScr, L ? L.sw : W, L ? L.sh : H);
     gl.uniform1f(loc3.uLook, look ? 1 : 0); gl.uniform1f(loc3.uT, G ? G.t : 0); gl.uniform1f(loc3.uNrmK, L ? R.nrmK : 0);
+    const SUN = L && dnMap && R.sun ? sunNow(G.t) : null;
+    gl.uniform1f(loc3.uSunK, SUN ? 1 : 0);
+    if (SUN) {
+      gl.uniform1f(loc3.uSunSt, SUN.st); gl.uniform1f(loc3.uGroundSt, SUN.gst); gl.uniform3f(loc3.uBakeL, ...LIGHT); gl.uniform3f(loc3.uSunL, ...SUN.l);
+      gl.uniform2f(loc3.uSunG, ...SUN.g); gl.uniform2f(loc3.uRot, VIEW.c, VIEW.s); gl.uniform1f(loc3.uAmb, SUN.amb); gl.uniform3f(loc3.uSunC, ...SUN.col);
+      gl.uniform1f(loc3.uHD, typeof HILL_DRAW !== 'undefined' ? HILL_DRAW : 1); gl.uniform1f(loc3.uHS, typeof HILL_SHADE !== 'undefined' ? HILL_SHADE : 1);
+    }
     gl.uniform1f(loc3.uWarmK, L && DN.warm > 0.01 ? 0.32 * DN.warm : 0); gl.uniform1f(loc3.uNight, nightOn ? DN.night : 0);
     if (look) {
       const c4 = (c, m) => [c[0] / 255, c[1] / 255, c[2] / 255, c[3] * m];
