@@ -4,6 +4,15 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.20.1', date: '20 November 2026', title: 'Flat bases, cooler phones', groups: [
+    ['Changed', [
+      'Every starting base is on level ground, big enough for a whole base and its walls, so the computer no longer builds walls across hills. On Crossroads Village every base sits on a broad hilltop.',
+      'Phones draw the battlefield at a slightly lower resolution, so they run cooler and save battery, with hardly any visible difference.',
+    ]],
+    ['Fixed', [
+      'Match reports now record freezes, including at the start of a battle, so they can be tracked down.',
+    ]],
+  ] },
   { v: '2026.11.20', date: '20 November 2026', title: 'A new look: hills, light and weather', groups: [
     ['New', [
       'Hills on every map. High ground matters: units on a hilltop see further, fire from high ground reaches further and up a hill a little less, and vehicles slow down going uphill. Hills hide what is behind them.',
