@@ -10,7 +10,9 @@ const GLR = (() => {
   const R = { on: typeof document !== 'undefined' && !/[?&]gl=off\b/.test(q), ground: () => false, frames: 0 };
   // ?gl=stats (stage 5, for measuring on a phone; with ?gl=off too): frames a second, the draw's CPU time a frame (art.js
   // drawParts, summed), which way the frame was drawn, and WebGL's quads and draw calls, twice a second in a corner.
-  if (/[?&]gl=stats\b/.test(q) || /[?&]glstats\b/.test(q)) {
+  // (#glstats too: a claude.ai artifact passes only the address's #name to the page. A button switches the same battle
+  // between WebGL and the 2D way, GLR.paused, to compare on one phone.)
+  if (/[?&]gl=stats\b/.test(q) || /[?&]glstats\b/.test(q) || (typeof location !== 'undefined' && /glstats/.test(location.hash)) || (typeof GL_STATS !== 'undefined' && GL_STATS)) {
     const T = ['gnd', 'list', 'tree', 'bld', 'unit', 'misc', 'edge', 'fx', 'air', 'bars', 'blit', 'night', 'wthr'];
     let box = null, n = 0, ms = 0, worst = 0, t0 = performance.now();
     const tick = () => {
@@ -20,8 +22,19 @@ const GLR = (() => {
       n++; ms += d; worst = Math.max(worst, d);
       const now = performance.now();
       if (now - t0 < 500) return;
-      if (!box) { box = document.createElement('div'); box.style.cssText = 'position:fixed;left:4px;top:calc(var(--ts, 0px) + 4px);z-index:99;pointer-events:none;font:11px/1.3 monospace;color:#cfe;background:rgba(0,0,0,0.6);padding:2px 5px;white-space:pre'; document.body.appendChild(box); }
-      box.textContent = `${(n * 1000 / (now - t0)).toFixed(0)} fps  draw ${(ms / n).toFixed(1)} ms (worst ${worst.toFixed(1)})\n${R.on && R.lit ? `WebGL ${R.quads || 0} quads ${R.calls || 0} calls` : '2D'}`;
+      if (!box) {
+        const w = document.createElement('div'); w.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--ts, 0px) + 4px);z-index:99;display:flex;gap:6px;align-items:center;pointer-events:none';
+        box = document.createElement('div'); box.style.cssText = 'font:11px/1.3 monospace;color:#cfe;background:rgba(0,0,0,0.6);padding:2px 5px;white-space:pre';
+        w.appendChild(box);
+        if (R.on) {
+          const b = document.createElement('button'); b.textContent = '2D / WebGL';
+          b.style.cssText = 'pointer-events:auto;font:12px monospace;min-height:32px;padding:0 10px;color:#fff;background:#345;border:1px solid #8ab;border-radius:4px';
+          b.addEventListener('click', (e) => { e.stopPropagation(); R.paused = !R.paused; });
+          w.appendChild(b);
+        }
+        document.body.appendChild(w);
+      }
+      box.textContent = `${(n * 1000 / (now - t0)).toFixed(0)} fps  draw ${(ms / n).toFixed(1)} ms (worst ${worst.toFixed(1)})\n${R.on && R.lit ? `WebGL ${R.quads || 0} quads ${R.calls || 0} calls` : '2D way'}`;
       n = 0; ms = 0; worst = 0; t0 = now;
     };
     requestAnimationFrame(tick);
