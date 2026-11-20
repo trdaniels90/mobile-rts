@@ -1063,6 +1063,13 @@ recorder usage at the top of record.js).
   Anything `groundPixels` uses must be listed in `groundWorkers`. Without workers (game server, old browsers) the old
   main-thread strips are used. Jumping the camera on a 3 v 3 Snowbound at 1920 x 1080 and 4x CPU throttle: worst frame
   238 ms before, about 15 ms after. `bibDecal` now builds its pixels in one picture (it was a fillRect per pixel).
+- **The first frame uses the workers too** (2026-11-20, not released, both modes, performance only): it used to paint
+  everything on screen on the main thread, about 1.2 s at 4x CPU throttle, so the game froze for a second or more at
+  launch (the battle behind the menu) and at the start of every match. Now the workers paint it while the deploying card
+  (ui.js `loading`, which waits for `G.ground.missing === 0`, at most 3 s) is up. Worst long task at 4x throttle:
+  launch 2.4 s to about 1.1 s, match start 1.6 s to about 0.5 s (plus `newWorld`, about 0.7 s, mostly the voxel trees in
+  `buildScenery`, and the first `waterMasks`, about 0.2 s: what is left). A first frame given a huge budget (`ms >= 1e6`,
+  as `tools/sim/ground-tiles.js` does) still paints synchronously.
 - **Stutters while scrolling a big battle (2026.11.12.4, match 8f2b3d32 on a phone):** unit sprites are made the first time
   each model and facing is drawn (`sprite` in models.js), and a 3 v 3 has six colours, so scrolling into a big fight made
   dozens in one frame. Now held to `SPRITE_BUDGET` (5 ms) a frame (`spriteSpend`, reset in ui.js `draw`); past it the same

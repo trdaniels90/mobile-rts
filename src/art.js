@@ -1557,7 +1557,7 @@ function makeGround(painter, legacy, baked) {
     add, tiles, missing: 0,
     // Before drawing a frame of view rect (sx, sy, sw, sh): paints what is missing on screen for up to `ms`
     // milliseconds, then (`ahead` ms) the tiles in a ring round it, so scrolling finds them ready. The first frame
-    // paints all it shows, however long that takes.
+    // paints all it shows, however long that takes (without workers only).
     // With workers, `ms` is the time for finishing tiles whose pixels are back, on screen first, and the workers are
     // given the tiles on screen, then the ring.
     keep(fn) { keepTile = fn; },
@@ -1571,7 +1571,10 @@ function makeGround(painter, legacy, baked) {
     ms: 0, made: 0, peak, blocky: 0,   // the last update's time, tiles finished and worst steps (Report: stats.frames)
     upd(sx, sy, sw, sh, ms, ahead) {
       const t0 = performance.now(), seen = tilesIn(sx, sy, sw, sh);
-      if (fast() || (drawn && useWorkers())) {   // (baked: the first frame waits for its sheets too, behind the deploying card)
+      // The first frame too: it waits behind the deploying card (ui.js) while the workers paint, rather than painting
+      // everything on screen here (over a second on a phone, the game frozen at the start of every battle and of the menu).
+      // (A first frame given all the time it wants, as tests do, still paints it all here.)
+      if (fast() || (useWorkers() && (drawn || ms < 1e6))) {   // (baked: the first frame waits for its sheets too, behind the deploying card)
         const want = seen.filter((k) => !tiles.has(k));
         for (const k of tilesIn(sx - T, sy - T, sw + 2 * T, sh + 2 * T, T)) if (!tiles.has(k) && !want.includes(k)) want.push(k);
         const near = want.length;
