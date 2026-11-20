@@ -4,6 +4,15 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.20.3', date: '20 November 2026', title: 'No more black screens on PC', groups: [
+    ['Fixed', [
+      'The Windows app could go black and silent a minute into a battle on some new graphics cards. The app now runs on a much newer engine, and if the game ever crashes it reloads by itself instead of leaving a black window.',
+      'If the game crashes while drawing with WebGL, it starts the next time with the older 2D drawing and tells you why on the menu.',
+    ]],
+    ['New', [
+      'WebGL graphics on/off in the menu, under the sound settings. Switch it off if the game crashes or the screen goes black. The change applies the next time the game starts.',
+    ]],
+  ] },
   { v: '2026.11.20.2', date: '20 November 2026', title: 'Quicker starts', groups: [
     ['Fixed', [
       'The game no longer freezes for a second or two when it opens or when a battle starts: the battlefield is now prepared in the background while the Deploying forces card is shown.',
