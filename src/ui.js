@@ -817,11 +817,20 @@ function draw() {
       } else { const p = posOf(e); e._key = viewDepth(p.x, p.y); }
     }
     const NEAR = CELL * 1.5;
+    // (Only what stands within NEAR of each structure is looked at: the things in view by cell, as zoomed out
+    // thousands of trees and units against a hundred structures cost a PC 10 ms and more a frame.)
+    const byCell = new Map(), CK = (x, y) => (y + 512) * 4096 + x + 512;
+    for (const e of ground) {
+      if (big(e)) continue;
+      const p = posOf(e), k = CK(Math.floor(p.x / CELL), Math.floor(p.y / CELL)), l = byCell.get(k);
+      if (l) l.push(e); else byCell.set(k, [e]);
+    }
     for (const b of ground) {
       if (!big(b)) continue;
       const x0 = b.cx * CELL, y0 = b.cy * CELL, x1 = x0 + b.w * CELL, y1 = y0 + b.h * CELL;
-      for (const e of ground) {
-        if (big(e) || e._key > b._key) continue;
+      const gx1 = Math.floor((x1 + NEAR) / CELL), gy1 = Math.floor((y1 + NEAR) / CELL);
+      for (let gy = Math.floor((y0 - NEAR) / CELL); gy <= gy1; gy++) for (let gx = Math.floor((x0 - NEAR) / CELL); gx <= gx1; gx++) for (const e of byCell.get(CK(gx, gy)) || []) {
+        if (e._key > b._key) continue;
         const p = posOf(e);
         if (p.x < x0 - NEAR || p.x > x1 + NEAR || p.y < y0 - NEAR || p.y > y1 + NEAR) continue;
         const nx = Math.max(x0, Math.min(x1, p.x)), ny = Math.max(y0, Math.min(y1, p.y));
@@ -976,9 +985,10 @@ function draw() {
         if (held || G.t - h.hitT < 3 || aimSpan) drawHealth(v, h, (bx[0] + bx[2]) / 2, bx[1] - 6, Math.min(40, h.w * 14));
       }
       // Selection brackets and health bars.
+      const selSet = new Set(G.selection);   // (a big selection: includes() for every thing in view added up)
       for (const e of G.entities) {
         if (!inView(e) || !visibleToPlayer(e)) continue;
-        const sel = G.selection.includes(e);
+        const sel = selSet.has(e);
         const recent = G.t - e.hitT < 3;
         if (e.rank && e.kind === 'unit') drawRank(v, e);
         if (!sel && !recent) continue;
