@@ -2127,3 +2127,17 @@ so most likely iOS ending the page for memory. After it, gl.js switches WebGL of
     at the next frame's start. `TEX_IDLE` is 10 s. Counters `R.atlEmptied`, `R.atlFull`.
   - Same headless 3 v 3 at 18 min: textures 125 MB (was 160), 188 textures (634 with 2 pages before the wipe fix), sprites
     made in play trimmed back to about 1,500 (were 3,700 and rising), canvases 7,200 (were 9,900). No errors.
+
+## Own units invisible after 2026.11.21.3; automatic resolution on phones (2026-11-21, not released, looks only, both modes)
+- **Invisible units:** owner (Allies, resumed 3 v 3): "all of my units were invisible ... I could select them and my buildings
+  and ally units and buildings were visible". The rebake for the refinery moved 456 sprites in `sprites/allies0.webp` (6-12 in
+  the other sheets). Sheets were fetched by bare name, so a browser holding the old sheet image cut it with the new manifest's
+  layout. Not reproduced headless (fresh caches). Fix (art.js): manifests fetched `cache: 'no-cache'`; each sheet asked for with
+  its bake's hash (`sprites/x.webp?h=<hash>`, normals `?h=`, ground `?k=<key>.<code>`); sw.js falls back to a cached copy
+  without the query when offline (`ignoreSearch`). The Windows app's protocol ignores the query.
+- **Automatic resolution (phones only):** owner picked it after a hot iPhone fell to 15-19 fps late in a 3 v 3. ui.js
+  `autoRes`: every `AUTO_WIN` (3 s) of running battle, if over `AUTO_SLOW` (25%) of frames came over `SLOW_MS` (45 ms) apart,
+  `DPR_STEPS` 2 -> 1.5 -> 1; under `AUTO_OK` (3%) for `upWait` (20 s, doubling to 5 min if it has to step down again within
+  30 s of stepping up) it steps back up. Low Power Mode's 30 fps (33 ms) does not count as slow. Each new battle starts at 2.
+  Match report crumbs `res 1.5x (down, 40% slow)`. Headless: a 60 ms busy loop a frame took it 2 -> 1.5 -> 1; cheap frames
+  again climbed back to 1.5 then 2 about 20 s apart.

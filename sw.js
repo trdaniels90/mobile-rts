@@ -23,6 +23,6 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     fetch(e.request.url, { cache: 'no-cache' })   // revalidate: GitHub Pages lets browsers keep files for 10 minutes
       .then((res) => { if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); } return res; })
-      .catch(() => caches.match(e.request))
+      .catch(() => caches.match(e.request).then((hit) => hit || caches.match(e.request, { ignoreSearch: true })))   // (sheets are asked for with their bake's hash: ?h=)
   );
 });

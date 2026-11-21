@@ -116,8 +116,8 @@
   function layout() {
     // Phones and tablets (a touch screen) draw at most 2 pixels a CSS pixel: an iPhone's 3 is 2.25 x the pixels for an
     // edge hard to see at arm's length, and the phone ran hot (owner, 2026-11-20). Desktops keep up to 3.
-    const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-    DPR = Math.min(window.devicePixelRatio || 1, touch ? 2 : 3);
+    const touch = touchScr = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+    DPR = Math.min(window.devicePixelRatio || 1, touch ? DPR_STEPS[dprStep] : 3);   // (phones: autoRes below may lower it)
     const r = ui.sidebar.getBoundingClientRect(), top = Math.round(ui.topstrip.getBoundingClientRect().bottom);
     const portrait = window.innerHeight > window.innerWidth;
     W = portrait ? window.innerWidth : Math.max(100, Math.round(r.left));
@@ -131,6 +131,33 @@
     clampCam();
   }
   window.addEventListener('resize', layout);
+  // Phones: the drawing resolution follows how smoothly the battle runs (owner, 2026-11-21: "Do the automatic resolution on
+  // phones", after a hot iPhone fell to 15-19 fps late in a 3 v 3 and everything filled in slowly). Over each AUTO_WIN ms of
+  // battle (not paused, not loading), if more than AUTO_SLOW of the frames came over SLOW_MS apart it steps down a notch
+  // (DPR_STEPS: 2, then 1.5, then 1 pixels a CSS pixel); once under AUTO_OK of them have for upWait ms, it steps back up.
+  // Frames 33 ms apart (Low Power Mode's 30 fps) are not slow. Stepping down again soon after stepping up doubles upWait
+  // (at most 5 minutes), so it does not flip back and forth. A new battle starts at 2. Fewer pixels: less for the graphics
+  // to fill (heat), and the per-frame budgets for the ground, cliffs and sprites come round more often.
+  const DPR_STEPS = [2, 1.5, 1], AUTO_WIN = 3000, SLOW_MS = 45, AUTO_SLOW = 0.25, AUTO_OK = 0.03, AUTO_UP = 20000;
+  let touchScr = false, dprStep = 0, autoG = null, autoT0 = 0, autoN = 0, autoSlow = 0, autoGood = 0, autoUpAt = -1e9, upWait = AUTO_UP, autoPrev = 0;
+  function autoRes(now, running) {
+    const gap = now - autoPrev; autoPrev = now;
+    if (G !== autoG) { autoG = G; upWait = AUTO_UP; autoGood = 0; autoT0 = 0; if (dprStep) { dprStep = 0; layout(); } }
+    if (!touchScr || !running || document.hidden || gap > 1000) { autoT0 = 0; return; }
+    if (!autoT0) { autoT0 = now; autoN = 0; autoSlow = 0; return; }
+    autoN++; if (gap > SLOW_MS) autoSlow++;
+    const span = now - autoT0;
+    if (span < AUTO_WIN) return;
+    const slow = autoSlow / Math.max(1, autoN);
+    autoT0 = now; autoN = 0; autoSlow = 0;
+    const set = (k, why) => { dprStep = k; layout(); try { Report.crumb && Report.crumb('res ' + DPR_STEPS[k] + 'x (' + why + ', ' + Math.round(slow * 100) + '% slow)'); } catch (_) {} };
+    if (slow > AUTO_SLOW && dprStep < DPR_STEPS.length - 1) {
+      if (now - autoUpAt < 30000) upWait = Math.min(300000, upWait * 2);
+      autoGood = 0; set(dprStep + 1, 'down');
+    } else if (slow < AUTO_OK && dprStep > 0) {
+      if ((autoGood += span) >= upWait) { autoGood = 0; autoUpAt = now; set(dprStep - 1, 'up'); }
+    } else autoGood = 0;
+  }
   window.addEventListener('orientationchange', () => setTimeout(layout, 250));
 
   // Zoom snaps so each game pixel covers a whole number of screen pixels; fractional
@@ -2272,6 +2299,7 @@ function draw() {
     last = now;
     shakeAmp *= Math.exp(-dt * 6);
     const held = guard('loading', () => loading(now)) === true && !Net.role;
+    guard('autoRes', () => autoRes(now, !!(G && !G.paused && !held && !G.over)));
     if (G && !G.paused && !held) {
       const k = 700 * dt / cam.z;
       if (keys.has('ArrowLeft') || keys.has('a')) cam.x -= k;

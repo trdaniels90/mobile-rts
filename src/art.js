@@ -220,12 +220,15 @@ const SpriteSheets = (() => {
   const loaded = new Set();
   const ok = () => typeof location !== 'undefined' && /^(https?|app):$/.test(location.protocol) && typeof createImageBitmap === 'function' && typeof fetch === 'function'
     && !(typeof HEADLESS !== 'undefined' && HEADLESS);
-  const manifest = () => manP || (manP = fetch('sprites/manifest.json').then((r) => (r.ok ? r.json() : null)).then((m) => (man = m)).catch(() => null));
+  // Manifests are always checked with the server (cache: 'no-cache') and each sheet is asked for with its bake's hash in the
+  // address, so a browser's cached sheet from an older bake is never cut with a newer manifest's layout (owner, 2026-11-21:
+  // after 2026.11.21.3 moved 456 sprites in allies0, a phone drew its own units from the wrong spots: invisible).
+  const manifest = () => manP || (manP = fetch('sprites/manifest.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).then((m) => (man = m)).catch(() => null));
   async function load(name) {
     const m = await manifest();
     const sh = m && m.sheets.find((x) => x.file.split('.')[0] === name);
     if (!sh) return;
-    const r = await fetch('sprites/' + sh.file);
+    const r = await fetch('sprites/' + sh.file + '?h=' + m.hash);
     if (!r.ok) return;
     const bmp = await createImageBitmap(await r.blob());
     const cut = (x, y, w, h) => createImageBitmap(bmp, x, y, w, h);
@@ -233,9 +236,9 @@ const SpriteSheets = (() => {
     // if they were baked from these very sprites: each picture's goes with it (img._nrm), so it is not worked out in play.
     let nbmp = null;
     if (typeof GLR !== 'undefined' && GLR.on) {
-      const nm = await (nmanP || (nmanP = fetch('normals/manifest.json').then((x) => (x.ok ? x.json() : null)).catch(() => null)));
+      const nm = await (nmanP || (nmanP = fetch('normals/manifest.json', { cache: 'no-cache' }).then((x) => (x.ok ? x.json() : null)).catch(() => null)));
       const ns = nm && nm.sprites === m.hash && nm.sheets.find((x) => x.of === sh.file);
-      if (ns) { const r2 = await fetch('normals/' + ns.file).catch(() => null); if (r2 && r2.ok) nbmp = await createImageBitmap(await r2.blob()).catch(() => null); }
+      if (ns) { const r2 = await fetch('normals/' + ns.file + '?h=' + nm.hash).catch(() => null); if (r2 && r2.ok) nbmp = await createImageBitmap(await r2.blob()).catch(() => null); }
     }
     for (let i = 0; i < sh.sprites.length; i += 64) {   // a few at a time, so loading never holds up a frame
       await Promise.all(sh.sprites.slice(i, i + 64).map(async (e) => {
@@ -277,7 +280,7 @@ const GroundSheets = (() => {
   let man = null;
   const ok = () => typeof location !== 'undefined' && /^(https?|app):$/.test(location.protocol) && typeof createImageBitmap === 'function' && typeof fetch === 'function'
     && !(typeof HEADLESS !== 'undefined' && HEADLESS);
-  if (ok()) fetch('grounds/manifest.json').then((r) => (r.ok ? r.json() : null)).then((m) => { man = m; }).catch(() => {});
+  if (ok()) fetch('grounds/manifest.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).then((m) => { man = m; }).catch(() => {});
   return { get manifest() { return man; }, ok };
 })();
 // Fixed maps paint the same ground every game (so it can be baked); generated maps vary it with the battle's seed.
@@ -1361,7 +1364,7 @@ function makeGround(painter, legacy, baked) {
   const SH = GROUND_SHEET, per = Math.ceil(WORLD / SH);
   const bk = !legacy && baked ? { sheets: new Map(), loading: new Set(), keep: GROUND_ROOMY ? Infinity : 12, failed: false } : null;
   const fast = () => bk && !bk.failed;
-  const fetchPic = (f) => fetch(baked.dir + f).then((r) => { if (!r.ok) throw new Error(f + ' ' + r.status); return r.blob(); }).then((b) => createImageBitmap(b));
+  const fetchPic = (f) => fetch(baked.dir + f + (baked.q || '')).then((r) => { if (!r.ok) throw new Error(f + ' ' + r.status); return r.blob(); }).then((b) => createImageBitmap(b));
   if (bk) {
     fetchPic('preview.webp').then((bmp) => {
       if (bk.failed) return;
@@ -1693,7 +1696,7 @@ function newGround(g, legacy) {
   g.marks = g.marks || [];
   g.tctx = GROUND_LAYER; g.dctx = DECAL_LAYER;
   const id = validMap(g.mapId), man = GroundSheets.manifest, bm = GroundSheets.ok() && man && man.maps && man.maps[id];
-  const baked = bm && bm.key === groundKey(g) ? { dir: 'grounds/' + id + '/' } : null;
+  const baked = bm && bm.key === groundKey(g) ? { dir: 'grounds/' + id + '/', q: '?k=' + bm.key + (man.code ? '.' + man.code : '') } : null;
   const painter = groundPainter(g.terr, groundSeed(g), g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[id].bridge, g.hgt);
   g.ground = makeGround(painter, legacy, baked);
   g.ground.baked = !!baked;
