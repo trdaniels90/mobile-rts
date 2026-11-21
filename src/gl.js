@@ -190,6 +190,10 @@ void main() {
     try {
       if (!gl && !init()) return false;
       state(); S.frame++; R.frames++;
+      // Pictures with a texture of their own (spriteTex) let it go once not drawn for TEX_IDLE frames. The game drops and
+      // makes again tree blocks, crags and the like to save memory; their textures were kept for ever (a phone's 3 v 3
+      // battle ran out of memory after some 17 minutes, 2026-11-21). One drawn again later is simply uploaded again.
+      if (R.frames % 60 === 0) for (const [img, e] of texOf) if (R.frames - e.used > TEX_IDLE) { gl.deleteTexture(e.t); texOf.delete(img); }
       const A = G.ground.gl;
       FW = VW; FH = VH;   // (the frame's size: the view's)
       sceneFb(VW, VH);   // (stage 4: into the scene's framebuffer, colour and normals; the light pass draws it into the canvas)
@@ -281,7 +285,7 @@ void main() {
   // what is under them write it; added, multiplied and screened ones leave it as it is.
   o1 = uOver > 0.5 ? vec4(has ? nn.rgb : vec3(0.0), 1.0) * (c.a * vA) : vec4(0.0);
 }`;
-  let P2 = null, loc2 = null, layer = null, lctx = null, rec = null, depth = 0, texOf = new WeakMap(), vbuf2 = null;
+  let P2 = null, loc2 = null, layer = null, lctx = null, rec = null, depth = 0, texOf = new Map(), vbuf2 = null;
   function init2() {
     const mk = (t, src) => { const h = gl.createShader(t); gl.shaderSource(h, src); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(h)); return h; };
     P2 = gl.createProgram(); gl.attachShader(P2, mk(gl.VERTEX_SHADER, VS2)); gl.attachShader(P2, mk(gl.FRAGMENT_SHADER, FS2)); gl.linkProgram(P2);
@@ -293,6 +297,7 @@ void main() {
   function spriteTex(img) {
     let e = texOf.get(img);
     const w = img.width, h = img.height;
+    if (e) e.used = R.frames;
     if (e && e.w === w && e.h === h && e.ver === img._ver) return e.t;
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     const t = e ? e.t : gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
@@ -300,7 +305,7 @@ void main() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-    texOf.set(img, { t, w, h, ver: img._ver });   // (_ver: a picture that changes, drawn again into its texture when it has)
+    texOf.set(img, { t, w, h, ver: img._ver, used: R.frames });   // (_ver: a picture that changes, drawn again into its texture when it has)
     return t;
   }
   // ---- Stage 2b: atlases and normal maps -----------------------------------------------------------------------
@@ -309,7 +314,7 @@ void main() {
   // for normal maps: a picture's normal map (red, green: its surface's direction turned with the view; blue: height) is
   // worked out from its voxel model (nrmPic, the same projection as voxel.js renderVox) when first drawn, at most NRM_MS
   // ms a frame, and put at the same spot. Larger pictures keep a texture of their own (spriteTex).
-  const ATL = 2048, ATL_N = 3, PIC_MAX = 400, NRM_MS = 3;
+  const ATL = 2048, ATL_N = 3, PIC_MAX = 400, NRM_MS = 3, TEX_IDLE = 600;
   const SHOW_N = /[?&]gl=normals\b/.test(q);
   let atl = null, nrmSpend = 0;
   const whiteAt = new WeakMap();   // texture -> the uv of its white pixel (atlases): coloured shapes drawn from it join the pictures' runs
