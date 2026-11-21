@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.21.8', date: '21 November 2026', title: 'Lighter on phones, no ground loading in', groups: [
+    ['Improved', [
+      'On phones the whole battlefield ground is now loaded at the start of a battle, so it never loads in as you scroll or jump around the map. Loading takes a few seconds longer.',
+      'Phones use much less memory in big battles, which should stop the game restarting during long 3 v 3 battles.',
+    ]],
+  ] },
   { v: '2026.11.21.7', date: '21 November 2026', title: 'No more cliffs popping in', groups: [
     ['Improved', [
       'Cliffs are now loaded at the start of a battle instead of being built while you play, so they no longer pop in when you scroll, jump or zoom around the map.',
