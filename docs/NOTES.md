@@ -1756,6 +1756,14 @@ frame-time maths everywhere, so it is not deterministic.
   2-3 ordered in the same game. Staged in that game (14 Heavy Tanks at the main yard, army at the second base): 23 of 37 units
   from the second base came to defend within 20 s, so the defence itself reaches a second base's army.
 
+- **Second bases clear of teammates (after 2026.11.21.9, not released, owner's pick for both modes; the server must match):** owner: a
+  raider ally "built his expansion base next to me instead of next to the enemy". `aiExpandField` looked only at the side's own
+  yards, so in a team game the richest field on its half could be beside a teammate's base or the field it mines. Now it skips
+  fields within `BASE2_SEP` + r + 4 of a teammate's Construction Yard or a teammate's planned field (`expField`, an MCV on its way),
+  and within r + 8 of a teammate's refinery. Rushers' forward bases are unchanged. Headless Frostlight 3 v 3 (all expanding, seed 3):
+  before, three second bases 19-23 cells from a teammate's yard or refinery (two teammates also picked the same field at once);
+  after, teammates' yards all 35+ cells apart, second bases spread to the middle and flanks.
+
 ## Computer second bases (after 2026.11.16.5, not released, Normal and Hard, both modes)
 
 - Owner's pick ("full expansion", by personality): `team.exp2` rolled once (`EXPAND_CHANCE` balanced 0.8, raider 0.8, turtle 0.5, rusher 0.25).

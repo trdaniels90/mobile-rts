@@ -343,8 +343,14 @@ function aiExpandField(team) {
     if (c1 >= 0) walk = walkDistances(c1);
   }
   if (!walk) return null;
+  // Teammates' bases and the fields they mine are theirs: not beside a teammate's Construction Yard (as its own), nor at
+  // a field with a teammate's refinery by it (owner, 2026-11-21: a raider ally expanded next to the player).
+  const mates = G.entities.filter((b) => b.alive && b.kind === 'bld' && b.team !== team.id && alliedSides(b.team, team.id) && (b.type === 'cy' || b.type === 'refinery'));
+  const plans = G.teams.filter((t) => t.id !== team.id && alliedSides(t.id, team.id) && t.expField).map((t) => t.expField);
   let best = null, bs = 0;
   for (const f of G.oreFields) {
+    if (mates.some((b) => Math.hypot(b.cx - f.cx, b.cy - f.cy) < (b.type === 'cy' ? BASE2_SEP + f.r + 4 : f.r + 8))) continue;
+    if (plans.some((p) => Math.hypot(p.cx - f.cx, p.cy - f.cy) < BASE2_SEP + f.r + 4)) continue;   // a teammate's MCV on its way there
     const dHome = Math.hypot(f.cx - home.cx, f.cy - home.cy);
     const fc = idx(Math.round(f.cx), Math.round(f.cy)), fw = walk[freeCell(fc) ? fc : (nearestFreeCell(fc, 6) >= 0 ? nearestFreeCell(fc, 6) : 0)];
     if (!(fw >= 0) || fw > dHome * 2 + 20) continue;
