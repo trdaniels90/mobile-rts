@@ -1243,7 +1243,7 @@ const MapSelect = (() => {
     root.querySelector('.map-body').innerHTML = mapCardsHtml(chosen) +
       `<div class="on-modes" role="radiogroup" aria-label="Battle">${MODES.map(([k, l]) => `<button type="button" class="pf-btn${k === mode ? ' on-go' : ''}" role="radio" aria-checked="${k === mode}" data-mode="${k}">${l}</button>`).join('')}</div>` +
       '<div class="on-btns"><button type="button" class="pf-btn on-go" data-map-go>Start skirmish</button>' +
-      (typeof Account !== 'undefined' && Account.owner ? ' <button type="button" class="pf-btn" data-map-watch>Watch AI vs AI</button>' : '') + '</div>';
+      (typeof Account !== 'undefined' && Account.owner ? ' <button type="button" class="pf-btn" data-map-watch>Watch AI vs AI · ' + battleOf(mode).label + ' (every side a computer)</button>' : '') + '</div>';
   }
   function build() {
     root = document.createElement('div');
