@@ -1033,11 +1033,25 @@ function genVillage(m, seed) {
 // What makes the village look lived in (looks only, every copy rolls the same): street lamps (MAPS lamps), market stalls
 // and benches on the square, barrels, crates and hay by the houses, carts in the lanes. None of them block; a blast or a
 // passing vehicle knocks them over (houseFx). G.props: { kind: 'prop', k, x, y (px), v (look), up }.
+const LAMP_VILLAGE = 3, LAMP_ROAD = 4, LAMP_BASE = 16, LAMP_EDGE = 1.6;
 function villageProps(m, r, taken) {
   G.props = [];
   const add = (k, cx, cy, v) => G.props.push({ kind: 'prop', k, x: cx * CELL, y: cy * CELL, v: v === undefined ? (r() * 4) | 0 : v, up: true });
   const open = (cx, cy) => inMap(Math.floor(cx), Math.floor(cy)) && !taken[idx(Math.floor(cx), Math.floor(cy))] && !G.block[idx(Math.floor(cx), Math.floor(cy))];
-  for (const [x, y] of m.lamps || []) if (open(x, y)) add('lamp', x, y, 0);
+  // Street lamps only light roads and villages (owner, 2026-11-21: "Street lights should only be on roads and villages", for
+  // every map now and later): a lamp stands only in a village (a house within LAMP_VILLAGE cells) or beside a road (a
+  // dirt track within LAMP_ROAD), and none in a base (within LAMP_BASE cells of a start position) unless right at a road's
+  // edge (LAMP_EDGE: "unless the bases have a main road next to them").
+  const nearT = (x, y, d, t) => { for (let j = -Math.ceil(d); j <= Math.ceil(d); j++) for (let i = -Math.ceil(d); i <= Math.ceil(d); i++) { const cx = Math.floor(x) + i, cy = Math.floor(y) + j; if (inMap(cx, cy) && G.terr[idx(cx, cy)] === t && Math.hypot(cx + 0.5 - x, cy + 0.5 - y) <= d) return true; } return false; };
+  const inVillage = (x, y) => (G.houses || []).some((h) => Math.hypot(Math.max(h.cx - x, 0, x - (h.cx + h.w)), Math.max(h.cy - y, 0, y - (h.cy + h.h))) <= LAMP_VILLAGE);
+  const inBase = (x, y) => (m.spawns || []).some(([sx, sy]) => Math.hypot(sx - x, sy - y) < LAMP_BASE);
+  for (const [x, y] of m.lamps || []) {
+    if (!open(x, y)) continue;
+    const village = inVillage(x, y);
+    if (!village && !nearT(x, y, LAMP_ROAD, 1)) continue;
+    if (!village && inBase(x, y) && !nearT(x, y, LAMP_EDGE, 1)) continue;
+    add('lamp', x, y, 0);
+  }
   for (const [a, b, c, d] of villageSquares(m)) {
     const mx = (a + c + 1) / 2, my = (b + d + 1) / 2;
     // Market stalls round the square's edge, clear of the streets coming in, and benches round the fountain.

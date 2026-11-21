@@ -2141,3 +2141,16 @@ so most likely iOS ending the page for memory. After it, gl.js switches WebGL of
   30 s of stepping up) it steps back up. Low Power Mode's 30 fps (33 ms) does not count as slow. Each new battle starts at 2.
   Match report crumbs `res 1.5x (down, 40% slow)`. Headless: a 60 ms busy loop a frame took it 2 -> 1.5 -> 1; cheap frames
   again climbed back to 1.5 then 2 about 20 s apart.
+
+## Street lamps only on roads and in villages; brighter days on day/night maps (2026-11-21, not released, looks only, both modes)
+Owner: "It's just hard to tell when it's daylight. Also for all maps and all maps going forward. Can we remove street lights
+away from bases? Unless the bases have a main road next to them? Street lights should only be on roads and villages".
+- **Map lamps** (world.js `villageProps`, MAPS `lamps`): kept only in a village (a house within `LAMP_VILLAGE` 3 cells) or
+  beside a dirt road (`LAMP_ROAD` 4), and in a base (within `LAMP_BASE` 16 cells of a spawn) only right at a road's edge
+  (`LAMP_EDGE` 1.6). Frostlight 238 -> 220 (the 18 where the roads enter the bases); Crossroads Village keeps its 40.
+  Applies to every map's lamp list, now and later. Old saves keep the lamps they had (G.props is saved).
+- **Look-only lamps** (look.js `poolLampsFor`): the ring of 7 round each start position (every map) is gone; those beside
+  `G.road` lines (the generated map) stay.
+- **Daylight** (look.js `dayLift`, `DAY_LIFT`): on every map with `daynight` the mood's tint, shade and vignette are lighter
+  by day and the grade nearer white (both renderers use lookMood); nights as before. Checked by screenshots at noon and
+  midnight on Frostlight and Crossroads Village (WebGL).

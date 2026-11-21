@@ -248,10 +248,21 @@ const MOOD = {
   snowfall: { haze: [238, 242, 250, 0.26], sun: [235, 240, 250, 0.3] },
 };
 let moodCache = null;
+// Maps with day and night (MAPS daynight, every one now and later): their day is lit clearly brighter than the mood's
+// usual afternoon, so day and night are easy to tell apart (owner, 2026-11-21: "It's just hard to tell when it's
+// daylight"). The darkening layers (tint where nothing glows, the shade, the vignette) are lighter and the grade nearer
+// white; the night (art.js drawNight, gl.js uNight) is as before.
+const DAY_LIFT = { tint: 0.35, shade: 0.5, vig: 0.45, grade: 0.6, sat: 0.6 };
+function dayLift(id, m) {
+  if (!MAPS[id] || !MAPS[id].daynight) return m;
+  const a = (c, k) => [c[0], c[1], c[2], c[3] * k];
+  return { ...m, tint: a(m.tint, DAY_LIFT.tint), shade: a(m.shade, DAY_LIFT.shade), vig: a(m.vig, DAY_LIFT.vig),
+    grade: m.grade.map((v) => Math.round(v + (255 - v) * DAY_LIFT.grade)), sat: m.sat * DAY_LIFT.sat };
+}
 function lookMood(t) {
   if (!LOOK.mood || !G) return MOOD_BASE;
   const id = validMap(G.mapId), th = mapTheme(G.mapId);
-  if (!moodCache || moodCache.g !== G) moodCache = { g: G, m: { ...MOOD_BASE, ...(MOOD[th === 'snow' || th === 'desert' ? th : id] || {}) } };
+  if (!moodCache || moodCache.g !== G) moodCache = { g: G, m: dayLift(id, { ...MOOD_BASE, ...(MOOD[th === 'snow' || th === 'desert' ? th : id] || {}) }) };
   const m = moodCache.m, w = G.weather;
   if (!w) return m;
   const o = MOOD[w.kind === 'rain' ? 'rain' : 'snowfall'], f = Math.min(1, weatherLevel(w, t)) * 0.8, out = {};
@@ -903,13 +914,13 @@ function lookSmoke(g) {
 }
 
 // ---- Light pools (LOOK.pools) ---------------------------------------------------------------------------------------
-// Lamp posts of our own design (a slim post on a plinth, a bent arm, a hooded head lit from below) along the roads and in
-// a ring round each start position, placed once a battle from the map's ground seed (kept here, not in G: not saved).
+// Lamp posts of our own design (a slim post on a plinth, a bent arm, a hooded head lit from below) along the roads (not
+// round the bases any more), placed once a battle from the map's ground seed (kept here, not in G: not saved).
 // Each casts a soft coloured pool on the ground (mostly warm yellow, some cool blue, a few red), drawn into drawLook's
 // shade and glow, so units passing through are lit too. Structures' windows spill light onto the ground in front of
 // them, and ore and gems glow faintly. Defences give off no light (owner). On the day/night maps the pools come from
 // lookNightLights (art.js drawNight's lights) and lookNightPools (their colour), stronger as night falls.
-const POOL_R = 46, POOL_GAP = 150, POOL_RING = 8.5, POOL_DAY = 0.55;   // POOL_DAY: the pools' colour screened on by day (x their strength)   // pool radius (view px), road lamps every POOL_GAP world px, ring radius (cells)
+const POOL_R = 46, POOL_GAP = 150, POOL_DAY = 0.55;   // POOL_DAY: the pools' colour screened on by day (x their strength)   // pool radius (view px), road lamps every POOL_GAP world px
 const POOL_COL = { warm: [255, 214, 130], cool: [140, 190, 255], red: [255, 90, 70] };
 let poolLook = null;
 function poolLampsFor() {
@@ -937,14 +948,8 @@ function poolLampsFor() {
       if (ok(x, y)) lamps.push({ x, y, col: colour(), c: idx(Math.floor(x / CELL), Math.floor(y / CELL)) });
     }
   }
-  for (const s of G.spawns || []) {
-    const a0 = r() * Math.PI * 2;
-    for (let k = 0; k < 7; k++) {
-      const a = a0 + k * Math.PI * 2 / 7 + (r() - 0.5) * 0.4, R = (POOL_RING + (r() - 0.5) * 2) * CELL;
-      const x = (s.cx + 0.5) * CELL + Math.cos(a) * R, y = (s.cy + 0.5) * CELL + Math.sin(a) * R;
-      if (ok(x, y)) lamps.push({ x, y, col: r() < 0.8 ? 'warm' : colour(), c: idx(Math.floor(x / CELL), Math.floor(y / CELL)) });
-    }
-  }
+  // (No ring of lamps round each start position any more: owner, 2026-11-21, "Street lights should only be on roads and
+  // villages"; bases get light from their own structures' windows.)
   poolLook = { g: G, lamps, pics: {}, spill: new Map() };
   return poolLook;
 }
