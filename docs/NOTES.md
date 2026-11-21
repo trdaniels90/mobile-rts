@@ -2108,7 +2108,7 @@ Owner (iPhone): "Clicking around the map on my current mobile game causes a lot 
 - **Soviet Ore Refinery:** the flame on its corner flare stack (a glowing blob on a thin pipe, read as a stray fire on the
   roof) removed from the model and `tools/blender/refinery.py`; sprites and normal maps rebaked.
 
-## Phone crash 17 minutes into a 3 v 3 (2026-11-21, investigating)
+## Phone crash 17 minutes into a 3 v 3 (2026-11-21, not released, phones' memory, both modes)
 Owner: "My phone game crashed, phone was also getting a little hot". Match cff0d72a (2026.11.21.2, Frostlight 3 v 3, iPhone
 440 x 894, WebGL): the page died while open and on screen at 17:07 with 909 entities; 54-60 fps to the end (no slowdown first),
 so most likely iOS ending the page for memory. After it, gl.js switches WebGL off by itself (`rh-gl-live`).
@@ -2118,4 +2118,12 @@ so most likely iOS ending the page for memory. After it, gl.js switches WebGL of
   3 sprite atlases and their normal-map twins filling up to their cap, 33.5 MB a page), JS heap ~80 MB. No runaway leak found.
 - Fixed on the way: gl.js `spriteTex` textures (pictures too big for the atlases) were never deleted; now freed after
   `TEX_IDLE` (600) frames unused. Little change in this test.
-- Not done (owner to pick): fewer atlas pages on phones, a cap on the sprite cache, a 30 fps saver.
+- **Owner picked "lighter memory on phones"** (not the 30 fps saver). Phones only (`!GROUND_ROOMY`):
+  - ui.js `SPRITE_KEEP` (1500): sprites made in play (canvases; baked ImageBitmaps never) are let go least lately drawn first,
+    none drawn in the last `SPRITE_IDLE` (10 s), checked every 120 frames (`trimSprites`, `sprite` wrapped to stamp use).
+  - gl.js `ATL_N` 2 atlas pages on phones (3 elsewhere): 33.5 MB less.
+  - gl.js (all devices): when every page was full and drawn from each frame none was ever emptied again, and every new
+    picture got its own texture for the rest of the battle (634 at 18 min). Now `atlWipe` empties the page filled longest ago
+    at the next frame's start. `TEX_IDLE` is 10 s. Counters `R.atlEmptied`, `R.atlFull`.
+  - Same headless 3 v 3 at 18 min: textures 125 MB (was 160), 188 textures (634 with 2 pages before the wipe fix), sprites
+    made in play trimmed back to about 1,500 (were 3,700 and rising), canvases 7,200 (were 9,900). No errors.
