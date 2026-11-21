@@ -1220,6 +1220,16 @@ function bakeTileLook(g, x0, y0, w, h, dress) {
     g.restore();
   }
 }
+// For gl.js stage 6 (the whole ground on the GPU): the dressing painted into world (x0, y0, w, h) of g, on a map whose
+// baked ground does not have it (Village, Frostlight: it depends on the houses), as each tile gets it in play.
+function lookDressRegion(g, x0, y0, w, h) {
+  const T = GROUND_TILE;
+  for (let ty = y0; ty < y0 + h; ty += T) for (let tx = x0; tx < x0 + w; tx += T) {
+    g.save(); g.beginPath(); g.rect(tx - x0, ty - y0, T, T); g.clip(); g.translate(tx - x0, ty - y0);
+    lookDress(g, tx, ty);
+    g.restore();
+  }
+}
 function dressOne(g, it, snow) {
   const r = rng(it.s), { x, y } = it;
   const ell = (px, py, rx, ry, col) => { g.fillStyle = col; g.beginPath(); g.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2); g.fill(); };

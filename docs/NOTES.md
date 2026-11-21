@@ -2204,3 +2204,35 @@ while zooming around"; asked for the crags baked "and whatever else real games d
   for, a third each: sprite sheets (`SpriteSheets.pending`), the ground on screen (`G.ground.missing`), the crag sheets
   (look.js `cliffsProgress`), each as a share of the most it was waiting for; the last 10% while the frames settle. It never
   goes back, and it is shown full for 250 ms before the card goes (the battle runs on behind it).
+
+## The whole ground on the GPU, compressed (gl.js stage 6; 2026-11-21, not released, phones, looks and memory only, both modes)
+
+Owner (iPhone): spectating Frostlight 3 v 3 crashed (page reloaded, phone hot): the second Frostlight 3 v 3 crash that day.
+Offered keeping fewer ground sheets; owner: "I don't want any loading in while jumping. There's gotta be another way";
+then "Yes go ahead" to compressed textures.
+- **How:** gl.js "Stage 6". A battle on a baked map (art.js `G.ground.src`) loads every ground sheet behind the Loading card,
+  compresses it to ETC2 RGB8 (`etcEncode`, our own: ETC1-style blocks, both splits, differential or individual, the
+  modifier tables near each half's spread; ~37 dB on the ground, 0.2 s a 1024 sheet in desktop Chromium) in 1-3 workers
+  (`resWorkers`, a Blob made from the function's source) and keeps it as `compressedTexImage2D` textures for the whole
+  battle: no ground loads in, ever. Then art.js's tiles, sheets and preview are let go (`G.ground.release`, `resident`).
+- **Marks of battle:** drawn (art.js `markCanvas`, the same scratch picture as before) into overlays, an RGBA 256 px
+  texture per tile with marks, premultiplied, over the compressed ground in the ground shader (`uRes`). A tile's overlay
+  quiet for `RES_FOLD_IDLE` (2 s), or the oldest while more than `RES_OVER_MAX` (32) are open, is folded in: drawn
+  with its ground (`PF`, texelFetch), read back, compressed, `compressedTexSubImage2D` into its sheet, and let go (marks
+  that came meanwhile are drawn again, `redo`). Two folds at a time, one every 100 ms at most. The marks already made
+  when a battle loads (a continued one) are done tile by tile, each folded at once (`backlog`). Marks look the same:
+  0.0% of pixels differ from before as overlays, 0.01% once folded (hand-placed craters and scorches, Snowbound).
+- **Caching:** maps with baked dressing keep their compressed sheets in Cache Storage (`RES_CACHE` 'rh-etc-1', keyed by the
+  sheet's address with the bake's hash), so later battles there load faster (Lakes 7.7 s to 3.9 s headless, software GPU).
+  Village and Frostlight have their dressing painted in first (look.js `lookDressRegion`; it depends on the houses), so
+  they are compressed every battle.
+- **When:** phones (not `GROUND_ROOMY`) with WebGL and `WEBGL_compressed_texture_etc`; `?gl=resident` on any device,
+  `?gl=noresident` off. The Loading card waits for it (`GLR.resident()` 'building', up to `RES_LOAD_MAX` 25 s, still capped
+  by SETTLE_MAX 20 s; then the old tiles draw until it is ready); its bar follows `GLR.resProgress`. Anything failing
+  (`resOff`, a note in the match's crumbs), WebGL lost, or the 2D way (`GLR.paused`) brings art.js's tiles back.
+- **Measured** (headless iPhone, Frostlight 3 v 3 spectate, camera jumping, 16 min; scratch script): released 2026.11.21.7
+  canvases 105 MB + decoded images 104 MB + textures 157 MB = 366 MB; now 37 + 54 + 114 = 205 MB (44% less). Overlays
+  stayed at 25-51 (about 600 folds). Build time headless (software GPU, shared CPU): Snowbound 6.5-8.5 s, Frostlight 9 s;
+  a phone is expected faster (not yet measured on one).
+- Left as before: the crags (look.js baked sheets, RGBA), unit sprites made in play (grow in big fights: ~15 MB a minute
+  from minute 12 in this test), the atlases.

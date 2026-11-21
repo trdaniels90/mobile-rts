@@ -65,10 +65,14 @@ in vec2 aP; in float aD; in vec2 aW; in vec2 aN; uniform vec2 uCam, uSize; out v
 void main() { vec2 s = (aP - uCam) / uSize * 2.0 - 1.0; gl_Position = vec4(s.x, -s.y, aD, 1.0); vW = aW; vN = aN; }`;
   const FS = `#version 300 es
 precision highp float; in vec2 vW; in vec2 vN; layout(location = 0) out vec4 o; layout(location = 1) out vec4 o1;
-uniform sampler2D uT, uD, uLow, uPatch, uPv; uniform vec2 uT0; uniform float uTile, uWorld, uLowOnly, uPatchK, uPatchS, uPvOn, uPvS, uFade;
+uniform sampler2D uT, uD, uLow, uPatch, uPv; uniform vec2 uT0, uS0, uSS; uniform float uTile, uWorld, uLowOnly, uPatchK, uPatchS, uPvOn, uPvS, uFade, uRes;
 float sl(float b, float s) { float d = b <= 0.25 ? ((16.0 * b - 12.0) * b + 4.0) * b : sqrt(b); return s <= 0.5 ? b - (1.0 - 2.0 * s) * b * (1.0 - b) : b + (2.0 * s - 1.0) * (d - b); }
 void main() {
   vec2 uv = (vW - uT0) / uTile;
+  if (uRes > 0.5) {   // (stage 6: the compressed sheet, uT, with the tile's overlay of marks, uD, premultiplied)
+    vec3 b = texture(uT, (vW - uS0) / uSS).rgb; vec4 v = texture(uD, uv);
+    o = vec4(b * (1.0 - v.a) + v.rgb, 1.0); o1 = vec4(vN * 0.5 + 0.5, 0.0, 1.0); return;
+  }
   // The stand-in for a tile not uploaded yet: the blurred preview where it is done, else a pixel a cell; a tile just in
   // fades in over it (uFade 0 to 1) rather than popping in.
   vec4 lo = uPvOn > 0.5 ? texture(uPv, vW / uPvS) : texture(uLow, vW / uWorld);
@@ -113,7 +117,7 @@ void main() {
     if (!gl.getProgramParameter(P, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(P));
     gl.useProgram(P);
     loc = {};
-    for (const n of ['uCam', 'uSize', 'uT', 'uD', 'uLow', 'uPatch', 'uT0', 'uTile', 'uWorld', 'uLowOnly', 'uPatchK', 'uPatchS', 'uPv', 'uPvOn', 'uPvS', 'uFade']) loc[n] = gl.getUniformLocation(P, n);
+    for (const n of ['uCam', 'uSize', 'uT', 'uD', 'uLow', 'uPatch', 'uT0', 'uTile', 'uWorld', 'uLowOnly', 'uPatchK', 'uPatchS', 'uPv', 'uPvOn', 'uPvS', 'uFade', 'uRes', 'uS0', 'uSS']) loc[n] = gl.getUniformLocation(P, n);
     for (const n of ['aP', 'aD', 'aW', 'aN']) loc[n] = gl.getAttribLocation(P, n);
     gl.uniform1i(loc.uT, 0); gl.uniform1i(loc.uD, 1); gl.uniform1i(loc.uLow, 2); gl.uniform1i(loc.uPatch, 3); gl.uniform1i(loc.uPv, 4);
     R.buf = gl.createBuffer(); R.ibuf = gl.createBuffer();
@@ -133,7 +137,9 @@ void main() {
   function state() {
     if (!S || S.G !== G || S.ground !== G.ground) {
       if (S) { for (const e of S.tex.values()) { gl.deleteTexture(e.g); if (e.d) gl.deleteTexture(e.d); } if (S.low) gl.deleteTexture(S.low); if (S.pv) gl.deleteTexture(S.pv); for (const m of S.mesh.values()) { gl.deleteBuffer(m.vb); gl.deleteBuffer(m.ib); } }
+      if (S) { const old = S.res; if (old && old.state !== 'off') { old.state = 'off'; resFree(old); } }
       S = { G, ground: G.ground, tex: new Map(), mesh: new Map(), low: null, lowSrc: null, patch: null, pv: null, pvN: 0, pvAt: 0, pvSrc: null, frame: 0 };
+      try { resStart(); } catch (err) { S.res = { state: 'off' }; note('resident off: ' + (err && err.message)); }
     }
     return S;
   }
@@ -197,6 +203,8 @@ void main() {
       if (R.frames % 60 === 0) for (const [img, e] of texOf) if (tNow - e.used > TEX_IDLE) { gl.deleteTexture(e.t); texOf.delete(img); }
       if (atlWipe && atl && atl.length) { atlWipe = false; let a = 0; for (let i = 1; i < atl.length; i++) if (atl[i].born < atl[a].born) a = i; emptyAtlas(atl[a]); }
       const A = G.ground.gl;
+      try { resTick(A); } catch (err) { resOff(S.res, 'tick: ' + (err && err.message)); }
+      const R6 = S.res && S.res.state === 'ready' ? S.res : null;
       FW = VW; FH = VH;   // (the frame's size: the view's)
       sceneFb(VW, VH);   // (stage 4: into the scene's framebuffer, colour and normals; the light pass draws it into the canvas)
       gl.viewport(0, 0, VW, VH); gl.clearColor(0, 0, 0, 0); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -228,6 +236,20 @@ void main() {
       gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, S.pv || R.none);
       gl.uniform1f(loc.uPvS, pv ? pv.width * A.PV : 1);
       gl.enableVertexAttribArray(loc.aP); gl.enableVertexAttribArray(loc.aD); gl.enableVertexAttribArray(loc.aW); gl.enableVertexAttribArray(loc.aN);
+      gl.uniform1f(loc.uRes, R6 ? 1 : 0);
+      if (R6) {   // (stage 6: every tile from the compressed sheets, with its overlay of marks)
+        gl.uniform1f(loc.uLowOnly, 0); gl.uniform1f(loc.uFade, 1); gl.uniform1f(loc.uPvOn, 0);
+        for (const k of A.tilesIn(sx, sy, sw, sh)) {
+          const m = meshOf(k, A), [x0, y0] = A.at(k), i = Math.floor(y0 / R6.SH) * R6.per + Math.floor(x0 / R6.SH), d = R6.dims[i], ov = R6.over.get(k);
+          gl.uniform2f(loc.uT0, x0, y0); gl.uniform2f(loc.uS0, d[0], d[1]); gl.uniform2f(loc.uSS, d[2], d[3]);
+          gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, R6.sheets[i]);
+          gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ov ? ov.t : R.none);
+          gl.bindBuffer(gl.ARRAY_BUFFER, m.vb); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ib);
+          gl.vertexAttribPointer(loc.aP, 2, gl.FLOAT, false, 28, 0); gl.vertexAttribPointer(loc.aD, 1, gl.FLOAT, false, 28, 8); gl.vertexAttribPointer(loc.aW, 2, gl.FLOAT, false, 28, 12); gl.vertexAttribPointer(loc.aN, 2, gl.FLOAT, false, 28, 20);
+          gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_SHORT, 0);
+        }
+        return true;
+      }
       let up = 0;
       for (const k of A.tilesIn(sx, sy, sw, sh)) {
         const t = A.tile(k), m = meshOf(k, A), [x0, y0] = A.at(k);
@@ -265,6 +287,291 @@ void main() {
       return true;   // (kept in the GL canvas: listBegin records what is drawn over it, listEnd puts the frame into v once)
     } catch (err) { failed = true; console.warn('WebGL ground off:', err); note('ground off: ' + (err && err.message)); return false; }
   };
+  // ---- Stage 6: the whole ground on the GPU, compressed (phones; owner, 2026-11-21: "I don't want any loading in while
+  // jumping") ---------------------------------------------------------------------------------------------------------
+  // A battle on a baked map loads every ground sheet while the Loading card is up, compresses it to ETC2 (etcEncode, in
+  // workers: about a quarter of the memory, read directly by the GPU) and keeps it for the whole battle, so no ground ever
+  // loads in. art.js's tiles, sheets and preview are then let go (G.ground.release). The marks of battle (scorches,
+  // craters, wrecks, bodies) are drawn into overlays, one RGBA texture per 256 px tile that has some, over the
+  // compressed ground; once a tile has had no new mark for RES_FOLD_IDLE ms (or more than RES_OVER_MAX are open) its overlay is folded into the compressed
+  // ground (drawn together, read back, compressed again, put in place) and let go, so the marks' memory does not grow
+  // with the battle. Phones only (not GROUND_ROOMY); ?gl=resident on any device, ?gl=noresident off. Anything failing
+  // turns it off for the battle and the ground is drawn as before. Village and Frostlight have their dressing painted
+  // in before compressing (it depends on the houses); the other maps' compressed sheets are kept in the browser's cache
+  // (RES_CACHE), so a later battle on the same map loads them at once.
+  const RES = !/[?&]gl=noresident\b/.test(q) && (/[?&]gl=resident\b/.test(q) || (typeof GROUND_ROOMY !== 'undefined' && !GROUND_ROOMY));
+  const RES_FOLD_IDLE = 2000, RES_OVER_MAX = 32, RES_FOLDS = 2, RES_CACHE = 'rh-etc-1';
+  let etcExt, resPool = null, PM = null, PF = null, locM = null, locF = null, resQuad = null;
+  // ETC1-style blocks (valid ETC2 RGB8): rgba pixels (w x h, multiples of 4) to 8-byte blocks, row by row. For each
+  // block both splits (left|right, top/bottom), the halves' average colours as bases (differential when they are close,
+  // else individual), and for each half the best of the modifier tables near its spread. About 37 dB on the ground.
+  function etcEncode(px, w, h) {
+    const TB = [[2, 8], [5, 17], [9, 29], [13, 42], [18, 60], [24, 80], [33, 106], [47, 183]];
+    const out = new Uint8Array((w >> 2) * (h >> 2) * 8);
+    const R = new Int32Array(16), Gc = new Int32Array(16), B = new Int32Array(16);
+    // best table and indices for pixels idx (8 of them) around base colour (r, g, b): [err, table, indices(8)]
+    const MODS = new Int32Array(32); for (let t = 0; t < 8; t++) { MODS[t * 4] = TB[t][0]; MODS[t * 4 + 1] = TB[t][1]; MODS[t * 4 + 2] = -TB[t][0]; MODS[t * 4 + 3] = -TB[t][1]; }
+    const sub = (idx, r, g, b, res) => {
+      let best = 1e18, bt = 0;
+      const tmp = res.tmp;
+      // Only the tables near the spread of the pixels round the base (the large step closest to the furthest pixel).
+      let sp = 0; for (let q = 0; q < 8; q++) { const p = idx[q], l = Math.abs((R[p] - r) * 2 + (Gc[p] - g) * 4 + (B[p] - b)) / 7; if (l > sp) sp = l; }
+      let tc = 0; while (tc < 7 && TB[tc][1] < sp) tc++;
+      const t0 = tc > 0 ? tc - 1 : 0, t1 = tc < 7 ? tc + 1 : 7;
+      for (let t = t0; t <= t1; t++) {
+        let err = 0;
+        for (let q = 0; q < 8; q++) {
+          const p = idx[q], pr = R[p], pg = Gc[p], pb = B[p]; let be = 1e9, bi = 0;
+          for (let i = 0; i < 4; i++) {
+            const d = MODS[t * 4 + i];
+            let vr = r + d, vg = g + d, vb = b + d;
+            vr = vr < 0 ? 0 : vr > 255 ? 255 : vr; vg = vg < 0 ? 0 : vg > 255 ? 255 : vg; vb = vb < 0 ? 0 : vb > 255 ? 255 : vb;
+            const dr = vr - pr, dg = vg - pg, db = vb - pb, e = dr * dr * 2 + dg * dg * 4 + db * db;
+            if (e < be) { be = e; bi = i; }
+          }
+          err += be; tmp[q] = bi; if (err >= best) break;
+        }
+        if (err < best) { best = err; bt = t; res.idx.set(tmp); }
+      }
+      res.err = best; res.t = bt; return best;
+    };
+    const SUBS = [[new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]), new Uint8Array([8, 9, 10, 11, 12, 13, 14, 15])], [new Uint8Array([0, 1, 4, 5, 8, 9, 12, 13]), new Uint8Array([2, 3, 6, 7, 10, 11, 14, 15])]];   // p = x*4 + y: flip 0 left|right, flip 1 top/bottom
+    const ra = { idx: new Uint8Array(8), tmp: new Uint8Array(8), err: 0, t: 0 }, rb = { idx: new Uint8Array(8), tmp: new Uint8Array(8), err: 0, t: 0 };
+    const bytes = new Uint8Array(8), A0 = new Float64Array(3), A1 = new Float64Array(3), Q0 = new Int32Array(3), Q1 = new Int32Array(3), C0 = new Int32Array(3), C1 = new Int32Array(3);
+    const avg = (idx, A) => { let r = 0, g = 0, b = 0; for (let q = 0; q < 8; q++) { const p = idx[q]; r += R[p]; g += Gc[p]; b += B[p]; } A[0] = r / 8; A[1] = g / 8; A[2] = b / 8; };
+    let o = 0;
+    for (let by = 0; by < h; by += 4) for (let bx = 0; bx < w; bx += 4) {
+      for (let x = 0; x < 4; x++) for (let y = 0; y < 4; y++) { const i = ((by + y) * w + bx + x) * 4, p = x * 4 + y; R[p] = px[i]; Gc[p] = px[i + 1]; B[p] = px[i + 2]; }
+      let bestErr = 1e18;
+      for (let flip = 0; flip < 2; flip++) {
+        const s0 = SUBS[flip][0], s1 = SUBS[flip][1];
+        avg(s0, A0); avg(s1, A1);
+        let ok = true;
+        for (let i = 0; i < 3; i++) { Q0[i] = Math.round(A0[i] * 31 / 255); Q1[i] = Math.round(A1[i] * 31 / 255); const d = Q1[i] - Q0[i]; if (d < -4 || d > 3) ok = false; }
+        const diff = ok ? 1 : 0;
+        if (diff) for (let i = 0; i < 3; i++) { C0[i] = (Q0[i] << 3) | (Q0[i] >> 2); C1[i] = (Q1[i] << 3) | (Q1[i] >> 2); }
+        else for (let i = 0; i < 3; i++) { Q0[i] = Math.round(A0[i] * 15 / 255); Q1[i] = Math.round(A1[i] * 15 / 255); C0[i] = Q0[i] * 17; C1[i] = Q1[i] * 17; }
+        const err = sub(s0, C0[0], C0[1], C0[2], ra) + (bestErr < 1e18 ? 0 : 0) + sub(s1, C1[0], C1[1], C1[2], rb);
+        if (err < bestErr) {
+          bestErr = err;
+          for (let i = 0; i < 3; i++) bytes[i] = diff ? (Q0[i] << 3) | ((Q1[i] - Q0[i]) & 7) : (Q0[i] << 4) | Q1[i];
+          bytes[3] = (ra.t << 5) | (rb.t << 2) | (diff << 1) | flip;
+          let msb = 0, lsb = 0;
+          for (let q = 0; q < 8; q++) { let p = s0[q], v = ra.idx[q]; if (v & 2) msb |= 1 << p; if (v & 1) lsb |= 1 << p; p = s1[q]; v = rb.idx[q]; if (v & 2) msb |= 1 << p; if (v & 1) lsb |= 1 << p; }
+          bytes[4] = msb >> 8; bytes[5] = msb & 255; bytes[6] = lsb >> 8; bytes[7] = lsb & 255;
+        }
+      }
+      out.set(bytes, o); o += 8;
+    }
+    return out;
+  }
+  function resWorkers() {
+    if (resPool) return resPool;
+    const src = etcEncode.toString() + '\nonmessage = (e) => { const d = etcEncode(new Uint8Array(e.data.px), e.data.w, e.data.h); postMessage({ id: e.data.id, d }, [d.buffer]); };';
+    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 2) - 1));
+    resPool = { ws: [], jobs: new Map(), id: 0, next: 0 };
+    for (let i = 0; i < n; i++) {
+      const w = new Worker(url);
+      w.onmessage = (e) => { const j = resPool.jobs.get(e.data.id); resPool.jobs.delete(e.data.id); if (j) j[0](e.data.d); };
+      w.onerror = (e) => { for (const j of resPool.jobs.values()) j[1](new Error('etc worker: ' + (e.message || 'failed'))); resPool.jobs.clear(); };
+      resPool.ws.push(w);
+    }
+    return resPool;
+  }
+  const etcAsync = (px, w, h) => new Promise((ok, no) => { const P = resWorkers(), id = ++P.id; P.jobs.set(id, [ok, no]); P.ws[P.next++ % P.ws.length].postMessage({ id, px: px.buffer, w, h }, [px.buffer]); });
+  function resFree(R6) {
+    if (!R6 || !gl) return;
+    for (const t of R6.sheets || []) if (t) gl.deleteTexture(t);
+    for (const ov of (R6.over || new Map()).values()) { gl.deleteTexture(ov.t); gl.deleteFramebuffer(ov.f); }
+    if (R6.mtex) gl.deleteTexture(R6.mtex);
+    if (R6.ftex) { gl.deleteTexture(R6.ftex); gl.deleteFramebuffer(R6.ffb); }
+    R6.sheets = []; R6.over = new Map(); R6.mtex = null; R6.ftex = null;
+  }
+  function resOff(R6, why) {
+    if (R6.state === 'off') return;
+    R6.state = 'off'; resFree(R6);
+    if (R6.g && R6.g.ground) R6.g.ground.resident = false;
+    note('resident off: ' + why);
+  }
+  function resStart() {
+    const src = G.ground.src;
+    S.res = { state: 'off' };
+    if (!RES || !src || typeof Worker === 'undefined' || typeof createImageBitmap !== 'function') return;
+    if (etcExt === undefined) etcExt = gl.getExtension('WEBGL_compressed_texture_etc') || null;
+    if (!etcExt) return;
+    const per = src.per, SH = src.SH, total = per * per, g = G, id = validMap(G.mapId);
+    const R6 = S.res = { state: 'building', g, per, SH, total, done: 0, sheets: new Array(total), dims: new Array(total), over: new Map(), markAt: 0, redo: [], folding: 0, lastFold: 0, t0: performance.now() };
+    const key = (i) => new URL('etc/' + id + '/' + i + '.etc' + src.q, location.href).href;
+    let cache = null;
+    const one = async (i) => {
+      const sx = (i % per) * SH, sy = Math.floor(i / per) * SH, w = Math.min(SH, WORLD - sx), h = Math.min(SH, WORLD - sy), w4 = (w + 3) & ~3, h4 = (h + 3) & ~3;
+      let data = null;
+      if (cache) try { const r = await cache.match(key(i)); if (r) data = new Uint8Array(await r.arrayBuffer()); } catch (_) {}
+      if (!data || data.length !== (w4 >> 2) * (h4 >> 2) * 8) {
+        const r = await fetch(src.dir + i + '.webp' + src.q);
+        if (!r.ok) throw new Error('sheet ' + i + ' ' + r.status);
+        const bmp = await createImageBitmap(await r.blob());
+        if (R6.state !== 'building') return;
+        const c = mkCanvas(w4, h4), x = c.getContext('2d', { willReadFrequently: true });
+        x.drawImage(bmp, 0, 0); if (bmp.close) bmp.close();
+        if (w4 > w) x.drawImage(c, w - 1, 0, 1, h, w, 0, w4 - w, h);   // (the edge carried on to whole blocks)
+        if (h4 > h) x.drawImage(c, 0, h - 1, w4, 1, 0, h, w4, h4 - h);
+        if (!src.dressed && typeof lookDressRegion === 'function' && LOOK.dress && G === g) lookDressRegion(x, sx, sy, w, h);
+        const px = x.getImageData(0, 0, w4, h4).data; c.width = c.height = 0;
+        data = await etcAsync(new Uint8Array(px.buffer), w4, h4);
+        if (cache) try { await cache.put(key(i), new Response(data.slice())); } catch (_) {}
+      }
+      if (R6.state !== 'building' || failed || !gl) return;
+      const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.compressedTexImage2D(gl.TEXTURE_2D, 0, etcExt.COMPRESSED_RGB8_ETC2, w4, h4, 0, data);
+      R6.sheets[i] = t; R6.dims[i] = [sx, sy, w4, h4]; R6.done++;
+    };
+    (async () => {
+      resWorkers();
+      try { if (src.dressed && typeof caches !== 'undefined') cache = await caches.open(RES_CACHE); } catch (_) { cache = null; }
+      let next = 0;
+      const lane = async () => { while (next < total && R6.state === 'building') await one(next++); };
+      await Promise.all(Array.from({ length: resPool.ws.length + 1 }, lane));
+      if (R6.state === 'building') { R6.state = 'marks'; R6.ms = Math.round(performance.now() - R6.t0); note('resident ' + R6.ms + ' ms'); }
+    })().catch((e) => resOff(R6, (e && e.message) || String(e)));
+  }
+  // The small programs: a picture laid into an overlay (premultiplied: the overlay is too), and a tile's compressed
+  // ground with its overlay drawn together (to fold it in).
+  function resPrograms() {
+    if (PM) return;
+    const mk = (t, s) => { const h = gl.createShader(t); gl.shaderSource(h, s); gl.compileShader(h); if (!gl.getShaderParameter(h, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(h)); return h; };
+    const link = (vs, fs, u) => { const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, vs)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(p, 0, 'aQ'); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); const l = {}; for (const n of u) l[n] = gl.getUniformLocation(p, n); return [p, l]; };
+    [PM, locM] = link(`#version 300 es
+in vec2 aQ; uniform vec4 uR; uniform vec2 uUV; uniform float uT; out vec2 vUV;
+void main() { gl_Position = vec4((uR.xy + aQ * uR.zw) / uT * 2.0 - 1.0, 0.0, 1.0); vUV = aQ * uUV; }`, `#version 300 es
+precision mediump float; in vec2 vUV; uniform sampler2D uM; out vec4 o; void main() { o = texture(uM, vUV); }`, ['uR', 'uUV', 'uT', 'uM']);
+    [PF, locF] = link(`#version 300 es
+in vec2 aQ; void main() { gl_Position = vec4(aQ * 2.0 - 1.0, 0.0, 1.0); }`, `#version 300 es
+precision mediump float; uniform sampler2D uB, uO; uniform ivec2 uOff; out vec4 o;
+void main() { ivec2 p = ivec2(gl_FragCoord.xy); vec4 b = texelFetch(uB, p + uOff, 0), v = texelFetch(uO, p, 0); o = vec4(b.rgb * (1.0 - v.a) + v.rgb, 1.0); }`, ['uB', 'uO', 'uOff']);
+    resQuad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, resQuad); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
+  }
+  function resOverlay(R6, k, T) {
+    let ov = R6.over.get(k);
+    if (ov) return ov;
+    const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, T, T);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+    gl.viewport(0, 0, T, T); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    ov = { t, f, last: 0, marks: [] }; R6.over.set(k, ov);
+    return ov;
+  }
+  // Mark i drawn into the overlays of the tiles it reaches (only tile `only`, when one is given: after a fold).
+  function resMark(R6, A, i, only) {
+    const m = G.marks[i];
+    if (!m) return;
+    const T = A.T, bx = Math.floor(m[3]), by = Math.floor(m[4]), w = Math.ceil(m[5]) - bx + 1, h = Math.ceil(m[6]) - by + 1;
+    const tx0 = Math.max(0, Math.floor(bx / T)), ty0 = Math.max(0, Math.floor(by / T)), tx1 = Math.min(A.n - 1, Math.floor((bx + w - 1) / T)), ty1 = Math.min(A.n - 1, Math.floor((by + h - 1) / T));
+    if (tx1 < tx0 || ty1 < ty0) return;
+    const c = G.ground.markCanvas(m);
+    if (!R6.mtex) { R6.mtex = gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, R6.mtex); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); }
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, R6.mtex);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    const now = performance.now();
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+      const k = ty * A.n + tx;
+      if (only !== undefined && k !== only) continue;
+      const ov = resOverlay(R6, k, T);
+      gl.useProgram(PM); gl.bindFramebuffer(gl.FRAMEBUFFER, ov.f); gl.viewport(0, 0, T, T);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, R6.mtex); gl.uniform1i(locM.uM, 0);
+      gl.uniform4f(locM.uR, bx - tx * T, by - ty * T, w, h); gl.uniform2f(locM.uUV, w / c.width, h / c.height); gl.uniform1f(locM.uT, T);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      ov.last = now; ov.marks.push(i);
+    }
+  }
+  // Tile k's overlay folded into the compressed ground: drawn together, read back, compressed (a worker), put in place.
+  function resFold(R6, A, k, ov) {
+    const T = A.T, [x0, y0] = A.at(k), i = Math.floor(y0 / R6.SH) * R6.per + Math.floor(x0 / R6.SH), d = R6.dims[i];
+    const w4 = (Math.min(T, WORLD - x0) + 3) & ~3, h4 = (Math.min(T, WORLD - y0) + 3) & ~3;
+    if (!R6.ftex) {
+      R6.ftex = gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, R6.ftex); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, T, T);
+      R6.ffb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, R6.ffb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, R6.ftex, 0);
+    }
+    gl.useProgram(PF); gl.bindFramebuffer(gl.FRAMEBUFFER, R6.ffb); gl.viewport(0, 0, w4, h4); gl.disable(gl.BLEND);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, R6.sheets[i]); gl.uniform1i(locF.uB, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ov.t); gl.uniform1i(locF.uO, 1);
+    gl.uniform2i(locF.uOff, x0 - d[0], y0 - d[1]);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    const px = new Uint8Array(w4 * h4 * 4); gl.readPixels(0, 0, w4, h4, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    const snap = ov.marks.length;
+    R6.folding++; ov.folding = true;
+    etcAsync(px, w4, h4).then((data) => {
+      R6.folding--; ov.folding = false; R6.folds = (R6.folds || 0) + 1;
+      if ((R6.state !== 'ready' && R6.state !== 'marks') || failed || !gl || R6.over.get(k) !== ov) return;
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, R6.sheets[i]);
+      gl.compressedTexSubImage2D(gl.TEXTURE_2D, 0, x0 - d[0], y0 - d[1], w4, h4, etcExt.COMPRESSED_RGB8_ETC2, data);
+      const rest = ov.marks.slice(snap);
+      gl.deleteTexture(ov.t); gl.deleteFramebuffer(ov.f); R6.over.delete(k);
+      for (const j of rest) R6.redo.push([j, k]);   // (marks that came while it was being folded: drawn again)
+    }).catch((e) => resOff(R6, 'fold: ' + ((e && e.message) || e)));
+  }
+  // Once a frame (from R.ground, before the scene): new marks into the overlays, and a fold now and then.
+  function resTick(A) {
+    const R6 = S.res;
+    if (!R6 || (R6.state !== 'marks' && R6.state !== 'ready')) return;
+    resPrograms();
+    const t0 = performance.now(), budget = R6.state === 'marks' ? 40 : 4;
+    // The marks already made (a continued battle can have thousands): gathered per tile, and each tile's drawn into its
+    // overlay and folded in at once, a few tiles at a time, behind the Loading card (not hundreds of overlays at once).
+    if (R6.state === 'marks' && !R6.backlog) {
+      const T = A.T, by = new Map();
+      for (let i = 0; i < G.marks.length; i++) {
+        const m = G.marks[i]; if (!m) continue;
+        const bx = Math.floor(m[3]), bY = Math.floor(m[4]), x1 = Math.ceil(m[5]), y1 = Math.ceil(m[6]);
+        for (let ty = Math.max(0, Math.floor(bY / T)); ty <= Math.min(A.n - 1, Math.floor(y1 / T)); ty++) for (let tx = Math.max(0, Math.floor(bx / T)); tx <= Math.min(A.n - 1, Math.floor(x1 / T)); tx++) {
+          const k = ty * A.n + tx; let l = by.get(k); if (!l) by.set(k, l = []); l.push(i);
+        }
+      }
+      R6.backlog = [...by]; R6.markAt = G.marks.length;
+    }
+    const work = R6.redo.length || R6.markAt < G.marks.length || (R6.backlog && R6.backlog.length) || (R6.folding < RES_FOLDS && t0 - R6.lastFold > 100 && R6.over.size);
+    if (!work) { if (R6.state === 'marks' && !R6.folding) resReady(R6); return; }
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
+    gl.bindBuffer(gl.ARRAY_BUFFER, resQuad); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    while (R6.backlog && R6.backlog.length && R6.folding < 3 && performance.now() - t0 < budget) {
+      const [k, l] = R6.backlog.shift();
+      for (const i of l) resMark(R6, A, i, k);
+      const ov = R6.over.get(k); if (ov) { gl.disable(gl.BLEND); resFold(R6, A, k, ov); gl.enable(gl.BLEND); gl.useProgram(PM); gl.bindBuffer(gl.ARRAY_BUFFER, resQuad); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); }
+    }
+    while (R6.redo.length && performance.now() - t0 < budget) { const [j, k] = R6.redo.shift(); resMark(R6, A, j, k); }
+    while (R6.markAt < G.marks.length && performance.now() - t0 < budget) resMark(R6, A, R6.markAt++);
+    // A fold every 100 ms at most, two at a time: the overlay touched longest ago, once it has been quiet RES_FOLD_IDLE ms,
+    // or at once while there are more than RES_OVER_MAX (a big battle marking the ground everywhere).
+    if (R6.folding < RES_FOLDS && t0 - R6.lastFold > 100) {
+      let pick = null;
+      for (const [k, ov] of R6.over) if (!ov.folding && (!pick || ov.last < pick[1].last)) pick = [k, ov];
+      if (pick && (t0 - pick[1].last > RES_FOLD_IDLE || R6.over.size > RES_OVER_MAX)) { R6.lastFold = t0; resFold(R6, A, pick[0], pick[1]); }
+    }
+    gl.disable(gl.BLEND); gl.disableVertexAttribArray(0); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (R6.state === 'marks' && R6.markAt >= G.marks.length && !R6.redo.length && !(R6.backlog && R6.backlog.length) && !R6.folding) resReady(R6);
+  }
+  function resReady(R6) {
+    R6.state = 'ready';
+    for (const e of S.tex.values()) { gl.deleteTexture(e.g); if (e.d) gl.deleteTexture(e.d); }
+    S.tex.clear();
+    if (S.pv) { gl.deleteTexture(S.pv); S.pv = null; S.pvSrc = null; }
+    G.ground.release();
+  }
+  // For ui.js: 'building' (the Loading card waits for it), 'ready' (art.js's tiles are not wanted), or null (as before).
+  R.resident = () => {
+    const R6 = S && S.G === G && G && S.ground === G.ground ? S.res : null;
+    if (failed || R.paused) { if (G && G.ground && G.ground.resident) G.ground.resident = false; return null; }   // (the 2D way: art.js's tiles again)
+    if (!R6) return RES && G && G.ground && G.ground.src && R.on ? 'building' : null;
+    if (R6.state === 'ready' && !G.ground.resident) G.ground.release();   // (back from the 2D way: its tiles let go again)
+    return R6.state === 'ready' ? 'ready' : R6.state === 'building' || R6.state === 'marks' ? 'building' : null;
+  };
+  R.resProgress = () => { const R6 = S && S.res; return R6 && R6.total ? (R6.done + (R6.state === 'ready' ? 1 : 0)) / (R6.total + 1) : 0; };
+  R.resStats = () => { const R6 = S && S.res; return R6 ? { state: R6.state, done: R6.done, total: R6.total, ms: R6.ms, over: R6.over ? R6.over.size : 0, folds: R6.folds || 0, marks: R6.markAt } : null; };
   // ---- Stage 2: the sorted list's pictures (units, structures, trees, cliffs, walls, houses, props...) ------------------
   // listBegin(v) gives a stand-in for the view canvas: its drawImage calls are recorded as quads (worked out exactly as
   // art.js uprightCtx draws them: an upright picture at its rounded anchor, anything else through the transform), and

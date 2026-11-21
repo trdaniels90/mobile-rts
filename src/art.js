@@ -1356,7 +1356,7 @@ function makeGround(painter, legacy, baked) {
   // The preview: the whole ground at a quarter size, worked out by the workers when they have nothing else to do
   // (and taken from every finished tile), shown blurred where a tile is not painted yet, instead of flat blocks.
   const PV = 4, pvDone = new Uint8Array(n * n), pvBusy = new Set();
-  let pvCount = 0;   // tiles of the preview done
+  let pvCount = 0, released = false;   // tiles of the preview done; released: gl.js has the whole ground (stage 6)
   const pvMark = (k) => { if (!pvDone[k]) { pvDone[k] = 1; pvCount++; } };
   let shown = new Set();   // tiles on screen last frame as a stand-in: when they come in, they fade in
   // Baked ground (GroundSheets): the sheets decoded so far (a phone keeps the 12 last used), those loading; a tile is
@@ -1367,7 +1367,7 @@ function makeGround(painter, legacy, baked) {
   const fetchPic = (f) => fetch(baked.dir + f + (baked.q || '')).then((r) => { if (!r.ok) throw new Error(f + ' ' + r.status); return r.blob(); }).then((b) => createImageBitmap(b));
   if (bk) {
     fetchPic('preview.webp').then((bmp) => {
-      if (bk.failed) return;
+      if (bk.failed || released) return;
       const g = pvCtx(); g.drawImage(bmp, 0, 0);
       for (let k = 0; k < n * n; k++) pvMark(k);
     }).catch(() => {});
@@ -1565,7 +1565,21 @@ function makeGround(painter, legacy, baked) {
     // With workers, `ms` is the time for finishing tiles whose pixels are back, on screen first, and the workers are
     // given the tiles on screen, then the ring.
     keep(fn) { keepTile = fn; },
+    // gl.js stage 6 (the whole ground on the GPU, compressed): where the baked sheets are, a mark drawn on its own (the
+    // scratch picture, its box at m[3..6]), and release(): the tiles, sheets and preview let go, nothing painted until
+    // `resident` is cleared again (WebGL failed: the tiles come back as before).
+    src: baked && !legacy ? { dir: baked.dir, q: baked.q || '', per, SH, dressed: !!baked.dressed } : null,
+    markCanvas(m) { markPic(m); return scratch; },
+    resident: false,
+    release() {
+      this.resident = true; released = true; this.missing = 0; this.blocky = 0;
+      tiles.clear(); pending.clear(); finishing.clear(); ready.clear(); queue = []; spare.length = 0; shown = new Set();
+      if (bk) bk.sheets.clear();
+      preview = null; low = null; pvDone.fill(0); pvCount = 0;
+    },
     update(sx, sy, sw, sh, ms, ahead) {
+      if (this.resident) { this.missing = 0; return; }
+      released = false;
       frameNo++;
       peak.put = peak.dec = peak.mark = 0; peak.mk = '';
       pvCenter = tileOf(Math.max(0, Math.min(n - 1, Math.floor((sx + sw / 2) / T))), Math.max(0, Math.min(n - 1, Math.floor((sy + sh / 2) / T))));
@@ -1647,7 +1661,7 @@ function makeGround(painter, legacy, baked) {
         const img = layer === 't' ? t.g : t.d;
         if (img) g.drawImage(img, X0 - x0, Y0 - y0, w, h, X0 - L, Y0 - L, w + 2 * L, h + 2 * L);
       } else if (layer === 't') {
-        if (pvDone[c.k]) { g.imageSmoothingEnabled = true; g.drawImage(preview, X0 / PV, Y0 / PV, w / PV, h / PV, X0 - L, Y0 - L, w + 2 * L, h + 2 * L); g.imageSmoothingEnabled = false; }
+        if (pvDone[c.k] && preview) { g.imageSmoothingEnabled = true; g.drawImage(preview, X0 / PV, Y0 / PV, w / PV, h / PV, X0 - L, Y0 - L, w + 2 * L, h + 2 * L); g.imageSmoothingEnabled = false; }
         else g.drawImage(lowRes(), X0 / CELL, Y0 / CELL, w / CELL, h / CELL, X0 - L, Y0 - L, w + 2 * L, h + 2 * L);
       }
     },
@@ -1658,7 +1672,7 @@ function makeGround(painter, legacy, baked) {
         const ix = Math.max(sx, x0), iy = Math.max(sy, y0), iw = Math.min(sx + sw, x0 + T, WORLD) - ix, ih = Math.min(sy + sh, y0 + T, WORLD) - iy;
         if (iw <= 0 || ih <= 0) continue;
         const standIn = () => {
-          if (pvDone[k]) {   // the preview, blurred up
+          if (pvDone[k] && preview) {   // the preview, blurred up
             const sm = g.imageSmoothingEnabled; g.imageSmoothingEnabled = true;
             g.drawImage(preview, ix / PV, iy / PV, iw / PV, ih / PV, dx + ix - sx, dy + iy - sy, iw, ih);
             g.imageSmoothingEnabled = sm;

@@ -652,7 +652,10 @@ function draw() {
       const m = 8 + (pad || 0) * 0.7;
       return c > vx - m && a < vx + VW + m && d > vy - m && b < vy + VH + m;
     });
-    G.ground.update(sx, sy, sw, sh, 6, 3);
+    // gl.js stage 6: the whole ground on the GPU (art.js's tiles not wanted once it is ready, nor while it is made behind
+    // the Loading card).
+    const resident = typeof GLR === 'object' && GLR && GLR.resident ? GLR.resident() : null;
+    if (resident !== 'ready' && !(resident === 'building' && loadFor && loadFor.g === G && !loadFor.done)) G.ground.update(sx, sy, sw, sh, 6, 3);
     const toWorld = () => v.setTransform(VIEW.c, VIEW.s * VIEW.F, -VIEW.s, VIEW.c * VIEW.F, -vx, -vy);   // world -> view canvas
     // gl.js (stage 5): a soft, wide drawing (the haze and the mist past the map's edge) drawn at a quarter of the view's size
     // and stretched up smoothly: one picture for WebGL, not megapixels of gradients cut out of its 2D layer every frame.
@@ -2300,7 +2303,7 @@ function draw() {
   // It also stays up until the frames come smoothly (SETTLE_MS without a frame 250 ms late, at most SETTLE_MAX): the
   // owner's iPhone with WebGL froze 3-4 s four times in a battle's first seconds (the graphics process, not the game's
   // code), and the battle ran on and jumped between them, with the camera catching up on a finger's moves at once.
-  const LOAD_MAX = 3000, LOAD_MIN = 250, SETTLE_MS = 600, SETTLE_MAX = 20000;
+  const RES_LOAD_MAX = 25000, LOAD_MAX = 3000, LOAD_MIN = 250, SETTLE_MS = 600, SETTLE_MAX = 20000;
   let loadFor = null, loadEl = null, stillKey = null;
   function loading(now) {
     if (!G || G.paused || G.over) return false;
@@ -2309,13 +2312,15 @@ function draw() {
     if (loadFor.done) return false;
     if (now - loadFor.at > 250 && !document.hidden) { loadFor.slow = now; loadFor.nSlow++; }
     loadFor.at = now;
-    const t = now - loadFor.since, ready = SpriteSheets.ready() && G.ground && G.ground.missing === 0 && (typeof cliffsReady !== 'function' || cliffsReady()) && t > LOAD_MIN;
-    if (((ready || t > LOAD_MAX) && now - loadFor.slow > SETTLE_MS) || t > SETTLE_MAX) { loadFor.done = true; loadFor.doneAt = now; loadFor.t = { ms: Math.round(t), full: !ready, slow: loadFor.nSlow }; showLoading(false, 1); return false; }
+    const rs = typeof GLR === 'object' && GLR && GLR.resident ? GLR.resident() : null;   // (gl.js stage 6: the whole ground, compressed)
+    const t = now - loadFor.since, ready = SpriteSheets.ready() && G.ground && (rs === 'ready' || (rs !== 'building' && G.ground.missing === 0)) && (typeof cliffsReady !== 'function' || cliffsReady()) && t > LOAD_MIN;
+    const most = rs === 'building' ? RES_LOAD_MAX : LOAD_MAX;
+    if (((ready || t > most) && now - loadFor.slow > SETTLE_MS) || t > SETTLE_MAX) { loadFor.done = true; loadFor.doneAt = now; loadFor.t = { ms: Math.round(t), full: !ready, slow: loadFor.nSlow }; showLoading(false, 1); return false; }
     // The bar: 90% for what loads (sprite sheets, the ground on screen, the crags: each the share of the most it waited
     // for), the rest while the frames settle (SETTLE_MS without a late one). It never goes back.
     const F = loadFor, part = (k, left) => { F[k] = Math.max(F[k] || 0, left); return F[k] ? 1 - left / F[k] : 1; };
-    const got = (part('sp', SpriteSheets.pending || 0) + part('gn', G.ground ? G.ground.missing : 1) + (typeof cliffsProgress === 'function' ? cliffsProgress() : 1)) / 3;
-    if ((ready || t > LOAD_MAX) && !F.readyAt) F.readyAt = now;
+    const got = (part('sp', SpriteSheets.pending || 0) + (rs ? GLR.resProgress() : part('gn', G.ground ? G.ground.missing : 1)) + (typeof cliffsProgress === 'function' ? cliffsProgress() : 1)) / 3;
+    if ((ready || t > most) && !F.readyAt) F.readyAt = now;
     const bar = F.readyAt ? 0.9 + 0.1 * Math.min(1, (now - Math.max(F.readyAt, F.slow)) / SETTLE_MS) : 0.9 * got;
     F.bar = Math.max(F.bar || 0, bar);
     if (t > 120) showLoading(true, F.bar);   // (a fast device is ready before the card would even show)
