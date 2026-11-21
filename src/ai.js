@@ -426,11 +426,38 @@ function aiFindSpot(team, type, at) {
       if (dd < bd && (anchor === lonely || anchor === at || !buildingsOf(team.id).some((b) => b.type === 'refinery' && Math.hypot(f.cx - b.cx, f.cy - b.cy) < 7))) { bd = dd; toOre = Math.atan2(f.cy - anchor.cy, f.cx - anchor.cx); }
     }
   }
+  // A planned base ring (aiPlanRing): nothing may stand on its line or the cell either side of it (a building there poked
+  // through the wall or left a gap in it). Spots inside the ring of the base it is built for come first; outside only
+  // when the inside is full.
+  const rings = [team.ring, team.ring2].filter((R) => R && !R.skip && R.box);
+  const home = !guard && !lonely && (at ? team.ring2 && team.ring2.yard === at.id && team.ring2 : team.ring);
+  const ringPlace = (cx, cy) => {
+    let inside = false;
+    for (const R of rings) {
+      const [x0, y0, x1, y1] = R.box;
+      const inn = cx > x0 + 1 && cy > y0 + 1 && cx + d.w - 1 < x1 - 1 && cy + d.h - 1 < y1 - 1;
+      const out = cx + d.w - 1 < x0 - 1 || cy + d.h - 1 < y0 - 1 || cx > x1 + 1 || cy > y1 + 1;
+      if (!inn && !out) return 0;
+      if (inn && R === home) inside = true;
+    }
+    return inside || !home || !home.box ? 2 : 1;
+  };
+  let spare = null;
   for (let i = 0; i < 160; i++) {
     const a = d.antiAir || guard ? Math.random() * Math.PI * 2 : d.defense ? toFoe + (Math.random() - 0.5) * 1.6 : type === 'refinery' && i < 100 ? toOre + (Math.random() - 0.5) * 1.2 : Math.random() * Math.PI * 2;
     const rad = guard ? 2 + Math.random() * 3 + i * 0.03 : d.defense ? 5 + Math.random() * 4 + i * 0.02 : 3 + i * 0.06 + Math.random() * 3;
     const cx = Math.round(anchor.cx + 1 + Math.cos(a) * rad - d.w / 2), cy2 = Math.round(anchor.cy + 1 + Math.sin(a) * rad - d.h / 2);
-    if (canPlace(team, type, cx, cy2, 1)) return { cx, cy: cy2 };
+    const r = rings.length ? ringPlace(cx, cy2) : 2;
+    if (!r || (r === 1 && spare) || !canPlace(team, type, cx, cy2, 1)) continue;
+    if (r === 2) return { cx, cy: cy2 };
+    spare = { cx, cy: cy2 };
+  }
+  if (spare || !home) return spare;
+  // Inside full and nothing found outside close in: further out, clear of the ring.
+  for (let i = 0; i < 120; i++) {
+    const a = Math.random() * Math.PI * 2, rad = 4 + (home.box[2] - home.box[0] + home.box[3] - home.box[1]) / 4 + i * 0.08;
+    const cx = Math.round(anchor.cx + 1 + Math.cos(a) * rad - d.w / 2), cy2 = Math.round(anchor.cy + 1 + Math.sin(a) * rad - d.h / 2);
+    if (ringPlace(cx, cy2) && canPlace(team, type, cx, cy2, 1)) return { cx, cy: cy2 };
   }
   return null;
 }
@@ -827,7 +854,7 @@ function aiWalls(team) {
 // saved), then built a piece at a time from what it can spare above RING_KEEP, the side facing the enemy first; a side's
 // walls only once its Gate stands, so its own units are never shut in. Cells it cannot wall (ore, water, rock, buildings)
 // stay open. Rushers and raiders keep the short lines of aiWalls.
-const RING_MARGIN = 3, RING_MAX = 200, RING_FROM = { turtle: 360, balanced: 720 }, RING_KEEP = { turtle: 800, balanced: 2000 }; const RING2_AFTER = 240;
+const RING_MARGIN = 3, RING_ROOM = 12, RING_ROOM2 = 9, RING_MAX = 200, RING_FROM = { turtle: 360, balanced: 720 }, RING_KEEP = { turtle: 800, balanced: 2000 }; const RING2_AFTER = 240;
 function aiRing(team) {
   const A = aiOf(team), from = RING_FROM[team.style];
   if (!A.planner || from === undefined || G.t < from || G.t < (team.ringT || 0)) return;
@@ -838,7 +865,7 @@ function aiRing(team) {
   if (cy) {
     if (!team.ring) {
       if (team.style === 'balanced' && team.credits < 3000) return;
-      team.ring = aiPlanRing(team, cy, team.start, 16);
+      team.ring = aiPlanRing(team, cy, team.start, 16, RING_ROOM);
     }
     if (!team.ring.skip && !aiBuildRing(team, team.ring, keep)) return;   // out of money: the second ring waits
   }
@@ -849,7 +876,7 @@ function aiRing(team) {
   if (!team.ring2 || team.ring2.yard !== b2.id) {
     if (!team.b2At || team.b2At.yard !== b2.id) team.b2At = { yard: b2.id, t: G.t };
     if (G.t - team.b2At.t < RING2_AFTER && aiBase2Next(team, b2, aiCount(team))) return;
-    team.ring2 = Object.assign(aiPlanRing(team, b2, b2, 12), { yard: b2.id });
+    team.ring2 = Object.assign(aiPlanRing(team, b2, b2, 12, RING_ROOM2), { yard: b2.id });
   }
   if (!team.ring2.skip) aiBuildRing(team, team.ring2, keep);
 }
@@ -886,11 +913,32 @@ function aiBuildRing(team, R, keep) {
   return true;
 }
 // The ring's four sides round the main base's buildings (within 16 cells of its start), facing the enemy first.
-function aiPlanRing(team, cy, at, reach) {
-  const near = buildingsOf(team.id).filter((b) => Math.hypot(b.cx - at.cx, b.cy - at.cy) < reach);
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const b of near.length ? near : [cy]) { x0 = Math.min(x0, b.cx); y0 = Math.min(y0, b.cy); x1 = Math.max(x1, b.cx + b.w - 1); y1 = Math.max(y1, b.cy + b.h - 1); }
-  x0 = Math.max(2, x0 - RING_MARGIN); y0 = Math.max(2, y0 - RING_MARGIN); x1 = Math.min(MAP - 3, x1 + RING_MARGIN); y1 = Math.min(MAP - 3, y1 + RING_MARGIN);
+// Up to `room` cells out from the base's middle every way (space to build inside later: aiFindSpot keeps new buildings
+// inside it, off its line), but always RING_MARGIN round its buildings within `reach`. Its line crosses none of the side's
+// buildings: a side is pulled in short of one further out (not inside the margin), else pushed out round it. A side on the
+// map's edge that a building still touches is left out (the edge closes it).
+function aiPlanRing(team, cy, at, reach, room) {
+  const mine = buildingsOf(team.id), near = mine.filter((b) => Math.hypot(b.cx - at.cx, b.cy - at.cy) < reach);
+  let hx0 = Infinity, hy0 = Infinity, hx1 = -Infinity, hy1 = -Infinity;
+  for (const b of near.length ? near : [cy]) { hx0 = Math.min(hx0, b.cx - RING_MARGIN); hy0 = Math.min(hy0, b.cy - RING_MARGIN); hx1 = Math.max(hx1, b.cx + b.w - 1 + RING_MARGIN); hy1 = Math.max(hy1, b.cy + b.h - 1 + RING_MARGIN); }
+  let x0 = Math.max(2, Math.min(hx0, at.cx - room)), y0 = Math.max(2, Math.min(hy0, at.cy - room));
+  let x1 = Math.min(MAP - 3, Math.max(hx1, at.cx + room)), y1 = Math.min(MAP - 3, Math.max(hy1, at.cy + room));
+  const crosses = (b) => !(b.cx + b.w - 1 < x0 - 1 || b.cy + b.h - 1 < y0 - 1 || b.cx > x1 + 1 || b.cy > y1 + 1) &&
+    !(b.cx > x0 + 1 && b.cy > y0 + 1 && b.cx + b.w - 1 < x1 - 1 && b.cy + b.h - 1 < y1 - 1);
+  for (let k = 0, moved = true; moved && k < 20; k++) {
+    moved = false;
+    for (const b of mine) {
+      if (!crosses(b)) continue;
+      moved = true;
+      const pulls = [[x1 - (b.cx - 2), () => { x1 = b.cx - 2; }, b.cx - 2 >= hx1], [(b.cx + b.w + 1) - x0, () => { x0 = b.cx + b.w + 1; }, b.cx + b.w + 1 <= hx0],
+        [y1 - (b.cy - 2), () => { y1 = b.cy - 2; }, b.cy - 2 >= hy1], [(b.cy + b.h + 1) - y0, () => { y0 = b.cy + b.h + 1; }, b.cy + b.h + 1 <= hy0]].filter((p) => p[2]).sort((p, q) => p[0] - q[0]);
+      if (pulls.length) { pulls[0][1](); continue; }
+      x0 = Math.max(2, Math.min(x0, b.cx - 2)); y0 = Math.max(2, Math.min(y0, b.cy - 2));
+      x1 = Math.min(MAP - 3, Math.max(x1, b.cx + b.w + 1)); y1 = Math.min(MAP - 3, Math.max(y1, b.cy + b.h + 1));
+    }
+  }
+  const touched = (ax, ay, bx, by) => mine.some((b) => b.cx <= bx + 1 && b.cx + b.w - 1 >= ax - 1 && b.cy <= by + 1 && b.cy + b.h - 1 >= ay - 1);
+  const open = { n: y0 <= 2 && touched(x0, y0, x1, y0), s: y1 >= MAP - 3 && touched(x0, y1, x1, y1), w: x0 <= 2 && touched(x0, y0, x0, y1), e: x1 >= MAP - 3 && touched(x1, y0, x1, y1) };
   if (2 * (x1 - x0 + y1 - y0) > RING_MAX) return { skip: true };
   const foe = enemyOf(team).start, mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
   const line = (ax, ay, bx, by) => { const l = []; for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) l.push(idx(x, y)); return l; };
@@ -904,9 +952,9 @@ function aiPlanRing(team, cy, at, reach) {
     return { cells, ns, gate: -1, mids, face: (foe.cx - mx) * nx + (foe.cy - my) * ny };
   };
   const sides = [
-    side(line(x0, y0, x1, y0), false, 0, -1), side(line(x0, y1, x1, y1), false, 0, 1),
-    side(line(x0, y0 + 1, x0, y1 - 1), true, -1, 0), side(line(x1, y0 + 1, x1, y1 - 1), true, 1, 0),
-  ].sort((a, b) => b.face - a.face);
+    !open.n && side(line(x0, y0, x1, y0), false, 0, -1), !open.s && side(line(x0, y1, x1, y1), false, 0, 1),
+    !open.w && side(line(x0, y0 + 1, x0, y1 - 1), true, -1, 0), !open.e && side(line(x1, y0 + 1, x1, y1 - 1), true, 1, 0),
+  ].filter(Boolean).sort((a, b) => b.face - a.face);
   for (const s of sides) delete s.face;
   return { sides, box: [x0, y0, x1, y1] };
 }

@@ -1738,6 +1738,17 @@ frame-time maths everywhere, so it is not deterministic.
   Attack outside it: 21 breaching at 20 s, 16 inside by 40 s, base gone by 120 s. `walls.js` passes. With computers alone, turtles and
   balanced sides attack little in 24 minutes (2 v 2: 0-3 waves each; turtles late to scout since they scout only after `firstWave`).
 
+- **Buildings off the ring's line (after 2026.11.21.9, not released; owner: "they build a wall with buildings sticking out"):** the ring
+  was planned round the base as it stood and `aiFindSpot` knew nothing of it, so later buildings went up on its line (a gap with the
+  building poking through) or beyond it. Now `aiPlanRing(team, cy, at, reach, room)` leaves room to grow: at least `RING_ROOM` (12,
+  second base `RING_ROOM2` 9) cells from the base's middle each way, still `RING_MARGIN` round the buildings within `reach`; a side is
+  pulled in short of any building further out (never inside the margin), else pushed out round it, so its line crosses none; a side on
+  the map's edge that a building touches is left out. `aiFindSpot` rejects any spot on a ring's line or the cell either side, and
+  takes spots inside the ring of the base it builds for first (outside only once the inside is full, then further out, clear of it).
+  Headless Normal 1 v 1s (Snowbound balanced, Frostlight and Twin Lakes turtles, 18 min): buildings across the line 1-2 per game
+  before, 0 after (bar ones standing before the ring was planned or against the map's edge); main-base buildings outside
+  the ring fell. Rings 83-122 pieces (69-94 before). `walls.js` passes. The server must match.
+
 ## Computer second bases (after 2026.11.16.5, not released, Normal and Hard, both modes)
 
 - Owner's pick ("full expansion", by personality): `team.exp2` rolled once (`EXPAND_CHANCE` balanced 0.8, raider 0.8, turtle 0.5, rusher 0.25).
