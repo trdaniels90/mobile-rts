@@ -4,6 +4,16 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.21.7', date: '21 November 2026', title: 'No more cliffs popping in', groups: [
+    ['Improved', [
+      'Cliffs are now loaded at the start of a battle instead of being built while you play, so they no longer pop in when you scroll, jump or zoom around the map.',
+      'The ground no longer changes as it loads in: its rocks, bushes and patches are there from the start, and only sharpen.',
+      'The Deploying forces card is now called Loading and has a progress bar.',
+    ]],
+    ['Fixed', [
+      'Village and Frostlight could stop drawing on devices without WebGL.',
+    ]],
+  ] },
   { v: '2026.11.21.6', date: '21 November 2026', title: 'Map tools for tuning maps', groups: [
     ['Behind the scenes', [
       'New tools to watch the computers fight and see the whole map, so maps can be tuned. Nothing changes in your games.',
