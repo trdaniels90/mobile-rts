@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.21.5', date: '21 November 2026', title: 'Brighter days, fewer street lamps', groups: [
+    ['Changed', [
+      'On maps with day and night, daytime is now clearly brighter, so it is easy to tell day from night.',
+      'Street lamps now stand only along roads and in villages: the lamps round every base are gone.',
+    ]],
+  ] },
   { v: '2026.11.21.4', date: '21 November 2026', title: 'Invisible units fixed', groups: [
     ['Fixed', [
       'After the last update, some players\' own units could be invisible (still selectable) because an old copy of the unit pictures was used with the new layout. Pictures are now always matched to the right version.',
