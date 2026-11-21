@@ -2107,3 +2107,15 @@ Owner (iPhone): "Clicking around the map on my current mobile game causes a lot 
   Headless check: tank 4 cells from a rifleman across a River ridge fired at 0.4 s before, never through it after.
 - **Soviet Ore Refinery:** the flame on its corner flare stack (a glowing blob on a thin pipe, read as a stray fire on the
   roof) removed from the model and `tools/blender/refinery.py`; sprites and normal maps rebaked.
+
+## Phone crash 17 minutes into a 3 v 3 (2026-11-21, investigating)
+Owner: "My phone game crashed, phone was also getting a little hot". Match cff0d72a (2026.11.21.2, Frostlight 3 v 3, iPhone
+440 x 894, WebGL): the page died while open and on screen at 17:07 with 909 entities; 54-60 fps to the end (no slowdown first),
+so most likely iOS ending the page for memory. After it, gl.js switches WebGL off by itself (`rh-gl-live`).
+- Measured headless as an iPhone (UA, no deviceMemory, so not `GROUND_ROOMY`; 440 x 894, DPR 3, 3 v 3 Frostlight, camera
+  jumping every 6 s; scratch script, not in tools/sim): at 18 min canvases ~107 MB (ground tiles ~45 MB, ~3,700 sprites made
+  on the fly, mostly infantry frames in six colours, never let go: +2.5 MB a minute), WebGL textures ~160 MB (mostly the
+  3 sprite atlases and their normal-map twins filling up to their cap, 33.5 MB a page), JS heap ~80 MB. No runaway leak found.
+- Fixed on the way: gl.js `spriteTex` textures (pictures too big for the atlases) were never deleted; now freed after
+  `TEX_IDLE` (600) frames unused. Little change in this test.
+- Not done (owner to pick): fewer atlas pages on phones, a cap on the sprite cache, a 30 fps saver.
