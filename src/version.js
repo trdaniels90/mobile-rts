@@ -4,6 +4,14 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.21.4', date: '21 November 2026', title: 'Invisible units fixed', groups: [
+    ['Fixed', [
+      'After the last update, some players\' own units could be invisible (still selectable) because an old copy of the unit pictures was used with the new layout. Pictures are now always matched to the right version.',
+    ]],
+    ['Changed', [
+      'Phones now lower the battle\'s drawing resolution by themselves when the game starts to struggle, and raise it again once it runs smoothly: less heat, and less of the map popping in late in big battles.',
+    ]],
+  ] },
   { v: '2026.11.21.3', date: '21 November 2026', title: 'Cliffs block fire, steadier phones', groups: [
     ['Changed', [
       'Cliffs now block direct fire: tanks, soldiers and defences can no longer shoot through a cliff ridge. Units that spotted an enemy behind one look for another target; units ordered to attack it drive round for a clear shot. Artillery, V2 rockets and grenades still lob over, and aircraft are not blocked.',
