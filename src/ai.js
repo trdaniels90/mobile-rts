@@ -735,6 +735,12 @@ function aiEngRaid(team) {
     if (u.order.type === 'engineer' || u.order.type === 'board' || atHome(team, u, 25)) continue;
     const t = enemyBuildingsOf(team.id).filter((b) => engineerJob(u, b) && targetable(team.id, b) && distTo(u, b) < CELL * 15).sort((a, b) => distTo(u, a) - distTo(u, b))[0];
     if (t) commandEngineer([u], t);
+    // Idle away from home (trained at a second base's Barracks, or left over from a raid): it walks home, where raids
+    // load (before, it stood there uncounted and the computer trained Engineer after Engineer).
+    else if (u.order.type === 'guard' && !u.raidCrew && !u.inHouse && !atHome(team, u, APC_HOME_R - 4)) {
+      const a = Math.random() * Math.PI * 2, p = cellCenter(idx(team.start.cx + Math.round(Math.cos(a) * 4), team.start.cy + Math.round(Math.sin(a) * 4)));
+      commandMove([u], p.x, p.y);
+    }
   }
   const R = team.engRaid;
   if (R) {
@@ -776,7 +782,8 @@ function aiEngRaid(team) {
   if (G.t < A.firstWave * ENG_RAID_FROM || G.t < (team.engNext || 0) || !enemyBaseKnown(team.id)) return;
   const homeEngs = engs.filter((u) => u.order.type === 'guard' && atHome(team, u, APC_HOME_R) && !u.raidCrew);
   const queued = (t) => team.queues.infantry.filter((i) => i.type === t).length + team.queues.vehicle.filter((i) => i.type === t).length;
-  if (homeEngs.length + queued('engineer') < ENG_RAID_ENGS && available(team, 'engineer') && team.credits >= UNIT_DEFS.engineer.cost + 700) startProduction(team, 'engineer');
+  const spare = engs.filter((u) => !u.raidCrew && (u.order.type === 'guard' || u.order.type === 'move')).length;   // (walking home counts)
+  if (spare + queued('engineer') < ENG_RAID_ENGS && available(team, 'engineer') && team.credits >= UNIT_DEFS.engineer.cost + 700) startProduction(team, 'engineer');
   const apc = unitsOf(team.id).filter((u) => u.def.apc && !u.raid && u.staged && u.order.type === 'guard' && !u.defending && atHome(team, u, APC_HOME_R) && !boardersOf(u).length)
     .sort((a, b) => (a.cargo || []).length - (b.cargo || []).length)[0];
   if (!apc) {

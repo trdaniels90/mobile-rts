@@ -1749,6 +1749,13 @@ frame-time maths everywhere, so it is not deterministic.
   before, 0 after (bar ones standing before the ring was planned or against the map's edge); main-base buildings outside
   the ring fell. Rings 83-122 pieces (69-94 before). `walls.js` passes. The server must match.
 
+- **Engineers trained over and over (after 2026.11.21.9, not released; owner: "it looks like he's building nothing but engineers"):**
+  `aiEngRaid` (raiders) trained Engineers until two stood idle *at home*; once a second base had a Barracks, Engineers came out
+  there, never counted, so it trained one after another (headless Snowbound, seed 5: 20 ordered by minute 20, crowding the army
+  cap). Now an idle Engineer away from home walks back to its start (`commandMove`), and every idle or homeward Engineer counts:
+  2-3 ordered in the same game. Staged in that game (14 Heavy Tanks at the main yard, army at the second base): 23 of 37 units
+  from the second base came to defend within 20 s, so the defence itself reaches a second base's army.
+
 ## Computer second bases (after 2026.11.16.5, not released, Normal and Hard, both modes)
 
 - Owner's pick ("full expansion", by personality): `team.exp2` rolled once (`EXPAND_CHANCE` balanced 0.8, raider 0.8, turtle 0.5, rusher 0.25).
