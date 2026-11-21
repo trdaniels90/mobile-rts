@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.21.1', date: '21 November 2026', title: 'Smoother battle starts', groups: [
+    ['Fixed', [
+      'On some phones the screen could freeze for a few seconds at the start of a battle, then jump about. The Deploying forces card now stays up until the battle runs smoothly, and the game notes where the freezes come from so they can be fixed.',
+    ]],
+  ] },
   { v: '2026.11.21', date: '21 November 2026', title: 'WebGL crash fixed', groups: [
     ['Fixed', [
       'The game crashed (a black screen, or back to the menu with WebGL switched off) about a minute into battles, mostly on PCs with big screens: with WebGL on, it used more and more memory every frame. It now stays steady. If WebGL was switched off after a crash, switch it back on in the menu.',

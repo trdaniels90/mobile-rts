@@ -2226,11 +2226,12 @@ function draw() {
   function loading(now) {
     if (!G || G.paused || G.over) return false;
     if (!loadFor || loadFor.g !== G) loadFor = { g: G, since: now, done: false, at: now, slow: -1e9, nSlow: 0 };
+    if (typeof GLR === 'object' && GLR) GLR.probe = !loadFor.done || now - loadFor.doneAt < 5000;   // (gl.js sync: where a freeze is)
     if (loadFor.done) return false;
     if (now - loadFor.at > 250 && !document.hidden) { loadFor.slow = now; loadFor.nSlow++; }
     loadFor.at = now;
     const t = now - loadFor.since, ready = SpriteSheets.ready() && G.ground && G.ground.missing === 0 && t > LOAD_MIN;
-    if (((ready || t > LOAD_MAX) && now - loadFor.slow > SETTLE_MS) || t > SETTLE_MAX) { loadFor.done = true; loadFor.t = { ms: Math.round(t), full: !ready, slow: loadFor.nSlow }; showLoading(false); return false; }
+    if (((ready || t > LOAD_MAX) && now - loadFor.slow > SETTLE_MS) || t > SETTLE_MAX) { loadFor.done = true; loadFor.doneAt = now; loadFor.t = { ms: Math.round(t), full: !ready, slow: loadFor.nSlow }; showLoading(false); return false; }
     if (t > 120) showLoading(true);   // (a fast device is ready before the card would even show)
     return true;
   }

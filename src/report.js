@@ -237,7 +237,7 @@ const Report = (() => {
     const ev = typeof GLR === 'object' && GLR && GLR.ev;
     if (!ev) return null;
     let any = false; const o = {};
-    for (const k in ev) { if (ev[k]) { any = true; o[k] = k.endsWith('MB') ? Math.round(ev[k] * 10) / 10 : ev[k]; } ev[k] = 0; }
+    for (const k in ev) { if (ev[k]) { any = true; o[k] = k.endsWith('MB') ? Math.round(ev[k] * 10) / 10 : Math.round(ev[k]); } ev[k] = 0; }
     return any ? o : null;
   }
   // Drawing parts as ms (one decimal), counts (nTree, nUnit, nFx) whole; `n` frames to average over.

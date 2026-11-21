@@ -942,27 +942,41 @@ void main() { o = texture(uLit, vUV); }`;
       gl.uniform4f(loc4.uRect, x, y, w, h); gl.uniform2f(loc4.uScreen, cv.width, cv.height);
       gl.bindBuffer(gl.ARRAY_BUFFER, R.unit); gl.enableVertexAttribArray(loc4.aQ); gl.vertexAttribPointer(loc4.aQ, 2, gl.FLOAT, false, 8, 0);
       gl.drawArrays(gl.TRIANGLES, 0, 6); R.calls++;
-      gl.bindSampler(0, null);
+      gl.bindSampler(0, null); sync('wPres');
       if (!live) note('drawing ' + cv.width + 'x' + cv.height);
       R.markLive();
       return true;
     } catch (err) { failed = true; console.warn('WebGL present off:', err); note('present off: ' + (err && err.message)); return false; }
   };
+  // The probe (ui.js sets R.probe while the Deploying card is up and for a few seconds after): wait for the GPU after
+  // each stage (a 1-pixel read makes the page wait until everything handed over so far is done) and add the ms waited to
+  // R.ev (wPre: work from before this frame's drawing, wFlush: the per-frame atlas and picture uploads, wScene: the
+  // ground and everything on it, wLight: the light pass, wOver: weather and HUD over the light, wPres: onto the screen).
+  // A freeze that shows in none of them happened after the frame was handed over (putting it on the screen).
+  const px1 = new Uint8Array(4);
+  function sync(k) {
+    if (!R.probe || !R.ev) return;
+    const a = performance.now();
+    try { gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px1); } catch (_) {}
+    R.ev[k || 'wPre'] = (R.ev[k || 'wPre'] || 0) + performance.now() - a;
+  }
   R.hide = () => { if (cv && !cv.style.display) cv.style.display = 'none'; };   // (a frame drawn the 2D way: the page's canvas covers it all)
   R.listEnd = (v, L) => {
     if (!rec) return;
     try {
       R.calls = 0; R.quads = 0; R.bitRows = 0;
+      sync(null);
       const t0 = performance.now();
-      flush();
-      sceneFb(FW, FH); drawRec(true);
+      flush(); sync('wFlush');
+      sceneFb(FW, FH); drawRec(true); sync('wScene');
       const t1 = performance.now();
-      lightPass(L || null);
+      lightPass(L || null); sync('wLight');
       const t2 = performance.now();
       R.overQuads = 0;
       if (L && L.over) {   // what goes over the light, recorded the same way, drawn into the lit frame without depth
         const g = R.listBegin(v, true);
         if (g) { L.over(g); flush(); const n = R.quads; drawRec(false); R.overQuads = R.quads - n; }
+        sync('wOver');
       }
       R.lit = true;   // (ui.js clears the view for the HUD bits and calls present)
       R.ms = { rec: t1 - t0, light: t2 - t1, over: performance.now() - t2 };   // (CPU time of each part; the GPU's runs after)

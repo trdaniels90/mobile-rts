@@ -2060,7 +2060,10 @@ so it is probably not their compiling; not reproduced headless.
   until 4.6 s, then it ran.
 - **What the GPU got** (`gl.js` R.ev, wrapped gl calls; `report.js` glEv): each `fz` row has `ge` for the frame before the
   freeze: `tx`/`txMB` textures made, `up`/`upMB` uploads, `pg` programs linked, `fb` framebuffers/renderbuffers, `bl` blend
-  states first used. Query: `select started_at, stats->'frames'->'load', stats->'frames'->'fz' from matches order by started_at desc`.
+  states first used; and the **probe**: while the card is up and 5 s after (`GLR.probe`), gl.js `sync` reads one pixel after
+  each stage so the page waits for the GPU there, and adds the ms waited: `wPre` (before this frame's drawing), `wFlush`
+  (atlas uploads), `wScene`, `wLight`, `wOver`, `wPres`. A freeze in one of them shows in `drw` and that `w...`; a freeze
+  in none happened after the frame was handed over (the compositor). Released to the owner's build as 2026.11.21.1. Query: `select started_at, stats->'frames'->'load', stats->'frames'->'fz' from matches order by started_at desc`.
 
 ## Phones draw at 2x, not 3x (after 2026.11.20, not released, both modes, looks and heat only)
 
