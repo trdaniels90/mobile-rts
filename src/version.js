@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.21.9', date: '21 November 2026', title: 'Smoother on computers', groups: [
+    ['Improved', [
+      'On computers the whole battlefield ground is now loaded at the start of a battle too, so it no longer pops in when you zoom all the way out on a big screen, and big battles run smoother.',
+      'If a battle runs slowly on a computer, the game now lowers its drawing resolution a little until it runs smoothly again, as phones already do.',
+    ]],
+  ] },
   { v: '2026.11.21.8', date: '21 November 2026', title: 'Lighter on phones, no ground loading in', groups: [
     ['Improved', [
       'On phones the whole battlefield ground is now loaded at the start of a battle, so it never loads in as you scroll or jump around the map. Loading takes a few seconds longer.',
