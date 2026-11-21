@@ -1404,7 +1404,7 @@ function makeGround(painter, legacy, baked) {
   const finishing = new Map();
   function finishSome(k, until) {
     const f = finishing.get(k), list = index[k];
-    if (!f.dr) { f.dr = 1; if (typeof lookDress === 'function') { const [x0, y0] = at(k), tg = f.t.g.getContext('2d'); lookPatchTile(tg, x0, y0); lookDress(tg, x0, y0); } }   // (look.js test: ground dressing, once a tile)
+    if (!f.dr) { f.dr = 1; if (typeof lookDress === 'function') { const [x0, y0] = at(k), tg = f.t.g.getContext('2d'); if (!(f.baked && baked.patched)) lookPatchTile(tg, x0, y0); if (!(f.baked && baked.dressed)) lookDress(tg, x0, y0); } }   // (look.js: the soft patches and ground dressing, once a tile; a baked sheet may have them in)
     while (f.i < list.length) {
       const a = performance.now(), m = G.marks[list[f.i++]];
       drawOn(f.t, k, m);
@@ -1469,7 +1469,7 @@ function makeGround(painter, legacy, baked) {
     if (m.bmp) {   // baked: the tile cut from its sheet, bridges and scenery included
       g.drawImage(m.bmp, m.sx, m.sy, m.w, m.h, 0, 0, m.w, m.h);
       peak.put = Math.max(peak.put, performance.now() - a);
-      finishing.set(k, { t, i: 0 });
+      finishing.set(k, { t, i: 0, baked: true });
       return;
     }
     g.putImageData(new ImageData(m.d, m.w, m.h), 0, 0);
@@ -1558,6 +1558,7 @@ function makeGround(painter, legacy, baked) {
   };
   return {
     add, tiles, missing: 0,
+    get bakedOk() { return fast(); },   // (the baked sheets still load: look.js leaves the crags' shadows to them)
     // Before drawing a frame of view rect (sx, sy, sw, sh): paints what is missing on screen for up to `ms`
     // milliseconds, then (`ahead` ms) the tiles in a ring round it, so scrolling finds them ready. The first frame
     // paints all it shows, however long that takes (without workers only).
@@ -1696,7 +1697,7 @@ function newGround(g, legacy) {
   g.marks = g.marks || [];
   g.tctx = GROUND_LAYER; g.dctx = DECAL_LAYER;
   const id = validMap(g.mapId), man = GroundSheets.manifest, bm = GroundSheets.ok() && man && man.maps && man.maps[id];
-  const baked = bm && bm.key === groundKey(g) ? { dir: 'grounds/' + id + '/', q: '?k=' + bm.key + (man.code ? '.' + man.code : '') } : null;
+  const baked = bm && bm.key === groundKey(g) ? { dir: 'grounds/' + id + '/', q: '?k=' + bm.key + (man.code ? '.' + man.code : ''), patched: !!man.patched, dressed: !!bm.dressed } : null;
   const painter = groundPainter(g.terr, groundSeed(g), g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[id].bridge, g.hgt);
   g.ground = makeGround(painter, legacy, baked);
   g.ground.baked = !!baked;

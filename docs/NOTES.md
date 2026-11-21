@@ -2169,3 +2169,33 @@ It starts the chosen map and battle (1 v 1, 2 v 2, 3 v 3) with every side a comp
 whole map shown and the radar on, the sidebar's controls hidden (`body.spectate`) and the selection kept empty. Options
 offers Speed 1x/2x/4x (`G.speed`: extra simulation steps a frame). Nothing is reported or saved, and the saved skirmish is
 kept. The debrief says which side won; Rematch watches again.
+
+## Baked crags, crag shadows and ground dressing in the baked ground (2026-11-21, not released, looks and memory only, both modes)
+
+Owner (iPhone, spectating): "the cliffs and some of the ground textures were popping in... like entire cliffs were being drawn
+while zooming around"; asked for the crags baked "and whatever else real games do without losing too much detail".
+- **Why it popped:** every crag (look.js `cliffPic`, a voxel column picture per cliff cell) was made in play, `CLIFF_MS` a
+  frame: Snowbound's 16,365 cells took ~13 s on a desktop, and a phone kept only `CLIFF_KEEP` of them, so a zoomed-out spectator
+  kept making them again. Their shadows (one picture each) were two thirds of the memory (Snowbound: 60 MB of crags, 120 MB of
+  shadows). The ground's stand-in (the quarter-size preview) lacked the soft patches and dressing that each tile got when it
+  came in, so tiles changed as they arrived.
+- **Crags baked** (`tools/bake-cliffs.js <repo> [--check]`, `cliffs/`): each fixed map's crags trimmed to their rock and packed,
+  a 24-cell region at a time, into 1024 px wide lossless WebP sheets (`cliffs/<map>/<i>.webp`, where each cell's picture is in
+  `index.json`). All maps 9.6 MB of files; decoded Snowbound 39 MB, River 10. look.js `CliffSheets` / `cliffBakeStart` loads
+  a battle's sheets while the deploying card is up (ui.js `loading` waits for `cliffsReady`, still at most `LOAD_MAX`), and
+  they stay for the battle (no LRU: they are parts of the sheets). With WebGL each sheet is a texture of its own (gl.js
+  `spriteTex`, over `PIC_MAX`), so crags no longer fill the shared sprite atlases. Used only when the map's ground key
+  matches (`groundKey`); generated maps, a stale bake and `?lookoff=bake` make crags in play as before. Checked: each map's
+  crag inputs (ore and blocked cells next to cliffs) are the same whatever the seed or number of sides. A continued game
+  shows the crags of the map's start (before, mined-out ore near a cliff changed them).
+- **Crag shadows in the ground bake:** `tools/bake-ground.js` paints them into the ground sheets (look.js `cliffShadowPaint`:
+  the same rays as cliffPic, laid in world pixels, each crag's at `CLIFF_SA`), manifest `shadows`; the game then draws none
+  (`cliffShadowsBaked`). They now lie under the water's live drawing and under tracks (were over them).
+- **Soft patches and dressing in the ground bake:** `bakeTileLook` paints `lookPatchTile` (manifest `patched`) and, on maps
+  where the dressing is the same every battle (`dressed` per map; not Village or Frostlight, where it depends on the houses),
+  `lookDress`, one tile at a time, cut to it, as play did. makeGround's `finishSome` skips them for tiles cut from a sheet.
+  The preview has them too, so a tile coming in only sharpens. A continued game's dressing now matches a new one's.
+- `?lookoff=cliffs` / `dress` / `ground` no longer remove what is baked into the ground on the fixed maps.
+- Release: `node tools/bake-cliffs.js <repo> --check` (CLAUDE.md step 2), and publish `cliffs/` with the owner's build
+  (step 4). Rebake after changing look.js's crag code, paintCliffs / cliffCells, voxel.js VIEW or a fixed map; rebake the
+  ground after the crag shadow code, lookPatchTile or the dressing.

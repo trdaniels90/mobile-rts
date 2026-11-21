@@ -170,6 +170,7 @@ function drawLook(g, vx, vy, vw, vh, k, t, night) {
   }
   if (dn > 0.02) { g.globalAlpha = dn; cloudShadows(g, vx, vy, k, t); g.globalAlpha = 1; }
   g.restore();
+  if (!lookPics) lookPoolPics();   // (day/night maps drawn the 2D way could get here first: "reading 'sh'" of null)
   const L = lookPics, lights = lookDayLights(vx, vy, vw, vh, night);
   drawLookLights(g, vx, vy, vw, vh, k, t, night, M, dn, lights, W, H, rgba, L);
 }
@@ -312,12 +313,54 @@ function cloudShadowPic() {   // (also gl.js's light pass)
 // by the cell's middle, so a tank behind a ridge goes behind it.
 const CLIFF_UP = 1, CLIFF_TOP = 34;   // world units of height (x VK on the screen: about 28 px)
 let cliffLook = null;
+// Baked crags (tools/bake-cliffs.js): the fixed maps' crags drawn once into sheets, cliffs/<map>/<i>.webp, with
+// cliffs/<map>/index.json saying where each cell's picture is. A battle on a fixed map loads all of its sheets while the
+// deploying card is up (ui.js loading, cliffsReady), so no crag is made in play and none pops in; the old way (made a few a
+// frame, below) is kept for generated maps, a stale or missing bake, ?lookoff=bake, and the moments before the sheets are in.
+// Their shadows are baked into the ground (tools/bake-ground.js, cliffShadowPaint) when the ground is baked: no picture each.
+const CliffSheets = (() => {
+  let man = null, settled = false;
+  const ok = () => GroundSheets.ok() && !/[?&]lookoff=[a-z,]*\bbake\b/.test(location.search);
+  if (ok()) fetch('cliffs/manifest.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).then((m) => { man = m; }).catch(() => {}).then(() => { settled = true; });
+  else settled = true;
+  return { get manifest() { return man; }, get settled() { return settled; }, ok };
+})();
+function cliffBakeStart(L) {
+  if (L.bake !== undefined || !CliffSheets.settled) return;
+  const man = CliffSheets.manifest, id = validMap(G.mapId), m = man && man.maps && man.maps[id];
+  if (!m || m.key !== groundKey(G)) { L.bake = null; return; }
+  const dir = 'cliffs/' + id + '/', q = '?k=' + m.key + '.' + man.code, B = L.bake = { ready: false, failed: false };
+  const get = (f) => fetch(dir + f + q).then((r) => { if (!r.ok) throw new Error(f + ' ' + r.status); return r; });
+  get('index.json').then((r) => r.json()).then((ix) => Promise.all(Array.from({ length: ix.sheets }, (_, i) => get(i + '.webp').then((r) => r.blob()).then((b) => createImageBitmap(b))))
+    .then((bmps) => {
+      const P = ix.pics, has = new Set();
+      for (let i = 0; i < P.length; i += 8) { L.pics.set(P[i], { c: bmps[P[i + 1]], sx: P[i + 2], sy: P[i + 3], w: P[i + 4], h: P[i + 5], X0: P[i + 6], Y0: P[i + 7], baked: 1 }); has.add(P[i]); }
+      for (const c of L.cells.keys()) if (!has.has(c)) L.pics.set(c, null);
+      B.ready = true;
+    }))
+    .catch((e) => { B.failed = true; if (typeof Report !== 'undefined' && Report.oops) Report.oops('cliffSheet', e.message || e); });
+}
+// For ui.js's deploying card: the crags are in (or will be made in play).
+function cliffsReady() {
+  if (!LOOK.cliffs || !G || !G.cliff) return true;
+  const L = cliffLookFor(); cliffBakeStart(L);
+  return L.bake === null || (L.bake !== undefined && (L.bake.ready || L.bake.failed));
+}
+// The crags' shadows are in the ground's own pictures (the baked ground, made with them).
+const cliffShadowsBaked = () => !!(G.ground && G.ground.baked && G.ground.bakedOk && GroundSheets.manifest && GroundSheets.manifest.shadows);
 function cliffLookFor() {
   if (cliffLook && cliffLook.g === G) return cliffLook;
+  const cells = G.cliff ? cliffCells(G.terr, G.cliff) : new Map();
+  let h = null;
+  cliffLook = { g: G, cells, get height() { return h || (h = cliffHeight(cells)); }, pics: new Map(), snow: mapTheme(G.mapId) === 'snow' };
+  return cliffLook;
+}
+// The height of the rock at world (x, y) (worked out only when a crag is made in play, or baked).
+function cliffHeight(cells) {
   // paintCliffs' own mound sum with its ragged edge (where it passes 0.5 the painted ridge begins), cut from its source.
   const src = paintCliffs.toString(), cut = src.indexOf('const q = (o - 0.5) / 0.5;');
   const mk = (0, eval)('(' + src.slice(0, cut) + 'return o; }; return height; })');
-  const cells = G.cliff ? cliffCells(G.terr, G.cliff) : new Map(), mound = mk(null, cells, groundSeed(G), false);
+  const mound = mk(null, cells, groundSeed(G), false);
   // A plateau: from the painted foot the rock rises steeply to a flat top CLIFF_TOP high, with a little roughness.
   // Ore and gems the painted rock reaches (a cell or two on some maps, tools/sim/map-check.js): the crag fades out over them
   // so the ore stays in sight (looks only; the cells were always open and harvestable).
@@ -337,7 +380,7 @@ function cliffLookFor() {
     if (d >= 1.2) return 1;
     const k = Math.max(0, Math.min(1, (d - 0.55) / 0.65)); return k * k * (3 - 2 * k);
   };
-  const height = (x, y) => {
+  return (x, y) => {
     let q = (mound(x, y) - 0.5) * (oreCell.size ? oreFade(x, y) : 1);
     if (bare.size) { const c = Math.floor(y / CELL) * MAP + Math.floor(x / CELL); if (bare.has(c)) q = Math.max(q, 0.12 * (1 - Math.hypot(x / CELL - (c % MAP + 0.5), y / CELL - ((c / MAP | 0) + 0.5)) / 0.75)); }
     if (q <= 0) return 0;
@@ -345,11 +388,10 @@ function cliffLookFor() {
     const big = Math.min(1, 0.3 + (l ? l.length / 2 : 0) / 9);   // a lone rock stays a boulder; a ridge rises full height
     return CLIFF_TOP * big * s * s * (3 - 2 * s) + (hash3(x >> 2, y >> 2, 21) - 0.5) * 1.5;
   };
-  cliffLook = { g: G, cells, height, pics: new Map(), snow: mapTheme(G.mapId) === 'snow' };
-  return cliffLook;
 }
-function cliffPic(L, c) {
-  const cx = c % MAP, cy = (c / MAP) | 0, mx = (cx + 0.5) * CELL, my = (cy + 0.5) * CELL, Hf = L.height;
+// The rock's columns over cell c: [x, y, height, slope x, slope y] per world pixel, and the highest.
+function cliffPts(L, c) {
+  const cx = c % MAP, cy = (c / MAP) | 0, Hf = L.height;
   // The height over the cell and a margin, smoothed (5 x 5): raised CLIFF_UP times, the ridge's fine noise made the tops
   // bumpy and streaked.
   const B = 4, N = CELL + 2 * B, raw = new Float32Array(N * N), sm = new Float32Array(N * N);
@@ -367,6 +409,15 @@ function cliffPic(L, c) {
     const gx = at(x + 1, y) - at(x - 1, y), gy = at(x, y + 1) - at(x, y - 1);
     pts.push([x, y, h, gx, gy]); top = Math.max(top, h);
   }
+  return { pts, top };
+}
+// Its shadow falls away from the sun: CLIFF_SL x its height along (CLIFF_SDX, CLIFF_SDY) on the ground (world px), drawn
+// at CLIFF_SA (each crag's own: where two meet, darker).
+const CLIFF_SL = 1.1, CLIFF_SDX = 0.8, CLIFF_SDY = -0.3, CLIFF_SA = 0.45;
+// noShadow: the crag only (its shadow is in the baked ground, or the bake: tools/bake-cliffs.js).
+function cliffPic(L, c, noShadow) {
+  const cx = c % MAP, cy = (c / MAP) | 0, mx = (cx + 0.5) * CELL, my = (cy + 0.5) * CELL;
+  const { pts, top } = cliffPts(L, c);
   if (!pts.length) return null;
   const up = top * CLIFF_UP * VK;
   const cs = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => toView(a * CELL / 2, b * CELL / 2));
@@ -374,8 +425,8 @@ function cliffPic(L, c) {
   const Y0 = Math.floor(Math.min(...cs.map((p) => p[1])) - up) - 2, Y1 = Math.ceil(Math.max(...cs.map((p) => p[1]))) + 2;
   const W = X1 - X0, H = Y1 - Y0, pic = mkCanvas(W, H), ctx = pic.getContext('2d'), img = ctx.createImageData(W, H), d = img.data;
   // Its shadow on the ground, away from the sun (to the screen's right and a little down), drawn under everything.
-  const SL = 1.1, [sdx, sdy] = toView(0.8, -0.3), sx1 = X1 + Math.ceil(top * CLIFF_UP * SL * sdx) + 2, sy1 = Y1 + Math.ceil(top * CLIFF_UP * SL * Math.max(0, sdy)) + 2;
-  const SW = sx1 - X0, SH = sy1 - Y0, sm2 = new Uint8Array(SW * SH);
+  const SL = CLIFF_SL, [sdx, sdy] = toView(CLIFF_SDX, CLIFF_SDY), sx1 = X1 + Math.ceil(top * CLIFF_UP * SL * sdx) + 2, sy1 = Y1 + Math.ceil(top * CLIFF_UP * SL * Math.max(0, sdy)) + 2;
+  const SW = sx1 - X0, SH = sy1 - Y0, sm2 = noShadow ? null : new Uint8Array(SW * SH);
   const ROCK = L.snow ? [[40, 42, 50], [58, 60, 68], [80, 82, 92], [104, 106, 116], [150, 156, 170], [206, 214, 226], [236, 240, 247]]
     : [[44, 34, 26], [62, 49, 36], [84, 67, 49], [108, 88, 65], [134, 112, 84], [162, 139, 106], [190, 168, 132]];
   const Lx = -0.8, Ly = 0.3, Lz = 0.6, Ll = Math.hypot(Lx, Ly, Lz);   // towards the sun: the screen's upper left
@@ -385,7 +436,7 @@ function cliffPic(L, c) {
     const nx = -gx * 0.5 * CLIFF_UP, ny = -gy * 0.5 * CLIFF_UP, nl = Math.hypot(nx, ny, 1);
     const lit = (nx * Lx + ny * Ly + Lz) / nl / Ll, steep = 1 - 1 / nl;
     const sp = hash3(x, y, 11);
-    for (let st = 0, len = hz * SL; st <= len; st += 1) {
+    if (sm2) for (let st = 0, len = hz * SL; st <= len; st += 1) {
       const qx = Math.round(vX - X0 + sdx * st), qy = Math.round(vY - Y0 + sdy * st);
       if (qx >= 0 && qx < SW - 1 && qy >= 0 && qy < SH) sm2[qy * SW + qx] = sm2[qy * SW + qx + 1] = 1;
     }
@@ -408,14 +459,40 @@ function cliffPic(L, c) {
     }
   }
   ctx.putImageData(img, 0, 0);
+  if (!sm2) return { c: pic, sh: null, X0, Y0, w: W, h: H };
   const shp = mkCanvas(SW, SH), sc = shp.getContext('2d'), si = sc.createImageData(SW, SH);
   for (let i = 0; i < sm2.length; i++) if (sm2[i]) { si.data[i * 4 + 1] = 6; si.data[i * 4 + 2] = 18; si.data[i * 4 + 3] = 255; }
   sc.putImageData(si, 0, 0);
-  return { c: pic, sh: shp, X0, Y0 };
+  return { c: pic, sh: shp, X0, Y0, w: W, h: H };
+}
+// For tools/bake-ground.js: the crags' shadows painted into the ground at world (x0, y0, w, h) of g (at its 0, 0), as
+// cliffPic draws them on the ground in play (each crag's shadow at CLIFF_SA, lying in the world, so the ground's own hills
+// carry it). The shadows are worked out once a battle (cliffLook.shades).
+function cliffShadowPaint(g, x0, y0, w, h) {
+  if (!LOOK.cliffs || !G.cliff) return;
+  const L = cliffLookFor();
+  if (!L.shades) {
+    L.shades = [];
+    for (const c of L.cells.keys()) {
+      const { pts } = cliffPts(L, c);
+      if (!pts.length) continue;
+      const on = new Map();
+      for (const [x, y, hh] of pts) for (let st = 0, len = hh * CLIFF_UP * CLIFF_SL; st <= len; st += 0.5) on.set(Math.floor(y + 0.5 + CLIFF_SDY * st) * 65536 + Math.floor(x + 0.5 + CLIFF_SDX * st), 1);
+      let a = 1e9, b = 1e9, A = -1e9, Bm = -1e9;
+      for (const k of on.keys()) { const X = k % 65536, Y = Math.floor(k / 65536); a = Math.min(a, X); A = Math.max(A, X); b = Math.min(b, Y); Bm = Math.max(Bm, Y); }
+      const W = A - a + 1, H = Bm - b + 1, m = mkCanvas(W, H), mc = m.getContext('2d'), id = mc.createImageData(W, H);
+      for (const k of on.keys()) { const i = ((Math.floor(k / 65536) - b) * W + k % 65536 - a) * 4; id.data[i + 1] = 6; id.data[i + 2] = 18; id.data[i + 3] = 255; }
+      mc.putImageData(id, 0, 0);
+      L.shades.push({ x: a, y: b, m });
+    }
+  }
+  g.save(); g.globalAlpha = CLIFF_SA;
+  for (const s of L.shades) if (s.x < x0 + w && s.y < y0 + h && s.x + s.m.width > x0 && s.y + s.m.height > y0) g.drawImage(s.m, s.x - x0, s.y - y0);
+  g.restore();
 }
 // From ui.js draw: the cliff cells round the screen as things to sort in with the units.
-// Crags are made on screen within CLIFF_MS a frame (and at least 9), then those within CLIFF_AHEAD px of the screen;
-// one made on screen fades in over CLIFF_FADE ms. A phone keeps CLIFF_KEEP of them (least recently seen let go).
+// Crags not baked are made on screen within CLIFF_MS a frame (and at least 9), then those within CLIFF_AHEAD px of the
+// screen; one made on screen fades in over CLIFF_FADE ms. A phone keeps CLIFF_KEEP of them (least recently seen let go).
 const CLIFF_MS = 4, CLIFF_AHEAD = 320, CLIFF_FADE = 250;
 const CLIFF_KEEP = typeof GROUND_ROOMY !== 'undefined' && GROUND_ROOMY ? Infinity : 3500;
 const cliffAlpha = (p) => { if (!p.born) return 1; const a = (performance.now() - p.born) / CLIFF_FADE; if (a >= 1) { p.born = 0; return 1; } return Math.max(0, a); };
@@ -426,6 +503,9 @@ function cliffItems(list, x0, y0, x1, y1, shows) {
   poolItems(list, x0, y0, x1, y1, shows);   // lamp posts (light pools), with their shadows
   if (!LOOK.cliffs || !G.cliff) return;
   const L = cliffLookFor(), now = performance.now(), until = now + CLIFF_MS;
+  cliffBakeStart(L);
+  const baked = !!(L.bake && L.bake.ready), noSh = cliffShadowsBaked();
+  if (L.bake && !baked && !L.bake.failed) return;   // (the sheets are coming: behind the deploying card, so none are made meanwhile)
   L.frame = (L.frame || 0) + 1;
   let made = 0, behind = false;
   for (const c of L.cells.keys()) {
@@ -434,46 +514,49 @@ function cliffItems(list, x0, y0, x1, y1, shows) {
     let p = L.pics.get(c);
     if (p === undefined) {
       if (made > 8 && performance.now() >= until) { behind = true; continue; }
-      made++; p = cliffPic(L, c); L.pics.set(c, p);
+      made++; p = cliffPic(L, c, noSh); L.pics.set(c, p);
       if (p && L.frame > 3) p.born = now;   // (made while on screen: it rises in over CLIFF_FADE rather than popping up)
     }
     if (p) { p.used = L.frame; list.push({ kind: 'cliff', x, y, p }); }
   }
   // Time left: the crags just off screen are made ahead (nearest first is not needed: the ring is narrow), so a scroll or
   // a short jump finds them ready.
-  if (!behind) {
+  if (!behind && !baked) {
     const M = CLIFF_AHEAD;
     for (const c of L.cells.keys()) {
       if (performance.now() >= until) break;
       if (L.pics.has(c) || !G.seen[c]) continue;
       const x = (c % MAP + 0.5) * CELL, y = (((c / MAP) | 0) + 0.5) * CELL;
       if (x < x0 - M || x > x1 + M || y < y0 - M || y > y1 + M + 80) continue;
-      const p = cliffPic(L, c); L.pics.set(c, p); if (p) p.used = L.frame;
+      const p = cliffPic(L, c, noSh); L.pics.set(c, p); if (p) p.used = L.frame;
     }
   }
   // A phone keeps the crags last seen only (each is a picture and its shadow: a whole explored Snowbound came to ~170 MB).
-  if (L.pics.size > CLIFF_KEEP * 1.25) {
-    const old = [...L.pics].filter(([, p]) => p && p.used < L.frame).sort((a, b) => a[1].used - b[1].used);
+  // Baked ones are parts of the sheets, kept whole.
+  if (!baked && L.pics.size > CLIFF_KEEP * 1.25) {
+    const old = [...L.pics].filter(([, p]) => p && !p.baked && p.used < L.frame).sort((a, b) => a[1].used - b[1].used);
     for (let i = 0; i < old.length && L.pics.size > CLIFF_KEEP; i++) L.pics.delete(old[i][0]);
   }
   // The shadows now, on the ground under everything (the list is drawn after).
-  for (const e of list) if (e.kind === 'cliff' && !e.post) onHill(lookView, e.x, e.y, () => cliffShadow(lookView, e));
+  for (const e of list) if (e.kind === 'cliff' && !e.post && e.p.sh && !noSh) onHill(lookView, e.x, e.y, () => cliffShadow(lookView, e));
 }
 let lookView = null;   // the view canvas's context, set by ui.js before cliffItems
 function cliffShadow(g, e) {
-  if (!g) return;
+  if (!g || !e.p.sh) return;
   const m = g.getTransform(), up = g.upright;
   const sx = m.a * e.x + m.c * e.y + m.e, sy = m.b * e.x + m.d * e.y + m.f;
-  g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 0.45 * cliffAlpha(e.p);
+  g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = CLIFF_SA * cliffAlpha(e.p);
   g.drawImage(e.p.sh, Math.round(sx + e.p.X0), Math.round(sy + e.p.Y0));
   g.globalAlpha = 1; g.setTransform(m); g.upright = up;
 }
 function drawCliff(g, e) {
-  const m = g.getTransform(), up = g.upright;
+  const m = g.getTransform(), up = g.upright, p = e.p;
   const sx = m.a * e.x + m.c * e.y + m.e, sy = m.b * e.x + m.d * e.y + m.f;
   g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0);
-  const a = cliffAlpha(e.p), ga = g.globalAlpha; if (a < 1) g.globalAlpha = ga * a;
-  g.drawImage(e.p.c, Math.round(sx + e.p.X0), Math.round(sy + e.p.Y0));
+  const a = cliffAlpha(p), ga = g.globalAlpha; if (a < 1) g.globalAlpha = ga * a;
+  const X = Math.round(sx + p.X0), Y = Math.round(sy + p.Y0);
+  if (p.sx !== undefined) g.drawImage(p.c, p.sx, p.sy, p.w, p.h, X, Y, p.w, p.h);   // (baked: its part of a sheet)
+  else g.drawImage(p.c, X, Y);
   g.globalAlpha = ga; g.setTransform(m); g.upright = up;
 }
 
@@ -1119,6 +1202,17 @@ function lookDress(g, x0, y0) {
   for (const it of list) if (it.t === 'path') dressOne(g, it, D.snow);   // paths first, under the rest
   for (const it of list) if (it.t !== 'path') dressOne(g, it, D.snow);
   g.restore();
+}
+// For tools/bake-ground.js: the soft patches and (dress) the dressing painted into world (x0, y0, w, h) of g (at its 0, 0),
+// exactly as makeGround paints them into each tile (one GROUND_TILE at a time, cut to it, so a detail reaching two tiles is
+// drawn as twice in play).
+function bakeTileLook(g, x0, y0, w, h, dress) {
+  const T = GROUND_TILE;
+  for (let ty = y0; ty < y0 + h; ty += T) for (let tx = x0; tx < x0 + w; tx += T) {
+    g.save(); g.beginPath(); g.rect(tx - x0, ty - y0, T, T); g.clip(); g.translate(tx - x0, ty - y0);
+    lookPatchTile(g, tx, ty); if (dress) lookDress(g, tx, ty);
+    g.restore();
+  }
 }
 function dressOne(g, it, snow) {
   const r = rng(it.s), { x, y } = it;

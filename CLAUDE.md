@@ -42,12 +42,12 @@ share globals. Read this file first (feature notes are in `docs/NOTES.md`); the 
    then `.1`, `.2`... on the same day. `VERSION` is the first entry. The menu shows its title, and
    What's New carries a NEW badge until it is read.
 2. Check every script with `node --check`, and that the baked sprites are current: `node tools/bake-sprites.js <repo> --check`
-   (if stale, rebake: `node tools/bake-sprites.js <repo>`, see "Baked sprites" in `docs/NOTES.md`), and the baked ground: `node tools/bake-ground.js <repo> --check`, and (once the WebGL renderer is in) the baked
+   (if stale, rebake: `node tools/bake-sprites.js <repo>`, see "Baked sprites" in `docs/NOTES.md`), and the baked ground: `node tools/bake-ground.js <repo> --check`, and the baked crags: `node tools/bake-cliffs.js <repo> --check`, and (once the WebGL renderer is in) the baked
    normal maps: `node tools/bake-normals.js <repo> --check` (rebake with `node tools/bake-normals.js <repo>` after every sprite
    rebake; see "WebGL renderer" in `docs/NOTES.md`).
 3. Build the single file: `python3 scripts/build-single-file.py <out.html>`. Load it in headless
    Playwright and start a game to check it runs without errors.
-4. **Owner's build:** publish `<out.html>` (and, when they changed, the files in `sprites/` as `sprites/<name>` and in `grounds/` as `grounds/<path>`, and in `normals/` as `normals/<name>`) to the artifact URL above with the Artifact tool
+4. **Owner's build:** publish `<out.html>` (and, when they changed, the files in `sprites/` as `sprites/<name>` and in `grounds/` as `grounds/<path>`, and in `cliffs/` as `cliffs/<path>`, and in `normals/` as `normals/<name>`) to the artifact URL above with the Artifact tool
    (artifact slug `d3b16e49-e1b0-4114-9609-965e7c8a302b`; `get_artifact` for the base version).
    `publish_files` only reads files inside the repo folder, so build to `.build/index.html`, publish,
    then `rm -rf .build` (it is not gitignored, and the Stop hook complains about untracked files).

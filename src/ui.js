@@ -843,7 +843,7 @@ function draw() {
     const drawnBox = (e) => {
       if (big(e)) return bldBox(e);
       const [hx, hy] = hillAt(e), [X, Y] = toView(...hillPt(hx, hy));
-      if (e.kind === 'cliff') return [X + e.p.X0, Y + e.p.Y0, X + e.p.X0 + e.p.c.width, Y + e.p.Y0 + e.p.c.height];
+      if (e.kind === 'cliff') return [X + e.p.X0, Y + e.p.Y0, X + e.p.X0 + (e.p.w || e.p.c.width), Y + e.p.Y0 + (e.p.h || e.p.c.height)];
       return [X - 30, Y - (e.kind === 'tree' ? 90 : 70), X + 30, Y + 12];
     };
     const reHill = (c) => {
@@ -2309,7 +2309,7 @@ function draw() {
     if (loadFor.done) return false;
     if (now - loadFor.at > 250 && !document.hidden) { loadFor.slow = now; loadFor.nSlow++; }
     loadFor.at = now;
-    const t = now - loadFor.since, ready = SpriteSheets.ready() && G.ground && G.ground.missing === 0 && t > LOAD_MIN;
+    const t = now - loadFor.since, ready = SpriteSheets.ready() && G.ground && G.ground.missing === 0 && (typeof cliffsReady !== 'function' || cliffsReady()) && t > LOAD_MIN;
     if (((ready || t > LOAD_MAX) && now - loadFor.slow > SETTLE_MS) || t > SETTLE_MAX) { loadFor.done = true; loadFor.doneAt = now; loadFor.t = { ms: Math.round(t), full: !ready, slow: loadFor.nSlow }; showLoading(false); return false; }
     if (t > 120) showLoading(true);   // (a fast device is ready before the card would even show)
     return true;
