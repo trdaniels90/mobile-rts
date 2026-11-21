@@ -314,7 +314,7 @@ void main() {
   // for normal maps: a picture's normal map (red, green: its surface's direction turned with the view; blue: height) is
   // worked out from its voxel model (nrmPic, the same projection as voxel.js renderVox) when first drawn, at most NRM_MS
   // ms a frame, and put at the same spot. Larger pictures keep a texture of their own (spriteTex).
-  const ATL = 2048, ATL_N = 3, PIC_MAX = 400, NRM_MS = 3, TEX_IDLE = 600;
+  const ATL = 2048, ATL_N = typeof GROUND_ROOMY !== 'undefined' && !GROUND_ROOMY ? 2 : 3, PIC_MAX = 400, NRM_MS = 3, TEX_IDLE = 600;   // (phones: 2 pages, 33.5 MB less: owner, 2026-11-21)
   const SHOW_N = /[?&]gl=normals\b/.test(q);
   let atl = null, nrmSpend = 0;
   const whiteAt = new WeakMap();   // texture -> the uv of its white pixel (atlases): coloured shapes drawn from it join the pictures' runs
@@ -329,8 +329,8 @@ void main() {
     if (a < 0 && atl.length < ATL_N) { a = atl.length; atl.push(newAtlas()); }
     if (a < 0) {   // all full: empty the one drawn least lately (its pictures go in again as they are drawn)
       a = 0; for (let i = 1; i < atl.length; i++) if (atl[i].used < atl[a].used) a = i;
-      if (atl[a].used === S.frame) return null;   // (all in use this very frame: draw this one on its own)
-      atl[a].gen++; atl[a].sh = { x: 0, y: 0, h: 0 };
+      if (atl[a].used === S.frame) { R.atlFull = (R.atlFull || 0) + 1; return null; }   // (all in use this very frame: draw this one on its own)
+      atl[a].gen++; atl[a].sh = { x: 0, y: 0, h: 0 }; R.atlEmptied = (R.atlEmptied || 0) + 1;
     }
     const A = atl[a], sh = A.sh;
     if (sh.x + w > ATL - 2) { sh.y += sh.h + 1; sh.x = 0; sh.h = 0; }   // (ATL - 2: the last column keeps a white pixel, for coloured shapes in the same run)
