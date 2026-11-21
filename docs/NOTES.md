@@ -2199,3 +2199,8 @@ while zooming around"; asked for the crags baked "and whatever else real games d
 - Release: `node tools/bake-cliffs.js <repo> --check` (CLAUDE.md step 2), and publish `cliffs/` with the owner's build
   (step 4). Rebake after changing look.js's crag code, paintCliffs / cliffCells, voxel.js VIEW or a fixed map; rebake the
   ground after the crag shadow code, lookPatchTile or the dressing.
+- **Loading card** (owner, 2026-11-21: "Add a loading bar... and just call the card loading"): the "Deploying forces" card is
+  now titled "Loading", with a bar (ui.js `loading` / `showLoading`, style.css `.load-bar`). 90% of it is what the card waits
+  for, a third each: sprite sheets (`SpriteSheets.pending`), the ground on screen (`G.ground.missing`), the crag sheets
+  (look.js `cliffsProgress`), each as a share of the most it was waiting for; the last 10% while the frames settle. It never
+  goes back, and it is shown full for 250 ms before the card goes (the battle runs on behind it).

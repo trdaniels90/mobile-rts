@@ -2294,7 +2294,7 @@ function draw() {
     }
     return { keep, apply, restore };
   })();
-  // Deploying: a battle (new, continued or online) starts behind a short card while this battle's sprite sheets load
+  // Loading: a battle (new, continued or online) starts behind a short card ("Loading", with a bar; was "Deploying forces") while this battle's sprite sheets load
   // (art.js SpriteSheets) and the ground on screen is painted (art.js makeGround), so its first seconds do not
   // stutter. A skirmish is held meanwhile; an online battle runs on (others are in it). Never longer than LOAD_MAX ms.
   // It also stays up until the frames come smoothly (SETTLE_MS without a frame 250 ms late, at most SETTLE_MAX): the
@@ -2310,18 +2310,33 @@ function draw() {
     if (now - loadFor.at > 250 && !document.hidden) { loadFor.slow = now; loadFor.nSlow++; }
     loadFor.at = now;
     const t = now - loadFor.since, ready = SpriteSheets.ready() && G.ground && G.ground.missing === 0 && (typeof cliffsReady !== 'function' || cliffsReady()) && t > LOAD_MIN;
-    if (((ready || t > LOAD_MAX) && now - loadFor.slow > SETTLE_MS) || t > SETTLE_MAX) { loadFor.done = true; loadFor.doneAt = now; loadFor.t = { ms: Math.round(t), full: !ready, slow: loadFor.nSlow }; showLoading(false); return false; }
-    if (t > 120) showLoading(true);   // (a fast device is ready before the card would even show)
+    if (((ready || t > LOAD_MAX) && now - loadFor.slow > SETTLE_MS) || t > SETTLE_MAX) { loadFor.done = true; loadFor.doneAt = now; loadFor.t = { ms: Math.round(t), full: !ready, slow: loadFor.nSlow }; showLoading(false, 1); return false; }
+    // The bar: 90% for what loads (sprite sheets, the ground on screen, the crags: each the share of the most it waited
+    // for), the rest while the frames settle (SETTLE_MS without a late one). It never goes back.
+    const F = loadFor, part = (k, left) => { F[k] = Math.max(F[k] || 0, left); return F[k] ? 1 - left / F[k] : 1; };
+    const got = (part('sp', SpriteSheets.pending || 0) + part('gn', G.ground ? G.ground.missing : 1) + (typeof cliffsProgress === 'function' ? cliffsProgress() : 1)) / 3;
+    if ((ready || t > LOAD_MAX) && !F.readyAt) F.readyAt = now;
+    const bar = F.readyAt ? 0.9 + 0.1 * Math.min(1, (now - Math.max(F.readyAt, F.slow)) / SETTLE_MS) : 0.9 * got;
+    F.bar = Math.max(F.bar || 0, bar);
+    if (t > 120) showLoading(true, F.bar);   // (a fast device is ready before the card would even show)
     return true;
   }
-  function showLoading(on) {
+  function showLoading(on, frac) {
     if (!loadEl) {
       if (!on) return;
       loadEl = document.createElement('div'); loadEl.id = 'deploying'; loadEl.className = 'nw-wrap';
-      loadEl.innerHTML = '<div class="nw-card" role="status"><p class="nw-title">Deploying forces</p><p class="nw-sub">Preparing the battlefield</p></div>';
+      loadEl.innerHTML = '<div class="nw-card" role="status"><p class="nw-title">Loading</p><div class="load-bar" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100"><i></i></div></div>';
       document.body.append(loadEl);
     }
+    clearTimeout(loadEl.hideT);
+    if (!on && frac === 1 && !loadEl.hidden) {   // done: the bar full for a moment before the card goes (the battle runs on)
+      const b = loadEl.querySelector('.load-bar'); b.firstChild.style.width = '100%'; b.setAttribute('aria-valuenow', 100);
+      loadEl.hideT = setTimeout(() => { loadEl.hidden = true; }, 250);
+      return;
+    }
+    if (on && loadEl.hidden) loadEl.querySelector('.load-bar i').style.width = '0%';
     loadEl.hidden = !on;
+    if (on && frac !== undefined) { const pc = Math.round(frac * 100), b = loadEl.querySelector('.load-bar'); b.firstChild.style.width = pc + '%'; b.setAttribute('aria-valuenow', pc); }
   }
   function frame(now) {
     spriteMs = 0; spriteN = 0;   // (models.js: sprites made in this frame, for the match report)

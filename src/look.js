@@ -329,9 +329,9 @@ function cliffBakeStart(L) {
   if (L.bake !== undefined || !CliffSheets.settled) return;
   const man = CliffSheets.manifest, id = validMap(G.mapId), m = man && man.maps && man.maps[id];
   if (!m || m.key !== groundKey(G)) { L.bake = null; return; }
-  const dir = 'cliffs/' + id + '/', q = '?k=' + m.key + '.' + man.code, B = L.bake = { ready: false, failed: false };
+  const dir = 'cliffs/' + id + '/', q = '?k=' + m.key + '.' + man.code, B = L.bake = { ready: false, failed: false, n: 0, of: m.files || 1 };
   const get = (f) => fetch(dir + f + q).then((r) => { if (!r.ok) throw new Error(f + ' ' + r.status); return r; });
-  get('index.json').then((r) => r.json()).then((ix) => Promise.all(Array.from({ length: ix.sheets }, (_, i) => get(i + '.webp').then((r) => r.blob()).then((b) => createImageBitmap(b))))
+  get('index.json').then((r) => r.json()).then((ix) => Promise.all(Array.from({ length: ix.sheets }, (_, i) => get(i + '.webp').then((r) => r.blob()).then((b) => createImageBitmap(b)).then((bmp) => { B.n++; return bmp; })))
     .then((bmps) => {
       const P = ix.pics, has = new Set();
       for (let i = 0; i < P.length; i += 8) { L.pics.set(P[i], { c: bmps[P[i + 1]], sx: P[i + 2], sy: P[i + 3], w: P[i + 4], h: P[i + 5], X0: P[i + 6], Y0: P[i + 7], baked: 1 }); has.add(P[i]); }
@@ -345,6 +345,12 @@ function cliffsReady() {
   if (!LOOK.cliffs || !G || !G.cliff) return true;
   const L = cliffLookFor(); cliffBakeStart(L);
   return L.bake === null || (L.bake !== undefined && (L.bake.ready || L.bake.failed));
+}
+// For the loading card's bar: how much of the crags is in (0 to 1).
+function cliffsProgress() {
+  if (cliffsReady()) return 1;
+  const B = cliffLook && cliffLook.bake;
+  return B ? Math.min(0.95, B.n / B.of) : 0;
 }
 // The crags' shadows are in the ground's own pictures (the baked ground, made with them).
 const cliffShadowsBaked = () => !!(G.ground && G.ground.baked && G.ground.bakedOk && GroundSheets.manifest && GroundSheets.manifest.shadows);

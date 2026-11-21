@@ -266,7 +266,7 @@ const SpriteSheets = (() => {
     }
   }
   // ready(): every sheet asked for so far is in (ui.js holds a battle's start on it, briefly).
-  return { need, ready: () => pending === 0, loaded: () => [...loaded], get manifest() { return man; } };
+  return { need, ready: () => pending === 0, get pending() { return pending; }, loaded: () => [...loaded], get manifest() { return man; } };
 })();
 SpriteSheets.need(['allies0', 'soviets0', 'burnt']);   // the main colours, in the background from the start
 
