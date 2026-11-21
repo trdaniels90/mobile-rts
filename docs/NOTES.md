@@ -2274,3 +2274,9 @@ frame, mostly structures and crags (`bld`), aircraft (`air`) and the sorted list
   the sheet (`copyTexSubImage2D`), up to four a frame. Headless 2560 x 1370 (software GPU), Frostlight 3 v 3 at 6 min, fully
   zoomed out, six jumps: frames with ground missing 47 of 120 before, 0 now; art.js tiles 417 before, 0 now. Loading 3.9 s
   to 7.4 s headless (a real PC is far quicker). `?gl=noresident` turns it off.
+- **The owner's 3 v 3 report (2026.11.21.9, Frostlight, 43 min, PC):** 450-680 units alive from minute 9, 40-55 fps; simulation
+  2-3 ms a frame, drawing 12-22 ms (the game's own JavaScript, not the GPU). Slowest frames: `air` (in WebGL: the recorded frame
+  handed over, light pass, weather and HUD) 30-62 ms, `list` 16-32 ms (with ~3,500 trees and 250-300 units in view).
+  `list` checked every thing in view against every structure in view (which side of it to sort to): now only the things
+  within `NEAR` of each structure, found by cell. Headless 2560 x 1370 (software GPU), the same 3 v 3 at 22 min fully zoomed out:
+  `list` 70 ms -> 20 ms. The HUD's selection test is a Set (was `includes` per thing in view).
