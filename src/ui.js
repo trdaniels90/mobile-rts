@@ -74,7 +74,7 @@
         difficulty: vs ? 'Online vs ' + vs.opponent + ending : DIFFICULTY[diffKey].label,
         // a win against the computer goes on the leaderboard: a 1 v 1 skirmish, or two-player online co-op (its own
         // board, scored as a team; three-player co-op has none yet)
-        extra: won && (vs ? vs.coop === 'board' : !teamGame()) ? Leaderboard.nameBox(Report.score(vs ? Report.teamStats() : G.teams[G.me].stats, G.over.t, vs ? vs.diff : diffKey)) : null,
+        extra: won && !G.mapViewUsed && (vs ? vs.coop === 'board' : !teamGame()) ? Leaderboard.nameBox(Report.score(vs ? Report.teamStats() : G.teams[G.me].stats, G.over.t, vs ? vs.diff : diffKey)) : null,
         // same side and difficulty; online, back to the lobby page
         onRematch: vs ? () => { Net.rematch(); startGame(); showMenu('start'); Online.open(faction); } : () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },
         onNew: () => { if (vs) { Net.leave(); startGame(); } showMenu('start'); },
@@ -1160,7 +1160,7 @@ function draw() {
   // The radar needs a working Radar Dome: none built shows a blank screen, low power takes it
   // offline. Without it the minimap shows static and cannot be used to move the camera.
   const radarDome = () => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === G.me && e.type === 'dome' && e.buildT >= 1 && e.sellT <= 0);
-  const radarOn = () => !!G && radarDome() && !G.teams[G.me].low;
+  const radarOn = () => !!G && ((radarDome() && !G.teams[G.me].low) || G.seen !== G.fog[G.me]);   // (map view, below: the radar works without a dome)
   let radarWas = null;
   function drawRadar(dt) {
     radarT -= dt;
@@ -2088,6 +2088,7 @@ function draw() {
     ui.resumeBtn.hidden = mode !== 'pause';
     ui.quitBtn.hidden = mode !== 'pause';
     $('saveQuitBtn').hidden = mode !== 'pause' || !Net.canSave;
+    syncMapView(mode);
     disarmQuit();
     if (G && !Net.role) G.paused = true;   // (an online battle runs on: the other player is still in it)
     ui.menu.dataset.mode = mode;
@@ -2168,6 +2169,23 @@ function draw() {
     });
   });
   ui.resumeBtn.addEventListener('click', hideMenu);
+  // Map view (the owner's tool for tuning maps, 2026-11-21): the whole map shown, starting places and
+  // every unit, in a skirmish only. The button shows only to the owner's account; a match where it was
+  // used says so in its report (stats.mapView). Off again after a saved game is continued (save.js).
+  const MAP_VIEW_UID = '1e98a3b6-40a2-45f9-a682-e4a506220989';
+  const mapViewOn = () => !!(G && G.seen !== G.fog[G.me]);
+  function syncMapView(mode) {
+    const b = $('mapViewBtn'), on = mapViewOn();
+    b.hidden = mode !== 'pause' || !!Net.role || Account.uid !== MAP_VIEW_UID || G.watching;
+    b.setAttribute('aria-pressed', String(on)); b.textContent = 'Map view (owner): ' + (on ? 'whole map' : 'off');
+  }
+  $('mapViewBtn').addEventListener('click', () => {
+    if (!G || Net.role || Account.uid !== MAP_VIEW_UID) return;
+    if (mapViewOn()) G.seen = G.fog[G.me];
+    else { G.seen = new Uint8Array(NCELLS).fill(1); G.mapViewUsed = true; }
+    G.shroudDirty = true; radarWas = null;
+    syncMapView('pause');
+  });
   // Quit mission: tap twice (no dialogs, which some hosts block). The match is reported as quit,
   // with its debrief numbers so far, and the menu comes back over a fresh battlefield.
   let quitArmed = null;

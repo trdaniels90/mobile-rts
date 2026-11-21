@@ -124,6 +124,7 @@ const Report = (() => {
     const out = { player: G.me, teams: G.teams.map((t) => ({ faction: t.faction, ai: t.isAI, ally: t.ally, style: t.isAI ? t.style || null : undefined, waves: t.waves || 0, stats: t.stats })),
       log: { samples: G.log.samples, events: G.log.events, fallen, alive, waves: G.log.waves }, names, map: G.mapId || null };
     if (errs.length) out.errors = errs;
+    if (G.mapViewUsed) out.mapView = true;   // the owner's whole-map view was on (ui.js): not a fair game
     // Team battles: sides per alliance (2 for 2 v 2 and co-op, 3 for 3 v 3 and 3 v AI), so boards can tell them apart.
     if (G.teams.length > 2) out.size = G.teams.filter((t) => t.ally === G.teams[G.me].ally).length;
     // Online: the battle's id, the same on every phone in it, so the co-op board shows a team's win once.
@@ -300,7 +301,7 @@ const Report = (() => {
   function submitName(name) {
     try {
       name = String(name || '').trim().slice(0, 20);
-      if (!name) return Promise.resolve(false);
+      if (!name || (G && G.mapViewUsed)) return Promise.resolve(false);   // map view on: kept off the leaderboard
       store('ps-name', name);
       const m = match;
       if (!m || !m.done) return Promise.resolve(false);

@@ -2154,3 +2154,12 @@ away from bases? Unless the bases have a main road next to them? Street lights s
 - **Daylight** (look.js `dayLift`, `DAY_LIFT`): on every map with `daynight` the mood's tint, shade and vignette are lighter
   by day and the grade nearer white (both renderers use lookMood); nights as before. Checked by screenshots at noon and
   midnight on Frostlight and Crossroads Village (WebGL).
+
+## Map view (owner only)
+
+Asked for 2026-11-21 so the owner can watch starting places and unit movement and help tune maps. In a skirmish, the
+Options menu shows "Map view (owner)" only when signed in with the owner's account (`MAP_VIEW_UID` in `ui.js`, the
+Supabase `auth.users` id; no email in the code). On, `G.seen` becomes an all-ones copy (the same trick as watching after
+defeat), so the shroud is gone and every unit shows; the radar works without a dome while it is on. Never online.
+A match where it was used carries `stats.mapView: true`, gets no leaderboard name box, and `Report.submitName` refuses it.
+Continuing a saved game starts with it off (`save.js` rebuilds `G.seen` from `G.fog`).
