@@ -2065,6 +2065,14 @@ so it is probably not their compiling; not reproduced headless.
   (atlas uploads), `wScene`, `wLight`, `wOver`, `wPres`. A freeze in one of them shows in `drw` and that `w...`; a freeze
   in none happened after the frame was handed over (the compositor). Released to the owner's build as 2026.11.21.1. Query: `select started_at, stats->'frames'->'load', stats->'frames'->'fz' from matches order by started_at desc`.
 
+## A paused battle is not redrawn under the menu (after 2026.11.21.1, not released, both modes, looks and speed only)
+
+Owner (iPhone, WebGL): "Even the menus have a delay." The menu is see-through, and the paused battle under it (and the
+battle behind the start menu) was drawn in full every frame, WebGL light pass included. `ui.js` frame: with `G.paused`, the
+menu shown and no online battle, the battle is drawn once and then kept on the screen (`stillKey`: screen size, DPR,
+camera) until the menu closes or that key changes. Headless (SwiftShader, 440 x 894): the page under the menu went
+from 16-24 frames a second to 60, no WebGL frames drawn; the battle still shows behind the menu, after a rotation too.
+
 ## Phones draw at 2x, not 3x (after 2026.11.20, not released, both modes, looks and heat only)
 
 Owner: "while playing my phone is getting really hot"; picked "Draw at 2x on phones" (over a 30 fps battery saver). `ui.js`

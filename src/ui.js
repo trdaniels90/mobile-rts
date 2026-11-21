@@ -2222,7 +2222,7 @@ function draw() {
   // owner's iPhone with WebGL froze 3-4 s four times in a battle's first seconds (the graphics process, not the game's
   // code), and the battle ran on and jumped between them, with the camera catching up on a finger's moves at once.
   const LOAD_MAX = 3000, LOAD_MIN = 250, SETTLE_MS = 600, SETTLE_MAX = 20000;
-  let loadFor = null, loadEl = null;
+  let loadFor = null, loadEl = null, stillKey = null;
   function loading(now) {
     if (!G || G.paused || G.over) return false;
     if (!loadFor || loadFor.g !== G) loadFor = { g: G, since: now, done: false, at: now, slow: -1e9, nSlow: 0 };
@@ -2269,7 +2269,13 @@ function draw() {
     guard('beaten', beaten);
     const d0 = performance.now();
     // (A guest's copy glides on its own, net.js guestStep.)
-    try { if (G && Net.role !== 'guest' && !G.paused) guard('smooth', () => Smooth.apply(stepAcc / STEP)); guard('draw', draw); } finally { Smooth.restore(); }
+    // A battle paused under the menu (and the one behind the start menu) does not change: it is drawn once and kept on the
+    // screen until the menu closes, the screen changes size or the camera moves. Redrawn every frame with WebGL, it kept
+    // the owner's iPhone's graphics busy and the menus slow to answer.
+    const still = !!(G && G.paused && !Net.role && !ui.menu.hidden), key = still ? `${W}x${H}x${DPR}:${cam.x},${cam.y},${cam.z}` : null;
+    if (still && stillKey === key) { /* (the last frame stays on the screen) */ }
+    else try { if (G && Net.role !== 'guest' && !G.paused) guard('smooth', () => Smooth.apply(stepAcc / STEP)); guard('draw', draw); } finally { Smooth.restore(); }
+    stillKey = key;
     const d1 = performance.now();
     guard('sidebar', () => updateSidebar(1 / 60));
     guard('radar', () => drawRadar(1 / 60));
