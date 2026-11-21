@@ -4,6 +4,12 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.21', date: '21 November 2026', title: 'WebGL crash fixed', groups: [
+    ['Fixed', [
+      'The game crashed (a black screen, or back to the menu with WebGL switched off) about a minute into battles, mostly on PCs with big screens: with WebGL on, it used more and more memory every frame. It now stays steady. If WebGL was switched off after a crash, switch it back on in the menu.',
+      'WebGL should also run a little smoother.',
+    ]],
+  ] },
   { v: '2026.11.20.4', date: '20 November 2026', title: 'Crash reports', groups: [
     ['Fixed', [
       'If the game crashes, it now remembers its last moments and sends them when it is next opened, so the cause can be found and fixed.',
