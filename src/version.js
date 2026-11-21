@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.21.6', date: '21 November 2026', title: 'Map tools for tuning maps', groups: [
+    ['Behind the scenes', [
+      'New tools to watch the computers fight and see the whole map, so maps can be tuned. Nothing changes in your games.',
+    ]],
+  ] },
   { v: '2026.11.21.5', date: '21 November 2026', title: 'Brighter days, fewer street lamps', groups: [
     ['Changed', [
       'On maps with day and night, daytime is now clearly brighter, so it is easy to tell day from night.',
