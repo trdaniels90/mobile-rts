@@ -2236,3 +2236,15 @@ then "Yes go ahead" to compressed textures.
   a phone is expected faster (not yet measured on one).
 - Left as before: the crags (look.js baked sheets, RGBA), unit sprites made in play (grow in big fights: ~15 MB a minute
   from minute 12 in this test), the atlases.
+
+## Automatic resolution on computers too (2026-11-21, not released, looks only, both modes)
+Owner: "can we also look into fixing the pc build? it lags at full screen zooming out 3v3. maybe have it load everything in
+beforehand as well?" The owner's PC reports (2560 x 1370 at 1.5x: 3840 x 2055 = 7.9 million pixels a frame, 16 cores) ran
+3 v 3s at 100-115 fps on 2026.11.19 with 6-7 ms drawing, before the WebGL renderer; none since (spectating does not report).
+A computer already keeps all of the ground (`GROUND_ROOMY`: it paints the whole map in the background) and the crags are
+baked, so loading is not the cause; zoomed out at that size it is drawing (pixels, and thousands of trees and crags).
+Headless full HD (software GPU, so only a rough guide) zoomed out over a 3 v 3 at 12 min: the game's own drawing ~120 ms a
+frame, mostly structures and crags (`bld`), aircraft (`air`) and the sorted list (`list`).
+- ui.js `autoRes` now also runs on computers: `PC_STEPS` (the screen's own, at most 3, then 1.25, then 1), slow being frames
+  over `PC_SLOW_MS` (25 ms, under about 40 fps); same windows and stepping back up as phones. A step that would not lower
+  the resolution (a 1x screen) is skipped. Headless 1280 x 720 at 1.5x with a 30 ms busy loop a frame: 1.5 -> 1.25 -> 1.
