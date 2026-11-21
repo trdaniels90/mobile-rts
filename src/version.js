@@ -4,6 +4,17 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.21.3', date: '21 November 2026', title: 'Cliffs block fire, steadier phones', groups: [
+    ['Changed', [
+      'Cliffs now block direct fire: tanks, soldiers and defences can no longer shoot through a cliff ridge. Units that spotted an enemy behind one look for another target; units ordered to attack it drive round for a clear shot. Artillery, V2 rockets and grenades still lob over, and aircraft are not blocked.',
+    ]],
+    ['Fixed', [
+      'Phones could crash after a long, big battle (such as a 3 v 3): the game now keeps much less in memory on phones, and frees graphics memory it no longer needs.',
+      'Less of the ground and cliffs popping in when you jump round the map.',
+      'The Soviet Ore Refinery no longer has a stray flame burning on its roof.',
+      'If the game crashed and switched WebGL off, you can switch it back on in the menu.',
+    ]],
+  ] },
   { v: '2026.11.21.2', date: '21 November 2026', title: 'Quicker menus', groups: [
     ['Fixed', [
       'Menus could be slow to respond on phones: the battle behind them was redrawn all the time even though it was paused. It is now drawn once while the menu is open, which also saves battery.',
