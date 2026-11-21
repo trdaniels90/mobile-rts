@@ -2079,3 +2079,19 @@ Owner: "while playing my phone is getting really hot"; picked "Draw at 2x on pho
 layout: `DPR` is at most 2 on a touch screen (`(pointer: coarse)`), 3 elsewhere as before. An iPhone at 440 x 894 CSS px drew
 the battle at 1320 x 2088 (2.76 MP, twice a frame with the WebGL light pass's normals); now 880 x 1392 (1.22 MP, 56% fewer).
 Everything sized by `DPR` follows (view, WebGL canvas, radar, snapZ).
+
+## Pop-in when jumping round the map with WebGL (after 2026.11.21.2, not released, both modes, looks and memory only)
+
+Owner (iPhone): "Clicking around the map on my current mobile game causes a lot of the ground and textures to pop in."
+- **Ground:** the 2D way had the blurred quarter-size preview as the stand-in and a fade (`GROUND_FADE`), but the WebGL
+  ground (gl.js `R.ground`) showed the flat one-pixel-a-cell colours and snapped tiles in. Now `G.ground.gl` also gives
+  `preview`, `pvN`, `pvHas`, `PV`, `fade`; gl.js uploads the preview as texture unit 4 (again when more is done, at most
+  twice a second, and once complete) and the shader uses it where it was done (`uPvOn`), fading a tile in over it (`uFade`:
+  from its first upload on screen, or art.js `t.born`). The few new uploads a frame left over go to painted tiles just off
+  screen, so a scroll finds them on the GPU.
+- **Crags** (look.js `cliffItems`): made on screen within `CLIFF_MS` (4 ms, at least 9) a frame, then those within
+  `CLIFF_AHEAD` (320 px) of the screen; one made on screen fades in over `CLIFF_FADE` (250 ms). They were kept for the
+  whole battle: every cliff cell of Snowbound is 16,365 pictures, ~172 MB (Lakes 88, Frostlight 59, River 43). A phone
+  (`!GROUND_ROOMY`) now keeps `CLIFF_KEEP` (3500, ~35 MB), the least recently seen let go.
+- Checked headless (SwiftShader, 440 x 894 touch, Snowbound, camera jumped to far corners): the first frame after a jump
+  shows the preview instead of flat blocks; no errors.

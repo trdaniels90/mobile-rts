@@ -65,12 +65,16 @@ in vec2 aP; in float aD; in vec2 aW; in vec2 aN; uniform vec2 uCam, uSize; out v
 void main() { vec2 s = (aP - uCam) / uSize * 2.0 - 1.0; gl_Position = vec4(s.x, -s.y, aD, 1.0); vW = aW; vN = aN; }`;
   const FS = `#version 300 es
 precision highp float; in vec2 vW; in vec2 vN; layout(location = 0) out vec4 o; layout(location = 1) out vec4 o1;
-uniform sampler2D uT, uD, uLow, uPatch; uniform vec2 uT0; uniform float uTile, uWorld, uLowOnly, uPatchK, uPatchS;
+uniform sampler2D uT, uD, uLow, uPatch, uPv; uniform vec2 uT0; uniform float uTile, uWorld, uLowOnly, uPatchK, uPatchS, uPvOn, uPvS, uFade;
 float sl(float b, float s) { float d = b <= 0.25 ? ((16.0 * b - 12.0) * b + 4.0) * b : sqrt(b); return s <= 0.5 ? b - (1.0 - 2.0 * s) * b * (1.0 - b) : b + (2.0 * s - 1.0) * (d - b); }
 void main() {
   vec2 uv = (vW - uT0) / uTile;
-  vec4 c = uLowOnly > 0.5 ? texture(uLow, vW / uWorld) : texture(uT, uv);
+  // The stand-in for a tile not uploaded yet: the blurred preview where it is done, else a pixel a cell; a tile just in
+  // fades in over it (uFade 0 to 1) rather than popping in.
+  vec4 lo = uPvOn > 0.5 ? texture(uPv, vW / uPvS) : texture(uLow, vW / uWorld);
+  vec4 c = uLowOnly > 0.5 ? lo : texture(uT, uv);
   vec4 d = texture(uD, uv); c.rgb = mix(c.rgb, d.rgb, d.a * (1.0 - uLowOnly));
+  if (uLowOnly < 0.5 && uFade < 1.0) c.rgb = mix(lo.rgb, c.rgb, uFade);
   if (uPatchK > 0.0) { vec4 p = texture(uPatch, vW / uPatchS); vec3 s = vec3(sl(c.r, p.r), sl(c.g, p.g), sl(c.b, p.b)); c.rgb = mix(c.rgb, s, p.a * uPatchK); }
   o = vec4(c.rgb, 1.0); o1 = vec4(vN * 0.5 + 0.5, 0.0, 1.0);   // (o1: the normals' layer; the ground's from the hills (stage 5): flat ground (0, 0) is lit as 2D)
 }`;
@@ -109,9 +113,9 @@ void main() {
     if (!gl.getProgramParameter(P, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(P));
     gl.useProgram(P);
     loc = {};
-    for (const n of ['uCam', 'uSize', 'uT', 'uD', 'uLow', 'uPatch', 'uT0', 'uTile', 'uWorld', 'uLowOnly', 'uPatchK', 'uPatchS']) loc[n] = gl.getUniformLocation(P, n);
+    for (const n of ['uCam', 'uSize', 'uT', 'uD', 'uLow', 'uPatch', 'uT0', 'uTile', 'uWorld', 'uLowOnly', 'uPatchK', 'uPatchS', 'uPv', 'uPvOn', 'uPvS', 'uFade']) loc[n] = gl.getUniformLocation(P, n);
     for (const n of ['aP', 'aD', 'aW', 'aN']) loc[n] = gl.getAttribLocation(P, n);
-    gl.uniform1i(loc.uT, 0); gl.uniform1i(loc.uD, 1); gl.uniform1i(loc.uLow, 2); gl.uniform1i(loc.uPatch, 3);
+    gl.uniform1i(loc.uT, 0); gl.uniform1i(loc.uD, 1); gl.uniform1i(loc.uLow, 2); gl.uniform1i(loc.uPatch, 3); gl.uniform1i(loc.uPv, 4);
     R.buf = gl.createBuffer(); R.ibuf = gl.createBuffer();
     R.none = texFrom(null);
     return true;
@@ -128,8 +132,8 @@ void main() {
   let S = null;
   function state() {
     if (!S || S.G !== G || S.ground !== G.ground) {
-      if (S) { for (const e of S.tex.values()) { gl.deleteTexture(e.g); if (e.d) gl.deleteTexture(e.d); } if (S.low) gl.deleteTexture(S.low); for (const m of S.mesh.values()) { gl.deleteBuffer(m.vb); gl.deleteBuffer(m.ib); } }
-      S = { G, ground: G.ground, tex: new Map(), mesh: new Map(), low: null, lowSrc: null, patch: null, frame: 0 };
+      if (S) { for (const e of S.tex.values()) { gl.deleteTexture(e.g); if (e.d) gl.deleteTexture(e.d); } if (S.low) gl.deleteTexture(S.low); if (S.pv) gl.deleteTexture(S.pv); for (const m of S.mesh.values()) { gl.deleteBuffer(m.vb); gl.deleteBuffer(m.ib); } }
+      S = { G, ground: G.ground, tex: new Map(), mesh: new Map(), low: null, lowSrc: null, patch: null, pv: null, pvN: 0, pvAt: 0, pvSrc: null, frame: 0 };
     }
     return S;
   }
@@ -169,7 +173,7 @@ void main() {
         let old = null; for (const [kk, x] of S.tex) if (!old || x.used < old[1].used) old = [kk, x];
         gl.deleteTexture(old[1].g); if (old[1].d) gl.deleteTexture(old[1].d); S.tex.delete(old[0]);
       }
-      e = { g: texFrom(t.g), d: t.d ? texFrom(t.d) : null };
+      e = { g: texFrom(t.g), d: t.d ? texFrom(t.d) : null, born: 0 };
       S.tex.set(k, e);
     } else {
       gl.bindTexture(gl.TEXTURE_2D, e.g); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, t.g);
@@ -201,18 +205,56 @@ void main() {
       if (pk && !S.patch) S.patch = texFrom(patchPic, true);
       gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, pk ? S.patch : R.none);
       gl.uniform1f(loc.uPatchK, pk); gl.uniform1f(loc.uPatchS, pk ? patchPic.width * 12 : 1);
+      // The preview as the stand-in (art.js makeGround: a quarter size, filled in as the workers paint it or from the
+      // baked file): uploaded again when more of it is done, at most twice a second (it is a few MB), and once complete.
+      const pv = A.preview && A.preview(), pvN = pv ? A.pvN() : 0, now = performance.now();
+      gl.activeTexture(gl.TEXTURE4);   // (texFrom binds to the active unit: not the ones bound above)
+      if (pv && pvN !== S.pvN && (pvN === A.n * A.n || now - S.pvAt > 500 || !S.pv)) {
+        if (!S.pv || S.pvSrc !== pv) {
+          if (S.pv) gl.deleteTexture(S.pv);
+          S.pv = texFrom(pv); S.pvSrc = pv;
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          S.pvShown = new Uint8Array(A.n * A.n);
+        } else { gl.bindTexture(gl.TEXTURE_2D, S.pv); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, pv); }
+        for (let k = 0; k < A.n * A.n; k++) if (A.pvHas(k)) S.pvShown[k] = 1;   // (the preview's tiles in this upload)
+        S.pvN = pvN; S.pvAt = now;
+      }
+      gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, S.pv || R.none);
+      gl.uniform1f(loc.uPvS, pv ? pv.width * A.PV : 1);
       gl.enableVertexAttribArray(loc.aP); gl.enableVertexAttribArray(loc.aD); gl.enableVertexAttribArray(loc.aW); gl.enableVertexAttribArray(loc.aN);
       let up = 0;
       for (const k of A.tilesIn(sx, sy, sw, sh)) {
         const t = A.tile(k), m = meshOf(k, A), [x0, y0] = A.at(k);
         let e = null;
-        if (t && (up < 6 || S.tex.has(k))) { const had = S.tex.get(k); e = upload(k, t); if (!had || had.ver !== t.ver) up++; }   // (a few new uploads a frame)
-        gl.uniform2f(loc.uT0, x0, y0); gl.uniform1f(loc.uLowOnly, e ? 0 : 1);
+        if (t && (up < 6 || S.tex.has(k))) {   // (a few new uploads a frame)
+          const had = S.tex.get(k); e = upload(k, t);
+          if (!had || had.ver !== t.ver) up++;
+          if (!had && S.frame > 2) e.born = now;   // (new on screen: fades in over the stand-in; not the first frames, behind the card)
+        }
+        // How far in: from this upload, or from art.js finishing the tile where a stand-in was on screen.
+        let fade = 1;
+        if (e) {
+          const a = e.born ? (now - e.born) / A.fade : 1, b = t.born ? (now - t.born) / A.fade : 1;
+          fade = Math.max(0, Math.min(1, a, b));
+          if (a >= 1) e.born = 0;
+        }
+        gl.uniform2f(loc.uT0, x0, y0); gl.uniform1f(loc.uLowOnly, e ? 0 : 1); gl.uniform1f(loc.uFade, fade);
+        gl.uniform1f(loc.uPvOn, S.pv && S.pvShown && S.pvShown[k] ? 1 : 0);
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, e ? e.g : R.none);
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, e && e.d ? e.d : R.none);
         gl.bindBuffer(gl.ARRAY_BUFFER, m.vb); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.ib);
         gl.vertexAttribPointer(loc.aP, 2, gl.FLOAT, false, 28, 0); gl.vertexAttribPointer(loc.aD, 1, gl.FLOAT, false, 28, 8); gl.vertexAttribPointer(loc.aW, 2, gl.FLOAT, false, 28, 12); gl.vertexAttribPointer(loc.aN, 2, gl.FLOAT, false, 28, 20);
         gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_SHORT, 0);
+      }
+      // Tiles painted just off screen are uploaded ahead (with what is left of this frame's few), so scrolling finds them
+      // on the GPU instead of fading them in at the edge.
+      if (up < 6) {
+        const T = A.T;
+        for (const k of A.tilesIn(sx - T, sy - T, sw + 2 * T, sh + 2 * T)) {
+          if (up >= 6) break;
+          const t = A.tile(k);
+          if (t && !S.tex.has(k)) { upload(k, t); up++; }
+        }
       }
       return true;   // (kept in the GL canvas: listBegin records what is drawn over it, listEnd puts the frame into v once)
     } catch (err) { failed = true; console.warn('WebGL ground off:', err); note('ground off: ' + (err && err.message)); return false; }

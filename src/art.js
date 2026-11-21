@@ -1618,7 +1618,9 @@ function makeGround(painter, legacy, baked) {
     },
     // For the WebGL renderer (gl.js): the tile size, tiles across, a tile's corner, the tiles of a box, a painted tile
     // ({ g, d, ver }) or none, and the stand-in for unpainted ground (a pixel a cell).
-    gl: { T, n, at, tilesIn: (sx, sy, sw, sh) => tilesIn(sx, sy, sw, sh), tile: (k) => tiles.get(k), low: () => lowRes() },
+    gl: { T, n, at, tilesIn: (sx, sy, sw, sh) => tilesIn(sx, sy, sw, sh), tile: (k) => tiles.get(k), low: () => lowRes(),
+      // the preview (quarter size, PV) as the stand-in where it is done, and how many of its tiles are (it changes)
+      PV, preview: () => preview, pvN: () => pvCount, pvHas: (k) => pvDone[k] === 1, fade: GROUND_FADE },
     // Draws one layer ('t' the ground, 'd' the wrecks and bodies) of world rect (sx, sy, sw, sh) into g at (dx, dy).
     // The raised ground (look.js hillWarp): the chunks (HILL_CH px squares of the world grid, inside one tile) of world
     // rect (sx, sy, sw, sh), and one layer of one chunk drawn in g (its transform already set: hillWarp set).

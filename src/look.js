@@ -403,20 +403,47 @@ function cliffPic(L, c) {
   return { c: pic, sh: shp, X0, Y0 };
 }
 // From ui.js draw: the cliff cells round the screen as things to sort in with the units.
+// Crags are made on screen within CLIFF_MS a frame (and at least 9), then those within CLIFF_AHEAD px of the screen;
+// one made on screen fades in over CLIFF_FADE ms. A phone keeps CLIFF_KEEP of them (least recently seen let go).
+const CLIFF_MS = 4, CLIFF_AHEAD = 320, CLIFF_FADE = 250;
+const CLIFF_KEEP = typeof GROUND_ROOMY !== 'undefined' && GROUND_ROOMY ? Infinity : 3500;
+const cliffAlpha = (p) => { if (!p.born) return 1; const a = (performance.now() - p.born) / CLIFF_FADE; if (a >= 1) { p.born = 0; return 1; } return Math.max(0, a); };
 function cliffItems(list, x0, y0, x1, y1, shows) {
   lookGround(lookView, x0, y0, x1, y1, shows && ((x, y) => shows(x, y, 40, 40, 40)));   // (the ground's patches and tracks first: under the cliffs' shadows)
   lookFxGround(lookView, x0, y0, x1, y1);   // lookfx.js: blasts' scorch marks and rings, and the update of its particles
   lookFogGround(lookView, x0, y0, x1, y1);   // fog lying on the ground, under the units
   poolItems(list, x0, y0, x1, y1, shows);   // lamp posts (light pools), with their shadows
   if (!LOOK.cliffs || !G.cliff) return;
-  const L = cliffLookFor();
-  let made = 0;
+  const L = cliffLookFor(), now = performance.now(), until = now + CLIFF_MS;
+  L.frame = (L.frame || 0) + 1;
+  let made = 0, behind = false;
   for (const c of L.cells.keys()) {
     const x = (c % MAP + 0.5) * CELL, y = (((c / MAP) | 0) + 0.5) * CELL;
     if (x < x0 - 40 || x > x1 + 40 || y < y0 - 40 || y > y1 + 120 || !shows(x, y) || !G.seen[c]) continue;
     let p = L.pics.get(c);
-    if (p === undefined) { if (made++ > 8) continue; p = cliffPic(L, c); L.pics.set(c, p); }
-    if (p) list.push({ kind: 'cliff', x, y, p });
+    if (p === undefined) {
+      if (made > 8 && performance.now() >= until) { behind = true; continue; }
+      made++; p = cliffPic(L, c); L.pics.set(c, p);
+      if (p && L.frame > 3) p.born = now;   // (made while on screen: it rises in over CLIFF_FADE rather than popping up)
+    }
+    if (p) { p.used = L.frame; list.push({ kind: 'cliff', x, y, p }); }
+  }
+  // Time left: the crags just off screen are made ahead (nearest first is not needed: the ring is narrow), so a scroll or
+  // a short jump finds them ready.
+  if (!behind) {
+    const M = CLIFF_AHEAD;
+    for (const c of L.cells.keys()) {
+      if (performance.now() >= until) break;
+      if (L.pics.has(c) || !G.seen[c]) continue;
+      const x = (c % MAP + 0.5) * CELL, y = (((c / MAP) | 0) + 0.5) * CELL;
+      if (x < x0 - M || x > x1 + M || y < y0 - M || y > y1 + M + 80) continue;
+      const p = cliffPic(L, c); L.pics.set(c, p); if (p) p.used = L.frame;
+    }
+  }
+  // A phone keeps the crags last seen only (each is a picture and its shadow: a whole explored Snowbound came to ~170 MB).
+  if (L.pics.size > CLIFF_KEEP * 1.25) {
+    const old = [...L.pics].filter(([, p]) => p && p.used < L.frame).sort((a, b) => a[1].used - b[1].used);
+    for (let i = 0; i < old.length && L.pics.size > CLIFF_KEEP; i++) L.pics.delete(old[i][0]);
   }
   // The shadows now, on the ground under everything (the list is drawn after).
   for (const e of list) if (e.kind === 'cliff' && !e.post) onHill(lookView, e.x, e.y, () => cliffShadow(lookView, e));
@@ -426,7 +453,7 @@ function cliffShadow(g, e) {
   if (!g) return;
   const m = g.getTransform(), up = g.upright;
   const sx = m.a * e.x + m.c * e.y + m.e, sy = m.b * e.x + m.d * e.y + m.f;
-  g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 0.45;
+  g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 0.45 * cliffAlpha(e.p);
   g.drawImage(e.p.sh, Math.round(sx + e.p.X0), Math.round(sy + e.p.Y0));
   g.globalAlpha = 1; g.setTransform(m); g.upright = up;
 }
@@ -434,8 +461,9 @@ function drawCliff(g, e) {
   const m = g.getTransform(), up = g.upright;
   const sx = m.a * e.x + m.c * e.y + m.e, sy = m.b * e.x + m.d * e.y + m.f;
   g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0);
+  const a = cliffAlpha(e.p), ga = g.globalAlpha; if (a < 1) g.globalAlpha = ga * a;
   g.drawImage(e.p.c, Math.round(sx + e.p.X0), Math.round(sy + e.p.Y0));
-  g.setTransform(m); g.upright = up;
+  g.globalAlpha = ga; g.setTransform(m); g.upright = up;
 }
 
 // ---- Ground round structures (Tiberian Sun style; owner, 2026-11-19, from a Tiberian Sun screenshot) ------------------
