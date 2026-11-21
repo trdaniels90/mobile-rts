@@ -4,6 +4,8 @@
 // the profile page adds them up (see supabase/profiles.sql). Playing without an account works as
 // before. As in report.js, nothing here may get in the way of the game: every call is wrapped and
 // fails quietly, and the session is kept only on this phone.
+// The owner's account (Supabase auth.users id): unlocks the map tools, Map view and Watch AI vs AI (ui.js, maps.js).
+const OWNER_UID = '1e98a3b6-40a2-45f9-a682-e4a506220989';
 const Account = (() => {
   const AUTH = SUPABASE.url + 'auth/v1/', REST = SUPABASE.url + 'rest/v1/', TIMEOUT = 8000;
   const load = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (_) { return null; } };
@@ -109,7 +111,7 @@ const Account = (() => {
 
   return {
     token, sendCode, verify, signOut, profile, setName, deleteAccount,
-    get signedIn() { return !!session; }, get uid() { return session ? session.uid || '' : ''; }, get email() { return session ? session.email : ''; }, get name() { return session ? name : ''; },
+    get signedIn() { return !!session; }, get uid() { return session ? session.uid || '' : ''; }, get owner() { return !!session && session.uid === OWNER_UID; }, get email() { return session ? session.email : ''; }, get name() { return session ? name : ''; },
     onChange(f) { listeners.push(f); },
   };
 })();

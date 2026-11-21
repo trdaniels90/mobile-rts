@@ -1242,7 +1242,8 @@ const MapSelect = (() => {
     const MODES = modes();
     root.querySelector('.map-body').innerHTML = mapCardsHtml(chosen) +
       `<div class="on-modes" role="radiogroup" aria-label="Battle">${MODES.map(([k, l]) => `<button type="button" class="pf-btn${k === mode ? ' on-go' : ''}" role="radio" aria-checked="${k === mode}" data-mode="${k}">${l}</button>`).join('')}</div>` +
-      '<div class="on-btns"><button type="button" class="pf-btn on-go" data-map-go>Start skirmish</button></div>';
+      '<div class="on-btns"><button type="button" class="pf-btn on-go" data-map-go>Start skirmish</button>' +
+      (typeof Account !== 'undefined' && Account.owner ? ' <button type="button" class="pf-btn" data-map-watch>Watch AI vs AI</button>' : '') + '</div>';
   }
   function build() {
     root = document.createElement('div');
@@ -1261,6 +1262,7 @@ const MapSelect = (() => {
       const m = e.target.closest('[data-mode]');
       if (m) { mode = m.dataset.mode; render(); return; }
       if (e.target.closest('[data-map-go]')) { const f = go; close(); if (f) f(chosen, mode); }
+      if (e.target.closest('[data-map-watch]')) { const f = go; close(); if (f) f(chosen, mode, true); }   // (owner only: ui.js startWatch)
     });
   }
   function open(selected, onGo) {

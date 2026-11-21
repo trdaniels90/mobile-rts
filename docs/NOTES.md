@@ -2163,3 +2163,9 @@ Supabase `auth.users` id; no email in the code). On, `G.seen` becomes an all-one
 defeat), so the shroud is gone and every unit shows; the radar works without a dome while it is on. Never online.
 A match where it was used carries `stats.mapView: true`, gets no leaderboard name box, and `Report.submitName` refuses it.
 Continuing a saved game starts with it off (`save.js` rebuilds `G.seen` from `G.fog`).
+
+**Watch AI vs AI** (same day): the skirmish map screen shows a "Watch AI vs AI" button to the owner (`Account.owner`).
+It starts the chosen map and battle (1 v 1, 2 v 2, 3 v 3) with every side a computer (`startWatch`, `G.spectate`), the
+whole map shown and the radar on, the sidebar's controls hidden (`body.spectate`) and the selection kept empty. Options
+offers Speed 1x/2x/4x (`G.speed`: extra simulation steps a frame). Nothing is reported or saved, and the saved skirmish is
+kept. The debrief says which side won; Rematch watches again.

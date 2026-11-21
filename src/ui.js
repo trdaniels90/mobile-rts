@@ -71,12 +71,12 @@
     setTimeout(() => {
       G.paused = true;
       Debrief.open(won, {
-        difficulty: vs ? 'Online vs ' + vs.opponent + ending : DIFFICULTY[diffKey].label,
+        difficulty: vs ? 'Online vs ' + vs.opponent + ending : G.spectate ? 'AI vs AI · ' + FACTIONS[G.teams.find((t) => t.ally === G.over.winner).faction].name + ' won' : DIFFICULTY[diffKey].label,
         // a win against the computer goes on the leaderboard: a 1 v 1 skirmish, or two-player online co-op (its own
         // board, scored as a team; three-player co-op has none yet)
         extra: won && !G.mapViewUsed && (vs ? vs.coop === 'board' : !teamGame()) ? Leaderboard.nameBox(Report.score(vs ? Report.teamStats() : G.teams[G.me].stats, G.over.t, vs ? vs.diff : diffKey)) : null,
         // same side and difficulty; online, back to the lobby page
-        onRematch: vs ? () => { Net.rematch(); startGame(); showMenu('start'); Online.open(faction); } : () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },
+        onRematch: vs ? () => { Net.rematch(); startGame(); showMenu('start'); Online.open(faction); } : G.spectate ? () => { endPlace(); startWatch(); hideMenu(); } : () => { endPlace(); startMission(); hideMenu(); eva('Select a structure to build'); },
         onNew: () => { if (vs) { Net.leave(); startGame(); } showMenu('start'); },
       });
       Sound.say(won ? 'Mission accomplished' : 'Mission failed');
@@ -406,11 +406,13 @@
     for (let i = 0; i < size * 2; i++) sides.push({ faction: i % 2 ? foe : f, ally: i % 2, ai: i !== 0 });
     return sides;
   }
-  function startGame(seed, mode = '1v1') {
+  function startGame(seed, mode = '1v1', watch = false) {
     const size = battleOf(mode).size;
-    if (size > 1 && !battleOf(mode).coop) newWorld(faction, diffKey, seed, 0, false, mapId, teamSides(faction, size));
+    if (watch) newWorld(faction, diffKey, seed, 0, false, mapId, teamSides(faction, size).map((d) => Object.assign(d, { ai: true })));
+    else if (size > 1 && !battleOf(mode).coop) newWorld(faction, diffKey, seed, 0, false, mapId, teamSides(faction, size));
     else newWorld(faction, diffKey, seed, mySide, false, mapId);
     online = null; mission = false;
+    if (watch) { G.spectate = true; G.mapViewUsed = true; G.speed = 1; G.seen = new Uint8Array(NCELLS).fill(1); }
     afterNewWorld(faction);
   }
   // resumed: a saved game, which keeps its auto attack and camera.
@@ -425,7 +427,8 @@
     cameoSig = { L: '', R: '' }; selSig = ''; lastCredits = null;
     // Auto attack starts off (new units spread out and guard the base): it can only be switched on
     // once an enemy building has been uncovered.
-    if (!resumed) G.teams[G.me].auto = false;
+    if (!resumed && !G.spectate) G.teams[G.me].auto = false;
+    document.body.classList.toggle('spectate', !!G.spectate);
     ui.autoBtn.setAttribute('aria-pressed', String(!!G.teams[G.me].auto));
     ui.allyBtn.hidden = ui.returnBtn.hidden = ui.giveBtn.hidden = !teamGame();
     if (giveEl) giveEl.hidden = true;
@@ -487,6 +490,14 @@
     Sound.newMatch();
     mission = true;
     Report.start(faction, diffKey);
+  }
+  // Watch AI vs AI (the owner's tool for tuning maps, 2026-11-21): every side a computer, the whole map shown, the
+  // controls hidden, nothing reported or saved (the saved skirmish is kept). Speed in the Options menu.
+  function startWatch() {
+    Net.leave();
+    if (mission) Report.quit();
+    startGame(undefined, battleMode, true);
+    Sound.newMatch();
   }
   // The skirmish under way is saved when the menu opens (which it also does when the phone locks or
   // switches apps) and every two minutes; Continue on the menu picks it up again.
@@ -2155,16 +2166,16 @@ function draw() {
   });
   // Skirmish opens the map screen first; starting from there builds the battle.
   ui.startBtn.addEventListener('click', () => {
-    MapSelect.open(mapId, (id, mode) => {
+    MapSelect.open(mapId, (id, mode, watch) => {
       mapId = id; battleMode = mode || '1v1';
       ui.startBtn.textContent = 'Loading…';
       ui.startBtn.disabled = true;
       setTimeout(() => {
         endPlace();
-        startMission();
+        if (watch && Account.owner) startWatch(); else startMission();
         ui.startBtn.disabled = false;
         hideMenu();
-        eva('Select a structure to build');
+        if (!G.spectate) eva('Select a structure to build');
       }, 30);
     });
   });
@@ -2172,20 +2183,21 @@ function draw() {
   // Map view (the owner's tool for tuning maps, 2026-11-21): the whole map shown, starting places and
   // every unit, in a skirmish only. The button shows only to the owner's account; a match where it was
   // used says so in its report (stats.mapView). Off again after a saved game is continued (save.js).
-  const MAP_VIEW_UID = '1e98a3b6-40a2-45f9-a682-e4a506220989';
   const mapViewOn = () => !!(G && G.seen !== G.fog[G.me]);
   function syncMapView(mode) {
     const b = $('mapViewBtn'), on = mapViewOn();
-    b.hidden = mode !== 'pause' || !!Net.role || Account.uid !== MAP_VIEW_UID || G.watching;
+    b.hidden = mode !== 'pause' || !!Net.role || !Account.owner || G.watching || !!G.spectate;
+    const s = $('speedBtn'); s.hidden = mode !== 'pause' || !G || !G.spectate; s.textContent = 'Speed: ' + ((G && G.speed) || 1) + 'x';
     b.setAttribute('aria-pressed', String(on)); b.textContent = 'Map view (owner): ' + (on ? 'whole map' : 'off');
   }
   $('mapViewBtn').addEventListener('click', () => {
-    if (!G || Net.role || Account.uid !== MAP_VIEW_UID) return;
+    if (!G || Net.role || !Account.owner) return;
     if (mapViewOn()) G.seen = G.fog[G.me];
     else { G.seen = new Uint8Array(NCELLS).fill(1); G.mapViewUsed = true; }
     G.shroudDirty = true; radarWas = null;
     syncMapView('pause');
   });
+  $('speedBtn').addEventListener('click', () => { if (G && G.spectate) { G.speed = G.speed >= 4 ? 1 : G.speed * 2; syncMapView('pause'); } });
   // Quit mission: tap twice (no dialogs, which some hosts block). The match is reported as quit,
   // with its debrief numbers so far, and the menu comes back over a fresh battlefield.
   let quitArmed = null;
@@ -2330,7 +2342,7 @@ function draw() {
       // game carries on, instead of the loop stopping and the battle freezing on both phones.
       const u0 = performance.now();
       if (Net.role === 'guest') guard('guest', () => Net.guestStep(dt));
-      else guard('update', () => { stepAcc += dt; while (stepAcc >= STEP) { stepAcc -= STEP; Smooth.keep(); update(STEP); } });
+      else guard('update', () => { if (G.spectate) { stepAcc += dt * ((G.speed || 1) - 1); G.selection.length = 0; } stepAcc += dt; while (stepAcc >= STEP) { stepAcc -= STEP; Smooth.keep(); update(STEP); } });
       guard('net', () => Net.hostTick(total));
       updMs = performance.now() - u0;
     }
@@ -2359,7 +2371,7 @@ function draw() {
   // the debrief now (a loss) or staying to watch with the whole map shown (then the alliance's result).
   let beatenEl = null;
   function beaten() {
-    const on = !!(G && !G.over && G.teams.length > 2 && G.teams[G.me] && G.teams[G.me].out);
+    const on = !!(G && !G.over && !G.spectate && G.teams.length > 2 && G.teams[G.me] && G.teams[G.me].out);
     if (on && G.watching) {
       if (G.seen === G.fog[G.me]) { G.seen = new Uint8Array(NCELLS).fill(1); G.shroudDirty = true; radarWas = null; }   // own copy: allies' sight stays theirs
     }

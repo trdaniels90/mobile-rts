@@ -642,3 +642,6 @@ body.touch #menuBtn::after { content: ''; position: absolute; left: -6px; right:
 .ap-row:disabled { opacity: 0.45; cursor: default; }
 .ap-cancel { justify-content: center; }
 .icon.aimed { box-shadow: inset 0 -4px 0 var(--aim); }
+
+/* Watch AI vs AI (owner's map tool, ui.js startWatch): only the radar stays in the sidebar. */
+body.spectate #sidebar .sb-buttons, body.spectate #sidebar .sb-strips, body.spectate #sidebar .sb-arrows { visibility: hidden; }
