@@ -2248,3 +2248,11 @@ frame, mostly structures and crags (`bld`), aircraft (`air`) and the sorted list
 - ui.js `autoRes` now also runs on computers: `PC_STEPS` (the screen's own, at most 3, then 1.25, then 1), slow being frames
   over `PC_SLOW_MS` (25 ms, under about 40 fps); same windows and stepping back up as phones. A step that would not lower
   the resolution (a 1x screen) is skipped. Headless 1280 x 720 at 1.5x with a 30 ms busy loop a frame: 1.5 -> 1.25 -> 1.
+- **Computers get the whole ground too (gl.js stage 6, RGBA):** owner (RTX 5080, 9800X3D, 2560 x 1370 at 1.5x): "zooming out all
+  the way i had 22 fps and tons of pop in". With WebGL a computer drew its ground from at most `TEX_MAX` (140) tile textures,
+  uploading 6 a frame; fully zoomed out at that size ~170 tiles are in view, so they were let go and uploaded again all the
+  time. Now `GROUND_ROOMY` devices (and `?gl=rgba`) keep every sheet as an RGBA texture (`RES_RGBA`: Frostlight ~110 MB of
+  graphics memory; nothing compressed, no workers), loaded behind the Loading card; folds are drawn and copied straight into
+  the sheet (`copyTexSubImage2D`), up to four a frame. Headless 2560 x 1370 (software GPU), Frostlight 3 v 3 at 6 min, fully
+  zoomed out, six jumps: frames with ground missing 47 of 120 before, 0 now; art.js tiles 417 before, 0 now. Loading 3.9 s
+  to 7.4 s headless (a real PC is far quicker). `?gl=noresident` turns it off.

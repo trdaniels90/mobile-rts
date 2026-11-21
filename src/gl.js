@@ -299,7 +299,11 @@ void main() {
   // turns it off for the battle and the ground is drawn as before. Village and Frostlight have their dressing painted
   // in before compressing (it depends on the houses); the other maps' compressed sheets are kept in the browser's cache
   // (RES_CACHE), so a later battle on the same map loads them at once.
-  const RES = !/[?&]gl=noresident\b/.test(q) && (/[?&]gl=resident\b/.test(q) || (typeof GROUND_ROOMY !== 'undefined' && !GROUND_ROOMY));
+  // Computers (GROUND_ROOMY) keep the sheets as they are (RGBA: Frostlight's whole ground ~110 MB of graphics memory, nothing
+  // to compress, folds drawn straight into the sheet): their 140-tile limit (TEX_MAX) was thrashing fully zoomed out on a
+  // 2560 px screen (~170 tiles in view: owner, 2026-11-21, "22 fps and tons of pop in" on an RTX 5080).
+  const RES = !/[?&]gl=noresident\b/.test(q);
+  const RES_RGBA = (typeof GROUND_ROOMY !== 'undefined' && GROUND_ROOMY) || /[?&]gl=rgba\b/.test(q);
   const RES_FOLD_IDLE = 2000, RES_OVER_MAX = 32, RES_FOLDS = 2, RES_CACHE = 'rh-etc-1';
   let etcExt, resPool = null, PM = null, PF = null, locM = null, locF = null, resQuad = null;
   // ETC1-style blocks (valid ETC2 RGB8): rgba pixels (w x h, multiples of 4) to 8-byte blocks, row by row. For each
@@ -399,15 +403,16 @@ void main() {
     S.res = { state: 'off' };
     if (!RES || !src || typeof Worker === 'undefined' || typeof createImageBitmap !== 'function') return;
     if (etcExt === undefined) etcExt = gl.getExtension('WEBGL_compressed_texture_etc') || null;
-    if (!etcExt) return;
+    const rgba = RES_RGBA;
+    if (!etcExt && !rgba) return;
     const per = src.per, SH = src.SH, total = per * per, g = G, id = validMap(G.mapId);
-    const R6 = S.res = { state: 'building', g, per, SH, total, done: 0, sheets: new Array(total), dims: new Array(total), over: new Map(), markAt: 0, redo: [], folding: 0, lastFold: 0, t0: performance.now() };
+    const R6 = S.res = { state: 'building', rgba, g, per, SH, total, done: 0, sheets: new Array(total), dims: new Array(total), over: new Map(), markAt: 0, redo: [], folding: 0, lastFold: 0, t0: performance.now() };
     const key = (i) => new URL('etc/' + id + '/' + i + '.etc' + src.q, location.href).href;
     let cache = null;
     const one = async (i) => {
       const sx = (i % per) * SH, sy = Math.floor(i / per) * SH, w = Math.min(SH, WORLD - sx), h = Math.min(SH, WORLD - sy), w4 = (w + 3) & ~3, h4 = (h + 3) & ~3;
       let data = null;
-      if (cache) try { const r = await cache.match(key(i)); if (r) data = new Uint8Array(await r.arrayBuffer()); } catch (_) {}
+      if (cache && !rgba) try { const r = await cache.match(key(i)); if (r) data = new Uint8Array(await r.arrayBuffer()); } catch (_) {}
       if (!data || data.length !== (w4 >> 2) * (h4 >> 2) * 8) {
         const r = await fetch(src.dir + i + '.webp' + src.q);
         if (!r.ok) throw new Error('sheet ' + i + ' ' + r.status);
@@ -418,6 +423,15 @@ void main() {
         if (w4 > w) x.drawImage(c, w - 1, 0, 1, h, w, 0, w4 - w, h);   // (the edge carried on to whole blocks)
         if (h4 > h) x.drawImage(c, 0, h - 1, w4, 1, 0, h, w4, h4 - h);
         if (!src.dressed && typeof lookDressRegion === 'function' && LOOK.dress && G === g) lookDressRegion(x, sx, sy, w, h);
+        if (rgba) {   // (computers: the sheet as it is)
+          if (R6.state !== 'building' || failed || !gl) return;
+          const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, w4, h4);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, c); c.width = c.height = 0;
+          R6.sheets[i] = t; R6.dims[i] = [sx, sy, w4, h4]; R6.done++;
+          return;
+        }
         const px = x.getImageData(0, 0, w4, h4).data; c.width = c.height = 0;
         data = await etcAsync(new Uint8Array(px.buffer), w4, h4);
         if (cache) try { await cache.put(key(i), new Response(data.slice())); } catch (_) {}
@@ -430,11 +444,11 @@ void main() {
       R6.sheets[i] = t; R6.dims[i] = [sx, sy, w4, h4]; R6.done++;
     };
     (async () => {
-      resWorkers();
+      if (!rgba) resWorkers();
       try { if (src.dressed && typeof caches !== 'undefined') cache = await caches.open(RES_CACHE); } catch (_) { cache = null; }
       let next = 0;
       const lane = async () => { while (next < total && R6.state === 'building') await one(next++); };
-      await Promise.all(Array.from({ length: resPool.ws.length + 1 }, lane));
+      await Promise.all(Array.from({ length: rgba ? 4 : resPool.ws.length + 1 }, lane));
       if (R6.state === 'building') { R6.state = 'marks'; R6.ms = Math.round(performance.now() - R6.t0); note('resident ' + R6.ms + ' ms'); }
     })().catch((e) => resOff(R6, (e && e.message) || String(e)));
   }
@@ -501,6 +515,12 @@ void main() { ivec2 p = ivec2(gl_FragCoord.xy); vec4 b = texelFetch(uB, p + uOff
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ov.t); gl.uniform1i(locF.uO, 1);
     gl.uniform2i(locF.uOff, x0 - d[0], y0 - d[1]);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    if (R6.rgba) {   // (computers: copied straight into the sheet, at once)
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, R6.sheets[i]);
+      gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, x0 - d[0], y0 - d[1], 0, 0, w4, h4);
+      gl.deleteTexture(ov.t); gl.deleteFramebuffer(ov.f); R6.over.delete(k); R6.folds = (R6.folds || 0) + 1;
+      return;
+    }
     const px = new Uint8Array(w4 * h4 * 4); gl.readPixels(0, 0, w4, h4, gl.RGBA, gl.UNSIGNED_BYTE, px);
     const snap = ov.marks.length;
     R6.folding++; ov.folding = true;
@@ -533,7 +553,7 @@ void main() { ivec2 p = ivec2(gl_FragCoord.xy); vec4 b = texelFetch(uB, p + uOff
       }
       R6.backlog = [...by]; R6.markAt = G.marks.length;
     }
-    const work = R6.redo.length || R6.markAt < G.marks.length || (R6.backlog && R6.backlog.length) || (R6.folding < RES_FOLDS && t0 - R6.lastFold > 100 && R6.over.size);
+    const work = R6.redo.length || R6.markAt < G.marks.length || (R6.backlog && R6.backlog.length) || (R6.folding < RES_FOLDS && (R6.rgba || t0 - R6.lastFold > 100) && R6.over.size);
     if (!work) { if (R6.state === 'marks' && !R6.folding) resReady(R6); return; }
     gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
     gl.bindBuffer(gl.ARRAY_BUFFER, resQuad); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
@@ -547,10 +567,12 @@ void main() { ivec2 p = ivec2(gl_FragCoord.xy); vec4 b = texelFetch(uB, p + uOff
     while (R6.markAt < G.marks.length && performance.now() - t0 < budget) resMark(R6, A, R6.markAt++);
     // A fold every 100 ms at most, two at a time: the overlay touched longest ago, once it has been quiet RES_FOLD_IDLE ms,
     // or at once while there are more than RES_OVER_MAX (a big battle marking the ground everywhere).
-    if (R6.folding < RES_FOLDS && t0 - R6.lastFold > 100) {
+    for (let f = 0; f < (R6.rgba ? 4 : 1) && R6.folding < RES_FOLDS && (R6.rgba || t0 - R6.lastFold > 100); f++) {
       let pick = null;
       for (const [k, ov] of R6.over) if (!ov.folding && (!pick || ov.last < pick[1].last)) pick = [k, ov];
-      if (pick && (t0 - pick[1].last > RES_FOLD_IDLE || R6.over.size > RES_OVER_MAX)) { R6.lastFold = t0; resFold(R6, A, pick[0], pick[1]); }
+      if (!pick || !(t0 - pick[1].last > RES_FOLD_IDLE || R6.over.size > RES_OVER_MAX)) break;
+      R6.lastFold = t0; resFold(R6, A, pick[0], pick[1]);
+      gl.enable(gl.BLEND);
     }
     gl.disable(gl.BLEND); gl.disableVertexAttribArray(0); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     if (R6.state === 'marks' && R6.markAt >= G.marks.length && !R6.redo.length && !(R6.backlog && R6.backlog.length) && !R6.folding) resReady(R6);
