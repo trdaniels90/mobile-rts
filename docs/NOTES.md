@@ -2095,3 +2095,15 @@ Owner (iPhone): "Clicking around the map on my current mobile game causes a lot 
   (`!GROUND_ROOMY`) now keeps `CLIFF_KEEP` (3500, ~35 MB), the least recently seen let go.
 - Checked headless (SwiftShader, 440 x 894 touch, Snowbound, camera jumped to far corners): the first frame after a jump
   shows the preview instead of flat blocks; no errors.
+
+## Cliffs block direct fire; no flame on the Soviet refinery (after 2026.11.21.2, not released)
+- **Cliffs block fire (both modes; the server must match):** owner, 2026-11-21: "tanks/soldiers are shooting through cliffs".
+  world.js `clearShot(a, t, w)`: the line from shooter to target (a structure: its nearest edge), checked every third of a cell,
+  is blocked by a ridge cell of `G.cliff` (`ridgeCells`: a cliff cell with 2 or more cliff neighbours, so lone boulders do not
+  block; cached per map). Lobbed rounds (`LOBBED`: artillery, V2, grenades) and anything to or from the air are never blocked.
+  Used in `acquire` (blocked targets are skipped), `engage` (a unit that picked a target itself lets it go; one ordered to attack
+  it, or after a structure, drives toward it until the line is clear: `u.round` keeps it going round when the way takes it out
+  of reach), garrisoned soldiers and base defences (re-acquire when blocked). Only the layout maps have `G.cliff`.
+  Headless check: tank 4 cells from a rifleman across a River ridge fired at 0.4 s before, never through it after.
+- **Soviet Ore Refinery:** the flame on its corner flare stack (a glowing blob on a thin pipe, read as a stray fire on the
+  roof) removed from the model and `tools/blender/refinery.py`; sprites and normal maps rebaked.

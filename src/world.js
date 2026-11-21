@@ -1196,7 +1196,7 @@ function updateGarrison(u, dt) {
     if (!u.target || u.target.kind !== 'unit') u.target = acquire(u, w.range + more, [w]) || u.target;
   }
   const t = u.target;
-  if (t && u.cd <= 0 && canHit(w, t)) {
+  if (t && u.cd <= 0 && canHit(w, t) && clearShot(u, t, w)) {
     u.face = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
     shoot(u, w, t);   // full bursts from the window (rifles 3, the MG Team 6)
     u.cd = w.rof * VET.reload[u.rank || 0];
@@ -1880,6 +1880,37 @@ function canHit(w, t) {
   if (w.spareTanks && missileMark(t)) return false;    // its chain gun leaves those to the missiles (airWeapons lifts this once they are spent)
   return w.ground !== false;
 }
+// Cliffs block direct fire (owner, 2026-11-21: "tanks/soldiers are shooting through cliffs"; both modes). A line from the
+// shooter to the target (a structure: its nearest edge) that crosses a ridge cell of G.cliff is blocked; lone boulders
+// (a cliff cell with under 2 cliff neighbours) are not. Lobbed rounds (artillery, V2 rockets, grenades) go over, and
+// nothing to or from the air is blocked. acquire skips blocked targets; engage walks round to a clear shot.
+const LOBBED = { artyshell: 1, v2: 1, grenade: 1 };
+let ridgeOf = null, ridge = null;
+function ridgeCells() {
+  if (ridgeOf === G.cliff) return ridge;
+  ridgeOf = G.cliff; ridge = new Uint8Array(NCELLS);
+  for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
+    if (!G.cliff[y * MAP + x]) continue;
+    let n = 0;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if ((i || j) && inMap(x + i, y + j) && G.cliff[(y + j) * MAP + x + i]) n++;
+    if (n >= 2) ridge[y * MAP + x] = 1;
+  }
+  return ridge;
+}
+function clearShot(a, t, w) {
+  if (!G.cliff || (w && LOBBED[w.proj])) return true;
+  if ((a.kind === 'unit' && isAirborne(a)) || (t.kind === 'unit' && isAirborne(t))) return true;
+  let tx = t.x, ty = t.y;
+  if (t.kind === 'bld' || t.kind === 'span' || t.kind === 'house') {
+    tx = Math.max(t.cx * CELL + 1, Math.min((t.cx + t.w) * CELL - 1, a.x)); ty = Math.max(t.cy * CELL + 1, Math.min((t.cy + t.h) * CELL - 1, a.y));
+  }
+  const R = ridgeCells(), dx = tx - a.x, dy = ty - a.y, n = Math.ceil(Math.hypot(dx, dy) / (CELL / 3));
+  for (let i = 1; i < n; i++) {
+    const cx = Math.floor((a.x + dx * i / n) / CELL), cy = Math.floor((a.y + dy * i / n) / CELL);
+    if (inMap(cx, cy) && R[cy * MAP + cx]) return false;
+  }
+  return true;
+}
 function canTarget(u, t) { return canHit(u.def.weapon, t) || canHit(u.def.weapon2, t); }
 
 // Who is where, in buckets of GRID_CELLS cells, rebuilt at the start of every step (update): target
@@ -1939,6 +1970,7 @@ function acquire(src, range, weapons, visible, favour) {
     if (visible && !visible(e)) continue;
     const d = distTo(src, e);
     if (d > range) continue;
+    if (!weapons.some((w) => w && canHit(w, e) && clearShot(src, e, w))) continue;   // behind a cliff
     let score = d;
     if (e.kind === 'bld') score += e.def.weapon ? 15 : 60;   // defences before harmless structures
     else if (!e.def.weapon && !e.def.harvester) score += 20;
@@ -3851,7 +3883,17 @@ function engage(u, t, dt) {
       }
     }
   }
-  if (d <= w.range) {
+  // In reach but behind a cliff: a unit that picked it itself lets it go; ordered at it (or at a structure), it goes round
+  // (u.round: the target it is going round to, so the way round taking it out of reach does not turn it back).
+  const blocked = (d <= w.range || u.round === t.id) && !clearShot(u, t, w);
+  if (!blocked) u.round = null;
+  if (blocked) {
+    if (t.kind === 'unit' && !(u.order && u.order.type === 'attack')) { u.target = null; u.round = null; return; }
+    u.round = t.id;
+    if (!u.needPath && (!u.dest || Math.hypot(u.dest.x - t.x, u.dest.y - t.y) > 40)) goTo(u, t.x, t.y);
+    followPath(u, dt);
+    if (u.cls === 'veh') u.tface = turnToward(u.tface, ang, 3 * dt);
+  } else if (d <= w.range) {
     u.dest = null; u.path = null;
     if (!inCover && !(u.def.setup && u.setup > 0) && slideOut(u, t, w, dt) && u.cls === 'inf') return;   // infantry find their place first, then fire (an MG Team setting up stays put)
     let aligned = true;
@@ -5232,13 +5274,13 @@ function updateBuilding(b, dt) {
     b.think = 0.3;
     if (b.def.camo) for (const e of G.entities) if (e.alive && e.kind === 'unit' && hostile(e.team, b.team) && !isAirborne(e) && Math.hypot(e.x - b.x, e.y - b.y) < CAMO_DETECT) { b.revealT = CAMO_REVEAL; break; }
     const src = { x: b.x, y: b.y, team: b.team };
-    if (!b.target || !b.target.alive || distTo(src, b.target) > w.range) b.target = acquire(src, w.range, [w]);
+    if (!b.target || !b.target.alive || distTo(src, b.target) > w.range || !clearShot(b, b.target, w)) b.target = acquire(src, w.range, [w]);
   }
   const t = b.target;
   if (!t || !t.alive) return;
   const ang = Math.atan2(t.y - (t.alt || 0) - b.y, t.x - b.x);
   if (b.type !== 'tesla') b.tface = turnToward(b.tface, ang, 5 * dt);
-  if (b.cd <= 0 && (b.type === 'tesla' || Math.abs(angDiff(ang, b.tface)) < 0.15)) { shoot(b, w, t); b.cd = w.rof; if (b.def.camo) b.revealT = CAMO_REVEAL; }
+  if (b.cd <= 0 && clearShot(b, t, w) && (b.type === 'tesla' || Math.abs(angDiff(ang, b.tface)) < 0.15)) { shoot(b, w, t); b.cd = w.rof; if (b.def.camo) b.revealT = CAMO_REVEAL; }
   if (w.jet) flameBurn(b, w, t, dt);
 }
 

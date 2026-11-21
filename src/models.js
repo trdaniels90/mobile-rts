@@ -4583,17 +4583,7 @@ const SOVIET = {
     m.box(48, 10, 49, 49, 14, 51, '#1c1c1a', M_METAL);
     m.box(59, 10, 49, 60, 14, 51, '#1c1c1a', M_METAL);
     m.box(4, 4, 50, 6, 5, 51, '#3a3a36', M_METAL);
-    m.box(4, 5, 50, 6, 7, 54, '#ff8a2a', M_GLOW);
     m.box(4, 7, 50, 6, 8, 51, '#3a3a36', M_METAL);
-    m.box(4, 4, 51, 6, 5, 56, '#ff8a2a', M_GLOW);
-    m.box(3, 5, 51, 4, 7, 56, '#ff8a2a', M_GLOW);
-    m.box(6, 5, 51, 7, 7, 56, '#ff8a2a', M_GLOW);
-    m.box(4, 7, 51, 6, 8, 56, '#ff8a2a', M_GLOW);
-    m.box(3, 4, 53, 4, 5, 54, '#ff8a2a', M_GLOW);
-    m.box(6, 4, 53, 7, 5, 54, '#ff8a2a', M_GLOW);
-    m.box(3, 7, 53, 4, 8, 54, '#ff8a2a', M_GLOW);
-    m.box(6, 7, 53, 7, 8, 54, '#ff8a2a', M_GLOW);
-    m.box(4, 5, 54, 6, 7, 56, '#ffe08a', M_GLOW);
     bannersV(m, 'refinery');
     starFront(m, 13.5, 44, 5, 2.4, pal.main);
     return m;
