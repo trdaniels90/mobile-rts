@@ -538,26 +538,27 @@
 const gateAnim = new Map();   // cell -> { v: how far a gate's barrier is down (0 to 1), t: when last drawn }
 // Phones keep at most SPRITE_KEEP sprites made in play (owner, 2026-11-21, after a 3 v 3 crashed a phone: "1", lighter
 // memory on phones). Soldiers' frames at every facing in six colours came to some 3,700 pictures by 18 minutes, all kept.
-// Only pictures made here (canvases) are let go, least lately drawn first and none drawn in the last SPRITE_IDLE frames;
+// Only pictures made here (canvases) are let go, least lately drawn first and none drawn in the last SPRITE_IDLE ms;
 // baked ones (ImageBitmaps from sprites/) stay. One let go is simply made again when next drawn (within SPRITE_BUDGET).
-const SPRITE_KEEP = typeof GROUND_ROOMY !== 'undefined' && GROUND_ROOMY ? Infinity : 1500, SPRITE_IDLE = 600;
-const spriteUsed = new Map();   // spriteCache2 key -> the frame it was last drawn
-let spriteFrame = 0;
+const SPRITE_KEEP = typeof GROUND_ROOMY !== 'undefined' && GROUND_ROOMY ? Infinity : 1500, SPRITE_IDLE = 10000;
+const spriteUsed = new Map();   // spriteCache2 key -> when it was last drawn (the frame's time)
+let spriteFrame = 0, spriteNow = 0;
 if (SPRITE_KEEP < Infinity && typeof sprite === 'function') {
   const orig = sprite;
   sprite = function (mkey, build, angle, fkey, opts) {
     const s = orig(mkey, build, angle, fkey, opts);
-    if (s && s.img && !(typeof ImageBitmap !== 'undefined' && s.img instanceof ImageBitmap)) spriteUsed.set((FLAT_PASS ? mkey + '~flat' : mkey) + '|' + fkey, spriteFrame);
+    if (s && s.img && !(typeof ImageBitmap !== 'undefined' && s.img instanceof ImageBitmap)) spriteUsed.set((FLAT_PASS ? mkey + '~flat' : mkey) + '|' + fkey, spriteNow);
     return s;
   };
 }
 function trimSprites() {
   if (spriteUsed.size <= SPRITE_KEEP) return;
-  const old = [...spriteUsed].filter((e) => spriteFrame - e[1] > SPRITE_IDLE).sort((a, b) => a[1] - b[1]);
+  const old = [...spriteUsed].filter((e) => spriteNow - e[1] > SPRITE_IDLE).sort((a, b) => a[1] - b[1]);
   for (let i = 0; i < old.length && spriteUsed.size > SPRITE_KEEP * 0.8; i++) { spriteCache2.delete(old[i][0]); spriteUsed.delete(old[i][0]); }
 }
 function draw() {
     spriteSpend = 0;   // (models.js: sprites made this frame)
+    spriteNow = performance.now();
     if (++spriteFrame % 120 === 0) trimSprites();
     // Where the drawing time goes, part by part (art.js drawParts, for the match report): lap(k) adds the time since
     // the last lap to part k.

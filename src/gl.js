@@ -190,10 +190,12 @@ void main() {
     try {
       if (!gl && !init()) return false;
       state(); S.frame++; R.frames++;
-      // Pictures with a texture of their own (spriteTex) let it go once not drawn for TEX_IDLE frames. The game drops and
+      // Pictures with a texture of their own (spriteTex) let it go once not drawn for TEX_IDLE ms. The game drops and
       // makes again tree blocks, crags and the like to save memory; their textures were kept for ever (a phone's 3 v 3
       // battle ran out of memory after some 17 minutes, 2026-11-21). One drawn again later is simply uploaded again.
-      if (R.frames % 60 === 0) for (const [img, e] of texOf) if (R.frames - e.used > TEX_IDLE) { gl.deleteTexture(e.t); texOf.delete(img); }
+      const tNow = performance.now();
+      if (R.frames % 60 === 0) for (const [img, e] of texOf) if (tNow - e.used > TEX_IDLE) { gl.deleteTexture(e.t); texOf.delete(img); }
+      if (atlWipe && atl && atl.length) { atlWipe = false; let a = 0; for (let i = 1; i < atl.length; i++) if (atl[i].born < atl[a].born) a = i; emptyAtlas(atl[a]); }
       const A = G.ground.gl;
       FW = VW; FH = VH;   // (the frame's size: the view's)
       sceneFb(VW, VH);   // (stage 4: into the scene's framebuffer, colour and normals; the light pass draws it into the canvas)
@@ -297,7 +299,7 @@ void main() {
   function spriteTex(img) {
     let e = texOf.get(img);
     const w = img.width, h = img.height;
-    if (e) e.used = R.frames;
+    if (e) e.used = performance.now();
     if (e && e.w === w && e.h === h && e.ver === img._ver) return e.t;
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     const t = e ? e.t : gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
@@ -305,7 +307,7 @@ void main() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-    texOf.set(img, { t, w, h, ver: img._ver, used: R.frames });   // (_ver: a picture that changes, drawn again into its texture when it has)
+    texOf.set(img, { t, w, h, ver: img._ver, used: performance.now() });   // (_ver: a picture that changes, drawn again into its texture when it has)
     return t;
   }
   // ---- Stage 2b: atlases and normal maps -----------------------------------------------------------------------
@@ -314,9 +316,9 @@ void main() {
   // for normal maps: a picture's normal map (red, green: its surface's direction turned with the view; blue: height) is
   // worked out from its voxel model (nrmPic, the same projection as voxel.js renderVox) when first drawn, at most NRM_MS
   // ms a frame, and put at the same spot. Larger pictures keep a texture of their own (spriteTex).
-  const ATL = 2048, ATL_N = typeof GROUND_ROOMY !== 'undefined' && !GROUND_ROOMY ? 2 : 3, PIC_MAX = 400, NRM_MS = 3, TEX_IDLE = 600;   // (phones: 2 pages, 33.5 MB less: owner, 2026-11-21)
+  const ATL = 2048, ATL_N = typeof GROUND_ROOMY !== 'undefined' && !GROUND_ROOMY ? 2 : 3, PIC_MAX = 400, NRM_MS = 3, TEX_IDLE = 10000;   // (phones: 2 pages, 33.5 MB less: owner, 2026-11-21)
   const SHOW_N = /[?&]gl=normals\b/.test(q);
-  let atl = null, nrmSpend = 0;
+  let atl = null, nrmSpend = 0, atlWipe = false;
   const whiteAt = new WeakMap();   // texture -> the uv of its white pixel (atlases): coloured shapes drawn from it join the pictures' runs
   const place = new WeakMap();
   function atlasFor(img) {
@@ -329,8 +331,11 @@ void main() {
     if (a < 0 && atl.length < ATL_N) { a = atl.length; atl.push(newAtlas()); }
     if (a < 0) {   // all full: empty the one drawn least lately (its pictures go in again as they are drawn)
       a = 0; for (let i = 1; i < atl.length; i++) if (atl[i].used < atl[a].used) a = i;
-      if (atl[a].used === S.frame) { R.atlFull = (R.atlFull || 0) + 1; return null; }   // (all in use this very frame: draw this one on its own)
-      atl[a].gen++; atl[a].sh = { x: 0, y: 0, h: 0 }; R.atlEmptied = (R.atlEmptied || 0) + 1;
+      // (all in use this very frame: draw this one on its own, and empty the page filled longest ago at the next frame's
+      // start, atlWipe; before, once every page was full and drawn from each frame, none was ever emptied again and every
+      // new picture got a texture of its own for the rest of the battle)
+      if (atl[a].used === S.frame) { R.atlFull = (R.atlFull || 0) + 1; atlWipe = true; return null; }
+      emptyAtlas(atl[a]);
     }
     const A = atl[a], sh = A.sh;
     if (sh.x + w > ATL - 2) { sh.y += sh.h + 1; sh.x = 0; sh.h = 0; }   // (ATL - 2: the last column keeps a white pixel, for coloured shapes in the same run)
@@ -342,12 +347,13 @@ void main() {
     A.used = S.frame; place.set(img, e);
     return e;
   }
+  function emptyAtlas(A) { A.gen++; A.sh = { x: 0, y: 0, h: 0 }; A.born = R.frames; R.atlEmptied = (R.atlEmptied || 0) + 1; }
   function fits(A, w, h) { const sh = A.sh; return (sh.x + w <= ATL - 2 && sh.y + Math.max(sh.h, h) <= ATL) || (sh.y + sh.h + 1 + h <= ATL && w <= ATL - 2); }
   function newAtlas() {
     const mk = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, ATL, ATL);
       for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; };
-    const A = { t: mk(), n: mk(), gen: 0, used: 0, sh: { x: 0, y: 0, h: 0 } };
+    const A = { t: mk(), n: mk(), gen: 0, used: 0, born: R.frames, sh: { x: 0, y: 0, h: 0 } };
     gl.bindTexture(gl.TEXTURE_2D, A.t); gl.texSubImage2D(gl.TEXTURE_2D, 0, ATL - 1, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));   // (the white pixel)
     whiteAt.set(A.t, [(ATL - 0.5) / ATL, 0.5 / ATL]);
     return A;
