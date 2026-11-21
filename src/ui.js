@@ -2218,14 +2218,19 @@ function draw() {
   // Deploying: a battle (new, continued or online) starts behind a short card while this battle's sprite sheets load
   // (art.js SpriteSheets) and the ground on screen is painted (art.js makeGround), so its first seconds do not
   // stutter. A skirmish is held meanwhile; an online battle runs on (others are in it). Never longer than LOAD_MAX ms.
-  const LOAD_MAX = 3000, LOAD_MIN = 250;
+  // It also stays up until the frames come smoothly (SETTLE_MS without a frame 250 ms late, at most SETTLE_MAX): the
+  // owner's iPhone with WebGL froze 3-4 s four times in a battle's first seconds (the graphics process, not the game's
+  // code), and the battle ran on and jumped between them, with the camera catching up on a finger's moves at once.
+  const LOAD_MAX = 3000, LOAD_MIN = 250, SETTLE_MS = 600, SETTLE_MAX = 20000;
   let loadFor = null, loadEl = null;
   function loading(now) {
     if (!G || G.paused || G.over) return false;
-    if (!loadFor || loadFor.g !== G) loadFor = { g: G, since: now, done: false };
+    if (!loadFor || loadFor.g !== G) loadFor = { g: G, since: now, done: false, at: now, slow: -1e9, nSlow: 0 };
     if (loadFor.done) return false;
+    if (now - loadFor.at > 250 && !document.hidden) { loadFor.slow = now; loadFor.nSlow++; }
+    loadFor.at = now;
     const t = now - loadFor.since, ready = SpriteSheets.ready() && G.ground && G.ground.missing === 0 && t > LOAD_MIN;
-    if (ready || t > LOAD_MAX) { loadFor.done = true; loadFor.t = { ms: Math.round(t), full: !ready }; showLoading(false); return false; }
+    if (((ready || t > LOAD_MAX) && now - loadFor.slow > SETTLE_MS) || t > SETTLE_MAX) { loadFor.done = true; loadFor.t = { ms: Math.round(t), full: !ready, slow: loadFor.nSlow }; showLoading(false); return false; }
     if (t > 120) showLoading(true);   // (a fast device is ready before the card would even show)
     return true;
   }

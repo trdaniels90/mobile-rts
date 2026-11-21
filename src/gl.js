@@ -83,6 +83,24 @@ void main() {
     const game = document.getElementById('game'); if (game && game.parentNode) game.parentNode.insertBefore(cv, game);
     gl = cv.getContext('webgl2', { alpha: false, antialias: false, depth: false, premultipliedAlpha: true, preserveDrawingBuffer: false });
     if (!gl) { failed = true; return false; }
+    // What the GPU was handed since the last frame report (report.js noteFrame takes and empties it): the iPhone froze
+    // 3-4 s a few times at the start of a battle with the game's own code taking ~3 ms, so the stall is in the
+    // graphics process; these say which kind of work came just before it. tx/txMB: textures made and their size,
+    // up/upMB: uploads, pg: programs linked, fb: framebuffers and renderbuffers made, bl: blend states first used.
+    R.ev = { tx: 0, txMB: 0, up: 0, upMB: 0, pg: 0, fb: 0, bl: 0 };
+    try {
+      const ev = R.ev, MB = 1 / 1048576, blSeen = new Set();
+      const size = (a) => { const s = a[a.length - 1]; return s && (s.width || s.videoWidth) ? (s.width || s.videoWidth) * (s.height || s.videoHeight) * 4 : s && s.byteLength ? s.byteLength : 0; };
+      const wrap = (k, f) => { const o = gl[k].bind(gl); gl[k] = function () { try { f(arguments); } catch (_) {} return o.apply(null, arguments); }; };
+      wrap('texStorage2D', (a) => { ev.tx++; ev.txMB += a[3] * a[4] * 4 * MB; });
+      wrap('texImage2D', (a) => { ev.up++; ev.upMB += (a.length >= 9 ? a[3] * a[4] * 4 : size(a)) * MB; });
+      wrap('texSubImage2D', (a) => { ev.up++; ev.upMB += (a.length >= 9 ? a[4] * a[5] * 4 : size(a)) * MB; });
+      wrap('linkProgram', () => { ev.pg++; });
+      wrap('createFramebuffer', () => { ev.fb++; });
+      wrap('renderbufferStorage', () => { ev.fb++; });
+      wrap('blendFunc', (a) => { const k = a[0] + ':' + a[1]; if (!blSeen.has(k)) { blSeen.add(k); ev.bl++; } });
+      wrap('blendFuncSeparate', (a) => { const k = a.join(':'); if (!blSeen.has(k)) { blSeen.add(k); ev.bl++; } });
+    } catch (_) {}
     try { const ext = gl.getExtension('WEBGL_debug_renderer_info'); R.gpu = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)).slice(0, 160); } catch (_) {}
     cv.addEventListener('webglcontextrestored', () => note('context restored'));
     cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); failed = true; unlive(); note('context lost'); });   // (handled: the 2D way carries on)

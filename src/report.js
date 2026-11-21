@@ -181,7 +181,7 @@ const Report = (() => {
       // game's code after it), so long frames are put down to `prev`.
       const gm = G && G.ground ? G.ground.ms || 0 : 0;
       const cur = { upd, drw, gnd: gm, spr: typeof spriteMs === 'number' ? spriteMs : 0, sprN: typeof spriteN === 'number' ? spriteN : 0,
-        oth: other || 0, tiles: G && G.ground ? G.ground.made || 0 : 0, dp: drw > 100 && typeof drawParts === 'object' ? { ...drawParts } : null };
+        oth: other || 0, tiles: G && G.ground ? G.ground.made || 0 : 0, dp: drw > 100 && typeof drawParts === 'object' ? { ...drawParts } : null, ge: glEv() };
       const p = prev; prev = cur;
       if (!G || G.over) return;
       const P = G.perf || (G.perf = { min: [] });
@@ -192,7 +192,7 @@ const Report = (() => {
         if (P.fz.length < 8) {
           const r = (v) => Math.round(v);
           P.fz.push({ t: r(G.t), st: state || '', gap: r(gap * 1000), upd: r(p.upd), drw: r(p.drw), gnd: r(p.gnd), spr: r(p.spr), sprN: p.sprN, oth: r(p.oth),
-            tiles: p.tiles, miss: G.ground ? G.ground.missing || 0 : 0, gl: typeof GLR === 'object' && GLR && GLR.on ? 1 : 0, dp: p.dp ? partsOf(p.dp, 1) : undefined });
+            tiles: p.tiles, miss: G.ground ? G.ground.missing || 0 : 0, gl: typeof GLR === 'object' && GLR && GLR.on ? 1 : 0, dp: p.dp ? partsOf(p.dp, 1) : undefined, ge: p.ge || undefined });
         }
       }
       if (state || G.paused || G.hold || gap > 1 || document.hidden) return;   // a gap over a second is a pause
@@ -231,6 +231,14 @@ const Report = (() => {
       if (G.ground && G.ground.missing) m.wait++;
       if (!m.units) m.units = G.entities.filter((e) => e.alive && e.kind === 'unit').length;
     } catch (_) {}
+  }
+  // What WebGL handed the GPU in this frame (gl.js R.ev), taken and emptied; null when nothing.
+  function glEv() {
+    const ev = typeof GLR === 'object' && GLR && GLR.ev;
+    if (!ev) return null;
+    let any = false; const o = {};
+    for (const k in ev) { if (ev[k]) { any = true; o[k] = k.endsWith('MB') ? Math.round(ev[k] * 10) / 10 : ev[k]; } ev[k] = 0; }
+    return any ? o : null;
   }
   // Drawing parts as ms (one decimal), counts (nTree, nUnit, nFx) whole; `n` frames to average over.
   function partsOf(p, n) {

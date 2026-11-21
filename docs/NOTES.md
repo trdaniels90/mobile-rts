@@ -2046,6 +2046,22 @@ Headless (desktop CPU): Frostlight 3 v 3 at a phone's 440 x 894 x 3 runs out the
 phone did: 21 frames with stand-in ground after the card); A Bridge Too Far once had a 750 ms frame under the card,
 534 ms of it the ground. No freeze of seconds reproduced headless (SwiftShader WebGL is slow on every frame).
 
+## Start-of-battle freezes on the iPhone with WebGL (after 2026.11.21, not released, both modes, looks and reporting only)
+
+Owner: "Started a new skirmish on mobile. Game was unresponsive for a few seconds and jumped around." Match f0ee3edc
+(2026.11.21, Frostlight, iPhone 440 x 894, WebGL): 4 frames 2.7-4.1 s late in the first 2 s of the battle (14.3 s in all),
+the game's own code ~3 ms in each, so the stall is in the graphics process. Match 75f2808a (2026.11.20.1, Frostlight, WebGL)
+the same (4, 13.7 s); after them 59-60 fps. The Deploying card had given up at 3 s (`load.full`), so the battle ran and the
+camera leapt after each freeze (a pan applies the finger's moves queued during the stall all at once). The shaders are tiny,
+so it is probably not their compiling; not reproduced headless.
+- **Card holds until smooth** (`ui.js` loading): after the sheets and ground are ready (or LOAD_MAX), it stays until
+  `SETTLE_MS` (600 ms) has passed without a frame 250 ms late, at most `SETTLE_MAX` (20 s). Covers the screen, so no touches
+  reach the camera. `frames.load.slow`: late frames under the card. Headless: a 3 s stall at 0.3 s held the battle at 0:00
+  until 4.6 s, then it ran.
+- **What the GPU got** (`gl.js` R.ev, wrapped gl calls; `report.js` glEv): each `fz` row has `ge` for the frame before the
+  freeze: `tx`/`txMB` textures made, `up`/`upMB` uploads, `pg` programs linked, `fb` framebuffers/renderbuffers, `bl` blend
+  states first used. Query: `select started_at, stats->'frames'->'load', stats->'frames'->'fz' from matches order by started_at desc`.
+
 ## Phones draw at 2x, not 3x (after 2026.11.20, not released, both modes, looks and heat only)
 
 Owner: "while playing my phone is getting really hot"; picked "Draw at 2x on phones" (over a 30 fps battery saver). `ui.js`
