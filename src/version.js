@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.21.2', date: '21 November 2026', title: 'Quicker menus', groups: [
+    ['Fixed', [
+      'Menus could be slow to respond on phones: the battle behind them was redrawn all the time even though it was paused. It is now drawn once while the menu is open, which also saves battery.',
+    ]],
+  ] },
   { v: '2026.11.21.1', date: '21 November 2026', title: 'Smoother battle starts', groups: [
     ['Fixed', [
       'On some phones the screen could freeze for a few seconds at the start of a battle, then jump about. The Deploying forces card now stays up until the battle runs smoothly, and the game notes where the freezes come from so they can be fixed.',

@@ -2046,7 +2046,7 @@ Headless (desktop CPU): Frostlight 3 v 3 at a phone's 440 x 894 x 3 runs out the
 phone did: 21 frames with stand-in ground after the card); A Bridge Too Far once had a 750 ms frame under the card,
 534 ms of it the ground. No freeze of seconds reproduced headless (SwiftShader WebGL is slow on every frame).
 
-## Start-of-battle freezes on the iPhone with WebGL (after 2026.11.21, not released, both modes, looks and reporting only)
+## Start-of-battle freezes on the iPhone with WebGL (2026.11.21.1, both modes, looks and reporting only)
 
 Owner: "Started a new skirmish on mobile. Game was unresponsive for a few seconds and jumped around." Match f0ee3edc
 (2026.11.21, Frostlight, iPhone 440 x 894, WebGL): 4 frames 2.7-4.1 s late in the first 2 s of the battle (14.3 s in all),
@@ -2065,7 +2065,7 @@ so it is probably not their compiling; not reproduced headless.
   (atlas uploads), `wScene`, `wLight`, `wOver`, `wPres`. A freeze in one of them shows in `drw` and that `w...`; a freeze
   in none happened after the frame was handed over (the compositor). Released to the owner's build as 2026.11.21.1. Query: `select started_at, stats->'frames'->'load', stats->'frames'->'fz' from matches order by started_at desc`.
 
-## A paused battle is not redrawn under the menu (after 2026.11.21.1, not released, both modes, looks and speed only)
+## A paused battle is not redrawn under the menu (2026.11.21.2, both modes, looks and speed only)
 
 Owner (iPhone, WebGL): "Even the menus have a delay." The menu is see-through, and the paused battle under it (and the
 battle behind the start menu) was drawn in full every frame, WebGL light pass included. `ui.js` frame: with `G.paused`, the
