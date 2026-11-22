@@ -4,6 +4,19 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.22', date: '22 November 2026', title: 'Clearer minimap, longer-range artillery', groups: [
+    ['Improved', [
+      'Units are easier to see on the minimap: bigger dots in brighter colours with a dark edge, so they stand out on snow, sand and grass.',
+      'Big battles draw faster, especially zoomed out.',
+    ]],
+    ['Changed', [
+      'Artillery and V2 Rockets now fire at enemies anywhere in their range that your side can see, not only within their own short sight.',
+      'Computer opponents build tidier bases: room to grow inside their walls, no buildings on the wall line, and second bases that keep clear of their teammates.',
+    ]],
+    ['Fixed', [
+      'Computer raiding parties no longer train Engineers endlessly.',
+    ]],
+  ] },
   { v: '2026.11.21.9', date: '21 November 2026', title: 'Smoother on computers', groups: [
     ['Improved', [
       'On computers the whole battlefield ground is now loaded at the start of a battle too, so it no longer pops in when you zoom all the way out on a big screen, and big battles run smoother.',
