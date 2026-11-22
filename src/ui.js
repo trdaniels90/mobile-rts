@@ -1189,7 +1189,7 @@ function draw() {
   // offline. Without it the minimap shows static and cannot be used to move the camera.
   const radarDome = () => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === G.me && e.type === 'dome' && e.buildT >= 1 && e.sellT <= 0);
   const radarOn = () => !!G && ((radarDome() && !G.teams[G.me].low) || G.seen !== G.fog[G.me]);   // (map view, below: the radar works without a dome)
-  let radarWas = null;
+  let radarWas = null, radarNoise = null;
   // Minimap units: at least MM_DOT screen points across with a dark edge, in a vivid form of their side's colour,
   // so they show on snow, rock and sand alike.
   const MM_DOT = 1.6;
@@ -1212,8 +1212,22 @@ function draw() {
     radarWas = on;
     lookRadar(on);   // lookfx.js: the steel sidebar's static when the radar comes online
     if (!on) {
-      rctx.fillStyle = '#0a0e0a'; rctx.fillRect(0, 0, Wr, Hr);
-      for (let i = 0; i < Wr * Hr / 60; i++) { rctx.fillStyle = `rgba(150,190,150,${Math.random() * 0.18})`; rctx.fillRect(Math.random() * Wr, Math.random() * Hr, DPR, DPR); }
+      // The static: four frames made once per radar size and cycled. (Drawn speck by speck every 0.2 s, with a new
+      // colour string each, it took tens of milliseconds a time on a phone, and made the start menu slow to answer.)
+      if (!radarNoise || radarNoise.w !== Wr || radarNoise.h !== Hr) {
+        radarNoise = { w: Wr, h: Hr, i: 0, frames: [] };
+        for (let f = 0; f < 4; f++) {
+          const c = document.createElement('canvas'); c.width = Wr; c.height = Hr;
+          const x = c.getContext('2d');
+          x.fillStyle = '#0a0e0a'; x.fillRect(0, 0, Wr, Hr);
+          for (let a = 0; a < 6; a++) {   // six shades instead of a new colour per speck
+            x.fillStyle = `rgba(150,190,150,${(a + 0.5) * 0.03})`;
+            for (let i = 0; i < Wr * Hr / 360; i++) x.fillRect(Math.random() * Wr, Math.random() * Hr, DPR, DPR);
+          }
+          radarNoise.frames.push(c);
+        }
+      }
+      rctx.drawImage(radarNoise.frames[radarNoise.i = (radarNoise.i + 1) % 4], 0, 0);
       rctx.fillStyle = 'rgba(120,220,120,0.7)'; rctx.font = `${Math.round(11 * DPR)}px monospace`; rctx.textAlign = 'center'; rctx.textBaseline = 'middle';
       rctx.fillText(radarDome() ? 'RADAR OFFLINE' : 'NO RADAR', Wr / 2, Hr / 2);
       return;
@@ -2407,8 +2421,10 @@ function draw() {
     else try { if (G && Net.role !== 'guest' && !G.paused) guard('smooth', () => Smooth.apply(stepAcc / STEP)); guard('draw', draw); } finally { Smooth.restore(); }
     stillKey = key;
     const d1 = performance.now();
-    guard('sidebar', () => updateSidebar(1 / 60));
-    guard('radar', () => drawRadar(1 / 60));
+    if (!still) {   // (hidden under the menu: the sidebar and radar wait until it closes)
+      guard('sidebar', () => updateSidebar(1 / 60));
+      guard('radar', () => drawRadar(1 / 60));
+    }
     guard('cameos', warmCameos);
     if (G && !G.paused) guard('sprites', () => warmSprites(2, ...Object.values(s2w(W / 2, H / 2))));
     if (G) {   // how smoothly this device runs the battle (Report: stats.frames); paused and loading frames too (freezes)

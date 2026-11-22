@@ -2335,3 +2335,11 @@ Owner: "remove the option to toggle webgl. I want that to be the only option alw
   of it is shared; what is 2D-only is the fallback for a device with no WebGL2 or a lost context (else a black screen), and
   `?gl=off` for development comparisons (tools/look/gl-compare.js). Players cannot reach it otherwise.
 - Headless (phone and PC, `rh-gl` 'off' stored beforehand): WebGL on and lit, no switch, no errors.
+
+## Start menu answers at once (after 2026.11.22.1, performance only, both modes)
+
+The radar's "NO RADAR" static was drawn speck by speck (thousands of `fillRect`s, each with a new colour string) every
+0.2 s, even hidden under the start menu: on a phone that was a 30 to 50 ms stall five times a second, so the menu missed
+taps and scrolls. Now four static frames are made once per radar size (`radarNoise` in `ui.js` drawRadar) and cycled, and
+the sidebar and radar are not updated at all while the menu covers a paused battle (`still` in `frame`). In a headless
+iPhone profile at 4x CPU throttle, the repeating 100 to 180 ms long tasks on the menu went to none.
