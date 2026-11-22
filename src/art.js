@@ -2293,7 +2293,12 @@ function laundryPixels(g, p) {
   g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(x0, y + 1, x1 - x0, 1);   // the line's shadow
   g.fillStyle = '#5a4632'; g.fillRect(x0, top, 1, y - top + 1); g.fillRect(x1, top, 1, y - top + 1);   // posts
   const n = Math.max(3, Math.floor((x1 - x0) / 7));
-  for (let i = 0; i <= x1 - x0; i++) { const sag = Math.round(Math.sin(i / (x1 - x0) * Math.PI) * 2); g.fillStyle = '#d8d4c8'; g.fillRect(x0 + i, top + 1 + sag, 1, 1); }
+  g.fillStyle = '#d8d4c8';   // the line: a run of pixels at each sag in one rectangle (the same pixels as one at a time)
+  for (let i = 0, run = 0, ps = null; i <= x1 - x0 + 1; i++) {
+    const sag = i <= x1 - x0 ? Math.round(Math.sin(i / (x1 - x0) * Math.PI) * 2) : null;
+    if (sag !== ps && run) { g.fillRect(x0 + i - run, top + 1 + ps, run, 1); run = 0; }
+    ps = sag; run++;
+  }
   for (let i = 0; i < n; i++) {
     const cx = x0 + 3 + i * ((x1 - x0 - 6) / n), sag = Math.round(Math.sin((cx - x0) / (x1 - x0) * Math.PI) * 2);
     const sway = Math.round(k + Math.sin(G.t * 3 + i * 1.7 + p.v) * 0.8), w = 3 + ((p.v >> i) & 1), hh = 4 + ((p.v >> (i + 1)) & 3);
@@ -3056,7 +3061,37 @@ const WALL_LOOK = {
   3: { h: 13, a: 5, top: '#a7a7a0', side: '#85857e', seam: '#686862' },     // concrete
 };
 const WALL_DIAG = [[1, -1, 16], [1, 1, 32], [-1, 1, 64], [-1, -1, 128]];   // diagonal joins (ui.js sets them in the mask)
+// Sandbags and concrete walls (not gates, which open and close, nor wire) are drawn once per look into a small picture and that is drawn after: zoomed out
+// over a big battle, making every wall's faces and edges again each frame was several ms (owner's PC, 2026-11-22). A look:
+// the type, the sides it joins, damaged or not, the owner's colour (concrete), the sacks' shades (sandbags: by cell, 5
+// patterns), and the view's turn and squash (the transform's linear part).
+const wallIsoPics = new Map();
 function drawWallIso(g, e) {
+  if (e.id !== 1 && e.id !== 3 || typeof document === 'undefined') { drawWallIsoLive(g, e); return; }   // (barbed wire's thin coils stay live: in a picture they came out faint)
+  const tf = g.getTransform(), mx = e.cx * CELL + CELL / 2, my = e.cy * CELL + CELL / 2;
+  const key = e.id + '|' + e.mask + '|' + (e.hurt ? 1 : 0) + '|' + (e.id === 1 ? e.c % 5 : '') + '|' + (e.id === 3 ? e.col : '') + '|'
+    + tf.a.toFixed(3) + ',' + tf.b.toFixed(3) + ',' + tf.c.toFixed(3) + ',' + tf.d.toFixed(3);
+  let P = wallIsoPics.get(key);
+  if (!P) {
+    // Its box on the screen: the cell's corners from the ground to above the tallest wall.
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const [x, y] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) for (const h of [0, 26 * VK]) {
+      const [wx, wy] = liftPt(mx + x * CELL * 0.75, my + y * CELL * 0.75, h), X = tf.a * (wx - mx) + tf.c * (wy - my), Y = tf.b * (wx - mx) + tf.d * (wy - my);   // (from the cell's middle)
+      x0 = Math.min(x0, X); y0 = Math.min(y0, Y); x1 = Math.max(x1, X); y1 = Math.max(y1, Y);
+    }
+    const ox = Math.ceil(-x0) + 2, oy = Math.ceil(-y0) + 2, c = mkCanvas(Math.ceil(x1 - x0) + 5, Math.ceil(y1 - y0) + 5), cg = c.getContext('2d');
+    cg.setTransform(tf.a, tf.b, tf.c, tf.d, ox - (tf.a * mx + tf.c * my), oy - (tf.b * mx + tf.d * my));   // (mx, my) at (ox, oy)
+    drawWallIsoLive(cg, e);
+    if (wallIsoPics.size > 3000) wallIsoPics.clear();
+    wallIsoPics.set(key, P = { c, ox, oy });
+  }
+  const X = tf.a * mx + tf.c * my + tf.e, Y = tf.b * mx + tf.d * my + tf.f;
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
+  const up = g.upright; g.upright = false;
+  g.drawImage(P.c, Math.round(X - P.ox), Math.round(Y - P.oy));
+  g.upright = up; g.restore();
+}
+function drawWallIsoLive(g, e) {
   const tf = g.getTransform();
   const S = (x, y, h) => { const [wx, wy] = liftPt(x, y, h); return [tf.a * wx + tf.c * wy + tf.e, tf.b * wx + tf.d * wy + tf.f]; };
   const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16); return `rgb(${Math.round(((n >> 16) & 255) * k)},${Math.round(((n >> 8) & 255) * k)},${Math.round((n & 255) * k)})`; };

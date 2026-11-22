@@ -987,6 +987,7 @@ void main() {
       // made a new matrix at nearly every picture drawn, a few ms a frame zoomed out over a big battle)
       setTransform(a, b, c, d, e, f) {
         if (arguments.length === 6) { mCache = { a, b, c, d, e, f }; lctx.setTransform(a, b, c, d, e, f); }
+        else if (arguments.length === 1 && a && typeof a.a === 'number') { mCache = { a: a.a, b: a.b, c: a.c, d: a.d, e: a.e, f: a.f }; lctx.setTransform(a); }   // (a matrix put back: onHill, drawCliff)
         else { mCache = null; lctx.setTransform(...arguments); }
       },
       resetTransform() { mCache = null; lctx.resetTransform(); },

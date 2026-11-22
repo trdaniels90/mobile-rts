@@ -2439,3 +2439,16 @@ adds events with `ai: 1` (world.js `logEvent(team, kind, more)`; the debrief lea
 - `rebuild blocked` (`why` the same), once each while it has no yard, no MCV and none queued.
 The report's `teams` also carry each computer's rolls: `exp2` (a second base) and `evac` (the escape). Supabase:
 `select e from matches, jsonb_array_elements(stats->'log'->'events') e where id = '...' and e ? 'ai'`.
+
+## Faster structures, walls and props zoomed out (after 2026.11.22.1, performance only, both modes)
+
+Owner picked "faster buildings/walls/props" next (no look change). Same benchmark as "Faster hand-over" above:
+- art.js `drawWallIso`: sandbags and concrete walls are drawn once per look into a small picture (`wallIsoPics`, key: type,
+  joins mask, damaged, sack pattern `c % 5` for sandbags, owner's colour for concrete, the transform's linear part) by the
+  old code (now `drawWallIsoLive`) and drawn as one picture after; gates (they open) and barbed wire (its 0.7 px coils came out
+  faint in a picture) stay live. 7.2 -> 1.4 ms a frame. Pixel-compared on a staged scene of every kind: the same.
+- gl.js recorder: `setTransform(matrix)` (one argument: onHill and drawCliff putting a saved matrix back) keeps it as the cached
+  matrix too, so the next picture does not read it back.
+- art.js `laundryPixels`: the line's rope as one rectangle per run of pixels at the same sag (was a rectangle per pixel); the
+  same pixels (checked for widths 20 to 57).
+- Result on that scene: the game's drawing ~84 -> ~63 ms a frame (structures, walls and props, `drawOne`, 25.7 -> 18.1 ms).
