@@ -1190,6 +1190,19 @@ function draw() {
   const radarDome = () => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === G.me && e.type === 'dome' && e.buildT >= 1 && e.sellT <= 0);
   const radarOn = () => !!G && ((radarDome() && !G.teams[G.me].low) || G.seen !== G.fog[G.me]);   // (map view, below: the radar works without a dome)
   let radarWas = null;
+  // Minimap units: at least MM_DOT screen points across with a dark edge, in a vivid form of their side's colour,
+  // so they show on snow, rock and sand alike.
+  const MM_DOT = 1.6;
+  const vivid = new Map();   // a palette's light colour -> the same hue, full and bright
+  function vividOf(hex) {
+    let c = vivid.get(hex);
+    if (c) return c;
+    const n = parseInt(hex.slice(1), 16), r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const mx = Math.max(r, g, b), d = mx - Math.min(r, g, b);
+    const h = d === 0 ? 0 : mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    vivid.set(hex, c = `hsl(${Math.round(h * 60)},100%,60%)`);
+    return c;
+  }
   function drawRadar(dt) {
     radarT -= dt;
     if (radarT > 0 || !G) return;
@@ -1214,11 +1227,16 @@ function draw() {
       rctx.fillStyle = h.n && G.teams[h.team] ? G.teams[h.team].pal.main : '#b9ab8e';
       rctx.fillRect(h.cx * k, h.cy * k, h.w * k, h.h * k);
     }
+    const dot = Math.max(MM_DOT * DPR, k * 1.2), edge = Math.max(1, Math.round(DPR * 0.4));
     for (const e of G.entities) {
       if (!visibleToPlayer(e)) continue;
-      rctx.fillStyle = G.teams[e.team].pal[e.kind === 'bld' ? 'main' : 'light'];
-      if (e.kind === 'bld') rctx.fillRect(e.cx * k, e.cy * k, e.w * k, e.h * k);
-      else rctx.fillRect(e.x / CELL * k - k * 0.6, e.y / CELL * k - k * 0.6, Math.max(2, k * 1.2), Math.max(2, k * 1.2));
+      if (e.kind === 'bld') { rctx.fillStyle = G.teams[e.team].pal.main; rctx.fillRect(e.cx * k, e.cy * k, e.w * k, e.h * k); }
+    }
+    for (const e of G.entities) {   // units over structures, each with a dark edge
+      if (e.kind === 'bld' || !visibleToPlayer(e)) continue;
+      const x = Math.round(e.x / CELL * k - dot / 2), y = Math.round(e.y / CELL * k - dot / 2);
+      rctx.fillStyle = 'rgba(0,0,0,0.85)'; rctx.fillRect(x - edge, y - edge, dot + 2 * edge, dot + 2 * edge);
+      rctx.fillStyle = vividOf(G.teams[e.team].pal.light); rctx.fillRect(x, y, dot, dot);
     }
     rctx.drawImage(shroudCanvas, 0, 0, Wr, Hr);
     rctx.strokeStyle = '#f2f2ea'; rctx.lineWidth = Math.max(1, DPR);

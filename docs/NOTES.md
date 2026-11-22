@@ -2300,3 +2300,11 @@ frame, mostly structures and crags (`bld`), aircraft (`air`) and the sorted list
   `list` checked every thing in view against every structure in view (which side of it to sort to): now only the things
   within `NEAR` of each structure, found by cell. Headless 2560 x 1370 (software GPU), the same 3 v 3 at 22 min fully zoomed out:
   `list` 70 ms -> 20 ms. The HUD's selection test is a Set (was `includes` per thing in view).
+
+## Minimap units
+
+Units on the minimap (`drawRadar` in `src/ui.js`) are at least `MM_DOT` (1.6) screen points across, with a dark edge, in a
+full, bright form of their side's light colour (`vividOf`), so they show on snow, sand and grass alike. Structures keep their
+side's main colour. Before 2026-11-22 a unit was 1.2 cells across in the pale light colour, often about 1 point on a phone and
+lost on snowy maps (owner: "hard to see units moving on the mini map"). A pulsing red ring where your forces were under fire was
+tried and taken out at the owner's request; dots of 3 and 2 points were tried and found too big (armies became blobs).
