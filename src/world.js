@@ -6242,6 +6242,11 @@ function plantSmoke(dt) {
       else if (style === 'grey') G.effects.push({ type: 'smoke', x, y, lift, r: 3.6 + Math.random() * 1.2, t: 0, life: 3.8 + Math.random() * 0.8, alpha: 0.75, color: '#5a5856', vy: -15 - Math.random() * 4, vx: 5 + Math.random() * 3, drag: 0.4 });
       else if (Math.random() < 0.6) G.effects.push({ type: 'smoke', x, y, lift, r: 2.4, t: 0, life: 1.8, alpha: 0.3, color: '#dcdcd8', vy: -12, vx: 5 });
     }
+    // the Soviet refinery's flare stack burns
+    if (ref && sov && (b.flareT = (b.flareT || 0) - 0.15) < 0) {
+      b.flareT = 0;
+      G.effects.push({ type: 'fire', x: b.cx * CELL + 5 + (Math.random() - 0.5), y: b.cy * CELL + 6, lift: 54 * VK, t: 0, life: 0.5 + Math.random() * 0.3, s: 1.1, vy: -6 });
+    }
   }
 }
 // Damaged structures burn and smoke out of the holes in their damaged model (damageSpots) and
