@@ -2349,6 +2349,7 @@ function draw() {
   // code), and the battle ran on and jumped between them, with the camera catching up on a finger's moves at once.
   const RES_LOAD_MAX = 25000, LOAD_MAX = 3000, LOAD_MIN = 250, SETTLE_MS = 600, SETTLE_MAX = 20000;
   let loadFor = null, loadEl = null, stillKey = null;
+  let splashEl = document.getElementById('splash'), splashOk = 0, splashLast = 0;
   function loading(now) {
     if (!G || G.paused || G.over) return false;
     if (!loadFor || loadFor.g !== G) loadFor = { g: G, since: now, done: false, at: now, slow: -1e9, nSlow: 0 };
@@ -2420,6 +2421,13 @@ function draw() {
     if (still && stillKey === key) { /* (the last frame stays on the screen) */ }
     else try { if (G && Net.role !== 'guest' && !G.paused) guard('smooth', () => Smooth.apply(stepAcc / STEP)); guard('draw', draw); } finally { Smooth.restore(); }
     stillKey = key;
+    // The loading screen (index.html) goes once the start menu answers: the battle behind it drawn, then 20 frames in a
+    // row that came on time, so the first taps are not lost to the startup work.
+    if (splashEl) {
+      splashOk = (G || now > 4000) && now - splashLast < 120 ? splashOk + 1 : 0;   // (no battle behind the menu: no wait for one)
+      splashLast = now;
+      if (splashOk >= 20) { const s = splashEl; splashEl = null; s.classList.add('gone'); setTimeout(() => s.remove(), 400); }
+    }
     const d1 = performance.now();
     if (!still) {   // (hidden under the menu: the sidebar and radar wait until it closes)
       guard('sidebar', () => updateSidebar(1 / 60));

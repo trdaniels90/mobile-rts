@@ -20,6 +20,20 @@
 </head>
 <body>
 <!-- BEGIN BODY -->
+<!-- The loading screen: shown from the first paint until the start menu answers (ui.js hides it). Its bar moves on the
+     compositor, so it keeps moving while the game is busy starting up. -->
+<style>
+#splash { position: fixed; inset: 0; z-index: 9999; background: radial-gradient(ellipse at center, #1a1f17 0%, #050604 75%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3vmin; transition: opacity .35s; }
+#splash.gone { opacity: 0; pointer-events: none; }
+#splash img { width: min(62vmin, 420px); height: auto; aspect-ratio: 1; border-radius: 4%; box-shadow: 0 0 40px rgba(0,0,0,.8); }
+#splash .sp-title { font: 700 min(7vmin, 40px) 'Black Ops One', 'Archivo Narrow', Impact, sans-serif; color: #d8d2c0; letter-spacing: .12em; }
+#splash .sp-bar { width: min(50vmin, 320px); height: 4px; background: rgba(255,255,255,.12); overflow: hidden; border-radius: 2px; }
+#splash .sp-bar i { display: block; width: 35%; height: 100%; background: #b3261e; animation: sp-run 1.1s ease-in-out infinite; }
+@keyframes sp-run { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+</style>
+<div id="splash" role="status" aria-label="Loading"><img src="images/loading.jpg" alt="" decoding="sync"><div class="sp-title">RED HORIZON</div><div class="sp-bar"><i></i></div></div>
+<script>setTimeout(function () { var s = document.getElementById('splash'); if (s) s.remove(); }, 20000);   // (never left up if something fails)</script>
 <canvas id="game" aria-label="Battlefield"></canvas>
 
 <div id="eva" role="status" hidden></div>

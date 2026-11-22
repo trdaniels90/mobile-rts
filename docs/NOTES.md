@@ -2343,3 +2343,13 @@ The radar's "NO RADAR" static was drawn speck by speck (thousands of `fillRect`s
 taps and scrolls. Now four static frames are made once per radar size (`radarNoise` in `ui.js` drawRadar) and cycled, and
 the sidebar and radar are not updated at all while the menu covers a paused battle (`still` in `frame`). In a headless
 iPhone profile at 4x CPU throttle, the repeating 100 to 180 ms long tasks on the menu went to none.
+
+## Loading screen (after 2026.11.22.1, looks only, both modes)
+
+`#splash` at the top of the body in `index.html` (its own inline style, so it paints before `style.css` and the scripts
+are done): the picture `images/loading.jpg` (for now the app icon, made from `icons/icon-512.png` at JPEG 82, 66 KB;
+the owner is making a proper one), the title and a bar that moves on the compositor. `ui.js` `frame` fades it out after
+20 frames in a row on time with the battle behind the menu drawn, so the startup stalls happen under it and the first
+taps on the menu are not lost; a timer in `index.html` removes it after 20 s whatever happens. The single-file build
+puts the picture in the page as a data URI (`scripts/build-single-file.py`); `sw.js` caches it. Measured on a headless
+iPhone at 4x CPU throttle: shown at 0.4 s, gone after the last startup long task.

@@ -12,6 +12,9 @@ root = pathlib.Path(__file__).resolve().parent.parent
 html = (root / 'index.html').read_text()
 body = re.search(r'<!-- BEGIN BODY -->(.*)<!-- END BODY -->', html, re.S).group(1)
 fonts = re.search(r'<link rel="stylesheet" href="(https://fonts[^"]+)">', html).group(1)
+# The loading screen's picture goes in the page itself, so it shows before anything else has loaded.
+import base64
+body = body.replace('src="images/loading.jpg"', 'src="data:image/jpeg;base64,' + base64.b64encode((root / 'images' / 'loading.jpg').read_bytes()).decode() + '"')
 css = (root / 'style.css').read_text()
 scripts = re.findall(r'<script src="([^"]+)"></script>', html)
 js = '\n'.join((root / src).read_text() for src in scripts)
