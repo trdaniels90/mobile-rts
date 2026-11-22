@@ -779,7 +779,7 @@ function draw() {
     for (const s of G.spans || []) if (!s.alive && s.x > ox - 400 && s.x < ox + bw + 400 && s.y > oy - 400 && s.y < oy + bh + 400) { const p = spanRuin(s); v.drawImage(p.c, p.x, p.y); }
     const x0 = ox - 80, y0 = oy - 80, x1 = ox + bw + 80, y1 = oy + bh + 80;
     const inView = (e) => e.x > x0 && e.x < x1 && e.y > y0 && e.y < y1 && onScr(e.x, e.y);
-    for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0 && onScr(fx.x, fx.y)) { if (glRec) GLR.listDepth(viewDepth(fx.x, fx.y) + 10); onHill(v, fx.x, fx.y, () => drawEffect(v, fx)); }
+    for (const fx of G.effects) if ((fx.type === 'husk' || fx.type === 'corpse') && fx.t >= 0 && onScr(fx.x, fx.y)) { if (glRec) GLR.listDepth(viewDepth(fx.x, fx.y) + 10 + craterSink(fx.x, fx.y)); onHill(v, fx.x, fx.y, () => drawEffect(v, fx)); }
     if (glRec) GLR.listDepth(null);
     const treeShows = (x, y) => onScr(x, y, 60, 30, 90);
     lap('gnd');   // the ground, ore, walls' list, wrecks and bodies
@@ -877,7 +877,7 @@ function draw() {
     const glList = glRec, lv = v;
     for (const e of ground) {
       if (occs) { while (oi < occs.length && occs[oi].key - 6 <= e._key) reHill(occs[oi++]); drawn.push(drawnBox(e)); }
-      if (glList) GLR.listDepth(e._key + (big(e) ? 2 : e.kind === 'tree' ? 14 : e.kind === 'cliff' ? 16 : 10));
+      if (glList) GLR.listDepth(e._key + (big(e) ? 2 : e.kind === 'tree' ? 14 : e.kind === 'cliff' ? 16 : 10 + craterSink(...hillAt(e))));
       if (e.kind === 'tree') { drawTree(lv, e); lap('tree'); DP.nTree++; continue; }   // (lifted in drawTree)
       const [hx, hy] = hillAt(e);
       onHill(lv, hx, hy, () => drawOne(e, lv));

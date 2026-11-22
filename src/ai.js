@@ -225,6 +225,18 @@ function aiDriveFob(team, u) {
   else if (u.order.type === 'guard') commandMove([u], u.aiGoal.x, u.aiGoal.y);
 }
 
+// The match report's record of a computer's base moves (owner, 2026-11-22: "no one really built a expansion base or a new
+// base when they were about to loose why was that"): logEvent with ai: 1 (not drawn in the debrief). Kinds: 'mcv ordered'
+// (why: rebuild, second base, forward base, escape), 'base set up' (why: as ordered; at: the cell), 'mcv lost' (why), and
+// 'escape blocked' (why: no factory, no money; once a battle each) when it rolled the escape and was about to be beaten.
+// Each side's rolls for the battle (exp2: a second base, evac: the escape) are in the report's teams.
+function aiLog(team, kind, more) { if (G.log && !G.remote) logEvent(team.id, kind, Object.assign({ ai: 1 }, more)); }
+const aiMcvJob = (u) => (u.evac != null ? 'escape' : u.expand ? (G.teams[u.team].expField && G.teams[u.team].expField.fwd ? 'forward base' : 'second base') : 'rebuild');
+function aiDeploy(team, u) {
+  const job = aiMcvJob(u), b = deployFob(u);
+  if (b) aiLog(team, 'base set up', { why: job, at: [b.cx, b.cy] });
+  return b;
+}
 // A Mobile Construction Yard rebuilds a lost yard: it drives to where the first one stood (or near it,
 // further out after each failed try) and unpacks there.
 function aiDriveMcv(team, u) {
@@ -246,8 +258,8 @@ function aiDriveMcv(team, u) {
     return;
   }
   const d = Math.hypot(u.x - u.aiGoal.x, u.y - u.aiGoal.y);
-  if (u.order.type !== 'guard' && aiDriveStalled(u)) { if (!deployFob(u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; commandStop([u]); } return; }
-  if (d < CELL * 2.5 || (u.order.type === 'guard' && d < CELL * 6)) { if (!deployFob(u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; } }
+  if (u.order.type !== 'guard' && aiDriveStalled(u)) { if (!aiDeploy(team, u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; commandStop([u]); } return; }
+  if (d < CELL * 2.5 || (u.order.type === 'guard' && d < CELL * 6)) { if (!aiDeploy(team, u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; } }
   else if (u.order.type === 'guard') commandMove([u], u.aiGoal.x, u.aiGoal.y);
 }
 
@@ -262,7 +274,7 @@ function aiEvac(team, mcvs) {
   if (team.evac === undefined) team.evac = Math.random() < (EVAC_CHANCE[team.style] || EVAC_CHANCE.balanced);
   const n = buildingsOf(team.id).length;
   team.peakB = Math.max(team.peakB || 0, n);
-  if (!team.evac || team.evacDone || mcvs.length || team.queues.vehicle.some((i) => i.type === 'mcv') || !available(team, 'mcv')) return;
+  if (!team.evac || team.evacDone || mcvs.length || team.queues.vehicle.some((i) => i.type === 'mcv')) return;
   const home = aiMainYard(team) || aiYards(team)[0];
   if (!home) return;   // no yard at all: the ordinary rebuild at home takes over
   const allies = alliesOf(team).filter((o) => aiAllyYard(o));
@@ -270,9 +282,12 @@ function aiEvac(team, mcvs) {
   const hit = aiYards(team).some((b) => b.hp < b.maxHp * 0.5 && G.t - (b.hitT || -99) < EVAC_HIT);
   const foes = enemyUnitsOf(team.id).filter((u) => !isAirborne(u) && Math.hypot(u.x - home.x, u.y - home.y) < EVAC_NEAR * CELL).length;
   if (!hit && !(team.peakB >= 5 && n <= team.peakB * EVAC_LEFT && foes >= EVAC_FOES)) return;
-  if (team.credits < UNIT_DEFS.mcv.cost * EVAC_PAY) return;   // it pays as it builds (front of the queue): a start is enough; tries again each think
+  const block = (why) => { team.evacBlk = team.evacBlk || {}; if (!team.evacBlk[why]) { team.evacBlk[why] = 1; aiLog(team, 'escape blocked', { why }); } };
+  if (!available(team, 'mcv')) { block('no factory'); return; }   // (an MCV needs a War Factory and a Service Depot)
+  if (team.credits < UNIT_DEFS.mcv.cost * EVAC_PAY) { block('no money'); return; }   // it pays as it builds (front of the queue): a start is enough; tries again each think
   const to = allies.reduce((a, o) => (buildingsOf(o.id).length > buildingsOf(a.id).length ? o : a));   // the strongest ally
   team.evacFor = to.id; team.evacDone = true;
+  aiLog(team, 'mcv ordered', { why: 'escape', to: to.id });
   startProduction(team, 'mcv');
   const vq = team.queues.vehicle, i = vq.findIndex((x) => x.type === 'mcv');
   if (i > 0) vq.unshift(vq.splice(i, 1)[0]);
@@ -307,8 +322,8 @@ function aiDriveEvac(team, u) {
     return;
   }
   const d = Math.hypot(u.x - u.aiGoal.x, u.y - u.aiGoal.y);
-  if (u.order.type !== 'guard' && aiDriveStalled(u)) { if (!deployFob(u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; commandStop([u]); } return; }
-  if (d < CELL * 2.5 || (u.order.type === 'guard' && d < CELL * 6)) { if (!deployFob(u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; } }
+  if (u.order.type !== 'guard' && aiDriveStalled(u)) { if (!aiDeploy(team, u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; commandStop([u]); } return; }
+  if (d < CELL * 2.5 || (u.order.type === 'guard' && d < CELL * 6)) { if (!aiDeploy(team, u)) { u.aiGoal = null; u.mcvTries = (u.mcvTries || 0) + 1; } }
   else if (u.order.type === 'guard') commandMove([u], u.aiGoal.x, u.aiGoal.y);
 }
 
@@ -1081,8 +1096,14 @@ function aiThink(team) {
   const mcvs = unitsOf(team.id).filter((u) => u.def.deploys === 'cy');
   aiEvac(team, mcvs);
   for (const u of mcvs) aiDriveMcv(team, u);
+  if (c.cy) team.rebuildBlk = null;
+  else if (!mcvs.length && !team.queues.vehicle.some((i) => i.type === 'mcv')) {   // (the match report: why no yard comes back, once each until one does)
+    const why = !available(team, 'mcv') ? 'no factory' : team.credits <= 1250 ? 'no money' : null;
+    if (why && !(team.rebuildBlk && team.rebuildBlk[why])) { (team.rebuildBlk = team.rebuildBlk || {})[why] = 1; aiLog(team, 'rebuild blocked', { why }); }
+  }
   if (!c.cy && !mcvs.length && available(team, 'mcv') && !team.queues.vehicle.some((i) => i.type === 'mcv') && team.credits > 1250) {
     startProduction(team, 'mcv');
+    aiLog(team, 'mcv ordered', { why: 'rebuild' });
     const vq = team.queues.vehicle, i = vq.findIndex((x) => x.type === 'mcv');
     if (i > 0) vq.unshift(vq.splice(i, 1)[0]);   // it jumps the queue: nothing else can be built without it
   }
@@ -1093,7 +1114,7 @@ function aiThink(team) {
       !team.queues.vehicle.some((i) => i.type === 'mcv') && team.credits > UNIT_DEFS.mcv.cost + 1000 && !team.starved && enemyBaseKnown(team.id)) {
     team.expT = G.t + EXPAND_RETRY;
     const f = aiForwardSpot(team);
-    if (f) { team.expField = f; startProduction(team, 'mcv'); }
+    if (f) { team.expField = f; startProduction(team, 'mcv'); aiLog(team, 'mcv ordered', { why: 'forward base' }); }
   }
   // A second base: an MCV for a rich field on its own half (personality's chance, rolled once).
   if (A2.planner && team.style && team.exp2 === undefined) team.exp2 = Math.random() < (EXPAND_CHANCE[team.style] || 0);
@@ -1103,6 +1124,7 @@ function aiThink(team) {
     const f = aiExpandField(team);
     team.expField = { cx: f.cx, cy: f.cy, r: f.r };
     startProduction(team, 'mcv');
+    aiLog(team, 'mcv ordered', { why: 'second base' });
   }
 
   // Forward outposts: send a Mobile Outpost to a rich field far from its refineries.

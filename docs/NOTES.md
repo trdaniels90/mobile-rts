@@ -2415,3 +2415,27 @@ fully zoomed out, paused, CPU profile per frame (software GPU, so only the game'
   blinking beacons).
 - Left: structures, walls, cliffs and props (`onHill` -> `drawOne`, ~34 ms), sorting (`list` ~11), trees (`tree` + `isoTreeBlocks`
   ~13), ground ~8. Village houses and props being made for the first time cost ~16 ms a frame until all are made (warm-up).
+
+## Vehicles cut off in craters with WebGL (2026-11-22, bug fix, both modes, looks only)
+
+Owner (2026-11-22, with a snow screenshot): "vehicles kind of disappear with those new big ground craters instead of
+driving in them like a hill". With WebGL each picture in the list is tested against the ground's depth at its base plus a
+margin (ui.js: units +10 viewDepth). The drawn ground leaves craters out (look.js `gLift(x, y, true)`), while a unit in one
+sinks up to about 6 view px (`DIG_SHOW`), which is about 11 viewDepth (/ `VIEW.F`): more than the margin, so the ground
+hid the lower half of the sprite. Fix: look.js `craterSink(x, y)` (the sink turned into depth, + 2) is added to the margin
+of units and of husks and corpses. The 2D way was never affected. Checked with a scratch Playwright scene (six units in
+dug craters, WebGL against `GLR.paused`).
+
+## The computers' base moves in the match report (2026-11-22, reporting only, both modes)
+
+Owner (2026-11-22, after a 3 v 3 on Frost): "no one really built a expansion base or a new base when they were about to
+loose why was that". The report only had 'cy lost' and 'outpost lost', so that could not be answered. Now ai.js `aiLog`
+adds events with `ai: 1` (world.js `logEvent(team, kind, more)`; the debrief leaves them out of its graph):
+- `mcv ordered` (`why`: `rebuild`, `second base`, `forward base`, `escape` with `to`: the ally's side),
+- `base set up` (`why` as ordered, `at`: the yard's cell; ai.js `aiDeploy`, from aiDriveMcv and aiDriveEvac),
+- `mcv lost` (`why`; world.js `kill`, a computer's MCV only),
+- `escape blocked` (`why`: `no factory`, an MCV needs a War Factory and a Service Depot, or `no money`), once each a battle,
+  when it rolled the escape and was about to be beaten (aiEvac now checks `available` after the danger test, not before),
+- `rebuild blocked` (`why` the same), once each while it has no yard, no MCV and none queued.
+The report's `teams` also carry each computer's rolls: `exp2` (a second base) and `evac` (the escape). Supabase:
+`select e from matches, jsonb_array_elements(stats->'log'->'events') e where id = '...' and e ? 'ai'`.

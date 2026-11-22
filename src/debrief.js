@@ -99,7 +99,7 @@ const Debrief = (() => {
   function chart(cMe, cFoe) {
     const svg = root.querySelector('svg'), tip = root.querySelector('.db-tip'), box = root.querySelector('.db-chart');
     const W = 600, H = 270, Lm = 50, R = 12, T = 18, B = 26, L = G.log, tMax = Math.max(60, G.t);
-    const EV = L.events;
+    const EV = L.events.filter((e) => !e.ai);   // (a computer's base moves, ai.js aiLog: for the match report only)
     const evText = (e) => (e.team === G.me ? 'Your ' : alliedSides(e.team, G.me) ? 'Ally ' : 'Enemy ') + (e.kind === 'cy lost' ? 'Construction Yard destroyed' : e.kind === 'outpost lost' ? 'Outpost lost' : e.kind);
     const evColor = (e) => (alliedSides(e.team, G.me) ? cMe : cFoe);
     const unit = { army: money, income: (v) => money(v) + '/min', blds: (v) => Math.round(v) };
