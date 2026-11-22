@@ -2362,3 +2362,12 @@ re-rounded the zoom (2 became 2.4, then 2.67 on the way back up) around the scre
 the battle runs fast, so after 20 s autoRes stepped back up and the view jumped. Now the zoom's steps come from the full
 resolution (`ZDPR`, set in `layout`), which autoRes never changes. Headless 1280 x 720 at 1.5x with a 35 ms busy loop a frame:
 the canvas went 1380 -> 1104 px wide with the zoom and camera unchanged (before: zoom 2.4 -> 2).
+
+## Tank tracks missing with WebGL (after 2026.11.22.1, bug fix, both modes, looks only)
+
+Owner: "tank tracks arent being drawn on the map. sometimes they pop in and immediately disappear". look.js `lookGround`
+stroked each fade band as a `Path2D` (`g.stroke(path)`). The WebGL recording (gl.js `stroke` hook) only sees paths built on the
+context itself (moveTo, lineTo): a Path2D fell through to the layer's cut-out, boxed by the *last* path's box (stale or
+none), so tracks showed only where that box happened to be. Now each band is built with `beginPath`/`moveTo`/`lineTo` on g,
+1,500 tracks a stroke (gl.js turns up to 16,000 numbers, 4,000 segments, into lines). Headless: three tanks driven 260 px,
+no tracks before, a clear double trail after. Don't hand a Path2D to the recording context.

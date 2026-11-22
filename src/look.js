@@ -736,15 +736,29 @@ function lookGround(g, x0, y0, x1, y1, shows) {
     l[0] = e.x; l[1] = e.y;
   }
   if (T.list.length > TRACK_MAX || (T.list.length && G.t - T.list[0][4] > TRACK_LIFE)) T.list = T.list.filter((s) => G.t - s[4] < TRACK_LIFE).slice(-TRACK_MAX);
-  const snow = snowy(), B = 5, paths = Array.from({ length: B }, () => new Path2D());
-  for (const [x, y, a, w, t0] of T.list) {
+  // Each fade band as one path built on g itself (moveTo, lineTo): the WebGL recording (gl.js) turns that into lines. A
+  // Path2D handed to stroke() was invisible to it: only the part inside the last path's box showed, so tracks were missing
+  // or flashed up and went (owner, 2026-11-22).
+  const snow = snowy(), B = 5, bands = Array.from({ length: B }, () => []);
+  for (const tr of T.list) {
+    const x = tr[0], y = tr[1];
     if (x < x0 - 10 || x > x1 + 10 || y < y0 - 10 || y > y1 + 10) continue;
-    const f = 1 - (G.t - t0) / TRACK_LIFE, b = Math.min(B - 1, Math.floor(f * B)), c = Math.cos(a), s = Math.sin(a), P = paths[b];
-    const [hx, hy] = hillPt(x, y), lx = hx - x, ly = hy - y;   // (on the raised ground)
-    for (const o of [-w, w]) { const px = x - s * o + lx, py = y + c * o + ly; P.moveTo(px - c * 3, py - s * 3); P.lineTo(px + c * 3, py + s * 3); }
+    bands[Math.min(B - 1, Math.max(0, Math.floor((1 - (G.t - tr[4]) / TRACK_LIFE) * B)))].push(tr);
   }
   g.save(); g.lineWidth = 2.2; g.lineCap = 'butt';
-  for (let b = 0; b < B; b++) { g.strokeStyle = snow ? `rgba(60,70,92,${(0.18 + b * 0.12).toFixed(2)})` : `rgba(22,17,10,${(0.2 + b * 0.13).toFixed(2)})`; g.stroke(paths[b]); }
+  for (let b = 0; b < B; b++) {
+    if (!bands[b].length) continue;
+    g.strokeStyle = snow ? `rgba(60,70,92,${(0.18 + b * 0.12).toFixed(2)})` : `rgba(22,17,10,${(0.2 + b * 0.13).toFixed(2)})`;
+    const L = bands[b];
+    for (let i = 0; i < L.length; i += 1500) {   // (stroked 1,500 at a time: gl.js makes lines of up to 4,000 segments a stroke)
+    g.beginPath();
+    for (const [x, y, a, w] of L.slice(i, i + 1500)) {
+      const c = Math.cos(a), s = Math.sin(a), [hx, hy] = hillPt(x, y), lx = hx - x, ly = hy - y;   // (on the raised ground)
+      for (const o of [-w, w]) { const px = x - s * o + lx, py = y + c * o + ly; g.moveTo(px - c * 3, py - s * 3); g.lineTo(px + c * 3, py + s * 3); }
+    }
+    g.stroke();
+    }
+  }
   g.restore();
 }
 
