@@ -2394,3 +2394,13 @@ own altitude only, but ui.js draws aircraft raised by the ground under them too 
 Village's are up to ~60 view px) the lights stayed down at flat-ground height, off the aircraft or out of view. Now the lift is
 added (`alt + gLift(u.x, u.y)`). Headless, Village at midnight, a helicopter over the highest hill near the base: lights
 missing from it before, on it after. (The AA Gun's searchlight already aimed with the lift.)
+
+## Vehicles cut off in craters with WebGL (2026-11-22, bug fix, both modes, looks only)
+
+Owner (2026-11-22, with a snow screenshot): "vehicles kind of disappear with those new big ground craters instead of
+driving in them like a hill". With WebGL each picture in the list is tested against the ground's depth at its base plus a
+margin (ui.js: units +10 viewDepth). The drawn ground leaves craters out (look.js `gLift(x, y, true)`), while a unit in one
+sinks up to about 6 view px (`DIG_SHOW`), which is about 11 viewDepth (/ `VIEW.F`): more than the margin, so the ground
+hid the lower half of the sprite. Fix: look.js `craterSink(x, y)` (the sink turned into depth, + 2) is added to the margin
+of units and of husks and corpses. The 2D way was never affected. Checked with a scratch Playwright scene (six units in
+dug craters, WebGL against `GLR.paused`).

@@ -51,6 +51,15 @@ function gLift(x, y, noDig) {
   const k = m / HILL_EDGE;
   return h * k * k * (3 - 2 * k);
 }
+// With WebGL, a picture is tested against the ground's depth at its base plus a margin, and the drawn ground leaves craters
+// out, so what sinks into a crater (up to about 6 view px) slipped under the ground and lost its lower half (owner,
+// 2026-11-22: "vehicles kind of disappear with those new big ground craters"). craterSink: the extra depth (world units of
+// viewDepth) to add to the margin, the sink's view px turned into depth (/ VIEW.F), with a little to spare.
+function craterSink(x, y) {
+  if (!G || !G.dig || !LOOK.hills) return 0;
+  const s = gLift(x, y, true) - gLift(x, y);
+  return s > 0 ? s / VIEW.F + 2 : 0;
+}
 const hillMax = () => HG_MAX * VK * HILL_DRAW;
 // The world point that shows where (x, y) does on the raised ground (for things drawn in world coordinates).
 function hillPt(x, y, extra) { return liftPt(x, y, gLift(x, y) + (extra || 0)); }
