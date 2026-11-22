@@ -3358,6 +3358,7 @@ function kill(e, attacker, wh, from) {
     if (e.kind === 'unit') st.killed++; else st.bldKilled++;
     if (attacker.kind === 'unit') { attacker.kills = (attacker.kills || 0) + 1; attacker.killWorth = (attacker.killWorth || 0) + (e.def.cost || 0); promote(attacker); }
   }
+  if (e.kind === 'unit' && e.def.deploys === 'cy' && team.isAI && typeof aiLog === 'function') aiLog(team, 'mcv lost', { why: aiMcvJob(e) });   // (ai.js: a computer's base moves)
   if (e.kind === 'bld' && e.sellT <= 0) {
     team.stats.bldLost++;
     if (e.type === 'cy' || e.type === 'outpost') logEvent(e.team, e.type + ' lost');
@@ -5743,7 +5744,8 @@ function adviseTrucks(team) {
   if (!refs || trucks >= refs * 2 || team.queues.vehicle.some((i) => i.type === 'harv') || team.credits < UNIT_DEFS.harv.cost) return;
   notify(team, 'trucks', 'More ore trucks needed', 90);
 }
-function logEvent(team, kind) { G.log.events.push({ t: Math.round(G.t), team, kind }); }
+// more: extra fields. ai: 1 marks a computer's base moves (ai.js aiLog): in the match report only, not drawn in the debrief.
+function logEvent(team, kind, more) { G.log.events.push(Object.assign({ t: Math.round(G.t), team, kind }, more)); }
 function logWave(team, big) {
   if (!G.log.waves[team]++) logEvent(team, 'first wave');
   else if (big) logEvent(team, 'big push');

@@ -121,7 +121,7 @@ const Report = (() => {
     const names = {};
     const fallen = G.log.fallen.filter((u) => u.team === G.me).map(({ team, ...u }) => u);   // this device's side, as the stats page expects
     for (const u of alive.concat(fallen)) names[u.type] = UNIT_DEFS[u.type].name;
-    const out = { player: G.me, teams: G.teams.map((t) => ({ faction: t.faction, ai: t.isAI, ally: t.ally, style: t.isAI ? t.style || null : undefined, waves: t.waves || 0, stats: t.stats })),
+    const out = { player: G.me, teams: G.teams.map((t) => ({ faction: t.faction, ai: t.isAI, ally: t.ally, style: t.isAI ? t.style || null : undefined, waves: t.waves || 0, stats: t.stats, ...(t.isAI ? { exp2: t.exp2, evac: t.evac } : null) })),
       log: { samples: G.log.samples, events: G.log.events, fallen, alive, waves: G.log.waves }, names, map: G.mapId || null };
     if (errs.length) out.errors = errs;
     if (G.mapViewUsed) out.mapView = true;   // the owner's whole-map view was on (ui.js): not a fair game
