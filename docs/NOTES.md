@@ -2308,3 +2308,18 @@ full, bright form of their side's light colour (`vividOf`), so they show on snow
 side's main colour. Before 2026-11-22 a unit was 1.2 cells across in the pale light colour, often about 1 point on a phone and
 lost on snowy maps (owner: "hard to see units moving on the mini map"). A pulsing red ring where your forces were under fire was
 tried and taken out at the owner's request; dots of 3 and 2 points were tried and found too big (armies became blobs).
+
+## Smart 30/60 fps on phones (2026-11-22, not released, both modes, heat only)
+Owner: "Game is running way better on iPhones but it still getting a little hot". Their iPhone reports (2026.11.21-22) showed
+a steady 60 fps with the game's own code ~5 ms a frame, so the heat is the GPU drawing 60 frames a second. Owner picked smart
+30/60 over a fixed 30, 40 or 45 (40 and 45 show unevenly on a 60 Hz screen); computers untouched.
+- ui.js `skipFrame` (before `loop`): on a touch screen (`touchScr`), in a running battle, once nobody has touched the screen,
+  dragged, scrolled or pressed a key and the camera has not moved for `IDLE_MS` (1.2 s), a whole animation frame is skipped
+  when the last one was under 25 ms ago, so the game runs at 30 fps. The battle steps at 30 a second anyway (`STEP`), so only
+  the in-between (`Smooth`) frames go. Any touch or camera move (a fling still gliding) brings 60 back at once. Paused, menus
+  and loading are unaffected (the paused battle is already kept still).
+- Menu, Graphics group: **Always 60 fps** (`#fpsBtn`, phones only via `touch-only`; `localStorage` `rh-full60`).
+- Match reports: a phone's `fps` per minute now reads 30-60 depending on how much the player touched the screen; `autoRes`
+  is not affected (30 fps gaps of 33 ms are under `SLOW_MS`).
+- Headless (200 x 160 so the software GPU keeps up): phone 30 fps idle, 60 while dragging, 30 again after; with the switch
+  on, 60 throughout; PC 60 throughout.

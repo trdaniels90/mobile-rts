@@ -2154,7 +2154,16 @@ function draw() {
   });
   // WebGL or the 2D way (gl.js): the choice takes effect at the next launch. Switched off by itself after a crash.
   $('glBtn').addEventListener('click', () => { GLR.pref(!GLR.wanted()); syncMenuChoices(); });
+  $('fpsBtn').addEventListener('click', () => { full60 = !full60; try { localStorage.setItem('rh-full60', full60 ? '1' : ''); } catch (_) {} syncMenuChoices(); });
+  function syncFps() {
+    const b = $('fpsBtn');
+    b.setAttribute('aria-pressed', String(full60));
+    b.textContent = 'Always 60 fps: ' + (full60 ? 'on' : 'off');
+    $('fpsStatus').textContent = full60 ? 'Smoothest, but the phone runs warmer and uses more battery.'
+      : 'Cooler: 60 fps while you touch the screen, 30 while you watch.';
+  }
   function syncGl() {
+    syncFps();
     const want = GLR.wanted(), b = $('glBtn');
     b.setAttribute('aria-pressed', String(want));
     b.textContent = 'WebGL graphics: ' + (want ? 'on' : 'off');
@@ -2462,7 +2471,24 @@ function draw() {
   }
   function guard(where, fn) { try { return fn(); } catch (e) { Report.oops(where, e); } }
   // The next frame is asked for first, so nothing that goes wrong in this one can stop the loop.
-  function loop(now) { requestAnimationFrame(loop); frame(now); }
+  // Smart 30/60 on phones (owner, 2026-11-22: "still getting a little hot"; picked over a fixed 30, 40 or 45, which a
+  // 60 Hz screen shows unevenly): while a battle runs and nobody has touched the screen or moved the camera for IDLE_MS,
+  // every other frame is skipped whole (30 fps). The battle steps 30 times a second anyway (STEP), so nothing is lost
+  // but the in-between frames. A touch, a drag or a camera that is still moving brings 60 back at once. Computers
+  // always draw every frame. The menu's "Always 60 fps" (localStorage rh-full60) turns it off.
+  const IDLE_MS = 1200;
+  let full60 = false, lastInput = -1e9, lastFrame = 0, camIdle = '';
+  try { full60 = localStorage.getItem('rh-full60') === '1'; } catch (_) {}
+  for (const ev of ['pointerdown', 'pointermove', 'touchstart', 'touchmove', 'wheel', 'keydown'])
+    window.addEventListener(ev, () => { lastInput = performance.now(); }, { capture: true, passive: true });
+  function skipFrame(now) {
+    if (!touchScr || full60 || !G || G.paused || G.over || document.hidden) return false;
+    const c = cam.x + ',' + cam.y + ',' + cam.z;
+    if (c !== camIdle) { camIdle = c; lastInput = Math.max(lastInput, now); }
+    if (now - lastInput < IDLE_MS) return false;
+    return now - lastFrame < 25;
+  }
+  function loop(now) { requestAnimationFrame(loop); if (skipFrame(now)) return; lastFrame = now; frame(now); }
 
   layout();
   startGame();
