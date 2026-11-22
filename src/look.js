@@ -959,7 +959,7 @@ function lookSmoke(g) {
     if (fx.type === 'fire' && fx.t < fx.life) {
       const k = 1 - fx.t / fx.life;
       const key = ((fx.x / 14) | 0) * 100003 + ((fx.y / 14) | 0);   // nearby flames of one fire: one bigger flame
-      const gl = gLift(fx.x, fx.y);
+      const gl = gLift(fx.x, fx.y) + (fx.lift || 0);   // (at its height: a flare's fire burns at the top of its stack, not on the roof below)
       if (!seenFire.has(key)) { seenFire.add(key); fires.push([fx.x, fx.y + 6, gl, 0.4 + 0.25 * k, key]); }
       if (r() < dt * 2.2) P.length < SMOKE_MAX && P.push({ x: fx.x, y: fx.y + 6, h: 8 + gl, r0: 3, r1: 18 + r() * 6, rise: 18 + r() * 6, t: 0, life: 2.6 + r() * 1.5, a: 0.3, dark: true });
     } else if (fx.type === 'smoulder') {

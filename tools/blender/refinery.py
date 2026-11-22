@@ -110,7 +110,8 @@ for (x, y, r, h, tag) in ((54, 12, 5.0, 50, 'chim1'), (66, 14, 4.0, 42, 'chim2')
 # flare stack
 v.tube((5, 6, 1), (5, 6, 52), 1.5, IRON, 'metal', name='flare', verts=8)
 v.tube((5, 6, 48), (5, 6, 51.5), 1.7, '#3a3a36', 'metal', name='flare_tip', verts=10)
-# (no flame on the flare: it read as a stray fire on the roof, owner 2026-11-21)
+v.sphere((5, 6, 53.6), (2.2, 2.2, 3.4), '#ff8a2a', 'glow', name='flare_flame')
+v.sphere((5, 6, 55.2), (1.1, 1.1, 1.8), '#ffe08a', 'glow', name='flare_core')
 # ore heap, a crusher bunker, and the inclined conveyor up to the hall roof
 v.sphere((64, 36, 1.6), (9, 7, 5.5), ORE, 'rough', name='heap')
 v.sphere((60, 38, 1.6), (5, 4.5, 3.5), ORED, 'rough', name='heap2')
