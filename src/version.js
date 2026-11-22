@@ -4,6 +4,27 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.22.2', date: '22 November 2026', title: 'Smoother zoomed out, loading screen', groups: [
+    ['New', [
+      'A loading screen when the game starts, so the menu is ready the moment you see it.',
+    ]],
+    ['Improved', [
+      'Big battles draw much faster zoomed out, especially with lots of walls, villages and explosions on screen.',
+      'The start menu answers taps and scrolling straight away instead of hanging for a moment.',
+      'The Soviet Advanced Power Plant\'s two cooling towers are now open at the top, with steam rising out of them.',
+    ]],
+    ['Changed', [
+      'Close Air Support: if every plane in a strike is shot down, the power takes 6 minutes to recharge instead of 4.',
+      'The computer is more careful with Close Air Support: it only calls it in where it knows of no anti-air covering the target or the way in.',
+    ]],
+    ['Fixed', [
+      'Tank tracks are drawn on the ground again.',
+      'The screen no longer jumps on its own while zoomed in.',
+      'Aircraft lights stay on the aircraft when flying over hills.',
+      'Vehicles in craters no longer lose their lower half.',
+      'Small gold dots no longer float beside the Soviet Advanced Power Plant.',
+    ]],
+  ] },
   { v: '2026.11.22.1', date: '22 November 2026', title: 'Cooler phones, open cooling towers', groups: [
     ['Improved', [
       'Phones run cooler: the game draws 30 frames a second while you watch and goes straight back to 60 as soon as you touch the screen. Turn on Always 60 fps in the menu to keep it at 60.',
