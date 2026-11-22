@@ -6245,7 +6245,7 @@ function plantSmoke(dt) {
     // the Soviet refinery's flare stack burns
     if (ref && sov && (b.flareT = (b.flareT || 0) - 0.15) < 0) {
       b.flareT = 0;
-      G.effects.push({ type: 'fire', x: b.cx * CELL + 5 + (Math.random() - 0.5), y: b.cy * CELL + 6, lift: 54 * VK, t: 0, life: 0.5 + Math.random() * 0.3, s: 1.1, vy: -6 });
+      G.effects.push({ type: 'fire', x: b.cx * CELL + 5 + (Math.random() - 0.5), y: b.cy * CELL + 6, lift: 54 * VK, t: 0, life: 0.5 + Math.random() * 0.3, s: 1.1, vy: -6, flare: true });
     }
   }
 }
