@@ -123,11 +123,12 @@ function hillWarp(g, vx, vy) {
       }
       return [a, b, cc, d];
     },
-    each(x0, y0, x1, y1, fn) {
+    // skip(X0, Y0, X1, Y1): leave a chunk out before it is sorted and its transform set (ui.js: the fog's, where none is dark)
+    each(x0, y0, x1, y1, fn, skip) {
       const list = [];
       for (let cy = Math.floor(y0 / N) * N; cy < y1; cy += N) for (let cx = Math.floor(x0 / N) * N; cx < x1; cx += N) {
         const X0 = Math.max(x0, cx), Y0 = Math.max(y0, cy), X1 = Math.min(x1, cx + N), Y1 = Math.min(y1, cy + N);
-        if (X1 > X0 && Y1 > Y0) list.push({ X0, Y0, X1, Y1, key: cx * S + cy * C });
+        if (X1 > X0 && Y1 > Y0 && !(skip && skip(X0, Y0, X1, Y1))) list.push({ X0, Y0, X1, Y1, key: cx * S + cy * C });
       }
       list.sort((p, q) => p.key - q.key);
       for (const c of list) { set(c); fn(c.X0, c.Y0, c.X1, c.Y1); }

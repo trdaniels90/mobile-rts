@@ -572,6 +572,7 @@
   }
   const seenAt = (x, y) => G.seen[cellOfPos(x, y)];
   // Whether every cell of a world box (and one round it) has been seen: no shroud to draw there.
+  let shroudDark = 1;   // (unexplored cells, counted when the fog is redrawn below)
   const shroudClear = (x0, y0, x1, y1) => {
     const c0 = Math.max(0, Math.floor(x0 / CELL) - 1), c1 = Math.min(MAP - 1, Math.floor(x1 / CELL) + 1), r0 = Math.max(0, Math.floor(y0 / CELL) - 1), r1 = Math.min(MAP - 1, Math.floor(y1 / CELL) + 1);
     for (let y = r0; y <= r1; y++) for (let x = c0; x <= c1; x++) if (!G.seen[y * MAP + x]) return false;
@@ -1035,7 +1036,9 @@ function draw() {
       if (G.shroudDirty) {
         G.shroudDirty = false;
         const d = shroudImg.data;
-        for (let i = 0; i < NCELLS; i++) { d[i * 4 + 3] = G.seen[i] ? 0 : 255; }
+        let dark = 0;
+        for (let i = 0; i < NCELLS; i++) { if (G.seen[i]) d[i * 4 + 3] = 0; else { d[i * 4 + 3] = 255; dark++; } }
+        shroudDark = dark;
         sctx.putImageData(shroudImg, 0, 0);
       shroudCanvas._ver = (shroudCanvas._ver || 0) + 1; shroudCanvas._own = true;   // (gl.js: changed, upload it again; a texture of its own)
       }
@@ -1044,13 +1047,14 @@ function draw() {
       // Only the part of the box on the map: Safari (iPhone) stretches and shifts a picture whose source rectangle runs
       // past its edges instead of clipping it, so the fog slid about while scrolling near the map's edges.
       const fx0 = Math.max(0, ox), fy0 = Math.max(0, oy), fx1 = Math.min(WORLD, ox + bw), fy1 = Math.min(WORLD, oy + bh);
-      if (fx1 > fx0 && fy1 > fy0) {
+      // (shroudDark: unexplored cells left; none, and there is no fog to draw. Zoomed out on the raised ground, going over
+      // every chunk in view for it was ~8 ms a frame: owner's PC, 2026-11-22)
+      if (fx1 > fx0 && fy1 > fy0 && shroudDark) {
         if (warp) {   // on the raised ground, in chunks (look.js hillWarp); only where some of it is dark
           const L = HILL_LAP;
           warp.each(fx0, fy0, fx1, fy1, (X0, Y0, X1, Y1) => {
-            if (shroudClear(X0, Y0, X1, Y1)) return;
             v.drawImage(shroudCanvas, X0 / CELL, Y0 / CELL, (X1 - X0) / CELL, (Y1 - Y0) / CELL, X0 - L, Y0 - L, X1 - X0 + 2 * L, Y1 - Y0 + 2 * L);
-          });
+          }, shroudClear);
         } else v.drawImage(shroudCanvas, fx0 / CELL, fy0 / CELL, (fx1 - fx0) / CELL, (fy1 - fy0) / CELL, fx0, fy0, fx1 - fx0, fy1 - fy0);
       }
       v.imageSmoothingEnabled = false;

@@ -2394,3 +2394,24 @@ own altitude only, but ui.js draws aircraft raised by the ground under them too 
 Village's are up to ~60 view px) the lights stayed down at flat-ground height, off the aircraft or out of view. Now the lift is
 added (`alt + gLift(u.x, u.y)`). Headless, Village at midnight, a helicopter over the highest hill near the base: lights
 missing from it before, on it after. (The AA Gun's searchlight already aimed with the lift.)
+
+## Faster hand-over to the graphics card zoomed out (after 2026.11.22.1, performance only, both modes)
+
+Owner (PC, Frostlight 3 v 3, 47 min, 17 fps zoomed out): option 1 of three ("speed up the hand-over", then simpler far forests
+if needed). Benchmark: headless 1920 x 1080, Frostlight 3 v 3 watched, 15 min fast-forwarded (~1,000 things, ~3,000 effects),
+fully zoomed out, paused, CPU profile per frame (software GPU, so only the game's own JavaScript is comparable):
+- gl.js `stroke`: whole circles and ellipses (`whole()` marks them `P.ring`) are drawn as their 24 sides in lines, not cut out
+  of the 2D layer. The blast and dust rings (lookfx.js), the fountains' ripples and the walls' stones were ~570,000 px a frame
+  copied off the layer and uploaded (`R.listDepth` -> `flush1`: ~19 ms a frame); now nearly nothing.
+- gl.js `drawQuads`: the vertex loop written out (no closure per quad), and each piece of GL state (sampler, blend, uOver,
+  normal texture, uHasN, texture) set only when it changes from the run before: 8.3 -> 4.9 ms.
+- gl.js recorder: `setTransform` with six numbers and `translate` keep the cached matrix (`mCache`) instead of dropping it, so
+  the next picture does not read it back with `getTransform` (a new matrix each time).
+- ui.js fog: `shroudDark` (unexplored cells, counted when the fog is redrawn): none, no fog drawn; else look.js `hillWarp.each`
+  takes `skip` (`shroudClear`) so clear chunks are left out before sorting and setting transforms: ~8 ms -> under 1 ms with
+  the map uncovered.
+- Result on that scene: the game's drawing 106 -> 81 ms a frame, the hand-over (`air`: R.listEnd) 27 -> 16 ms. Pictures
+  unchanged (old and new compared pixel by pixel on a paused Village scene: only clock-driven things differ, cloud shadows and
+  blinking beacons).
+- Left: structures, walls, cliffs and props (`onHill` -> `drawOne`, ~34 ms), sorting (`list` ~11), trees (`tree` + `isoTreeBlocks`
+  ~13), ground ~8. Village houses and props being made for the first time cost ~16 ms a frame until all are made (warm-up).

@@ -781,6 +781,7 @@ void main() {
     if (L) subs.pop();
     const P = [], c = Math.cos(rot || 0), sn = Math.sin(rot || 0), N = 24;
     for (let i = 0; i < N; i++) { const t = i / N * Math.PI * 2, ex = Math.cos(t) * rx, ey = Math.sin(t) * ry; P.push(...tp(x + ex * c - ey * sn, y + ex * sn + ey * c)); }
+    P.ring = true;   // (a closed outline: stroke() draws it as lines too)
     subs.push(P); shut = true; last = null;
     return true;
   }
@@ -916,6 +917,12 @@ void main() {
       stroke(...a) {
         // (stage 5) Straight lines only, in one colour and a blend WebGL does, not clipped (rain, cables, rally lines):
         // each a thin coloured quad, not a cut-out of the box round them all (rain's was the whole view, every frame).
+        // Whole circles and ellipses (whole(): rings of blasts, the fountains' ripples, the walls' stones) as their 24 sides,
+        // not a cut-out of the layer: they were most of the layer's area in a big battle zoomed out (2026-11-22).
+        if (!a.length && !segOk && !curved && !clipped && subs.length && subs.every((P) => P.ring)) {
+          segs = []; for (const P of subs) { const n = P.length; for (let i = 0; i < n; i += 2) segs.push(P[i], P[i + 1], P[(i + 2) % n], P[(i + 3) % n]); }
+          segOk = true;
+        }
         const C = !a.length && segOk && !clipped && segs.length ? solid(lctx.strokeStyle) : null, b = BLENDS[lctx.globalCompositeOperation];
         const hw = Math.max(0.5, (lctx.lineWidth || 1) * scl() / 4);   // (half the width)
         if (C && b !== undefined && segs.length <= 16000 && !lctx.getLineDash().length) {
@@ -976,10 +983,15 @@ void main() {
       },
       save() { clipStack.push(clipped); lctx.save(); },
       restore() { clipped = clipStack.length ? clipStack.pop() : false; mCache = null; lctx.restore(); },
-      setTransform(...a) { mCache = null; lctx.setTransform(...a); },
+      // (setTransform with six numbers and translate keep the cached matrix themselves: reading it back from the canvas
+      // made a new matrix at nearly every picture drawn, a few ms a frame zoomed out over a big battle)
+      setTransform(a, b, c, d, e, f) {
+        if (arguments.length === 6) { mCache = { a, b, c, d, e, f }; lctx.setTransform(a, b, c, d, e, f); }
+        else { mCache = null; lctx.setTransform(...arguments); }
+      },
       resetTransform() { mCache = null; lctx.resetTransform(); },
       transform(...a) { mCache = null; lctx.transform(...a); },
-      translate(x, y) { mCache = null; lctx.translate(x, y); },
+      translate(x, y) { const m = mCache; if (m) mCache = { a: m.a, b: m.b, c: m.c, d: m.d, e: m.e + m.a * x + m.c * y, f: m.f + m.b * x + m.d * y }; lctx.translate(x, y); },
       scale(x, y) { mCache = null; lctx.scale(x, y); },
       rotate(a) { mCache = null; lctx.rotate(a); },
       clip(...a) { clipped = true; lctx.clip(...a); },
@@ -1046,10 +1058,16 @@ void main() {
     if (qbuf.length < list.length * VQ) qbuf = new Float32Array(Math.ceil(list.length * 1.5) * VQ);   // (kept from frame to frame)
     const f = qbuf;
     let o = 0;
-    for (const r of list) {
-      const Q = r.q, d = r.d, a = r.a, C = r.col, cr = C ? C[0] : 1, cg = C ? C[1] : 1, cb = C ? C[2] : 1;
-      const put = (x, y, u, vv) => { f[o++] = x; f[o++] = y; f[o++] = u; f[o++] = vv; f[o++] = d; f[o++] = a; f[o++] = cr; f[o++] = cg; f[o++] = cb; };
-      put(Q[0], Q[1], r.u0, r.v0); put(Q[2], Q[3], r.u1, r.v0); put(Q[4], Q[5], r.u0, r.v1); put(Q[2], Q[3], r.u1, r.v0); put(Q[6], Q[7], r.u1, r.v1); put(Q[4], Q[5], r.u0, r.v1);
+    for (let j = 0, n = list.length; j < n; j++) {   // (written out in full: a closure per quad cost a good part of this loop)
+      const r = list[j], Q = r.q, d = r.d, a = r.a, C = r.col, cr = C ? C[0] : 1, cg = C ? C[1] : 1, cb = C ? C[2] : 1;
+      const u0 = r.u0, v0 = r.v0, u1 = r.u1, v1 = r.v1;
+      f[o] = Q[0]; f[o + 1] = Q[1]; f[o + 2] = u0; f[o + 3] = v0; f[o + 4] = d; f[o + 5] = a; f[o + 6] = cr; f[o + 7] = cg; f[o + 8] = cb;
+      f[o + 9] = Q[2]; f[o + 10] = Q[3]; f[o + 11] = u1; f[o + 12] = v0; f[o + 13] = d; f[o + 14] = a; f[o + 15] = cr; f[o + 16] = cg; f[o + 17] = cb;
+      f[o + 18] = Q[4]; f[o + 19] = Q[5]; f[o + 20] = u0; f[o + 21] = v1; f[o + 22] = d; f[o + 23] = a; f[o + 24] = cr; f[o + 25] = cg; f[o + 26] = cb;
+      f[o + 27] = Q[2]; f[o + 28] = Q[3]; f[o + 29] = u1; f[o + 30] = v0; f[o + 31] = d; f[o + 32] = a; f[o + 33] = cr; f[o + 34] = cg; f[o + 35] = cb;
+      f[o + 36] = Q[6]; f[o + 37] = Q[7]; f[o + 38] = u1; f[o + 39] = v1; f[o + 40] = d; f[o + 41] = a; f[o + 42] = cr; f[o + 43] = cg; f[o + 44] = cb;
+      f[o + 45] = Q[4]; f[o + 46] = Q[5]; f[o + 47] = u0; f[o + 48] = v1; f[o + 49] = d; f[o + 50] = a; f[o + 51] = cr; f[o + 52] = cg; f[o + 53] = cb;
+      o += 54;
     }
     // (the buffer's storage made once and grown, filled with bufferSubData: making it again every call, several times a
     // frame, grew the page's memory; see meshOf)
@@ -1062,14 +1080,19 @@ void main() {
     if (!R.linS) { R.linS = gl.createSampler(); for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.samplerParameteri(R.linS, k, gl.LINEAR); gl.samplerParameteri(R.linS, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.samplerParameteri(R.linS, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); }
     const BF = [[gl.ONE, gl.ONE_MINUS_SRC_ALPHA], [gl.ONE, gl.ONE], [gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA], [gl.ONE, gl.ONE_MINUS_SRC_COLOR]];
     let start = 0, calls = 0;
+    // Each piece of state set only when it changes from the run before (a few hundred runs a frame in a big battle; most
+    // of them differ only in the texture).
+    let cS = -1, cB = -2, cO = -1, cN, cHN = -1, cT;
     for (let i = 1; i <= list.length; i++) {   // runs of the same texture and blend in one call
       const a = list[start], r = list[i];
       if (r && r.tex === a.tex && r.b === a.b && r.ntex === a.ntex && (r.s | 0) === (a.s | 0)) continue;
-      gl.bindSampler(0, a.s ? R.linS : null);
-      if (a.b >= 0) gl.blendFunc(BF[a.b][0], BF[a.b][1]);   // (-1: the blend set by the caller)
-      gl.uniform1f(loc2.uOver, a.b === 0 && normals ? 1 : 0);
-      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, (normals && a.ntex) || R.none); gl.uniform1f(loc2.uHasN, normals && a.ntex ? 1 : 0);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, a.tex);
+      const s1 = a.s ? 1 : 0, ov = a.b === 0 && normals ? 1 : 0, nt = (normals && a.ntex) || R.none, hn = normals && a.ntex ? 1 : 0;
+      if (s1 !== cS) { gl.bindSampler(0, s1 ? R.linS : null); cS = s1; }
+      if (a.b >= 0 && a.b !== cB) { gl.blendFunc(BF[a.b][0], BF[a.b][1]); cB = a.b; }   // (-1: the blend set by the caller)
+      if (ov !== cO) { gl.uniform1f(loc2.uOver, ov); cO = ov; }
+      if (nt !== cN) { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, nt); gl.activeTexture(gl.TEXTURE0); cN = nt; }
+      if (hn !== cHN) { gl.uniform1f(loc2.uHasN, hn); cHN = hn; }
+      if (a.tex !== cT) { gl.bindTexture(gl.TEXTURE_2D, a.tex); cT = a.tex; }
       gl.drawArrays(gl.TRIANGLES, start * 6, (i - start) * 6); calls++;
       start = i;
     }
