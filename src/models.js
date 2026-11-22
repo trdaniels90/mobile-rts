@@ -3440,7 +3440,6 @@ const SOVIET = {
     m.box(18, 20, 33, 19, 21, 36, '#b9b6ac', M_ROUGH);
     m.box(11, 21, 33, 12, 22, 36, '#b9b6ac', M_ROUGH);
     m.box(16, 21, 33, 17, 22, 36, '#b9b6ac', M_ROUGH);
-    m.box(2, 46, 34, 4, 48, 35, '#d0a426', M_METAL);
     m.box(10, 6, 35, 11, 7, 36, '#b9b6ac', M_ROUGH);
     m.box(17, 6, 35, 18, 7, 36, '#b9b6ac', M_ROUGH);
     m.box(6, 10, 35, 7, 11, 36, '#b9b6ac', M_ROUGH);
@@ -3487,6 +3486,10 @@ const SOVIET = {
     m.box(21, 10, 38, 22, 18, 39, '#b9b6ac', M_ROUGH);
     m.box(5, 13, 38, 6, 15, 39, '#b9b6ac', M_ROUGH);
     m.box(22, 13, 38, 23, 15, 39, '#b9b6ac', M_ROUGH);
+    // (by hand, after the generated part) the cooling tower is open on top: hollow it down to a dark floor, sooted inside
+    m.cylZ(14, 14, 29, 40, 6.6, null);
+    m.cylZ(14, 14, 28, 29, 7, '#24231f', M_ROUGH);
+    m.paint(5, 5, 29, 24, 24, 40, (x, y, z) => (Math.hypot(x + 0.5 - 14, y + 0.5 - 14) < 7.8 ? (z > 37 ? '#55524b' : '#3a3833') : undefined));
     starFront(m, 24, 47, 17.2, 2.2, pal.main);
     return m;
   },

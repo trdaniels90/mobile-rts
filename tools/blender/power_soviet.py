@@ -49,7 +49,6 @@ s.prism([(17.5, 45.5), (30.5, 45.5), (30.5, 48.0), (17.5, 48.0)], [(22.6, 45.5),
 # flagpole with a red flag, front left
 s.tube((3, 47, 1), (3, 47, 34), 0.5, STEEL, 'metal', name='flagpole', verts=8)
 s.cube((7.2, 47, 31.4), (8.4, 0.5, 5), 'main', 'matte', name='flag')
-s.sphere((3, 47, 34.4), (0.8, 0.8, 0.8), '#d0a426', 'metal', name='finial')
 
 # ---- hyperbolic cooling tower (back left), steam above
 for z in range(1, 38, 2):
