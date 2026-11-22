@@ -2353,3 +2353,12 @@ the owner is making a proper one), the title and a bar that moves on the composi
 taps on the menu are not lost; a timer in `index.html` removes it after 20 s whatever happens. The single-file build
 puts the picture in the page as a data URI (`scripts/build-single-file.py`); `sw.js` caches it. Measured on a headless
 iPhone at 4x CPU throttle: shown at 0.4 s, gone after the last startup long task.
+
+## Screen jumping on its own (after 2026.11.22.1, bug fix, both modes)
+
+Owner (PC): "when zoomed in and idle around my base the screen seems to jump around on its own". `snapZ` rounded the zoom to
+whole screen pixels at the resolution being drawn (`DPR`), and `autoRes` changes that resolution: each step down or up
+re-rounded the zoom (2 became 2.4, then 2.67 on the way back up) around the screen's top left corner. Zoomed in near a base
+the battle runs fast, so after 20 s autoRes stepped back up and the view jumped. Now the zoom's steps come from the full
+resolution (`ZDPR`, set in `layout`), which autoRes never changes. Headless 1280 x 720 at 1.5x with a 35 ms busy loop a frame:
+the canvas went 1380 -> 1104 px wide with the zoom and camera unchanged (before: zoom 2.4 -> 2).

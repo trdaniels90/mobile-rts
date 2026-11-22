@@ -26,7 +26,7 @@
   const isTouch = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   document.body.classList.toggle('touch', isTouch);
 
-  let W = 0, H = 0, DPR = 1;            // game view size in CSS px
+  let W = 0, H = 0, DPR = 1, ZDPR = 1;           // game view size in CSS px
   const cam = { x: 0, y: 0, z: 1.5 };
   let faction = 'allies', diffKey = 'normal', boxMode = false;
   try {
@@ -118,6 +118,7 @@
     // edge hard to see at arm's length, and the phone ran hot (owner, 2026-11-20). Desktops keep up to 3.
     const touch = touchScr = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
     DPR = Math.min(window.devicePixelRatio || 1, (touch ? DPR_STEPS : PC_STEPS)[dprStep]);   // (autoRes below may lower it)
+    ZDPR = Math.min(window.devicePixelRatio || 1, (touch ? DPR_STEPS : PC_STEPS)[0]);   // (the zoom's steps: not moved by autoRes)
     const r = ui.sidebar.getBoundingClientRect(), top = Math.round(ui.topstrip.getBoundingClientRect().bottom);
     const portrait = window.innerHeight > window.innerWidth;
     W = portrait ? window.innerWidth : Math.max(100, Math.round(r.left));
@@ -166,10 +167,12 @@
 
   // Zoom snaps so each game pixel covers a whole number of screen pixels; fractional
   // scaling makes some pixels wider than others and reads as blur on phones.
+  // The steps come from the full resolution (ZDPR), not the one autoRes is drawing at: rounded to that, the zoom changed
+  // (2 to 2.4, and back to 2.67) each time the resolution stepped, and the screen jumped on its own (owner, 2026-11-22).
   function snapZ(z) {
     z = Math.max(0.75, Math.min(3.5, z));
-    if (z * DPR < 1.5) return z;
-    return Math.max(1, Math.round(z * DPR)) / DPR;
+    if (z * ZDPR < 1.5) return z;
+    return Math.max(1, Math.round(z * ZDPR)) / ZDPR;
   }
   const EDGE_KEEP = 8;
   function clampCam() {
@@ -1651,7 +1654,7 @@ function draw() {
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const p = local(e), w = { x: cam.x + p.x / cam.z, y: cam.y + p.y / cam.z };   // (on the view plane)
-    cam.z = snapZ(cam.z + Math.sign(-e.deltaY) * Math.max(1 / DPR, cam.z * 0.12));
+    cam.z = snapZ(cam.z + Math.sign(-e.deltaY) * Math.max(1 / ZDPR, cam.z * 0.12));
     cam.x = w.x - p.x / cam.z; cam.y = w.y - p.y / cam.z;
     clampCam();
   }, { passive: false });
