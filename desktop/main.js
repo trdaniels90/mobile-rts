@@ -56,7 +56,8 @@ function createWindow() {
   win.webContents.on('did-finish-load', () => { win.webContents.setZoomFactor(loadZoom()); if (content) content.confirm(); });
   win.loadURL('app://game/index.html');
   // The game's page died (a graphics driver crash took the window black, 2026.11.20, RTX 5080): load it again rather than
-  // leave a black window. The game sees it died drawing with WebGL (gl.js crash guard) and comes back with the 2D way.
+  // leave a black window. The game notes it died drawing with WebGL (gl.js crash guard, for the match report)
+  // and comes back with WebGL again: since 2026-11-22 WebGL is the only way it draws for players.
   let reloads = 0;
   win.webContents.on('render-process-gone', (e, d) => {
     logCrash({ kind: 'page', reason: d.reason, code: d.exitCode });

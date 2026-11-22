@@ -2323,3 +2323,15 @@ a steady 60 fps with the game's own code ~5 ms a frame, so the heat is the GPU d
   is not affected (30 fps gaps of 33 ms are under `SLOW_MS`).
 - Headless (200 x 160 so the software GPU keeps up): phone 30 fps idle, 60 while dragging, 30 again after; with the switch
   on, 60 throughout; PC 60 throughout.
+
+## WebGL always; the WebGL graphics switch removed (2026-11-22, not released, both modes, looks only)
+Owner: "remove the option to toggle webgl. I want that to be the only option always, removing the old graphics build from the game".
+- The menu's "WebGL graphics" button and note are gone (index.html, ui.js `syncGl`); the Graphics group now holds only "Always
+  60 fps" and shows on touch screens only. gl.js: the `rh-gl` preference is cleared at launch (an old "off" or a crash's
+  switch-off no longer applies), `R.pref`/`R.wanted` removed, and the crash guard (`rh-gl-live`) still records a crash
+  (`R.crashed`, `R.crashedAt`, match report `glCrash`) but no longer switches WebGL off. The Windows app reloads a crashed
+  page into WebGL again (at most 3 reloads, desktop/main.js), so a driver that crashes every time ends on a black window.
+- Not deleted: the 2D drawing itself. WebGL records the same drawing code (`GLR.listBegin`) and replays it on the GPU, so most
+  of it is shared; what is 2D-only is the fallback for a device with no WebGL2 or a lost context (else a black screen), and
+  `?gl=off` for development comparisons (tools/look/gl-compare.js). Players cannot reach it otherwise.
+- Headless (phone and PC, `rh-gl` 'off' stored beforehand): WebGL on and lit, no switch, no errors.

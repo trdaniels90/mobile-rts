@@ -7,16 +7,19 @@
 // shader. The result is put into the 2D view canvas as its ground (ui.js draw), so everything drawn after it is unchanged.
 const GLR = (() => {
   const q = typeof location !== 'undefined' ? location.search : '';
-  // The player's choice (Options: WebGL graphics, localStorage rh-gl 'off'), and the crash guard: rh-gl-live is set while
-  // WebGL draws on a visible page and cleared when the page is hidden or closed, so finding it set at launch means the
-  // page died drawing with WebGL (an RTX 5080 in the Windows app, 2026.11.20: the window went black). WebGL is then
-  // switched off, R.crashed tells the menu and the match report.
+  // WebGL is the only way the game draws for players (owner, 2026-11-22: "remove the option to toggle webgl. I want that to
+  // be the only option always"): the menu's switch and the rh-gl preference are gone, and a crash no longer switches it off.
+  // The crash guard still notes one: rh-gl-live is set while WebGL draws on a visible page and cleared when the page is
+  // hidden or closed, so finding it set at launch means the page died drawing (R.crashed, R.crashedAt for the match report).
+  // The 2D way is kept only underneath: for a device with no WebGL2 or a lost context (else a black screen), and ?gl=off
+  // for comparing the two in development (tools/look/gl-compare.js).
   const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (_) {} return null; };
   let crashed = false;
-  if (typeof document !== 'undefined' && ls('rh-gl-live') === '1') { crashed = true; ls('rh-gl', 'off'); ls('rh-gl-crash', String(Date.now())); ls('rh-gl-live', null); }
-  const R = { on: typeof document !== 'undefined' && !/[?&]gl=off\b/.test(q) && ls('rh-gl') !== 'off', ground: () => false, frames: 0, crashed };
-  R.pref = (on) => { ls('rh-gl', on ? null : 'off'); if (on) ls('rh-gl-crash', null); };   // (takes effect at the next launch)
-  R.wanted = () => ls('rh-gl') !== 'off';
+  if (typeof document !== 'undefined') {
+    if (ls('rh-gl') !== null) ls('rh-gl', null);   // (an old "WebGL graphics: off" choice, or a crash's switch-off)
+    if (ls('rh-gl-live') === '1') { crashed = true; ls('rh-gl-crash', String(Date.now())); ls('rh-gl-live', null); }
+  }
+  const R = { on: typeof document !== 'undefined' && !/[?&]gl=off\b/.test(q), ground: () => false, frames: 0, crashed };
   R.crashedAt = () => +ls('rh-gl-crash') || 0;
   let live = false;
   const unlive = () => { if (live) { live = false; ls('rh-gl-live', null); } };

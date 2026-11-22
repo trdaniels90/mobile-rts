@@ -2152,8 +2152,6 @@ function draw() {
     Sound.setOption(key, !Sound.settings[key]);
     syncMenuChoices();
   });
-  // WebGL or the 2D way (gl.js): the choice takes effect at the next launch. Switched off by itself after a crash.
-  $('glBtn').addEventListener('click', () => { GLR.pref(!GLR.wanted()); syncMenuChoices(); });
   $('fpsBtn').addEventListener('click', () => { full60 = !full60; try { localStorage.setItem('rh-full60', full60 ? '1' : ''); } catch (_) {} syncMenuChoices(); });
   function syncFps() {
     const b = $('fpsBtn');
@@ -2161,15 +2159,6 @@ function draw() {
     b.textContent = 'Always 60 fps: ' + (full60 ? 'on' : 'off');
     $('fpsStatus').textContent = full60 ? 'Smoothest, but the phone runs warmer and uses more battery.'
       : 'Cooler: 60 fps while you touch the screen, 30 while you watch.';
-  }
-  function syncGl() {
-    syncFps();
-    const want = GLR.wanted(), b = $('glBtn');
-    b.setAttribute('aria-pressed', String(want));
-    b.textContent = 'WebGL graphics: ' + (want ? 'on' : 'off');
-    $('glStatus').textContent = want !== GLR.on ? 'Takes effect when the game is next started.'
-      : !want && GLR.crashedAt() ? 'Switched off because the game crashed while drawing with WebGL. Switch it on to try again.'
-      : want ? 'Faster, with lighting. Switch off if the game crashes or the screen goes black.' : 'The older 2D drawing: slower on big screens.';
   }
   $('trackBtn').addEventListener('click', () => { Sound.init(); Sound.setOption('music', true); Sound.music.skip(); syncMenuChoices(); });
   for (const [id, key] of [['musicVol', 'musicVol'], ['sfxVol', 'sfxVol']]) {
@@ -2182,7 +2171,7 @@ function draw() {
     for (const b of ui.menu.querySelectorAll('[data-audio]')) b.setAttribute('aria-pressed', String(!!Sound.settings[b.dataset.audio]));
     $('trackName').textContent = '· ' + Sound.music.name;
     $('audioStatus').textContent = 'Sound: ' + Sound.status();
-    syncGl();
+    syncFps();
     for (const b of ui.menu.querySelectorAll('[data-faction]')) b.setAttribute('aria-pressed', String(b.dataset.faction === faction));
     for (const b of ui.menu.querySelectorAll('[data-diff]')) b.setAttribute('aria-pressed', String(b.dataset.diff === diffKey));
     ui.menu.dataset.faction = faction;
