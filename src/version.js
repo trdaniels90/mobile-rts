@@ -4,6 +4,19 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.22.1', date: '22 November 2026', title: 'Cooler phones, open cooling towers', groups: [
+    ['Improved', [
+      'Phones run cooler: the game draws 30 frames a second while you watch and goes straight back to 60 as soon as you touch the screen. Turn on Always 60 fps in the menu to keep it at 60.',
+      'The Soviet Power Plant\'s cooling tower is now open at the top, with steam rising out of it.',
+    ]],
+    ['Changed', [
+      'The new WebGL graphics are now always used; the WebGL graphics switch has been removed from the menu.',
+    ]],
+    ['Fixed', [
+      'A stray flame no longer burns on the roof of the Soviet Ore Refinery. Its flare stack burns at the top again, with a single flame.',
+      'A small gold dot no longer floats beside the Soviet Power Plant.',
+    ]],
+  ] },
   { v: '2026.11.22', date: '22 November 2026', title: 'Clearer minimap, longer-range artillery', groups: [
     ['Improved', [
       'Units are easier to see on the minimap: bigger dots in brighter colours with a dark edge, so they stand out on snow, sand and grass.',
