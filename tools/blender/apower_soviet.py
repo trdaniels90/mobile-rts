@@ -61,7 +61,6 @@ for (cx, cy) in ((24, 46), (48, 46), (24, 62), (48, 62)):     # corner turrets o
 for x in (3, 69):
     s.tube((x, 72, 1), (x, 72, 36), 0.5, STEEL, 'metal', name='flagpole', verts=8)
     s.cube((x + 4.2, 72, 33.4), (8.4, 0.5, 5), 'main', 'matte', name='flag')
-    s.sphere((x, 72, 36.4), (0.8, 0.8, 0.8), '#d0a426', 'metal', name='finial')
 
 
 def cooling_tower(cx, cy, tag):

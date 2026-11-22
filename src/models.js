@@ -4189,8 +4189,6 @@ const SOVIET = {
     m.box(24, 17, 36, 25, 19, 38, pal.main, M_MATTE);
     m.box(37, 17, 36, 38, 19, 38, pal.main, M_MATTE);
     m.box(54, 17, 36, 55, 19, 38, pal.main, M_MATTE);
-    m.box(2, 71, 36, 4, 73, 37, '#d0a426', M_METAL);
-    m.box(68, 71, 36, 70, 73, 37, '#d0a426', M_METAL);
     m.box(13, 9, 37, 15, 10, 39, '#b9b6ac', M_ROUGH);
     m.box(17, 9, 37, 19, 10, 39, '#b9b6ac', M_ROUGH);
     m.box(43, 9, 37, 45, 10, 39, '#b9b6ac', M_ROUGH);
@@ -4259,6 +4257,12 @@ const SOVIET = {
     m.box(35, 53, 58, 37, 55, 62, pal.main, M_MATTE);
     m.box(34, 53, 59, 35, 55, 62, pal.main, M_MATTE);
     m.box(37, 53, 59, 38, 55, 62, pal.main, M_MATTE);
+    // (by hand, after the generated part) both cooling towers open on top, as the Power Plant's: hollow down to a dark floor, sooted inside
+    for (const [cx, cy] of [[16, 18], [46, 18]]) {
+      m.cylZ(cx, cy, 29, 40, 6.6, null);
+      m.cylZ(cx, cy, 28, 29, 7, '#24231f', M_ROUGH);
+      m.paint(cx - 9, cy - 9, 29, cx + 10, cy + 10, 40, (x, y, z) => (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) < 7.8 ? (z > 37 ? '#55524b' : '#3a3833') : undefined));
+    }
     starFront(m, 36, 72, 18.4, 2.4, pal.main);
     return m;
   },
