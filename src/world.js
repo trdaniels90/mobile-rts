@@ -3340,6 +3340,7 @@ function tickWipe(t) {
 function kill(e, attacker, wh, from) {
   if (e.inHouse) leaveHouse(e);   // (falls in the doorway)
   e.alive = false;
+  if (e.flight && e.flight.strike) casLost(e);   // (a Close Air Support plane shot down)
   const team = teamOf(e);
   if (e.cargo && e.cargo.length && e.def.apc && !G.remote && !WIPING) {   // an APC: some of those aboard get out of the wreck
     const n = e.cargo.length, out = apcEscape(e);
@@ -5140,13 +5141,26 @@ const hasPower = (team, key) => !POWERS[key].upgrade || hasUpgrade(team, POWERS[
 function powerReady(team, key) { return hasBuilt(team, 'airfield') && hasPower(team, key) && (team.powers[key] || 0) >= POWERS[key].charge; }
 // How many close air support planes fly in: the highest tier researched (cas1 to cas3).
 const casPlanes = (team) => hasUpgrade(team, 'cas3') ? 3 : hasUpgrade(team, 'cas2') ? 2 : 1;
+// Close Air Support shot down (owner, 2026-11-22, both modes): when every plane of a strike is shot down (none flies home), the
+// power takes CAS_LOST_PEN seconds longer to charge (240 s becomes 360 s from the launch). team.powerPen[key]: the extra
+// seconds this charge carries (the sidebar shows the bar over the longer time); cleared when it is ready or used.
+const CAS_LOST_PEN = 120;
+function casLost(u) {
+  const S = u.flight && u.flight.strike;
+  if (!S || ++S.lost < S.n) return;
+  const team = G.teams[S.team];
+  if (!team || G.remote) return;
+  team.powers.cas = (team.powers.cas || 0) - CAS_LOST_PEN;
+  (team.powerPen || (team.powerPen = {})).cas = CAS_LOST_PEN;
+  say(team.id, 'Air support lost: it will take longer to be ready');
+}
 function updatePowers(team, dt) {
   if (!hasBuilt(team, 'airfield')) return;
   for (const [key, p] of Object.entries(POWERS)) {
     if (!hasPower(team, key)) continue;
     if ((team.powers[key] || 0) >= p.charge) continue;
     team.powers[key] = Math.min(p.charge, (team.powers[key] || 0) + dt * (team.low ? 0.5 : 1));
-    if (team.powers[key] >= p.charge) notify(team, 'pw' + key, p.ready, 1);
+    if (team.powers[key] >= p.charge) { notify(team, 'pw' + key, p.ready, 1); if (team.powerPen) delete team.powerPen[key]; }
   }
 }
 // The plane takes off from behind its own base and flies straight over the target.
@@ -5159,13 +5173,15 @@ function launchPower(team, key, x, y) {
   // With the Airborne division upgrade (para2) a second transport flies alongside, 70 px to one side and a little behind.
   // Close air support: 1 to 3 planes by tier, the lead in the middle and the others 60 px to either side, a little behind; each works its own part of the area.
   const planes = key === 'para' && hasUpgrade(team, 'para2') ? [0, 1] : key === 'cas' ? [0, 1, 2].slice(0, casPlanes(team)) : [0];
+  const strike = key === 'cas' ? { team: team.id, n: planes.length, lost: 0 } : null;   // (casLost: all shot down, a longer recharge)
+  if (team.powerPen) delete team.powerPen[key];
   for (const i of planes) {
     const cas = key === 'cas', side = cas ? [0, 60, -60][i] : i ? 70 : 0, lag = cas ? (i ? 45 : 0) : i ? 50 : 0, nx = -Math.sin(a) * side, ny = Math.cos(a) * side;
     const u = addUnit(type, team, x + nx - Math.cos(a) * (back + lag), y + ny - Math.sin(a) * (back + lag));
     u.face = u.tface = a; u.alt = JET_ALT; u.as = 'fly';
     u.order = { type: 'flight' };
     u.flight = { key, tx: x + nx, ty: y + ny, done: false, bombs: 0, bombT: 0 };
-    if (cas) Object.assign(u.flight, { ax: x + nx, ay: y + ny, pass: 0, msl: u.def.msl.ammo, fired: 0, mslT: 0, gunDone: false, phase: 'in' });
+    if (cas) Object.assign(u.flight, { ax: x + nx, ay: y + ny, pass: 0, msl: u.def.msl.ammo, fired: 0, mslT: 0, gunDone: false, phase: 'in', strike });
   }
   return true;
 }

@@ -2371,3 +2371,18 @@ context itself (moveTo, lineTo): a Path2D fell through to the layer's cut-out, b
 none), so tracks showed only where that box happened to be. Now each band is built with `beginPath`/`moveTo`/`lineTo` on g,
 1,500 tracks a stroke (gl.js turns up to 16,000 numbers, 4,000 segments, into lines). Headless: three tanks driven 260 px,
 no tracks before, a clear double trail after. Don't hand a Path2D to the recording context.
+
+## Close Air Support: longer recharge when shot down, a careful computer (after 2026.11.22.1, owner's picks for both modes; the server must match)
+
+Owner: "make it so the tech center air support upgrade has a longer cooldown if all air support planes are shot down, ai has to be
+more careful where they are called in". Picks: both modes, 6 minutes, only when every plane is lost.
+- world.js: `launchPower` gives a Close Air Support strike's planes one shared `flight.strike` ({ team, n, lost }); `kill` calls
+  `casLost`, and when the last of the n is shot down (planes that fly home are not killed) the side's charge drops by
+  `CAS_LOST_PEN` (120 s: 240 s becomes 360 s from the launch; it can go below 0), with a message. `team.powerPen.cas` holds the
+  extra seconds so the sidebar's bar fills over the whole 360 s (ui.js); cleared when ready or used; sent to guests (netcore TEAM).
+- ai.js `aiCasTarget`: only targets `casSafe` from what the computer knows (`knownAA`, jets): no anti-air within its reach plus
+  `CAS_SAFE` (the strike's radius + 120 px, where the planes turn) of the target, and none over the straight way in from its base.
+  Targets: the biggest seen group of 3+ vehicles; else, with 2+ planes, the thickest uncovered part of an enemy base. Nothing safe:
+  the strike is held (before, it fell back to the thickest part of the base, usually under SAMs).
+- `node tools/sim/cas-careful.js <repo>`: one of two planes lost keeps 240 s; both lost gives 360 s (not ready at 240, ready at 361);
+  tanks in the open are a target, not with a SAM Site beside them or between them and the computer's base.

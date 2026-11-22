@@ -2036,7 +2036,8 @@ function draw() {
         dim = !ready;
       } else if (cat === 'power') {
         const key = type.slice(3);
-        p = (team.powers[key] || 0) / POWERS[key].charge;
+        const pen = (team.powerPen && team.powerPen[key]) || 0;   // (Close Air Support shot down: the bar over the longer charge)
+        p = Math.max(0, ((team.powers[key] || 0) + pen) / (POWERS[key].charge + pen));
         st = p >= 1 ? 'READY' : '';
       } else if (cat === 'wall') {
         st = G.place && G.place.wall === type.slice(3) ? 'READY' : '';

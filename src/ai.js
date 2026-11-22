@@ -468,14 +468,35 @@ function aiFindSpot(team, type, at) {
   return null;
 }
 
+// Close Air Support (owner, 2026-11-22: "ai has to be more careful where they are called in", both modes; losing every plane
+// now costs a longer recharge, world.js casLost). The computer calls a strike only where no anti-air it knows of (knownAA:
+// defences it has found, units it sees) reaches the planes: over the area they work (the strike's radius and the room they
+// turn in, CAS_SAFE) or on the way in from its base. Targets: the biggest seen group of 3+ enemy vehicles; else, for a
+// bigger strike (2+ planes), the thickest uncovered part of an enemy base. Nowhere safe: it holds the strike.
+const CAS_SAFE = POWERS.cas.r + 120;
+function casSafe(team, t) {
+  const aa = knownAA(team.id, true);
+  if (aa.some((a) => Math.hypot(a.x - t.x, a.y - t.y) < a.r + CAS_SAFE)) return false;
+  const hx = (team.start.cx + 0.5) * CELL, hy = (team.start.cy + 0.5) * CELL, n = Math.ceil(Math.hypot(t.x - hx, t.y - hy) / (CELL * 2));
+  for (let i = 1; i < n; i++) { const x = hx + (t.x - hx) * i / n, y = hy + (t.y - hy) * i / n; if (aa.some((a) => Math.hypot(a.x - x, a.y - y) < a.r)) return false; }
+  return true;
+}
 function aiCasTarget(team) {
   const seen = G.fog[team.id], vehs = enemyUnitsOf(team.id).filter((u) => u.cls === 'veh' && !u.def.harvester && seen && seen[cellOfPos(u.x, u.y)]);
   let best = null, bn = 2;
   for (const v of vehs) {
     const n = vehs.filter((o) => Math.hypot(o.x - v.x, o.y - v.y) < POWERS.cas.r).length;
-    if (n > bn) { bn = n; best = v; }
+    if (n > bn && casSafe(team, v)) { bn = n; best = v; }
   }
-  return best && { x: best.x, y: best.y };
+  if (best) return { x: best.x, y: best.y };
+  if (casPlanes(team) < 2) return null;
+  const theirs = buildingsOf(enemyOf(team).id).filter((b) => targetable(team.id, b) && casSafe(team, b));
+  let bb = null; bn = 1;
+  for (const b of theirs) {
+    const n = theirs.filter((o) => Math.hypot(o.x - b.x, o.y - b.y) < POWERS.cas.r).length;
+    if (n > bn) { bn = n; bb = b; }
+  }
+  return bb && { x: bb.x, y: bb.y };
 }
 function aiPowerTarget(team, cluster) {
   const theirs = buildingsOf(enemyOf(team).id).filter((b) => targetable(team.id, b));
@@ -1187,7 +1208,7 @@ function aiThink(team) {
   const held = (k) => team.holdFor && team.holdFor.keys.includes(k) && G.t - team.holdFor.since < 180;
   if (powerReady(team, 'bomb') && !held('bomb')) { const t = aiPowerTarget(team, true); if (t) launchPower(team, 'bomb', t.x, t.y); }
   // Close air support: at the biggest group of the enemy's vehicles it can see (at least 3), else the thickest part of its base.
-  if (powerReady(team, 'cas') && !held('cas')) { const t = aiCasTarget(team) || aiPowerTarget(team, true); if (t) launchPower(team, 'cas', t.x, t.y); }
+  if (powerReady(team, 'cas') && !held('cas')) { const t = aiCasTarget(team); if (t) launchPower(team, 'cas', t.x, t.y); }   // (none safe: held)
   if (powerReady(team, 'para') && !held('para')) { const t = aiPowerTarget(team, false); if (t) launchPower(team, 'para', t.x, t.y); }
   aiAirAssault(team);
 
