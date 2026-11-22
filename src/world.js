@@ -1899,6 +1899,29 @@ function canHit(w, t) {
 // (a cliff cell with under 2 cliff neighbours) are not. Lobbed rounds (artillery, V2 rockets, grenades) go over, and
 // nothing to or from the air is blocked. acquire skips blocked targets; engage walks round to a clear shot.
 const LOBBED = { artyshell: 1, v2: 1, grenade: 1 };
+// Spotting (owner, 2026-11-22, both modes): Artillery and V2s (lobbed rounds reaching past their own sight) pick targets
+// anywhere in reach that their side or a teammate has in sight right now (liveSight), not only within their own sight.
+const spotter = (u) => !!(u.def.weapon && LOBBED[u.def.weapon.proj] && u.def.weapon.range > u.def.sight * CELL);
+// What an alliance sees this moment (sight circles of its units and structures, further from a hilltop, as revealAround),
+// worked out at most once a step per alliance; kept off G (not saved).
+let liveSightOf = { G: null, t: -1, m: {} };
+function liveSight(side) {
+  const ally = G.teams[side] ? G.teams[side].ally : side;
+  if (liveSightOf.G !== G || liveSightOf.t !== G.t) liveSightOf = { G, t: G.t, m: {} };
+  let s = liveSightOf.m[ally];
+  if (s) return s;
+  s = liveSightOf.m[ally] = new Uint8Array(NCELLS);
+  for (const e of G.entities) {
+    if (!e.alive || !e.def || e.def.scripted || e.inHouse || !alliedSides(e.team, side)) continue;
+    let rad = e.kind === 'bld' ? (e.def.sight || 3) + Math.max(e.w, e.h) / 2 : e.def.sight;
+    if (!rad) continue;
+    const sh = G.hgt ? standH(e) : null;
+    if (sh) rad += HG_SIGHT * sh / HG_MAX;
+    revealCircle(e.x / CELL, e.y / CELL, rad, s);
+  }
+  return s;
+}
+const spottedBy = (side) => { const s = liveSight(side); return (e) => !!s[cellOfPos(e.x, e.y)]; };
 let ridgeOf = null, ridge = null;
 function ridgeCells() {
   if (ridgeOf === G.cliff) return ridge;
@@ -3816,16 +3839,19 @@ function updateUnit(u, dt) {
       // dropped once out of sight.
       // Long-range guns guarding an area fire at whatever their side has in view within reach.
       const far = o.type === 'guard' && o.hold && w && w.range > sight;
+      const spot = !far && spotter(u);   // (Artillery, V2: whatever its side sees in reach)
       const avenging = u.target && u.target === u.avenge;
-      const reach = avenging ? Math.max(sight * 1.5, ((u.target.def.weapon && u.target.def.weapon.range) || 0) + CELL * 3) : far ? w.range : sight * 1.5;
+      const spotted = spot && u.target && distTo(u, u.target) <= w.range && spottedBy(u.team)(u.target);
+      const reach = avenging ? Math.max(sight * 1.5, ((u.target.def.weapon && u.target.def.weapon.range) || 0) + CELL * 3) : far ? w.range : spotted ? w.range : sight * 1.5;
       // A raider base defence gave this unit (defendBase picks one up to 32 cells off) is kept however far while it is still raiding:
       // dropping it here and taking a nearer enemy, then being given the raider again a second later, turned defenders round every
       // second (they ran back and forth without getting anywhere).
       const told = u.defending && u.target && u.target.kind === 'unit' && (teamOf(u).raiders || []).includes(u.target.id);
       if (u.target && !told && distTo(u, u.target) > reach) u.target = null;
-      if (o.type === 'guard' && u.target && !avenging && !told && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : sight * 1.6)) u.target = null;
+      if (o.type === 'guard' && u.target && !avenging && !told && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : spotted ? Math.max(sight * 1.6, w.range) : sight * 1.6)) u.target = null;
       if (!u.target || u.target.kind === 'bld') {
-        const t = far ? acquire(u, w.range, [w, u.def.weapon2], teamOf(u).isAI ? null : inViewOf(u.team)) : acquire(u, sight, [w, u.def.weapon2]);
+        const t = far ? acquire(u, w.range, [w, u.def.weapon2], teamOf(u).isAI ? null : inViewOf(u.team)) :
+          (spot && acquire(u, sight, [w, u.def.weapon2])) || (spot ? acquire(u, w.range, [w], spottedBy(u.team)) : acquire(u, sight, [w, u.def.weapon2]));
         if (t && (!u.target || t.kind === 'unit')) u.target = t;
       }
       if (!u.target) {

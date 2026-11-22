@@ -1764,6 +1764,18 @@ frame-time maths everywhere, so it is not deterministic.
   before, three second bases 19-23 cells from a teammate's yard or refinery (two teammates also picked the same field at once);
   after, teammates' yards all 35+ cells apart, second bases spread to the middle and flanks.
 
+## Artillery and V2s fire on what their side spots (after 2026.11.21.9, not released, owner's pick for both modes; the server must match)
+
+- Owner: "make it so v2s and artillery can use the eye sight of other units... in range of it so it can shoot it". world.js `spotter(u)`
+  (a lobbed weapon reaching past the unit's own sight: Artillery 12 cells, V2 14.2, both sight 5) and `liveSight(side)`: what the
+  alliance sees this moment (sight circles of its units and structures, hilltop bonus as `revealAround`; worked out at most once a step
+  per alliance, kept off `G`). `spottedBy(side)` tests a thing's cell. In `engage` (any order but move, not hold-position guard,
+  which already uses all uncovered ground): own sight first, else anything in weapon range its side spots; such a target is kept
+  while it is in range and spotted (the guard leash widens to the weapon's range). Computers too. Before, they picked targets only
+  within sight x 1.5 (7.5 cells).
+- Headless (`bridge`, an MCV as target, an Engineer as spotter 3 cells from it): Artillery at 10 cells, no spotter: no fire; with it:
+  fires at 1.7 s; V2 at 13 cells fires; hunting Artillery fires; Artillery at 13 (out of reach) and a Medium Tank at 7: no fire.
+
 ## Computer second bases (after 2026.11.16.5, not released, Normal and Hard, both modes)
 
 - Owner's pick ("full expansion", by personality): `team.exp2` rolled once (`EXPAND_CHANCE` balanced 0.8, raider 0.8, turtle 0.5, rusher 0.25).
