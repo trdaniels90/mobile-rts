@@ -2386,3 +2386,11 @@ more careful where they are called in". Picks: both modes, 6 minutes, only when 
   the strike is held (before, it fell back to the thickest part of the base, usually under SAMs).
 - `node tools/sim/cas-careful.js <repo>`: one of two planes lost keeps 240 s; both lost gives 360 s (not ready at 240, ready at 361);
   tanks in the open are a target, not with a SAM Site beside them or between them and the computer's base.
+
+## Aircraft lights on hills (after 2026.11.22.1, bug fix, both modes, looks only)
+
+Owner: "hills have messed with aircraft lights". art.js `navLights` (night, day/night maps) placed each light at the aircraft's
+own altitude only, but ui.js draws aircraft raised by the ground under them too (`onHill`, `gLift`): over a hill (Crossroads
+Village's are up to ~60 view px) the lights stayed down at flat-ground height, off the aircraft or out of view. Now the lift is
+added (`alt + gLift(u.x, u.y)`). Headless, Village at midnight, a helicopter over the highest hill near the base: lights
+missing from it before, on it after. (The AA Gun's searchlight already aimed with the lift.)

@@ -1139,7 +1139,9 @@ function navLights(g, vx, vy, k, t, night, near, vis) {
   const pts = [];
   for (const u of G.entities) {
     if (!u.alive || u.cls !== 'air' || (vis && !vis(u))) continue;
-    const alt = u.alt || 0, c = Math.cos(u.face), s = Math.sin(u.face), heli = u.def.fly === 'heli', r = u.def.r || 9;
+    // alt: over the raised ground too (gLift), as ui.js draws the aircraft (onHill): without it the lights stayed down at the
+    // flat ground's height under a plane or helicopter over a hill, or landed on a raised Airfield (owner, 2026-11-22)
+    const alt = (u.alt || 0) + gLift(u.x, u.y), c = Math.cos(u.face), s = Math.sin(u.face), heli = u.def.fly === 'heli', r = u.def.r || 9;
     const ph = (t + u.id * 0.37) % 1.3, at = (f, l, h) => { const [x, y] = toView(...liftPt(u.x + c * f - s * l, u.y + s * f + c * l, alt + h)); return [x, y]; };
     const put = (p, col, a, R) => { if (a > 0.02 && near(p[0], p[1], 20)) pts.push([p[0], p[1], col, a, R]); };
     if (heli) {
