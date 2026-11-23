@@ -5258,19 +5258,79 @@ function hullSprite(u, pal) {
   if (d.draw === 'arty') return facingSprite('R' + key, () => artyModel(pal), u.face);
   if (d.draw === 'v2') { const loaded = !(u.cd > 1.2), st = Math.round((u.setup || 0) * V2_STEPS); return facingSprite('W' + key + loaded + st, () => v2Model(pal, loaded, st / V2_STEPS), u.face); }
   if (d.draw === 'harv') { const full = (u.load || 0) > d.capacity * 0.3; return facingSprite('V' + key + full, () => harvModel(pal, full), u.face); }
-  if (d.type === 'comanche') { const st = Math.round((u.bay || 0) * BAY_STEPS); return facingSprite('A' + key + 'b' + st, () => comancheModel(pal, st / BAY_STEPS), u.face); }
-  if (d.fly === 'heli') return facingSprite('A' + key, () => d.type === 'hind' ? hindModel(pal) : d.type === 'chinook' ? chinookModel(pal) : d.type === 'halo' ? haloModel(pal) : heliModel(pal), u.face);
+  const ab = airBuild(u, pal);
+  return facingSprite(ab[0], ab[1], u.face);
+}
+// The aircraft models by type: [model key, builder] (hullSprite; tiltSprite for a crash).
+function airBuild(u, pal) {
+  const d = u.def, key = d.type + pal.key;
+  if (d.type === 'comanche') { const st = Math.round((u.bay || 0) * BAY_STEPS); return ['A' + key + 'b' + st, () => comancheModel(pal, st / BAY_STEPS)]; }
+  if (d.fly === 'heli') return ['A' + key, () => d.type === 'hind' ? hindModel(pal) : d.type === 'chinook' ? chinookModel(pal) : d.type === 'halo' ? haloModel(pal) : heliModel(pal)];
   if (d.draw === 'cargo') {
-    if (d.type === 'transport') return u.faction === 'allies' ? facingSprite('H' + key, () => c130Model(pal), u.face) : facingSprite('I' + key, () => il76Model(pal), u.face);
-    if (d.type === 'bomber') return u.faction === 'allies' ? facingSprite('B' + key, () => b1Model(pal), u.face) : facingSprite('K' + key, () => tu22Model(pal), u.face);
-    return facingSprite('C' + key, () => cargoModel(pal, d.type === 'bomber'), u.face);
+    if (d.type === 'transport') return u.faction === 'allies' ? ['H' + key, () => c130Model(pal)] : ['I' + key, () => il76Model(pal)];
+    if (d.type === 'bomber') return u.faction === 'allies' ? ['B' + key, () => b1Model(pal)] : ['K' + key, () => tu22Model(pal)];
+    return ['C' + key, () => cargoModel(pal, d.type === 'bomber')];
   }
-  if (d.type === 'a10') return facingSprite('G' + key, () => a10Model(pal), u.face);
-  if (d.type === 'su25') return facingSprite('U' + key, () => su25Model(pal), u.face);
-  if (d.type === 'spyplane') return u.faction === 'soviets' ? facingSprite('Y' + key, () => il76Model(pal, true), u.face)   // Beriev A-50
-    : facingSprite('X' + key, () => sr71Model(pal), u.face);                                                                    // SR-71
+  if (d.type === 'a10') return ['G' + key, () => a10Model(pal)];
+  if (d.type === 'su25') return ['U' + key, () => su25Model(pal)];
+  if (d.type === 'spyplane') return u.faction === 'soviets' ? ['Y' + key, () => il76Model(pal, true)]   // Beriev A-50
+    : ['X' + key, () => sr71Model(pal)];                                                                    // SR-71
   const mig = d.type === 'mig';
-  return facingSprite('A' + key + mig, () => jetModel(pal, mig), u.face);
+  return ['A' + key + mig, () => jetModel(pal, mig)];
+}
+
+// A falling aircraft drawn at its real attitude (world.js updateCrash: pitch, nose down positive, and roll): its model turned
+// through pitch and roll voxel by voxel (tiltModel), then rendered at its heading as usual. Steps of TILT_N to a turn; kept in a
+// small cache of pictures only (the turned models are dropped). New pictures are made at most TILT_BUDGET in any 30 ms (a frame
+// or two); over that, undefined: the caller keeps its last picture. Level: null (the usual sprite).
+const TILT_N = 16, TILT_BUDGET = 1, TILT_KEEP = 500, TILT_CACHE = new Map();
+let tiltAt = -1e9, tiltN = 0;
+function tiltSprite(u, pal, pitch, roll) {
+  const ab = airBuild(u, pal);
+  if (!ab) return null;
+  const pi = Math.max(-TILT_N / 4, Math.min(TILT_N / 4, Math.round(pitch / (Math.PI * 2) * TILT_N)));
+  const ri = ((Math.round(roll / (Math.PI * 2) * TILT_N) % TILT_N) + TILT_N) % TILT_N;
+  if (!pi && !ri) return null;
+  const f = facingIndex(u.face, FACINGS), k = ab[0] + '|' + pi + '|' + ri + '|' + f;
+  let s = TILT_CACHE.get(k);
+  if (s) { TILT_CACHE.delete(k); TILT_CACHE.set(k, s); return s; }
+  const now = performance.now();
+  if (now - tiltAt > 30) { tiltAt = now; tiltN = 0; }
+  if (tiltN >= TILT_BUDGET) return undefined;
+  tiltN++;
+  const m = tiltModel(model(ab[0], ab[1]), pi * Math.PI * 2 / TILT_N, ri * Math.PI * 2 / TILT_N);
+  s = renderVox(m, f * Math.PI * 2 / FACINGS, {});
+  s.zoff = m.zoff;
+  TILT_CACHE.set(k, s);
+  if (TILT_CACHE.size > TILT_KEEP) TILT_CACHE.delete(TILT_CACHE.keys().next().value);
+  return s;
+}
+// A model turned about its middle: pitch about its y axis (nose, +x, going down for pitch > 0), then roll about x (applied first).
+// Sampled backwards from every voxel of the new box, so it has no holes. zoff: how much higher its middle stands than the
+// original's (the drawing lowers it by that).
+function tiltModel(src, pitch, roll) {
+  const cx = src.x0 + src.w / 2, cy = src.y0 + src.h / 2, cz = src.d / 2;
+  const cp = Math.cos(pitch), sp = Math.sin(pitch), cr = Math.cos(roll), sr = Math.sin(roll);
+  const fwd = (x, y, z) => { const y1 = y * cr - z * sr, z1 = y * sr + z * cr; return [x * cp + z1 * sp, y1, -x * sp + z1 * cp]; };
+  let lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (const x of [-src.w / 2, src.w / 2]) for (const y of [-src.h / 2, src.h / 2]) for (const z of [-cz, cz]) {
+    const q = fwd(x, y, z); for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], q[i]); hi[i] = Math.max(hi[i], q[i]); }
+  }
+  const zs = Math.ceil(-lo[2]);
+  const m = new VModel(Math.floor(cx + lo[0]), Math.floor(cy + lo[1]), Math.ceil(cx + hi[0]), Math.ceil(cy + hi[1]), zs + Math.ceil(hi[2]) + 1);
+  m.zoff = zs - cz;
+  for (let z = 0; z < m.d; z++) for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
+    const X = m.x0 + x + 0.5 - cx, Y = m.y0 + y + 0.5 - cy, Z = z + 0.5 - zs;
+    // back through the pitch, then the roll
+    const x1 = X * cp - Z * sp, z1 = X * sp + Z * cp;
+    const y0 = Y * cr + z1 * sr, z0 = -Y * sr + z1 * cr;
+    const sx = Math.floor(x1 + cx), sy = Math.floor(y0 + cy), sz = Math.floor(z0 + cz);
+    const si = src.idx(sx, sy, sz);
+    if (si < 0 || src.col[si] < 0) continue;
+    const di = (z * m.h + y) * m.w + x;
+    m.col[di] = src.col[si]; m.mat[di] = src.mat[si];
+  }
+  return m;
 }
 function turretSprite(u, pal) {
   const d = u.def;

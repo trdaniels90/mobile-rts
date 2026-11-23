@@ -2891,6 +2891,7 @@ const flameFrames = (() => {
   return out;
 })();
 
+const CRASH_LAST = new WeakMap();   // a falling aircraft's last tilted picture (kept off the effect: not saved or sent)
 function drawEffect(g, fx) {
   drawVar = fx.v | 0;
   const k = fx.t / fx.life;
@@ -3047,11 +3048,19 @@ function drawEffect(g, fx) {
       break;
     }
     case 'crash': {
-      // A downed aircraft tumbling toward its shadow. Its roll squashes the sprite across the
-      // line of flight (wings edge-on), upside down it shows its darker belly.
-      const fake = { def: fx.def, face: fx.face, faction: fx.faction }, s = hullSprite(fake, palFor(fx.faction)), hgt = fx.alt / VK;
-      const sq = Math.max(0.2, Math.abs(Math.cos(fx.roll || 0))), inv = Math.cos(fx.roll || 0) < 0;
-      const [shx, shy] = fromView(hgt * SHADOW_DX, hgt * SHADOW_DY * VIEW.F), [bx, by] = liftPt(fx.x, fx.y, fx.alt), [rx, ry] = liftPt(fx.x, fx.y, fx.alt + 9 * VK);
+      // A downed aircraft falling at its real attitude (world.js updateCrash: pitch and roll): its model turned that way
+      // (models.js tiltSprite), kept from the last frame while a new picture waits its turn. Without one (level, or none made
+      // yet), the usual sprite, its roll squashing it across the line of flight and darker upside down.
+      const fake = { def: fx.def, face: fx.face, faction: fx.faction }, pal = palFor(fx.faction);
+      let s = tiltSprite(fake, pal, fx.pitch || 0, fx.roll || 0);
+      const last = CRASH_LAST.get(fx);
+      if (s === undefined) s = last && Math.abs(angDiff(last.face, fx.face)) < 0.6 ? last.s : null;
+      if (s) CRASH_LAST.set(fx, { s, face: fx.face });
+      const tilted = !!s, hgt = fx.alt / VK;
+      if (!s) s = hullSprite(fake, pal);
+      const zo = tilted ? (s.zoff || 0) * VK : 0;
+      const sq = tilted ? 1 : Math.max(0.2, Math.abs(Math.cos(fx.roll || 0))), inv = !tilted && Math.cos(fx.roll || 0) < 0;
+      const [shx, shy] = fromView((hgt - (tilted ? s.zoff || 0 : 0)) * SHADOW_DX, (hgt - (tilted ? s.zoff || 0 : 0)) * SHADOW_DY * VIEW.F), [bx, by] = liftPt(fx.x, fx.y, fx.alt - zo), [rx, ry] = liftPt(fx.x, fx.y, fx.alt + 9 * VK);
       const squash = (x, y) => { g.translate(x, y); g.rotate(fx.face); g.scale(1, sq); g.rotate(-fx.face); };
       if (s.sh) {
         g.save(); squash(fx.x + shx, fx.y + shy);
@@ -3060,7 +3069,7 @@ function drawEffect(g, fx) {
       g.save(); squash(bx, by);
       if (inv) g.filter = 'brightness(0.55)';
       g.drawImage(s.img, Math.round(s.ox), Math.round(s.oy)); g.restore();
-      if (!fx.jet && !fx.ground) {   // the rotor still turning, losing speed
+      if (!fx.jet && !fx.ground && fx.tip === undefined) {   // the rotor still turning, losing speed
         const ra = fx.t * 25;
         g.strokeStyle = 'rgba(28,28,24,0.75)'; g.lineWidth = 1.2; g.beginPath();
         for (let i = 0; i < 2; i++) { const a = ra + i * Math.PI / 2; g.moveTo(rx - Math.cos(a) * 13, ry - Math.sin(a) * 12); g.lineTo(rx + Math.cos(a) * 13, ry + Math.sin(a) * 12); }

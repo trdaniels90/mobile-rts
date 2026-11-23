@@ -1689,6 +1689,27 @@ frame-time maths everywhere, so it is not deterministic.
   rifleman one-shot at 215 px, 12 damage to a Heavy Tank in 9 s, blast rate about 0.3 over 60 deaths, burns both sides and not at 80 px,
   burning takes 42 of a rifleman's 50 (prone), a Flamethrower kills 3 still riflemen in 8 s.
 
+## Aircraft crashes in 3D (after 2026.11.23, not released, looks only, both modes)
+
+Owner: "with the new camera angle lets add better physics to our plane and helicopter crashes". What a crash damages (20 on impact,
+35 to what it skids over, 60 to a structure in its path, crashLanding's 30) and where it can go are unchanged.
+- **Attitude** (world.js `updateCrash`): `fx.pitch` (nose down positive) and `fx.roll`, drawn by turning the model (models.js
+  `tiltSprite` / `tiltModel`: the voxels turned through pitch and roll, sampled backwards so there are no holes, then rendered at the
+  heading as usual). Steps of `TILT_N` 16 to a turn; pictures only kept (`TILT_KEEP` 500, oldest dropped), at most `TILT_BUDGET` 1
+  new one in any 30 ms (1.5 to 4 ms each on a desktop), otherwise the last one (art.js `CRASH_LAST`, off the effect so not saved or
+  sent). Level: the usual sprite. `airBuild` (models.js) holds the aircraft models by type for `hullSprite` and the tilt.
+- **Height on hills:** `fx.z` is on the drawn ground's scale (look.js `gLift`, view px); `fx.alt = fx.z - crashGround` each step, so a
+  plane comes down on a hillside where the hill is. The server has no `gLift` (flat: only the moment of impact differs a little).
+- **Jets:** lift fades, the nose follows the flight path down (pitch eases to atan2(vz, speed)), the roll banks the flight path into
+  a spiral. Comes in steeper than `CRASH_STEEP` 0.9 rad: nose-in, a bigger blast and crater, done. Shallow with a wing tip down
+  (|sin roll| > `CRASH_TIP` 0.55) above 60 px/s: cartwheels (spins round, sheds the wing, bounces once). Otherwise bounces once if hard,
+  then skids on its belly or back, slowed by the ground and pulled down any slope (`crashSlope`), and burns where it stops.
+- **Helicopters:** spin up round the mast (as before), the main rotor holds the fall to `CRASH_HELI_VZ` 38 (autorotation), and they
+  wallow (pitch up to 0.35, roll up to 0.45, swinging wider as they fall). Down: four blade pieces fly off and it rolls onto its side
+  (`fx.tip`, 0.55 s), then burns.
+- Checked: a sheet of tilted MiG and Hind pictures, a browser recording of five shot down over a base, and 25 s of six crashes without
+  a browser. Sprites, normals and ground rebaked (models.js changed).
+
 ## Specialist (both sides) (after 2026.11.23, not released, owner's picks for both modes; the server must match)
 
 - **Unit** (`spec` in UNIT_DEFS): Barracks, `req: ['tech']` (no research), Allies and Soviets, `max: 2` (owner's picks), $1200, 150 health,

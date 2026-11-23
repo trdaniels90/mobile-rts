@@ -3560,7 +3560,8 @@ function kill(e, attacker, wh, from) {
       if (jet) ejectSeat(e, vx, vy); else ejectPilot(e);
       G.effects.push({ type: 'crash', x: e.x, y: e.y, alt: e.alt, vz: jet ? -6 : 0, face: e.face, vx, vy, jet, seed,
         spin: jet ? side * 0.2 : side * (3 + Math.random() * 2), spinUp: jet ? side * (0.4 + Math.random() * 0.4) : side * 2.5,
-        roll: 0, rollV: jet ? side * (1.5 + Math.random() * 2) : 0, bounced: false, ground: false, hit: [],
+        roll: 0, rollV: jet ? side * (0.6 + Math.random() * 1.6) : 0, pitch: 0, bounced: false, ground: false, hit: [], z: (e.alt || 0) + crashGround(e.x, e.y),
+        wob: Math.random() * 6, side,
         def: e.def, faction: e.faction, v: teamOf(e).variant | 0, t: 0, life: 40, smokeT: 0, shedT: 0.3, furrowT: 0 });
       for (let i = 0; i < 2; i++) shed(e.x, e.y, e.alt, vx, vy, e.faction, true);
     } else {
@@ -3811,45 +3812,104 @@ function waterSplash(x, y, big) {
   for (let i = 0; i < (big ? 9 : 3); i++) G.effects.push({ type: 'smoke', x: x + (Math.random() - 0.5) * (big ? 16 : 5), y: y + (Math.random() - 0.5) * 6, r: big ? 4 : 2, t: -i * 0.03, life: 1.1, alpha: 0.75, color: '#dfe8ec', vy: -(big ? 30 : 14) * Math.random(), vx: 0 });
   if (big) G.effects.push({ type: 'ring', x, y, t: 0, life: 1.4, color: 'rgba(225,238,245,0.85)' });
 }
+// Crashes (looks only: where it comes down and what it hits stay as before). The airframe keeps a real attitude: pitch (nose
+// down positive) and roll, drawn by turning its model (models.js tiltSprite). fx.z: its height on the drawn ground's scale (view
+// px, look.js gLift), so it comes down on a hillside where the hill is and not at the height it would have over flat ground;
+// fx.alt is what that leaves above the ground under it (what the drawing lifts it by).
+// Jet: the wing loses lift slowly, the nose follows the flight path down, it banks into a spiral (a roll turns the flight path).
+//   Comes in steep (CRASH_STEEP): nose-in, a deep crater, the end. Shallow, a wing tip first at speed: cartwheels (spins round,
+//   sheds the wing, bounces once). Otherwise bounces once if hard, then skids on its belly or back, slowed by the ground and pulled
+//   down any slope, and burns where it stops.
+// Helicopter: the tail rotor gone, it spins up round its mast; the main rotor still turning holds the fall to CRASH_HELI_VZ
+//   (autorotation), and it wallows (pitch and roll swing wider as it falls). On the ground it rolls onto its side as the blades
+//   break off, then burns.
+const CRASH_STEEP = 0.9, CRASH_HELI_VZ = 38, CRASH_TIP = 0.55;
+const crashGround = (x, y) => (typeof gLift === 'function' ? gLift(x, y, true) : 0);
+function crashSlope(x, y) {   // the drawn ground's fall (view px per px) toward +x and +y
+  const e = 6;
+  return [(crashGround(x + e, y) - crashGround(x - e, y)) / (2 * e), (crashGround(x, y + e) - crashGround(x, y - e)) / (2 * e)];
+}
 function updateCrash(fx, dt) {
+  if (fx.z === undefined) fx.z = fx.alt + crashGround(fx.x, fx.y);   // (an older save's crash)
+  if (fx.pitch === undefined) fx.pitch = 0;
   const sp = Math.hypot(fx.vx, fx.vy);
+  if (fx.tip !== undefined) {   // a helicopter down, going over onto its side
+    fx.tip += dt;
+    fx.roll += (fx.tipTo - fx.roll) * Math.min(1, dt * 7); fx.pitch *= Math.exp(-4 * dt);
+    if (fx.tip > 0.55) { fx.t = fx.life; crashLanding(fx.x, fx.y, fx.face, fx.def, fx.faction, (Math.random() * 1e6) | 0); }
+    return;
+  }
   if (!fx.ground) {
-    fx.vz += (fx.jet ? 60 * Math.min(1, 0.4 + fx.t * 0.5) : 60) * dt;   // the wings stop lifting
-    fx.alt -= fx.vz * dt;
-    const drag = Math.exp(-(fx.jet ? 0.3 : 0.9) * dt);
-    fx.vx *= drag; fx.vy *= drag;
-    fx.spin += fx.spinUp * dt; fx.spin = Math.max(-9, Math.min(9, fx.spin));
-    fx.face += fx.spin * dt; fx.roll += fx.rollV * dt;
-    if (fx.jet) { const a = fx.spin * dt * 0.15, c = Math.cos(a), s = Math.sin(a); [fx.vx, fx.vy] = [fx.vx * c - fx.vy * s, fx.vx * s + fx.vy * c]; }
-    fx.x += fx.vx * dt; fx.y += fx.vy * dt;
-    if ((fx.smokeT -= dt) <= 0) { fx.smokeT = 0.04; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y - fx.alt, r: 2.5 + fx.t * 0.6, t: 0, life: 1.2, alpha: 0.6, color: '#3a3733' }); }
+    if (fx.jet) {
+      fx.vz += 60 * Math.min(1, 0.3 + fx.t * 0.45) * dt;   // the wings stop lifting
+      const drag = Math.exp(-0.25 * dt); fx.vx *= drag; fx.vy *= drag;
+      fx.rollV *= Math.exp(-0.15 * dt); fx.roll += fx.rollV * dt;
+      if (fx.cart) fx.face += fx.spin * dt;   // cartwheeling off its wing tip
+      else {
+        const turn = Math.sin(fx.roll) * 0.7 * dt, c = Math.cos(turn), s = Math.sin(turn);   // banked: the flight path turns
+        [fx.vx, fx.vy] = [fx.vx * c - fx.vy * s, fx.vx * s + fx.vy * c];
+        fx.face = Math.atan2(fx.vy, fx.vx);
+      }
+      const path = Math.atan2(fx.vz, Math.hypot(fx.vx, fx.vy));
+      fx.pitch += (path - fx.pitch) * Math.min(1, dt * 2.5);
+    } else {
+      fx.vz += (60 - fx.vz * (60 / CRASH_HELI_VZ)) * dt;   // the rotor still turning holds it to CRASH_HELI_VZ
+      const drag = Math.exp(-0.9 * dt); fx.vx *= drag; fx.vy *= drag;
+      fx.spin += fx.spinUp * dt; fx.spin = Math.max(-9, Math.min(9, fx.spin));
+      fx.face += fx.spin * dt;
+      const w = Math.min(1, 0.25 + fx.t * 0.35);
+      fx.pitch = 0.35 * w * Math.sin(fx.t * 2.7 + fx.wob); fx.roll = 0.45 * w * Math.sin(fx.t * 2.1 + fx.wob * 1.7);
+    }
+    fx.x += fx.vx * dt; fx.y += fx.vy * dt; fx.z -= fx.vz * dt;
+    const gz = crashGround(fx.x, fx.y);
+    fx.alt = fx.z - gz;
+    if ((fx.smokeT -= dt) <= 0) { fx.smokeT = 0.04; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y - fx.alt, r: 2.5 + fx.t * 0.6, t: 0, life: 1.4, alpha: 0.6, color: '#3a3733' }); }
     if ((fx.shedT -= dt) <= 0) { fx.shedT = 0.35 + Math.random() * 0.5; shed(fx.x, fx.y, fx.alt, fx.vx, fx.vy, fx.faction, Math.random() < 0.5); }
     if (fx.alt > 0) return;
-    fx.alt = 0;
+    fx.alt = 0; fx.z = gz;
     if (wetAt(fx.x, fx.y)) { waterSplash(fx.x, fx.y, true); fx.t = fx.life; return; }
     const seed = (Math.random() * 1e6) | 0;
-    if (!fx.jet) {   // rotor blades break away and the fuselage burns where it falls
-      for (let i = 0; i < 3; i++) shed(fx.x, fx.y, 6, fx.vx, fx.vy, fx.faction, false, true);
-      fx.t = fx.life; crashLanding(fx.x, fx.y, fx.face, fx.def, fx.faction, seed); return;
+    if (!fx.jet) {   // rotor blades break away; it goes over onto its side, then burns where it fell
+      for (let i = 0; i < 4; i++) shed(fx.x, fx.y, 6, fx.vx, fx.vy, fx.faction, false, true);
+      hooks.sfx('explodeVeh', fx.x, fx.y); hooks.shake(fx.x, fx.y, 2);
+      fx.tip = 0; fx.tipTo = (Math.sin(fx.roll) < 0 ? -1 : fx.roll > 0 ? 1 : fx.side || 1) * Math.PI / 2; fx.vz = 0;
+      return;
     }
-    hooks.sfx('explodeVeh', fx.x, fx.y); hooks.shake(fx.x, fx.y, 4);
-    G.effects.push({ type: 'expl', x: fx.x, y: fx.y - 3, size: 11, t: 0, life: 0.7, seed, debris: true });
-    for (let i = 0; i < 3; i++) shed(fx.x, fx.y, 2, fx.vx, fx.vy, fx.faction, i === 0);
+    const angle = Math.atan2(fx.vz, sp);
+    hooks.sfx('explodeVeh', fx.x, fx.y); hooks.shake(fx.x, fx.y, angle > CRASH_STEEP ? 6 : 4);
+    G.effects.push({ type: 'expl', x: fx.x, y: fx.y - 3, size: angle > CRASH_STEEP ? 18 : 11, t: 0, life: 0.7, seed, debris: true });
     { const once = new Set(); for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && Math.hypot(e.x - fx.x, e.y - fx.y) < 12) damage(e, 20, 'HE', null, null, once); }   // a held house takes it once
-    if (!fx.bounced && sp > 45 && fx.vz > 25) { fx.bounced = true; fx.vz = -fx.vz * 0.3; fx.alt = 0.5; fx.vx *= 0.6; fx.vy *= 0.6; fx.rollV *= 0.5; return; }
-    fx.ground = true; fx.vz = 0; fx.rollV = 0;
+    if (angle > CRASH_STEEP) {   // nose-in: buried where it hit
+      for (let i = 0; i < 6; i++) shed(fx.x, fx.y, 3, fx.vx * 0.3, fx.vy * 0.3, fx.faction, i < 2);
+      fx.t = fx.life; crashLanding(fx.x, fx.y, fx.face, fx.def, fx.faction, seed); craterAt(fx.x, fx.y, 11);
+      return;
+    }
+    for (let i = 0; i < 3; i++) shed(fx.x, fx.y, 2, fx.vx, fx.vy, fx.faction, i === 0);
+    if (!fx.bounced && sp > 60 && Math.abs(Math.sin(fx.roll)) > CRASH_TIP) {   // a wing tip digs in: it cartwheels
+      fx.bounced = true; fx.cart = true;
+      fx.spin = (Math.sin(fx.roll) > 0 ? 1 : -1) * (6 + Math.random() * 3);
+      fx.vz = -Math.min(45, fx.vz * 0.5 + 15); fx.z += 0.5; fx.vx *= 0.55; fx.vy *= 0.55; fx.rollV = fx.spin * 0.8;
+      for (let i = 0; i < 2; i++) shed(fx.x, fx.y, 3, fx.vx, fx.vy, fx.faction, true);
+      return;
+    }
+    if (!fx.bounced && sp > 45 && fx.vz > 25) { fx.bounced = true; fx.vz = -fx.vz * 0.3; fx.z += 0.5; fx.vx *= 0.6; fx.vy *= 0.6; fx.rollV *= 0.5; return; }
+    fx.ground = true; fx.vz = 0; fx.rollV = 0; fx.pitch = 0;
     fx.roll = Math.round(fx.roll / Math.PI) * Math.PI;   // settles on its belly or its back
     return;
   }
-  // Skidding along the ground.
-  const f = Math.max(0, sp - 70 * dt) / (sp || 1);
-  fx.vx *= f; fx.vy *= f; fx.spin *= Math.exp(-2.5 * dt); fx.face += fx.spin * dt;
+  // Skidding along the ground: friction, and pulled down any slope.
+  const [gx, gy] = crashSlope(fx.x, fx.y);
+  fx.vx -= gx * 160 * dt; fx.vy -= gy * 160 * dt;
+  const sp2 = Math.hypot(fx.vx, fx.vy), f = Math.max(0, sp2 - 70 * dt) / (sp2 || 1);
+  fx.vx *= f; fx.vy *= f; fx.spin *= Math.exp(-2.5 * dt);
+  fx.face += (fx.cart ? fx.spin : fx.spin * 0.3) * dt;
   const nx = fx.x + fx.vx * dt, ny = fx.y + fx.vy * dt;
   if (wetAt(nx, ny)) { waterSplash(nx, ny, true); fx.t = fx.life; return; }
   const c = cellOfPos(Math.max(0, Math.min(WORLD - 1, nx)), Math.max(0, Math.min(WORLD - 1, ny))), b = G.bld[c] && G.byId.get(G.bld[c]);
   const blocked = !passableAt(nx, ny);
   if (b && b.alive) damage(b, 60, 'HE', null);
   if (!blocked) { fx.x = nx; fx.y = ny; }
+  fx.z = crashGround(fx.x, fx.y); fx.alt = 0;
   if ((fx.furrowT -= dt) <= 0) {
     fx.furrowT = 0.06;
     scorch(G.tctx, fx.x, fx.y, 2.2, (Math.random() * 1e6) | 0);
@@ -3859,7 +3919,6 @@ function updateCrash(fx, dt) {
   for (const e of G.entities) if (e.alive && e.kind === 'unit' && !isAirborne(e) && !fx.hit.includes(e.id) && Math.hypot(e.x - fx.x, e.y - fx.y) < 10) { fx.hit.push(e.id); damage(e, 35, 'HE', null, null, !!e.inHouse && fx.hit.some((id) => id !== e.id && G.byId.get(id) && G.byId.get(id).inHouse === e.inHouse)); }
   if (blocked || Math.hypot(fx.vx, fx.vy) < 6) { fx.t = fx.life; crashLanding(fx.x, fx.y, fx.face, fx.def, fx.faction, (Math.random() * 1e6) | 0); }
 }
-// Loose pieces: thrown, tumbling, bouncing and sliding to rest; burning ones trail smoke.
 function updateFrag(fx, dt) {
   if (fx.alt > 0 || fx.vz < 0) {
     fx.vz += 70 * dt; fx.alt -= fx.vz * dt;
