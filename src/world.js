@@ -3175,18 +3175,18 @@ function throwSmoke(u, from) {
   (G.smokes || (G.smokes = [])).push({ x, y, r: SMOKE_R, end: G.t + SMOKE_LIFE, puff: 0 });
   u.fireT = 0.3;
   hooks.sfx('throw', u.x, u.y);
-  for (let i = 0; i < 14; i++) smokePuff(x, y, SMOKE_R * 0.8, 1);
+  for (let i = 0; i < 30; i++) smokePuff(x, y, SMOKE_R * 0.85, 1);
 }
 function smokePuff(x, y, r, grow) {
   const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r;
-  G.effects.push({ type: 'smoke', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.8, r: 6 + Math.random() * 3 * grow, t: -Math.random() * 0.3, life: 2.4 + Math.random() * 1.2,
-    alpha: 0.78, color: '#c9c7c0', vx: (Math.random() - 0.5) * 4, vy: -2 - Math.random() * 2, drag: 0.4 });
+  G.effects.push({ type: 'smoke', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.8, r: 8 + Math.random() * 3 * grow, t: -Math.random() * 0.3, life: 3 + Math.random() * 1.4,
+    alpha: 0.95, color: Math.random() < 0.5 ? '#c9c7c0' : '#9a968c', vx: (Math.random() - 0.5) * 3, vy: -1.5 - Math.random() * 1.5, drag: 0.4 });
 }
 function updateSmokes(dt) {
   G.smokes = G.smokes.filter((s) => s.end > G.t);
   for (const s of G.smokes) {
     const left = s.end - G.t;
-    if ((s.puff -= dt) <= 0) { s.puff = left < 2 ? 0.3 : 0.09; smokePuff(s.x, s.y, s.r, 1); }
+    if ((s.puff -= dt) <= 0) { s.puff = left < 2 ? 0.15 : 0.035; smokePuff(s.x, s.y, s.r, 1); }
   }
 }
 // Is the line between a and t in smoke? From or to an aircraft, only if the one on the ground is inside a cloud.

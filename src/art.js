@@ -2230,6 +2230,17 @@ function drawBuildUp(g, b, s, x, y, k, selling, camo) {
     g.restore();
   }
 }
+// A sprite in solid red, its own shape (for a structure flashing red under a charge); made once per sprite.
+const RED_SPR = new WeakMap();
+function redSprite(s) {
+  let r = RED_SPR.get(s);
+  if (r) return r;
+  const c = document.createElement('canvas'); c.width = s.img.width; c.height = s.img.height;
+  const x = c.getContext('2d'); x.drawImage(s.img, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = '#ff2a1e'; x.fillRect(0, 0, c.width, c.height);
+  r = { img: c, ox: s.ox, oy: s.oy };
+  RED_SPR.set(s, r);
+  return r;
+}
 function drawStructure(g, b, t) {
   drawVar = G.teams[b.team].variant | 0;
   const camo = b.type === 'pillbox' ? groundColour(b) : undefined;
@@ -2238,8 +2249,15 @@ function drawStructure(g, b, t) {
   let k = b.buildT;
   if (b.sellT > 0) k = Math.min(k, b.sellT / 1.2);
   if (k < 1) { drawBuildUp(g, b, s, x, y, k, b.sellT > 0, camo); return; }
-  const stage = dmgStage(b);
-  blit(g, stage ? damagedSprite(b.type, b.faction, stage, camo) : s, x, y);
+  const stage = dmgStage(b), body = stage ? damagedSprite(b.type, b.faction, stage, camo) : s;
+  blit(g, body, x, y);
+  // A Specialist's charge on it (world.js demolish): the whole structure flashes red, faster as the fuse runs down (both sides see it).
+  if (b.c4T > G.t) {
+    const left = Math.max(0, Math.min(1, (b.c4T - G.t) / SPEC_FUSE)), ph = (G.t * (1.5 + (1 - left) * 6)) % 1;
+    g.globalAlpha = 0.7 * (0.5 - 0.5 * Math.cos(ph * Math.PI * 2));
+    if (g.globalAlpha > 0.01) blit(g, redSprite(body), x, y, false);
+    g.globalAlpha = 1;
+  }
   if (b.type === 'factory' && b.doorAt != null) {   // the door rolls up for a new unit (world.js spawnUnit)
     const k = doorOpen(G.t - b.doorAt), step = Math.round(k * DOOR_STEPS);
     if (step > 0) blit(g, factoryDoorSprite(b.faction, step), x, y, false);

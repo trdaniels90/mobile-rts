@@ -1698,11 +1698,11 @@ frame-time maths everywhere, so it is not deterministic.
   will not take another structure until it blows (`u.clearT`; a hunting one goes back to hunting after it, `u.rehunt`). `SPEC_FUSE` 5 s
   later `c4Blast` destroys it whatever its health (owner's pick) and hurts ground units within `C4_SPLASH` of its edge (80 HE, either
   side). One charge a structure (`b.c4T` blow time and `b.c4Team`, synced; `b.c4By` host-only, netcore SKIP); dropped if the structure
-  comes over to the planter's side. The owner is told "Explosive charge planted on our base". ui.js draws a blinking red light
-  (faster as it runs down) and a red fuse bar, for both sides.
+  comes over to the planter's side. The owner is told "Explosive charge planted on our base". art.js `drawStructure` flashes the whole
+  structure red (`redSprite`: its sprite in solid red, pulsed over it), faster as the fuse runs down, for both sides (owner: no countdown bar).
 - **Smoke** (`smoke: true`, `throwSmoke` from `damage`, host only): hit by an enemy, `SMOKE_CHANCE` 0.3 a hit and at most once every
   `SMOKE_CD` 25 s (owner's pick: automatic, no button), a cloud `SMOKE_R` 1.8 cells across a little toward the shooter for `SMOKE_LIFE`
-  12 s (`G.smokes`, plain data, saved; online copies see only the puffs, sent as effects). `clearShot` -> `smokeBlocks`: no direct fire
+  12 s, thick (owner: about 30 puffs at once, then one every 0.035 s, near-opaque) (`G.smokes`, plain data, saved; online copies see only the puffs, sent as effects). `clearShot` -> `smokeBlocks`: no direct fire
   through, into or out of a cloud (lobbed rounds go over; within `SMOKE_NEAR` 1.1 cells they still see each other; to or from aircraft
   only if the one on the ground is inside). So `acquire` skips them, and units ordered at a target walk round or in (as for cliffs).
 - **Looks:** a beret (Allies green, Soviets maroon) and dark glasses instead of a helmet, two satchel charges and an aerial on the back,
