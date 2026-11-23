@@ -1240,7 +1240,7 @@ void main() {
   const SUN_SWING = 1.2, MOON = 0.45;
   R.sun = !/[?&]gl=nosun\b/.test(q);
   function sunNow(t) {
-    const p = (t / DAY_LEN + DAY_START) % 1, h = Math.sin((p - 0.25) * Math.PI * 2);
+    const p = dayPhase(t), h = Math.sin((p - 0.25) * Math.PI * 2);
     const day = Math.max(0, Math.min(1, (h + 0.05) / 0.35)), sm = day * day * (3 - 2 * day);
     const th = Math.max(-SUN_SWING, Math.min(SUN_SWING, (p - 0.5) * 4)) * sm, e = Math.max(0, Math.min(1, h)) * sm + (1 - sm);
     const ct = Math.cos(th), st2 = Math.sin(th), lx = LIGHT[0] * ct - LIGHT[1] * st2, ly = LIGHT[0] * st2 + LIGHT[1] * ct;

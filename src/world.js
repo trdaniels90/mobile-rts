@@ -196,10 +196,16 @@ function makeHeights(mapId) {
     for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) if (G.terr[y * MAP + x] >= 4 && Math.hypot(x - p.cx, y - p.cy) < BASE_FLAT + 5) return false;
     return true; });
   const flat = sp.map((p) => [p.cx + 0.5, p.cy + 0.5, hillOk ? HG_MAX : 0]);
+  // A map with `plateau` (Heron Fen): every base on a high plateau, flat out to r cells, falling to the low ground over
+  // ease (its cliffs and ramps are in the layout); the low ground only gentle swells (low x the usual hills).
+  const pl = MAPS[validMap(mapId)].plateau;
   for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
     const c = y * MAP + x;
     let v = raw(x + 0.5, y + 0.5);
-    for (const [fx, fy, fh] of flat) { const d = Math.hypot(x + 0.5 - fx, y + 0.5 - fy); if (d < BASE_FLAT + BASE_EASE) { const k = S(Math.max(0, Math.min(1, (d - BASE_FLAT) / BASE_EASE))); v = fh + (v - fh) * k; } }
+    if (pl) {
+      v *= pl.low;
+      for (const p of sp) { const d = Math.hypot(x - p.cx, y - p.cy); v = Math.max(v, HG_MAX * (1 - S(Math.max(0, Math.min(1, (d - pl.r) / pl.ease))))); }
+    } else for (const [fx, fy, fh] of flat) { const d = Math.hypot(x + 0.5 - fx, y + 0.5 - fy); if (d < BASE_FLAT + BASE_EASE) { const k = S(Math.max(0, Math.min(1, (d - BASE_FLAT) / BASE_EASE))); v = fh + (v - fh) * k; } }
     v *= S(Math.min(1, (wd[c] === 255 ? 6 : wd[c]) / 5));   // down to the water's edge
     h[c] = G.terr[c] >= 4 ? 0 : v;
   }
@@ -504,7 +510,7 @@ function genLayoutMap(m) {
     for (let dy = -3; dy <= 3; dy++) { const x = cellX(c), y = cellY(c) + dy; if (inMap(x, y) && T[idx(x, y)] === 4) wet = true; }
     if (!wet) fordOff.push(c);
   }
-  for (const c of fordOff) { G.ford[c] = 0; T[c] = 1; }
+  if (!m.marsh) for (const c of fordOff) { G.ford[c] = 0; T[c] = 1; }   // (a fen's shallows stay wherever they are)
   // Ground cleared for each start position's Construction Yard.
   for (const s of G.spawns) for (let y = s.cy - 3; y <= s.cy + 3; y++) for (let x = s.cx - 3; x <= s.cx + 3; x++) {
     if (inMap(x, y) && Math.hypot(x - s.cx, y - s.cy) < 3.2 && T[idx(x, y)] <= 3) T[idx(x, y)] = 1;
@@ -1071,6 +1077,9 @@ function villageProps(m, r, taken) {
     if (h.cap === 0 || h.cap >= 10 || r() > 0.3) continue;
     G.props.push({ kind: 'prop', k: 'laundry', x: (h.cx + h.w / 2) * CELL, y: (h.cy + h.h) * CELL + 1, v: (r() * 1000) | 0, up: true, h: h.id, w: h.w * CELL - 14 });
   }
+  // A fishing village (Heron Fen): rowboats moored by the jetties, on the water (v: 0 along x, 1 along y), and nets drying on frames.
+  for (const [x, y, v] of m.boats || []) add('boat', x, y, v);
+  for (const [x, y, v] of m.racks || []) if (open(x, y)) add('nets', x, y, v);
   // Carts left in the lanes, beside a lamp.
   const lamps = G.props.filter((p) => p.k === 'lamp');
   for (let i = 0; i < 5 && lamps.length; i++) {
@@ -6157,6 +6166,7 @@ const STORM_FIRST = [70, 160], STORM_GAP = [160, 320], STORM_LEN = [70, 110], ST
 let stormPlan = null;
 function stormLevel(t) {
   if (!G) return 0;
+  if (MAPS[validMap(G.mapId)].storms === 'rain' && !(G.weather && G.weather.kind === 'rain')) return 0;   // (Heron Fen: only in rain)
   if (!stormPlan || stormPlan.seed !== G.seed) {
     const h = Math.imul((G.seed | 0) ^ 0x2f6b1d3a, 0x9e3779b1), r = rng(h ^ (h >>> 15));
     stormPlan = { seed: G.seed, r, list: [], end: 0 };

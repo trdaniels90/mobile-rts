@@ -2452,3 +2452,35 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
 - art.js `laundryPixels`: the line's rope as one rectangle per run of pixels at the same sag (was a rectangle per pixel); the
   same pixels (checked for widths 20 to 57).
 - Result on that scene: the game's drawing ~84 -> ~63 ms a frame (structures, walls and props, `drawOne`, 25.7 -> 18.1 ms).
+
+## Map "Heron Fen", a 2 v 2 on plateaus over a misty fen (after 2026.11.22.2, not released, both modes; the server must match)
+
+- Owner's request (2026-11-23): "a 2v2 map. Early morning setting with constant fog, a slight percent chance of the map also getting
+  rain. Bases start on high cliff plateaus which then go down to a misty swamp area in the middle of the map with a small fishing
+  village in the swamp."
+- `MAPS.marsh` in maps.js: **160 x 160**, `teamSize: 2`, 4 starts (west 0-1 against east 2-3), laid out by
+  `python3 tools/make-marsh-map.py [--png out.png]` (one quarter mirrored both ways; prints `square`, `lamps`, `boats`, `racks`,
+  `spawns`, `gems`, `lots`, `rows` to paste over the entry; asserts every start reaches the others and the village, and no water
+  within RP + 6 cells of a start).
+- **Plateaus** (`plateau: { r: 22, ease: 7, low: 0.2 }`, world.js makeHeights): each start's ground at HG_MAX out to `r` cells,
+  down to the low ground over `ease`; the rest of the map gets `low` x the usual hills. In the layout, a ring of cliff ('#') at the
+  plateau's rim with three ramps (gaps 7 cells wide): south toward the ally, diagonally to the village, and east along the map's
+  edge toward the enemy across it. The usual high-ground rules apply (sight, reach, slope speed).
+- **The fen**: fords ('f', shallow water anyone can cross) as its shallows, deep pools ('~'), reed beds and dead woods ('T'), mud
+  causeways (','). `marsh: true` keeps every ford cell (genLayoutMap otherwise turns a ford with no water just up or down stream
+  into bank). `theme: 'marsh'` (art.js groundPixels): olive grass, peaty mud, murky green-brown water with a muddy rim, and the
+  shallows painted as weed and duckweed over mud, not a stony creek bed; no waves or surf (look.js drawWater). Other code treats
+  the theme as summer.
+- **Fishing village** on the island in the middle (`village: true`, a 10 x 10 square with the fountain, 12 small plots, so about a
+  dozen houses and a church), two jetties per side (bridge cells '=' out into a pool, drawn as timber decks), rowboats moored
+  beside them (`boats`, prop `boat`, bobbing) and nets drying on pole frames (`racks`, prop `nets`). Their models are in art.js
+  (`fishPropModel`), not models.js, so the baked sprites' hash is unchanged. Looks only (props are not sent online).
+- **Always early morning** (`daynight: true`, `clock: 0.275`): `dayPhase(t)` (art.js) gives the map's fixed hour instead of the
+  day's clock (dayNight, gl.js sunNow, look.js lookFogLevel use it): a low warm sun, amber tint, lamps faint, villagers out.
+- **Constant fog** (`mist: 0.65`, look.js lookFogLevel): the ground fog at that strength all battle, x0.75 in rain, thinned by
+  wind gusts (to 0.6). It lies in the low ground and by water, so the plateaus stand clear above it. Looks only (sight unchanged).
+  Mood `MOOD.marsh` (look.js): grey-green, low warm sun, haze.
+- **Weather**: rain in 15% of battles (`weather: { kind: 'rain', chance: 0.15 }`, with its lightning). `storms: 'rain'`
+  (world.js stormLevel): storms only in a battle with rain (on other maps they come regardless).
+- Checked: `node tools/sim/teams.js <repo> 1 10 marsh` (2 v 2 of computers): no errors, about 600 units by minute 8, one wave
+  by minute 10, about 200 kills. Ground and crags baked (`grounds/marsh/`, `cliffs/marsh/`); preview `maps/marsh.png`.

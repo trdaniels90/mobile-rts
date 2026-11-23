@@ -252,6 +252,7 @@ const MOOD = {
   river: { sat: 0.3, grade: [210, 222, 210], sun: [235, 215, 165, 0.5], shade: [20, 45, 45, 0.42], haze: [190, 208, 196, 0.1], tint: [10, 22, 18, 0.24], vig: [2, 12, 8, 0.44] },   // green-grey river valley
   lakes: { sat: 0.24, grade: [210, 222, 234], sun: [255, 215, 175, 0.5], shade: [10, 30, 75, 0.42], haze: [205, 222, 242, 0.13], vig: [0, 6, 20, 0.42] },                         // cool, damp, misty
   twinlakes: { sat: 0.18, grade: [236, 226, 206], sun: [255, 196, 120, 0.7], shade: [60, 32, 22, 0.36], haze: [245, 222, 182, 0.1], tint: [24, 14, 6, 0.2], vig: [22, 8, 0, 0.4] },   // late summer, dry and warm
+  marsh: { sat: 0.34, grade: [214, 222, 214], sun: [255, 196, 140, 0.5], shade: [24, 44, 58, 0.42], haze: [214, 222, 218, 0.2], tint: [12, 22, 22, 0.26], vig: [6, 12, 14, 0.46] },     // fen at dawn: grey-green, a low warm sun through the mist
   village: { sat: 0.2, grade: [232, 228, 214], sun: [255, 212, 150, 0.6], shade: [30, 30, 64, 0.38], haze: [236, 226, 206, 0.08], vig: [8, 6, 10, 0.38] },                          // pastoral, golden by day
   snow: { sat: 0.3, grade: [226, 236, 250], sun: [242, 246, 255, 0.55], shade: [20, 52, 115, 0.44], haze: [236, 243, 255, 0.17], tint: [10, 24, 54, 0.18], vig: [0, 12, 34, 0.32] },   // cold and bright (snowbound, frost)
   desert: { sat: 0.14, grade: [244, 226, 196], sun: [255, 190, 110, 0.75], shade: [85, 42, 20, 0.36], haze: [250, 226, 186, 0.15], tint: [30, 16, 4, 0.18], vig: [32, 12, 0, 0.38] },  // warm (for a desert theme)
@@ -887,7 +888,7 @@ function waterMasks() {
   return waterLook;
 }
 function drawWater(g, x0, y0, x1, y1, shows) {
-  if (!LOOK.water || snowy()) return;
+  if (!LOOK.water || snowy() || mapTheme(G.mapId) === 'marsh') return;   // (no waves or surf on a fen's still water)
   const W = waterMasks();
   if (!W.any) return;
   if (shows) {   // only round the water that shows (the box round a turned screen is about three times the screen; this was a
@@ -1318,9 +1319,13 @@ function dressOne(g, it, snow) {
 const FOG_CHANCE = 0.55, FOG_MAX = 0.75;   // share of nights with fog; its greatest opacity
 // The day phase (0 midnight, 0.5 noon, as art.js dayNight): in from 0.82 to 0.95, lifting from 0.26 to 0.38.
 function lookFogLevel(t) {
-  if (!LOOK.fog || !G || G.weather) return 0;
+  if (!LOOK.fog || !G) return 0;
   const m = MAPS[validMap(G.mapId)];
-  if (!m.daynight || m.theme === 'snow') return 0;
+  if (m.mist) {   // a map misty all battle long (Heron Fen): thinner in rain and when the wind gusts
+    const w = typeof windNow === 'function' ? windNow() : null, gust = w ? Math.hypot(w.x, w.y / 0.6) / WIND : 1;
+    return m.mist * (G.weather ? 0.75 : 1) * Math.max(0.6, Math.min(1, (1.8 - gust) / 0.8));
+  }
+  if (G.weather || !m.daynight || m.theme === 'snow') return 0;
   const d = t / DAY_LEN + DAY_START, p = d % 1, night = Math.floor(d + 0.2);   // (a night and its morning share a number)
   const sm = (a) => { a = Math.max(0, Math.min(1, a)); return a * a * (3 - 2 * a); };
   const env = p > 0.5 ? sm((p - 0.82) / 0.13) : 1 - sm((p - 0.26) / 0.12);

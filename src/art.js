@@ -90,13 +90,14 @@ const GRASS_TILE_N = 128;
 // The whole-map preparation (noise, cliff cells) is done once, at the first call.
 // theme: 'snow' paints winter: snow for grass, slush for dirt, icy shores, cold water, snowy ridges.
 function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt) {
-  const snow = theme === 'snow';
+  const snow = theme === 'snow', marsh = theme === 'marsh';
   // A 256-colour era look: a handful of tones per surface, picked with dithered noise.
   // Winter: snow in cold blue shades, the tracks trodden to grey slush, frosted stony shores, dark icy water.
-  const GRASS = snow ? [[156, 166, 184], [178, 188, 204], [198, 207, 220], [216, 223, 233], [234, 239, 246]] : [[30, 40, 24], [38, 50, 29], [46, 60, 34], [56, 70, 40], [70, 84, 48]];
-  const EARTH = snow ? [[98, 94, 92], [116, 112, 108], [134, 130, 126], [152, 150, 148]] : [[66, 55, 39], [80, 67, 47], [96, 81, 57], [112, 95, 67]];
-  const SANDS = snow ? [[142, 148, 158], [162, 168, 178], [182, 189, 199]] : [[124, 111, 82], [140, 126, 94], [156, 142, 108]];
-  const WATER = snow ? [[30, 48, 68], [38, 58, 80], [48, 70, 94], [60, 84, 108]] : [[52, 80, 108], [62, 92, 122], [74, 106, 138], [90, 122, 154]];
+  // Fen (marsh): olive grass, dark peaty mud, murky green-brown water, and its shallows (fords) weed and mud, not stones.
+  const GRASS = snow ? [[156, 166, 184], [178, 188, 204], [198, 207, 220], [216, 223, 233], [234, 239, 246]] : marsh ? [[34, 40, 24], [42, 50, 28], [52, 60, 32], [62, 69, 38], [78, 82, 46]] : [[30, 40, 24], [38, 50, 29], [46, 60, 34], [56, 70, 40], [70, 84, 48]];
+  const EARTH = snow ? [[98, 94, 92], [116, 112, 108], [134, 130, 126], [152, 150, 148]] : marsh ? [[48, 40, 30], [60, 50, 36], [72, 61, 44], [86, 73, 52]] : [[66, 55, 39], [80, 67, 47], [96, 81, 57], [112, 95, 67]];
+  const SANDS = snow ? [[142, 148, 158], [162, 168, 178], [182, 189, 199]] : marsh ? [[78, 72, 52], [92, 85, 61], [106, 98, 70]] : [[124, 111, 82], [140, 126, 94], [156, 142, 108]];
+  const WATER = snow ? [[30, 48, 68], [38, 58, 80], [48, 70, 94], [60, 84, 108]] : marsh ? [[30, 42, 38], [36, 50, 44], [44, 59, 50], [54, 69, 58]] : [[52, 80, 108], [62, 92, 122], [74, 106, 138], [90, 122, 154]];
   const STROKE = snow ? 0.5 : 0.95;
   const SOFT = typeof LOOK_SOFT !== 'undefined' && LOOK_SOFT;   // (look.js test; in the workers, from their constants line)   // snow shows the blade tile only as soft wind ripples
   const pickTone = (pal, v) => pal[Math.max(0, Math.min(pal.length - 1, Math.floor(v * pal.length)))];
@@ -165,11 +166,18 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt) {
         const wv = near & 2 ? bil(water, fx, fy) + (hh - 0.5) * 0.22 : 0;
         if (wv > 0.5) {
           const crest = ((x * 3 + y * 7 + Math.floor(noise(N1, (x * 3) % WORLD, y) * 30)) % 23 === 0) && sp > 0.4;
-          col = crest ? (snow ? [70, 94, 118] : [150, 172, 190]) : pickTone(WATER, 0.9 - (wv - 0.5) * 1.6 + (hh - 0.5) * 0.5 + (sp - 0.5) * 0.4);
-          if (wv < 0.545) col = sp > 0.35 ? [178, 192, 198] : [120, 140, 156];   // surf
+          col = crest ? (snow ? [70, 94, 118] : marsh ? [84, 98, 86] : [150, 172, 190]) : pickTone(WATER, 0.9 - (wv - 0.5) * 1.6 + (hh - 0.5) * 0.5 + (sp - 0.5) * 0.4);
+          if (wv < 0.545) col = marsh ? (sp > 0.35 ? [74, 70, 50] : [58, 56, 40]) : sp > 0.35 ? [178, 192, 198] : [120, 140, 156];   // surf (a fen: a muddy rim)
           if (snow && wv < 0.6 + (hh - 0.5) * 0.25) col = sp > 0.25 ? [206, 222, 234] : [168, 190, 208];   // shelf ice along the shore
           const fv = near & 4 ? bil(ford, fx, fy) + (noise(N1, x, y) - 0.5) * 1.6 + (noise(N2, x, y) - 0.5) * 1.0 : 0;   // a ragged edge
-          if (fv > 0.3) {   // the ford: a bed of rounded stones and sand under shallow water, with ripples
+          if (fv > 0.3 && marsh) {   // the fen's shallows: peaty mud under brown water, weed and duckweed, reeds standing in it
+            const k = Math.min(1, (fv - 0.3) / 0.12), wn = noise(N1, x, y) * 0.6 + noise(N2, x, y) * 0.4;
+            let sh = pickTone([[44, 50, 36], [52, 58, 40], [60, 66, 44], [70, 74, 48]], wn * 1.3 - 0.15 + (sp - 0.5) * 0.35);
+            if (wn > 0.58 && sp > 0.55) sh = sp > 0.85 ? [96, 116, 52] : [78, 98, 46];   // duckweed and lily pads
+            if (sp > 0.975) sh = [110, 104, 62];                                            // a reed's pale stem
+            else if (sp > 0.955) sh = [36, 40, 28];
+            col = [col[0] + (sh[0] - col[0]) * k, col[1] + (sh[1] - col[1]) * k, col[2] + (sh[2] - col[2]) * k];
+          } else if (fv > 0.3) {   // the ford: a bed of rounded stones and sand under shallow water, with ripples
             const k = Math.min(1, (fv - 0.3) / 0.12), st = fordStone(x, y, seed);
             let sh;
             if (st) {   // a stone breaking the surface, lit from the upper left, wet and dark at its rim
@@ -1044,9 +1052,14 @@ const weatherFx = { parts: [], splash: [], last: 0, kind: null };
 // Day and night (maps with `daynight`, looks only): a day of DAY_LEN seconds of battle clock, so every phone has the same
 // hour. A battle starts in the morning; dusk comes after about 5 minutes, the night lasts about 5, then dawn.
 const DAY_LEN = 720, DAY_START = 0.3;   // DAY_START: the hour a battle begins, as a share of the day (0 midnight, 0.5 noon)
+// The hour at battle time t, as a share of the day; on a map with `clock` (Heron Fen's early morning) it stands still.
+function dayPhase(t) {
+  const M = typeof G !== 'undefined' && G && MAPS[validMap(G.mapId)];
+  return M && M.clock !== undefined ? M.clock : (t / DAY_LEN + DAY_START) % 1;
+}
 function dayNight(t) {
   if (!G || !MAPS[validMap(G.mapId)].daynight) return { night: 0, warm: 0 };
-  const p = (t / DAY_LEN + DAY_START) % 1, sun = Math.sin((p - 0.25) * Math.PI * 2);   // 1 at noon, -1 at midnight
+  const p = dayPhase(t), sun = Math.sin((p - 0.25) * Math.PI * 2);   // 1 at noon, -1 at midnight
   return { night: Math.max(0, Math.min(1, (0.12 - sun) / 0.42)), warm: Math.max(0, 1 - Math.abs(sun - 0.02) / 0.3) };
 }
 const nightLevel = () => dayNight(G ? G.t : 0).night;
@@ -2261,6 +2274,11 @@ function fountainWater(g, h) {
 let lampGlowPic = null;
 function drawProp(g, p) {
   if (p.k === 'laundry') { drawLaundry(g, p); return; }
+  if (p.k === 'boat' || p.k === 'nets') {   // (Heron Fen's fishing village; models here, so the baked sprites' hash of models.js stays)
+    const s = sprite('P' + p.k + (p.v | 0) + (p.up ? 'u' : 'd'), () => fishPropModel(p.k, p.v | 0, p.up), 0, 0);
+    blit(g, s, p.x, p.y + (p.k === 'boat' && p.up ? Math.round(Math.sin(G.t * 1.3 + p.x * 0.07) * 0.6) : 0));   // the boats bob a little
+    return;
+  }
   const s = propSprite(p);
   blit(g, s, p.x, p.y);
   if (p.k === 'lamp' && p.up) {
@@ -2277,6 +2295,48 @@ function drawProp(g, p) {
     g.globalAlpha = 0.35 * flick; g.drawImage(lampGlowPic, p.x + 4 - 18, p.y + 1 - 10, 36, 20);   // the pool of light on the ground
     g.restore();
   }
+}
+// A rowboat (v 0: along x, 1: along y; knocked over: swamped, only its gunwale and an oar showing) or nets drying on a
+// frame of poles (knocked over: in a heap). Voxel models like the other village props (models.js propModel).
+function fishPropModel(kind, v, up) {
+  const m = new VModel(-18, -18, 18, 18, 22), wood = '#6e5434', woodD = '#4c3a24', woodL = '#8a6c44';
+  const B = (x0, y0, z0, x1, y1, z1, c, mt) => (v % 2 ? m.box(y0, x0, z0, y1, x1, z1, c, mt) : m.box(x0, y0, z0, x1, y1, z1, c, mt));
+  if (kind === 'boat') {
+    const half = (x) => Math.max(0, 4.6 * Math.sqrt(Math.max(0, 1 - (x / 13) ** 2)) - (x > 8 ? (x - 8) * 0.35 : 0));   // the hull's half beam along it
+    if (up) {
+      for (let x = -13; x <= 13; x++) {
+        const w = Math.round(half(x + 0.5));
+        if (w < 1) continue;
+        B(x, -w, 0, x + 1, w, 1, woodD, M_ROUGH);                    // the bottom, at the waterline
+        B(x, -w, 1, x + 1, -w + 1, 4, wood, M_ROUGH); B(x, w - 1, 1, x + 1, w, 4, wood, M_ROUGH);   // the sides
+        B(x, -w, 4, x + 1, -w + 1, 5, woodL, M_ROUGH); B(x, w - 1, 4, x + 1, w, 5, woodL, M_ROUGH); // the gunwale
+        B(x, -w + 1, 1, x + 1, w - 1, 2, '#3a4a3a', M_GLASS);        // bilge water
+      }
+      B(-13, -1, 1, -12, 1, 5, woodD, M_ROUGH); B(12, -1, 1, 13, 1, 6, woodD, M_ROUGH);   // stern and stem
+      for (const x of [-6, 2]) B(x, -4, 3, x + 2, 4, 4, woodL, M_ROUGH);                    // thwarts
+      B(-4, -9, 4, 5, -8, 5, '#9a8058', M_ROUGH); B(-3, 8, 4, 6, 9, 5, '#9a8058', M_ROUGH);  // oars shipped over the sides
+      B(9, -2, 4, 12, 2, 5, '#6a7a5a', M_MATTE);                                            // a heap of net in the bow
+    } else {
+      for (let x = -12; x <= 12; x++) { const w = Math.round(half(x + 0.5)); if (w >= 1) { B(x, -w, 0, x + 1, -w + 1, 1, woodL, M_ROUGH); B(x, w - 1, 0, x + 1, w, 1, woodL, M_ROUGH); } }
+      B(-3, 7, 0, 8, 8, 1, '#9a8058', M_ROUGH);
+    }
+  } else {   // nets
+    if (up) {
+      for (const x of [-12, 0, 12]) { B(x, 0, 0, x + 1, 1, 16, woodD, M_ROUGH); }
+      B(-12, 0, 15, 13, 1, 16, wood, M_ROUGH);
+      for (let x = -11; x < 12; x++) for (let z = 4; z < 15; z++) {
+        const sag = Math.round(Math.sin(((x + 12) % 12) / 12 * Math.PI) * 2.5);
+        if (z < 4 + sag) continue;
+        if ((x + z) % 2 === 0 || z === 14) B(x, 0, z, x + 1, 1, z + 1, (x * 7 + z * 3) % 11 === 0 ? '#c8a040' : '#5f6e5a', M_MATTE);   // mesh, a cork float here and there
+      }
+      B(-9, 2, 0, -3, 6, 2, '#6a7a5a', M_MATTE); B(-8, 3, 2, -4, 5, 3, '#6a7a5a', M_MATTE);   // a pile of net on the ground
+      B(5, 2, 0, 10, 6, 3, '#7a5a3a', M_ROUGH); B(5, 2, 3, 10, 3, 4, woodD, M_ROUGH);           // a fish basket
+    } else {
+      B(-12, -1, 0, 13, 1, 1, woodD, M_ROUGH);
+      for (let i = 0; i < 16; i++) B(-10 + i, -4 + ((i * 5) % 8), 0, -9 + i, -3 + ((i * 5) % 8), 1, '#5f6e5a', M_MATTE);
+    }
+  }
+  return m;
 }
 // Washing on a line in front of a house, swaying in the wind; gone while the house is held or down, on the ground
 // once knocked over.
