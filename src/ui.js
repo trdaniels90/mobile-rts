@@ -1023,6 +1023,16 @@ function draw() {
         v.fillStyle = 'rgba(0,0,0,0.75)'; v.fillRect(tx - 23, ty - 4, 46, 8);
         v.fillStyle = Math.floor(G.t * 4) % 2 ? '#ffd23e' : '#f2a020'; v.fillRect(tx - 22, ty - 3, 44 * e.capture, 6);
       }
+      // A Specialist's charge on a structure (world.js demolish): a red light blinking faster as it runs down, and the fuse bar.
+      for (const e of G.entities) {
+        if (!e.alive || e.kind !== 'bld' || !(e.c4T > G.t) || !inView(e) || !visibleToPlayer(e)) continue;
+        const left = Math.max(0, Math.min(1, (e.c4T - G.t) / SPEC_FUSE));
+        const [lx, ly] = toView(...hillPt(e.x, e.y));
+        if (Math.floor(G.t * (3 + (1 - left) * 9)) % 2) { v.fillStyle = 'rgba(255,40,30,0.35)'; v.beginPath(); v.arc(lx, ly, 6, 0, 7); v.fill(); v.fillStyle = '#ff3a2a'; v.fillRect(lx - 2, ly - 2, 4, 4); }
+        const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 10));
+        v.fillStyle = 'rgba(0,0,0,0.75)'; v.fillRect(tx - 23, ty - 4, 46, 8);
+        v.fillStyle = '#ff4a3a'; v.fillRect(tx - 22, ty - 3, 44 * left, 6);
+      }
       // PRIMARY over the building new units come out of, when there is more than one of its type.
       for (const e of G.entities) {
         if (!e.alive || !e.primary || e.kind !== 'bld' || e.team !== G.me || !inView(e) || producersOfType(e).length < 2) continue;

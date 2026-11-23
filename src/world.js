@@ -1944,6 +1944,7 @@ function ridgeCells() {
   return ridge;
 }
 function clearShot(a, t, w) {
+  if (G.smokes && G.smokes.length && !(w && LOBBED[w.proj]) && smokeBlocks(a, t)) return false;   // a Specialist's smoke screen
   if (!G.cliff || (w && LOBBED[w.proj])) return true;
   if ((a.kind === 'unit' && isAirborne(a)) || (t.kind === 'unit' && isAirborne(t))) return true;
   let tx = t.x, ty = t.y;
@@ -2013,6 +2014,7 @@ function acquire(src, range, weapons, visible, favour) {
     if (Math.abs(e.x - src.x) > range + CELL * 3 || Math.abs(e.y - src.y) > range + CELL * 3) continue;   // far off: no need to measure (structures are at most 4 cells across)
     if (!weapons.some((w) => canHit(w, e))) continue;
     if (e.kind === 'bld' && camoHidden(e, src.team)) continue;
+    if (e.kind === 'bld' && src.def && src.def.demo && (e.c4T || src.clearT > G.t)) continue;   // a Specialist leaves a structure already set to blow, and gets clear of his own
     if (visible && !visible(e)) continue;
     const d = distTo(src, e);
     if (d > range) continue;
@@ -3105,6 +3107,110 @@ function tickBurn(u, dt) {
   if (u.burnT <= 0) { u.burnT = 0; u.burnBy = null; u.burnTick = 0; }
 }
 
+// The Specialist (data.js `spec`). Explosives: sent at an enemy structure (an attack order, a hunt, or one he picks up himself),
+// he walks up beside it, kneels SPEC_PLANT s to plant a charge, then moves SPEC_CLEAR px off and goes on; SPEC_FUSE s after it is
+// planted the structure is destroyed outright (c4Blast), and what stands close round it is hurt. The charge (b.c4T: the time it
+// blows, b.c4Team, synced; b.c4By host-only) shows as a blinking light and a fuse bar to both sides (ui.js). One charge a structure;
+// it is let go if the structure is captured by the planter's side. Killed while planting, nothing is planted.
+const SPEC_PLANT = 1.5, SPEC_FUSE = 5, SPEC_CLEAR = CELL * 3.5, C4_SPLASH = CELL * 1.2, C4_DMG = 80;
+function dropDemo(u, t) {
+  u.target = null; u.plantT = 0; u.round = null;
+  if (u.order && u.order.type === 'attack' && u.order.target === t) { if (teamOf(u).isAI) setHunt(u); else setGuard(u, u.x, u.y); }
+}
+function demolish(u, t, dt) {
+  if (t.c4T || t.sellT > 0 || camoHidden(t, u.team)) { dropDemo(u, t); return; }   // already set to blow (or going)
+  const d = distTo(u, t), settled = !u.dest && !u.needPath;
+  if (d > CELL * 0.9 && !(settled && d <= CELL * 2)) {
+    u.plantT = 0;
+    if (u.demoAt !== t.id || settled) {
+      const p = besideSpot(u, t);
+      if (!p) { if (u.demoAt === t.id) { dropDemo(u, t); return; } u.demoAt = t.id; goTo(u, t.x, t.y); }
+      else { u.demoAt = t.id; goTo(u, p.x, p.y); }
+    }
+    followPath(u, dt);
+    return;
+  }
+  u.dest = null; u.path = null; u.face = Math.atan2(t.y - u.y, t.x - u.x);
+  if (!u.plantT) hooks.sfx('build', u.x, u.y);
+  u.plantT = (u.plantT || 0) + dt;
+  if (u.plantT < SPEC_PLANT) return;
+  u.plantT = 0; u.demoAt = null;
+  t.c4T = G.t + SPEC_FUSE; t.c4Team = u.team; t.c4By = u;
+  notify(teamOf(t), 'c4', 'Explosive charge planted on our base', 6);
+  say(u.team, 'Charge set');
+  hooks.sfx('place', u.x, u.y);
+  // Off to a safe distance, away from the structure, then carry on (the computer's to the next target).
+  const a = Math.atan2(u.y - t.y, u.x - t.x), R = Math.max(t.w, t.h) * CELL / 2 + SPEC_CLEAR;
+  let gx = t.x + Math.cos(a) * R, gy = t.y + Math.sin(a) * R;
+  gx = Math.max(CELL, Math.min(WORLD - CELL, gx)); gy = Math.max(CELL, Math.min(WORLD - CELL, gy));
+  u.target = null;
+  const hunting = u.order.type === 'hunt';
+  u.clearT = G.t + SPEC_FUSE + 0.3;
+  setGuard(u, gx, gy); goTo(u, gx, gy);
+  if (hunting) u.rehunt = G.t + SPEC_FUSE + 0.5;   // (hunting: back to it once the charge has gone off, not back to the structure)
+}
+function c4Blast(b) {
+  const by = b.c4By && b.c4By.alive ? b.c4By : { team: b.c4Team, kind: 'charge', x: b.x, y: b.y, alive: false };
+  b.c4T = 0; b.c4By = null;
+  const x = b.x, y = b.y;
+  hooks.sfx('explodeBig', x, y); hooks.shake(x, y, 5);
+  for (let i = 0; i < 4; i++) G.effects.push({ type: 'expl', x: x + (Math.random() - 0.5) * b.w * CELL * 0.6, y: y - 4 + (Math.random() - 0.5) * b.h * CELL * 0.6, size: 18 + Math.random() * 8, t: -i * 0.08, life: 0.7, seed: (Math.random() * 1e6) | 0 });
+  // What stands close round it (either side's soldiers and vehicles, as a real blast would): measured from the structure's edge.
+  for (const e of G.entities) {
+    if (!e.alive || e.kind !== 'unit' || isAirborne(e) || e.inHouse) continue;
+    const dd = distTo(e, b);
+    if (dd < C4_SPLASH) damage(e, C4_DMG * (1 - dd / C4_SPLASH * 0.6), 'HE', by.alive ? by : null, { x, y }, true);
+  }
+  if (b.alive) kill(b, by, 'HE', { x, y });
+}
+// Smoke grenades: shot at by an enemy, a Specialist may (SMOKE_CHANCE a hit, once every SMOKE_CD s) throw one a little way
+// toward the shooter. The cloud (G.smokes: x, y, r, end; plain data, saved; the host's alone, online copies only see the puffs it
+// sends) blocks direct fire through it, into it and out of it (clearShot: lobbed rounds go over; soldiers almost on top of each
+// other still see each other). Units that picked a target themselves let it go; ones ordered at it walk round or in.
+const SMOKE_CHANCE = 0.3, SMOKE_CD = 25, SMOKE_R = CELL * 1.8, SMOKE_LIFE = 12, SMOKE_NEAR = CELL * 1.1;
+function throwSmoke(u, from) {
+  u.smokeT = G.t + SMOKE_CD;
+  const a = Math.atan2(from.y - u.y, from.x - u.x), k = Math.min(CELL * 2, Math.hypot(from.x - u.x, from.y - u.y) * 0.35);
+  const x = u.x + Math.cos(a) * k, y = u.y + Math.sin(a) * k;
+  (G.smokes || (G.smokes = [])).push({ x, y, r: SMOKE_R, end: G.t + SMOKE_LIFE, puff: 0 });
+  u.fireT = 0.3;
+  hooks.sfx('throw', u.x, u.y);
+  for (let i = 0; i < 14; i++) smokePuff(x, y, SMOKE_R * 0.8, 1);
+}
+function smokePuff(x, y, r, grow) {
+  const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r;
+  G.effects.push({ type: 'smoke', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d * 0.8, r: 6 + Math.random() * 3 * grow, t: -Math.random() * 0.3, life: 2.4 + Math.random() * 1.2,
+    alpha: 0.78, color: '#c9c7c0', vx: (Math.random() - 0.5) * 4, vy: -2 - Math.random() * 2, drag: 0.4 });
+}
+function updateSmokes(dt) {
+  G.smokes = G.smokes.filter((s) => s.end > G.t);
+  for (const s of G.smokes) {
+    const left = s.end - G.t;
+    if ((s.puff -= dt) <= 0) { s.puff = left < 2 ? 0.3 : 0.09; smokePuff(s.x, s.y, s.r, 1); }
+  }
+}
+// Is the line between a and t in smoke? From or to an aircraft, only if the one on the ground is inside a cloud.
+function smokeBlocks(a, t) {
+  const air = (a.kind === 'unit' && isAirborne(a)) || (t.kind === 'unit' && isAirborne(t));
+  let tx = t.x, ty = t.y;
+  if (t.kind === 'bld' || t.kind === 'span' || t.kind === 'house') {
+    tx = Math.max(t.cx * CELL + 1, Math.min((t.cx + t.w) * CELL - 1, a.x)); ty = Math.max(t.cy * CELL + 1, Math.min((t.cy + t.h) * CELL - 1, a.y));
+  }
+  const dx = tx - a.x, dy = ty - a.y, L2 = dx * dx + dy * dy;
+  if (L2 < SMOKE_NEAR * SMOKE_NEAR) return false;
+  for (const s of G.smokes) {
+    if (s.end <= G.t) continue;
+    if (air) {
+      const g = a.kind === 'unit' && isAirborne(a) ? { x: tx, y: ty } : a;
+      if (Math.hypot(g.x - s.x, g.y - s.y) < s.r) return true;
+      continue;
+    }
+    const k = Math.max(0, Math.min(1, ((s.x - a.x) * dx + (s.y - a.y) * dy) / L2));
+    if (Math.hypot(a.x + dx * k - s.x, a.y + dy * k - s.y) < s.r) return true;
+  }
+  return false;
+}
+
 // Flame tower fireball: a burst of fire that splashes and leaves flames burning for a moment.
 function fireBlast(p, x, y) {
   const w = p.w, from = p.from || null;
@@ -3350,6 +3456,8 @@ function damage(t, amount, wh, attacker, from, splashed) {
       if (parked) { t.as = 'takeoff'; t.repairHold = false; }
     }
   }
+  if (t.hp > 0 && t.kind === 'unit' && t.def.smoke && attacker && attacker.alive && hostile(attacker.team, t.team) && !t.inHouse && !isAirborne(t) &&
+      G.t >= (t.smokeT || 0) && Math.random() < SMOKE_CHANCE) throwSmoke(t, attacker);
   if (t.hp <= 0) kill(t, attacker, wh, from || attacker);
 }
 
@@ -3874,6 +3982,7 @@ function updateUnit(u, dt) {
   u.think -= dt;
   if (u.think <= 0) {
     u.think = 0.35 + Math.random() * 0.2;
+    if (u.rehunt && G.t > u.rehunt) { u.rehunt = 0; if (o.type === 'guard' && !o.hold) setHunt(u); }
     if (o.type === 'attack') {
       if (!o.target.alive) setGuard(u);
       else if (u.breach) {
@@ -3954,6 +4063,7 @@ const breachReach = (u) => (u.def.weapon && wRange(u, u.def.weapon)) || 0;   // 
 function engage(u, t, dt) {
   const w = canHit(u.def.weapon, t) ? u.def.weapon : u.def.weapon2 && canHit(u.def.weapon2, t) ? u.def.weapon2 : null;
   if (!w) { u.target = null; return; }   // e.g. a helicopter that took off out of a rifleman's reach
+  if (u.def.demo && t.kind === 'bld' && hostile(u.team, t.team)) { demolish(u, t, dt); return; }   // a Specialist: explosives, not bullets
   const d = distTo(u, t);
   const ang = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
   // A defender sent to a spot behind sandbags (defendBase, coverSpot) walks there and fights from it; it leaves
@@ -5349,6 +5459,10 @@ function updateBuilding(b, dt) {
   }
   b.fireT = Math.max(0, b.fireT - dt);
   b.charge = Math.max(0, b.charge - dt * 1.5);
+  if (b.c4T && !G.remote) {   // a Specialist's charge: let go if the structure came over to its side, else it blows on time
+    if (!hostile(b.c4Team, b.team)) { b.c4T = 0; b.c4By = null; }
+    else if (G.t >= b.c4T) { c4Blast(b); return; }
+  }
   if (b.buildT < 1) {
     b.buildT = Math.min(1, b.buildT + dt / BUILD_UP);
     // Clanks and hammering while it goes up.
@@ -6007,6 +6121,7 @@ function update(dt) {
   separate();
   if (!G.remote) for (const t of G.teams) if (t.wipe) tickWipe(t);
   updateProjectiles(dt);
+  if (G.smokes && G.smokes.length) updateSmokes(dt);
   processPaths();
   if (!G.over) for (const team of G.teams) { updateProduction(team, dt); updateResearch(team, dt); updatePowers(team, dt); }
   if (!G.over) updateDoors();

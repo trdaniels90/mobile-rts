@@ -1810,6 +1810,7 @@ const IDLES = {
   pilot: ['look', 'rest', 'stretch', 'none'],
   sniper: ['look', 'aim', 'aim', 'rest', 'none'],
   flamer: ['look', 'stretch', 'look', 'none'],
+  spec: ['look', 'aim', 'stretch', 'rest', 'none'],
 };
 function idlePose(u, t) {
   if (u.moving || u.stance || u.target || u.fireT > 0 || u.chute > 0 || u.alt > 0) { u.idleFrom = t; return null; }

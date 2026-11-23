@@ -1689,6 +1689,26 @@ frame-time maths everywhere, so it is not deterministic.
   rifleman one-shot at 215 px, 12 damage to a Heavy Tank in 9 s, blast rate about 0.3 over 60 deaths, burns both sides and not at 80 px,
   burning takes 42 of a rifleman's 50 (prone), a Flamethrower kills 3 still riflemen in 8 s.
 
+## Specialist (both sides) (after 2026.11.23, not released, owner's picks for both modes; the server must match)
+
+- **Unit** (`spec` in UNIT_DEFS): Barracks, `req: ['tech']` (no research), Allies and Soviets, `max: 2` (owner's picks), $1200, 150 health,
+  speed 36, sight 6. Assault rifle: 9 RF x 4-round burst every 0.9 s, range 140 (rifleman 7 x 3, 120).
+- **Explosives** (`demo: true`, world.js `demolish` from `engage`): any time his target is an enemy structure (an attack order, a hunt, or
+  one he picks up himself) he walks beside it (`besideSpot`), plants for `SPEC_PLANT` 1.5 s, then moves `SPEC_CLEAR` past its edge and
+  will not take another structure until it blows (`u.clearT`; a hunting one goes back to hunting after it, `u.rehunt`). `SPEC_FUSE` 5 s
+  later `c4Blast` destroys it whatever its health (owner's pick) and hurts ground units within `C4_SPLASH` of its edge (80 HE, either
+  side). One charge a structure (`b.c4T` blow time and `b.c4Team`, synced; `b.c4By` host-only, netcore SKIP); dropped if the structure
+  comes over to the planter's side. The owner is told "Explosive charge planted on our base". ui.js draws a blinking red light
+  (faster as it runs down) and a red fuse bar, for both sides.
+- **Smoke** (`smoke: true`, `throwSmoke` from `damage`, host only): hit by an enemy, `SMOKE_CHANCE` 0.3 a hit and at most once every
+  `SMOKE_CD` 25 s (owner's pick: automatic, no button), a cloud `SMOKE_R` 1.8 cells across a little toward the shooter for `SMOKE_LIFE`
+  12 s (`G.smokes`, plain data, saved; online copies see only the puffs, sent as effects). `clearShot` -> `smokeBlocks`: no direct fire
+  through, into or out of a cloud (lobbed rounds go over; within `SMOKE_NEAR` 1.1 cells they still see each other; to or from aircraft
+  only if the one on the ground is inside). So `acquire` skips them, and units ordered at a target walk round or in (as for cliffs).
+- **Looks:** a beret (Allies green, Soviets maroon) and dark glasses instead of a helmet, two satchel charges and an aerial on the back,
+  the rifle. Sprites, normals and ground key rebaked. **Computer:** 8% of infantry picks once available (cap permitting).
+- Field Manual entry. `node tools/sim/specialist.js <repo>`.
+
 ## Computer personalities (after 2026.11.16.5, not released, Normal and Hard, both modes)
 
 - Owner's report: on Normal every computer side attacked at the same moment. Measured (headless 2 v 2 on Twin Lakes): all four first

@@ -1190,6 +1190,7 @@ function aiThink(team) {
     // Snipers (Allies, after the Sniper program, at most UNIT_DEFS.sniper.max) and Flamethrowers (Soviets, with a Tech Center): more against infantry.
     const elite = sov ? 'flamer' : 'sniper';
     if (available(team, elite) && Math.random() < (k.inf ? 0.3 : 0.12) && !startProduction(team, elite)) { /* queued */ }
+    else if (available(team, 'spec') && Math.random() < 0.08 && !startProduction(team, 'spec')) { /* a Specialist (at most 2): goes with the waves, blows up structures */ }
     else if (Math.random() < mgs) startProduction(team, 'hmg');
     else if (sov && Math.random() < sovRockets) startProduction(team, 'rocket');
     else startProduction(team, sov ? (r < (k.armor ? 0.3 : 0.55) ? 'rifle' : 'grenadier') : r < rockets ? 'rocket' : 'rifle');

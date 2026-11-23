@@ -128,6 +128,16 @@ const UNIT_DEFS = {
     cost: 400, hp: 70, armor: 'inf', speed: 30, sight: 5, r: 5, explodes: 1 / 3,
     weapon: { dmg: 30, rof: 1.4, range: 80, wh: 'FIRE', proj: 'fireball', splash: 16 },
   },
+  // Specialist (both sides, needs a Tech Center, at most 2 at a time): a commando. An assault rifle (better than the Rifle
+  // Infantry's: more rounds a burst, more reach); explosives for structures (`demo`): sent at an enemy structure, or picking one
+  // up himself, he walks up to it, plants a charge (SPEC_PLANT s) and moves off; SPEC_FUSE s later it blows and the structure is
+  // destroyed whatever its health (world.js demolish, c4Blast). Under fire, he may throw a smoke grenade (`smoke`: world.js
+  // throwSmoke): a cloud between him and the shooter that no direct fire passes through for SMOKE_LIFE s.
+  spec: {
+    name: 'Specialist', cls: 'inf', cat: 'infantry', producer: 'barracks', req: ['tech'], factions: ['allies', 'soviets'], max: 2,
+    cost: 1200, hp: 150, armor: 'inf', speed: 36, sight: 6, r: 5, demo: true, smoke: true,
+    weapon: { dmg: 9, rof: 0.9, range: 140, wh: 'RF', proj: 'bullet', burst: 4, gap: 0.08, splash: 8 },
+  },
   // Unarmed. Walks into an enemy structure and captures it at once (Construction Yards too), into a destroyed bridge span
   // and it is rebuilt, or into a damaged friendly structure and it is repaired in full; either way the Engineer is used up
   // (world.js commandEngineer, captureBuilding). Cost, health, speed and sight

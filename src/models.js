@@ -1524,6 +1524,11 @@ function infModel(pal, faction, type, frame) {
     for (const y of [-2, 2]) { m.cylZ(-5, y, 7, 16, 1.6, '#4d5232', M_METAL); m.cylZ(-5, y, 14, 15, 1.7, '#a8261c', M_METAL); m.ellipsoid(-5, y, 16.3, 1.4, 1.4, 0.8, '#3c4028', M_METAL); }
     m.cylZ(-6, 0, 9, 14, 0.8, '#8a8f94', M_METAL);
     m.box(-3, -3, 8, -2, 3, 9, K.web);                                              // frame
+  } else if (type === 'spec') {
+    // The Specialist: two satchel charges on his back (khaki bricks with a strap and a red detonator), a radio aerial.
+    for (const y of [-3, 1]) { m.box(-5, y, 8, -2, y + 2, 13, '#8a7a4a'); m.box(-5, y, 12, -3, y + 2, 13, '#6e6038'); m.set(-5, y + 1, 10, '#c8281e', M_METAL); }
+    m.box(-6, -3, 10, -5, 3, 11, K.web);
+    m.line(-4, -2, 13, -6, -3, 20, '#2a2a24', M_METAL);
   } else if (type === 'pilot') {
     m.box(-4, -2, 8, -2, 2, 13, '#c9c3a8'); m.box(-4, -2, 12, -2, 2, 13, '#a49d82');   // parachute pack
   } else {
@@ -1539,7 +1544,13 @@ function infModel(pal, faction, type, frame) {
   m.set(1, -1, 16, '#2a1e18'); m.set(1, 1, 16, '#2a1e18');
   m.set(1, 0, 14, shadeInt(K.skin, 0.8));
   // Headgear: a big helmet so the head reads at phone scale.
-  if (type === 'sniper') {
+  if (type === 'spec') {
+    // A beret pulled to one side (Allies green, Soviets maroon) over dark glasses: no helmet, so he stands out in a squad.
+    const ber = sov ? '#7a1e24' : '#2f5a2a';
+    m.box(-2, -2, 17, 2, 3, 18, ber); m.box(-1, -3, 17, 1, 1, 18.5, shadeInt(ber, 1.15)); m.box(-2, -3, 18, 0, 0, 19, ber);
+    m.set(2, 2, 17, '#d8c070', M_METAL);   // cap badge
+    m.box(2, -1, 15, 3, 2, 16, '#1a1c1e', M_GLASS);   // dark glasses
+  } else if (type === 'sniper') {
     // A soft boonie hat with a wide floppy brim and scraps of scrim, the face streaked with camouflage paint.
     const hat = '#6b6a42';
     m.box(-3, -3, 16, 4, 4, 17, shadeInt(hat, 0.85)); m.box(-2, -2, 17, 3, 3, 19, hat);
