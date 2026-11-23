@@ -2498,6 +2498,13 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   explored ground. Each fills from its own wetness (0.08-0.58) and grows over 0.3 of it; 6 pictures (lobed dark water, a pale sky
   sheen, a wet rim); rings from drops landing, by the rain's strength. At most `PUDDLE_MAX` 700 a frame, rings on the first 300.
 - **Runoff** (`lookRunoff`, from lookSmoke, over the units): per structure and village house on screen, `runoffSpots` (cached
-  per type) finds up to `RUNOFF_SPOTS` 16 points on the roof edges the camera sees (the south or east edge of a broad roof, a
-  drop of 4+ voxels; masts and chimneys left out), 4.5 px apart. From each, a stream of falling drops (4 frames) to the ground or
-  the lower roof below, a splash where it lands and a small wet pool on the ground. Fades in with the wetness.
+  per type) finds up to `RUNOFF_SPOTS` 5 points on the roof edges the camera sees (the south or east edge of a broad roof, a
+  drop of 4+ voxels; masts and chimneys left out), 12 px apart. From each, single drips (every 0.7-1.6 s, its own), falling and
+  speeding up to the ground or the roof below, a splash as each lands, and a small wet pool on the ground. Fades in with the
+  wetness. (First made as 16 streams per roof; owner: "make the run off slower and not every inch of the roof".)
+- **The rain itself** (art.js drawWeather, rain; owner: "make the rain look more realistic rather than a screen filter"): drops fall
+  through the air onto spots on the ground (view px, lifted with the raised ground), blown downwind by `windNow`, in three
+  layers (far thin and faint, middle, a few near long soft ones), each streak a faint tail and a brighter head (motion blur);
+  where a drop lands, a crown of droplets on land or a spreading ring on water. Instead of a flat dark wash: a light overcast
+  heavier toward the top of the screen, and sheets of heavier rain (a soft streaky noise) sweeping across with the wind. 520
+  drops at full rain on a phone-sized view (was 330 streaks). Snow is as before.

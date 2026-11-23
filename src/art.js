@@ -1192,37 +1192,90 @@ function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {
   F.last = now;
   if (F.kind !== w.kind) { F.kind = w.kind; F.parts = []; F.splash = []; }
   const L = weatherLevel(w, t), rain = w.kind === 'rain';
-  const want = Math.round((rain ? 330 : 300) * L * Math.min(3, (vw * vh) / (800 * 450)));
+  const area = Math.min(3, (vw * vh) / (800 * 450));
+  const want = Math.round((rain ? 520 : 300) * L * area);
   const P = F.parts, rnd = Math.random;
-  while (P.length < want) P.push({ x: vx + rnd() * vw, y: vy + rnd() * vh, s: 0.6 + rnd() * 0.8, ph: rnd() * 7 });
-  if (P.length > want) P.length = want;
   const wrap = (v, a, n) => a + ((((v - a) % n) + n) % n);
-  // A haze over everything: grey-blue overcast in rain, a pale veil in snow.
-  g.fillStyle = rain ? `rgba(14,22,34,${(0.1 + 0.16 * L).toFixed(3)})` : `rgba(214,222,236,${(0.04 + 0.08 * L).toFixed(3)})`;
-  g.fillRect(0, 0, g.canvas.width, g.canvas.height);
+  if (!rain) {
+    while (P.length < want) P.push({ x: vx + rnd() * vw, y: vy + rnd() * vh, s: 0.6 + rnd() * 0.8, ph: rnd() * 7 });
+    if (P.length > want) P.length = want;
+    g.fillStyle = `rgba(214,222,236,${(0.04 + 0.08 * L).toFixed(3)})`;   // a pale veil in snow
+    g.fillRect(0, 0, g.canvas.width, g.canvas.height);
+  }
   if (rain) {
+    // Rain as drops falling through the air onto the ground (owner, 2026-11-23: "more realistic rather than a screen filter"):
+    // each drop (not the near ones) falls toward a spot on the ground (X, Y, view px) from a height h above it, blown
+    // downwind as it falls, and splashes there when it lands: a crown of droplets on land, rings on water. Three layers:
+    // far (thin, faint, slower), middle, and a few near ones (long, soft, fast) that streak past the camera. Each streak
+    // is its motion blur: a faint tail and a brighter head. Over it a light overcast, heavier toward the far (upper) side,
+    // and sheets of heavier rain sweeping across with the wind.
     if (!w.storm || w.real) lightning(g, w.real || w, t, k, paused);   // (a storm's stand-in: the battle's own lightning only)
-    const wind = 70;
-    g.strokeStyle = 'rgba(180,200,220,0.5)'; g.lineWidth = Math.max(1, Math.round(k * 0.6));
-    g.beginPath();
-    for (const p of P) {
-      p.y += 760 * p.s * dt; p.x -= wind * p.s * dt;
-      p.x = wrap(p.x, vx - 20, vw + 40); p.y = wrap(p.y, vy - 20, vh + 40);
-      const len = 9 + 7 * p.s, sx = (p.x - vx) * k, sy = (p.y - vy) * k;
-      g.moveTo(Math.round(sx), Math.round(sy)); g.lineTo(Math.round(sx + wind / 760 * len * k), Math.round(sy - len * k));
+    const W = g.canvas.width, H = g.canvas.height;
+    if (!F.haze || F.haze.h !== H) { const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, 'rgba(18,26,38,1)'); gr.addColorStop(1, 'rgba(18,26,38,0.35)'); F.haze = { h: H, gr }; }
+    g.save(); g.globalAlpha = 0.08 + 0.13 * L; g.fillStyle = F.haze.gr; g.fillRect(0, 0, W, H); g.restore();
+    const wn = typeof windNow === 'function' ? windNow() : { x: -30, y: 0 }, slant = Math.max(-0.25, Math.min(0.25, wn.x / 220));
+    if (!F.sheet) {   // soft streaky noise for the sheets of rain
+      const N = 128, c = mkCanvas(N, N), x = c.getContext('2d'), img = x.createImageData(N, N), r = rng(6151), a = Array.from({ length: 64 }, r);
+      const vn = (u, v) => { const i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j, A = a[(i & 7) + (j & 7) * 8], B = a[((i + 1) & 7) + (j & 7) * 8], C = a[(i & 7) + ((j + 1) & 7) * 8], D = a[((i + 1) & 7) + ((j + 1) & 7) * 8];
+        const su = fu * fu * (3 - 2 * fu), sv = fv * fv * (3 - 2 * fv); return A + (B - A) * su + (C - A) * sv + (A - B - C + D) * su * sv; };
+      for (let y = 0; y < N; y++) for (let x2 = 0; x2 < N; x2++) { const n = vn(x2 / 16, y / 16), i = (y * N + x2) * 4; img.data[i] = 200; img.data[i + 1] = 212; img.data[i + 2] = 224; img.data[i + 3] = Math.round(255 * Math.max(0, (n - 0.45) / 0.55) ** 1.5); }
+      x.putImageData(img, 0, 0); F.sheet = c;
     }
-    g.stroke();
-    // Splashes on the ground: a short-lived ring of dots.
-    if (dt) for (let n = Math.round(90 * L * dt * Math.min(3, (vw * vh) / (800 * 450)) * 4); n > 0; n--) F.splash.push({ x: vx + rnd() * vw, y: vy + rnd() * vh, t: 0 });
-    g.fillStyle = 'rgba(196,212,228,0.55)';
-    const q = Math.max(1, Math.round(k));
+    const pat = g.createPattern(F.sheet, 'repeat');
+    pat.setTransform(new DOMMatrix([7 * k, 0, slant * 9 * k, 9 * k, (-vx + t * slant * 260) * k, (-vy + t * 260) * k]));
+    g.save(); g.globalAlpha = 0.05 + 0.1 * L; g.fillStyle = pat; g.fillRect(0, 0, W, H); g.restore();
+    const LAY = [[0.55, 520, 1, 0.2, 0.42], [0.35, 700, 1.4, 0.26, 0.6], [0.1, 1050, 2.4, 0.16, 0.34]];   // share, speed (view px/s), width, tail and head alpha
+    const spawn = (p, fresh) => {
+      const r0 = rnd(); p.l = r0 < LAY[0][0] ? 0 : r0 < LAY[0][0] + LAY[1][0] ? 1 : 2;
+      p.X = vx - 30 + rnd() * (vw + 60); p.Y = vy + rnd() * (vh + 160); p.h = (fresh ? rnd() : 1) * (140 + rnd() * 260);
+      p.lift = 0;
+      if (p.l < 2 && typeof gLift === 'function' && typeof G !== 'undefined' && G) { const [wx, wy] = fromView(p.X, p.Y); p.lift = gLift(wx, wy); }
+    };
+    while (P.length < want) { const p = {}; spawn(p, true); P.push(p); }
+    if (P.length > want) P.length = want;
+    const paths = LAY.map(() => [new Path2D(), new Path2D()]), wet = [];
+    for (const p of P) {
+      if (p.X === undefined) spawn(p, true);
+      const sp = LAY[p.l][1];
+      p.h -= sp * dt;
+      if (p.h <= 0) {
+        if (p.l < 2 && wet.length < 400) wet.push(p.X, p.Y - p.lift);
+        spawn(p, false);
+      }
+      if (p.X < vx - 60 || p.X > vx + vw + 60) p.X = wrap(p.X, vx - 30, vw + 60);
+      if (p.Y < vy - 40 || p.Y > vy + vh + 200) p.Y = wrap(p.Y, vy, vh + 160);
+      const len = sp * 0.024, hx = p.X + slant * p.h, hy = p.Y - p.lift - p.h;   // the drop's head on the screen (view px)
+      const sx = (hx - vx) * k, sy = (hy - vy) * k, dx = slant * len * k, dy = len * k;
+      paths[p.l][0].moveTo(sx + dx, sy - dy); paths[p.l][0].lineTo(sx, sy);
+      paths[p.l][1].moveTo(sx + dx * 0.35, sy - dy * 0.35); paths[p.l][1].lineTo(sx, sy);
+    }
+    LAY.forEach(([, , wd, ta, ha], i) => {
+      g.lineWidth = Math.max(1, wd * k * 0.6);
+      g.strokeStyle = `rgba(178,196,214,${(ta * (0.6 + 0.4 * L)).toFixed(3)})`; g.stroke(paths[i][0]);
+      g.strokeStyle = `rgba(214,226,238,${(ha * (0.6 + 0.4 * L)).toFixed(3)})`; g.stroke(paths[i][1]);
+    });
+    // Splashes where drops landed: on water a ring spreading, on land a crown of droplets thrown up and a tiny ring.
+    for (let i = 0; i < wet.length; i += 2) {
+      let water = false;
+      if (typeof G !== 'undefined' && G && G.terr) { const [wx, wy] = fromView(wet[i], wet[i + 1]), cx = Math.floor(wx / CELL), cy = Math.floor(wy / CELL); water = cx >= 0 && cy >= 0 && cx < MAP && cy < MAP && G.terr[cy * MAP + cx] >= 4; }
+      if (F.splash.length < 700) F.splash.push({ x: wet[i], y: wet[i + 1], t: 0, water });
+    }
+    const q = Math.max(1, Math.round(k)), rings = new Path2D();
+    g.fillStyle = 'rgba(205,218,232,0.6)';
     F.splash = F.splash.filter((s) => {
       s.t += dt;
-      if (s.t > 0.16) return false;
-      const r = (1 + s.t * 18) * k, sx = (s.x - vx) * k, sy = (s.y - vy) * k;
-      g.fillRect(Math.round(sx - r), Math.round(sy), q, q); g.fillRect(Math.round(sx + r), Math.round(sy), q, q); g.fillRect(Math.round(sx), Math.round(sy - r * 0.6), q, q);
+      const life = s.water ? 0.5 : 0.22;
+      if (s.t > life) return false;
+      const u = s.t / life, sx = (s.x - vx) * k, sy = (s.y - vy) * k;
+      if (!s.water) {
+        const r = (1 + u * 3) * k, up = Math.sin(u * Math.PI) * 2.6 * k;
+        g.fillRect(Math.round(sx - r), Math.round(sy - up), q, q); g.fillRect(Math.round(sx + r), Math.round(sy - up), q, q); g.fillRect(Math.round(sx), Math.round(sy - up * 1.4), q, q);
+      }
+      const R = (s.water ? 1 + u * 6 : 0.5 + u * 2.5) * k;
+      rings.moveTo(sx + R, sy); rings.ellipse(sx, sy, R, R * 0.5, 0, 0, Math.PI * 2);
       return true;
     });
+    g.strokeStyle = 'rgba(200,214,228,0.32)'; g.lineWidth = Math.max(1, k * 0.5); g.stroke(rings);
   } else {
     for (const p of P) {
       p.y += (26 + 44 * p.s) * dt; p.ph += dt * (0.8 + p.s);
