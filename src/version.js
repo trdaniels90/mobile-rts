@@ -4,6 +4,20 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.23', date: '23 November 2026', title: 'Heron Fen, Sniper and Flamethrower, real rain', groups: [
+    ['New', [
+      'New 2 v 2 map, Heron Fen: every base on a high plateau ringed by cliffs, with ramps down into a misty fen. A deep channel splits west from east, and the only way across is a little fishing village on an island in the middle, with jetties, rowboats and nets drying. Always first light, always fog in the low ground, and now and then a soft rain with no lightning.',
+      'Allied Sniper: research the Sniper program at the Tech Center, then train up to 5 at a time. Kills most soldiers with one shot from long range, but barely scratches vehicles and buildings.',
+      'Soviet Flamethrower: needs a Tech Center. A short-range stream of fire. When killed he may explode, setting any soldiers nearby on fire, friend or foe.',
+    ]],
+    ['Improved', [
+      'Rain looks real: drops fall onto the ground, blown by the wind, and splash where they land, with rings on water. Gusts of heavier rain sweep across, instead of a dark filter over the screen.',
+      'In the rain, water drips off the edges of roofs, puddles form and some keep growing, and small streams run down the hills and ramps into pools.',
+    ]],
+    ['Changed', [
+      'Veterancy: each rank now also adds weapon range (+5%, +10%, +15%, +20%).',
+    ]],
+  ] },
   { v: '2026.11.22.2', date: '22 November 2026', title: 'Smoother zoomed out, loading screen', groups: [
     ['New', [
       'A loading screen when the game starts, so the menu is ready the moment you see it.',
