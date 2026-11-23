@@ -3806,6 +3806,26 @@ function shed(x, y, alt, vx, vy, faction, burning, blade) {
     rot: Math.random() * 6, spin: (Math.random() - 0.5) * 22, w: blade ? 13 : 2 + Math.random() * 4, h: blade ? 1.5 : 1.5 + Math.random() * 2,
     color: blade ? '#2c2c28' : Math.random() < 0.5 ? '#3b3a36' : FACTIONS[faction].pal.main || '#555', burning, t: 0, life: 9, smokeT: 0 });
 }
+// A jet that bounces off the ground comes apart (owner: "they need to break into a bunch of pieces"): a blast where it hit, and
+// the airframe in pieces carried on by its speed (wings and tail in its colours, the fuselage in sections, engines burning),
+// tumbling and bouncing on, with a shower of small bits; it burns and leaves its wreck where it hit (crashLanding).
+function breakUp(fx) {
+  const main = FACTIONS[fx.faction].pal.main || '#555', dark = '#3b3a36', sp = Math.hypot(fx.vx, fx.vy);
+  const fwd = sp > 1 ? Math.atan2(fx.vy, fx.vx) : fx.face, up = Math.max(30, Math.min(90, fx.vz * 0.6 + 25));
+  const part = (w, h, color, burning, carry, spread) => {
+    const a = fwd + (Math.random() - 0.5) * spread, v = sp * carry * (0.7 + Math.random() * 0.5);
+    G.effects.push({ type: 'frag', x: fx.x, y: fx.y, alt: 2 + Math.random() * 3, vx: Math.cos(a) * v + (Math.random() - 0.5) * 30, vy: Math.sin(a) * v + (Math.random() - 0.5) * 30,
+      vz: -up * (0.6 + Math.random() * 0.7), rot: Math.random() * 6, spin: (Math.random() - 0.5) * 26, w, h, color, burning, t: 0, life: 12 + Math.random() * 4, smokeT: 0 });
+  };
+  for (let i = 0; i < 2; i++) part(9 + Math.random() * 3, 3, main, i === 0, 0.7, 1.6);   // the wings
+  part(5, 4, main, false, 0.6, 1.2);                                                       // the tail
+  for (let i = 0; i < 3; i++) part(6 + Math.random() * 3, 3.5, i ? dark : main, i === 1, 0.85, 0.7);   // fuselage sections
+  for (let i = 0; i < 2; i++) part(3.5, 3.5, '#2a2926', true, 0.9, 0.9);                   // engines
+  for (let i = 0; i < 12; i++) shed(fx.x, fx.y, 3, fx.vx * 0.9, fx.vy * 0.9, fx.faction, i < 4);
+  for (let i = 0; i < 3; i++) G.effects.push({ type: 'expl', x: fx.x + Math.cos(fwd) * i * 8, y: fx.y + Math.sin(fwd) * i * 8 - 3, size: 12 - i * 2, t: -i * 0.1, life: 0.7, seed: (Math.random() * 1e6) | 0, debris: true });
+  hooks.shake(fx.x, fx.y, 5);
+  fx.t = fx.life; crashLanding(fx.x, fx.y, fx.face, fx.def, fx.faction, (Math.random() * 1e6) | 0);
+}
 // (Named apart from splash(), the blast damage: with one name, this replaced it.)
 function waterSplash(x, y, big) {
   hooks.sfx('splash', x, y);
@@ -3885,14 +3905,8 @@ function updateCrash(fx, dt) {
       return;
     }
     for (let i = 0; i < 3; i++) shed(fx.x, fx.y, 2, fx.vx, fx.vy, fx.faction, i === 0);
-    if (!fx.bounced && sp > 60 && Math.abs(Math.sin(fx.roll)) > CRASH_TIP) {   // a wing tip digs in: it cartwheels
-      fx.bounced = true; fx.cart = true;
-      fx.spin = (Math.sin(fx.roll) > 0 ? 1 : -1) * (6 + Math.random() * 3);
-      fx.vz = -Math.min(45, fx.vz * 0.5 + 15); fx.z += 0.5; fx.vx *= 0.55; fx.vy *= 0.55; fx.rollV = fx.spin * 0.8;
-      for (let i = 0; i < 2; i++) shed(fx.x, fx.y, 3, fx.vx, fx.vy, fx.faction, true);
-      return;
-    }
-    if (!fx.bounced && sp > 45 && fx.vz > 25) { fx.bounced = true; fx.vz = -fx.vz * 0.3; fx.z += 0.5; fx.vx *= 0.6; fx.vy *= 0.6; fx.rollV *= 0.5; return; }
+    // Would bounce (a wing tip digging in at speed, or a hard landing): it breaks up instead.
+    if (!fx.bounced && ((sp > 60 && Math.abs(Math.sin(fx.roll)) > CRASH_TIP) || (sp > 45 && fx.vz > 25))) { breakUp(fx); return; }
     fx.ground = true; fx.vz = 0; fx.rollV = 0; fx.pitch = 0;
     fx.roll = Math.round(fx.roll / Math.PI) * Math.PI;   // settles on its belly or its back
     return;
@@ -4328,6 +4342,7 @@ function foeSideField(f, team) {
   return foe < own;
 }
 function pickField(u) {
+  if (u.field && u.fieldPick) { if (fieldValue(u.field) > 0) return u.field; u.fieldPick = false; }   // the player's field: worked until bare
   if (u.field && fieldValue(u.field) >= FIELD_EMPTY) return u.field;
   const ref = nearestOwn(u, 'refinery');
   const walk = walkDistances(cellOfPos(ref ? dockPoint(ref).x : u.x, ref ? dockPoint(ref).y : u.y));
@@ -4358,13 +4373,14 @@ function findOre(u) {
   const f = pickField(u);
   u.field = f;
   const inField = (c) => !f || inFieldCell(f, cellX(c), cellY(c));
-  let fallback = -1, best = -1, bs = -Infinity, bestD = Infinity;
+  let fallback = -1, shared = -1, best = -1, bs = -Infinity, bestD = Infinity;
   const claimed = new Set();
   for (const e of G.entities) if (e.alive && e !== u && e.def.harvester && e.team === u.team && e.hcell >= 0) claimed.add(e.hcell);
   for (let qi = 0; qi < q.length && qi < 14000; qi++) {
     const c = q[qi];
     if (G.ore[c] > 0) {
       if (fallback < 0 && !claimed.has(c)) fallback = c;
+      if (shared < 0 && f && inFieldCell(f, cellX(c), cellY(c))) shared = c;   // in the field, if another truck's cell
       if (inField(c) && !claimed.has(c)) {
         // Richest cells first, among those reached soon after the first one in the field.
         if (bestD === Infinity) bestD = qi;
@@ -4381,7 +4397,7 @@ function findOre(u) {
       if (!seen[n] && freeCell(n) && !cornerShut(c, n)) { seen[n] = 1; q.push(n); }
     }
   }
-  return best >= 0 ? best : fallback;
+  return best >= 0 ? best : u.fieldPick && shared >= 0 ? shared : fallback;   // the player's field: stay on it while it has ore
 }
 function dockPoint(ref) { return cellCenter(ref.exitCell); }
 function nearestOwn(u, type) {
@@ -4404,6 +4420,7 @@ function nextOreCell(u) {
     if (!inMap(x, y)) continue;
     const c = idx(x, y);
     if (!G.ore[c] || !freeCell(c)) continue;
+    if (u.fieldPick && u.field && !inFieldCell(u.field, x, y)) continue;   // the player's field only
     const d = dist(u, cellCenter(c)), sc = d - G.ore[c] * (G.gem[c] ? 2 : 1) * 0.15;   // close and rich
     if (sc < bd) { bd = sc; best = c; }
   }
@@ -6050,8 +6067,8 @@ function commandMove(units, x, y) {
     u.target = null; u.staged = false; u.defending = false; u.homeward = false; takeOver(u, 'move');
     if (u.def.harvester) {
       const c = cellOfPos(x, y);
-      if (G.ore[c] > 0) { u.hcell = c; u.hs = 'seek'; u.field = fieldAt(c) || u.field; goTo(u, x, y); }   // sent to a field: it keeps coming back until the field is bare
-      else { u.hs = 'manual'; goTo(u, s.x, s.y); }
+      if (G.ore[c] > 0) { u.hcell = c; u.hs = 'seek'; u.field = fieldAt(c) || u.field; u.fieldPick = !!fieldAt(c); goTo(u, x, y); }   // sent to a field: it keeps coming back until the field is bare
+      else { u.hs = 'manual'; u.fieldPick = false; goTo(u, s.x, s.y); }
     } else if (u.def.lift) {
       liftTo(u, s.x, s.y);
     } else if (u.cls === 'air') {

@@ -1709,6 +1709,20 @@ Owner: "with the new camera angle lets add better physics to our plane and helic
   (`fx.tip`, 0.55 s), then burns.
 - Checked: a sheet of tilted MiG and Hind pictures, a browser recording of five shot down over a base, and 25 s of six crashes without
   a browser. Sprites, normals and ground rebaked (models.js changed).
+- **Breaks up on a bounce** (owner: "if planes hit the ground and bounce ... they need to break into a bunch of pieces"): where a jet
+  used to cartwheel or bounce, `breakUp` (world.js) ends the crash: three blasts along its path, wings and tail in the side's colour,
+  three fuselage sections, two burning engines and 12 small bits (`frag` effects) carried on at 60-120% of its speed and thrown up,
+  tumbling and bouncing; `crashLanding` (wreck, fire, its 30 damage) where it hit. So no skid after a bounce (the skid's 35 / 60
+  damage now only comes from a jet that lands without bouncing). Headless: 19 of 20 test jets broke up, one went in nose first.
+
+## Ore Trucks stay on the field they are sent to (bug fix, both modes)
+
+- Owner: "if i tell ore trucks to harvest a specific field they need to keep going to that field until its empty". A truck sent to ore
+  kept that field only until it fell under `FIELD_EMPTY` (300), and took ore outside it when another truck held the field's last cells.
+  Now `commandMove` sets `u.fieldPick` (saved, plain): `pickField` keeps that field while it has any ore, `findOre` takes a cell in it
+  even if another truck has it before going elsewhere, and `nextOreCell` stays inside it. At 0 the flag clears and it picks fields as
+  usual; a move order off the ore clears it too. Headless: a field thinned to 700 ore was mined to 0 (regrowth and a refinery trip
+  between), then the truck moved on.
 
 ## Specialist (both sides) (after 2026.11.23, not released, owner's picks for both modes; the server must match)
 
