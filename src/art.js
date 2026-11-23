@@ -1053,7 +1053,7 @@ const weatherFx = { parts: [], splash: [], last: 0, kind: null };
 // Day and night (maps with `daynight`, looks only): a day of DAY_LEN seconds of battle clock, so every phone has the same
 // hour. A battle starts in the morning; dusk comes after about 5 minutes, the night lasts about 5, then dawn.
 const DAY_LEN = 720, DAY_START = 0.3;   // DAY_START: the hour a battle begins, as a share of the day (0 midnight, 0.5 noon)
-// The hour at battle time t, as a share of the day; on a map with `clock` (Heron Fen's early morning) it stands still.
+// The hour at battle time t, as a share of the day; on a map with `clock` (Heron Fen's night) it stands still.
 function dayPhase(t) {
   const M = typeof G !== 'undefined' && G && MAPS[validMap(G.mapId)];
   return M && M.clock !== undefined ? M.clock : (t / DAY_LEN + DAY_START) % 1;

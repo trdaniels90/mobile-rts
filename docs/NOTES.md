@@ -2563,9 +2563,10 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   dozen houses and a church), two jetties per side (bridge cells '=' out into a pool, drawn as timber decks), rowboats moored
   beside them (`boats`, prop `boat`, bobbing) and nets drying on pole frames (`racks`, prop `nets`). Their models are in art.js
   (`fishPropModel`), not models.js, so the baked sprites' hash is unchanged. Looks only (props are not sent online).
-- **Always early morning** (`daynight: true`, `clock: 0.255`; first made 0.275, owner: "a little darker so earlier in the morning"):
-  `dayPhase(t)` (art.js) gives the map's fixed hour instead of the day's clock (dayNight, gl.js sunNow use it): first light,
-  night 0.21 and warm 0.96 from dayNight, so a little darkness with lamps, windows and structures lit, an amber dawn tint, villagers out.
+- **Always night** (`daynight: true`, `clock: 0`; owner 2026-11-23: "it isnt dark enough. so maybe instead of early morning its just
+  night time"; before that always early morning, `clock` 0.275 then 0.255): `dayPhase(t)` (art.js) gives the map's fixed hour instead
+  of the day's clock (dayNight, gl.js sunNow use it): midnight, night 1 and no dawn tint from dayNight, as dark as the other maps'
+  nights, with lamps, windows, structures and fires lit.
 - **Constant fog** (`mist: 0.65`, look.js lookFogLevel): the ground fog at that strength all battle, x0.75 in rain, thinned by
   wind gusts (to 0.6). It lies in the low ground and by water, so the plateaus stand clear above it. Looks only (sight unchanged).
   Mood `MOOD.marsh` (look.js): grey-green, low warm sun, haze.

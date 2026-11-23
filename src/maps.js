@@ -1193,7 +1193,7 @@ const MAPS = {
   marsh: {
     name: 'Heron Fen',
     img: 'maps/marsh.png',
-    blurb: 'Four bases on high plateaus ringed by cliffs, each with two ramps down into a misty fen: one to your ally, one toward the middle. A deep channel splits west from east, and the only way across is the little fishing village on its island in the middle. Wade the shallows, skirt the pools and reed beds, or take the mud causeways. Always early morning, always fog in the low ground, and now and then rain.',
+    blurb: 'Four bases on high plateaus ringed by cliffs, each with two ramps down into a misty fen: one to your ally, one toward the middle. A deep channel splits west from east, and the only way across is the little fishing village on its island in the middle. Wade the shallows, skirt the pools and reed beds, or take the mud causeways. Always night, always fog in the low ground, and now and then rain.',
     info: '160 × 160 cells · 4 start positions · made for 2 v 2',
     size: 160,
     // West (start positions 0-1) against east (2-3); a 1 v 1 starts one player on each side (newWorld).
@@ -1208,7 +1208,7 @@ const MAPS = {
     weather: { kind: 'rain', chance: 0.15 },   // now and then rain (art.js rollWeather)
     lightning: false,  // a soft rain: no lightning (art.js lightningAt) and no storms (world.js stormLevel)
     daynight: true,    // lit as a time of day (art.js dayNight) ...
-    clock: 0.255,      // ... always early morning: the clock stands still at first light (lamps and windows still lit)
+    clock: 0,          // ... always night: the clock stands still at midnight (owner: the early morning was not dark enough)
     mist: 0.65,        // fog in the low ground all battle long (look.js lookFogLevel), in rain too
     // A fixed layout, made by python3 tools/make-marsh-map.py (mirrored both ways, so the four starts are alike).
     square: [75,75,84,84],
