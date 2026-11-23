@@ -4,6 +4,15 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.23.1', date: '23 November 2026', title: 'Specialist, aircraft crashes in 3D', groups: [
+    ['New', [
+      'Specialist, for both sides: a commando trained at the Barracks once you have a Tech Center ($1200, up to 2 at a time). He carries an assault rifle. Send him at an enemy building and he plants a charge, moves off, and 5 seconds later the building is destroyed. The building flashes red while the charge counts down.',
+      'Under fire, the Specialist may throw a smoke grenade: a thick cloud that nothing can shoot through for 12 seconds.',
+    ]],
+    ['Improved', [
+      'Aircraft crashes in 3D: shot-down planes tip, roll and dive nose-first, then bury themselves, cartwheel off a wing tip or skid along the ground. Helicopters spin, wobble down as the rotor freewheels and roll onto their side. Wrecks land on hillsides properly.',
+    ]],
+  ] },
   { v: '2026.11.23', date: '23 November 2026', title: 'Heron Fen, Sniper and Flamethrower, real rain', groups: [
     ['New', [
       'New 2 v 2 map, Heron Fen: every base on a high plateau ringed by cliffs, with ramps down into a misty fen. A deep channel splits west from east, and the only way across is a little fishing village on an island in the middle, with jetties, rowboats and nets drying. Always first light, always fog in the low ground, and now and then a soft rain with no lightning.',
