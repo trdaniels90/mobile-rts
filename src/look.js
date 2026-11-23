@@ -1440,6 +1440,8 @@ function lookFogOver(g) {
 //    east), as falling streams of drops onto the ground or a lower roof, with splashes where they land.
 // Drawn with pictures only (drawImage), so the WebGL renderer records them like the smoke. ?lookoff=rain: off.
 const RAIN_FX = !(typeof location !== 'undefined' && /[?&]lookoff=[^&]*\brain\b/.test(location.search));
+const PUDDLE_BIG = 0.22, PUDDLE_GROW = 240;   // share of puddles that keep growing, and over how many seconds after the soak
+const RIV_MAX = 140, RIV_STEP = 6, RIV_IN = 45;   // rivulets: at most, step (world px), seconds after the soak to run fully
 const PUDDLE_MAX = 700, RUNOFF_SPOTS = 5, RAIN_SOAK = 75;   // RAIN_SOAK: seconds of rain until the ground is soaked
 let rainS = null, rainBox = null;
 function rainState() {
@@ -1473,6 +1475,8 @@ function rainPics(S) {
     x.fillStyle = 'rgba(190,205,220,0.16)'; x.fillRect(1, 0, 1, 48);   // a faint trickle joining them
     P.drop.push(c);
   }
+  { const c = mkCanvas(16, 16), x = c.getContext('2d'), gr = x.createRadialGradient(8, 8, 0, 8, 8, 8);   // a soft dab of running water (rivulets)
+    gr.addColorStop(0, 'rgba(52,66,76,0.9)'); gr.addColorStop(0.55, 'rgba(46,58,66,0.7)'); gr.addColorStop(1, 'rgba(40,48,52,0)'); x.fillStyle = gr; x.fillRect(0, 0, 16, 16); P.blob = c; }
   { const c = mkCanvas(2, 4), x = c.getContext('2d'); x.fillStyle = 'rgba(200,215,230,0.55)'; x.fillRect(0, 0, 2, 2); x.fillStyle = 'rgba(232,240,248,0.95)'; x.fillRect(0, 2, 2, 2); P.dot = c; }   // a drip
   for (let f = 0; f < 3; f++) {   // a splash where it lands: droplets thrown up and out
     const c = mkCanvas(14, 8), x = c.getContext('2d'), r = rng(77 + f);
@@ -1493,7 +1497,8 @@ function puddleSpots(S) {
     const h = hash3(cx, cy, seed + 4049), road = t === 1;
     if (h > (road ? 0.2 : 0.045)) continue;
     const r = rng(Math.imul(c + 1, 2654435761) ^ seed);
-    rows[cy].push([(cx + 0.2 + r() * 0.6) * CELL, (cy + 0.2 + r() * 0.6) * CELL, (r() * 6) | 0, (road ? 0.55 : 0.4) + r() * 0.45, 0.08 + r() * 0.5, r() * 10]);
+    rows[cy].push([(cx + 0.2 + r() * 0.6) * CELL, (cy + 0.2 + r() * 0.6) * CELL, (r() * 6) | 0, (road ? 0.55 : 0.4) + r() * 0.45, 0.08 + r() * 0.5, r() * 10,
+      r() < PUDDLE_BIG ? 1.6 + r() * 1.4 : 1]);   // (some keep growing the longer it rains: up to this many times their size)
   }
   return (S.pud = rows);
 }
@@ -1502,8 +1507,9 @@ function lookPuddles(g, x0, y0, x1, y1) {
   if (!RAIN_FX || !g || !G || !G.weather || G.weather.kind !== 'rain') return;
   const S = rainState();
   if (S.wet < 0.09) return;
-  const P = rainPics(S), rows = puddleSpots(S), t = G.t, rings = S.L > 0;
+  const P = rainPics(S), rows = puddleSpots(S), t = G.t, rings = S.L > 0, grown = Math.min(1, Math.max(0, (G.t - RAIN_SOAK) / PUDDLE_GROW));
   const up = g.upright; g.upright = false; g.imageSmoothingEnabled = true;
+  rivulets(g, S, P, x0, y0, x1, y1);
   let n = 0;
   const cy0 = Math.max(0, Math.floor((y0 - 40) / CELL)), cy1 = Math.min(MAP - 1, Math.ceil((y1 + 120) / CELL));
   for (let cy = cy0; cy <= cy1 && n < PUDDLE_MAX; cy++) for (const p of rows[cy]) {
@@ -1512,7 +1518,7 @@ function lookPuddles(g, x0, y0, x1, y1) {
     if (G.block[c] || !G.seen[c]) continue;   // (a building on it, or ground not yet uncovered)
     const k = Math.min(1, (S.wet - p[4]) / 0.3);
     if (k <= 0) continue;
-    const sz = p[3] * (0.45 + 0.55 * k), W = 40 * sz, H = 28 * sz, [wx, wy] = hillPt(p[0], p[1]);
+    const sz = p[3] * (0.45 + 0.55 * k) * (1 + (p[6] - 1) * grown), W = 40 * sz, H = 28 * sz, [wx, wy] = hillPt(p[0], p[1]);
     g.globalAlpha = Math.min(1, k * 1.6); g.drawImage(P.pud[p[2]], wx - W / 2, wy - H / 2, W, H);
     if (rings && n < 300) for (let j = 0; j < 2; j++) {   // drops landing: a ring every so often, growing and fading
       const ph = (t * (0.9 + S.L) + p[5] + j * 0.5) % 1, R = 2 + ph * 7 * sz;
@@ -1585,4 +1591,64 @@ function lookRunoff(g) {
     shed(h, h.type, 'allies', h.cx * CELL, h.cy * CELL, h.w * CELL, h.h * CELL);
   }
   g.globalAlpha = 1; g.upright = up; g.imageSmoothingEnabled = false;
+}
+
+// Rivulets (owner, 2026-11-23: "puddles have a chance to get bigger and run down the hill from our base"): once the ground is
+// soaked, water runs off the high ground: from spots on hills and plateaus (65-98% of HG_MAX, picked once a battle from the
+// ground seed), each traced down the steepest way (hgtAt, with a little meander) in RIV_STEP px steps until it reaches low
+// ground, water, a cliff or a structure, where it pools (a puddle that grows). Cliffs stop it, so off a plateau the water
+// runs down the ramps. Drawn lying on the raised ground: a dark wet channel widening as it goes, glints running down it.
+function rivuletPaths(S) {
+  if (S.riv) return S.riv;
+  const out = [], seed = (typeof groundSeed === 'function' ? groundSeed(G) : G.seed) | 0;
+  if (G.hgt) for (let cy = 2; cy < MAP - 2; cy++) for (let cx = 2; cx < MAP - 2; cx++) {
+    const c = idx(cx, cy), h = G.hgt[c];
+    if (h < HG_MAX * 0.65 || h > HG_MAX * 0.98 || G.terr[c] > 1 || (G.cliff && G.cliff[c]) || hash3(cx, cy, seed + 811) > 0.09) continue;
+    const r = rng(Math.imul(c + 7, 2246822519) ^ seed), pts = [];
+    let x = (cx + r()) * CELL, y = (cy + r()) * CELL;
+    for (let i = 0; i < 160; i++) {
+      pts.push(x, y);
+      const e = 3, gx = hgtAt(x + e, y, true) - hgtAt(x - e, y, true), gy = hgtAt(x, y + e, true) - hgtAt(x, y - e, true), gl = Math.hypot(gx, gy);
+      if (gl < 0.004 || hgtAt(x, y, true) < 1.5) break;
+      const wob = (hash3(Math.floor(x / 9), Math.floor(y / 9), seed + 812) - 0.5) * 0.9, ux = -gx / gl, uy = -gy / gl;
+      x += (ux - uy * wob) * RIV_STEP; y += (uy + ux * wob) * RIV_STEP;
+      const cc = idx(Math.max(0, Math.min(MAP - 1, Math.floor(x / CELL))), Math.max(0, Math.min(MAP - 1, Math.floor(y / CELL))));
+      if (G.terr[cc] >= 2 || (G.cliff && G.cliff[cc])) break;   // into rock, woods or water: it ends here
+    }
+    if (pts.length < 20) continue;   // (shorter than about 60 px: not worth a channel)
+    let a = Infinity, b = Infinity, A = -Infinity, B = -Infinity;
+    for (let i = 0; i < pts.length; i += 2) { a = Math.min(a, pts[i]); A = Math.max(A, pts[i]); b = Math.min(b, pts[i + 1]); B = Math.max(B, pts[i + 1]); }
+    out.push({ pts, box: [a - 30, b - 30, A + 30, B + 30], ph: r() * 50, big: 1.4 + r() * 1.4 });
+  }
+  out.sort((p, q) => q.pts.length - p.pts.length);
+  return (S.riv = out.slice(0, RIV_MAX));
+}
+function rivulets(g, S, P, x0, y0, x1, y1) {
+  const run = Math.min(1, Math.max(0, (G.t - RAIN_SOAK * 0.6) / RIV_IN));
+  if (run <= 0) return;
+  const t = G.t;
+  for (const R of rivuletPaths(S)) {
+    if (R.box[2] < x0 || R.box[0] > x1 || R.box[3] < y0 || R.box[1] > y1 + 120) continue;
+    const pts = R.pts, n = pts.length / 2, m = Math.max(2, Math.floor(n * run));   // (it runs further down as the rain goes on)
+    for (let i = 0; i < m; i++) {
+      const c = idx(Math.floor(pts[i * 2] / CELL), Math.floor(pts[i * 2 + 1] / CELL));
+      if (G.block[c] || !G.seen[c]) continue;
+      const w = 5 + 6 * (i / n);
+      for (const f of i + 1 < m ? [0, 0.5] : [0]) {   // (half steps too, so the channel is unbroken)
+        const [wx, wy] = hillPt(pts[i * 2] + (pts[i * 2 + 2] - pts[i * 2]) * f, pts[i * 2 + 1] + (pts[i * 2 + 3] - pts[i * 2 + 1]) * f);
+        g.globalAlpha = 0.5; g.drawImage(P.blob, wx - w / 2, wy - w / 2, w, w);
+      }
+    }
+    g.globalAlpha = 0.75;   // glints running down it
+    for (let j = 0; j < 4; j++) {
+      const f = ((t * 7 + R.ph + j * m / 4) % m) | 0, [wx, wy] = hillPt(pts[f * 2], pts[f * 2 + 1]);
+      g.drawImage(P.dot, wx - 1, wy - 1, 2, 2);
+    }
+    if (run >= 1) {   // where it ends it pools, and the pool grows
+      const k = Math.min(1, (G.t - RAIN_SOAK * 0.6 - RIV_IN) / PUDDLE_GROW), sz = 0.7 + R.big * k, [wx, wy] = hillPt(pts[pts.length - 2], pts[pts.length - 1]);
+      const c = idx(Math.floor(pts[pts.length - 2] / CELL), Math.floor(pts[pts.length - 1] / CELL));
+      if (!G.block[c] && G.seen[c]) { g.globalAlpha = 0.95; g.drawImage(P.pud[(R.ph | 0) % 6], wx - 20 * sz, wy - 14 * sz, 40 * sz, 28 * sz); }
+    }
+  }
+  g.globalAlpha = 1;
 }

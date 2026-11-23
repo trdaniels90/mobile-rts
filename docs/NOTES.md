@@ -2497,6 +2497,13 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   ground seed on open grass (4.5% of cells) and dirt tracks (20%), not on ore, cliffs or fords, not under a building, only on
   explored ground. Each fills from its own wetness (0.08-0.58) and grows over 0.3 of it; 6 pictures (lobed dark water, a pale sky
   sheen, a wet rim); rings from drops landing, by the rain's strength. At most `PUDDLE_MAX` 700 a frame, rings on the first 300.
+  `PUDDLE_BIG` (22%) of them keep growing after the soak, to 1.6-3 x their size over `PUDDLE_GROW` (240) s (owner: "puddles have a
+  chance to get bigger and run down the hill from our base").
+- **Rivulets** (`rivuletPaths`, `rivulets`, drawn with the puddles): from spots on hills and plateau slopes (65-98% of HG_MAX, 9% of
+  open cells, picked from the ground seed), traced down the steepest way (`hgtAt`, a little meander) in `RIV_STEP` 6 px steps
+  until low ground, water, woods or a cliff; the longest `RIV_MAX` 140 kept. Cliffs stop them, so off Heron Fen's plateaus the water
+  runs down the ramps. They start after 0.6 x the soak and run further down over `RIV_IN` 45 s: a soft dark channel (overlapping
+  dabs, widening downhill) with glints running down it, and where one ends a pool that grows (1.4-2.8 x) over PUDDLE_GROW.
 - **Runoff** (`lookRunoff`, from lookSmoke, over the units): per structure and village house on screen, `runoffSpots` (cached
   per type) finds up to `RUNOFF_SPOTS` 5 points on the roof edges the camera sees (the south or east edge of a broad roof, a
   drop of 4+ voxels; masts and chimneys left out), 12 px apart. From each, single drips (every 0.7-1.6 s, its own), falling and
