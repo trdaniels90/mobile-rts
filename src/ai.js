@@ -1187,7 +1187,10 @@ function aiThink(team) {
     const sovRockets = anti ? 0.45 : k.armor ? 0.3 : k.inf ? 0 : 0.15;
     // MG Teams against infantry-heavy enemies (and a few always): every difficulty.
     const mgs = k.inf ? 0.3 : 0.12;
-    if (Math.random() < mgs) startProduction(team, 'hmg');
+    // Snipers (Allies, after the Sniper program, at most UNIT_DEFS.sniper.max) and Flamethrowers (Soviets, with a Tech Center): more against infantry.
+    const elite = sov ? 'flamer' : 'sniper';
+    if (available(team, elite) && Math.random() < (k.inf ? 0.3 : 0.12) && !startProduction(team, elite)) { /* queued */ }
+    else if (Math.random() < mgs) startProduction(team, 'hmg');
     else if (sov && Math.random() < sovRockets) startProduction(team, 'rocket');
     else startProduction(team, sov ? (r < (k.armor ? 0.3 : 0.55) ? 'rifle' : 'grenadier') : r < rockets ? 'rocket' : 'rifle');
   }

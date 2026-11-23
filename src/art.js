@@ -1808,6 +1808,8 @@ const IDLES = {
   rocket: ['look', 'rest', 'stretch', 'look', 'pushups', 'none'],
   grenadier: ['look', 'juggle', 'rest', 'stretch', 'pushups', 'none'],
   pilot: ['look', 'rest', 'stretch', 'none'],
+  sniper: ['look', 'aim', 'aim', 'rest', 'none'],
+  flamer: ['look', 'stretch', 'look', 'none'],
 };
 function idlePose(u, t) {
   if (u.moving || u.stance || u.target || u.fireT > 0 || u.chute > 0 || u.alt > 0) { u.idleFrom = t; return null; }
@@ -1854,7 +1856,7 @@ function warmSprites(budgetMs, cx, cy) {
       warmDone.add(best.type + f + v);
       if (best.cls === 'inf') {
         for (const pose of WARM_POSES) {
-          if (pose === 7 && (best.type === 'rocket' || best.type === 'grenadier' || best.type === 'pilot' || best.type === 'engineer')) continue;
+          if (pose === 7 && (best.type === 'rocket' || best.type === 'grenadier' || best.type === 'pilot' || best.type === 'engineer' || best.type === 'flamer')) continue;
           for (let i = 0; i < 16; i++) warmJobs.push({ v, run: () => infSprite({ type: best.type, faction: f, face: i * Math.PI / 8 }, palFor(f), pose) });
         }
       } else {
@@ -1900,7 +1902,7 @@ function drawUnitBody(g, u, t) {
     }
     // As in Red Alert: a four-pose walk, the weapon brought up to the shoulder to shoot (and held
     // there a moment), dropping prone under fire through a crouch, crawling, and getting up again.
-    const prone = u.stance === 'prone', gun = u.type !== 'rocket' && u.type !== 'grenadier' && u.type !== 'pilot' && u.type !== 'engineer';
+    const prone = u.stance === 'prone', gun = u.type !== 'rocket' && u.type !== 'grenadier' && u.type !== 'pilot' && u.type !== 'engineer' && u.type !== 'flamer';
     let a = INF_ANIM.get(u);
     if (!a) INF_ANIM.set(u, a = { prone, at: -9, aim: -9 });
     if (a.prone !== prone) { a.prone = prone; a.at = t; }
@@ -1917,8 +1919,8 @@ function drawUnitBody(g, u, t) {
     // The kick of the shot, and the bob of the walk as one foot passes the other.
     const rk = u.fireT > 0 && (frame === 7 || frame === 5 || (frame === 0 && u.type === 'rocket')) ? Math.min(1, u.fireT / 0.1) * 1.5 * INF_SCALE : 0;
     blit(g, infSprite(u, pal, frame), u.x - Math.cos(u.face) * rk, u.y - Math.sin(u.face) * rk - (frame === 12 || frame === 13 ? 1 : 0));
-    const mh = (frame === 11 ? 20 : frame === 7 ? 13 : stance === 'prone' ? 2 : stance === 'crouch' ? 6 : 11) * INF_SCALE, mr = (frame === 11 || frame === 7 ? 13 : stance === 'prone' ? 12 : 10) * INF_SCALE;
-    if (u.fireT > 0) flash(g, ...liftPt(u.x + Math.cos(u.face) * mr, u.y + Math.sin(u.face) * mr, mh), 1);
+    const mh = (frame === 11 ? 20 : frame === 7 ? 13 : stance === 'prone' ? 2 : stance === 'crouch' ? 6 : 11) * INF_SCALE, mr = (frame === 7 && u.type === 'sniper' ? 18 : frame === 11 || frame === 7 ? 13 : stance === 'prone' ? 12 : 10) * INF_SCALE;
+    if (u.fireT > 0 && u.type !== 'flamer') flash(g, ...liftPt(u.x + Math.cos(u.face) * mr, u.y + Math.sin(u.face) * mr, mh), 1);
     return;
   }
   if (u.cls === 'air') {

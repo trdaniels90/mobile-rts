@@ -85,6 +85,7 @@ const WARHEADS = {
   AT:    { inf: 0.3, light: 0.75, heavy: 1.0,  bld: 0.6, air: 1.0 },   // Rocket Soldier: Red Alert's AP
   HF:    { inf: 0.15, light: 0.9, heavy: 1.0,  bld: 0.7, air: 1.0 },   // Hellfire: a tank killer, wasted on infantry
   CG:    { inf: 1.0, light: 0.8,  heavy: 0.2,  bld: 0.25, air: 0.6 },  // the Comanche's 20 mm chain gun: infantry and light vehicles, little against tanks
+  SN:    { inf: 1.0, light: 0.1,  heavy: 0.03, bld: 0.03, air: 0 },    // the Sniper's rifle: one man at a time, next to nothing against armour
 };
 
 // cls: inf | veh | air.  cat: which sidebar tab builds it.  speed in px/s, sight in cells.
@@ -110,6 +111,22 @@ const UNIT_DEFS = {
     name: 'MG Team', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies', 'soviets'],
     cost: 400, hp: 150, armor: 'inf', speed: 26, sight: 7, r: 7, setup: 1.5, pack: 1.0,
     weapon: { dmg: 12, rof: 1.4, range: 150, wh: 'SA', proj: 'bullet', burst: 6, gap: 0.09, splash: 10, air: true, heliOnly: true, sound: 'hmg' },
+  },
+  // Sniper (Allies, after the Tech Center upgrade `sniper`): a long scoped rifle that kills most soldiers with one shot from
+  // further than anything else on foot can reach, but slowly and one at a time, and does next to nothing to vehicles or
+  // buildings. `max`: no more than this many alive at once per side (world.js unitCap; queued ones count).
+  sniper: {
+    name: 'Sniper', cls: 'inf', cat: 'infantry', producer: 'barracks', factions: ['allies'], upgrade: 'sniper', max: 5,
+    cost: 700, hp: 60, armor: 'inf', speed: 30, sight: 9, r: 5,
+    weapon: { dmg: 125, rof: 3.0, range: 230, wh: 'SN', proj: 'bullet', sound: 'sniper' },
+  },
+  // Flamethrower (Soviets, needs a Tech Center): a short jet of fire that burns infantry and splashes groups. Its fuel
+  // tanks can go up when he dies (`explodes`: the chance): a fireball that hurts everything round it, friend or foe, and
+  // sets the soldiers in it on fire (world.js flamerBlast, burning).
+  flamer: {
+    name: 'Flamethrower', cls: 'inf', cat: 'infantry', producer: 'barracks', req: ['tech'], factions: ['soviets'],
+    cost: 400, hp: 70, armor: 'inf', speed: 30, sight: 5, r: 5, explodes: 1 / 3,
+    weapon: { dmg: 30, rof: 1.4, range: 80, wh: 'FIRE', proj: 'fireball', splash: 16 },
   },
   // Unarmed. Walks into an enemy structure and captures it at once (Construction Yards too), into a destroyed bridge span
   // and it is rebuilt, or into a damaged friendly structure and it is repaired in full; either way the Engineer is used up
@@ -391,6 +408,8 @@ const UPGRADES = {
               desc: 'Unlocks the Comanche at the Helicopter Base: a stand-off helicopter with a chain gun for infantry and light vehicles, and four anti-tank missiles fired from its side bays.' },
   teslatank: { name: 'Tesla program', unlocks: 'ttank', cost: 1500, time: 60, factions: ['soviets'],
                desc: 'Unlocks the Tesla Tank at the War Factory: a tank carrying a Tesla coil. Its bolt kills infantry outright and hurts vehicles badly at short range; it cannot hit aircraft.' },
+  sniper: { name: 'Sniper program', unlocks: 'sniper', cost: 1500, time: 60, factions: ['allies'],
+            desc: 'Unlocks the Sniper at the Barracks: a long scoped rifle that kills most soldiers with one shot from further than any other infantry can reach. Useless against vehicles and buildings. No more than 5 at a time.' },
   para2: { name: 'Airborne division', cost: 1500, time: 60, factions: ['allies', 'soviets'],
            desc: 'Paratroopers come in two transport planes instead of one: twenty soldiers a drop.' },
   // Close air support, three tiers in order (`needs` the tier before, `req` a finished building besides the Tech Center).

@@ -1519,6 +1519,11 @@ function infModel(pal, faction, type, frame) {
   } else if (E) {
     m.box(-5, -2, 9, -3, 3, 13, K.pack); m.box(-5, -2, 12, -3, 3, 13, shadeInt(K.pack, 0.8));   // a slim tool pack
     m.box(-6, 0, 9, -5, 1, 15, '#8a8f94', M_METAL); m.box(-6, -1, 14, -5, 2, 15, '#8a8f94', M_METAL);   // a spanner strapped to it
+  } else if (type === 'flamer') {
+    // Two tall fuel tanks on a back frame, a red band near the top of each, a pressure bottle between them.
+    for (const y of [-2, 2]) { m.cylZ(-5, y, 7, 16, 1.6, '#4d5232', M_METAL); m.cylZ(-5, y, 14, 15, 1.7, '#a8261c', M_METAL); m.ellipsoid(-5, y, 16.3, 1.4, 1.4, 0.8, '#3c4028', M_METAL); }
+    m.cylZ(-6, 0, 9, 14, 0.8, '#8a8f94', M_METAL);
+    m.box(-3, -3, 8, -2, 3, 9, K.web);                                              // frame
   } else if (type === 'pilot') {
     m.box(-4, -2, 8, -2, 2, 13, '#c9c3a8'); m.box(-4, -2, 12, -2, 2, 13, '#a49d82');   // parachute pack
   } else {
@@ -1534,7 +1539,20 @@ function infModel(pal, faction, type, frame) {
   m.set(1, -1, 16, '#2a1e18'); m.set(1, 1, 16, '#2a1e18');
   m.set(1, 0, 14, shadeInt(K.skin, 0.8));
   // Headgear: a big helmet so the head reads at phone scale.
-  if (type === 'grenadier') {
+  if (type === 'sniper') {
+    // A soft boonie hat with a wide floppy brim and scraps of scrim, the face streaked with camouflage paint.
+    const hat = '#6b6a42';
+    m.box(-3, -3, 16, 4, 4, 17, shadeInt(hat, 0.85)); m.box(-2, -2, 17, 3, 3, 19, hat);
+    m.set(-3, 2, 17, '#4f5a33'); m.set(2, -3, 17, '#7a6e46'); m.set(0, 3, 18, '#4f5a33');
+    m.set(1, -1, 15, '#4a5230'); m.set(1, 1, 15, '#4a5230');
+  } else if (type === 'flamer') {
+    m.ellipsoid(0.5, 0.5, 17, 2.5, 2.5, 2.2, K.helm, M_METAL);                                 // steel helmet
+    m.clear(1, -1, 14, 3, 2, 16.5);
+    m.box(-2, -2, 15, 0, 3, 16, shadeInt(K.helm, 0.75), M_METAL);
+    m.box(2, -1, 14, 3, 2, 17, '#3a3d34');                                                      // gas mask over the face
+    m.set(3, -1, 16, '#9fc4c8', M_GLASS); m.set(3, 1, 16, '#9fc4c8', M_GLASS);                  // eyepieces
+    m.box(3, 0, 14, 4, 1, 15, '#2a2c26');                                                       // filter
+  } else if (type === 'grenadier') {
     m.box(-2, -2, 16, 2, 3, 18, '#5d6236'); m.box(-1, -1, 18, 2, 2, 18.5, '#5d6236');
     m.box(2, -2, 16, 3, 3, 16.5, '#474a28'); m.set(2, 0, 17, '#c8281e');                       // field cap, red star
   } else if (type === 'pilot') {
@@ -1560,7 +1578,7 @@ function infModel(pal, faction, type, frame) {
     m.set(0, 6, tz + 2, '#2a2a24');                                          // latch
   }
   // Weapons.
-  const RIF = !['rocket', 'grenadier', 'pilot', 'engineer', 'hmgG', 'hmgL'].includes(type);
+  const RIF = !['rocket', 'grenadier', 'pilot', 'engineer', 'hmgG', 'hmgL', 'flamer'].includes(type), SN = type === 'sniper';
   const tube = sovRk ? '#5f6a3c' : '#c3c4b8', tubeD = sovRk ? '#2f3520' : '#5d5f58';   // Soviet: olive RPG-style launcher
   if (pose === 'stretch') {                                                  // slung on the back
     if (type === 'rocket') { m.cylY(-6, 6, -6, 13, 1.4, tube); m.box(-7, 5, 12, -5, 6, 15, tubeD); }
@@ -1568,6 +1586,9 @@ function infModel(pal, faction, type, frame) {
   } else if (pose === 'rest') {
     if (type === 'rocket') { m.box(2, 4, 0, 4, 6, 13, tube); m.box(2, 4, 12, 4, 6, 14, tubeD); }   // launcher stood on the ground
     else if (RIF) { m.box(1, 4, 10, 2, 5, 21, C.gun, M_METAL); m.box(1, 4, 8, 2, 5, 12, '#6a4426'); }   // rifle on the shoulder
+  } else if (pose === 'aim' && SN) {   // the long rifle at the shoulder, eye to the scope
+    m.box(2, -1, 13, 17, 0, 14, C.gun, M_METAL); m.box(-1, -1, 12, 4, 0, 14, '#4f5a33'); m.box(5, -1, 11, 6, 0, 13, C.gun, M_METAL);
+    m.box(3, -1, 14, 9, 0, 15.5, '#1f211c', M_METAL); m.set(9, -1, 15, '#7fb0c8', M_GLASS);   // scope
   } else if (pose === 'aim' && RIF) {
     m.box(2, -1, 13, R ? 13 : 11, 0, 14, C.gun, M_METAL); m.box(-1, -1, 12, 3, 0, 14, wood); m.box(5, -1, 11, 6, 0, 13, C.gun, M_METAL);
     if (R) m.box(5, -1, 13, 9, 0, 14, wood);                                  // wooden handguard
@@ -1627,6 +1648,16 @@ function infModel(pal, faction, type, frame) {
       m.box(3, 3, 11, 4, 4, 14, '#6a4426');                                                                // wooden grip
       m.paint(-7, 2, 14, 7, 5, 17, (x, y, z) => (x === -3 || x === 2) ? '#3a3f26' : undefined);               // steel bands
     }
+  } else if (type === 'flamer') {
+    // The fire wand held low across the body, a pilot flame at the nozzle, a hose looping back to the tanks.
+    m.line(0, 2.5, 9.5, 10, -1, 11.5, '#3c4028', M_METAL); m.line(0, 2.5, 10.5, 10, -1, 12.5, '#3c4028', M_METAL);
+    m.box(9, -2, 11, 11, 0, 13, '#2a2a24', M_METAL);
+    m.set(11, -1, 12, '#ffb43a'); m.set(12, -1, 12, '#ff7a1e');
+    m.line(-4, 2, 9, 0, 3, 9.5, '#222', M_METAL);
+  } else if (SN && pose !== 'rest') {
+    m.line(0, 2.5, 9.5, 15, -3, 12.5, C.gun, M_METAL); m.line(0, 2.5, 10.5, 15, -3, 13.5, C.gun, M_METAL);   // the long barrel
+    m.box(-1, 2, 9, 2, 4, 11, '#4f5a33');                                                                   // stock
+    m.line(3, 1.4, 12, 8, -0.4, 13, '#1f211c', M_METAL); m.line(3, 1.4, 12.8, 8, -0.4, 13.8, '#1f211c', M_METAL);   // scope on top
   } else if (RIF) {
     m.line(0, 2.5, 9.5, R ? 11 : 9, -1.5, R ? 11.9 : 11.5, C.gun, M_METAL);   // barrel, rising forward across the body
     m.line(0, 2.5, 10.5, R ? 11 : 9, -1.5, R ? 12.9 : 12.5, C.gun, M_METAL);

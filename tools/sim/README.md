@@ -31,6 +31,7 @@ Supabase.
 | `server-coop-save.js` | Saved co-op battles on the server: Save and leave, listing by player, loading with another leader and a missing player, autosave, saved when everyone leaves, deleted when the battle ends |
 | `coop-save-ui.js` | Saved co-op battles in two browser pages: Save and leave from the pause menu, the note, the lobby's list, Continue battle |
 | `bunching.js` | Headless staged fight: how many friends stand inside one V2 blast of each fighting unit, attack and defence, and how the fight went. `<repo> [runs] [seconds]` |
+| `sniper-flamer.js` | Headless: Sniper research, the 5-Sniper cap, one-shot at range; Flamethrower needs a Tech Center, death blast rate, burning on both sides, a small fight |
 | `veterancy.js` | Headless: ranks at 2, 4, 8, 16 times own cost destroyed, firepower, armour, speed, reload, elite self-heal, no ranks for Ore Trucks or structures, a staged fight |
 | `bridges.js` | Headless: attack ground, destroyable bridge spans on Twin Lakes (hurt only by an ordered attack, collapse, routes go round), Engineers rebuilding a span and repairing a structure, online snapshot and orders, the computer training and sending an Engineer |
 | `walls.js` | Headless: walls and gates: laying a line (rules, prices), what each kind stops, gates and alliances, wire under tracks, ordered fire only, selling, Auto Attack units shooting a way through, online snapshot and orders |

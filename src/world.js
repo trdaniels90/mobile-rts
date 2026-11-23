@@ -3065,6 +3065,46 @@ function atgmBlast(p, t, x, y) {
   }
 }
 
+// The Flamethrower's fuel tanks going up as he dies (`explodes` in data.js, its chance): a fireball that hurts every ground
+// unit within FLAMER_BLAST px, friend or foe, and sets the soldiers in it on fire for BURN_TIME s. A burning soldier takes
+// BURN_DPS (FIRE warhead) a second in ticks of BURN_TICK and trails flames; it counts as hit by whoever killed the
+// Flamethrower. Another Flamethrower killed by it may go up too. Host only; `burnT` is synced, its timers are not (netcore SKIP).
+const FLAMER_BLAST = 36, FLAMER_DMG = 25, BURN_TIME = 4, BURN_DPS = 15, BURN_TICK = 0.25;
+function flamerBlast(e, by) {
+  const x = e.x, y = e.y, from = by && by.alive ? by : null;
+  hooks.sfx('fireHit', x, y);
+  hooks.sfx('dieBlast', x, y);
+  G.effects.push({ type: 'expl', x, y: y - 4, size: 14, t: 0, life: 0.6, seed: (Math.random() * 1e6) | 0 });
+  for (let i = 0; i < 9; i++) {
+    const a = Math.random() * Math.PI * 2, r = Math.random() * FLAMER_BLAST * 0.7;
+    G.effects.push({ type: 'fire', x: x + Math.cos(a) * r, y: y + Math.sin(a) * r * 0.7, t: -i * 0.04, life: 1.4 + Math.random() * 1.4 });
+  }
+  scorch(G.tctx, x, y, 12, (Math.random() * 1e6) | 0);
+  for (const t of G.entities) {
+    if (!t.alive || t.kind !== 'unit' || isAirborne(t) || t.inHouse) continue;
+    const d = Math.hypot(t.x - x, t.y - y);
+    if (d >= FLAMER_BLAST) continue;
+    if (t.cls === 'inf') setOnFire(t, from);
+    damage(t, FLAMER_DMG * (1 - d / FLAMER_BLAST * 0.5), 'FIRE', from, { x, y }, true);
+  }
+  houseBlast(x, y, FLAMER_BLAST, FLAMER_DMG, 'FIRE', from);
+}
+function setOnFire(u, by) {
+  u.burnT = Math.max(u.burnT || 0, BURN_TIME);
+  u.burnBy = by || null;
+}
+function tickBurn(u, dt) {
+  u.burnT -= dt;
+  if (Math.random() < dt * 9) G.effects.push({ type: 'fire', x: u.x + (Math.random() - 0.5) * 4, y: u.y - 3, t: 0, life: 0.5 + Math.random() * 0.3 });
+  if (G.remote) return;
+  if ((u.burnTick = (u.burnTick || 0) - dt) <= 0) {
+    u.burnTick += BURN_TICK;
+    const by = u.burnBy && u.burnBy.alive ? u.burnBy : null;
+    damage(u, BURN_DPS * BURN_TICK, 'FIRE', by, by ? null : u, true);
+  }
+  if (u.burnT <= 0) { u.burnT = 0; u.burnBy = null; u.burnTick = 0; }
+}
+
 // Flame tower fireball: a burst of fire that splashes and leaves flames burning for a moment.
 function fireBlast(p, x, y) {
   const w = p.w, from = p.from || null;
@@ -3382,6 +3422,7 @@ function kill(e, attacker, wh, from) {
     team.upgrades = {};
     notify(team, 'upgrade', 'Upgrades lost', 4);
   }
+  if (e.kind === 'unit' && e.def.explodes && !G.remote && !WIPING && !e.inHouse && Math.random() < e.def.explodes) flamerBlast(e, attacker);
   if (e.kind === 'unit' && e.kills) G.log.fallen.push({ team: e.team, type: e.type, faction: e.faction, kills: e.kills, worth: e.killWorth, born: e.born, died: G.t });
   const seed = (Math.random() * 1e6) | 0;
   if (e.kind === 'unit') {
@@ -3490,7 +3531,7 @@ function ragdoll(e, wh, from) {
     if (wh === 'TESLA') { G.effects.push({ type: 'spark', x: e.x, y: e.y, lift: 8 * INF_SCALE, t: 0, life: 0.3 }); fx.burnt = true; fx.shock = 0.5 + r() * 0.3; }
   }
   // The weapon, flung loose from the hands.
-  const wl = (e.type === 'rocket' ? 12 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'engineer' ? 0 : 8) * INF_SCALE;
+  const wl = (e.type === 'rocket' ? 12 : e.type === 'sniper' ? 13 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'engineer' ? 0 : 8) * INF_SCALE;
   if (wl) {
     const hx = P[18], hy = P[19], hz = (e.type === 'rocket' ? 15 : 10) * INF_SCALE;
     fx.gun = { P: new Float32Array([hx - ca * wl / 2, hy - sa * wl / 2, hz, hx + ca * wl / 2, hy + sa * wl / 2, hz + 0.5]), len: wl };
@@ -3807,6 +3848,7 @@ function updateUnit(u, dt) {
     if (t && t.alive) fireWeapon(u, u.def.weapon, t, true);
   }
   if (u.rank >= VET.at.length) vetHeal(u, dt);
+  if (u.burnT > 0) { tickBurn(u, dt); if (!u.alive) return; }
   if (u.stance && G.t > u.stanceUntil) u.stance = null;   // quiet for a while: back on their feet
   u.moving = false;
   tickBurst(u, dt);
@@ -5495,6 +5537,17 @@ function updateResearch(team, dt) {
   }
 }
 
+// A unit with `max` (the Sniper): how many a side has, alive (aboard a transport too) or queued.
+function unitCount(team, type) {
+  let n = (team.queues[catOf(type)] || []).filter((i) => i.type === type).length;
+  for (const e of G.entities) {
+    if (!e.alive || e.team !== team.id || e.kind !== 'unit') continue;
+    if (e.type === type) n++;
+    if (e.cargo) for (const c of e.cargo) if (c.type === type) n++;
+  }
+  return n;
+}
+
 // Most units one queue holds (the one being built included).
 const QUEUE_MAX = 20;
 
@@ -5512,6 +5565,7 @@ function startProduction(team, type) {
   }
   const list = team.queues[cat];
   if (list.length >= QUEUE_MAX) return 'full';
+  if (UNIT_DEFS[type].max && unitCount(team, type) >= UNIT_DEFS[type].max) return 'limit';
   if (padRoom(team, UNIT_DEFS[type].producer) <= 0) return 'pads-full';
   list.push({ type, progress: 0, spent: 0 });
   return null;

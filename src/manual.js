@@ -30,6 +30,8 @@ const Manual = (() => {
     grenadier: ['Lobs grenades in an arc over cover, with a blast that hurts groups. Carries spare grenades in bags on his hips.', 'Infantry groups, light vehicles', 'Tanks at range'],
     rocket: ['Anti-armour and anti-aircraft infantry for both sides (the Soviet one carries an olive RPG-style launcher): Dragon rockets punch through tank armour, and RedEye missiles reach further to bring down aircraft. One launcher, so it fires one or the other.', 'Tanks, aircraft', 'Infantry, light vehicles'],
     hmg: ['A two-man heavy machine gun team for both sides: the Allies carry an M2 .50 cal on a tripod, the Soviets a DShK 12.7 mm on a wheeled carriage behind a shield. It cannot fire on the move: it stops and takes 1.5 s to set the gun up, and a second to pack it up before walking on. Set up, it outranges rifles, cuts down infantry in long bursts, can hit helicopters, and is dug in (half damage, cannot be pushed aside). Slow on foot.', 'Infantry, light vehicles, helicopters', 'Tanks, artillery, flanking'],
+    sniper: ['An Allied marksman with a long scoped rifle, unlocked by the Sniper program at the Tech Center. One shot kills most soldiers, from further than any other infantry can reach, but he fires slowly and does next to nothing to vehicles or buildings. No more than 5 at a time.', 'Infantry, MG Teams', 'Vehicles, aircraft, rushes'],
+    flamer: ['A Soviet soldier with a flamethrower, trained once you have a Tech Center. A short jet of fire that burns groups of infantry. His fuel tanks may blow up when he dies (one time in three), burning everyone around him, friend or foe, and setting soldiers on fire. Keep them spread out.', 'Infantry groups, garrisons', 'Tanks, long-range units'],
     pilot: ['Bails out of a downed aircraft, parachutes down and runs for the nearest friendly structure. Reaching it, the pilot is recovered and you get $100. Cannot be trained.', '', ''],
     // Vehicles
     ranger: ['A fast armed jeep for scouting and raids. Its machine gun can also fire at helicopters, but not at jets.', 'Infantry, Ore Trucks', 'Tanks'],
@@ -56,7 +58,7 @@ const Manual = (() => {
     mig: ['A fast Soviet delta-wing fighter with missiles for ground and air targets (the air-to-air pair also strikes the ground), a cannon for strafing runs and flares.', 'Structures, aircraft, infantry', 'AA Guns, rockets'],
   };
   const WEAPON = {
-    rifle: 'Rifle (small splash)', grenadier: 'Grenades (arcing, splash)', rocket: 'Dragon rockets; RedEye missiles (air)', hmg: 'Heavy machine gun (sets up to fire; hits helicopters, not jets)', pilot: 'Pistol',
+    rifle: 'Rifle (small splash)', grenadier: 'Grenades (arcing, splash)', rocket: 'Dragon rockets; RedEye missiles (air)', hmg: 'Heavy machine gun (sets up to fire; hits helicopters, not jets)', sniper: 'Scoped rifle (one shot, long range)', flamer: 'Flamethrower (short range, splash; may explode on death)', pilot: 'Pistol',
     ranger: 'Machine gun (hits helicopters, not jets)', apc: 'Heavy machine gun (hits helicopters, not jets)', btr: 'Heavy machine gun (hits helicopters, not jets)', ltank: 'Light cannon', mtank: 'Cannon', htank: 'Twin cannons', mammoth: 'Twin cannons + anti-air missile pods',
     arty: 'Howitzer (arcing, splash)', v2rl: 'V2 rocket (arcing, huge splash)', ttank: 'Tesla bolt (ground only)', heli: 'Hellfire missiles (anti-armour)', hind: 'Chain gun', comanche: '20 mm chain gun; 4 missiles (tanks and Ore Trucks, lock-on)', chinook: 'None (carries 8 infantry)', halo: 'None (carries 8 infantry)',
     jet: 'Missiles (ground and air), cannon', mig: 'Missiles (ground and air), cannon',
@@ -187,7 +189,7 @@ const Manual = (() => {
     { ch: 'Structures', title: 'Base and Economy', html: () => entries(['cy', 'power', 'apower', 'refinery', 'outpost', 'dome', 'tech']) },
     { ch: 'Structures', title: 'Production', html: () => entries(['barracks', 'factory', 'depot', 'helipad', 'airfield']) },
     { ch: 'Structures', title: 'Defences', html: () => entries(['pillbox', 'turret', 'aagun', 'ftur', 'tesla', 'sam']) },
-    { ch: 'Infantry', title: 'Infantry', html: () => entries(['rifle', 'grenadier', 'rocket', 'hmg', 'engineer', 'pilot']) },
+    { ch: 'Infantry', title: 'Infantry', html: () => entries(['rifle', 'grenadier', 'rocket', 'hmg', 'sniper', 'flamer', 'engineer', 'pilot']) },
     { ch: 'Vehicles', title: 'Armour', html: () => entries(['ranger', 'apc', 'btr', 'ltank', 'mtank', 'htank', 'ttank', 'mammoth']) },
     { ch: 'Vehicles', title: 'Support Vehicles', html: () => entries(['arty', 'v2rl', 'harv', 'fob', 'mcv']) },
     { ch: 'Aircraft', title: 'Aircraft', html: () => entries(['heli', 'comanche', 'hind'].concat(TRANSPORTS ? ['chinook', 'halo'] : [], ['jet', 'mig'])) },

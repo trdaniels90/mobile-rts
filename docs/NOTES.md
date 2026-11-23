@@ -1665,6 +1665,30 @@ frame-time maths everywhere, so it is not deterministic.
   `fireWeapon` puffs light smoke from the muzzle every round and, 40% of rounds, a slower wisp off the hot barrel.
 - Online: the server must run the same version.
 
+## Sniper (Allies) and Flamethrower (Soviets) (after 2026.11.23, not released, owner's picks for both modes; the server must match)
+
+- **Sniper** (`sniper` in UNIT_DEFS, Allies, Barracks, $700, 60 health, speed 30, sight 9; `upgrade: 'sniper'`, research "Sniper program"
+  $1500, 60 s at the Tech Center). Owner: at most 5 on the map at a time: `max: 5` on the def, `unitCount` (world.js) counts alive ones,
+  those aboard a transport and those queued; `startProduction` answers `'limit'` (ui.js: "No more than 5 Snipers at a time"). Weapon:
+  one round of 125 `SN` (new warhead: infantry 1, light 0.1, heavy 0.03, buildings 0.03, no aircraft) every 3 s, range 230 (past the MG
+  Team's 150 and the Rocket Soldier's 180), sound `sniper` (audio.js COMBO: the rifle pitched down over a light cannon thump; synthesised
+  fallback). Kills any single soldier in one hit standing (prone ones keep half: an MG Team survives one).
+- **Flamethrower** (`flamer`, Soviets, Barracks, `req: ['tech']`, no research and no cap; $400, 70 health, speed 30): fireball (FIRE) 30
+  every 1.4 s, range 80, splash 16, drawn as the Flame Tower's stream from the nozzle (no muzzle flash). Owner: when he dies he may
+  explode and set infantry round him on fire: `explodes: 1/3` (owner's pick) -> `flamerBlast` (world.js, from `kill`, host only, not in a
+  defeat wipe or inside a house): `FLAMER_DMG` 25 FIRE to every ground unit within `FLAMER_BLAST` 36 px, **friend or foe**, and infantry
+  in it burn (`setOnFire`: `u.burnT` `BURN_TIME` 4 s, `BURN_DPS` 15 in `BURN_TICK` 0.25 s ticks, trailing flames; credited to whoever
+  killed the Flamethrower). `burnT` is synced and saved; `burnBy` / `burnTick` are host-only (netcore SKIP). A Flamethrower killed in
+  the blast can go up too (chains).
+- **Looks:** models.js `infModel`: Sniper with a boonie hat, painted face, a long rifle with a scope (aim pose to the shoulder); Flamethrower
+  with a gas mask, two fuel tanks with red bands on a back frame, a fire wand with a pilot flame. Idle poses in art.js `IDLES`. Sprites,
+  normals and ground key rebaked.
+- **Computer** (ai.js): researches the Sniper program like other upgrades; when it can, 12% of infantry picks (30% against infantry) are
+  Snipers (Allies, while under the cap) or Flamethrowers (Soviets).
+- Field Manual entries. `node tools/sim/sniper-flamer.js <repo>`: locks and factions, the cap (queue, alive, room after a loss), a
+  rifleman one-shot at 215 px, 12 damage to a Heavy Tank in 9 s, blast rate about 0.3 over 60 deaths, burns both sides and not at 80 px,
+  burning takes 42 of a rifleman's 50 (prone), a Flamethrower kills 3 still riflemen in 8 s.
+
 ## Computer personalities (after 2026.11.16.5, not released, Normal and Hard, both modes)
 
 - Owner's report: on Normal every computer side attacked at the same moment. Measured (headless 2 v 2 on Twin Lakes): all four first
