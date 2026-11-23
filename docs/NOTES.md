@@ -1498,6 +1498,9 @@ frame-time maths everywhere, so it is not deterministic.
   `scripts/make_voices.py`'s `render()` and settings (`af_heart`, 0.93, `EVA_FX`), so the other clips were left as they were. Only
   the unit's owner hears them (`notify`), online guests too.
 - Not done: ranks in the debrief.
+- **Range** (after 2026.11.22.2, owner's pick, both modes): weapon reach x 1.05 / 1.1 / 1.15 / 1.2 (`VET.range`). Every unit range
+  check goes through `wRange(u, w)` in world.js (targeting, engage, approach spot, garrison, bursts, aircraft, Guard reach, missile fuel);
+  buildings have no rank so it is plain `w.range` for them. `tools/sim/veterancy.js` checks an Elite tank hits 12% past its normal reach.
 
 ## Computer waves, Soviet tank costs, OpenRA armour multipliers (after 2026.11.14.12, not released, both modes)
 

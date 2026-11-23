@@ -28,7 +28,7 @@ const FACTIONS = {
 
 // Veterancy, as in OpenRA's Red Alert: a unit is promoted when the cost of what it has destroyed reaches
 // `at` times its own cost. Each rank (index 0 = none, 4 = elite) multiplies the damage it deals (`fire`),
-// the damage it takes (`armor`), its speed on the ground and its reload time. An elite unit also heals
+// the damage it takes (`armor`), its speed on the ground, its reload time and its weapons' reach (`range`). An elite unit also heals
 // `heal` of its health every `healEvery` seconds once it has not been hit for `healWait`.
 const VET = {
   at: [2, 4, 8, 16],
@@ -36,6 +36,7 @@ const VET = {
   armor: [1, 0.95, 0.9, 0.85, 0.75],
   speed: [1, 1.05, 1.1, 1.2, 1.4],
   reload: [1, 0.95, 0.9, 0.85, 0.75],
+  range: [1, 1.05, 1.1, 1.15, 1.2],
   heal: 0.05, healEvery: 4, healWait: 5,
   names: ['', 'Veteran', 'Veteran II', 'Veteran III', 'Elite'],
 };

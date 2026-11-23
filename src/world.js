@@ -1213,10 +1213,10 @@ function updateEnterHouse(u) {
 function updateGarrison(u, dt) {
   const h = u.inHouse, w = u.def.weapon, w2 = u.def.weapon2, more = GARRISON_REACH + Math.max(h.w, h.h) * CELL / 2;
   u.moving = false;
-  if (u.target && (!u.target.alive || !canTarget(u, u.target) || distTo(u, u.target) > w.range + more)) u.target = null;
+  if (u.target && (!u.target.alive || !canTarget(u, u.target) || distTo(u, u.target) > wRange(u, w) + more)) u.target = null;
   if ((u.think -= dt) <= 0) {
     u.think = 0.35 + Math.random() * 0.2;
-    if (!u.target || u.target.kind !== 'unit') u.target = acquire(u, w.range + more, [w]) || u.target;
+    if (!u.target || u.target.kind !== 'unit') u.target = acquire(u, wRange(u, w) + more, [w]) || u.target;
   }
   const t = u.target;
   if (t && u.cd <= 0 && canHit(w, t) && clearShot(u, t, w)) {
@@ -1225,7 +1225,7 @@ function updateGarrison(u, dt) {
     u.cd = w.rof * VET.reload[u.rank || 0];
   }
   if (w2 && u.cd2 <= 0 && u.cd <= 0) {   // a Rocket Soldier's anti-aircraft missile, out of the window too
-    const t2 = acquire(u, w2.range + more, [w2]);
+    const t2 = acquire(u, wRange(u, w2) + more, [w2]);
     if (t2) { fireWeapon(u, w2, t2); u.cd2 = w2.rof * VET.reload[u.rank || 0]; u.cd = Math.max(u.cd, u.cd2); } else u.cd2 = 0.3;
   }
 }
@@ -2689,7 +2689,7 @@ function setGuard(u, x, y) {
 function guardReach(u) {
   const sight = u.def.sight * CELL, w = u.def.weapon;
   if (u.cls === 'air') return sight * (u.def.fly === 'jet' ? 1.6 : 1);
-  return w && w.range > sight ? w.range : sight * 1.6;
+  return w && wRange(u, w) > sight ? wRange(u, w) : sight * 1.6;
 }
 // What a side has in view: there is no fog, only shroud, so anything on explored ground.
 const inViewOf = (side) => (e) => !!G.fog[side][cellOfPos(e.x, e.y)];
@@ -2788,7 +2788,7 @@ function shoot(src, w, t) {
 function tickBurst(u, dt) {
   const b = u.burst;
   if (!b) return;
-  if (!b.target.alive || distTo(u, b.target) > b.w.range + 12) { u.burst = null; return; }
+  if (!b.target.alive || distTo(u, b.target) > wRange(u, b.w) + 12) { u.burst = null; return; }
   if ((b.t -= dt) > 0) return;
   fireWeapon(u, b.w, b.target);
   b.t = b.w.gap;
@@ -2932,7 +2932,7 @@ function fireWeapon(src, w, t, follow) {
       const off = w.atgm ? 9 : 5, bx = src.x - sn * side * off + c, by = src.y + c * side * off + sn;   // (an ATGM hangs under the wing, further out than a bay)
       const arc = w.atgm ? Math.min(46, Math.hypot(t.x - bx, t.y - by) * 0.14) : 0;
       G.projectiles.push({ x: bx, y: by - alt + 3, target: t, w, from: src, team: src.team, speed: w.speed || PROJ_SPEED.missile || 400, kind: 'missile', trail: 0, delay: 0, ...(w.atgm ? { atgm: true, arc } : null),
-        x0: bx, y0: by - alt + 3, h0: Math.max(0, alt - 3), drop: BAY_DROP, dropV: { x: c * src.def.speed * 0.4 - sn * side * 14, y: sn * src.def.speed * 0.4 + c * side * 14 }, aa: false, fuel: w.range * 2 });
+        x0: bx, y0: by - alt + 3, h0: Math.max(0, alt - 3), drop: BAY_DROP, dropV: { x: c * src.def.speed * 0.4 - sn * side * 14, y: sn * src.def.speed * 0.4 + c * side * 14 }, aa: false, fuel: wRange(src, w) * 2 });
       return;
     }
     for (let i = 0; i < shots; i++) {
@@ -2943,7 +2943,7 @@ function fireWeapon(src, w, t, follow) {
         ...(w.proj === 'fireball' ? { sx: m.x, sy: m.y } : null),   // where it left: the stream of fire is drawn from there (ui.js fireStream, when its tower's own jet is not showing)
         // A missile fired at an aircraft only has fuel for a little past its weapon's range, and
         // gives up if the aircraft lands: it cannot chase a jet across the map.
-        aa: (w.proj === 'missile' || w.proj === 'rocket') && isAirborne(t), fuel: w.range * (w.fuel || (src.kind === 'bld' && src.type === 'sam' ? SAM_FUEL : AA_FUEL)) });
+        aa: (w.proj === 'missile' || w.proj === 'rocket') && isAirborne(t), fuel: wRange(src, w) * (w.fuel || (src.kind === 'bld' && src.type === 'sam' ? SAM_FUEL : AA_FUEL)) });
     }
   }
 }
@@ -3208,6 +3208,8 @@ function impact(kind, x, y, inAir, h) {
 
 // `from`: where the hit came from (a blast centre or the shooter), for how a soldier falls.
 // Veterancy (VET in data.js). Only armed units that cost something earn ranks; structures never do.
+// A weapon's reach for this unit: longer with each rank (VET.range). Buildings have no rank.
+function wRange(u, w) { return w.range * VET.range[u.rank || 0]; }
 function gainsRank(u) { return u.kind === 'unit' && u.def.cost > 0 && !u.def.scripted && !u.def.harvester && !!(u.def.weapon || u.def.weapon2 || u.def.gun); }
 function promote(u) {
   if (G.remote || !u.alive || !gainsRank(u)) return;
@@ -3289,7 +3291,7 @@ function damage(t, amount, wh, attacker, from, splashed) {
     const c = t.target;
     // (its target may have taken off since it was picked, out of reach of every weapon it has)
     const cw = c && (canHit(t.def.weapon, c) ? t.def.weapon : t.def.weapon2 && canHit(t.def.weapon2, c) ? t.def.weapon2 : null);
-    const busy = c && c.alive && c.kind === 'unit' && cw && distTo(t, c) <= cw.range;
+    const busy = c && c.alive && c.kind === 'unit' && cw && distTo(t, c) <= wRange(t, cw);
     if (!busy) { t.target = attacker; t.avenge = attacker; }
   }
   // Aircraft shot at, parked or flying, turn on the shooter too. A parked one takes off if it has
@@ -3849,20 +3851,20 @@ function updateUnit(u, dt) {
       // Whoever fired on this unit is chased a little past its own reach; anything else is
       // dropped once out of sight.
       // Long-range guns guarding an area fire at whatever their side has in view within reach.
-      const far = o.type === 'guard' && o.hold && w && w.range > sight;
+      const far = o.type === 'guard' && o.hold && w && wRange(u, w) > sight;
       const spot = !far && spotter(u);   // (Artillery, V2: whatever its side sees in reach)
       const avenging = u.target && u.target === u.avenge;
-      const spotted = spot && u.target && distTo(u, u.target) <= w.range && spottedBy(u.team)(u.target);
-      const reach = avenging ? Math.max(sight * 1.5, ((u.target.def.weapon && u.target.def.weapon.range) || 0) + CELL * 3) : far ? w.range : spotted ? w.range : sight * 1.5;
+      const spotted = spot && u.target && distTo(u, u.target) <= wRange(u, w) && spottedBy(u.team)(u.target);
+      const reach = avenging ? Math.max(sight * 1.5, ((u.target.def.weapon && u.target.def.weapon.range) || 0) + CELL * 3) : far ? wRange(u, w) : spotted ? wRange(u, w) : sight * 1.5;
       // A raider base defence gave this unit (defendBase picks one up to 32 cells off) is kept however far while it is still raiding:
       // dropping it here and taking a nearer enemy, then being given the raider again a second later, turned defenders round every
       // second (they ran back and forth without getting anywhere).
       const told = u.defending && u.target && u.target.kind === 'unit' && (teamOf(u).raiders || []).includes(u.target.id);
       if (u.target && !told && distTo(u, u.target) > reach) u.target = null;
-      if (o.type === 'guard' && u.target && !avenging && !told && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : spotted ? Math.max(sight * 1.6, w.range) : sight * 1.6)) u.target = null;
+      if (o.type === 'guard' && u.target && !avenging && !told && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : spotted ? Math.max(sight * 1.6, wRange(u, w)) : sight * 1.6)) u.target = null;
       if (!u.target || u.target.kind === 'bld') {
-        const t = far ? acquire(u, w.range, [w, u.def.weapon2], teamOf(u).isAI ? null : inViewOf(u.team)) :
-          (spot && acquire(u, sight, [w, u.def.weapon2])) || (spot ? acquire(u, w.range, [w], spottedBy(u.team)) : acquire(u, sight, [w, u.def.weapon2]));
+        const t = far ? acquire(u, wRange(u, w), [w, u.def.weapon2], teamOf(u).isAI ? null : inViewOf(u.team)) :
+          (spot && acquire(u, sight, [w, u.def.weapon2])) || (spot ? acquire(u, wRange(u, w), [w], spottedBy(u.team)) : acquire(u, sight, [w, u.def.weapon2]));
         if (t && (!u.target || t.kind === 'unit')) u.target = t;
       }
       if (!u.target) {
@@ -3892,7 +3894,7 @@ function updateUnit(u, dt) {
   // Second weapons pick their own targets: Mammoth missiles, a Rocket Soldier's anti-aircraft
   // missile. A soldier has one launcher, so his two weapons share one reload.
   if (u.def.weapon2 && u.cd2 <= 0 && (u.cls !== 'inf' || u.cd <= 0)) {
-    const t2 = u.target && canHit(u.def.weapon2, u.target) && distTo(u, u.target) <= u.def.weapon2.range ? u.target : acquire(u, u.def.weapon2.range, [u.def.weapon2]);
+    const t2 = u.target && canHit(u.def.weapon2, u.target) && distTo(u, u.target) <= wRange(u, u.def.weapon2) ? u.target : acquire(u, wRange(u, u.def.weapon2), [u.def.weapon2]);
     if (t2) {
       if (u.cls === 'inf') { u.face = Math.atan2(t2.y - (t2.alt || 0) - u.y, t2.x - u.x); u.cd = Math.max(u.cd, u.def.weapon2.rof * VET.reload[u.rank || 0]); }
       fireWeapon(u, u.def.weapon2, t2); u.cd2 = u.def.weapon2.rof * VET.reload[u.rank || 0];
@@ -3906,7 +3908,7 @@ function updateUnit(u, dt) {
   checkStuck(u, dt);
 }
 
-const breachReach = (u) => (u.def.weapon && u.def.weapon.range) || 0;   // (its main gun: a second weapon is often for aircraft only)
+const breachReach = (u) => (u.def.weapon && wRange(u, u.def.weapon)) || 0;   // (its main gun: a second weapon is often for aircraft only)
 function engage(u, t, dt) {
   const w = canHit(u.def.weapon, t) ? u.def.weapon : u.def.weapon2 && canHit(u.def.weapon2, t) ? u.def.weapon2 : null;
   if (!w) { u.target = null; return; }   // e.g. a helicopter that took off out of a rifleman's reach
@@ -3917,7 +3919,7 @@ function engage(u, t, dt) {
   let inCover = false, off;
   if (u.cover) {
     const p = cellCenter(u.cover.c);
-    if (!u.defending || G.wall[u.cover.s] !== SANDBAG_ID || Math.hypot(t.x - p.x, t.y - p.y) > w.range + CELL * 2) u.cover = null;
+    if (!u.defending || G.wall[u.cover.s] !== SANDBAG_ID || Math.hypot(t.x - p.x, t.y - p.y) > wRange(u, w) + CELL * 2) u.cover = null;
     else if ((off = Math.hypot(u.x - p.x, u.y - p.y)) > CELL || (off > COVER_SNAP && (u.dest || u.needPath))) {
       if (!u.needPath && (!u.dest || Math.hypot(u.dest.x - p.x, u.dest.y - p.y) > 4)) {
         if ((u.cover.go = (u.cover.go || 0) + 1) > 4) { u.cover = null; return; }   // cannot get there (or keeps being shoved off)
@@ -3927,7 +3929,7 @@ function engage(u, t, dt) {
       return;
     } else {
       inCover = true;
-      if (d > w.range) {   // waits in cover for it to come into reach, but not for ever (a gun that outranges it, a raider that stays off)
+      if (d > wRange(u, w)) {   // waits in cover for it to come into reach, but not for ever (a gun that outranges it, a raider that stays off)
         u.dest = null; u.path = null; u.face = ang; setUpGun(u, dt);
         if ((u.cover.w = (u.cover.w || 0) + dt) > COVER_WAIT) { u.cover = null; u.coverBan = G.t + 20; }
         return;
@@ -3936,7 +3938,7 @@ function engage(u, t, dt) {
   }
   // In reach but behind a cliff: a unit that picked it itself lets it go; ordered at it (or at a structure), it goes round
   // (u.round: the target it is going round to, so the way round taking it out of reach does not turn it back).
-  const blocked = (d <= w.range || u.round === t.id) && !clearShot(u, t, w);
+  const blocked = (d <= wRange(u, w) || u.round === t.id) && !clearShot(u, t, w);
   if (!blocked) u.round = null;
   if (blocked) {
     if (t.kind === 'unit' && !(u.order && u.order.type === 'attack')) { u.target = null; u.round = null; return; }
@@ -3944,7 +3946,7 @@ function engage(u, t, dt) {
     if (!u.needPath && (!u.dest || Math.hypot(u.dest.x - t.x, u.dest.y - t.y) > 40)) goTo(u, t.x, t.y);
     followPath(u, dt);
     if (u.cls === 'veh') u.tface = turnToward(u.tface, ang, 3 * dt);
-  } else if (d <= w.range) {
+  } else if (d <= wRange(u, w)) {
     u.dest = null; u.path = null;
     if (!inCover && !(u.def.setup && u.setup > 0) && slideOut(u, t, w, dt) && u.cls === 'inf') return;   // infantry find their place first, then fire (an MG Team setting up stays put)
     let aligned = true;
@@ -3967,7 +3969,7 @@ function engage(u, t, dt) {
 // arc as wide as the number of attackers needs (atkOn). The bearing is fixed when it takes the target
 // (u.apT its id, u.apA), so the spot does not creep round the target as the unit walks.
 function approachSpot(u, t, w) {
-  const R = fanR(t, w);
+  const R = fanR(u, t, w);
   fanAngle(u, t, R);
   const d = Math.hypot(u.x - t.x, u.y - t.y);
   if (d < R + CELL) return t;   // already about there: just step in until it is in reach
@@ -3982,7 +3984,7 @@ function approachSpot(u, t, w) {
 // The widest arc (radians either side of the unit's own bearing: 2.4 is most of the way round) and the room
 // each unit gets on it (px).
 const FAN_MAX = 1.95, FAN_GAP_INF = 16, FAN_GAP_VEH = 31;
-const fanR = (t, w) => Math.max(12, w.range * 0.85) + (t.kind === 'bld' || t.kind === 'span' || t.kind === 'house' ? Math.max(t.w, t.h) * CELL / 2 : 0);
+const fanR = (u, t, w) => Math.max(12, wRange(u, w) * 0.85) + (t.kind === 'bld' || t.kind === 'span' || t.kind === 'house' ? Math.max(t.w, t.h) * CELL / 2 : 0);
 function fanAngle(u, t, R) {
   const key = t.id !== undefined ? t.id : t.x + ',' + t.y;   // a ground spot has no id: its place is its key
   if (u.apT === key) return;
@@ -4018,7 +4020,7 @@ function frontRank(u, t) {
 }
 function slideOut(u, t, w, dt) {
   if (u.def.fixed || u.cls === 'air' || !u.def.speed || t.kind === 'unit' && t.cls === 'air' || u.setup > 0) return false;
-  const R = fanR(t, w);
+  const R = fanR(u, t, w);
   fanAngle(u, t, R);
   if (u.slideT >= SLIDE_MAX) return false;
   const x = t.x + Math.cos(u.apA) * R, y = t.y + Math.sin(u.apA) * R, dx = x - u.x, dy = y - u.y, d = Math.hypot(dx, dy);
@@ -4598,7 +4600,7 @@ function airTarget(u) {
   if (!ws.length) return null;
   // A stand-off helicopter (the Comanche) looks as far as its missiles lock on.
   // With only its missiles left it looks twice their reach for a tank or Ore Truck before going home (gunSpent).
-  const reach = u.def.standoff ? (u.ammo > 0 ? Math.max(sight, ...ws.map((w) => w.range)) : u.def.weapon2.range * MISSILE_SEEK) : sight;
+  const reach = u.def.standoff ? (u.ammo > 0 ? Math.max(sight, ...ws.map((w) => wRange(u, w))) : wRange(u, u.def.weapon2) * MISSILE_SEEK) : sight;
   const pick = acquire(src, reach, ws, open, heli);
   // Nothing new in sight: carry on with the unfavoured target it had.
   if (heli && !pick && u.target && u.target.alive && ws.some((w) => canHit(w, u.target)) && distTo(u, u.target) < sight * 1.4) return u.target;
@@ -4672,7 +4674,7 @@ function updateAir(u, dt) {
   const strikeSpent = jet && u.ammo <= 0 && !(u.guns > 0) && !(u.aam > 0) && !huntingAir;
   // The Comanche with its gun spent goes home to rearm unless a tank or Ore Truck is in reach of its missiles: those hit
   // tanks alone, so it would otherwise fly on to the enemy base and hang there without a shot.
-  const gunSpent = u.def.standoff && u.ammo <= 0 && !(u.aam > 0 && ((u.target && u.target.alive && missileMark(u.target)) || acquire(u, u.def.weapon2.range * MISSILE_SEEK, [u.def.weapon2])));
+  const gunSpent = u.def.standoff && u.ammo <= 0 && !(u.aam > 0 && ((u.target && u.target.alive && missileMark(u.target)) || acquire(u, wRange(u, u.def.weapon2) * MISSILE_SEEK, [u.def.weapon2])));
   if (airEmpty(u) || strikeSpent || gunSpent || u.retreat || u.rearming || (u.order.type === 'guard' && u.order.pad)) {
     const pad = padFor(u);
     if (pad) {
@@ -4680,7 +4682,7 @@ function updateAir(u, dt) {
       const d = Math.hypot(spot.x - u.x, spot.y - u.y);
       if (jet) {
         if (u.aam > 0 && u.cd <= 0) {
-          const a = acquire(u, u.def.weapon2.range, [u.def.weapon2], isAirborne);
+          const a = acquire(u, wRange(u, u.def.weapon2), [u.def.weapon2], isAirborne);
           if (a && isAirborne(a) && Math.abs(angDiff(Math.atan2(a.y - u.y, a.x - u.x), u.face)) < 0.5) { shoot(u, u.def.weapon2, a); u.cd = u.def.weapon2.rof * VET.reload[u.rank || 0]; u.aam--; }
         }
         landJet(u, spot, runwayDir(pad, spot), dt);
@@ -4714,14 +4716,14 @@ function updateAir(u, dt) {
       // Air targets get air-to-air missiles; ground targets get the ground-attack missiles from range, then
       // the air-to-air ones once those are spent, and the gun runs.
       const mw = air ? (u.aam > 0 ? u.def.weapon2 : null) : (u.ammo > 0 ? w : u.aam > 0 ? u.def.weapon2 : null);
-      if (mw && d <= mw.range && Math.abs(angDiff(ang, u.face)) < 0.35 && u.cd <= 0) {
+      if (mw && d <= wRange(u, mw) && Math.abs(angDiff(ang, u.face)) < 0.35 && u.cd <= 0) {
         shoot(u, mw, t); u.cd = mw.rof * VET.reload[u.rank || 0];
         if (mw === u.def.weapon2) u.aam--; else u.ammo--;
         if (Math.random() < 0.5) u.passT = 0.9;
         // A jet defending the base makes one pass, then flies home to rearm: a missile at an aircraft,
         // or at a ground target it has no gun runs left for, ends it; otherwise the gun run does.
         if (u.defending && o.type !== 'attack' && (air || !(u.guns > 0))) u.rearming = true;
-      } else if (!air && u.guns > 0 && !u.strafe && d <= u.def.gun.range && Math.abs(angDiff(ang, u.face)) < 0.3 && u.cd2 <= 0) {
+      } else if (!air && u.guns > 0 && !u.strafe && d <= wRange(u, u.def.gun) && Math.abs(angDiff(ang, u.face)) < 0.3 && u.cd2 <= 0) {
         startStrafe(u, t);
         u.guns--; u.cd2 = 1.6;
         if (u.defending && o.type !== 'attack') u.rearming = true;
@@ -4733,7 +4735,7 @@ function updateAir(u, dt) {
       // Flying out: far enough to turn round (one turning circle) and still line up before it is in range.
       if (u.extT > 0) {
         u.extT -= dt;
-        if (d < (u.def.speed / u.def.turn) * 2 + (mw ? mw.range : 0) + 40) { flyJet(u, u.x + Math.cos(u.face) * 100, u.y + Math.sin(u.face) * 100, dt); return; }
+        if (d < (u.def.speed / u.def.turn) * 2 + (mw ? wRange(u, mw) : 0) + 40) { flyJet(u, u.x + Math.cos(u.face) * 100, u.y + Math.sin(u.face) * 100, dt); return; }
         u.extT = 0;
       }
       flyJet(u, t.x, t.y, dt);
@@ -4756,7 +4758,7 @@ function updateAir(u, dt) {
   if (t && u.def.standoff) standoffFight(u, t, dt);
   else if (t) {
     const d = distTo(u, t), ang = Math.atan2(t.y - u.y, t.x - u.x);
-    if (d > w.range * 0.9) flyHeli(u, t.x, t.y, dt);
+    if (d > wRange(u, w) * 0.9) flyHeli(u, t.x, t.y, dt);
     else {
       u.face = turnToward(u.face, ang, 4 * dt);
       if (Math.abs(angDiff(ang, u.face)) < 0.2 && u.cd <= 0) { shoot(u, w, t); u.cd = w.rof * VET.reload[u.rank || 0]; u.ammo--; }
@@ -4795,10 +4797,10 @@ function standoffFight(u, t, dt) {
   const w = missile ? mw : airWeapons(u).find((x) => x !== mw && canHit(x, t));
   if (!w) { u.target = null; return; }
   const d = distTo(u, t), ang = Math.atan2(t.y - u.y, t.x - u.x);
-  if (missile && d <= mw.range * 1.15) u.bayHold = G.t + 0.8;
-  if (u.lockOn !== t.id || !missile || d > mw.range) { u.lockOn = missile && d <= mw.range ? t.id : null; u.lock = 0; }
-  if (d > w.range * STANDOFF_FAR) { flyHeli(u, t.x, t.y, dt); return; }
-  if (d < w.range * STANDOFF_NEAR) {   // too close: back off, nose still on the target
+  if (missile && d <= wRange(u, mw) * 1.15) u.bayHold = G.t + 0.8;
+  if (u.lockOn !== t.id || !missile || d > wRange(u, mw)) { u.lockOn = missile && d <= wRange(u, mw) ? t.id : null; u.lock = 0; }
+  if (d > wRange(u, w) * STANDOFF_FAR) { flyHeli(u, t.x, t.y, dt); return; }
+  if (d < wRange(u, w) * STANDOFF_NEAR) {   // too close: back off, nose still on the target
     const step = u.def.speed * BACK_SPEED * dt;
     u.x -= Math.cos(ang) * step; u.y -= Math.sin(ang) * step; u.moving = true;
     clampAir(u);
@@ -6039,7 +6041,7 @@ function stuckWatch() {
     const o = u.order.type;
     if (o === 'repair' || o === 'engineer' || u.repairing || u.chute > 0) { STUCK_SEEN.delete(u.id); continue; }
     if (!(o === 'hunt' || o === 'attack' || o === 'move' || u.assisting || u.dest || u.needPath)) { STUCK_SEEN.delete(u.id); continue; }
-    const inReach = u.target && u.target.alive && u.def.weapon && distTo(u, u.target) <= Math.max(u.def.weapon.range, (u.def.weapon2 && u.def.weapon2.range) || 0) * 1.15;
+    const inReach = u.target && u.target.alive && u.def.weapon && distTo(u, u.target) <= Math.max(wRange(u, u.def.weapon), (u.def.weapon2 && wRange(u, u.def.weapon2)) || 0) * 1.15;
     const s = STUCK_SEEN.get(u.id), moved = !s || Math.hypot(u.x - s[0], u.y - s[1]) > 6;
     if (inReach || u.waitLeader > G.t || moved) { STUCK_SEEN.set(u.id, [u.x, u.y, G.t]); if (moved) u.stallN = 0; continue; }
     if (G.t - s[2] >= STUCK_AFTER) found.push(u);

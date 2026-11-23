@@ -1,5 +1,5 @@
 // Veterancy: a unit is promoted at 2, 4, 8 and 16 times its own cost destroyed; each rank deals more, takes less,
-// reloads and moves faster; an elite unit heals itself. Headless. node tools/sim/veterancy.js <repo>
+// reloads and moves faster and reaches further; an elite unit heals itself. Headless. node tools/sim/veterancy.js <repo>
 const vm = require('vm');
 const root = process.argv[2];
 const headless = require(root + '/server/headless.js');
@@ -38,6 +38,11 @@ const r = run(`(() => {
   const shots = (rank) => { const u = addUnit('mtank', me, at(0).x, at(0).y - 100), t = addUnit('mtank', foe, u.x + 60, u.y); t.hp = t.maxHp = 1e9; t.order = { type: 'guard', x: t.x, y: t.y, hold: true }; t.def = Object.assign({}, t.def, { weapon: null });
     u.rank = rank; u.target = t; step(30); const s = u.shots || 0; u.alive = t.alive = false; return s; };
   const s0 = shots(0), s4 = shots(4); res.shots = [s0, s4];
+  // 5b: range: a tank that cannot move, a target 12% past its normal reach (Elite reaches 20% further)
+  const reachShots = (rank) => { const u = addUnit('mtank', me, at(0).x, at(0).y - 160); u.def = Object.assign({}, u.def, { speed: 0 });
+    const t = addUnit('mtank', foe, u.x + u.def.weapon.range * 1.12, u.y); t.hp = t.maxHp = 1e9; t.def = Object.assign({}, t.def, { weapon: null, speed: 0 });
+    u.rank = rank; u.target = t; step(10); const s = u.shots || 0; u.alive = t.alive = false; return s; };
+  res.reach = [reachShots(0), reachShots(4)];
   // 6: no ranks for Ore Trucks or structures
   const truck = addUnit('harv', me, at(0).x, at(0).y + 60); truck.killWorth = 0;
   for (let i = 0; i < 5; i++) damage(victim('mtank'), 50, 'AP', truck);
@@ -52,6 +57,6 @@ const r = run(`(() => {
 const res = JSON.parse(r);
 console.log(res);
 const ok = res.rank === 4 && Math.abs(res.fire - 1.3) < 0.03 && Math.abs(res.armor - 0.75) < 0.03 && res.healEarly === 0.5 && res.healElite > 0.55 && res.healRookie <= 0.5 &&
-  Math.abs(res.speed - 1.4) < 0.08 && res.shots[1] > res.shots[0] * 1.2 && res.truckRank === 0 && res.bldRank === 0 && res.fightRank >= 1;
+  Math.abs(res.speed - 1.4) < 0.08 && res.shots[1] > res.shots[0] * 1.2 && res.reach[0] === 0 && res.reach[1] > 0 && res.truckRank === 0 && res.bldRank === 0 && res.fightRank >= 1;
 console.log(ok ? 'PASS' : 'FAIL');
 process.exit(ok ? 0 : 1);
