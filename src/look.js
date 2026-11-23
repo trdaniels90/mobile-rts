@@ -516,6 +516,7 @@ const cliffAlpha = (p) => { if (!p.born) return 1; const a = (performance.now() 
 function cliffItems(list, x0, y0, x1, y1, shows) {
   lookGround(lookView, x0, y0, x1, y1, shows && ((x, y) => shows(x, y, 40, 40, 40)));   // (the ground's patches and tracks first: under the cliffs' shadows)
   lookFxGround(lookView, x0, y0, x1, y1);   // lookfx.js: blasts' scorch marks and rings, and the update of its particles
+  lookPuddles(lookView, x0, y0, x1, y1);   // puddles in the rain (under the fog)
   lookFogGround(lookView, x0, y0, x1, y1);   // fog lying on the ground, under the units
   poolItems(list, x0, y0, x1, y1, shows);   // lamp posts (light pools), with their shadows
   if (!LOOK.cliffs || !G.cliff) return;
@@ -957,6 +958,7 @@ function smokePics() {
   return { dark: blob(34, 32, 30), grey: blob(92, 90, 86), flames };
 }
 function lookSmoke(g) {
+  lookRunoff(g);   // rain running off the roofs
   lookFogOver(g);   // (the fog over the units, lighter: under the smoke)
   if (!LOOK.smoke || !G) return;
   if (!lookSmokeS || lookSmokeS.g !== G) lookSmokeS = { g: G, puffs: [], embers: [], t: G.t, pics: (lookSmokeS && lookSmokeS.pics) || smokePics(), acc: new Map() };
@@ -1424,4 +1426,160 @@ function lookFogOver(g) {
   const f = lookFogLevel(G.t) * FOG_MAX * (1 - 0.35 * dayNight(G.t).night);   // (thinner in the dark: it read milky)
   if (f < 0.01) return;
   fogSheets(g, ...fogBox, f, [[0, 0.45], [7, 0.25]]);
+}
+
+// ---- Rain on the ground and off the roofs (looks only, both modes; nothing in G) --------------------------------------
+// Owner, 2026-11-23 (Heron Fen): "make the rain run off buildings realistically ... and make small puddles". In any battle
+// with rain (G.weather rain): the ground gets wet over the first minute or so (rainState: soaked after
+// RAIN_SOAK s), then
+//  - puddles (lookPuddles, on the ground under the units and the fog): spots picked once a battle from the ground seed on
+//    open grass and dirt (more on tracks), each filling at its own wetness and growing to its size, dark water with a pale
+//    sky sheen, and rings from the drops landing in it;
+//  - runoff (lookRunoff, from lookSmoke): every built structure and village house on screen sheds water from the edges of
+//    its roofs the camera sees (runoffSpots: from its voxel model, where a broad roof drops 4 or more voxels to the south or
+//    east), as falling streams of drops onto the ground or a lower roof, with splashes where they land.
+// Drawn with pictures only (drawImage), so the WebGL renderer records them like the smoke. ?lookoff=rain: off.
+const RAIN_FX = !(typeof location !== 'undefined' && /[?&]lookoff=[^&]*\brain\b/.test(location.search));
+const PUDDLE_MAX = 700, RUNOFF_SPOTS = 16, RAIN_SOAK = 75;   // RAIN_SOAK: seconds of rain until the ground is soaked
+let rainS = null, rainBox = null;
+function rainState() {
+  if (!rainS || rainS.g !== G) rainS = { g: G, wet: 0, t: G.t, pud: null, pics: null, spots: new Map() };
+  const S = rainS, w = G.weather, L = w && w.kind === 'rain' ? Math.min(1, weatherLevel(w, G.t)) : 0;
+  S.t = G.t; S.L = L;
+  S.wet = L > 0 ? Math.min(1, G.t / RAIN_SOAK) : 0;   // (a rain battle's rain never stops: wet from the battle clock, so a continued game is wet already)
+  return S;
+}
+function rainPics(S) {
+  if (S.pics) return S.pics;
+  const P = { pud: [], ring: null, drop: [], splash: [] };
+  for (let v = 0; v < 6; v++) {   // puddles: a few lobes, dark water, a lighter sheen toward the upper left, a darker wet rim
+    const W = 40, H = 28, c = mkCanvas(W, H), x = c.getContext('2d'), r = rng(9173 + v * 131);
+    const lobes = Array.from({ length: 2 + (v % 3) }, () => [W / 2 + (r() - 0.5) * 12, H / 2 + (r() - 0.5) * 6, 6 + r() * 7, 4 + r() * 4]);
+    const fill = (grow, col) => { x.fillStyle = col; for (const [a, b, rx, ry] of lobes) { x.beginPath(); x.ellipse(a, b, rx + grow, ry + grow * 0.7, 0, 0, 7); x.fill(); } };
+    fill(2.2, 'rgba(20,22,18,0.32)'); fill(0, 'rgba(46,58,66,0.86)');
+    x.globalCompositeOperation = 'source-atop';
+    const gr = x.createLinearGradient(0, 0, W, H); gr.addColorStop(0, 'rgba(190,205,215,0.42)'); gr.addColorStop(0.55, 'rgba(120,138,150,0.1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = gr; x.fillRect(0, 0, W, H);
+    P.pud.push(c);
+  }
+  { const c = mkCanvas(32, 32), x = c.getContext('2d'); x.strokeStyle = 'rgba(215,228,236,0.9)'; x.lineWidth = 2; x.beginPath(); x.arc(16, 16, 13, 0, 7); x.stroke(); P.ring = c; }
+  for (let f = 0; f < 4; f++) {   // a stream of drops (tiles down the screen), four frames of their fall
+    const c = mkCanvas(3, 48), x = c.getContext('2d'), r = rng(4421);
+    for (let i = 0; i < 12; i++) {
+      const y0 = ((i * 4 + f * 12 + r() * 2) % 48), len = 4 + r() * 4;
+      const gr = x.createLinearGradient(0, y0, 0, y0 + len); gr.addColorStop(0, 'rgba(200,215,228,0)'); gr.addColorStop(1, 'rgba(225,236,245,0.95)');
+      x.fillStyle = gr; x.fillRect(1, y0, 1, len); if (y0 + len > 48) x.fillRect(1, 0, 1, y0 + len - 48);
+    }
+    x.fillStyle = 'rgba(200,214,228,0.5)'; x.fillRect(1, 0, 1, 48);   // the thin stream joining them
+    x.fillStyle = 'rgba(160,178,196,0.22)'; x.fillRect(0, 0, 1, 48); x.fillRect(2, 0, 1, 48);   // and its spray
+    P.drop.push(c);
+  }
+  for (let f = 0; f < 3; f++) {   // a splash where it lands: droplets thrown up and out
+    const c = mkCanvas(14, 8), x = c.getContext('2d'), r = rng(77 + f);
+    x.fillStyle = 'rgba(225,236,245,0.85)';
+    for (let i = 0; i < 6; i++) { const a = Math.PI * (0.1 + 0.8 * r()), d = 2 + f * 1.6 + r() * 2; x.fillRect(Math.round(7 + Math.cos(a) * d * 1.4), Math.round(7 - Math.sin(a) * d), 1, 1); }
+    x.fillStyle = 'rgba(200,215,228,0.5)'; x.fillRect(4 - f, 7, 6 + f * 2, 1);
+    P.splash.push(c);
+  }
+  return (S.pics = P);
+}
+// Puddle spots, bucketed by cell row: [x, y, picture, size, wetness it starts at, phase].
+function puddleSpots(S) {
+  if (S.pud) return S.pud;
+  const rows = Array.from({ length: MAP }, () => []), seed = (typeof groundSeed === 'function' ? groundSeed(G) : G.seed) | 0;
+  for (let cy = 1; cy < MAP - 1; cy++) for (let cx = 1; cx < MAP - 1; cx++) {
+    const c = idx(cx, cy), t = G.terr[c];
+    if (t > 1 || (G.cliff && G.cliff[c]) || G.ore[c] || (G.ford && G.ford[c])) continue;
+    const h = hash3(cx, cy, seed + 4049), road = t === 1;
+    if (h > (road ? 0.2 : 0.045)) continue;
+    const r = rng(Math.imul(c + 1, 2654435761) ^ seed);
+    rows[cy].push([(cx + 0.2 + r() * 0.6) * CELL, (cy + 0.2 + r() * 0.6) * CELL, (r() * 6) | 0, (road ? 0.55 : 0.4) + r() * 0.45, 0.08 + r() * 0.5, r() * 10]);
+  }
+  return (S.pud = rows);
+}
+function lookPuddles(g, x0, y0, x1, y1) {
+  rainBox = [x0, y0, x1, y1];
+  if (!RAIN_FX || !g || !G || !G.weather || G.weather.kind !== 'rain') return;
+  const S = rainState();
+  if (S.wet < 0.09) return;
+  const P = rainPics(S), rows = puddleSpots(S), t = G.t, rings = S.L > 0;
+  const up = g.upright; g.upright = false; g.imageSmoothingEnabled = true;
+  let n = 0;
+  const cy0 = Math.max(0, Math.floor((y0 - 40) / CELL)), cy1 = Math.min(MAP - 1, Math.ceil((y1 + 120) / CELL));
+  for (let cy = cy0; cy <= cy1 && n < PUDDLE_MAX; cy++) for (const p of rows[cy]) {
+    if (p[0] < x0 - 30 || p[0] > x1 + 30) continue;
+    const c = idx(Math.floor(p[0] / CELL), cy);
+    if (G.block[c] || !G.seen[c]) continue;   // (a building on it, or ground not yet uncovered)
+    const k = Math.min(1, (S.wet - p[4]) / 0.3);
+    if (k <= 0) continue;
+    const sz = p[3] * (0.45 + 0.55 * k), W = 40 * sz, H = 28 * sz, [wx, wy] = hillPt(p[0], p[1]);
+    g.globalAlpha = Math.min(1, k * 1.6); g.drawImage(P.pud[p[2]], wx - W / 2, wy - H / 2, W, H);
+    if (rings && n < 300) for (let j = 0; j < 2; j++) {   // drops landing: a ring every so often, growing and fading
+      const ph = (t * (0.9 + S.L) + p[5] + j * 0.5) % 1, R = 2 + ph * 7 * sz;
+      g.globalAlpha = (1 - ph) * 0.5 * S.L; g.drawImage(P.ring, wx + (j ? 3 : -4) * sz - R, wy + (j ? -1 : 2) * sz - R * 0.7, R * 2, R * 1.4);
+    }
+    n++;
+  }
+  g.globalAlpha = 1; g.upright = up;
+}
+// Where a structure's roofs shed water, in its model's voxels (= world px from its top left): [x, y, eave z, landing z].
+function runoffSpots(type, faction) {
+  const key = type + '|' + faction, S = rainS;
+  if (S.spots.has(key)) return S.spots.get(key);
+  if (!STRUCTURES[type]) return [];   // (a village house not drawn yet: its model is registered when first drawn)
+  let out = [];
+  try {
+    const pal = palFor(faction), m = model('S' + type + pal.key, () => STRUCTURES[type](pal, faction)), top = topOf(m), W = m.w, H = m.h;
+    const T = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? -1 : top[y * W + x]);
+    const cand = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const z = T(x, y);
+      if (z < 5) continue;
+      const broad = T(x - 1, y) >= z - 2 && T(x + 1, y) >= z - 3 && T(x, y - 1) >= z - 2 && T(x - 2, y) >= z - 3 && T(x, y - 2) >= z - 3;   // a roof, not a mast or a chimney
+      if (!broad) continue;
+      const zs = T(x, y + 1), ze = T(x + 1, y);
+      if (z - zs >= 4) cand.push([x + m.x0 + 0.5, y + m.y0 + 1.2, z + 0.5, Math.max(0, zs + 1)]);
+      else if (z - ze >= 4) cand.push([x + m.x0 + 1.2, y + m.y0 + 0.5, z + 0.5, Math.max(0, ze + 1)]);
+    }
+    const r = rng(strSeed(type) ^ 0x51ed);
+    for (let i = cand.length - 1; i > 0; i--) { const j = (r() * (i + 1)) | 0; [cand[i], cand[j]] = [cand[j], cand[i]]; }
+    for (const c of cand) if (out.length < RUNOFF_SPOTS && out.every((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) > 4.5)) out.push(c);
+  } catch (_) { out = []; }
+  S.spots.set(key, out);
+  return out;
+}
+function lookRunoff(g) {
+  if (!RAIN_FX || !g || !G || !G.weather || G.weather.kind !== 'rain' || !rainBox) return;
+  const S = rainState();
+  if (S.wet < 0.12) return;
+  const P = rainPics(S), [x0, y0, x1, y1] = rainBox, t = G.t, flow = Math.min(1, (S.wet - 0.12) / 0.4) * (0.45 + 0.55 * S.L);
+  const up = g.upright; g.upright = true; g.imageSmoothingEnabled = false;
+  const shed = (e, type, faction, ox, oy, bw, bh) => {
+    if (ox > x1 + 20 || ox + bw < x0 - 20 || oy > y1 + 160 || oy + bh < y0 - 20) return;
+    const lift = gLift(ox + bw / 2, oy + bh / 2), sp = runoffSpots(type, faction);
+    g.upright = false;   // a little wet pool where each lands (on the ground, so lying flat)
+    for (const [sx, sy, z0, z1] of sp) {
+      if (z1 > 3 || (z0 - z1) * VK < 3) continue;
+      const [px, py] = liftPt(ox + sx, oy + sy + 3, lift);
+      g.globalAlpha = 0.7 * flow; g.drawImage(P.pud[(sx | 0) % 6], px - 7, py - 4, 14, 9);
+    }
+    g.upright = true;
+    sp.forEach(([sx, sy, z0, z1], i) => {
+      const len = (z0 - z1) * VK;
+      if (len < 3) return;
+      const ph = (e.id * 7 + i * 3) % 13, [wx, wy] = liftPt(ox + sx, oy + sy, lift + (z0 + z1) / 2 * VK);
+      g.globalAlpha = 0.95 * flow; g.drawImage(P.drop[(Math.floor(t * 14 + ph) % 4 + 4) % 4], wx - 1.5, wy - len / 2, 3, len);
+      const [gx, gy] = liftPt(ox + sx, oy + sy, lift + z1 * VK);
+      g.globalAlpha = flow; g.drawImage(P.splash[(Math.floor(t * 10 + ph) % 3 + 3) % 3], gx - 9, gy - 9, 18, 10);
+    });
+  };
+  for (const e of G.entities) {
+    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.camo || !G.seen[idx(e.cx, e.cy)]) continue;
+    shed(e, e.type, e.faction, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL);
+  }
+  for (const h of G.houses || []) {
+    if (!h.alive || h.cap === 0 || !G.seen[idx(h.cx, h.cy)]) continue;   // (not the fountain)
+    shed(h, h.type, 'allies', h.cx * CELL, h.cy * CELL, h.w * CELL, h.h * CELL);
+  }
+  g.globalAlpha = 1; g.upright = up; g.imageSmoothingEnabled = false;
 }

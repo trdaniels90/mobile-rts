@@ -1021,6 +1021,7 @@ function dropTreeBlocks(most = Infinity) {   // blocks no far view has used for 
 const calmFlash = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const LIGHTNING_RATE = 0.05;   // strikes a second in the heaviest rain (about one every 20 s)
 function lightningAt(w, slot) {   // [strike time within the second, or -1; and two numbers for its look]
+  if (typeof G !== 'undefined' && G && MAPS[validMap(G.mapId)].lightning === false) return null;   // (a map whose rain brings none: Heron Fen)
   let h = Math.imul((w.seed | 0) ^ 0x5bd1e995, 0x27d4eb2d) + Math.imul(slot, 0x165667b1);
   const r = rng(h ^ (h >>> 15)); r();
   const L = weatherLevel(w, slot), p = L < 0.45 ? 0 : LIGHTNING_RATE * (L - 0.45) / 0.55;

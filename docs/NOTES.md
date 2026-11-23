@@ -2475,12 +2475,29 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   dozen houses and a church), two jetties per side (bridge cells '=' out into a pool, drawn as timber decks), rowboats moored
   beside them (`boats`, prop `boat`, bobbing) and nets drying on pole frames (`racks`, prop `nets`). Their models are in art.js
   (`fishPropModel`), not models.js, so the baked sprites' hash is unchanged. Looks only (props are not sent online).
-- **Always early morning** (`daynight: true`, `clock: 0.275`): `dayPhase(t)` (art.js) gives the map's fixed hour instead of the
-  day's clock (dayNight, gl.js sunNow, look.js lookFogLevel use it): a low warm sun, amber tint, lamps faint, villagers out.
+- **Always early morning** (`daynight: true`, `clock: 0.255`; first made 0.275, owner: "a little darker so earlier in the morning"):
+  `dayPhase(t)` (art.js) gives the map's fixed hour instead of the day's clock (dayNight, gl.js sunNow use it): first light,
+  night 0.21 and warm 0.96 from dayNight, so a little darkness with lamps, windows and structures lit, an amber dawn tint, villagers out.
 - **Constant fog** (`mist: 0.65`, look.js lookFogLevel): the ground fog at that strength all battle, x0.75 in rain, thinned by
   wind gusts (to 0.6). It lies in the low ground and by water, so the plateaus stand clear above it. Looks only (sight unchanged).
   Mood `MOOD.marsh` (look.js): grey-green, low warm sun, haze.
-- **Weather**: rain in 15% of battles (`weather: { kind: 'rain', chance: 0.15 }`, with its lightning). `storms: 'rain'`
-  (world.js stormLevel): storms only in a battle with rain (on other maps they come regardless).
+- **Weather**: rain in 15% of battles (`weather: { kind: 'rain', chance: 0.15 }`). `lightning: false` (owner: "When it rains on this
+  map I don't want lighting"): art.js lightningAt gives no strikes (so no flashes, thunder or bolts: world.js lightningStrikes uses it)
+  and world.js stormLevel is 0 (no storms, their sheet lightning or bolts).
 - Checked: `node tools/sim/teams.js <repo> 1 10 marsh` (2 v 2 of computers): no errors, about 600 units by minute 8, one wave
   by minute 10, about 200 kills. Ground and crags baked (`grounds/marsh/`, `cliffs/marsh/`); preview `maps/marsh.png`.
+
+## Rain runs off roofs, puddles (after 2026.11.22.2, not released, every map with rain, both modes, looks only)
+
+- Owner, 2026-11-23 (on Heron Fen): "can we make the rain run off buildings realistically? And make small puddles". Made for every
+  battle with rain (Three Crossings, Lakeside, Crossroads Village, Heron Fen), since it is how rain looks anywhere. look.js, end of
+  file; nothing in G, nothing sent online. `?lookoff=rain` turns both off (`RAIN_FX`; not a LOOK key, which would stale the bakes).
+- Wetness (`rainState`): a rain battle's rain never stops, so the ground is soaked after `RAIN_SOAK` (75) s of battle clock.
+- **Puddles** (`lookPuddles`, from cliffItems before the fog, lying flat on the raised ground): spots picked once a battle from the
+  ground seed on open grass (4.5% of cells) and dirt tracks (20%), not on ore, cliffs or fords, not under a building, only on
+  explored ground. Each fills from its own wetness (0.08-0.58) and grows over 0.3 of it; 6 pictures (lobed dark water, a pale sky
+  sheen, a wet rim); rings from drops landing, by the rain's strength. At most `PUDDLE_MAX` 700 a frame, rings on the first 300.
+- **Runoff** (`lookRunoff`, from lookSmoke, over the units): per structure and village house on screen, `runoffSpots` (cached
+  per type) finds up to `RUNOFF_SPOTS` 16 points on the roof edges the camera sees (the south or east edge of a broad roof, a
+  drop of 4+ voxels; masts and chimneys left out), 4.5 px apart. From each, a stream of falling drops (4 frames) to the ground or
+  the lower roof below, a splash where it lands and a small wet pool on the ground. Fades in with the wetness.

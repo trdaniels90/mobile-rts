@@ -1206,9 +1206,9 @@ const MAPS = {
     theme: 'marsh',
     village: true,     // the fishing village (world.js genVillage), with rowboats by the jetties and nets drying (boats, racks)
     weather: { kind: 'rain', chance: 0.15 },   // now and then rain (art.js rollWeather)
-    storms: 'rain',    // storms (world.js stormLevel) only in a battle with rain
+    lightning: false,  // a soft rain: no lightning (art.js lightningAt) and no storms (world.js stormLevel)
     daynight: true,    // lit as a time of day (art.js dayNight) ...
-    clock: 0.275,      // ... always early morning: the clock stands still just after dawn
+    clock: 0.255,      // ... always early morning: the clock stands still at first light (lamps and windows still lit)
     mist: 0.65,        // fog in the low ground all battle long (look.js lookFogLevel), in rain too
     // A fixed layout, made by python3 tools/make-marsh-map.py (mirrored both ways, so the four starts are alike).
     square: [75,75,84,84],

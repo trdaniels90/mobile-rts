@@ -6166,7 +6166,7 @@ const STORM_FIRST = [70, 160], STORM_GAP = [160, 320], STORM_LEN = [70, 110], ST
 let stormPlan = null;
 function stormLevel(t) {
   if (!G) return 0;
-  if (MAPS[validMap(G.mapId)].storms === 'rain' && !(G.weather && G.weather.kind === 'rain')) return 0;   // (Heron Fen: only in rain)
+  if (MAPS[validMap(G.mapId)].lightning === false) return 0;   // (Heron Fen: a soft rain, no storms)
   if (!stormPlan || stormPlan.seed !== G.seed) {
     const h = Math.imul((G.seed | 0) ^ 0x2f6b1d3a, 0x9e3779b1), r = rng(h ^ (h >>> 15));
     stormPlan = { seed: G.seed, r, list: [], end: 0 };
