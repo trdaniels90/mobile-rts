@@ -46,7 +46,9 @@ BASE = (25, 25)
 RP = 22            # the plateau's radius (cells from the base); MAPS plateau.r
 EASE = 7           # the slope down from its rim; MAPS plateau.ease
 BASE_CLEAR = 14
-RAMPS = [(0, 1), (1 / math.sqrt(2), 1 / math.sqrt(2)), (1, 0)]   # toward the ally (south), the middle, the far side (east)
+RAMPS = [(0, 1), (1 / math.sqrt(2), 1 / math.sqrt(2))]   # toward the ally (south) and the middle (no ramp toward the enemy: see CHANNEL)
+CHANNEL = 73.5     # deep water from the map's edges to the island between west and east (cells from the middle line), so the
+                   # only way across is through the village (owner: with routes round the edges no fighting took place in the town)
 RAMP_W = 3.6       # half width of a ramp's gap in the cliffs
 V0 = 66.5          # the village island: cells with max(|x - C|, |y - C|) < C - V0
 SQ = 75            # the square: SQ .. N - 1 - SQ
@@ -55,9 +57,7 @@ GEMS = [(57, 57, 2.4)]
 ROADS = [   # mud causeways: [points], half width
     ([BASE, (25, 50), (22, 62), (24, C)], 1.5),          # down the ally ramp, meeting the ally's
     ([BASE, (44, 44), (V0 + 0.5, V0 + 0.5)], 1.5),       # down the middle ramp to the village
-    ([BASE, (50, 25), (64, 29), (C, 30)], 1.4),           # down the far ramp, across the north of the fen
     ([(V0 + 1, C), (36, C)], 1.4),                         # the village's west street out to the meadow
-    ([(C, V0 + 1), (C, 36)], 1.4),                         # and north into the fen
     ([(17, 58), (23, 60)], 1.1),
 ]
 POOLS = [(59.5, 72.5, 5.5, 3.8), (72.5, 59.5, 3.8, 5.5)]       # forced pools by the jetties: centre x, y, radii
@@ -88,6 +88,7 @@ def quarter(x, y):
         if x >= SQ and y >= SQ: return ','
         if lane(V0, V0 + 1.5) or lane(SQ - 2, SQ - 0.5) or x >= C - 1.6 or y >= C - 1.6: return ','
         return '.'
+    if x > CHANNEL + (noise(x, y, 3, 51) - 0.5) * 2.4 and y < V0 - 0.5: return '~'   # the channel between west and east
     for (x0, y0, x1, y1) in JETTIES:
         if x0 <= x <= x1 and y0 <= y <= y1: return '='
     for (cx, cy, rx, ry) in POOLS:
@@ -133,6 +134,14 @@ def main():
             nx, ny = x + dx, y + dy
             if 0 <= nx < N and 0 <= ny < N and (nx, ny) not in seen and walk(nx, ny): seen.add((nx, ny)); dq.append((nx, ny))
     for p in spawns + [[round(C), round(C) - 4]]: assert tuple(p) in seen, ('not reachable', p)
+    # West reaches east only through the village: with the island (and a cell of its shore) taken away, no way across.
+    seen2, dq = {(bx, by)}, deque([(bx, by)])
+    while dq:
+        x, y = dq.popleft()
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < N and 0 <= ny < N and (nx, ny) not in seen2 and walk(nx, ny) and min(q(nx), q(ny)) <= V0 - 1: seen2.add((nx, ny)); dq.append((nx, ny))
+    assert (m(bx), by) not in seen2 and (m(bx), m(by)) not in seen2, 'a way from west to east round the village'
     for y in range(N):
         for x in range(N):
             if grid[y][x] in '~f' and math.hypot(q(x) - bx, q(y) - by) < RP + 6: raise SystemExit(f'water on the slope at {x},{y}')

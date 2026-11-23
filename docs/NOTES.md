@@ -2464,8 +2464,14 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   within RP + 6 cells of a start).
 - **Plateaus** (`plateau: { r: 22, ease: 7, low: 0.2 }`, world.js makeHeights): each start's ground at HG_MAX out to `r` cells,
   down to the low ground over `ease`; the rest of the map gets `low` x the usual hills. In the layout, a ring of cliff ('#') at the
-  plateau's rim with three ramps (gaps 7 cells wide): south toward the ally, diagonally to the village, and east along the map's
-  edge toward the enemy across it. The usual high-ground rules apply (sight, reach, slope speed).
+  plateau's rim with two ramps (gaps 7 cells wide): south toward the ally and diagonally toward the village. (A third, east along
+  the map's edge, was removed with the channel below.)
+- **One way across** (`CHANNEL` in the tool; owner: "it looks like all 4 bases are connected around the edge, so ... no fighting
+  takes place in the middle town"): deep water 12 cells wide from the north and south edges to the island splits west from east,
+  so every west-east route crosses the village island (the tool asserts it: with the island taken away, no way across). Before,
+  mud causeways along the north and south edges joined the enemies' east ramps about as short as the way through the town.
+  14-minute 4-computer Hard games, units lost inside the village: seed 1000 47 of 729 (6%) before, 152 of 389 (39%) after;
+  seed 8919 50 of 604 (8%) before, 248 of 527 (47%) after (scratch tally of where ground units died). The usual high-ground rules apply (sight, reach, slope speed).
 - **The fen**: fords ('f', shallow water anyone can cross) as its shallows, deep pools ('~'), reed beds and dead woods ('T'), mud
   causeways (','). `marsh: true` keeps every ford cell (genLayoutMap otherwise turns a ford with no water just up or down stream
   into bank). `theme: 'marsh'` (art.js groundPixels): olive grass, peaty mud, murky green-brown water with a muddy rim, and the
