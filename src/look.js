@@ -885,7 +885,7 @@ function waterMasks() {
     x.putImageData(im, 0, 0); return c; };
   const crest = mkPat((i, j) => { const v = vn(i / N * 4, j / N * 8, 4, 5) * 0.7 + vn(i / N * 8, j / N * 16, 8, 6) * 0.3, f = (v * 9) % 1; return f < 0.07 ? (0.07 - f) / 0.07 * (0.4 + vn(i / N * 6, j / N * 6, 6, 7)) : 0; });
   const foam = mkPat((i, j) => { const v = vn(i / N * 8, j / N * 8, 8, 8) * 0.6 + vn(i / N * 16, j / N * 16, 16, 9) * 0.4; return S(Math.max(0, Math.min(1, (v - 0.35) / 0.3))); });
-  waterLook = { g: G, wm, sm, any, crest, foam, tmp: mkCanvas(1, 1) };
+  waterLook = { g: G, wm, sm, any, crest, foam, tmp: mkCanvas(1, 1), tmp2: mkCanvas(1, 1) };
   return waterLook;
 }
 function drawWater(g, x0, y0, x1, y1, shows) {
@@ -905,9 +905,12 @@ function drawWater(g, x0, y0, x1, y1, shows) {
   }
   x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(WORLD, Math.ceil(x1)); y1 = Math.min(WORLD, Math.ceil(y1));
   if (x1 <= x0 || y1 <= y0) return;
-  const R = 0.5, tw = Math.ceil((x1 - x0) * R), th = Math.ceil((y1 - y0) * R), T = W.tmp;
-  if (T.width < tw || T.height < th) { T.width = Math.max(T.width, tw); T.height = Math.max(T.height, th); }
-  const c = T.getContext('2d'), t = (G && G.t) || 0;
+  const R = 0.5, tw = Math.ceil((x1 - x0) * R), th = Math.ceil((y1 - y0) * R);
+  // Two canvases, ripples and foam: WebGL (gl.js) draws the frame after it is recorded, so one canvas drawn twice would show
+  // its last picture both times; and _ver goes up each frame, or WebGL keeps the texture it first made (still water).
+  for (const T of [W.tmp, W.tmp2]) { if (T.width < tw || T.height < th) { T.width = Math.max(T.width, tw); T.height = Math.max(T.height, th); } T._ver = (T._ver || 0) + 1; }
+  let T = W.tmp, c = T.getContext('2d');
+  const t = (G && G.t) || 0;
   const layer = (pat, sc, dx, dy, alpha) => {
     const P = c.createPattern(pat, 'repeat');
     P.setTransform(new DOMMatrix([sc * R, 0, 0, sc * R, (-x0 + dx) * R, (-y0 + dy) * R]));
@@ -922,6 +925,7 @@ function drawWater(g, x0, y0, x1, y1, shows) {
   mask(W.wm);
   g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.3; g.drawImage(T, 0, 0, tw, th, x0, y0, x1 - x0, y1 - y0);
   // Foam, swelling and ebbing.
+  T = W.tmp2; c = T.getContext('2d');
   c.clearRect(0, 0, tw, th);
   layer(W.foam, 1.5, Math.sin(t * 0.7) * 6, t * 3, 1);
   mask(W.sm);
