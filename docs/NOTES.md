@@ -2683,3 +2683,12 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
 - The traced layout's four bridges were 6 to 10.5 cells wide. `bridgeW: 4` on the map (maps.js) makes world.js `genLayoutMap`
   keep a band that wide along each run of deck cells' main axis (the same fit the drawing uses); the rest becomes lake. Now
   3.3 to 4.2 cells. Any layout map can take `bridgeW`. `map-check.js` passes; Lakeside's baked ground and `maps/lakes.png` redone.
+
+## Map photos: every map whole, for the owner to look for issues (2026-11-24, tools only)
+
+- Owner, 2026-11-24: "give me a way to view every map fully so i can look for issues".
+- `tools/map-photos/capture.js <repo> <out> [ids]` starts each map in headless Chromium (1800 x 1100), lifts the fog, drops
+  clouds and weather, and screenshots the battlefield at zoom 1 in a grid half a screen apart (`window.__ps.cam`).
+  `stitch.py <out> <id>` joins them (whole tiles, then each tile's middle, so the screen-tied lighting does not seam) into
+  `<id>.webp` and `<id>_small.webp`. About 2 s a tile. `viewer.html` is the page: a card per map, full-screen pinch zoom;
+  it reads `maps.json` (`[{ id, name, info, small, full }]`) beside it. Published to the owner as an artifact (see the session).
