@@ -1527,6 +1527,15 @@ function rainPics(S) {
     x.fillStyle = 'rgba(190,205,220,0.16)'; x.fillRect(1, 0, 1, 48);   // a faint trickle joining them
     P.drop.push(c);
   }
+  P.stream = [];
+  for (let f = 0; f < 4; f++) {   // a roof's runoff stream (tiles down the screen), four frames: a bright 2 px core, soft edges, pulses running down
+    const c = mkCanvas(4, 48), x = c.getContext('2d');
+    x.fillStyle = 'rgba(170,190,206,0.35)'; x.fillRect(0, 0, 4, 48);
+    x.fillStyle = 'rgba(214,228,240,0.8)'; x.fillRect(1, 0, 2, 48);
+    x.fillStyle = 'rgba(245,250,255,1)';
+    for (let i = 0; i < 4; i++) { const y0 = (i * 12 + f * 3) % 48; x.fillRect(1, y0, 2, 4); if (y0 + 4 > 48) x.fillRect(1, 0, 2, y0 + 4 - 48); }
+    P.stream.push(c);
+  }
   { const c = mkCanvas(16, 16), x = c.getContext('2d'), gr = x.createRadialGradient(8, 8, 0, 8, 8, 8);   // a soft dab of running water (rivulets)
     gr.addColorStop(0, 'rgba(52,66,76,0.9)'); gr.addColorStop(0.55, 'rgba(46,58,66,0.7)'); gr.addColorStop(1, 'rgba(40,48,52,0)'); x.fillStyle = gr; x.fillRect(0, 0, 16, 16); P.blob = c; }
   { const c = mkCanvas(2, 4), x = c.getContext('2d'); x.fillStyle = 'rgba(200,215,230,0.55)'; x.fillRect(0, 0, 2, 2); x.fillStyle = 'rgba(232,240,248,0.95)'; x.fillRect(0, 2, 2, 2); P.dot = c; }   // a drip
@@ -1603,7 +1612,10 @@ function runoffSpots(type, faction) {
     }
     const r = rng(strSeed(type) ^ 0x51ed);
     for (let i = cand.length - 1; i > 0; i--) { const j = (r() * (i + 1)) | 0; [cand[i], cand[j]] = [cand[j], cand[i]]; }
-    for (const c of cand) if (out.length < RUNOFF_SPOTS && out.every((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) > 12)) out.push(c);
+    // Eaves that drop to the ground first, then the longest falls: a step down onto a lower roof (a few px) could not be seen.
+    const fallOf = (c) => c[2] - c[3], rank = (c) => (c[3] <= 3 ? 0 : 1);
+    cand.sort((a, b) => rank(a) - rank(b) || (fallOf(b) >= 10) - (fallOf(a) >= 10));
+    for (const c of cand) if (fallOf(c) >= 6) if (out.length < RUNOFF_SPOTS && out.every((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) > 12)) out.push(c);
   } catch (_) { out = []; }
   S.spots.set(key, out);
   return out;
@@ -1627,13 +1639,21 @@ function lookRunoff(g) {
     sp.forEach(([sx, sy, z0, z1], i) => {
       const len = (z0 - z1) * VK;
       if (len < 3) return;
-      // Drips, one at a time from each spot, every `per` s (0.7-1.6, its own), falling and speeding up (fall time from the
-      // drop height), then a splash; a faint wet streak down from the eave while it runs.
-      const per = 0.7 + ((e.id * 5 + i * 11) % 10) * 0.1, fall = Math.max(0.12, Math.sqrt(len) * 0.07), u = ((t / per + (e.id * 0.37 + i * 0.61)) % 1) * per;
+      // A steady trickle from the eave to the ground (the stream pictures, flowing down), drips falling along it (two at a time
+      // from each spot, every `per` s, 0.7-1.6, its own, speeding up as they fall) and splashes where it lands. Heavier in
+      // heavier rain. (Owner, 2026-11-24, raining on Lakeside: "i dont see any run off": single 2 px drips were too faint.)
+      const per = 0.7 + ((e.id * 5 + i * 11) % 10) * 0.1, fall = Math.max(0.12, Math.sqrt(len) * 0.07), ph = e.id * 0.37 + i * 0.61;
       const [ex, ey] = liftPt(ox + sx, oy + sy, lift + z0 * VK), [gx, gy] = liftPt(ox + sx, oy + sy, lift + z1 * VK);
-      g.globalAlpha = 0.18 * flow; g.drawImage(P.drop[0], ex - 0.5, ey, 1, Math.min(4, len));   // water gathering at the eave
-      if (u < fall) { const f = (u / fall) ** 2; g.globalAlpha = 0.85 * flow; g.drawImage(P.dot, ex + (gx - ex) * f - 1, ey + (gy - ey) * f - 2, 2, 4); }
-      else if (u < fall + 0.2) g.globalAlpha = flow, g.drawImage(P.splash[Math.min(2, Math.floor((u - fall) / 0.067))], gx - 7, gy - 7, 14, 8);
+      const fr = P.stream[Math.floor(t * 16 + i) & 3], h = gy - ey;
+      g.globalAlpha = (0.7 + 0.3 * S.L) * flow;
+      for (let y = 0; y < h; y += 48) { const k = Math.min(48, h - y); g.drawImage(fr, 0, 0, 4, k, ex - 2, ey + y, 4, k); }
+      g.globalAlpha = 0.5 * flow; g.drawImage(P.dot, ex - 1.5, ey - 1, 3, 3);   // water gathering at the eave
+      for (const off of [0, 0.5]) {
+        const u = ((t / per + ph + off) % 1) * per;
+        if (u < fall) { const f = (u / fall) ** 2; g.globalAlpha = 0.95 * flow; g.drawImage(P.dot, ex + (gx - ex) * f - 1.5, ey + (gy - ey) * f - 3, 3, 6); }
+        else if (u < fall + 0.24) g.globalAlpha = flow, g.drawImage(P.splash[Math.min(2, Math.floor((u - fall) / 0.08))], gx - 10, gy - 9, 20, 11);
+      }
+      g.globalAlpha = 0.85 * flow; g.drawImage(P.splash[Math.floor(t * 10 + i * 2) % 3], gx - 8, gy - 7, 16, 9);   // the stream splashing as it lands
     });
   };
   for (const e of G.entities) {

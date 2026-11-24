@@ -1233,7 +1233,7 @@ function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {
     };
     while (P.length < want) { const p = {}; spawn(p, true); P.push(p); }
     if (P.length > want) P.length = want;
-    const paths = LAY.map(() => [new Path2D(), new Path2D()]), wet = [];
+    const paths = LAY.map(() => [[], []]), wet = [];   // (line ends, stroked on g itself: the WebGL recorder sees moveTo / lineTo on g, not a Path2D's)
     for (const p of P) {
       if (p.X === undefined) spawn(p, true);
       const sp = LAY[p.l][1];
@@ -1246,13 +1246,14 @@ function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {
       if (p.Y < vy - 40 || p.Y > vy + vh + 200) p.Y = wrap(p.Y, vy, vh + 160);
       const len = sp * 0.024, hx = p.X + slant * p.h, hy = p.Y - p.lift - p.h;   // the drop's head on the screen (view px)
       const sx = (hx - vx) * k, sy = (hy - vy) * k, dx = slant * len * k, dy = len * k;
-      paths[p.l][0].moveTo(sx + dx, sy - dy); paths[p.l][0].lineTo(sx, sy);
-      paths[p.l][1].moveTo(sx + dx * 0.35, sy - dy * 0.35); paths[p.l][1].lineTo(sx, sy);
+      paths[p.l][0].push(sx + dx, sy - dy, sx, sy);
+      paths[p.l][1].push(sx + dx * 0.35, sy - dy * 0.35, sx, sy);
     }
+    const line = (q) => { g.beginPath(); for (let j = 0; j < q.length; j += 4) { g.moveTo(q[j], q[j + 1]); g.lineTo(q[j + 2], q[j + 3]); } };
     LAY.forEach(([, , wd, ta, ha], i) => {
       g.lineWidth = Math.max(1, wd * k * 0.6);
-      g.strokeStyle = `rgba(178,196,214,${(ta * (0.6 + 0.4 * L)).toFixed(3)})`; g.stroke(paths[i][0]);
-      g.strokeStyle = `rgba(214,226,238,${(ha * (0.6 + 0.4 * L)).toFixed(3)})`; g.stroke(paths[i][1]);
+      g.strokeStyle = `rgba(178,196,214,${(ta * (0.6 + 0.4 * L)).toFixed(3)})`; line(paths[i][0]); g.stroke();
+      g.strokeStyle = `rgba(214,226,238,${(ha * (0.6 + 0.4 * L)).toFixed(3)})`; line(paths[i][1]); g.stroke();
     });
     // Splashes where drops landed: on water a ring spreading, on land a crown of droplets thrown up and a tiny ring.
     for (let i = 0; i < wet.length; i += 2) {
@@ -1260,8 +1261,8 @@ function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {
       if (typeof G !== 'undefined' && G && G.terr) { const [wx, wy] = fromView(wet[i], wet[i + 1]), cx = Math.floor(wx / CELL), cy = Math.floor(wy / CELL); water = cx >= 0 && cy >= 0 && cx < MAP && cy < MAP && G.terr[cy * MAP + cx] >= 4; }
       if (F.splash.length < 700) F.splash.push({ x: wet[i], y: wet[i + 1], t: 0, water });
     }
-    const q = Math.max(1, Math.round(k)), rings = new Path2D();
-    g.fillStyle = 'rgba(205,218,232,0.6)';
+    const q = Math.max(1, Math.round(k));
+    g.beginPath(); g.fillStyle = 'rgba(205,218,232,0.6)';
     F.splash = F.splash.filter((s) => {
       s.t += dt;
       const life = s.water ? 0.5 : 0.22;
@@ -1272,10 +1273,10 @@ function drawWeather(g, w, vx, vy, vw, vh, k, t, paused) {
         g.fillRect(Math.round(sx - r), Math.round(sy - up), q, q); g.fillRect(Math.round(sx + r), Math.round(sy - up), q, q); g.fillRect(Math.round(sx), Math.round(sy - up * 1.4), q, q);
       }
       const R = (s.water ? 1 + u * 6 : 0.5 + u * 2.5) * k;
-      rings.moveTo(sx + R, sy); rings.ellipse(sx, sy, R, R * 0.5, 0, 0, Math.PI * 2);
+      g.moveTo(sx + R, sy); g.ellipse(sx, sy, R, R * 0.5, 0, 0, Math.PI * 2);   // (on g, not a Path2D: see the drops)
       return true;
     });
-    g.strokeStyle = 'rgba(200,214,228,0.32)'; g.lineWidth = Math.max(1, k * 0.5); g.stroke(rings);
+    g.strokeStyle = 'rgba(200,214,228,0.32)'; g.lineWidth = Math.max(1, k * 0.5); g.stroke();
   } else {
     for (const p of P) {
       p.y += (26 + 44 * p.s) * dt; p.ph += dt * (0.8 + p.s);

@@ -2605,6 +2605,14 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   where a drop lands, a crown of droplets on land or a spreading ring on water. Instead of a flat dark wash: a light overcast
   heavier toward the top of the screen, and sheets of heavier rain (a soft streaky noise) sweeping across with the wind. 520
   drops at full rain on a phone-sized view (was 330 streaks). Snow is as before.
+- **Runoff made visible** (owner, 2026-11-24, raining on Lakeside: "i dont see any run off"). Two causes: `runoffSpots` picked
+  eaves at random, and most were steps onto a lower roof (a 3-7 px fall, some too short to draw): now eaves that drop to the
+  ground come first, then the longest, and a fall under 6 voxels is not used. And a 2 px drip every second or so could not be
+  seen at night: now each spot has a steady stream (`P.stream`: a bright 2 px core, soft edges, pulses running down), two drips
+  falling along it and a splash where it lands.
+- **Rain missing with WebGL** (same report: splash dots but no drops): art.js drawWeather stroked its drops and rings as
+  `Path2D` objects (since 73592b4), which gl.js's recorder cannot see (it follows moveTo / lineTo / ellipse on the context), so
+  nothing was cut out of its layer and the drops never showed. Now drawn on `g` itself, as quads (stage 5 lines and rings).
 
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 
