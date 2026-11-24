@@ -909,7 +909,10 @@ function waterMasks() {
     x.putImageData(im, 0, 0); return c; };
   const crest = mkPat((i, j) => { const v = vn(i / N * 4, j / N * 8, 4, 5) * 0.7 + vn(i / N * 8, j / N * 16, 8, 6) * 0.3, f = (v * 9) % 1; return f < 0.07 ? (0.07 - f) / 0.07 * (0.4 + vn(i / N * 6, j / N * 6, 6, 7)) : 0; });
   const foam = mkPat((i, j) => { const v = vn(i / N * 8, j / N * 8, 8, 8) * 0.6 + vn(i / N * 16, j / N * 16, 16, 9) * 0.4; return S(Math.max(0, Math.min(1, (v - 0.35) / 0.3))); });
-  waterLook = { g: G, wm, sm, any, crest, foam, tmp: mkCanvas(1, 1) };
+  // (two scratch canvases, crests and foam: WebGL uploads a picture at the end of the frame, so one canvas drawn twice
+  // would show its last content twice; _own and _ver, bumped each frame, make gl.js upload them again)
+  const tmp = () => { const c = mkCanvas(1, 1); c._own = true; c._ver = 0; return c; };
+  waterLook = { g: G, wm, sm, any, crest, foam, tmp: [tmp(), tmp()] };
   return waterLook;
 }
 function drawWater(g, x0, y0, x1, y1, shows) {
@@ -929,9 +932,10 @@ function drawWater(g, x0, y0, x1, y1, shows) {
   }
   x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(WORLD, Math.ceil(x1)); y1 = Math.min(WORLD, Math.ceil(y1));
   if (x1 <= x0 || y1 <= y0) return;
-  const R = 0.5, tw = Math.ceil((x1 - x0) * R), th = Math.ceil((y1 - y0) * R), T = W.tmp;
-  if (T.width < tw || T.height < th) { T.width = Math.max(T.width, tw); T.height = Math.max(T.height, th); }
-  const c = T.getContext('2d'), t = (G && G.t) || 0;
+  const R = 0.5, tw = Math.ceil((x1 - x0) * R), th = Math.ceil((y1 - y0) * R);
+  for (const T of W.tmp) { if (T.width < tw || T.height < th) { T.width = Math.max(T.width, tw); T.height = Math.max(T.height, th); } T._ver++; }
+  let T = W.tmp[0], c = T.getContext('2d');
+  const t = (G && G.t) || 0;
   const layer = (pat, sc, dx, dy, alpha) => {
     const P = c.createPattern(pat, 'repeat');
     P.setTransform(new DOMMatrix([sc * R, 0, 0, sc * R, (-x0 + dx) * R, (-y0 + dy) * R]));
@@ -946,6 +950,7 @@ function drawWater(g, x0, y0, x1, y1, shows) {
   mask(W.wm);
   g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.3; g.drawImage(T, 0, 0, tw, th, x0, y0, x1 - x0, y1 - y0);
   // Foam, swelling and ebbing.
+  T = W.tmp[1]; c = T.getContext('2d');
   c.clearRect(0, 0, tw, th);
   layer(W.foam, 1.5, Math.sin(t * 0.7) * 6, t * 3, 1);
   mask(W.sm);
@@ -1419,6 +1424,7 @@ function fogFrame(t) {
   pat.setTransform(new DOMMatrix([2, 0, 0, 2, (t * w.x * 0.12) / FOG_Q, (t * w.y * 0.12) / FOG_Q]));
   g.globalCompositeOperation = 'destination-in'; g.fillStyle = pat; g.fillRect(0, 0, F.N, F.N);
   g.globalCompositeOperation = 'source-over';
+  F.frame._own = true; F.frame._ver = (F.frame._ver || 0) + 1;   // (changed: gl.js uploads it again)
   return F.frame;
 }
 let fogBox = null;   // the world box on screen, from cliffItems

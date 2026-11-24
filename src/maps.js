@@ -3,6 +3,9 @@
 // To add a map: give it an entry here, then make `genMap` (world.js) lay it out when `G.mapId` is its id.
 // `teamSize` says which battles it is made for (BATTLES, battleFits): 2 for 2 v 2 and co-op, 3 for 3 v 3 too.
 // A map with `rows` is a fixed layout (`genLayoutMap`); make one from a picture with tools/map-from-image.py.
+// Owner's rules (2026-11-24): rain (`weather: { kind: 'rain', ... }`) only on the maps the owner names. Any map with rain
+// always gets the whole rain look: puddles and rivulets (look.js lookPuddles) and runoff from buildings (lookRunoff), never
+// gated per map. Every map's open water moves (look.js drawWater: waves and surf), except icy winter water and the fen's still pools.
 
 const MAPS = {
   bridge: {
@@ -1414,35 +1417,42 @@ function battleFits(mapId, mode, any = ANY_BATTLE) {
 }
 
 // Buttons for every map, the chosen one pressed (data-map holds the id). `cls` styles the group.
-// mode (optional): maps not made for that battle are shown but cannot be picked.
-function mapCardsHtml(selected, cls = '', mode = null) {
+// mode (optional): maps not made for that battle are shown but cannot be picked; with `only`, they are left out.
+// Each card names the largest battle the map is made for.
+function mapCardsHtml(selected, cls = '', mode = null, only = false) {
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  return `<div class="pick maps ${cls}" role="group" aria-label="Map">${MAP_LIST.map((id) =>
-    `<button type="button" data-map="${id}" aria-pressed="${id === selected}"${mode && !battleFits(id, mode) ? ' disabled' : ''}>${MAPS[id].img ? `<img class="map-img" src="${MAPS[id].img}" alt="" width="224" height="224">` : ''}<span>${esc(MAPS[id].name)}</span><small>${esc(MAPS[id].info)}. ${esc(MAPS[id].blurb)}</small></button>`).join('')}</div>`;
+  const ids = only && mode ? MAP_LIST.filter((id) => battleFits(id, mode)) : MAP_LIST;
+  const most = (id) => { const n = Math.max(1, ...['1v1', '2v2', '3v3'].filter((k) => battleFits(id, k)).map((k) => BATTLES[k].size)); return `${n} v ${n}`; };
+  return `<div class="pick maps ${cls}" role="group" aria-label="Map">${ids.map((id) =>
+    `<button type="button" data-map="${id}" aria-pressed="${id === selected}"${mode && !battleFits(id, mode) ? ' disabled' : ''}>${MAPS[id].img ? `<img class="map-img" src="${MAPS[id].img}" alt="" width="224" height="224">` : ''}<span>${esc(MAPS[id].name)} <em class="map-size">up to ${most(id)}</em></span><small>${esc(MAPS[id].info)}. ${esc(MAPS[id].blurb)}</small></button>`).join('')}</div>`;
 }
 
-// The skirmish map screen: MapSelect.open(selectedId, (id) => start the game).
+// The skirmish screen: MapSelect.open(selectedId, mode, setupEl, (id, mode, watch) => start the game).
+// Tabs along the top pick the battle (1 v 1, 2 v 2, 3 v 3: you and computer allies against computers) and show only
+// the maps made for it; setupEl (ui.js: the side and difficulty pickers) is put above the maps.
 const MapSelect = (() => {
   let root = null, chosen = DEFAULT_MAP, go = null, mode = '1v1';
-  // The battle: 1 v 1 against the computer, or a team battle (you and computer allies against computers),
-  // only those the chosen map is made for.
-  const modes = () => Object.keys(BATTLES).filter((k) => BATTLES[k].skirmish && battleFits(chosen, k)).map((k) => [k, BATTLES[k].skirmish]);
+  const TABS = Object.keys(BATTLES).filter((k) => BATTLES[k].skirmish);
   function render() {
-    if (!battleFits(chosen, mode)) mode = '1v1';
-    const MODES = modes();
-    root.querySelector('.map-body').innerHTML = mapCardsHtml(chosen) +
-      `<div class="on-modes" role="radiogroup" aria-label="Battle">${MODES.map(([k, l]) => `<button type="button" class="pf-btn${k === mode ? ' on-go' : ''}" role="radio" aria-checked="${k === mode}" data-mode="${k}">${l}</button>`).join('')}</div>` +
-      '<div class="on-btns"><button type="button" class="pf-btn on-go" data-map-go>Start skirmish</button>' +
-      (typeof Account !== 'undefined' && Account.owner ? ' <button type="button" class="pf-btn" data-map-watch>Watch AI vs AI · ' + battleOf(mode).label + ' (every side a computer)</button>' : '') + '</div>';
+    if (!TABS.includes(mode)) mode = '1v1';
+    if (!battleFits(chosen, mode)) chosen = MAP_LIST.find((id) => battleFits(id, mode)) || chosen;
+    root.querySelector('.fm-tabs').innerHTML = TABS.map((k) =>
+      `<button type="button" role="tab" data-mode="${k}" aria-selected="${k === mode}" aria-current="${k === mode}">${BATTLES[k].label}</button>`).join('');
+    const n = MAP_LIST.filter((id) => battleFits(id, mode)).length;
+    root.querySelector('.map-mode').textContent = `${BATTLES[mode].skirmish}: ${n} map${n === 1 ? '' : 's'}`;
+    root.querySelector('.map-body').innerHTML = mapCardsHtml(chosen, '', mode, true);
+    root.querySelector('.map-btns').innerHTML = `<button type="button" class="mm-btn mm-go" data-map-go>Start ${BATTLES[mode].label}</button>` +
+      (typeof Account !== 'undefined' && Account.owner ? '<button type="button" class="pf-btn" data-map-watch>Watch AI vs AI · ' + battleOf(mode).label + ' (every side a computer)</button>' : '');
   }
   function build() {
     root = document.createElement('div');
     root.id = 'maps';
     root.hidden = true;
-    root.innerHTML = `<div class="fm-book" role="dialog" aria-modal="true" aria-labelledby="mapTitle">
-      <header class="fm-top"><span class="fm-brand">Skirmish</span><div class="fm-tabs"></div>
+    root.innerHTML = `<div class="fm-book mm-book" role="dialog" aria-modal="true" aria-labelledby="mapTitle">
+      <header class="fm-top"><span class="fm-brand" id="mapTitle">Skirmish</span><div class="fm-tabs mm-tabs" role="tablist" aria-label="Battle"></div>
         <button type="button" class="fm-close" aria-label="Close">✕</button></header>
-      <div class="fm-page"><h2 id="mapTitle">Choose a map</h2><div class="map-body"></div></div>
+      <div class="fm-page mm-page"><div class="map-setup"></div><h3 class="map-mode"></h3><div class="map-body"></div></div>
+      <footer class="fm-foot map-btns"></footer>
     </div>`;
     document.body.appendChild(root);
     root.addEventListener('click', (e) => {
@@ -1450,14 +1460,15 @@ const MapSelect = (() => {
       const card = e.target.closest('[data-map]');
       if (card) { chosen = validMap(card.dataset.map); render(); return; }
       const m = e.target.closest('[data-mode]');
-      if (m) { mode = m.dataset.mode; render(); return; }
+      if (m) { mode = m.dataset.mode; render(); root.querySelector('.fm-page').scrollTop = 0; return; }
       if (e.target.closest('[data-map-go]')) { const f = go; close(); if (f) f(chosen, mode); }
       if (e.target.closest('[data-map-watch]')) { const f = go; close(); if (f) f(chosen, mode, true); }   // (owner only: ui.js startWatch)
     });
   }
-  function open(selected, onGo) {
+  function open(selected, selMode, setupEl, onGo) {
     if (!root) build();
-    chosen = validMap(selected); go = onGo;
+    chosen = validMap(selected); mode = selMode || '1v1'; go = onGo;
+    if (setupEl) { root.querySelector('.map-setup').appendChild(setupEl); setupEl.hidden = false; }
     render();
     root.hidden = false;
   }

@@ -66,6 +66,14 @@ share globals. Read this file first (feature notes are in `docs/NOTES.md`); the 
 7. **New scripts:** add any new script to `index.html` and to `FILES` in `sw.js`, the offline
    cache. Installed copies notice the new version and offer a restart.
 
+## Rain and water (owner's rules, 2026-11-24)
+
+- **Rain only where the owner says.** Never add `weather: { kind: 'rain' }` to a map on your own; ask.
+- **A map with rain always gets the full rain look:** puddles and rivulets (look.js `lookPuddles`) and runoff from buildings
+  (`lookRunoff`). Never gate these per map; a new rain effect goes on every rainy map.
+- **Water moves on every map** that has open water (look.js `drawWater`: waves and surf), in both renderers (WebGL and
+  `?gl=off`). Exceptions: icy winter water and Heron Fen's still pools. Details: "Rain and water rules" in `docs/NOTES.md`.
+
 ## Code map
 
 | File | What it holds |

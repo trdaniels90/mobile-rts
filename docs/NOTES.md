@@ -1582,7 +1582,8 @@ frame-time maths everywhere, so it is not deterministic.
 
 ## Rain on Lakeside, lightning (after 2026.11.15.6, not released, both modes, looks and sound only)
 
-- Lakeside has `weather: { kind: 'rain', chance: 0.5 }` (A Bridge Too Far and Twin Lakes still have none, owner's call).
+- Lakeside has `weather: { kind: 'rain', chance: 0.5 }` (A Bridge Too Far and Twin Lakes still have none, owner's call; see
+  "Rain and water rules").
 - **Lightning** in any rain (`lightning`, `lightningAt` in art.js, from `drawWeather`): each second of battle clock rolls from the weather's
   seed, so every online phone flashes together; none under level 0.45, up to `LIGHTNING_RATE` (0.05 a second) in the heaviest rain. Every strike:
   a double screen flash (skipped with prefers-reduced-motion, `calmFlash`) and `thunder` (audio.js FX: crack and a 4 s rolling rumble on a looped
@@ -2637,3 +2638,41 @@ hand-over (`air`) 20-28 ms, list ~12, trees 8-14, structures 6-11.
 - Result on the benchmark (raining, night): hand-over 68-90 -> 15 ms, list 22.6 -> 18.1, cut-out uploads 7.4% -> 0.2% of
   CPU samples. Pictures checked side by side (rain, a searchlight at night).
 - Next candidates: far trees (`tree` + isoTreeBlocks), the per-frame sort of still things (`list`), structures zoomed out.
+## Rain and water rules (owner, 2026-11-24)
+
+- Owner: "im not saying every map gets rain. only the maps i say do, however if they do get rain i want them to always get the building
+  run off and puddles, however there are maps with water on the map like river and lakes that dont have movement".
+- **Rain** only on maps the owner names (now: Three Crossings, Lakeside, Crossroads Village, Heron Fen). A rainy map always gets the
+  whole rain look (puddles, rivulets, roof runoff: look.js, gated only on `G.weather.kind === 'rain'`, never per map).
+- **Moving water** (look.js `drawWater`) on every map with open water, in both renderers; not icy winter water, not Heron Fen's still pools.
+- **Still water with WebGL** (owner: river and lakes "dont have movement"): the same cause as the stray wave lines, fixed in
+  commit 293e705 (two scratch canvases, `_ver` raised each frame). Measured over open water 1.7 s apart (scratch Playwright test,
+  default WebGL): 0-0.2% of pixels changed before, 27-38% after on A Bridge Too Far, Three Crossings, Lakeside, Twin Lakes and
+  Crossroads Village, the same as `?gl=off`.
+## Main menu as its own screen, skirmish tabs by battle size (2026-11-24, not released, looks and menus only, both modes)
+
+Owner: "build a proper main menu like the og red alert and red alert 2. dont have the battle drawn in the background. and
+have maps filtered by tabs on the top 1v1 2v2 and 3v3".
+
+- `#menu` in `index.html`: a dark backdrop of its own (`.mm-bg`: map grid, a CSS radar sweep, scan lines; all original,
+  no game art), the title on the left and a metal column of command buttons (`.mm-col`, `.mm-btn`) on the right; title
+  above the column on portrait or narrow screens. `data-view` switches the column between `main`, `options` (sound,
+  60 fps) and `info` (credits, briefing): `menuView` in `ui.js`. In a battle (`data-mode="pause"`) the backdrop is
+  see-through and dimmed over the paused battle.
+- The battle made behind the start menu is no longer drawn at all (`offstage` in `frame`), nor are the sidebar and radar.
+- The side and difficulty pickers moved to the skirmish screen: they live in `#skirmishSetup` and `MapSelect.open(map,
+  mode, setupEl, go)` puts them in its `.map-setup` slot. Online still uses the last side picked (the lobby can flip it).
+- Skirmish screen: tabs along the top (`[data-mode]`, 1 v 1, 2 v 2, 3 v 3) list only the maps `battleFits` that battle
+  (`mapCardsHtml(..., mode, only = true)`); each card says the largest battle it is made for ("up to 3 v 3"). Picking a
+  tab the chosen map does not fit selects the first map that does. Ids kept for tests: `#startBtn`, `#maps [data-mode]`,
+  `#maps [data-map]`, `#maps [data-map-go]`.
+
+## Stray white wave lines over the ground with WebGL (2026-11-24, bug fix, both modes, looks only)
+
+- Owner, 2026-11-24 (screenshot, night): "whatever that white line is gets moved around a lot whenever i zoom out or move the camera".
+- Cause: gl.js uploads a canvas to the GPU at the end of the frame, and uploads it again only when its `_ver` changes (small
+  ones go into an atlas once). look.js `drawWater` drew its wave crests and foam on one scratch canvas that never bumped
+  `_ver`, so the GPU kept the crests of an earlier camera box: bright arcs on the grass that jumped as the view moved.
+  `fogFrame`'s canvas had the same fault (the night fog never drifted).
+- Fix: `drawWater` has two scratch canvases (crests, foam), `_own` and bumped each frame; `fogFrame` bumps its canvas.
+  Rule: a canvas redrawn after its first use and drawn through gl.js needs `_own = true` and `_ver++` on every change.
