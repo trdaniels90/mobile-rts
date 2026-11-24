@@ -2638,6 +2638,12 @@ hand-over (`air`) 20-28 ms, list ~12, trees 8-14, structures 6-11.
 - Result on the benchmark (raining, night): hand-over 68-90 -> 15 ms, list 22.6 -> 18.1, cut-out uploads 7.4% -> 0.2% of
   CPU samples. Pictures checked side by side (rain, a searchlight at night).
 - Next candidates: far trees (`tree` + isoTreeBlocks), the per-frame sort of still things (`list`), structures zoomed out.
+- **Parachutes** (art.js `drawChute`, `chutePics`): the canopy with its lines and the shadow are pictures made once; as
+  paths each was cut out and uploaded every frame. Headless, 20 troopers hanging in the air: units 50 ms -> 0.3 ms a frame.
+  Owner's match 3adc0dcf (Twin Lakes, 2026.11.24, PC) had 29-34 ms of units in its slowest frames with 85-163 units in view.
+- That match also answered the GPU question: the GPU's own time averaged 0.2-1.8 ms a frame (worst 45), so the PC is not
+  GPU-bound; the drawing code on the CPU (14-17 ms a frame on average late in the game, plus 3-4 ms of simulation) is what
+  keeps it under 60. Lite light was on all game (light scale 0.25) and does little there.
 ## Rain and water rules (owner, 2026-11-24)
 
 - Owner: "im not saying every map gets rain. only the maps i say do, however if they do get rain i want them to always get the building
