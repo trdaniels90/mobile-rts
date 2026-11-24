@@ -2151,9 +2151,15 @@ function draw() {
   // ---------------------------------------------------------------------------
   // Menus
   // ---------------------------------------------------------------------------
+  // The menu's pages: main (the command buttons), options (sound, graphics), info (credits, briefing).
+  // The side and difficulty pickers live on the skirmish screen (MapSelect puts them in its setup slot).
+  const setupEl = $('skirmishSetup');
+  function menuView(v) { ui.menu.dataset.view = v; ui.menu.scrollTop = 0; }
+  for (const b of ui.menu.querySelectorAll('button[data-view]')) b.addEventListener('click', () => menuView(b.dataset.view));
   function showMenu(mode) {
     ui.menu.hidden = false;
     ui.menu.dataset.mode = mode;
+    menuView('main');
     ui.resumeBtn.hidden = mode !== 'pause';
     ui.quitBtn.hidden = mode !== 'pause';
     $('saveQuitBtn').hidden = mode !== 'pause' || !Net.canSave;
@@ -2163,7 +2169,7 @@ function draw() {
     ui.menu.dataset.mode = mode;
     if (mode === 'pause') autosave();
     showContinue();
-    if (mode === 'start') { ui.menuTitle.textContent = 'Red Horizon'; ui.menuSub.textContent = 'Choose your side, commander.'; ui.startBtn.textContent = 'Skirmish'; }
+    if (mode === 'start') { ui.menuTitle.textContent = 'Red Horizon'; ui.menuSub.textContent = 'Command awaits, commander.'; ui.startBtn.textContent = 'Skirmish'; }
     if (mode === 'pause') { ui.menuTitle.textContent = 'Paused'; ui.menuSub.textContent = 'Mission time ' + fmt(G.t); ui.startBtn.textContent = 'New skirmish'; }
     if (mode === 'pause' && Net.role) { ui.menuTitle.textContent = 'Menu'; ui.menuSub.textContent = 'Online: the battle goes on while this menu is open.'; }
     syncMenuChoices();
@@ -2195,8 +2201,8 @@ function draw() {
     $('trackName').textContent = '· ' + Sound.music.name;
     $('audioStatus').textContent = 'Sound: ' + Sound.status();
     syncFps();
-    for (const b of ui.menu.querySelectorAll('[data-faction]')) b.setAttribute('aria-pressed', String(b.dataset.faction === faction));
-    for (const b of ui.menu.querySelectorAll('[data-diff]')) b.setAttribute('aria-pressed', String(b.dataset.diff === diffKey));
+    for (const b of setupEl.querySelectorAll('[data-faction]')) b.setAttribute('aria-pressed', String(b.dataset.faction === faction));
+    for (const b of setupEl.querySelectorAll('[data-diff]')) b.setAttribute('aria-pressed', String(b.dataset.diff === diffKey));
     ui.menu.dataset.faction = faction;
   }
   const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
@@ -2222,7 +2228,7 @@ function draw() {
   });
   // Skirmish opens the map screen first; starting from there builds the battle.
   ui.startBtn.addEventListener('click', () => {
-    MapSelect.open(mapId, (id, mode, watch) => {
+    MapSelect.open(mapId, battleMode, setupEl, (id, mode, watch) => {
       mapId = id; battleMode = mode || '1v1';
       ui.startBtn.textContent = 'Loading…';
       ui.startBtn.disabled = true;
@@ -2426,8 +2432,11 @@ function draw() {
     // A battle paused under the menu (and the one behind the start menu) does not change: it is drawn once and kept on the
     // screen until the menu closes, the screen changes size or the camera moves. Redrawn every frame with WebGL, it kept
     // the owner's iPhone's graphics busy and the menus slow to answer.
-    const still = !!(G && G.paused && !Net.role && !ui.menu.hidden), key = still ? `${W}x${H}x${DPR}:${cam.x},${cam.y},${cam.z}` : null;
-    if (still && stillKey === key) { /* (the last frame stays on the screen) */ }
+    // The start menu is a screen of its own (owner, 2026-11-24: "dont have the battle drawn in the background"): the
+    // battle made behind it is not drawn at all until a game starts.
+    const offstage = !!(G && !ui.menu.hidden && ui.menu.dataset.mode === 'start');
+    const still = offstage || !!(G && G.paused && !Net.role && !ui.menu.hidden), key = still && !offstage ? `${W}x${H}x${DPR}:${cam.x},${cam.y},${cam.z}` : null;
+    if (offstage || (still && stillKey === key)) { /* (the last frame stays on the screen, or none under the start menu) */ }
     else try { if (G && Net.role !== 'guest' && !G.paused) guard('smooth', () => Smooth.apply(stepAcc / STEP)); guard('draw', draw); } finally { Smooth.restore(); }
     stillKey = key;
     // The loading screen (index.html) goes once the start menu answers: the battle behind it drawn, then 20 frames in a
