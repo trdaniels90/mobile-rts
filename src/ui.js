@@ -888,13 +888,23 @@ function draw() {
     // gl.js (stage 2): with the ground in WebGL, the list's pictures become WebGL quads (in this order, each tested against
     // the ground's depth at its base, so a hill hides what stands behind it: no reHill), the rest drawn on a layer above.
     const glList = glRec, lv = v;
+    // Crags with WebGL: a run of them in the list is drawn in screen px from one transform change (look.js drawCliffAt).
+    const fastCliff = glList && !occs, WM = fastCliff ? lv.getTransform() : null;
+    let scr = false, scrUp = false;
+    const toList = () => { if (scr) { lv.setTransform(WM); lv.upright = scrUp; scr = false; } };
     for (const e of ground) {
       if (occs) { while (oi < occs.length && occs[oi].key - 6 <= e._key) reHill(occs[oi++]); drawn.push(drawnBox(e)); }
       if (glList) GLR.listDepth(e._key + (big(e) ? 2 : e.kind === 'tree' ? 14 : e.kind === 'cliff' ? 16 : 10 + craterSink(...hillAt(e))));
+      if (fastCliff && e.kind === 'cliff') {
+        if (!scr) { scrUp = lv.upright; lv.upright = false; lv.setTransform(1, 0, 0, 1, 0, 0); scr = true; }
+        drawCliffAt(lv, e, WM); lap('bld'); continue;
+      }
+      toList();
       if (e.kind === 'tree') { drawTree(lv, e); lap('tree'); DP.nTree++; continue; }   // (lifted in drawTree)
       const [hx, hy] = hillAt(e);
       onHill(lv, hx, hy, () => drawOne(e, lv));
     }
+    toList();
     // gl.js (stage 3): the recording goes on past the list: smoke, blasts, the edge's haze, shots, effects and aircraft are
     // WebGL quads too (shots and effects tested against the ground's depth at their spot), the frame put into the view after them.
     const glDepth = glList ? (d) => GLR.listDepth(d) : () => {};

@@ -571,6 +571,20 @@ function cliffShadow(g, e) {
   g.drawImage(e.p.sh, Math.round(sx + e.p.X0), Math.round(sy + e.p.Y0));
   g.globalAlpha = 1; g.setTransform(m); g.upright = up;
 }
+// The same as onHill + drawCliff, for a run of crags in the list (ui.js, WebGL): g already in screen px (identity, not
+// upright), WM the world transform the list is drawn through. Its spot on the screen is worked out here, so a run of crags
+// costs no transform changes (zoomed out over Lakeside ~1,100 crags a frame, each with five, were most of "bld").
+function drawCliffAt(g, e, WM) {
+  const p = e.p, L = gLift(e.x, e.y);
+  if (!LIFT_V) LIFT_V = fromView(0, -1);
+  const x = e.x + (L ? LIFT_V[0] * L : 0), y = e.y + (L ? LIFT_V[1] * L : 0);
+  const sx = WM.a * x + WM.c * y + WM.e, sy = WM.b * x + WM.d * y + WM.f;
+  const a = cliffAlpha(p), ga = g.globalAlpha; if (a < 1) g.globalAlpha = ga * a;
+  const X = Math.round(sx + p.X0), Y = Math.round(sy + p.Y0);
+  if (p.sx !== undefined) g.drawImage(p.c, p.sx, p.sy, p.w, p.h, X, Y, p.w, p.h);
+  else g.drawImage(p.c, X, Y);
+  g.globalAlpha = ga;
+}
 function drawCliff(g, e) {
   const m = g.getTransform(), up = g.upright, p = e.p;
   const sx = m.a * e.x + m.c * e.y + m.e, sy = m.b * e.x + m.d * e.y + m.f;
