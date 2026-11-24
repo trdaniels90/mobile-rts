@@ -402,7 +402,49 @@ function lightTankTurret(pal) {
   return m;
 }
 // BLENDER:ltank end
+// Allied Tank Destroyer: a low tracked hull carrying a sloped armoured casemate with a long high-velocity gun and no turret
+// (`fixed`: the whole vehicle turns to aim). The casemate is drawn as the "turret" (tdTurret), which a fixed unit keeps in line
+// with the hull (u.tface follows u.face), so it gets the tank's recoil and muzzle flash for free.
+function tdHull(pal, s) {
+  const hl = Math.floor(s.len / 2), hw = Math.floor(s.wid / 2), tw = 3;
+  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 8);
+  for (const side of [-1, 1]) {                                                       // tracks, road wheels, skirts
+    const y0 = side < 0 ? -hw : hw - tw, y1 = y0 + tw, outer = side < 0 ? -hw : hw - 1;
+    m.box(-hl, y0, 0, hl, y1, 3, C.track, M_ROUGH);
+    m.clear(-hl, y0, 0, -hl + 1, y1, 1); m.clear(hl - 1, y0, 0, hl, y1, 1);
+    for (let x = -hl; x < hl; x += 2) m.box(x, y0, 2, x + 1, y1, 3, C.trackHi, M_ROUGH);
+    for (let x = -hl + 2; x < hl - 2; x += 3) m.box(x, outer, 0, x + 2, outer + 1, 2, C.wheel, M_METAL);
+    m.box(-hl + 1, y0, 3, hl - 1, y1, 4, pal.dark, M_METAL);                         // track guards
+  }
+  m.box(-hl + 1, -hw + tw, 1, hl - 1, hw - tw, 4, pal.dark, M_METAL);                 // hull body
+  m.box(-hl + 1, -hw + 1, 4, hl - 2, hw - 1, 5, pal.main, M_METAL);                   // deck
+  m.box(hl - 2, -hw + 2, 2, hl, hw - 2, 4, pal.light, M_METAL);                       // sloped glacis
+  for (let y = -hw + 3; y < hw - 3; y += 2) m.box(-hl + 1, y, 5, -hl + 4, y + 1, 6, pal.deep, M_MATTE);   // engine grille at the back
+  m.box(-hl + 4, -hw, 5, -hl + 9, -hw + 1, 6, C.oliveD);                              // tool box
+  m.box(hl - 3, -hw + 1, 4, hl - 2, -hw + 2, 5, C.glow, M_GLASS); m.box(hl - 3, hw - 2, 4, hl - 2, hw - 1, 5, C.glow, M_GLASS);   // lights
+  return m;
+}
+function tdTurret(pal, s) {
+  const reach = s.tur + s.barrel;
+  const m = new VModel(-9, -7, reach + 3, 7, 8);
+  for (let z = 0; z < 5; z++) {                                                       // the casemate: its front and sides lean in as it rises
+    const f = 5 - z * 0.8, b = -7 + z * 0.3, w = 6 - z * 0.5;
+    m.box(b, -w, z, f, w, z + 1, z === 4 ? pal.light : pal.main, M_METAL);
+  }
+  m.box(-6, -4, 4, 1, 4, 5, pal.light, M_METAL);                                      // flat roof
+  m.box(-6.5, -5, 0, -6, 5, 4, pal.dark, M_METAL);                                    // rear plate
+  m.cylZ(-3, 2.5, 5, 6, 1.4, pal.deep, M_MATTE);                                      // commander's hatch
+  m.box(-1, -3.5, 5, 1, -2, 6, '#2b3036', M_METAL);                                   // sight block
+  m.box(3, -2.5, 0, 6, 2.5, 3.5, pal.dark, M_METAL);                                  // gun mantlet
+  m.cylX(5, reach, 0, 2, 1.0, C.gun, M_METAL);                                        // the long gun
+  m.cylX(5, 9, 0, 2, 1.35, C.gun, M_METAL);                                           // thicker at the breech end
+  m.box(reach - 2, -1.6, 1, reach, 1.6, 3, C.gun, M_METAL);                           // muzzle brake
+  m.line(-6, 4.5, 4, -6, 4.5, 8, C.black);                                            // aerial
+  m.paint(-8, -7, 0, 6, 7, 6, (x, y, z, c) => (hash3(x, y, z) > 0.95 && c === rgbInt(pal.main)) ? pal.dark : undefined);
+  return m;
+}
 function tankHull(pal, s) {
+  if (s.td) return tdHull(pal, s);
   if (s.light) return lightTankHull(pal);
   if (s.grizzly) return grizzlyHull(pal, s);
   if (s.mammoth) return mammothHull(pal, s);
@@ -444,6 +486,7 @@ function teslaTurret(pal, s) {
 }
 function tankTurret(pal, s) {
   if (s.tesla) return teslaTurret(pal, s);
+  if (s.td) return tdTurret(pal, s);
   if (s.light) return lightTankTurret(pal);
   if (s.grizzly) return grizzlyTurret(pal, s);
   if (s.mammoth) return mammothTurret(pal, s);

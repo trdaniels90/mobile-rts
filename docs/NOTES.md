@@ -2707,3 +2707,17 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   bases or units and sets `G.explore` (`checkWin` stands down; every team `isAI = false`); then spectate mode (no sidebar),
   the whole map uncovered, no weather. Not saved (`mission` false), not reported. Pan, zoom and the radar work as usual;
   leave by the menu. `afterNewWorld` centres on the start position when there is no Construction Yard.
+
+## Tank Destroyer (Allies) (after 2026.11.23, not released, owner's picks for both modes; the server must match)
+
+- **Tank Destroyer** (`tdest` in UNIT_DEFS, Allies only, War Factory, `req: ['tech']`, no research): $1100, 400 health, heavy armour, speed
+  50, turn 2.6, sight 6. No turret: `fixed: true` like the Artillery, so the whole vehicle turns to aim. Gun: 90 every 2.2 s, range 150 (every
+  tank is 114-118), new warhead `TD` (infantry 0.2, light 0.9, heavy 1.0, buildings 0.4, no aircraft). Owner's pick of three proposals ("Tank
+  hunter").
+- **Looks:** models.js `tdHull` (low tracked hull, sloped glacis, engine grille) and `tdTurret` (a sloped casemate with a long gun, muzzle brake,
+  hatch). It is `draw: 'tank'` with `size.td`: the casemate is the "turret", which a fixed unit keeps in line with the hull, so recoil, muzzle
+  flash, missile marks (`isTank`) and the baked turret sprites come with it. Sprites rebaked.
+- **Computer** (ai.js): Allied vehicle picks add a Tank Destroyer once it is available, three against an armour-heavy enemy (`counter.armor`).
+- Field Manual entry (Armour). `node tools/sim/tank-destroyer.js <repo>`: locked until a Tech Center, Allies only, turns its hull to fire at
+  a tank 140 px away (out of a tank's reach), 16-28 damage to a rifleman a shot, never fires at a helicopter, and one on one from its range
+  against a live Heavy Tank ($1150) it loses by a hair (leaves it under 150 of 550 health).
