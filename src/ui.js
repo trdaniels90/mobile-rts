@@ -2182,7 +2182,7 @@ function draw() {
     ui.menu.dataset.mode = mode;
     if (mode === 'pause') autosave();
     showContinue();
-    if (mode === 'start') { ui.menuTitle.textContent = 'Red Horizon'; ui.menuSub.textContent = 'Command awaits, commander.'; ui.startBtn.textContent = 'Skirmish'; }
+    if (mode === 'start') { ui.menuTitle.textContent = 'Red Horizon'; ui.menuSub.textContent = 'Welcome back, Commander.'; ui.startBtn.textContent = 'Skirmish'; }
     if (mode === 'pause') { ui.menuTitle.textContent = 'Paused'; ui.menuSub.textContent = 'Mission time ' + fmt(G.t); ui.startBtn.textContent = 'New skirmish'; }
     if (mode === 'pause' && Net.role) { ui.menuTitle.textContent = 'Menu'; ui.menuSub.textContent = 'Online: the battle goes on while this menu is open.'; }
     syncMenuChoices();
