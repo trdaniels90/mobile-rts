@@ -511,6 +511,25 @@ function genLayoutMap(m) {
     if (!wet) fordOff.push(c);
   }
   if (!m.marsh) for (const c of fordOff) { G.ford[c] = 0; T[c] = 1; }   // (a fen's shallows stay wherever they are)
+  // Bridges no wider than m.bridgeW cells (Lakeside, owner 2026-11-24: "these two bridges are huge they need to be smaller"):
+  // each run of deck cells keeps a band that wide along its main axis (as the bridge is drawn below); the rest is lake.
+  if (m.bridgeW) {
+    const seen = new Uint8Array(NCELLS);
+    for (let c0 = 0; c0 < NCELLS; c0++) {
+      if (T[c0] !== 5 || G.ford[c0] || seen[c0]) continue;
+      const cells = [c0]; seen[c0] = 1;
+      for (let i = 0; i < cells.length; i++) for (const [dx, dy] of DIRS8) {
+        const x = cellX(cells[i]) + dx, y = cellY(cells[i]) + dy;
+        if (inMap(x, y) && T[idx(x, y)] === 5 && !G.ford[idx(x, y)] && !seen[idx(x, y)]) { seen[idx(x, y)] = 1; cells.push(idx(x, y)); }
+      }
+      const xs = cells.map(cellX), ys = cells.map(cellY), mx = xs.reduce((s, v) => s + v, 0) / xs.length, my = ys.reduce((s, v) => s + v, 0) / ys.length;
+      let sxx = 0, syy = 0, sxy = 0;
+      xs.forEach((x, i) => { sxx += (x - mx) ** 2; syy += (ys[i] - my) ** 2; sxy += (x - mx) * (ys[i] - my); });
+      const ang = Math.atan2(2 * sxy, sxx - syy) / 2, ux = Math.cos(ang), uy = Math.sin(ang);
+      const across = xs.map((x, i) => -(x - mx) * uy + (ys[i] - my) * ux), mid = (Math.max(...across) + Math.min(...across)) / 2;
+      cells.forEach((c, i) => { if (Math.abs(across[i] - mid) > m.bridgeW / 2) T[c] = 4; });
+    }
+  }
   // Ground cleared for each start position's Construction Yard.
   for (const s of G.spawns) for (let y = s.cy - 3; y <= s.cy + 3; y++) for (let x = s.cx - 3; x <= s.cx + 3; x++) {
     if (inMap(x, y) && Math.hypot(x - s.cx, y - s.cy) < 3.2 && T[idx(x, y)] <= 3) T[idx(x, y)] = 1;
