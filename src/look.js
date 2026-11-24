@@ -516,7 +516,7 @@ const cliffAlpha = (p) => { if (!p.born) return 1; const a = (performance.now() 
 function cliffItems(list, x0, y0, x1, y1, shows) {
   lookGround(lookView, x0, y0, x1, y1, shows && ((x, y) => shows(x, y, 40, 40, 40)));   // (the ground's patches and tracks first: under the cliffs' shadows)
   lookFxGround(lookView, x0, y0, x1, y1);   // lookfx.js: blasts' scorch marks and rings, and the update of its particles
-  lookPuddles(lookView, x0, y0, x1, y1);   // puddles in the rain (under the fog)
+  lookPuddles(lookView, x0, y0, x1, y1, shows && ((x, y) => shows(x, y, 60, 50, 160)));   // puddles in the rain (under the fog)
   lookFogGround(lookView, x0, y0, x1, y1);   // fog lying on the ground, under the units
   poolItems(list, x0, y0, x1, y1, shows);   // lamp posts (light pools), with their shadows
   if (!LOOK.cliffs || !G.cliff) return;
@@ -1540,20 +1540,22 @@ function puddleSpots(S) {
   }
   return (S.pud = rows);
 }
-function lookPuddles(g, x0, y0, x1, y1) {
+// shows(x, y): on the screen (ui.js onScr). The box x0..y1 is the world round a turned screen, about three times its
+// area: without it a PC zoomed out drew ~700 puddles and their rings a frame, most of them off the screen.
+function lookPuddles(g, x0, y0, x1, y1, shows) {
   rainBox = [x0, y0, x1, y1];
   if (!RAIN_FX || !g || !G || !G.weather || G.weather.kind !== 'rain') return;
   const S = rainState();
   if (S.wet < 0.09) return;
   const P = rainPics(S), rows = puddleSpots(S), t = G.t, rings = S.L > 0, grown = Math.min(1, Math.max(0, (G.t - RAIN_SOAK) / PUDDLE_GROW));
   const up = g.upright; g.upright = false; g.imageSmoothingEnabled = true;
-  rivulets(g, S, P, x0, y0, x1, y1);
+  rivulets(g, S, P, x0, y0, x1, y1, shows);
   let n = 0;
   const cy0 = Math.max(0, Math.floor((y0 - 40) / CELL)), cy1 = Math.min(MAP - 1, Math.ceil((y1 + 120) / CELL));
   for (let cy = cy0; cy <= cy1 && n < PUDDLE_MAX; cy++) for (const p of rows[cy]) {
     if (p[0] < x0 - 30 || p[0] > x1 + 30) continue;
     const c = idx(Math.floor(p[0] / CELL), cy);
-    if (G.block[c] || !G.seen[c]) continue;   // (a building on it, or ground not yet uncovered)
+    if (G.block[c] || !G.seen[c] || (shows && !shows(p[0], p[1]))) continue;   // (a building on it, ground not yet uncovered, off the screen)
     const k = Math.min(1, (S.wet - p[4]) / 0.3);
     if (k <= 0) continue;
     const sz = p[3] * (0.45 + 0.55 * k) * (1 + (p[6] - 1) * grown), W = 40 * sz, H = 28 * sz, [wx, wy] = hillPt(p[0], p[1]);
@@ -1661,7 +1663,7 @@ function rivuletPaths(S) {
   out.sort((p, q) => q.pts.length - p.pts.length);
   return (S.riv = out.slice(0, RIV_MAX));
 }
-function rivulets(g, S, P, x0, y0, x1, y1) {
+function rivulets(g, S, P, x0, y0, x1, y1, shows) {
   const run = Math.min(1, Math.max(0, (G.t - RAIN_SOAK * 0.6) / RIV_IN));
   if (run <= 0) return;
   const t = G.t;
@@ -1670,7 +1672,7 @@ function rivulets(g, S, P, x0, y0, x1, y1) {
     const pts = R.pts, n = pts.length / 2, m = Math.max(2, Math.floor(n * run));   // (it runs further down as the rain goes on)
     for (let i = 0; i < m; i++) {
       const c = idx(Math.floor(pts[i * 2] / CELL), Math.floor(pts[i * 2 + 1] / CELL));
-      if (G.block[c] || !G.seen[c]) continue;
+      if (G.block[c] || !G.seen[c] || (shows && !shows(pts[i * 2], pts[i * 2 + 1]))) continue;
       const w = 5 + 6 * (i / n);
       for (const f of i + 1 < m ? [0, 0.5] : [0]) {   // (half steps too, so the channel is unbroken)
         const [wx, wy] = hillPt(pts[i * 2] + (pts[i * 2 + 2] - pts[i * 2]) * f, pts[i * 2 + 1] + (pts[i * 2 + 3] - pts[i * 2 + 1]) * f);
