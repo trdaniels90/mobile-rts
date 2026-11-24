@@ -915,6 +915,7 @@ function waterMasks() {
   waterLook = { g: G, wm, sm, any, crest, foam, tmp: [tmp(), tmp()] };
   return waterLook;
 }
+const WATER_PX = 4.5;
 function drawWater(g, x0, y0, x1, y1, shows) {
   if (!LOOK.water || snowy() || mapTheme(G.mapId) === 'marsh') return;   // (no waves or surf on a fen's still water)
   const W = waterMasks();
@@ -932,8 +933,15 @@ function drawWater(g, x0, y0, x1, y1, shows) {
   }
   x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(WORLD, Math.ceil(x1)); y1 = Math.min(WORLD, Math.ceil(y1));
   if (x1 <= x0 || y1 <= y0) return;
-  const R = 0.5, tw = Math.ceil((x1 - x0) * R), th = Math.ceil((y1 - y0) * R);
-  for (const T of W.tmp) { if (T.width < tw || T.height < th) { T.width = Math.max(T.width, tw); T.height = Math.max(T.height, th); } T._ver++; }
+  // Resolution of the scratch canvases (px per world px): 0.5, but zoomed out on a computer no finer than a pixel per WATER_PX
+  // screen px. They are filled and uploaded to WebGL whole every frame: at 0.5, zoomed out over Twin Lakes on a 2560 x 1370
+  // screen, two of 1524 x 1296 (4 million px a frame). Phones (3x pixels) already sit above WATER_PX: unchanged.
+  const zs = (typeof window !== 'undefined' && window.__ps && window.__ps.cam ? window.__ps.cam.z : 1) * ((typeof devicePixelRatio === 'number' && devicePixelRatio) || 1);
+  const R = Math.max(0.2, Math.min(0.5, zs / WATER_PX)), tw = Math.ceil((x1 - x0) * R), th = Math.ceil((y1 - y0) * R);
+  // (sized to what is drawn, in steps of 64 px: WebGL uploads the whole canvas, so one left at its largest after zooming
+  // out stayed that size, and that costly, for the rest of the battle)
+  const cw = Math.ceil(tw / 64) * 64, ch = Math.ceil(th / 64) * 64;
+  for (const T of W.tmp) { if (T.width !== cw || T.height !== ch) { T.width = cw; T.height = ch; } T._ver++; }
   let T = W.tmp[0], c = T.getContext('2d');
   const t = (G && G.t) || 0;
   const layer = (pat, sc, dx, dy, alpha) => {
