@@ -229,6 +229,14 @@ const Report = (() => {
       if (gap > 0.1) m.long++;
       m.worst = Math.max(m.worst, gap * 1000);
       if (camJump) m.jumps++;
+      // WebGL's parts (gl.js listEnd, CPU ms: rec the frame handed over, light the light pass, over what goes over it), the
+      // GPU's own time where the browser has a timer (gl.js R.gpuMs), and the light layer's scale (gl.js lightScale).
+      if (typeof GLR === 'object' && GLR && GLR.lit && GLR.ms) {
+        const q = m.q || (m.q = { n: 0, rec: 0, light: 0, over: 0, wr: 0, wl: 0, wv: 0, gn: 0, gpu: 0, wg: 0, ls: 0 });
+        q.n++; q.rec += GLR.ms.rec; q.light += GLR.ms.light; q.over += GLR.ms.over; q.ls += GLR.lightScale || 1;
+        q.wr = Math.max(q.wr, GLR.ms.rec); q.wl = Math.max(q.wl, GLR.ms.light); q.wv = Math.max(q.wv, GLR.ms.over);
+        if (GLR.gpuMs != null) { q.gn++; q.gpu += GLR.gpuMs; q.wg = Math.max(q.wg, GLR.gpuMs); }
+      }
       if (G.ground && G.ground.missing) m.wait++;
       if (!m.units) m.units = G.entities.filter((e) => e.alive && e.kind === 'unit').length;
     } catch (_) {}
@@ -256,6 +264,7 @@ const Report = (() => {
     if (!G || !G.perf) return null;
     let sc = {};
     try { sc = { cores: navigator.hardwareConcurrency || null, w: innerWidth, h: innerHeight, dpr: devicePixelRatio || 1 }; } catch (_) {}
+    try { if (typeof GLR === 'object' && GLR && GLR.liteN) sc.liteN = GLR.liteN; } catch (_) {}   // (times gl.js went to its lighter light)
     try { sc.gl = typeof GLR === 'object' && GLR && GLR.on ? 1 : 0; if (GLR.crashed || GLR.crashedAt()) sc.glCrash = GLR.crashedAt() || 1; } catch (_) {}
     if (G.perf.load) sc.load = G.perf.load;
     if (G.perf.fzN) { sc.fzN = G.perf.fzN; sc.fzMs = G.perf.fzMs; sc.fz = G.perf.fz; }
@@ -263,7 +272,10 @@ const Report = (() => {
       worst: Math.round(m.worst), upd: +(m.upd / m.f).toFixed(1), drw: +(m.drw / m.f).toFixed(1), jumps: m.jumps, wait: m.wait, units: m.units,
       wu: Math.round(m.wu || 0), wd: Math.round(m.wd || 0), wg: Math.round(m.wg || 0), wo: Math.round(m.wo || 0), gnd: +((m.gnd || 0) / m.f).toFixed(1), tiles: m.tiles || 0, lx: m.lx || 0, lf: m.lf || [],
       gp: Math.round(m.gp || 0), gd: Math.round(m.gd || 0), gm: Math.round(m.gm || 0), gmk: m.gmk || '', blk: m.blk || 0,
-      dp: partsOf(m.dp, m.f), dw: m.dw ? { ...partsOf(m.dw, 1), t: m.dw.t } : null })) };
+      dp: partsOf(m.dp, m.f), dw: m.dw ? { ...partsOf(m.dw, 1), t: m.dw.t } : null,
+      gq: m.q && m.q.n ? { rec: +(m.q.rec / m.q.n).toFixed(1), light: +(m.q.light / m.q.n).toFixed(1), over: +(m.q.over / m.q.n).toFixed(1),
+        wr: Math.round(m.q.wr), wl: Math.round(m.q.wl), wv: Math.round(m.q.wv), ls: +(m.q.ls / m.q.n).toFixed(2),
+        gpu: m.q.gn ? +(m.q.gpu / m.q.gn).toFixed(1) : null, wg: m.q.gn ? Math.round(m.q.wg) : null } : undefined })) };
   }
   function end(won) {
     try { return finish(won ? 'win' : 'loss', G.over ? G.over.t : G.t, stats()); } catch (_) { return Promise.resolve(null); }

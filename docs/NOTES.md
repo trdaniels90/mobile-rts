@@ -2604,3 +2604,19 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   where a drop lands, a crown of droplets on land or a spreading ring on water. Instead of a flat dark wash: a light overcast
   heavier toward the top of the screen, and sheets of heavier rain (a soft streaky noise) sweeping across with the wind. 520
   drops at full rain on a phone-sized view (was 330 streaks). Snow is as before.
+
+## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
+
+- Owner's match 305e950b (Heron Fen, desktop 2560 x 1370, WebGL): 70 fps on average, no frame over 100 ms, but minutes 18, 35
+  and 43 at 39-56 fps with up to 27 ms a frame in the hand-over (`drawParts.air`: gl.js `listEnd`, the light pass and what goes
+  over it) even with ~200 trees and 48 units on screen. The frame is the view's size (zoom 1, ~960 x 510 there), and a headless
+  profile found only ~6 ms of script in it, so the GPU falling behind (or the browser waiting on it) is the likely cause.
+- **`GLR.lite`** (gl.js `liteTick`, from `listEnd`): frames averaging over `LITE_ON` 24 ms for `LITE_IN` 2 s switch it on; under
+  `LITE_OFF` 18 ms for `LITE_OUT` 8 s switch it off; coming back on within a minute of leaving doubles the wait out (to 4 min).
+  Lite: the light buffers at a quarter of the frame (`GLR.lightScale` 0.25, was always 0.5) and no side lighting from the normal
+  maps (`uNrmK` 0: 16 texture reads a pixel saved). Headless (emulated GPU): 206 frames against 157 in the same time. Looks almost
+  the same. `?gl=lite` always on, `?gl=full` never.
+- **Report** (report.js): each minute's `gq`: `rec`, `light`, `over` (listEnd's CPU ms, averages) and their worst `wr`, `wl`, `wv`;
+  `gpu` / `wg`, the GPU's own ms a frame (gl.js `R.gpuMs`, a timer query from `R.ground` to the end of `R.present`, where the
+  browser offers `EXT_disjoint_timer_query_webgl2`; null otherwise); `ls`, the light scale. `frames.liteN`: times lite came on.
+  Next match: GPU ms near or over the frame time means GPU-bound; low GPU ms with a slow hand-over means the browser or driver.

@@ -198,6 +198,7 @@ void main() {
     if (failed || R.paused || !G || !G.ground || !G.ground.gl) return false;   // (paused: tools draw a frame the 2D way to compare)
     try {
       if (!gl && !init()) return false;
+      try { gpuBegin(); } catch (_) { tq = false; }
       state(); S.frame++; R.frames++;
       // Pictures with a texture of their own (spriteTex) let it go once not drawn for TEX_IDLE ms. The game drops and
       // makes again tree blocks, crags and the like to save memory; their textures were kept for ever (a phone's 3 v 3
@@ -1253,7 +1254,7 @@ void main() {
   R.sunNow = sunNow;
   function lightPass(L) {
     if (!P3) init3();
-    const W = FW, H = FH, hw = Math.max(1, Math.round(W / 2)), hh = Math.max(1, Math.round(H / 2)), B = lightBufs(hw, hh);
+    const W = FW, H = FH, LS = R.lightScale = R.lite ? 0.25 : 0.5, hw = Math.max(1, Math.round(W * LS)), hh = Math.max(1, Math.round(H * LS)), B = lightBufs(hw, hh);
     const dnMap = !!(L && G && typeof MAPS !== 'undefined' && MAPS[validMap(G.mapId)].daynight), DN = dnMap ? dayNight(G.t) : { night: 0, warm: 0 };
     const look = !!(L && typeof LOOK !== 'undefined' && LOOK.light && (!dnMap || LOOK.mood) && typeof lookDayLights === 'function');
     const nightArg = dnMap ? DN.night : undefined, dn = nightArg === undefined ? 1 : 1 - nightArg, nightOn = !!L && dnMap && DN.night >= 0.01;
@@ -1287,7 +1288,7 @@ void main() {
     bind('uScene', SC.c, 0); bind('uNrm', SC.n, 1); bind('uSh', B.b[0].t, 2); bind('uGlow', B.b[1].t, 3); bind('uWarm', B.b[2].t, 4); bind('uPool', B.b[3].t, 5); bind('uCloud', cloudT || R.none, 6);
     gl.uniform2f(loc3.uSize, W, H); gl.uniform2f(loc3.uHalf, hw, hh);
     gl.uniform2f(loc3.uOrg, L ? L.vx : 0, L ? L.vy : 0); gl.uniform2f(loc3.uCam, L ? L.cam[0] : 0, L ? L.cam[1] : 0); gl.uniform2f(loc3.uScr, L ? L.sw : W, L ? L.sh : H);
-    gl.uniform1f(loc3.uLook, look ? 1 : 0); gl.uniform1f(loc3.uT, G ? G.t : 0); gl.uniform1f(loc3.uNrmK, L ? R.nrmK : 0);
+    gl.uniform1f(loc3.uLook, look ? 1 : 0); gl.uniform1f(loc3.uT, G ? G.t : 0); gl.uniform1f(loc3.uNrmK, L && !R.lite ? R.nrmK : 0);
     const SUN = L && dnMap && R.sun ? sunNow(G.t) : null;
     gl.uniform1f(loc3.uSunK, SUN ? 1 : 0);
     if (SUN) {
@@ -1352,6 +1353,7 @@ void main() { o = texture(uLit, vUV); }`;
       gl.bindBuffer(gl.ARRAY_BUFFER, R.unit); gl.enableVertexAttribArray(loc4.aQ); gl.vertexAttribPointer(loc4.aQ, 2, gl.FLOAT, false, 8, 0);
       gl.drawArrays(gl.TRIANGLES, 0, 6); R.calls++;
       gl.bindSampler(0, null); sync('wPres');
+      try { gpuEnd(); } catch (_) {}
       if (!live) note('drawing ' + cv.width + 'x' + cv.height);
       R.markLive();
       return true;
@@ -1363,6 +1365,27 @@ void main() { o = texture(uLit, vUV); }`;
   // ground and everything on it, wLight: the light pass, wOver: weather and HUD over the light, wPres: onto the screen).
   // A freeze that shows in none of them happened after the frame was handed over (putting it on the screen).
   const px1 = new Uint8Array(4);
+  // The GPU's own time for a frame (match reports, report.js): a timer query from R.ground to the end of R.present, where
+  // the browser offers one (EXT_disjoint_timer_query_webgl2; most computers, rarely phones). Read a few frames later,
+  // when it is ready: R.gpuMs, the latest frame's ms (null where there is no timer). Results from a frame the GPU was
+  // interrupted in (disjoint) are dropped.
+  let tq = null, tqOn = null; const tqWait = [];
+  R.gpuMs = null;
+  function gpuBegin() {
+    if (tq === null) tq = gl.getExtension('EXT_disjoint_timer_query_webgl2') || false;
+    if (!tq) return;
+    if (tqOn) gpuEnd();
+    for (let i = 0; i < tqWait.length; i++) {
+      const q = tqWait[i];
+      if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) continue;
+      const disjoint = gl.getParameter(tq.GPU_DISJOINT_EXT);
+      if (!disjoint) R.gpuMs = gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6;
+      gl.deleteQuery(q); tqWait.splice(i--, 1);
+    }
+    if (tqWait.length > 6) return;   // (none read back for a while: skip this frame)
+    tqOn = gl.createQuery(); gl.beginQuery(tq.TIME_ELAPSED_EXT, tqOn);
+  }
+  function gpuEnd() { if (!tqOn) return; gl.endQuery(tq.TIME_ELAPSED_EXT); tqWait.push(tqOn); tqOn = null; }
   function sync(k) {
     if (!R.probe || !R.ev) return;
     const a = performance.now();
@@ -1370,9 +1393,29 @@ void main() { o = texture(uLit, vUV); }`;
     R.ev[k || 'wPre'] = (R.ev[k || 'wPre'] || 0) + performance.now() - a;
   }
   R.hide = () => { if (cv && !cv.style.display) cv.style.display = 'none'; };   // (a frame drawn the 2D way: the page's canvas covers it all)
+  // Lighter light when frames run slow (owner, 2026-11-24, after slow minutes on a desktop: 27 ms frames in the hand-over
+  // with little on screen, so the GPU falling behind): R.lite draws the light buffers at a quarter of the frame (instead of
+  // a half) and leaves out the sides lit by the normal maps (16 texture reads a pixel). On when frames average over
+  // LITE_ON ms for LITE_IN s, off again after LITE_OUT s under LITE_OFF ms; going back in soon after leaving doubles the
+  // next wait out (up to 4 minutes), so it does not switch back and forth. ?gl=full: never; ?gl=lite: always.
+  const LITE_ON = 24, LITE_OFF = 18, LITE_IN = 2, LITE_OUT = 8;
+  const liteQ = /[?&]gl=(full|lite)\b/.exec(q);
+  R.lite = !!liteQ && liteQ[1] === 'lite'; R.liteN = 0;
+  let liteAt = 0, liteEma = 16, liteSince = 0, liteOut = LITE_OUT, liteLeft = -1e9;
+  function liteTick(now) {
+    const gap = liteAt ? now - liteAt : 16; liteAt = now;
+    if (liteQ || gap > 250) return;   // (a pause or the app put away: not a slow frame)
+    liteEma += (gap - liteEma) * 0.1;
+    const want = R.lite ? liteEma < LITE_OFF : liteEma > LITE_ON;
+    if (!want) { liteSince = now; return; }
+    if (now - liteSince < (R.lite ? liteOut : LITE_IN) * 1000) return;
+    R.lite = !R.lite; liteSince = now;
+    if (R.lite) { R.liteN++; liteOut = now - liteLeft < 60000 ? Math.min(240, liteOut * 2) : LITE_OUT; } else liteLeft = now;
+  }
   R.listEnd = (v, L) => {
     if (!rec) return;
     try {
+      liteTick(performance.now());
       R.calls = 0; R.quads = 0; R.bitRows = 0;
       sync(null);
       const t0 = performance.now();
