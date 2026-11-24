@@ -4,6 +4,23 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.24.1', date: '24 November 2026', title: 'Tank Destroyer, new main menu, smoother on PC', groups: [
+    ['New', [
+      'Allied Tank Destroyer: built at the War Factory once you have a Tech Center ($1100). No turret, so the whole vehicle turns to aim, but its long gun out-ranges every tank and hits armour hard. Weak against soldiers and buildings, and it cannot shoot at aircraft.',
+      'Explore a map: from the map screen, walk over any battlefield with no bases, no enemies and no fog of war, to learn the ground.',
+      'A new main menu on a screen of its own. Side and difficulty are now picked on the skirmish screen, where the maps sit under 1v1, 2v2 and 3v3 tabs.',
+    ]],
+    ['Improved', [
+      'Smoother on computers, especially zoomed out and late in big battles: water, rain, puddles, night searchlights and cliffs all cost far less to draw.',
+      'Paratrooper drops no longer slow the game down while the parachutes are in the air.',
+    ]],
+    ['Changed', [
+      'Lakeside: the bridges are narrower, about 4 cells wide.',
+    ]],
+    ['Fixed', [
+      'Water ripples and foam move again (they were frozen), and stray white wave lines no longer drift over the grass.',
+    ]],
+  ] },
   { v: '2026.11.24', date: '24 November 2026', title: 'Planes break apart, Heron Fen at night', groups: [
     ['Improved', [
       'A jet that hits the ground and bounces now breaks apart: wings, tail, body sections and burning engines tumble on with its speed, and the wreck burns where it hit.',
