@@ -1494,7 +1494,9 @@ function lookFogOver(g) {
 const RAIN_FX = !(typeof location !== 'undefined' && /[?&]lookoff=[^&]*\brain\b/.test(location.search));
 const PUDDLE_BIG = 0.22, PUDDLE_GROW = 240;   // share of puddles that keep growing, and over how many seconds after the soak
 const RIV_MAX = 140, RIV_STEP = 6, RIV_IN = 45;   // rivulets: at most, step (world px), seconds after the soak to run fully
-const PUDDLE_MAX = 700, RUNOFF_SPOTS = 5, RAIN_SOAK = 75;   // RAIN_SOAK: seconds of rain until the ground is soaked
+const PUDDLE_MAX = 700, RUNOFF_SPOTS = 3, RAIN_SOAK = 75;   // RAIN_SOAK: seconds of rain until the ground is soaked
+// RUNOFF_GAP: px between two streams off one structure (was 12: the war factory ran four across its front, a curtain of water)
+const RUNOFF_GAP = 26;
 let rainS = null, rainBox = null;
 function rainState() {
   if (!rainS || rainS.g !== G) rainS = { g: G, wet: 0, t: G.t, pud: null, pics: null, spots: new Map() };
@@ -1615,7 +1617,7 @@ function runoffSpots(type, faction) {
     // Eaves that drop to the ground first, then the longest falls: a step down onto a lower roof (a few px) could not be seen.
     const fallOf = (c) => c[2] - c[3], rank = (c) => (c[3] <= 3 ? 0 : 1);
     cand.sort((a, b) => rank(a) - rank(b) || (fallOf(b) >= 10) - (fallOf(a) >= 10));
-    for (const c of cand) if (fallOf(c) >= 6) if (out.length < RUNOFF_SPOTS && out.every((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) > 12)) out.push(c);
+    for (const c of cand) if (fallOf(c) >= 6) if (out.length < RUNOFF_SPOTS && out.every((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) > RUNOFF_GAP)) out.push(c);
   } catch (_) { out = []; }
   S.spots.set(key, out);
   return out;

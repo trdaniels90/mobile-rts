@@ -2610,6 +2610,10 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   ground come first, then the longest, and a fall under 6 voxels is not used. And a 2 px drip every second or so could not be
   seen at night: now each spot has a steady stream (`P.stream`: a bright 2 px core, soft edges, pulses running down), two drips
   falling along it and a splash where it lands.
+- **Too much runoff off the war factory** (owner, 2026-11-24, screenshot by a PRIMARY factory: "its getting allot of extra
+  rain"): spots only 12 px apart let four full-height streams run down the factory's front, a curtain of water. Now at most
+  `RUNOFF_SPOTS` 3 a structure, `RUNOFF_GAP` 26 px apart: the factory sheds from its two front corners and one back eave,
+  barracks one stream, refinery and power plant 2-3.
 - **Rain missing with WebGL** (same report: splash dots but no drops): art.js drawWeather stroked its drops and rings as
   `Path2D` objects (since 73592b4), which gl.js's recorder cannot see (it follows moveTo / lineTo / ellipse on the context), so
   nothing was cut out of its layer and the drops never showed. Now drawn on `g` itself, as quads (stage 5 lines and rings).
