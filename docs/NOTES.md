@@ -2759,3 +2759,18 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
 - Field Manual entry (Armour). `node tools/sim/tank-destroyer.js <repo>`: locked until a Tech Center, Allies only, turns its hull to fire at
   a tank 140 px away (out of a tank's reach), 16-28 damage to a rifleman a shot, never fires at a helicopter, and one on one from its range
   against a live Heavy Tank ($1150) it loses by a hair (leaves it under 150 of 550 health).
+
+## Lakeside: high ground over the north-middle ore field (2026-11-24, not released, both modes; the server must match)
+
+- Owner (with a picture of the rock ring with woods in the ore field at about 103,69): "this needs to be raised up with a way
+  up overlooking all the ore around it as an advantage area ... expand that plateau area flatten it out some, add the trees
+  scattered on top as well, a ramp access on the back so units and buildings can be built on top of it".
+- Layout (`tools/lakes-mesa.py <repo>`, run once on the rows): open flat top within 9.5 cells of (103, 69) with trees scattered on it
+  (a few small clumps and singles, about 1 cell in 5), a cliff rim out to 11.6, a gap 7 cells wide on the north (the back,
+  away from the camera, toward the north bases) with a dirt ramp 8 cells long. The 274 ore cells it covered were put back
+  as a ring round its foot (nearest open grass first), so the field holds as much ore.
+- Heights: `MAPS.lakes.mesas` (world.js makeHeights; any map can use it): HG_MAX on top, falling over `ease` (3) past the
+  rim, and down the ramp over `rampLen`. The usual high-ground rules apply (+2 sight, longer reach down, shorter up, slow
+  climb). It is closer to the north team's bases (the map is not mirrored there; the south has no twin).
+- `map-check.js`: OK (the top is reached by the ramp; every start and ore cell reachable). Ground and crags rebaked, preview
+  redrawn. Saves of a Lakeside battle keep the layout they were made with.

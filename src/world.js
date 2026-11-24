@@ -201,6 +201,7 @@ function makeHeights(mapId) {
   // A map with `plateau` (Heron Fen): every base on a high plateau, flat out to r cells, falling to the low ground over
   // ease (its cliffs and ramps are in the layout); the low ground only gentle swells (low x the usual hills).
   const pl = MAPS[validMap(mapId)].plateau;
+  const mesas = MAPS[validMap(mapId)].mesas || [];
   for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
     const c = y * MAP + x;
     let v = raw(x + 0.5, y + 0.5);
@@ -208,6 +209,13 @@ function makeHeights(mapId) {
       v *= pl.low;
       for (const p of sp) { const d = Math.hypot(x - p.cx, y - p.cy); v = Math.max(v, HG_MAX * (1 - S(Math.max(0, Math.min(1, (d - pl.r) / pl.ease))))); }
     } else for (const [fx, fy, fh] of flat) { const d = Math.hypot(x + 0.5 - fx, y + 0.5 - fy); if (d < BASE_FLAT + BASE_EASE) { const k = S(Math.max(0, Math.min(1, (d - BASE_FLAT) / BASE_EASE))); v = fh + (v - fh) * k; } }
+    for (const m of mesas) {   // a map's `mesas`: high ground ringed by cliff, with a ramp (Lakeside)
+      const dx = x + 0.5 - m.x, dy = y + 0.5 - m.y, d = Math.hypot(dx, dy);
+      v = Math.max(v, HG_MAX * (1 - S(Math.max(0, Math.min(1, (d - m.r) / m.ease)))));
+      const along = dx * m.ramp[0] + dy * m.ramp[1], across = Math.abs(-dx * m.ramp[1] + dy * m.ramp[0]);
+      if (along > 0) v = Math.max(v, HG_MAX * (1 - S(Math.max(0, Math.min(1, (along - m.top) / m.rampLen))))
+        * (1 - S(Math.max(0, Math.min(1, (across - m.rampW) / 2)))));
+    }
     v *= S(Math.min(1, (wd[c] === 255 ? 6 : wd[c]) / 5));   // down to the water's edge
     h[c] = G.terr[c] >= 4 ? 0 : v;
   }
