@@ -28,7 +28,8 @@ let hooks = { eva() {}, evaFor() {}, gameOver() {}, sfx() {}, shake() {} };
 // sides (optional, for team games): one entry per side, { faction, ally, ai, name }. Sides with the
 // same `ally` fight together and share what they have uncovered (their G.fog entries are one array).
 // Without it: the classic 1 v 1, this device's side (me) against the computer (or, pvp, a person).
-function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId = DEFAULT_MAP, sides = null) {
+// empty: the map explorer (ui.js startExplore): no starting bases or units, and no battle to win or lose (G.explore).
+function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId = DEFAULT_MAP, sides = null, empty = false) {
   seed = seed || (Math.random() * 1e9) | 0;
   mapId = validMap(mapId);
   setMapSize(mapSize(mapId));
@@ -89,7 +90,8 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
   newGround(G);
   G.weather = rollWeather(mapId, seed);   // rain or snow for this battle, or none (looks only; art.js drawWeather)
 
-  for (const team of G.teams) {
+  if (empty) { G.explore = true; for (const t of G.teams) t.isAI = false; }
+  else for (const team of G.teams) {
     const b = addBuilding('cy', team, team.start.cx - 1, team.start.cy - 1);
     b.buildT = 1;
     const a = Math.atan2(MID - team.start.cy, MID - team.start.cx);   // out toward the middle
@@ -6030,7 +6032,7 @@ function logWave(team, big) {
 // A side with nothing left to fight with is out (`out`); the battle ends when only one alliance has a
 // side still in it. The winner is that alliance's `ally` number (in a 1 v 1, the same as its side).
 function checkWin() {
-  if (G.over) return;
+  if (G.over || G.explore) return;   // (the map explorer: nobody to win or lose)
   for (const t of G.teams) if (!t.out && !inTheFight(t.id)) {
     t.out = true; startWipe(t);
     if (teamGame()) for (const o of G.teams) if (o !== t && !o.out) say(o.id, alliedSides(o.id, t.id) ? 'Ally defeated' : 'Enemy defeated');

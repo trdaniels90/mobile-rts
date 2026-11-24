@@ -1199,6 +1199,7 @@ function aiThink(team) {
     const opts = team.faction === 'allies' ? (anti ? ['mtank', 'mtank', 'ranger', 'ranger', 'ltank'] : ['ltank', 'mtank', 'mtank', 'ranger'])
       : (anti ? ['htank', 'mammoth', 'mammoth', 'htank'] : ['htank', 'htank', 'htank', 'mammoth']);
     if (available(team, 'ttank')) opts.push('ttank', 'ttank');                    // after the Tesla program (Tech Center upgrade)
+    if (available(team, 'tdest')) opts.push('tdest', ...((team.counter || {}).armor ? ['tdest', 'tdest'] : []));   // Tank Destroyers (Allies, Tech Center): more against tanks
     // APCs (every personality, every difficulty): a few to carry infantry into the fight (aiApcs).
     const apcT = team.faction === 'allies' ? 'apc' : 'btr';
     if (available(team, apcT) && (c[apcT] || 0) + vq.filter((i) => i.type === apcT).length < (team.style === 'raider' ? APC_MAX + 1 : APC_MAX)) opts.push(apcT);

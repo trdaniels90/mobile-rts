@@ -86,6 +86,7 @@ const WARHEADS = {
   HF:    { inf: 0.15, light: 0.9, heavy: 1.0,  bld: 0.7, air: 1.0 },   // Hellfire: a tank killer, wasted on infantry
   CG:    { inf: 1.0, light: 0.8,  heavy: 0.2,  bld: 0.25, air: 0.6 },  // the Comanche's 20 mm chain gun: infantry and light vehicles, little against tanks
   SN:    { inf: 1.0, light: 0.1,  heavy: 0.03, bld: 0.03, air: 0 },    // the Sniper's rifle: one man at a time, next to nothing against armour
+  TD:    { inf: 0.2, light: 0.9,  heavy: 1.0,  bld: 0.4, air: 0 },     // the Tank Destroyer's high-velocity gun: armour piercing, wasted on soldiers and walls
 };
 
 // cls: inf | veh | air.  cat: which sidebar tab builds it.  speed in px/s, sight in cells.
@@ -185,6 +186,13 @@ const UNIT_DEFS = {
     name: 'Tesla Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', upgrade: 'teslatank', factions: ['soviets'], draw: 'tank',
     cost: 1350, hp: 450, armor: 'light', speed: 50, turn: 3, sight: 6, r: 9, size: { len: 21, wid: 15, tur: 5, barrel: 0, tesla: true, tz: 5 },
     weapon: { dmg: 75, rof: 2.4, range: 140, wh: 'TESLA', proj: 'tesla' },
+  },
+  // Tank Destroyer (Allies, War Factory with a Tech Center; owner's pick for both modes): a turretless tank hunter. No turret, so
+  // the whole vehicle turns to aim (`fixed`, like the Artillery); its long gun out-ranges every tank (150 against 114-118).
+  tdest: {
+    name: 'Tank Destroyer', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['tech'], factions: ['allies'], draw: 'tank', fixed: true,
+    cost: 1100, hp: 400, armor: 'heavy', speed: 50, turn: 2.6, sight: 6, r: 9, size: { len: 22, wid: 15, tur: 4, barrel: 14, td: true, tz: 5 },
+    weapon: { dmg: 90, rof: 2.2, range: 150, wh: 'TD', proj: 'shell' },
   },
   mammoth: {
     name: 'Mammoth Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['tech'], factions: ['soviets'], draw: 'tank',

@@ -1443,6 +1443,7 @@ const MapSelect = (() => {
     root.querySelector('.map-mode').textContent = `${BATTLES[mode].skirmish}: ${n} map${n === 1 ? '' : 's'}`;
     root.querySelector('.map-body').innerHTML = mapCardsHtml(chosen, '', mode, true);
     root.querySelector('.map-btns').innerHTML = `<button type="button" class="mm-btn mm-go" data-map-go>Start ${BATTLES[mode].label}</button>` +
+      '<button type="button" class="pf-btn" data-map-explore>Explore this map · empty, no fog of war</button>' +
       (typeof Account !== 'undefined' && Account.owner ? '<button type="button" class="pf-btn" data-map-watch>Watch AI vs AI · ' + battleOf(mode).label + ' (every side a computer)</button>' : '');
   }
   function build() {
@@ -1463,6 +1464,7 @@ const MapSelect = (() => {
       const m = e.target.closest('[data-mode]');
       if (m) { mode = m.dataset.mode; render(); root.querySelector('.fm-page').scrollTop = 0; return; }
       if (e.target.closest('[data-map-go]')) { const f = go; close(); if (f) f(chosen, mode); }
+      if (e.target.closest('[data-map-explore]')) { const f = go; close(); if (f) f(chosen, mode, 'explore'); }   // (ui.js startExplore)
       if (e.target.closest('[data-map-watch]')) { const f = go; close(); if (f) f(chosen, mode, true); }   // (owner only: ui.js startWatch)
     });
   }
