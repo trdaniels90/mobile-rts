@@ -4,6 +4,18 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.24', date: '24 November 2026', title: 'Planes break apart, Heron Fen at night', groups: [
+    ['Improved', [
+      'A jet that hits the ground and bounces now breaks apart: wings, tail, body sections and burning engines tumble on with its speed, and the wreck burns where it hit.',
+      'Smoother in big battles: when frames start to slow down, the lighting switches to a lighter version for a while (it looks almost the same), then back to full once things are smooth again.',
+    ]],
+    ['Changed', [
+      'Heron Fen is now always night instead of early morning: much darker, with the lamps, windows and fires lighting the fen.',
+    ]],
+    ['Fixed', [
+      'Ore Trucks you send to a field now keep working that field until it is completely empty, instead of moving to another field when it runs low.',
+    ]],
+  ] },
   { v: '2026.11.23.1', date: '23 November 2026', title: 'Specialist, aircraft crashes in 3D', groups: [
     ['New', [
       'Specialist, for both sides: a commando trained at the Barracks once you have a Tech Center ($1200, up to 2 at a time). He carries an assault rifle. Send him at an enemy building and he plants a charge, moves off, and 5 seconds later the building is destroyed. The building flashes red while the charge counts down.',
