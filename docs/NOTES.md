@@ -2698,3 +2698,12 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   `stitch.py <out> <id>` joins them (whole tiles, then each tile's middle, so the screen-tied lighting does not seam) into
   `<id>.webp` and `<id>_small.webp`. About 2 s a tile. `viewer.html` is the page: a card per map, full-screen pinch zoom;
   it reads `maps.json` (`[{ id, name, info, small, full }]`) beside it. Published to the owner as an artifact (see the session).
+
+## Explore a map: empty, no fog of war (2026-11-24, not released, menus only)
+
+- Owner, 2026-11-24: "give me a option in the game to load into a empty map with no fog of war and view each map that way".
+- Skirmish map screen: **Explore this map · empty, no fog of war** (everyone sees it; `data-map-explore` in maps.js), for the
+  map picked under the tab. ui.js `startExplore`: `newWorld(..., sides = null, empty = true)` (world.js) places no starting
+  bases or units and sets `G.explore` (`checkWin` stands down; every team `isAI = false`); then spectate mode (no sidebar),
+  the whole map uncovered, no weather. Not saved (`mission` false), not reported. Pan, zoom and the radar work as usual;
+  leave by the menu. `afterNewWorld` centres on the start position when there is no Construction Yard.

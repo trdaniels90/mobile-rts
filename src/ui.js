@@ -441,7 +441,7 @@
     if (giveEl) giveEl.hidden = true;
     layout();
     if (resumed) return;
-    const cy = G.entities.find((e) => e.team === G.me && e.type === 'cy');
+    const cy = G.entities.find((e) => e.team === G.me && e.type === 'cy') || { x: (G.teams[G.me].start.cx + 0.5) * CELL, y: (G.teams[G.me].start.cy + 0.5) * CELL };   // (the map explorer: no base, its start)
     cam.z = Math.max(1, Math.min(2.5, Math.round((W / (CELL * 18)) * 4) / 4));
     centerOn(cy.x + 40, cy.y - 30);
   }
@@ -500,6 +500,19 @@
   }
   // Watch AI vs AI (the owner's tool for tuning maps, 2026-11-21): every side a computer, the whole map shown, the
   // controls hidden, nothing reported or saved (the saved skirmish is kept). Speed in the Options menu.
+  // Explore a map (owner, 2026-11-24: "an option in the game to load into an empty map with no fog of war"): the map
+  // screen's Explore button. No bases, units or computer players, the whole map uncovered, no weather; nothing saved or
+  // reported. Look round with the usual camera; the menu's Quit leaves it.
+  function startExplore() {
+    Net.leave();
+    if (mission) Report.quit();
+    newWorld(faction, diffKey, undefined, 0, false, mapId, null, true);
+    online = null; mission = false;
+    G.spectate = true; G.mapViewUsed = true; G.speed = 1; G.weather = null;
+    G.seen = new Uint8Array(NCELLS).fill(1); for (const f of G.fog) f.fill(1);
+    afterNewWorld(faction);
+    Sound.newMatch();
+  }
   function startWatch() {
     Net.leave();
     if (mission) Report.quit();
@@ -2234,7 +2247,7 @@ function draw() {
       ui.startBtn.disabled = true;
       setTimeout(() => {
         endPlace();
-        if (watch && Account.owner) startWatch(); else startMission();
+        if (watch === 'explore') startExplore(); else if (watch && Account.owner) startWatch(); else startMission();
         ui.startBtn.disabled = false;
         hideMenu();
         if (!G.spectate) eva('Select a structure to build');
