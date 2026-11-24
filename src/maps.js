@@ -425,6 +425,7 @@ const MAPS = {
     blurb: 'A big island of lakes for 3 v 3. The north fights the south round the lakes in the middle: four bridges cross them, and narrow land joins the flanks. Every base has ore of its own, with gems behind each and out by the lakes. Some battles are fought in a thunderstorm.',
     info: '192 × 192 cells · 6 start positions · made for 3 v 3',
     bridge: 'concrete',   // concrete bridges (art.js concreteBridge)
+    bridgeW: 4,   // its traced bridges (6 to 10 cells wide) trimmed to 4 across (world.js genLayoutMap; owner, 2026-11-24)
     weather: { kind: 'rain', chance: 0.5 },   // rolled per battle (rollWeather in art.js); looks only. Rain brings lightning (drawWeather)
     size: 192,   // cells a side: the design at twice its size (96 design cells, so each is 2 x 2 game cells; 96 until 2026.11.14.5, which ran out of ore)
     // The north (start positions 0-2) against the south (3-5); the design's two middle starts were removed (owner's call). Nearly symmetric by a half turn, so each start has a

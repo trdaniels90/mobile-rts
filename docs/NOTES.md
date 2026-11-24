@@ -2660,3 +2660,10 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   `fogFrame`'s canvas had the same fault (the night fog never drifted).
 - Fix: `drawWater` has two scratch canvases (crests, foam), `_own` and bumped each frame; `fogFrame` bumps its canvas.
   Rule: a canvas redrawn after its first use and drawn through gl.js needs `_own = true` and `_ver++` on every change.
+
+## Lakeside's bridges narrowed to 4 cells (2026-11-24, not released, both modes; the server must match)
+
+- Owner, 2026-11-24 (screenshot of Lakeside): "these two bridges are huge they need to be smaller"; picked about 4 cells, both modes.
+- The traced layout's four bridges were 6 to 10.5 cells wide. `bridgeW: 4` on the map (maps.js) makes world.js `genLayoutMap`
+  keep a band that wide along each run of deck cells' main axis (the same fit the drawing uses); the rest becomes lake. Now
+  3.3 to 4.2 cells. Any layout map can take `bridgeW`. `map-check.js` passes; Lakeside's baked ground and `maps/lakes.png` redone.
