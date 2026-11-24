@@ -2644,6 +2644,17 @@ hand-over (`air`) 20-28 ms, list ~12, trees 8-14, structures 6-11.
 - That match also answered the GPU question: the GPU's own time averaged 0.2-1.8 ms a frame (worst 45), so the PC is not
   GPU-bound; the drawing code on the CPU (14-17 ms a frame on average late in the game, plus 3-4 ms of simulation) is what
   keeps it under 60. Lite light was on all game (light scale 0.25) and does little there.
+- **Zoomed out** (owner: "keep going on the zoomed out slowdown"; benchmark on Twin Lakes, 4 computers, 14 min, zoom 0.75,
+  2560 x 1370-like): a third of the drawing was WebGL re-uploading pictures that change every frame (gl.js `spriteTex`), ~4
+  million px a frame, nearly all the water's two scratch canvases (look.js drawWater, 1524 x 1296 each, and never shrunk).
+  - drawWater: resolution `min(0.5, zoom x devicePixelRatio / WATER_PX)` (WATER_PX 4.5, at least 0.2), so on a computer zoomed
+    out a canvas px covers about 4.5 screen px (phones at 3x pixels unchanged; at 2x pixels fully zoomed out slightly
+    coarser); canvases sized to what is drawn (64 px steps); refilled only when the battle clock has moved a step (1/30 s)
+    or the box changed, else drawn as they are (headless small window: 73 refills in 152 frames). ~1.4 million px a refill.
+  - lookPuddles and rivulets take `shows` (ui.js onScr, 160 px below for hills' lift): only puddles and rivulet steps on the
+    screen are drawn, not all ~700 in the turned screen's box.
+  - Profile share of the frame's drawing: spriteTex 14.4% -> 4.6% of all samples, cliffItems (puddles inside) 5.8 -> 2.7,
+    the whole draw 23.5 -> 14.5. Pictures compared (lake water zoomed out): the same.
 ## Rain and water rules (owner, 2026-11-24)
 
 - Owner: "im not saying every map gets rain. only the maps i say do, however if they do get rain i want them to always get the building

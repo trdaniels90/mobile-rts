@@ -941,9 +941,13 @@ function drawWater(g, x0, y0, x1, y1, shows) {
   // (sized to what is drawn, in steps of 64 px: WebGL uploads the whole canvas, so one left at its largest after zooming
   // out stayed that size, and that costly, for the rest of the battle)
   const cw = Math.ceil(tw / 64) * 64, ch = Math.ceil(th / 64) * 64;
-  for (const T of W.tmp) { if (T.width !== cw || T.height !== ch) { T.width = cw; T.height = ch; } T._ver++; }
-  let T = W.tmp[0], c = T.getContext('2d');
   const t = (G && G.t) || 0;
+  // Filled again only when the battle's clock has moved on a step (1/30 s, as the battle is stepped) or the box has changed:
+  // in between the canvases (and WebGL's copies of them) are drawn as they are. At 60 frames a second that halves the cost,
+  // at 120 it quarters it; the ripples move a few px a second.
+  const key = x0 + ',' + y0 + ',' + x1 + ',' + y1 + ',' + R, fresh = W.key !== key || !(t >= W.t && t - W.t < 1 / 30);
+  if (fresh) { W.key = key; W.t = t; for (const T of W.tmp) { if (T.width !== cw || T.height !== ch) { T.width = cw; T.height = ch; } T._ver++; } }
+  let T = W.tmp[0], c = T.getContext('2d');
   const layer = (pat, sc, dx, dy, alpha) => {
     const P = c.createPattern(pat, 'repeat');
     P.setTransform(new DOMMatrix([sc * R, 0, 0, sc * R, (-x0 + dx) * R, (-y0 + dy) * R]));
@@ -953,15 +957,11 @@ function drawWater(g, x0, y0, x1, y1, shows) {
     c.drawImage(m, x0 / WATER_Q, y0 / WATER_Q, (x1 - x0) / WATER_Q, (y1 - y0) / WATER_Q, 0, 0, (x1 - x0) * R, (y1 - y0) * R); c.globalCompositeOperation = 'source-over'; };
   g.save(); g.imageSmoothingEnabled = true;
   // Ripples.
-  c.clearRect(0, 0, tw, th);
-  layer(W.crest, 3, t * 7, t * 2.5, 0.8); layer(W.crest, 2.2, -t * 5, t * 4, 0.55);
-  mask(W.wm);
+  if (fresh) { c.clearRect(0, 0, tw, th); layer(W.crest, 3, t * 7, t * 2.5, 0.8); layer(W.crest, 2.2, -t * 5, t * 4, 0.55); mask(W.wm); }
   g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.3; g.drawImage(T, 0, 0, tw, th, x0, y0, x1 - x0, y1 - y0);
   // Foam, swelling and ebbing.
   T = W.tmp[1]; c = T.getContext('2d');
-  c.clearRect(0, 0, tw, th);
-  layer(W.foam, 1.5, Math.sin(t * 0.7) * 6, t * 3, 1);
-  mask(W.sm);
+  if (fresh) { c.clearRect(0, 0, tw, th); layer(W.foam, 1.5, Math.sin(t * 0.7) * 6, t * 3, 1); mask(W.sm); }
   g.globalCompositeOperation = 'source-over'; g.globalAlpha = 0.45 + 0.25 * Math.sin(t * 1.3); g.drawImage(T, 0, 0, tw, th, x0, y0, x1 - x0, y1 - y0);
   g.restore();
 }
