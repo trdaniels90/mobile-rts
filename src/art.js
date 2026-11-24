@@ -2021,24 +2021,36 @@ function drawUnitBody(g, u, t) {
 }
 
 // Paratrooper on the way down: shadow on the ground, swaying canopy above.
+// Parachutes: the canopy with its lines and the shadow are pictures made once (chutePics), drawn as images. As paths
+// (ellipses, strokes) every one was cut out of WebGL's 2D layer and uploaded each frame: 20 troopers in the air cost
+// ~50 ms a frame (owner's match 3adc0dcf: 29-34 ms frames in units during drops).
+let chutePicsC = null;
+function chutePics() {
+  if (chutePicsC) return chutePicsC;
+  // Canopy: drawn as before about (x, cy) = (12, 8) in its picture; the lines run down to y - 18 = cy + 13.
+  const can = mkCanvas(24, 23), c = can.getContext('2d'), x = 12, cy = 8, y = cy + 31;
+  c.strokeStyle = '#2a2620'; c.lineWidth = 0.8;
+  c.beginPath();
+  for (const dx of [-9, -4, 4, 9]) { c.moveTo(x + dx, cy + 1); c.lineTo(x + dx * 0.15, y - 18); }
+  c.stroke();
+  c.fillStyle = '#d9d2bc';
+  c.beginPath(); c.ellipse(x, cy, 10, 7, 0, Math.PI, 0); c.fill();
+  c.fillStyle = '#a69d82';
+  c.beginPath(); c.ellipse(x, cy, 10, 2, 0, 0, Math.PI); c.fill();
+  c.fillRect(x - 1, cy - 7, 2, 7);
+  // Shadow: an ellipse 12 x 6 (x INF_SCALE) on the ground, at 4 px a unit so it stays round when zoomed in.
+  const Q = 4, sw = Math.ceil(12 * INF_SCALE * Q), sh = Math.ceil(6 * INF_SCALE * Q), sc = mkCanvas(sw, sh), s2 = sc.getContext('2d');
+  s2.fillStyle = 'rgba(0,0,0,0.25)'; s2.beginPath(); s2.ellipse(sw / 2, sh / 2, sw / 2, sh / 2, 0, 0, 7); s2.fill();
+  return (chutePicsC = { can, cx: x, cy, shadow: sc, sw: sw / Q, sh: sh / Q });
+}
 function drawChute(g, u, pal, t) {
-  const h = u.chute * 26, sway = Math.sin(t * 2.4 + u.id) * 2, [wx, wy] = liftPt(u.x, u.y, h);
-  g.fillStyle = 'rgba(0,0,0,0.25)';
-  g.beginPath(); g.ellipse(u.x, u.y, 6 * INF_SCALE, 3 * INF_SCALE, 0, 0, 7); g.fill();
+  const h = u.chute * 26, sway = Math.sin(t * 2.4 + u.id) * 2, [wx, wy] = liftPt(u.x, u.y, h), P = chutePics();
+  { const up = g.upright; g.upright = false; g.drawImage(P.shadow, u.x - P.sw / 2, u.y - P.sh / 2, P.sw, P.sh); g.upright = up; }   // (flat on the ground, as the path was)
   blit(g, infSprite(u, pal, 0), wx + sway, wy);
   // The canopy and lines, upright on the screen above him (the iso view: drawn in screen pixels from his spot).
   const m = g.getTransform(), x = Math.round(m.a * wx + m.c * wy + m.e) + sway, y = Math.round(m.b * wx + m.d * wy + m.f);
   g.save(); g.setTransform(1, 0, 0, 1, 0, 0); const up = g.upright; g.upright = false;
-  const cy = y - 31;
-  g.strokeStyle = '#2a2620'; g.lineWidth = 0.8;
-  g.beginPath();
-  for (const dx of [-9, -4, 4, 9]) { g.moveTo(x + dx, cy + 1); g.lineTo(x + dx * 0.15, y - 18); }
-  g.stroke();
-  g.fillStyle = '#d9d2bc';
-  g.beginPath(); g.ellipse(x, cy, 10, 7, 0, Math.PI, 0); g.fill();
-  g.fillStyle = '#a69d82';
-  g.beginPath(); g.ellipse(x, cy, 10, 2, 0, 0, Math.PI); g.fill();
-  g.fillRect(Math.round(x - 1), Math.round(cy - 7), 2, 7);
+  g.drawImage(P.can, x - P.cx, y - 31 - P.cy);
   g.upright = up; g.restore();
 }
 
