@@ -3,14 +3,18 @@
 // To add a map: give it an entry here, then make `genMap` (world.js) lay it out when `G.mapId` is its id.
 // `teamSize` says which battles it is made for (BATTLES, battleFits): 2 for 2 v 2 and co-op, 3 for 3 v 3 too.
 // A map with `rows` is a fixed layout (`genLayoutMap`); make one from a picture with tools/map-from-image.py.
+// Owner's rule (2026-11-24): every map gets the weather and water its theme allows. A summer or marsh map has
+// `weather: { kind: 'rain', ... }` (rain, puddles, runoff, lightning) and the waves and surf on its water (look.js drawWater);
+// a winter map has snow instead and icy water. A new map must follow this unless the owner says otherwise.
 
 const MAPS = {
   bridge: {
     name: 'A Bridge Too Far',
     img: 'maps/bridge.png',   // from tools/make-map-previews.js
-    blurb: 'An island split by two long lakes. Fight over the central road, the timber bridges or round the lake ends.',
+    blurb: 'An island split by two long lakes. Fight over the central road, the timber bridges or round the lake ends. Some battles are fought in the rain.',
     info: '144 × 144 cells · 8 start positions',
     teamSize: 2,   // the largest alliance it is made for (see BATTLES): 1 v 1, 2 v 2 and co-op
+    weather: { kind: 'rain', chance: 0.5 },   // as every non-winter map: rain with lightning in half the battles (art.js rollWeather)
   },
   river: {
     name: 'Three Crossings',
@@ -633,7 +637,7 @@ const MAPS = {
   twinlakes: {
     name: 'Twin Lakes',
     img: 'maps/twinlakes.png',
-    blurb: 'Two long lakes cut the island from corner to corner. The north-east fights the south-west over a neck of ore-rich land in the middle and a long bridge at either end, each resting on a small island. Big ore fields lie in both far corners.',
+    blurb: 'Two long lakes cut the island from corner to corner. The north-east fights the south-west over a neck of ore-rich land in the middle and a long bridge at either end, each resting on a small island. Big ore fields lie in both far corners. Some battles are fought in the rain.',
     info: '132 × 132 cells · 4 start positions · made for 2 v 2',
     size: 132,   // cells a side (setMapSize); the 75-cell design at 1.76
     breakable: true,   // its bridge spans can be destroyed and rebuilt (world.js addSpan)
@@ -642,6 +646,7 @@ const MAPS = {
     // (newWorld): a 1 v 1 starts one player on each. (The tool lists starts west first; they are reordered here.)
     teams: [[0, 1], [2, 3]],
     teamSize: 2,
+    weather: { kind: 'rain', chance: 0.5 },   // as every non-winter map: rain with lightning in half the battles (art.js rollWeather)
     // A fixed layout, traced from a design supplied by JGFortanelli (maps/designs/twinlakes.png) by
     // python3 tools/map-from-image.py maps/designs/twinlakes.png 75 132 --bridge 8,11,11,17 --bridge 8,23,11,29 --bridge 58,43,61,49 --bridge 58,60,61,63
     // Gem fields [x, y, radius]: one beside each start position (same order as spawns).

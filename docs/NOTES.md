@@ -1582,7 +1582,8 @@ frame-time maths everywhere, so it is not deterministic.
 
 ## Rain on Lakeside, lightning (after 2026.11.15.6, not released, both modes, looks and sound only)
 
-- Lakeside has `weather: { kind: 'rain', chance: 0.5 }` (A Bridge Too Far and Twin Lakes still have none, owner's call).
+- Lakeside has `weather: { kind: 'rain', chance: 0.5 }` (A Bridge Too Far and Twin Lakes had none at first; since 2026-11-24 every
+  non-winter map has rain, see "Rain and water on every map").
 - **Lightning** in any rain (`lightning`, `lightningAt` in art.js, from `drawWeather`): each second of battle clock rolls from the weather's
   seed, so every online phone flashes together; none under level 0.45, up to `LIGHTNING_RATE` (0.05 a second) in the heaviest rain. Every strike:
   a double screen flash (skipped with prefers-reduced-motion, `calmFlash`) and `thunder` (audio.js FX: crack and a 4 s rolling rumble on a looped
@@ -2620,3 +2621,15 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   `gpu` / `wg`, the GPU's own ms a frame (gl.js `R.gpuMs`, a timer query from `R.ground` to the end of `R.present`, where the
   browser offers `EXT_disjoint_timer_query_webgl2`; null otherwise); `ls`, the light scale. `frames.liteN`: times lite came on.
   Next match: GPU ms near or over the frame time means GPU-bound; low GPU ms with a slow hand-over means the browser or driver.
+
+## Rain and water on every map (2026-11-24, not released, both modes; the server must match)
+
+- Owner, 2026-11-24: "the new rain effect and water/ocean effects need to be on all maps that allow it. and save that info going forward".
+  Standing rule (also in CLAUDE.md and the head of `src/maps.js`): every map, new ones too, gets the weather and water its theme allows.
+- **Rain** (`weather: { kind: 'rain', chance: 0.5 }`): added to A Bridge Too Far and Twin Lakes, so all six non-winter maps have it
+  (Three Crossings, Lakeside, Crossroads Village, Twin Lakes, A Bridge Too Far at 0.5; Heron Fen 0.15 and `lightning: false`, the owner's
+  soft fen rain). It brings the falling drops, splashes and rings on water, puddles and rivulets, roof runoff, and lightning. Landing
+  bolts (world.js `lightningStrikes`) are gameplay, so a server must run the same version. Their blurbs say "Some battles are fought in the rain."
+- **Water** (look.js `drawWater`: wave crests and surf): already on every summer map; not on winter maps (Snowbound, Frostlight Valley:
+  icy water, with snow as their weather) nor on Heron Fen's still fen water (made without waves, owner's design).
+

@@ -66,6 +66,13 @@ share globals. Read this file first (feature notes are in `docs/NOTES.md`); the 
 7. **New scripts:** add any new script to `index.html` and to `FILES` in `sw.js`, the offline
    cache. Installed copies notice the new version and offer a restart.
 
+## Weather and water on every map (owner's rule, 2026-11-24)
+
+Every map gets the weather and water effects its theme allows, new maps included: a summer or marsh map has rain
+(`weather: { kind: 'rain', chance }` in `src/maps.js`: rain, puddles, roof runoff, lightning unless `lightning: false`) and the
+waves and surf on its water (look.js `drawWater`); a winter map has snow and icy water instead. When a new effect of this kind is
+made, put it on every map that allows it, not only the one it was asked for on. Details: "Rain and water on every map" in `docs/NOTES.md`.
+
 ## Code map
 
 | File | What it holds |
