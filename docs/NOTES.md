@@ -2618,6 +2618,10 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   ground come first, then the longest, and a fall under 6 voxels is not used. And a 2 px drip every second or so could not be
   seen at night: now each spot has a steady stream (`P.stream`: a bright 2 px core, soft edges, pulses running down), two drips
   falling along it and a splash where it lands.
+- **Too much runoff off the war factory** (owner, 2026-11-24, screenshot by a PRIMARY factory: "its getting allot of extra
+  rain"): spots only 12 px apart let four full-height streams run down the factory's front, a curtain of water. Now at most
+  `RUNOFF_SPOTS` 3 a structure, `RUNOFF_GAP` 26 px apart: the factory sheds from its two front corners and one back eave,
+  barracks one stream, refinery and power plant 2-3.
 - **Rain missing with WebGL** (same report: splash dots but no drops): art.js drawWeather stroked its drops and rings as
   `Path2D` objects (since 73592b4), which gl.js's recorder cannot see (it follows moveTo / lineTo / ellipse on the context), so
   nothing was cut out of its layer and the drops never showed. Now drawn on `g` itself, as quads (stage 5 lines and rings).
@@ -2671,6 +2675,21 @@ hand-over (`air`) 20-28 ms, list ~12, trees 8-14, structures 6-11.
     screen are drawn, not all ~700 in the turned screen's box.
   - Profile share of the frame's drawing: spriteTex 14.4% -> 4.6% of all samples, cliffItems (puddles inside) 5.8 -> 2.7,
     the whole draw 23.5 -> 14.5. Pictures compared (lake water zoomed out): the same.
+- **Structures and sorting** (owner: "keep going on buildings and sorting"; after 2026.11.24.1). Benchmark now served over
+  http (`python3 -m http.server`: from file:// the baked crags fail to load and are made live, ~9 a frame, which misled the
+  first measurements), the scene frozen (`G.paused` after the fast-forward) so runs repeat, rain forced on or off.
+  - The sort itself is cheap (~0.4 ms; keys and the near-structure fix ~0.4 more). "list" was the work done before it.
+  - "bld" zoomed out over Lakeside was mostly **crags** (~1,100 a frame), not structures (drawStructure ~0.1% of samples):
+    each went through onHill + drawCliff, five transform changes. With WebGL (and no `occs`), ui.js draws a run of crags in
+    screen px from one transform change, the spot worked out in look.js `drawCliffAt`. 13.5-14 -> 4.4-5.4 ms; pixel-compared
+    in one frozen scene: the same.
+  - **Rivulets** in the rain were ~17 ms of "list" (a dab per half step, hundreds of thousands of px). Zoomed out (under
+    `RIV_ZS` 2 screen px per world px) a rivulet that has run its full length is one picture (`rivPic`, `RIV_Q` 0.5 px per world
+    px, its own texture), made again when one of its cells is uncovered or built on; at most `RIV_PICS` (200, phones 40),
+    least lately drawn dropped. Glints and end pools stay live. list with rain 22.1 -> 8.3 ms; compared with live drawing:
+    at most 3 levels apart.
+  - Left in a frozen zoomed-out Lakeside scene: list ~4-8, bld ~4-7, trees ~2-4, units ~1-3 ms; "gnd" (20-38 here) is the
+    software GPU and the resident ground being built, not comparable to a real PC (owner's reports: 1.3-7).
 ## Rain and water rules (owner, 2026-11-24)
 
 - Owner: "im not saying every map gets rain. only the maps i say do, however if they do get rain i want them to always get the building
@@ -2748,3 +2767,18 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
 - Field Manual entry (Armour). `node tools/sim/tank-destroyer.js <repo>`: locked until a Tech Center, Allies only, turns its hull to fire at
   a tank 140 px away (out of a tank's reach), 16-28 damage to a rifleman a shot, never fires at a helicopter, and one on one from its range
   against a live Heavy Tank ($1150) it loses by a hair (leaves it under 150 of 550 health).
+
+## Lakeside: high ground over the north-middle ore field (2026-11-24, not released, both modes; the server must match)
+
+- Owner (with a picture of the rock ring with woods in the ore field at about 103,69): "this needs to be raised up with a way
+  up overlooking all the ore around it as an advantage area ... expand that plateau area flatten it out some, add the trees
+  scattered on top as well, a ramp access on the back so units and buildings can be built on top of it".
+- Layout (`tools/lakes-mesa.py <repo>`, run once on the rows): open flat top within 9.5 cells of (103, 69) with trees scattered on it
+  (a few small clumps and singles, about 1 cell in 5), a cliff rim out to 11.6, a gap 7 cells wide on the north (the back,
+  away from the camera, toward the north bases) with a dirt ramp 8 cells long. The 274 ore cells it covered were put back
+  as a ring round its foot (nearest open grass first), so the field holds as much ore.
+- Heights: `MAPS.lakes.mesas` (world.js makeHeights; any map can use it): HG_MAX on top, falling over `ease` (3) past the
+  rim, and down the ramp over `rampLen`. The usual high-ground rules apply (+2 sight, longer reach down, shorter up, slow
+  climb). It is closer to the north team's bases (the map is not mirrored there; the south has no twin).
+- `map-check.js`: OK (the top is reached by the ramp; every start and ore cell reachable). Ground and crags rebaked, preview
+  redrawn. Saves of a Lakeside battle keep the layout they were made with.
