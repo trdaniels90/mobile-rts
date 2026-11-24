@@ -2655,6 +2655,21 @@ hand-over (`air`) 20-28 ms, list ~12, trees 8-14, structures 6-11.
     screen are drawn, not all ~700 in the turned screen's box.
   - Profile share of the frame's drawing: spriteTex 14.4% -> 4.6% of all samples, cliffItems (puddles inside) 5.8 -> 2.7,
     the whole draw 23.5 -> 14.5. Pictures compared (lake water zoomed out): the same.
+- **Structures and sorting** (owner: "keep going on buildings and sorting"; after 2026.11.24.1). Benchmark now served over
+  http (`python3 -m http.server`: from file:// the baked crags fail to load and are made live, ~9 a frame, which misled the
+  first measurements), the scene frozen (`G.paused` after the fast-forward) so runs repeat, rain forced on or off.
+  - The sort itself is cheap (~0.4 ms; keys and the near-structure fix ~0.4 more). "list" was the work done before it.
+  - "bld" zoomed out over Lakeside was mostly **crags** (~1,100 a frame), not structures (drawStructure ~0.1% of samples):
+    each went through onHill + drawCliff, five transform changes. With WebGL (and no `occs`), ui.js draws a run of crags in
+    screen px from one transform change, the spot worked out in look.js `drawCliffAt`. 13.5-14 -> 4.4-5.4 ms; pixel-compared
+    in one frozen scene: the same.
+  - **Rivulets** in the rain were ~17 ms of "list" (a dab per half step, hundreds of thousands of px). Zoomed out (under
+    `RIV_ZS` 2 screen px per world px) a rivulet that has run its full length is one picture (`rivPic`, `RIV_Q` 0.5 px per world
+    px, its own texture), made again when one of its cells is uncovered or built on; at most `RIV_PICS` (200, phones 40),
+    least lately drawn dropped. Glints and end pools stay live. list with rain 22.1 -> 8.3 ms; compared with live drawing:
+    at most 3 levels apart.
+  - Left in a frozen zoomed-out Lakeside scene: list ~4-8, bld ~4-7, trees ~2-4, units ~1-3 ms; "gnd" (20-38 here) is the
+    software GPU and the resident ground being built, not comparable to a real PC (owner's reports: 1.3-7).
 ## Rain and water rules (owner, 2026-11-24)
 
 - Owner: "im not saying every map gets rain. only the maps i say do, however if they do get rain i want them to always get the building

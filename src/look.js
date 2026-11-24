@@ -1677,14 +1677,52 @@ function rivuletPaths(S) {
   out.sort((p, q) => q.pts.length - p.pts.length);
   return (S.riv = out.slice(0, RIV_MAX));
 }
+// Zoomed out (under RIV_ZS screen px per world px), a rivulet that has run its full length is one picture (rivPic) instead of
+// a dab per half step: on a PC zoomed out over Lakeside in the rain, ~17 ms a frame went on the dabs.
+const RIV_ZS = 2, RIV_Q = 0.5, RIV_PICS = typeof GROUND_ROOMY !== 'undefined' && !GROUND_ROOMY ? 40 : 200;
+function lookZoomPx() { return (typeof window !== 'undefined' && window.__ps && window.__ps.cam ? window.__ps.cam.z : 1) * ((typeof devicePixelRatio === 'number' && devicePixelRatio) || 1); }
+// The channel's dabs drawn once into a picture at RIV_Q px per world px (in the raised ground's world coordinates), made
+// again when a cell of it is uncovered or built on (sig). Kept for up to RIV_PICS rivulets, the least lately drawn dropped.
+function rivPic(R, P, S) {
+  const pts = R.pts, n = pts.length / 2;
+  let sig = 0;
+  for (let i = 0; i < n; i++) { const c = idx(Math.floor(pts[i * 2] / CELL), Math.floor(pts[i * 2 + 1] / CELL)); if (G.block[c] || !G.seen[c]) sig = (Math.imul(sig, 31) + i + 1) | 0; }
+  const M = S.rivPics || (S.rivPics = new Map());
+  let e = M.get(R);
+  if (e && e.sig === sig) { M.delete(R); M.set(R, e); return e; }   // (to the end: most lately drawn)
+  const dabs = [];
+  let a = Infinity, b = Infinity, A = -Infinity, B = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const c = idx(Math.floor(pts[i * 2] / CELL), Math.floor(pts[i * 2 + 1] / CELL));
+    if (G.block[c] || !G.seen[c]) continue;
+    const w = 5 + 6 * (i / n);
+    for (const f of i + 1 < n ? [0, 0.5] : [0]) {
+      const [wx, wy] = hillPt(pts[i * 2] + (pts[i * 2 + 2] - pts[i * 2]) * f, pts[i * 2 + 1] + (pts[i * 2 + 3] - pts[i * 2 + 1]) * f);
+      dabs.push(wx, wy, w);
+      a = Math.min(a, wx - w / 2); b = Math.min(b, wy - w / 2); A = Math.max(A, wx + w / 2); B = Math.max(B, wy + w / 2);
+    }
+  }
+  if (!dabs.length) { e = { sig, c: null }; M.set(R, e); return e; }
+  const cw = Math.max(1, Math.ceil((A - a) * RIV_Q) + 2), ch = Math.max(1, Math.ceil((B - b) * RIV_Q) + 2);
+  const c = (e && e.c) || mkCanvas(cw, ch);
+  if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; } else c.getContext('2d').clearRect(0, 0, cw, ch);
+  const x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.globalAlpha = 0.5;
+  for (let i = 0; i < dabs.length; i += 3) { const w = dabs[i + 2]; x.drawImage(P.blob, (dabs[i] - w / 2 - a) * RIV_Q + 1, (dabs[i + 1] - w / 2 - b) * RIV_Q + 1, w * RIV_Q, w * RIV_Q); }
+  c._own = true; c._ver = (c._ver || 0) + 1;   // (gl.js: a texture of its own, uploaded again only when made again)
+  e = { sig, c, x: a - 1 / RIV_Q, y: b - 1 / RIV_Q, w: cw / RIV_Q, h: ch / RIV_Q };
+  M.delete(R); M.set(R, e);
+  if (M.size > RIV_PICS) M.delete(M.keys().next().value);
+  return e;
+}
 function rivulets(g, S, P, x0, y0, x1, y1, shows) {
   const run = Math.min(1, Math.max(0, (G.t - RAIN_SOAK * 0.6) / RIV_IN));
   if (run <= 0) return;
-  const t = G.t;
+  const t = G.t, whole = run >= 1 && lookZoomPx() < RIV_ZS;
   for (const R of rivuletPaths(S)) {
     if (R.box[2] < x0 || R.box[0] > x1 || R.box[3] < y0 || R.box[1] > y1 + 120) continue;
     const pts = R.pts, n = pts.length / 2, m = Math.max(2, Math.floor(n * run));   // (it runs further down as the rain goes on)
-    for (let i = 0; i < m; i++) {
+    if (whole) { const e = rivPic(R, P, S); if (e.c) { g.globalAlpha = 1; g.drawImage(e.c, e.x, e.y, e.w, e.h); } }
+    else for (let i = 0; i < m; i++) {
       const c = idx(Math.floor(pts[i * 2] / CELL), Math.floor(pts[i * 2 + 1] / CELL));
       if (G.block[c] || !G.seen[c] || (shows && !shows(pts[i * 2], pts[i * 2 + 1]))) continue;
       const w = 5 + 6 * (i / n);
