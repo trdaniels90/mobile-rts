@@ -2650,3 +2650,13 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   (`mapCardsHtml(..., mode, only = true)`); each card says the largest battle it is made for ("up to 3 v 3"). Picking a
   tab the chosen map does not fit selects the first map that does. Ids kept for tests: `#startBtn`, `#maps [data-mode]`,
   `#maps [data-map]`, `#maps [data-map-go]`.
+
+## Stray white wave lines over the ground with WebGL (2026-11-24, bug fix, both modes, looks only)
+
+- Owner, 2026-11-24 (screenshot, night): "whatever that white line is gets moved around a lot whenever i zoom out or move the camera".
+- Cause: gl.js uploads a canvas to the GPU at the end of the frame, and uploads it again only when its `_ver` changes (small
+  ones go into an atlas once). look.js `drawWater` drew its wave crests and foam on one scratch canvas that never bumped
+  `_ver`, so the GPU kept the crests of an earlier camera box: bright arcs on the grass that jumped as the view moved.
+  `fogFrame`'s canvas had the same fault (the night fog never drifted).
+- Fix: `drawWater` has two scratch canvases (crests, foam), `_own` and bumped each frame; `fogFrame` bumps its canvas.
+  Rule: a canvas redrawn after its first use and drawn through gl.js needs `_own = true` and `_ver++` on every change.
