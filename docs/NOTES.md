@@ -2620,3 +2620,21 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   `gpu` / `wg`, the GPU's own ms a frame (gl.js `R.gpuMs`, a timer query from `R.ground` to the end of `R.present`, where the
   browser offers `EXT_disjoint_timer_query_webgl2`; null otherwise); `ls`, the light scale. `frames.liteN`: times lite came on.
   Next match: GPU ms near or over the frame time means GPU-bound; low GPU ms with a slow hand-over means the browser or driver.
+
+## Main menu as its own screen, skirmish tabs by battle size (2026-11-24, not released, looks and menus only, both modes)
+
+Owner: "build a proper main menu like the og red alert and red alert 2. dont have the battle drawn in the background. and
+have maps filtered by tabs on the top 1v1 2v2 and 3v3".
+
+- `#menu` in `index.html`: a dark backdrop of its own (`.mm-bg`: map grid, a CSS radar sweep, scan lines; all original,
+  no game art), the title on the left and a metal column of command buttons (`.mm-col`, `.mm-btn`) on the right; title
+  above the column on portrait or narrow screens. `data-view` switches the column between `main`, `options` (sound,
+  60 fps) and `info` (credits, briefing): `menuView` in `ui.js`. In a battle (`data-mode="pause"`) the backdrop is
+  see-through and dimmed over the paused battle.
+- The battle made behind the start menu is no longer drawn at all (`offstage` in `frame`), nor are the sidebar and radar.
+- The side and difficulty pickers moved to the skirmish screen: they live in `#skirmishSetup` and `MapSelect.open(map,
+  mode, setupEl, go)` puts them in its `.map-setup` slot. Online still uses the last side picked (the lobby can flip it).
+- Skirmish screen: tabs along the top (`[data-mode]`, 1 v 1, 2 v 2, 3 v 3) list only the maps `battleFits` that battle
+  (`mapCardsHtml(..., mode, only = true)`); each card says the largest battle it is made for ("up to 3 v 3"). Picking a
+  tab the chosen map does not fit selects the first map that does. Ids kept for tests: `#startBtn`, `#maps [data-mode]`,
+  `#maps [data-map]`, `#maps [data-map-go]`.
