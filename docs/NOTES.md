@@ -2629,12 +2629,10 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
 - **Rain** only on maps the owner names (now: Three Crossings, Lakeside, Crossroads Village, Heron Fen). A rainy map always gets the
   whole rain look (puddles, rivulets, roof runoff: look.js, gated only on `G.weather.kind === 'rain'`, never per map).
 - **Moving water** (look.js `drawWater`) on every map with open water, in both renderers; not icy winter water, not Heron Fen's still pools.
-- **Fix: still water with WebGL.** drawWater redrew one scratch canvas each frame, but gl.js caches a canvas's texture until its `_ver`
-  changes, and it draws the recorded frame afterwards, so the ripples and foam (both from that canvas) showed one frozen picture on
-  every map. Now two canvases (`tmp` ripples, `tmp2` foam), `_ver` raised each frame. Measured over open water 1.7 s apart (scratch
-  Playwright test, default WebGL): 0-0.2% of pixels changed before, 27-38% after on A Bridge Too Far, Three Crossings, Lakeside, Twin
-  Lakes, Crossroads Village, the same as `?gl=off`. **Rule for anything drawn live into a reused canvas and handed to the view:
-  raise its `_ver` each time it changes**, or WebGL shows it frozen.
+- **Still water with WebGL** (owner: river and lakes "dont have movement"): the same cause as the stray wave lines, fixed in
+  commit 293e705 (two scratch canvases, `_ver` raised each frame). Measured over open water 1.7 s apart (scratch Playwright test,
+  default WebGL): 0-0.2% of pixels changed before, 27-38% after on A Bridge Too Far, Three Crossings, Lakeside, Twin Lakes and
+  Crossroads Village, the same as `?gl=off`.
 ## Main menu as its own screen, skirmish tabs by battle size (2026-11-24, not released, looks and menus only, both modes)
 
 Owner: "build a proper main menu like the og red alert and red alert 2. dont have the battle drawn in the background. and
@@ -2652,3 +2650,13 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   (`mapCardsHtml(..., mode, only = true)`); each card says the largest battle it is made for ("up to 3 v 3"). Picking a
   tab the chosen map does not fit selects the first map that does. Ids kept for tests: `#startBtn`, `#maps [data-mode]`,
   `#maps [data-map]`, `#maps [data-map-go]`.
+
+## Stray white wave lines over the ground with WebGL (2026-11-24, bug fix, both modes, looks only)
+
+- Owner, 2026-11-24 (screenshot, night): "whatever that white line is gets moved around a lot whenever i zoom out or move the camera".
+- Cause: gl.js uploads a canvas to the GPU at the end of the frame, and uploads it again only when its `_ver` changes (small
+  ones go into an atlas once). look.js `drawWater` drew its wave crests and foam on one scratch canvas that never bumped
+  `_ver`, so the GPU kept the crests of an earlier camera box: bright arcs on the grass that jumped as the view moved.
+  `fogFrame`'s canvas had the same fault (the night fog never drifted).
+- Fix: `drawWater` has two scratch canvases (crests, foam), `_own` and bumped each frame; `fogFrame` bumps its canvas.
+  Rule: a canvas redrawn after its first use and drawn through gl.js needs `_own = true` and `_ver++` on every change.
