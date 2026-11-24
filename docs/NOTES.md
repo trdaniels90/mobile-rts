@@ -2620,3 +2620,20 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   `gpu` / `wg`, the GPU's own ms a frame (gl.js `R.gpuMs`, a timer query from `R.ground` to the end of `R.present`, where the
   browser offers `EXT_disjoint_timer_query_webgl2`; null otherwise); `ls`, the light scale. `frames.liteN`: times lite came on.
   Next match: GPU ms near or over the frame time means GPU-bound; low GPU ms with a slow hand-over means the browser or driver.
+
+## Toward a steady 60 on PC: rain sheets, searchlights, cliffs (2026-11-24, not released, looks and speed only, both modes)
+
+Owner's goal: "both pc and mobile to run this at a constant 60 fps". Phones already hold 57-60 (their reports since
+2026.11.21); with **Always 60 fps** chosen a phone must hold 60, the idle 30 fps saver stays otherwise (owner). PCs at
+2560 x 1370 fell to 39-55 fps late in long games (matches 305e950b, 591fa579), drawing 14-22 ms a frame, the slowest frames'
+hand-over (`air`) 20-28 ms, list ~12, trees 8-14, structures 6-11.
+- Benchmark (scratch, not in the repo): Heron Fen, 4 computers, 18 min fast-forwarded, 1707 x 913 at 1.5x, zoom 0.75, map
+  uncovered, 25 s warm-up, drawParts and a CPU profile over 15 s. The software GPU makes fps meaningless; compare parts.
+- gl.js `fillRect`: a big fill with a **pattern** (the rain's sweeping sheets, art.js drawWeather) now takes the quarter-size
+  soft-fill path like gradients. Before, it was cut out of the 2D layer and uploaded whole: ~3.2 million px a frame.
+- look.js `drawSkyBeams`: the AA searchlight's beam is one picture (`skyBeamPic`, the same wedge and fade) laid along it by
+  a transform, not a gradient-filled path (which was cut out and uploaded each frame); aircraft gathered once, not per gun.
+- look.js `cliffItems`: cliff cells indexed by map row once (`L.rows`); only the rows round the screen are looked at.
+- Result on the benchmark (raining, night): hand-over 68-90 -> 15 ms, list 22.6 -> 18.1, cut-out uploads 7.4% -> 0.2% of
+  CPU samples. Pictures checked side by side (rain, a searchlight at night).
+- Next candidates: far trees (`tree` + isoTreeBlocks), the per-frame sort of still things (`list`), structures zoomed out.

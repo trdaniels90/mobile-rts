@@ -526,8 +526,12 @@ function cliffItems(list, x0, y0, x1, y1, shows) {
   if (L.bake && !baked && !L.bake.failed) return;   // (the sheets are coming: behind the deploying card, so none are made meanwhile)
   L.frame = (L.frame || 0) + 1;
   let made = 0, behind = false;
-  for (const c of L.cells.keys()) {
-    const x = (c % MAP + 0.5) * CELL, y = (((c / MAP) | 0) + 0.5) * CELL;
+  // The cliff cells by map row (made once: the cells are fixed for a battle), so only the rows round the screen are
+  // looked at, not every cliff cell of the map each frame (thousands on Heron Fen's plateaus).
+  if (!L.rows) { L.rows = Array.from({ length: MAP }, () => []); for (const c of L.cells.keys()) L.rows[(c / MAP) | 0].push(c); }
+  const r0 = Math.max(0, Math.floor((y0 - 40) / CELL - 0.5)), r1 = Math.min(MAP - 1, Math.ceil((y1 + 120) / CELL - 0.5));
+  for (let r = r0; r <= r1; r++) for (const c of L.rows[r]) {
+    const x = (c % MAP + 0.5) * CELL, y = (r + 0.5) * CELL;
     if (x < x0 - 40 || x > x1 + 40 || y < y0 - 40 || y > y1 + 120 || !shows(x, y) || !G.seen[c]) continue;
     let p = L.pics.get(c);
     if (p === undefined) {
@@ -777,27 +781,47 @@ function lookGround(g, x0, y0, x1, y1, shows) {
 // The Allied AA Gun's searchlight, the one light a defence has (owner), and only at night (ui.js, after drawNight on day/night
 // maps; night 0..1 from dayNight): a beam up into the sky, sweeping slowly overhead, locked on the nearest enemy aircraft it can
 // see within AA_LOOK (owner: "pointing up in the air looking for planes").
+// The searchlight's beam at full night: a wedge from 1.5 to 14 wide (W0, W1 in drawSkyBeams; the picture's width is 2 x W1),
+// pale blue-white fading from 0.36 at the lamp to nothing at its end, with soft sides.
+let skyBeamC = null;
+function skyBeamPic() {
+  if (skyBeamC) return skyBeamC;
+  const w = 56, h = 192, c = mkCanvas(w, h), x = c.getContext('2d'), img = x.createImageData(w, h), d = img.data;
+  for (let j = 0; j < h; j++) {
+    const u = (j + 0.5) / h, half = (1.5 + (14 - 1.5) * u) / 14 * (w / 2), a = 0.36 * (1 - u);
+    for (let i = 0; i < w; i++) {
+      const o = Math.abs(i + 0.5 - w / 2), cover = Math.max(0, Math.min(1, half - o + 0.5)), p = (j * w + i) * 4;
+      d[p] = 235; d[p + 1] = 245; d[p + 2] = 255; d[p + 3] = Math.round(255 * a * cover);
+    }
+  }
+  x.putImageData(img, 0, 0);
+  return (skyBeamC = c);
+}
 function drawSkyBeams(g, vx, vy, k, t, night) {
   if (!LOOK.lamps || night < 0.05) return;
   if (!lampPics) drawLamps.init();
   const P = lampPics, scr = (x, y, h) => { const [X, Y] = toView(...liftPt(x, y, h + gLift(x, y))); return [(X - vx) * k, (Y - vy) * k]; };
+  // The beam is one picture (skyBeamPic) laid along it by a transform: drawn as a gradient-filled shape it was cut out
+  // of WebGL's 2D layer and uploaded every frame (~30,000 px a beam at a PC's size). Aircraft are gathered once.
+  const B = skyBeamPic(), planes = [];
+  for (const u of G.entities) if (u.alive && u.cls === 'air' && u.alt > 4 && G.seen[cellOfPos(u.x, u.y)]) planes.push(u);
   g.save(); g.globalCompositeOperation = 'lighter';
   for (const e of G.entities) {
     if (!e.alive || e.type !== 'aagun' || e.buildT < 1 || !G.seen[idx(e.cx, e.cy)]) continue;
     const mx = (e.cx + e.w / 2) * CELL, my = (e.cy + e.h / 2) * CELL, [sx, sy] = scr(mx, my, Math.max(8, structLamps(e.type, e.faction).maxZ) * VK);
     if (sx < -400 || sy < -400 || sx > g.canvas.width + 400 || sy > g.canvas.height + 600) continue;
     let tx, ty, best = AA_LOOK;
-    for (const u of G.entities) {
-      if (!u.alive || u.cls !== 'air' || !(u.alt > 4) || alliedSides(u.team, e.team) || !G.seen[cellOfPos(u.x, u.y)]) continue;
+    for (const u of planes) {
+      if (alliedSides(u.team, e.team)) continue;
       const d = Math.hypot(u.x - mx, u.y - my);
       if (d < best) { best = d; [tx, ty] = scr(u.x, u.y, u.alt); }
     }
     if (tx === undefined) { const a = -Math.PI / 2 + Math.sin(t * 0.5 + e.id * 1.3) * 0.55 + Math.sin(t * 0.23 + e.id) * 0.2; tx = sx + Math.cos(a) * 190 * k; ty = sy + Math.sin(a) * 190 * k; }
     else { tx += (tx - sx) * 0.25; ty += (ty - sy) * 0.25; }   // on past the plane
-    const dx = tx - sx, dy = ty - sy, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, W0 = 1.5 * k, W1 = 14 * k;
-    const gr = g.createLinearGradient(sx, sy, tx, ty); gr.addColorStop(0, `rgba(235,245,255,${(0.36 * night).toFixed(3)})`); gr.addColorStop(1, 'rgba(235,245,255,0)');
-    g.globalAlpha = 1; g.fillStyle = gr; g.beginPath();
-    g.moveTo(sx + nx * W0, sy + ny * W0); g.lineTo(tx + nx * W1, ty + ny * W1); g.lineTo(tx - nx * W1, ty - ny * W1); g.lineTo(sx - nx * W0, sy - ny * W0); g.closePath(); g.fill();
+    const dx = tx - sx, dy = ty - sy, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, W1 = 14 * k;
+    // (the picture's x across the beam, -W1..W1 over its width; its y along it, lamp at 0, end at its height)
+    g.save(); g.globalAlpha = night; g.transform(nx * W1 * 2 / B.width, ny * W1 * 2 / B.width, dx / B.height, dy / B.height, sx - nx * W1, sy - ny * W1);
+    g.drawImage(B, 0, 0); g.restore();
     g.globalAlpha = 0.8 * night; g.drawImage(P.beam, sx - 4 * k, sy - 4 * k, 8 * k, 8 * k);   // the lamp itself
   }
   g.restore();

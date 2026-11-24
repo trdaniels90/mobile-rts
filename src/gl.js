@@ -961,10 +961,12 @@ void main() {
           R.rects = (R.rects || 0) + 1;
           return;
         }
-        // A big fill with a gradient (a storm's darkening, a haze): drawn at a quarter size into a canvas of its own and
-        // stretched up smoothly as one picture (gradients are smooth), not cut out of the layer at full size.
+        // A big fill with a gradient (a storm's darkening, a haze) or a soft pattern (the rain's sweeping sheets, art.js
+        // drawWeather: a full screen cut out and uploaded every frame was ~3 million px a frame on a PC): drawn at a quarter
+        // size into a canvas of its own and stretched up smoothly as one picture, not cut out of the layer at full size.
         const G2 = lctx.fillStyle;
-        if (!clipped && !lctx.upright && b !== undefined && typeof CanvasGradient !== 'undefined' && G2 instanceof CanvasGradient && Math.abs(w * h) * scl() * scl() / 4 > 40000) {
+        const soft = (typeof CanvasGradient !== 'undefined' && G2 instanceof CanvasGradient) || (typeof CanvasPattern !== 'undefined' && G2 instanceof CanvasPattern);
+        if (!clipped && !lctx.upright && b !== undefined && soft && Math.abs(w * h) * scl() * scl() / 4 > 40000) {
           let bx = null; for (const [p2, q2] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]) { const [X, Y] = tp(p2, q2); bx = grow(bx, X, Y, 0); }
           const X0 = Math.max(0, Math.floor(bx[0])), Y0 = Math.max(0, Math.floor(bx[1])), X1 = Math.min(layer.width, Math.ceil(bx[2])), Y1 = Math.min(layer.height, Math.ceil(bx[3]));
           if (X1 <= X0 || Y1 <= Y0) return;
