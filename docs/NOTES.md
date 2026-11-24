@@ -1582,8 +1582,8 @@ frame-time maths everywhere, so it is not deterministic.
 
 ## Rain on Lakeside, lightning (after 2026.11.15.6, not released, both modes, looks and sound only)
 
-- Lakeside has `weather: { kind: 'rain', chance: 0.5 }` (A Bridge Too Far and Twin Lakes had none at first; since 2026-11-24 every
-  non-winter map has rain, see "Rain and water on every map").
+- Lakeside has `weather: { kind: 'rain', chance: 0.5 }` (A Bridge Too Far and Twin Lakes still have none, owner's call; see
+  "Rain and water rules").
 - **Lightning** in any rain (`lightning`, `lightningAt` in art.js, from `drawWeather`): each second of battle clock rolls from the weather's
   seed, so every online phone flashes together; none under level 0.45, up to `LIGHTNING_RATE` (0.05 a second) in the heaviest rain. Every strike:
   a double screen flash (skipped with prefers-reduced-motion, `calmFlash`) and `thunder` (audio.js FX: crack and a 4 s rolling rumble on a looped
@@ -2622,17 +2622,33 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   browser offers `EXT_disjoint_timer_query_webgl2`; null otherwise); `ls`, the light scale. `frames.liteN`: times lite came on.
   Next match: GPU ms near or over the frame time means GPU-bound; low GPU ms with a slow hand-over means the browser or driver.
 
-## Rain and water on every map (2026-11-24, not released, both modes; the server must match)
+## Toward a steady 60 on PC: rain sheets, searchlights, cliffs (2026-11-24, not released, looks and speed only, both modes)
 
-- Owner, 2026-11-24: "the new rain effect and water/ocean effects need to be on all maps that allow it. and save that info going forward".
-  Standing rule (also in CLAUDE.md and the head of `src/maps.js`): every map, new ones too, gets the weather and water its theme allows.
-- **Rain** (`weather: { kind: 'rain', chance: 0.5 }`): added to A Bridge Too Far and Twin Lakes, so all six non-winter maps have it
-  (Three Crossings, Lakeside, Crossroads Village, Twin Lakes, A Bridge Too Far at 0.5; Heron Fen 0.15 and `lightning: false`, the owner's
-  soft fen rain). It brings the falling drops, splashes and rings on water, puddles and rivulets, roof runoff, and lightning. Landing
-  bolts (world.js `lightningStrikes`) are gameplay, so a server must run the same version. Their blurbs say "Some battles are fought in the rain."
-- **Water** (look.js `drawWater`: wave crests and surf): already on every summer map; not on winter maps (Snowbound, Frostlight Valley:
-  icy water, with snow as their weather) nor on Heron Fen's still fen water (made without waves, owner's design).
+Owner's goal: "both pc and mobile to run this at a constant 60 fps". Phones already hold 57-60 (their reports since
+2026.11.21); with **Always 60 fps** chosen a phone must hold 60, the idle 30 fps saver stays otherwise (owner). PCs at
+2560 x 1370 fell to 39-55 fps late in long games (matches 305e950b, 591fa579), drawing 14-22 ms a frame, the slowest frames'
+hand-over (`air`) 20-28 ms, list ~12, trees 8-14, structures 6-11.
+- Benchmark (scratch, not in the repo): Heron Fen, 4 computers, 18 min fast-forwarded, 1707 x 913 at 1.5x, zoom 0.75, map
+  uncovered, 25 s warm-up, drawParts and a CPU profile over 15 s. The software GPU makes fps meaningless; compare parts.
+- gl.js `fillRect`: a big fill with a **pattern** (the rain's sweeping sheets, art.js drawWeather) now takes the quarter-size
+  soft-fill path like gradients. Before, it was cut out of the 2D layer and uploaded whole: ~3.2 million px a frame.
+- look.js `drawSkyBeams`: the AA searchlight's beam is one picture (`skyBeamPic`, the same wedge and fade) laid along it by
+  a transform, not a gradient-filled path (which was cut out and uploaded each frame); aircraft gathered once, not per gun.
+- look.js `cliffItems`: cliff cells indexed by map row once (`L.rows`); only the rows round the screen are looked at.
+- Result on the benchmark (raining, night): hand-over 68-90 -> 15 ms, list 22.6 -> 18.1, cut-out uploads 7.4% -> 0.2% of
+  CPU samples. Pictures checked side by side (rain, a searchlight at night).
+- Next candidates: far trees (`tree` + isoTreeBlocks), the per-frame sort of still things (`list`), structures zoomed out.
+## Rain and water rules (owner, 2026-11-24)
 
+- Owner: "im not saying every map gets rain. only the maps i say do, however if they do get rain i want them to always get the building
+  run off and puddles, however there are maps with water on the map like river and lakes that dont have movement".
+- **Rain** only on maps the owner names (now: Three Crossings, Lakeside, Crossroads Village, Heron Fen). A rainy map always gets the
+  whole rain look (puddles, rivulets, roof runoff: look.js, gated only on `G.weather.kind === 'rain'`, never per map).
+- **Moving water** (look.js `drawWater`) on every map with open water, in both renderers; not icy winter water, not Heron Fen's still pools.
+- **Still water with WebGL** (owner: river and lakes "dont have movement"): the same cause as the stray wave lines, fixed in
+  commit 293e705 (two scratch canvases, `_ver` raised each frame). Measured over open water 1.7 s apart (scratch Playwright test,
+  default WebGL): 0-0.2% of pixels changed before, 27-38% after on A Bridge Too Far, Three Crossings, Lakeside, Twin Lakes and
+  Crossroads Village, the same as `?gl=off`.
 ## Main menu as its own screen, skirmish tabs by battle size (2026-11-24, not released, looks and menus only, both modes)
 
 Owner: "build a proper main menu like the og red alert and red alert 2. dont have the battle drawn in the background. and
