@@ -2653,6 +2653,15 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   second). Wetness, the puddles' growth and the rivulets go by `S.rt`. When the rain stops the roofs stop running and the
   rivulets' glints stop; the puddles shrink as it dries (gone about 75 s after a 70 s storm).
 
+- **Puddles that react** (owner, 2026-11-25: "add physics to the puddles", picked splashes and blast ripples; flowing water
+  later): look.js `puddleMovers` (ground units on and round the screen that moved since the last frame, by map row),
+  `puddleWade` (a unit inside a filled puddle's ellipse, 13 x 9 x its size: a ring centred a little behind it, a vehicle every
+  0.22 s, a soldier every 0.4 s, and droplets thrown up and back), `puddleBlasts` (each new `expl` effect: up to 4 puddles within
+  2.5 x its size + 14 px get two rings and a spray of 8-18 droplets away from it), `puddleRipples` (draws and ages them: rings
+  spread by the square root of age; droplets fly on `SPRAY_G` gravity, drawn with `hillPt` at their height), `puddleGlow`
+  (fire and blasts within 90 px shine in a puddle, 'lighter'). Kept in `rainS.rip` (at most `RIP_MAX` 160), on the battle
+  clock; nothing in G, nothing online. Same in both renderers.
+
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 
 - Owner's match 305e950b (Heron Fen, desktop 2560 x 1370, WebGL): 70 fps on average, no frame over 100 ms, but minutes 18, 35
