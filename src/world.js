@@ -4034,6 +4034,7 @@ function updateUnit(u, dt) {
   u.moving = false;
   tickBurst(u, dt);
   tickStrafe(u, dt);
+  if (u.cls === 'air' && u.def.fly === 'jet') { jetAbove(u, () => (u.def.scripted ? updateFlight(u, dt) : updateAir(u, dt))); return; }
   if (u.def.scripted) { updateFlight(u, dt); return; }
   if (u.chute > 0) { u.chute -= dt; if (u.chute <= 0) landChute(u); return; }
   if (u.cls === 'air') { updateAir(u, dt); return; }
@@ -4678,6 +4679,28 @@ function dropFlare(t) {
 }
 
 const HELI_ALT = 20, JET_ALT = 30;
+
+// Jets and planes fly above the hills (owner, 2026-11-25: "make jets and planes fly higher so they're not influenced by the
+// terrain as much? leave helicopters alone"). The ground is drawn raised (look.js gLift: hgt x VK x HILL_DRAW) and aircraft
+// are drawn on it, so a jet rose and dipped with every hill it crossed. Now a flying jet's alt is topped up by the gap
+// between the map's highest ground and the ground under it, so it cruises level just above the highest hill. The flight
+// code works on the plain height (u.altB, from 0 to JET_ALT); jetAbove adds the top-up after it runs (in full at JET_ALT,
+// less on the climb and descent, none landed), so everything drawn at its height follows (shots, lights, crashes, taps).
+const JET_HILL = 2.5;   // = look.js HILL_DRAW (the hills are drawn that many times as tall as G.hgt)
+let hgtTopOf = null, hgtTop = 0;
+function hillTop() {
+  const H = G.hgt;
+  if (!H) return 0;
+  if (hgtTopOf !== H) { hgtTopOf = H; hgtTop = 0; for (let i = 0; i < H.length; i++) if (H[i] > hgtTop) hgtTop = H[i]; }
+  return hgtTop;
+}
+function jetAbove(u, fly) {
+  if (u.altB !== undefined && u.alt === u.altD) u.alt = u.altB;   // (alt set anywhere else since: taken as the plain height)
+  fly();
+  const b = u.alt || 0, k = Math.max(0, Math.min(1, b / JET_ALT));
+  u.altB = b;
+  u.alt = u.altD = b + (k > 0 ? Math.max(0, hillTop() - hgtAt(u.x, u.y, true)) * VK * JET_HILL * k : 0);
+}
 
 // Every aircraft has a home pad. New ones are based at whichever pad has the fewest aircraft,
 // and if a home pad is lost they move to the least crowded one left, so aircraft spread out

@@ -2620,3 +2620,15 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   `gpu` / `wg`, the GPU's own ms a frame (gl.js `R.gpuMs`, a timer query from `R.ground` to the end of `R.present`, where the
   browser offers `EXT_disjoint_timer_query_webgl2`; null otherwise); `ls`, the light scale. `frames.liteN`: times lite came on.
   Next match: GPU ms near or over the frame time means GPU-bound; low GPU ms with a slow hand-over means the browser or driver.
+
+## Jets and planes fly above the hills (after 2026.11.25, not released, looks only, both modes; the server should match)
+
+Owner: "make jets and planes fly higher so they're not influenced by the terrain as much? leave helicopters alone". Aircraft
+are drawn on the raised ground (look.js `gLift`), so jets rose and dipped with every hill. world.js `jetAbove` (wraps
+`updateAir` / `updateFlight` for every `fly: 'jet'` aircraft: Strike Jet, MiG, A-10, Su-25, bomber, transport, spy plane)
+tops up `u.alt` after the flight code by `(hillTop() - hgtAt) x VK x JET_HILL` (JET_HILL = look.js HILL_DRAW), scaled by
+`altB / JET_ALT`: level flight sits just above the map's highest hill, the climb and descent blend in, landed jets are on the
+ground. The flight code still sees the plain height (`u.altB`, 0..JET_ALT); `u.altD` notices alt set elsewhere (spawns,
+landings). Since shots, lights, crashes, flares and taps all use `u.alt`, they follow. Helicopters unchanged. Flat maps:
+no change. Side effect: shots at a jet and its gun runs fold the extra height into their path (aimY, muzzle), so they fly a
+little further (up to ~60 px on the hilliest maps); jet-rush.js and cas.js results unchanged within noise.
