@@ -2639,6 +2639,13 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   voxels up) beside the stack. `runoffSpots` now also needs most of a 13 x 7 patch behind the eave (70 of 91 voxels within 3
   of its height). Gone with it: the Soviet Power Plant's and Advanced Power Plant's towers, the Allied Advanced Power Plant's
   and Construction Yard's tall parts, the Soviet Refinery's tower; roofs keep theirs (War Factory still has none).
+- **Storms too** (owner, 2026-11-25, in a storm with HD on: "i dont see any runoff"; HD was not the cause): a storm
+  (lookstorm.js) rains on any map but a snowy one or Heron Fen, also in battles that rolled no rain, and the puddles, runoff
+  and rivulets went by the battle's own weather only. look.js `rainState` now gives `S.L` (the harder of the battle's rain and
+  the storm's stand-in, `0.12 + 0.88 x stormLevel`) and `S.rt`, seconds of rain the ground has had: the battle clock with rain,
+  else `stormRainT` (from world.js `stormPlan` on the battle clock: each storm adds its length, the gaps dry one second a
+  second). Wetness, the puddles' growth and the rivulets go by `S.rt`. When the rain stops the roofs stop running and the
+  rivulets' glints stop; the puddles shrink as it dries (gone about 75 s after a 70 s storm).
 
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 

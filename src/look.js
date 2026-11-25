@@ -1535,11 +1535,35 @@ const PUDDLE_MAX = 700, RUNOFF_SPOTS = 3, RAIN_SOAK = 75;   // RAIN_SOAK: second
 // RUNOFF_GAP: px between two streams off one structure (was 12: the war factory ran four across its front, a curtain of water)
 const RUNOFF_GAP = 26;
 let rainS = null, rainBox = null;
+// S.rt: seconds of rain the ground has had (soaked at RAIN_SOAK; the rivulets and the puddles' growth go by it too), S.L: how
+// hard it rains now (0: not raining). A battle with rain: rt is the battle clock (its rain never stops, so a continued game is
+// wet already). A storm (lookstorm.js, world.js stormLevel; on any map but a snowy one or Heron Fen) rains as hard as its
+// stand-in weather and soaks the ground the same way, which then dries one second of rain a second once it has passed
+// (stormRainT, from the storm plan on the battle clock). Owner, 2026-11-25, in a storm: "i dont see any runoff": the storm's
+// rain had no puddles or runoff, as these went by the battle's own weather only.
+const rainSnowy = () => (typeof mapTheme === 'function' && mapTheme(G.mapId) === 'snow') || (G.weather && G.weather.kind === 'snow');
+function stormRainT(t) {
+  if (!LOOK.storms || typeof stormLevel !== 'function' || rainSnowy()) return 0;
+  if (stormLevel(t) <= 0 && !(stormPlan && stormPlan.seed === G.seed && stormPlan.list.length)) return 0;
+  let rt = 0, last = 0;
+  for (const [st, len] of stormPlan.list) {
+    if (st >= t) break;
+    rt = Math.max(0, rt - (st - last));
+    const e = Math.min(t, st + len);
+    rt += e - st; last = e;
+  }
+  return last < t ? Math.max(0, rt - (t - last)) : rt;
+}
 function rainState() {
   if (!rainS || rainS.g !== G) rainS = { g: G, wet: 0, t: G.t, pud: null, pics: null, spots: new Map() };
-  const S = rainS, w = G.weather, L = w && w.kind === 'rain' ? Math.min(1, weatherLevel(w, G.t)) : 0;
-  S.t = G.t; S.L = L;
-  S.wet = L > 0 ? Math.min(1, G.t / RAIN_SOAK) : 0;   // (a rain battle's rain never stops: wet from the battle clock, so a continued game is wet already)
+  const S = rainS, w = G.weather, real = w && w.kind === 'rain';
+  if (S.t !== G.t || S.rt === undefined) {
+    const s = LOOK.storms && typeof stormLevel === 'function' && !rainSnowy() ? stormLevel(G.t) : 0;
+    S.L = Math.max(real ? Math.min(1, weatherLevel(w, G.t)) : 0, s >= 0.01 ? 0.12 + 0.88 * s : 0);   // (as lookStorm's stand-in)
+    S.rt = Math.max(real ? G.t : 0, stormRainT(G.t));
+    S.wet = Math.min(1, S.rt / RAIN_SOAK);
+    S.t = G.t;
+  }
   return S;
 }
 function rainPics(S) {
@@ -1606,10 +1630,10 @@ function puddleSpots(S) {
 // area: without it a PC zoomed out drew ~700 puddles and their rings a frame, most of them off the screen.
 function lookPuddles(g, x0, y0, x1, y1, shows) {
   rainBox = [x0, y0, x1, y1];
-  if (!RAIN_FX || !g || !G || !G.weather || G.weather.kind !== 'rain') return;
+  if (!RAIN_FX || !g || !G) return;
   const S = rainState();
   if (S.wet < 0.09) return;
-  const P = rainPics(S), rows = puddleSpots(S), t = G.t, rings = S.L > 0, grown = Math.min(1, Math.max(0, (G.t - RAIN_SOAK) / PUDDLE_GROW));
+  const P = rainPics(S), rows = puddleSpots(S), t = G.t, rings = S.L > 0, grown = Math.min(1, Math.max(0, (S.rt - RAIN_SOAK) / PUDDLE_GROW));
   const up = g.upright; g.upright = false; g.imageSmoothingEnabled = true;
   rivulets(g, S, P, x0, y0, x1, y1, shows);
   let n = 0;
@@ -1665,10 +1689,10 @@ function runoffSpots(type, faction) {
   return out;
 }
 function lookRunoff(g) {
-  if (!RAIN_FX || !g || !G || !G.weather || G.weather.kind !== 'rain' || !rainBox) return;
+  if (!RAIN_FX || !g || !G || !rainBox) return;
   const S = rainState();
-  if (S.wet < 0.12) return;
-  const P = rainPics(S), [x0, y0, x1, y1] = rainBox, t = G.t, flow = Math.min(1, (S.wet - 0.12) / 0.4) * (0.45 + 0.55 * S.L);
+  if (S.wet < 0.12 || S.L <= 0) return;   // (once a storm has passed the roofs stop running; the puddles dry more slowly)
+  const P = rainPics(S), [x0, y0, x1, y1] = rainBox, t = G.t, flow = Math.min(1, (S.wet - 0.12) / 0.4) * (0.45 + 0.55 * S.L) * Math.min(1, S.L / 0.12);
   const up = g.upright; g.upright = true; g.imageSmoothingEnabled = false;
   const shed = (e, type, faction, ox, oy, bw, bh) => {
     if (ox > x1 + 20 || ox + bw < x0 - 20 || oy > y1 + 160 || oy + bh < y0 - 20) return;
@@ -1779,7 +1803,7 @@ function rivPic(R, P, S) {
   return e;
 }
 function rivulets(g, S, P, x0, y0, x1, y1, shows) {
-  const run = Math.min(1, Math.max(0, (G.t - RAIN_SOAK * 0.6) / RIV_IN));
+  const run = Math.min(1, Math.max(0, (S.rt - RAIN_SOAK * 0.6) / RIV_IN));
   if (run <= 0) return;
   const t = G.t, whole = run >= 1 && lookZoomPx() < RIV_ZS;
   for (const R of rivuletPaths(S)) {
@@ -1795,13 +1819,13 @@ function rivulets(g, S, P, x0, y0, x1, y1, shows) {
         g.globalAlpha = 0.5; g.drawImage(P.blob, wx - w / 2, wy - w / 2, w, w);
       }
     }
-    g.globalAlpha = 0.75;   // glints running down it
-    for (let j = 0; j < 4; j++) {
+    g.globalAlpha = 0.75;   // glints running down it (while it rains)
+    if (S.L > 0) for (let j = 0; j < 4; j++) {
       const f = ((t * 7 + R.ph + j * m / 4) % m) | 0, [wx, wy] = hillPt(pts[f * 2], pts[f * 2 + 1]);
       g.drawImage(P.dot, wx - 1, wy - 1, 2, 2);
     }
     if (run >= 1) {   // where it ends it pools, and the pool grows
-      const k = Math.min(1, (G.t - RAIN_SOAK * 0.6 - RIV_IN) / PUDDLE_GROW), sz = 0.7 + R.big * k, [wx, wy] = hillPt(pts[pts.length - 2], pts[pts.length - 1]);
+      const k = Math.min(1, (S.rt - RAIN_SOAK * 0.6 - RIV_IN) / PUDDLE_GROW), sz = 0.7 + R.big * k, [wx, wy] = hillPt(pts[pts.length - 2], pts[pts.length - 1]);
       const c = idx(Math.floor(pts[pts.length - 2] / CELL), Math.floor(pts[pts.length - 1] / CELL));
       if (!G.block[c] && G.seen[c]) { g.globalAlpha = 0.95; g.drawImage(P.pud[(R.ph | 0) % 6], wx - 20 * sz, wy - 14 * sz, 40 * sz, 28 * sz); }
     }
