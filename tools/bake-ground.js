@@ -22,8 +22,8 @@ const outDir = path.join(root, 'grounds'), QUALITY = 0.8;
   await p.goto('file://' + path.resolve(root) + '/index.html'); await p.waitForTimeout(800);
   // What the ground is painted with: the painting functions' source, scenery (models.js, voxel.js), and each map's key.
   const info = await p.evaluate(() => {
-    const src = [rng, groundPixels, groundPainter, cliffCells, paintCliffs, paintRuts, fordStone, concreteBridge, groundSeed, groundKey,
-      cliffLookFor, cliffHeight, cliffPts, cliffShadowPaint, hash3, lookPatchTile, patchPicMake, dressFor, dressOne, lookDress, bakeTileLook].map(String).join('\n')
+    const src = [rng, groundPixels, mesaTops, groundPainter, cliffCells, paintCliffs, paintRuts, fordStone, concreteBridge, groundSeed, groundKey,
+      cliffLookFor, cliffHeight, cliffPts, cliffShadowPaint, mesaShade, hash3, lookPatchTile, patchPicMake, dressFor, dressOne, lookDress, bakeTileLook].map(String).join('\n')
       + JSON.stringify([CLIFF_UP, CLIFF_TOP, CLIFF_SL, CLIFF_SDX, CLIFF_SDY, CLIFF_SA, LOOK, DRESS_TILE]);
     const maps = {};
     // The ground dressing is baked in where it is the same in every battle (not where it depends on the village's houses).
@@ -49,7 +49,7 @@ const outDir = path.join(root, 'grounds'), QUALITY = 0.8;
     const dir = path.join(outDir, id); fs.mkdirSync(dir, { recursive: true });
     const n = await p.evaluate((id) => {
       newWorld('allies', 'hard', 1, 0, false, id); cliffLook = null; dressLook = null;
-      window.__painter = groundPainter(G.terr, groundSeed(G), G.road, G.bridges, G.cliff, G.ford, mapTheme(id), MAPS[id].bridge, G.hgt);
+      window.__painter = groundPainter(G.terr, groundSeed(G), G.road, G.bridges, G.cliff, G.ford, mapTheme(id), MAPS[id].bridge, G.hgt, mesaTops(id));
       window.__pv = mkCanvas(Math.ceil(WORLD / 4), Math.ceil(WORLD / 4));
       return Math.ceil(WORLD / GROUND_SHEET);
     }, id);

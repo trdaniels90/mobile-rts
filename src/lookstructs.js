@@ -519,7 +519,9 @@ const lookStructs = (() => {
   // The baked sheets hold the earlier structures: while the look's are on (from the start), refuse those pictures.
   if (atLoad) {
     const set0 = spriteCache2.set.bind(spriteCache2), any0 = spriteAny.set.bind(spriteAny);
-    const baked = (k, v) => v && v.img && typeof ImageBitmap !== 'undefined' && v.img instanceof ImageBitmap && isS(k);
+    // (HD sheets baked with these models, manifest `structs`, are kept: tools/bake-sprites.js --hd)
+    const baked = (k, v) => v && v.img && typeof ImageBitmap !== 'undefined' && v.img instanceof ImageBitmap && isS(k)
+      && !(v.img._k > 1 && SpriteSheets.manifest && SpriteSheets.manifest.structs);
     spriteCache2.set = (k, v) => (baked(k, v) ? spriteCache2 : set0(k, v));
     spriteAny.set = (k, v) => (baked(k, v) ? spriteAny : any0(k, v));
   }

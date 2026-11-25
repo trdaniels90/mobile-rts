@@ -86,6 +86,7 @@ const WARHEADS = {
   HF:    { inf: 0.15, light: 0.9, heavy: 1.0,  bld: 0.7, air: 1.0 },   // Hellfire: a tank killer, wasted on infantry
   CG:    { inf: 1.0, light: 0.8,  heavy: 0.2,  bld: 0.25, air: 0.6 },  // the Comanche's 20 mm chain gun: infantry and light vehicles, little against tanks
   SN:    { inf: 1.0, light: 0.1,  heavy: 0.03, bld: 0.03, air: 0 },    // the Sniper's rifle: one man at a time, next to nothing against armour
+  TD:    { inf: 0.2, light: 0.9,  heavy: 1.0,  bld: 0.4, air: 0 },     // the Tank Destroyer's high-velocity gun: armour piercing, wasted on soldiers and walls
 };
 
 // cls: inf | veh | air.  cat: which sidebar tab builds it.  speed in px/s, sight in cells.
@@ -151,6 +152,12 @@ const UNIT_DEFS = {
     name: 'Pilot', cls: 'inf', cat: 'infantry', factions: [], cost: 0, hp: 35, armor: 'inf', speed: 32, sight: 4, r: 5,
     weapon: { dmg: 5, rof: 1.1, range: 60, wh: 'SA', proj: 'bullet' },
   },
+  // A Technician: a civilian worker from a structure, with a pistol. Comes out of a structure that is sold or destroyed
+  // (world.js escapeSurvivors); cannot be built.
+  technician: {
+    name: 'Technician', cls: 'inf', cat: 'infantry', factions: [], cost: 0, hp: 25, armor: 'inf', speed: 32, sight: 4, r: 5,
+    weapon: { dmg: 4, rof: 1.2, range: 60, wh: 'SA', proj: 'bullet' },
+  },
   // A Dragon rocket for armour and a RedEye missile, with more reach, for aircraft. Both fire as often
   // as a Medium Tank's gun. Both sides train it; the Soviet one is drawn with an olive RPG-style launcher.
   rocket: {
@@ -167,7 +174,7 @@ const UNIT_DEFS = {
   ltank: {
     name: 'Light Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'tank',
     cost: 700, hp: 300, armor: 'heavy', speed: 66, turn: 3.2, sight: 5, r: 8, size: { len: 17, wid: 13, tur: 4.5, barrel: 10, light: true, tz: 5 },
-    weapon: { dmg: 30, rof: 1.3, range: 108, wh: 'AP', proj: 'shell' },
+    weapon: { dmg: 30, rof: 1.3, range: 108, wh: 'AP', proj: 'shell', sound: 'cannonLight' },   // its own lighter gun sound
   },
   mtank: {
     name: 'Medium Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['allies'], draw: 'tank',
@@ -177,7 +184,7 @@ const UNIT_DEFS = {
   htank: {
     name: 'Heavy Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'tank',
     cost: 1150, hp: 550, armor: 'heavy', speed: 38, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 16, tur: 6, barrel: 8, twin: true, heavy: true, tz: 6 },
-    weapon: { dmg: 30, rof: 1.7, range: 114, wh: 'AP', proj: 'shell', twin: true, stagger: 0.25 },   // stagger: the second barrel fires this much later
+    weapon: { dmg: 30, rof: 1.7, range: 114, wh: 'AP', proj: 'shell', twin: true, stagger: 0.25, sound: 'cannonTwin' },   // stagger: the second barrel fires this much later
   },
   // Tesla Tank (Soviets, after the Tech Center upgrade `teslatank`): a mobile Tesla Coil, after OpenRA's Red Alert TTNK (cost, health,
   // light armour, speed). Its bolt is shorter-ranged and lighter than the Coil's, hits ground targets only and needs no power.
@@ -186,10 +193,24 @@ const UNIT_DEFS = {
     cost: 1350, hp: 450, armor: 'light', speed: 50, turn: 3, sight: 6, r: 9, size: { len: 21, wid: 15, tur: 5, barrel: 0, tesla: true, tz: 5 },
     weapon: { dmg: 75, rof: 2.4, range: 140, wh: 'TESLA', proj: 'tesla' },
   },
+  // Tank Destroyer (Allies, War Factory with a Tech Center; owner's pick for both modes): a turretless tank hunter. No turret, so
+  // the whole vehicle turns to aim (`fixed`, like the Artillery); its long gun out-ranges every tank (150 against 114-118).
+  tdest: {
+    name: 'Tank Destroyer', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['tech'], factions: ['allies'], draw: 'tank', fixed: true,
+    cost: 1100, hp: 400, armor: 'heavy', speed: 50, turn: 2.6, sight: 6, r: 9, size: { len: 22, wid: 15, tur: 4, barrel: 14, td: true, tz: 5 },
+    weapon: { dmg: 90, rof: 2.2, range: 150, wh: 'TD', proj: 'shell' },
+  },
+  // Mobile SAM (Soviets, War Factory; owner's pick for both modes): drawn after the SA-13 Gopher (models.js msamHull, samTurret), the
+  // SAM Site on tracks (the Soviets fight aircraft with missiles, the Allies with flak). Air only, needs no power.
+  msam: {
+    name: 'Mobile SAM', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'tank',
+    cost: 800, hp: 250, armor: 'light', speed: 60, turn: 3, sight: 7, r: 9, size: { len: 22, wid: 14, tur: 4, barrel: 8, sam: true, tz: 6 },
+    weapon: { dmg: 45, rof: 1.4, range: 190, wh: 'HE', proj: 'missile', air: true, ground: false },
+  },
   mammoth: {
     name: 'Mammoth Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['tech'], factions: ['soviets'], draw: 'tank',
     cost: 2000, hp: 950, armor: 'heavy', speed: 25, turn: 2, sight: 6, r: 12, size: { len: 24, wid: 22, tur: 7.5, barrel: 14, twin: true, pods: true, mammoth: true, tz: 4 },
-    weapon: { dmg: 45, rof: 1.9, range: 118, wh: 'AP', proj: 'shell', twin: true },
+    weapon: { dmg: 45, rof: 1.9, range: 118, wh: 'AP', proj: 'shell', twin: true, sound: 'cannonMammoth' },
     weapon2: { dmg: 35, rof: 2.6, range: 140, wh: 'HE', proj: 'rocket', air: true },
   },
   // Long-range support, built once a Radar Dome stands. Neither has a turret: the whole vehicle

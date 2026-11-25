@@ -992,6 +992,20 @@ recorder usage at the top of record.js).
   cycles them (`p.dir`). Drawn along its line (`drawWallIso`: cells corner to corner, CELL x sqrt 2 long), a diagonal wall runs into its ends (ui.js mask),
   and an end with a wall beyond gets a stub of that wall up to its pylon (with the owner's stripe on concrete). The computer's rings still use straight gates.
 
+- **Slanted walls and gates on a bend** (2026-11-25, owner's screenshot: a slanted wall drawn as a saw-tooth, a gate on it with a hole
+  beside it; both modes, the server must match): `wallLine` no longer mixes diagonal and straight steps along a slant (that drew the
+  saw-tooth); it lays two straight runs, the longer first (diagonal then straight, or straight then diagonal), still one piece a step and
+  ending on the tapped cell. A gate's end now joins wall in any of its eight neighbours (ui.js mask: a corner join to a gate end, kind 6;
+  art.js `drawWallIso`: a stub from the pylon to that edge or corner), so a gate at the bend, or an old saw-tooth wall, has no hole.
+  `placeTap` turns a gate to lie where your wall (or the gap's wall) is on both sides first, one side only if none. `walls.js` covers the line.
+- **Ring detours** (owner, 2026-11-24, a Soviet turtle on Lakeside "didnt finished his wall"; owner picked "walk round it",
+  both modes): cells of a ring's line that can never be walled (ore, trees, water, rock, a building: ai.js `ringStuck`) were left
+  open for good. Now `ringDetours` (each build pass, ore changes) finds each such stretch on the ring's line and `ringDetour`
+  the fewest pieces round it (8-way: corner-touching pieces shut the way) from the cell before it to the one after, inside the
+  ring first (at most `RING_DETOUR_IN` 8 cells in), else up to `RING_DETOUR_OUT` 3 outside, never next to a building (doors),
+  at most 3 x the gap + 14 pieces. Built by the side the gap starts on, after its line, from the credits above RING_KEEP.
+  Headless (scratch test: Lakeside 3 v 3, all turtles, 16 min): rings with no way out 1 of 6 before, 4 of 6 after (the other
+  two only had plain cells not built yet).
 ## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (2026.11.11.2; bridges, weather 2026.11.12)
 
 - `MAPS.snowbound` in maps.js: traced from the owner's design `maps/designs/snowbound.png` (126 cells, a lavender-ground palette:
@@ -1236,6 +1250,11 @@ recorder usage at the top of record.js).
 
 ## Soundtrack (separate files since 2026.11.03.9)
 
+- **Removed on 2026-11-25 (owner's call): the game has no music for now.** `SONGS` in `audio.js` and `TRACKS` in
+  `sw.js` are empty, `music/` is gone, and `Music.start` does nothing without songs. The Music toggle, music volume
+  slider and Next track button in Options are `hidden` in `index.html`; unhide them when tracks come back. The owner's
+  artifact still holds the old `music/*.mp3` files: remove them on the next artifact publish (`publish_files` `remove`).
+  The notes below describe how tracks worked, for adding new ones.
 - Four recorded tracks, shuffled: Industry, War, Smash, Rain. Each is an MP3 in `music/<name>.mp3`, listed in `SONGS`
   in `audio.js` with `rec: '<name>'`. `Music.loadRec` fetches the file (`music/<id>.mp3`) and decodes it on demand;
   if the fetch or decode fails the song is skipped (`recFailed`). `Music.nextSong` deals a shuffled deck (no immediate
@@ -1251,6 +1270,10 @@ recorder usage at the top of record.js).
   (files left out are kept). Remove `.build` afterwards.
 - The owner supplies the tracks (credited in `CREDITS.md`). Convert with ffmpeg: `loudnorm=I=-16:TP=-1.5`,
   a 2.5 s fade out, 44.1 kHz stereo, 96 kbps.
+- **Play over my music** (Options, `settings.mix`, off by default, 2026-11-25): lets a player's own music app keep
+  playing under the game. On: `navigator.audioSession.type = 'ambient'` (iOS 16.4+) and no looping silent `<audio>`
+  (`keepAlive`), since that media element is what makes iOS and Android stop other apps' audio. Cost: iOS then mutes
+  game sounds when the ring/silent switch is on silent. Off: `'playback'` plus `keepAlive`, as before. `mixSession()` in `audio.js`.
 - Volume sliders (`musicVol`, `sfxVol` in `Sound.settings`, `setVolume`) scale the buses; full is the original mix.
 
 ## Windows app (`desktop/`)
@@ -1582,7 +1605,8 @@ frame-time maths everywhere, so it is not deterministic.
 
 ## Rain on Lakeside, lightning (after 2026.11.15.6, not released, both modes, looks and sound only)
 
-- Lakeside has `weather: { kind: 'rain', chance: 0.5 }` (A Bridge Too Far and Twin Lakes still have none, owner's call).
+- Lakeside has `weather: { kind: 'rain', chance: 0.5 }` (A Bridge Too Far and Twin Lakes still have none, owner's call; see
+  "Rain and water rules").
 - **Lightning** in any rain (`lightning`, `lightningAt` in art.js, from `drawWeather`): each second of battle clock rolls from the weather's
   seed, so every online phone flashes together; none under level 0.45, up to `LIGHTNING_RATE` (0.05 a second) in the heaviest rain. Every strike:
   a double screen flash (skipped with prefers-reduced-motion, `calmFlash`) and `thunder` (audio.js FX: crack and a 4 s rolling rumble on a looped
@@ -2604,6 +2628,108 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   where a drop lands, a crown of droplets on land or a spreading ring on water. Instead of a flat dark wash: a light overcast
   heavier toward the top of the screen, and sheets of heavier rain (a soft streaky noise) sweeping across with the wind. 520
   drops at full rain on a phone-sized view (was 330 streaks). Snow is as before.
+- **Runoff made visible** (owner, 2026-11-24, raining on Lakeside: "i dont see any run off"). Two causes: `runoffSpots` picked
+  eaves at random, and most were steps onto a lower roof (a 3-7 px fall, some too short to draw): now eaves that drop to the
+  ground come first, then the longest, and a fall under 6 voxels is not used. And a 2 px drip every second or so could not be
+  seen at night: now each spot has a steady stream (`P.stream`: a bright 2 px core, soft edges, pulses running down), two drips
+  falling along it and a splash where it lands.
+- **Too much runoff off the war factory** (owner, 2026-11-24, screenshot by a PRIMARY factory: "its getting allot of extra
+  rain"): spots only 12 px apart let four full-height streams run down the factory's front, a curtain of water. Now at most
+  `RUNOFF_SPOTS` 3 a structure, `RUNOFF_GAP` 26 px apart: the factory sheds from its two front corners and one back eave,
+  barracks one stream, refinery and power plant 2-3.
+- **Rain missing with WebGL** (same report: splash dots but no drops): art.js drawWeather stroked its drops and rings as
+  `Path2D` objects (since 73592b4), which gl.js's recorder cannot see (it follows moveTo / lineTo / ellipse on the context), so
+  nothing was cut out of its layer and the drops never showed. Now drawn on `g` itself, as quads (stage 5 lines and rings).
+- **No water from stacks** (owner, 2026-11-25, Allied Power Plant in the rain: "its far off the stack"): the 5-neighbour "broad"
+  test let the rim of a chimney or tower pass as a roof, so the Power Plant poured a stream from its small stack's top (30
+  voxels up) beside the stack. `runoffSpots` now also needs most of a 13 x 7 patch behind the eave (70 of 91 voxels within 3
+  of its height). Gone with it: the Soviet Power Plant's and Advanced Power Plant's towers, the Allied Advanced Power Plant's
+  and Construction Yard's tall parts, the Soviet Refinery's tower; roofs keep theirs (War Factory still has none).
+- **Storms too** (owner, 2026-11-25, in a storm with HD on: "i dont see any runoff"; HD was not the cause): a storm
+  (lookstorm.js) rains on any map but a snowy one or Heron Fen, also in battles that rolled no rain, and the puddles, runoff
+  and rivulets went by the battle's own weather only. look.js `rainState` now gives `S.L` (the harder of the battle's rain and
+  the storm's stand-in, `0.12 + 0.88 x stormLevel`) and `S.rt`, seconds of rain the ground has had: the battle clock with rain,
+  else `stormRainT` (from world.js `stormPlan` on the battle clock: each storm adds its length, the gaps dry one second a
+  second). Wetness, the puddles' growth and the rivulets go by `S.rt`. When the rain stops the roofs stop running and the
+  rivulets' glints stop; the puddles shrink as it dries (gone about 75 s after a 70 s storm).
+- **None off defences** (owner, 2026-11-25, screenshot of Tesla Coils and Flame Towers in the rain: "run off from these
+  defensive structures looks weird"). First a thin trickle of drops was tried in place of the stream; owner: "the tesla coil and
+  flame turret have two random streams that just stick out ... remove it". `lookRunoff` now skips every structure with
+  `defense` (turrets, AA guns, Tesla Coils, Pillboxes, Flame Towers, SAM Sites); the puddles round them stay.
+
+- **Puddles that react** (owner, 2026-11-25: "add physics to the puddles", picked splashes and blast ripples; flowing water
+  later): look.js `puddleMovers` (ground units on and round the screen that moved since the last frame, by map row),
+  `puddleWade` (a unit inside a filled puddle's ellipse, 13 x 9 x its size: a ring centred a little behind it, a vehicle every
+  0.22 s, a soldier every 0.4 s, and droplets thrown up and back), `puddleBlasts` (each new `expl` effect: up to 4 puddles within
+  2.5 x its size + 14 px get two rings and a spray of 8-18 droplets away from it), `puddleRipples` (draws and ages them: rings
+  spread by the square root of age; droplets fly on `SPRAY_G` gravity, drawn with `hillPt` at their height), `puddleGlow`
+  (fire and blasts within 90 px shine in a puddle, 'lighter'). Kept in `rainS.rip` (at most `RIP_MAX` 160), on the battle
+  clock; nothing in G, nothing online. Same in both renderers.
+
+- **Water that flows** (owner, 2026-11-25: "lets do option 3"): look.js `flowTick` / `flowStep` / `flowDraw`. A depth per cell
+  over the whole map (`rainS.flow.W`, G.hgt units), stepped every `FLOW_DT` 0.5 s of battle clock (at most 2 steps a frame;
+  ~2.5 ms a step on a 192-cell map in headless Chromium). Each step: rain adds `FLOW_RAIN` x its strength, the ground takes
+  `FLOW_SOAK` (`FLOW_DRY` in dry weather) plus `FLOW_SEEP` x the depth (so pools stop growing and level ground stays below a
+  pool); each cell passes water to its four neighbours whose surface (G.hgt + G.dig + a little roughness from the ground seed
+  + water) is lower, by the difference. Structures, cliffs, woods and rock hold none; a lake swallows what runs in. `Q`, `qx`,
+  `qy`: how much runs through and which way (smoothed). A wet battle (continued, or long in the rain) works its water out at
+  once (40 coarse steps, ~110 ms headless). Drawn under the puddles: a pool where the depth passes `FLOW_MIN` (size and
+  darkness by depth, neighbours overlapping into one sheet; not over ore); where water runs (`FLOW_Q`, on a log scale)
+  `flowStreams` follows it downhill cell to cell (`F.to`: where most of each cell's water goes) into runnels, each one smooth
+  path (Catmull-Rom through jittered cell spots): a dark wet edge and a pale line of water catching the sky, in three widths by
+  how much runs, with highlights sliding along the whole runnel (owner, on the first try: "i dont see it flowing", it had
+  only faint dots, which a time-lapse also hid). Rain `FLOW_RAIN` 0.014, soak 0.004, seep 0.06 x the depth; pools from
+  `FLOW_MIN` 0.22 (Lakeside soaked: ~14% of cells deeper than 0.12, so the pool line is higher).
+  Owner then: "make them wander more and make it look more realistic" (no physics engine: a fluid engine would cost far more
+  than this, which is only how it is drawn and how the water is routed). Changes: water passes to eight neighbours (a
+  diagonal's drop over its longer way, `FL_DX`/`FL_DY`/`FL_W`); the roughness is smooth value noise at 3 and 8 cells plus a
+  little grain (the old 4 x 4-cell blocks made runnels run straight along their edges); each runnel meanders (two sideways
+  waves of its own along it, fading at the ends), starts as a trickle, only carries real water (log amount > 0.3), never
+  starts in a pool and ends where it reaches one, and never crosses another's diagonal; the highlights are unevenly spaced,
+  each with its own size, brightness and flicker. A step is spread over `FLOW_SPLIT` 3 frames (`flowBegin`, `flowRows`,
+  `flowEnd`): ~5 ms a step on a 192-cell map headless, so under 2 ms a frame. The puddles scale with the water round them (0.35 to
+  1.7 x: drained off a slope, filled in a hollow); dug craters fill. Tank ruts on soaked ground hold a thin pale line of water
+  (lookGround, the tracks). Looks only, nothing in G, nothing online; snowy maps and Heron Fen's storm-free weather as before.
+
+- **Water drawn by WebGL** (owner, 2026-11-25, of the runnels: "it just doesnt look good"; picked a proper water surface):
+  gl.js `water()` in the ground shader, both ways of drawing the ground (tiles and stage 6). `waterBind` packs look.js's water
+  (`flowForGl`: rainS.flow) into two MAP x MAP RGBA textures (depth / 2; how much runs, log scale 0.0025-0.1 a second; which
+  way), the step before and the last one (`F.ver`), mixed by `uWm` over a step so it changes smoothly. In the shader: soaked
+  ground darker and cooler (`uWet`); pools where the smoothed depth (with a little noise for ragged edges) passes ~0.21: dark
+  water with the grey sky's sheen drifting over it, a bright waterline, a band of darker wet mud round it, and rings where
+  drops land (`rings`, by the rain's strength); running water as rivulets: a pattern in each cell's own flow frame (stretched
+  along the flow, sliding down it as a two-phase flow map), the four nearest cells' blended (a direction smoothed between
+  cells turned every pixel and scrambled into speckle), shown where enough runs. `hsh` has no sin() (precision far into the
+  map). The water's routing: `FLOW_RELAX` 0.1 of each difference a neighbour (more sloshed to and fro, pools flickering), the
+  puddle spots are hollows in the roughness so the rain fills them first. With the water drawn (`GLR.waterOn`), look.js draws
+  no puddle pictures or pools: units splash and blasts ripple where the depth is over 0.18, fire glows on pooled cells. The
+  2D way keeps the puddles and simple pools; the runnel lines are gone in both.
+
+- **Waterfalls** (owner, 2026-11-25, screenshot of Lakeside's plateau: "make it so rain can also pool on top of these and if
+  the pool gets enough it can run off the sides like waterfalls"): the plateau's top holds its rain (cliff cells hold none and
+  pass none). Each open cell on high ground beside a cliff knows where its water would land (`F.spill`: the first open cell
+  across the cliff, 2-4 cells out, `FALL_DROP` 4 or more lower; `F.sdir` the way), and in `flowRows` water standing past
+  `FALL_MIN` on such a lip pours `FALL_K` of the rest down there each step (`F.SQ`: how much, smoothed), where it pools or runs
+  on. `lookFalls` (from lookSmoke, over the units, as the roof runoff) draws each pouring lip facing the camera as the runoff's
+  stream pictures, as wide as the flow, falling straight down the cliff's outer face from the top's height to the foot's, with
+  mist and a splash where it lands; lips facing away are left out (behind the plateau). Both renderers.
+  Owner then: "i dont see it pool on the top": a flat top's rain soaked in and ran off its edges before any pool formed. Now
+  each plateau top (MAPS mesas, the cells within r + 1.5 at the top's height) is a shallow basin in the roughness
+  (`MESA_DISH` 0.7 lower in the middle, its roughness x 0.3) and soaks a third as fast (`F.sk` 0.3: thin soil over rock), and
+  a lip pours only past `FALL_MIN` 0.3 (pond water reaching it, not a hollow on the edge). Lakeside after ~6 min of rain:
+  moderate (0.5) a pond over ~60% of the top, ~5 falls; heavy (0.9) the top flooded, ~30 falls.
+  Owner, with a screenshot: "close but ... its still not making it to the edge": the rim's crags are pictures over the ground,
+  so the ground's water stopped at their inner edge. `lookFalls` now draws the pond over the rim's rock (`F.rim`: mesa cliff
+  cells beside a top cell; `F.rimAll`: cliff cells beside those, for a rim two cells deep), at the top's height, wherever the
+  top cell beside it holds 0.24 or more: soft blobs of water with ragged edges (`P.rimw`, 4 of them, 1.7 cells wide,
+  overlapping), under the falls. The basin is level over its outer ring (`(d / 0.7)^2`) and reaches r + 4 (cells at the top's
+  height only), so a full pond reaches the rim.
+  Owner: "add this new water logic to all maps that can have rain": the pools, running water, splashes and wet ground were on
+  every rainy map and storm already; the plateaus were Lakeside's mesa only. Now `plateauTops` finds them on any map: raised
+  ground (G.hgt at least `PLAT_H` 0.45 x HG_MAX) joined where level (within 3), 15+ cells, at least 40% of its edge cliffs;
+  each cell's distance from the edge gives the basin. A big one (over 700 cells: Heron Fen's base plateaus, 1,520 each) is a
+  gentle dip (0.35 x) that soaks as usual, else bases flooded (92% of their tops in 5 min of heavy rain); now ~19%, ~20 falls.
+  Lakeside unchanged; Three Crossings has none; Crossroads Village and River Crossing have a few lips that can pour.
 
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 
@@ -2620,3 +2746,334 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   `gpu` / `wg`, the GPU's own ms a frame (gl.js `R.gpuMs`, a timer query from `R.ground` to the end of `R.present`, where the
   browser offers `EXT_disjoint_timer_query_webgl2`; null otherwise); `ls`, the light scale. `frames.liteN`: times lite came on.
   Next match: GPU ms near or over the frame time means GPU-bound; low GPU ms with a slow hand-over means the browser or driver.
+
+## Toward a steady 60 on PC: rain sheets, searchlights, cliffs (2026-11-24, not released, looks and speed only, both modes)
+
+Owner's goal: "both pc and mobile to run this at a constant 60 fps". Phones already hold 57-60 (their reports since
+2026.11.21); with **Always 60 fps** chosen a phone must hold 60, the idle 30 fps saver stays otherwise (owner). PCs at
+2560 x 1370 fell to 39-55 fps late in long games (matches 305e950b, 591fa579), drawing 14-22 ms a frame, the slowest frames'
+hand-over (`air`) 20-28 ms, list ~12, trees 8-14, structures 6-11.
+- Benchmark (scratch, not in the repo): Heron Fen, 4 computers, 18 min fast-forwarded, 1707 x 913 at 1.5x, zoom 0.75, map
+  uncovered, 25 s warm-up, drawParts and a CPU profile over 15 s. The software GPU makes fps meaningless; compare parts.
+- gl.js `fillRect`: a big fill with a **pattern** (the rain's sweeping sheets, art.js drawWeather) now takes the quarter-size
+  soft-fill path like gradients. Before, it was cut out of the 2D layer and uploaded whole: ~3.2 million px a frame.
+- look.js `drawSkyBeams`: the AA searchlight's beam is one picture (`skyBeamPic`, the same wedge and fade) laid along it by
+  a transform, not a gradient-filled path (which was cut out and uploaded each frame); aircraft gathered once, not per gun.
+- look.js `cliffItems`: cliff cells indexed by map row once (`L.rows`); only the rows round the screen are looked at.
+- Result on the benchmark (raining, night): hand-over 68-90 -> 15 ms, list 22.6 -> 18.1, cut-out uploads 7.4% -> 0.2% of
+  CPU samples. Pictures checked side by side (rain, a searchlight at night).
+- Next candidates: far trees (`tree` + isoTreeBlocks), the per-frame sort of still things (`list`), structures zoomed out.
+- **Parachutes** (art.js `drawChute`, `chutePics`): the canopy with its lines and the shadow are pictures made once; as
+  paths each was cut out and uploaded every frame. Headless, 20 troopers hanging in the air: units 50 ms -> 0.3 ms a frame.
+  Owner's match 3adc0dcf (Twin Lakes, 2026.11.24, PC) had 29-34 ms of units in its slowest frames with 85-163 units in view.
+- That match also answered the GPU question: the GPU's own time averaged 0.2-1.8 ms a frame (worst 45), so the PC is not
+  GPU-bound; the drawing code on the CPU (14-17 ms a frame on average late in the game, plus 3-4 ms of simulation) is what
+  keeps it under 60. Lite light was on all game (light scale 0.25) and does little there.
+- **Zoomed out** (owner: "keep going on the zoomed out slowdown"; benchmark on Twin Lakes, 4 computers, 14 min, zoom 0.75,
+  2560 x 1370-like): a third of the drawing was WebGL re-uploading pictures that change every frame (gl.js `spriteTex`), ~4
+  million px a frame, nearly all the water's two scratch canvases (look.js drawWater, 1524 x 1296 each, and never shrunk).
+  - drawWater: resolution `min(0.5, zoom x devicePixelRatio / WATER_PX)` (WATER_PX 4.5, at least 0.2), so on a computer zoomed
+    out a canvas px covers about 4.5 screen px (phones at 3x pixels unchanged; at 2x pixels fully zoomed out slightly
+    coarser); canvases sized to what is drawn (64 px steps); refilled only when the battle clock has moved a step (1/30 s)
+    or the box changed, else drawn as they are (headless small window: 73 refills in 152 frames). ~1.4 million px a refill.
+  - lookPuddles and rivulets take `shows` (ui.js onScr, 160 px below for hills' lift): only puddles and rivulet steps on the
+    screen are drawn, not all ~700 in the turned screen's box.
+  - Profile share of the frame's drawing: spriteTex 14.4% -> 4.6% of all samples, cliffItems (puddles inside) 5.8 -> 2.7,
+    the whole draw 23.5 -> 14.5. Pictures compared (lake water zoomed out): the same.
+- **Structures and sorting** (owner: "keep going on buildings and sorting"; after 2026.11.24.1). Benchmark now served over
+  http (`python3 -m http.server`: from file:// the baked crags fail to load and are made live, ~9 a frame, which misled the
+  first measurements), the scene frozen (`G.paused` after the fast-forward) so runs repeat, rain forced on or off.
+  - The sort itself is cheap (~0.4 ms; keys and the near-structure fix ~0.4 more). "list" was the work done before it.
+  - "bld" zoomed out over Lakeside was mostly **crags** (~1,100 a frame), not structures (drawStructure ~0.1% of samples):
+    each went through onHill + drawCliff, five transform changes. With WebGL (and no `occs`), ui.js draws a run of crags in
+    screen px from one transform change, the spot worked out in look.js `drawCliffAt`. 13.5-14 -> 4.4-5.4 ms; pixel-compared
+    in one frozen scene: the same.
+  - **Rivulets** in the rain were ~17 ms of "list" (a dab per half step, hundreds of thousands of px). Zoomed out (under
+    `RIV_ZS` 2 screen px per world px) a rivulet that has run its full length is one picture (`rivPic`, `RIV_Q` 0.5 px per world
+    px, its own texture), made again when one of its cells is uncovered or built on; at most `RIV_PICS` (200, phones 40),
+    least lately drawn dropped. Glints and end pools stay live. list with rain 22.1 -> 8.3 ms; compared with live drawing:
+    at most 3 levels apart.
+  - Left in a frozen zoomed-out Lakeside scene: list ~4-8, bld ~4-7, trees ~2-4, units ~1-3 ms; "gnd" (20-38 here) is the
+    software GPU and the resident ground being built, not comparable to a real PC (owner's reports: 1.3-7).
+## Rain and water rules (owner, 2026-11-24)
+
+- Owner: "im not saying every map gets rain. only the maps i say do, however if they do get rain i want them to always get the building
+  run off and puddles, however there are maps with water on the map like river and lakes that dont have movement".
+- **Rain** only on maps the owner names (now: Three Crossings, Lakeside, Crossroads Village, Heron Fen). A rainy map always gets the
+  whole rain look (puddles, rivulets, roof runoff: look.js, gated only on `G.weather.kind === 'rain'`, never per map).
+- **Moving water** (look.js `drawWater`) on every map with open water, in both renderers; not icy winter water, not Heron Fen's still pools.
+- **Still water with WebGL** (owner: river and lakes "dont have movement"): the same cause as the stray wave lines, fixed in
+  commit 293e705 (two scratch canvases, `_ver` raised each frame). Measured over open water 1.7 s apart (scratch Playwright test,
+  default WebGL): 0-0.2% of pixels changed before, 27-38% after on A Bridge Too Far, Three Crossings, Lakeside, Twin Lakes and
+  Crossroads Village, the same as `?gl=off`.
+## Main menu as its own screen, skirmish tabs by battle size (2026-11-24, not released, looks and menus only, both modes)
+
+Owner: "build a proper main menu like the og red alert and red alert 2. dont have the battle drawn in the background. and
+have maps filtered by tabs on the top 1v1 2v2 and 3v3".
+
+- `#menu` in `index.html`: a dark backdrop of its own (`.mm-bg`: map grid, a CSS radar sweep, scan lines; all original,
+  no game art), the title on the left and a metal column of command buttons (`.mm-col`, `.mm-btn`) on the right; title
+  above the column on portrait or narrow screens. `data-view` switches the column between `main`, `options` (sound,
+  60 fps) and `info` (credits, briefing): `menuView` in `ui.js`. In a battle (`data-mode="pause"`) the backdrop is
+  see-through and dimmed over the paused battle.
+- The battle made behind the start menu is no longer drawn at all (`offstage` in `frame`), nor are the sidebar and radar.
+- The side and difficulty pickers moved to the skirmish screen: they live in `#skirmishSetup` and `MapSelect.open(map,
+  mode, setupEl, go)` puts them in its `.map-setup` slot. Online still uses the last side picked (the lobby can flip it).
+- Skirmish screen: tabs along the top (`[data-mode]`, 1 v 1, 2 v 2, 3 v 3) list only the maps `battleFits` that battle
+  (`mapCardsHtml(..., mode, only = true)`); each card says the largest battle it is made for ("up to 3 v 3"). Picking a
+  tab the chosen map does not fit selects the first map that does. Ids kept for tests: `#startBtn`, `#maps [data-mode]`,
+  `#maps [data-map]`, `#maps [data-map-go]`.
+
+## Stray white wave lines over the ground with WebGL (2026-11-24, bug fix, both modes, looks only)
+
+- Owner, 2026-11-24 (screenshot, night): "whatever that white line is gets moved around a lot whenever i zoom out or move the camera".
+- Cause: gl.js uploads a canvas to the GPU at the end of the frame, and uploads it again only when its `_ver` changes (small
+  ones go into an atlas once). look.js `drawWater` drew its wave crests and foam on one scratch canvas that never bumped
+  `_ver`, so the GPU kept the crests of an earlier camera box: bright arcs on the grass that jumped as the view moved.
+  `fogFrame`'s canvas had the same fault (the night fog never drifted).
+- Fix: `drawWater` has two scratch canvases (crests, foam), `_own` and bumped each frame; `fogFrame` bumps its canvas.
+  Rule: a canvas redrawn after its first use and drawn through gl.js needs `_own = true` and `_ver++` on every change.
+
+## Lakeside's bridges narrowed to 4 cells (2026-11-24, not released, both modes; the server must match)
+
+- Owner, 2026-11-24 (screenshot of Lakeside): "these two bridges are huge they need to be smaller"; picked about 4 cells, both modes.
+- The traced layout's four bridges were 6 to 10.5 cells wide. `bridgeW: 4` on the map (maps.js) makes world.js `genLayoutMap`
+  keep a band that wide along each run of deck cells' main axis (the same fit the drawing uses); the rest becomes lake. Now
+  3.3 to 4.2 cells. Any layout map can take `bridgeW`. `map-check.js` passes; Lakeside's baked ground and `maps/lakes.png` redone.
+
+## Map photos: every map whole, for the owner to look for issues (2026-11-24, tools only)
+
+- Owner, 2026-11-24: "give me a way to view every map fully so i can look for issues".
+- `tools/map-photos/capture.js <repo> <out> [ids]` starts each map in headless Chromium (1800 x 1100), lifts the fog, drops
+  clouds and weather, and screenshots the battlefield at zoom 1 in a grid half a screen apart (`window.__ps.cam`).
+  `stitch.py <out> <id>` joins them (whole tiles, then each tile's middle, so the screen-tied lighting does not seam) into
+  `<id>.webp` and `<id>_small.webp`. About 2 s a tile. `viewer.html` is the page: a card per map, full-screen pinch zoom;
+  it reads `maps.json` (`[{ id, name, info, small, full }]`) beside it. Published to the owner as an artifact (see the session).
+
+## Explore a map: empty, no fog of war (2026-11-24, not released, menus only)
+
+- Owner, 2026-11-24: "give me a option in the game to load into a empty map with no fog of war and view each map that way".
+- Skirmish map screen: **Explore this map · empty, no fog of war** (everyone sees it; `data-map-explore` in maps.js), for the
+  map picked under the tab. ui.js `startExplore`: `newWorld(..., sides = null, empty = true)` (world.js) places no starting
+  bases or units and sets `G.explore` (`checkWin` stands down; every team `isAI = false`); then spectate mode (no sidebar),
+  the whole map uncovered, no weather. Not saved (`mission` false), not reported. Pan, zoom and the radar work as usual;
+  leave by the menu. `afterNewWorld` centres on the start position when there is no Construction Yard.
+
+## Tank Destroyer (Allies) (after 2026.11.23, not released, owner's picks for both modes; the server must match)
+
+- **Tank Destroyer** (`tdest` in UNIT_DEFS, Allies only, War Factory, `req: ['tech']`, no research): $1100, 400 health, heavy armour, speed
+  50, turn 2.6, sight 6. No turret: `fixed: true` like the Artillery, so the whole vehicle turns to aim. Gun: 90 every 2.2 s, range 150 (every
+  tank is 114-118), new warhead `TD` (infantry 0.2, light 0.9, heavy 1.0, buildings 0.4, no aircraft). Owner's pick of three proposals ("Tank
+  hunter").
+- **Looks:** models.js `tdHull` (low tracked hull, sloped glacis, engine grille) and `tdTurret` (a sloped casemate with a long gun, muzzle brake,
+  hatch). It is `draw: 'tank'` with `size.td`: the casemate is the "turret", which a fixed unit keeps in line with the hull, so recoil, muzzle
+  flash, missile marks (`isTank`) and the baked turret sprites come with it. Sprites rebaked.
+- **Computer** (ai.js): Allied vehicle picks add a Tank Destroyer once it is available, three against an armour-heavy enemy (`counter.armor`).
+- Field Manual entry (Armour). `node tools/sim/tank-destroyer.js <repo>`: locked until a Tech Center, Allies only, turns its hull to fire at
+  a tank 140 px away (out of a tank's reach), 16-28 damage to a rifleman a shot, never fires at a helicopter, and one on one from its range
+  against a live Heavy Tank ($1150) it loses by a hair (leaves it under 150 of 550 health).
+
+## Mobile SAM (Soviets) (after 2026.11.23, not released, owner's picks for both modes; the server must match)
+
+- **Mobile SAM** (`msam` in UNIT_DEFS, Soviets only, War Factory, no extra building): $800, 250 health, light armour, speed 60, sight 7.
+  Owner: a mobile SAM rather than a flak track, "to fit with the theme": Soviets fight aircraft with missiles, Allies with flak guns.
+  Weapon: missiles (`proj: 'missile'`, HE) 45 every 1.4 s, range 190, `air: true, ground: false` (aircraft only); no power needed, and
+  AA_FUEL (not the SAM Site's longer SAM_FUEL).
+- **Looks** (owner: "make it look like this", a photo of an SA-13 Gopher): `draw: 'tank'` with `size.sam`. `msamHull`: a low, flat,
+  boxy MT-LB-style carrier (deck overhanging the tracks, six road wheels a side, small cab with vision blocks and hatches at the front,
+  cargo hatches and a stowage box at the back). `samTurret`: an operator's housing with a window, a round radar dish on a mast and two
+  olive box launchers (two canisters each, `GOPHER` colours) raised on arms either side. The launcher turns to aim; the hull does not.
+  The real one lays its launchers flat on the move; ours keeps them raised (always ready).
+- **Computer** (ai.js): a Soviet vehicle pick adds a Mobile SAM while it has fewer than 2 (6, picked three times as often, once it has
+  seen enemy aircraft: `anti`). A hard computer-vs-computer game had 1 by 8 minutes and 6 by 16 once the Allies flew.
+- Field Manual entry (Armour). `node tools/sim/mobile-sam.js <repo>`: needs a War Factory, Soviets only, no shots at a tank or a rifleman,
+  shoots down an attack helicopter, the hull stays put.
+## Lakeside: high ground over the north-middle ore field (2026-11-24, not released, both modes; the server must match)
+
+- Owner (with a picture of the rock ring with woods in the ore field at about 103,69): "this needs to be raised up with a way
+  up overlooking all the ore around it as an advantage area ... expand that plateau area flatten it out some, add the trees
+  scattered on top as well, a ramp access on the back so units and buildings can be built on top of it".
+- Layout (`tools/lakes-mesa.py <repo>`, run once on the rows): open flat top within 9.5 cells of (103, 69) with trees scattered on it
+  (a few small clumps and singles, about 1 cell in 5), a cliff rim out to 11.6, a gap 7 cells wide on the north (the back,
+  away from the camera, toward the north bases) with a dirt ramp 8 cells long. The 274 ore cells it covered were put back
+  as a ring round its foot (nearest open grass first), so the field holds as much ore.
+- Owner, after the first try (a raised hill ringed by a low crag wall): "i still wanted it to be like a cliff how it was drawn
+  originally just bigger to where units could get on it". So it is one block of cliff, drawn like the map's other crags:
+- Heights: `MAPS.lakes.mesas` (world.js makeHeights; any map can use it): HG_MAX on top, dropping sheer to 0 under the rim
+  (from `top` to `r`), nothing outside, and down the ramp over `rampLen`.
+- Owner, next: "make the rock wall a little shorter": the top is `h` (0.75) x HG_MAX (wall 47 view px, was 62), so the
+  high-ground rules give a little less there (reach and sight scale with the height difference). The natural hills are
+  levelled round its foot (back to normal over 6 cells past `r`): one under its south-east rim had made that wall short.
+- Owner, next (picture of the rim's top looking different from the middle): the rim's crag tops were flat painted grass,
+  lighter and smooth, against the ground's textured grass, with a dark band of the rim's shadow and brown rock specks
+  on the top. Now (mesa crags only, cliffPts `gcol`): the crag's top, and any rock within 3 units of the plateau's level,
+  takes the ground's own grass (groundPixels painted without the rock, `L.gp`, lit as level ground at that height); its
+  shadow falls only where the ray lands on lower ground (`mesaShade`; in play, also only at the crag's own foot height,
+  as that picture lies there); and the ground painter leaves the rock, scree and ridge shadow off a mesa's level top
+  (art.js `mesaTops` -> groundPixels `mesas` -> paintCliffs `flush`, also in the ground workers).
+- Crags (look.js cliffHeight `topOf`): a rim cell within `r` + 1.5 of a mesa rises (HG_MAX - its height) x HILL_DRAW + 2
+  instead of CLIFF_TOP, so every rim crag's top is level with the drawn top (62 view px) whatever its own foot; a rim cell
+  up on the top is only a lip. The height is sized for the cell being drawn (cliffPts passes `c`; its 5 x 5 smoothing had
+  taken the next cell's taller target), and each column stops at the ground under it (cliffPts `f`), so no rock shows on
+  the top. Maps without mesas are drawn as before (the rock shading's height term is capped at CLIFF_TOP, a hair at most). The usual high-ground rules apply (+2 sight, longer reach down, shorter up, slow
+  climb). It is closer to the north team's bases (the map is not mirrored there; the south has no twin).
+- `map-check.js`: OK (the top is reached by the ramp; every start and ore cell reachable). Ground and crags rebaked, preview
+  redrawn. Saves of a Lakeside battle keep the layout they were made with.
+
+## Map editor (2026-11-25, not released, skirmish only; online unchanged)
+
+- Owner: "can you build me a level editor where i can place grass, cliffs, water, ore, village buildings etc".
+- Main menu → **Map Editor** (hidden in a battle: testing a map would end it). `src/editor.js` (`MapEditor`), its own styles
+  injected. A top-down picture of the cells; one finger or the mouse paints, two fingers or the wheel zoom, Move tool or
+  right-drag pans. Tools: Grass, Dirt road, Trees, Cliff, Water, Shallows, Bridge, Ore (brush 1-8), Gems (a field, size from
+  the brush), Start (team A or B, 4 a team at most; tap one to remove), Plateau (press on the middle, drag toward the ramp;
+  top 6-14 cells; paints the rim and ramp as tools/lakes-mesa.py and adds a MAPS `mesas` entry, height 0.75), House (8 sizes,
+  rotate), Church (rotate: footprint and tower end), Square (drag, 8 x 8 or more: paved, fountain, stalls, benches), Village plot
+  (drag: houses rolled each battle), Lamp, Remove (objects), Undo (40 steps, Ctrl+Z). Settings: name, description, look
+  (summer, winter, fen), rain/snow in half the battles, day and night, timber or concrete bridges; and the map check.
+- A map is an ordinary fixed-layout MAPS entry (`rows`, `spawns` team A then team B, `gems`, `lots`, `houses`, `squares`,
+  `lamps`, `mesas`, `teamSize` = starts a team up to 3, `custom: true`, `img` a 224 px picture). New in world.js genVillage:
+  `houses: [[x0, y0, w, h, kind]]` placed as given (kind 'house', 'church0'/'church1', 'fountain'; on open ground, not
+  overlapping), and `lots` may be left out.
+- Kept on the device: maps.js `CustomMaps` (localStorage `rh-custom-maps`; ids `my-...`), put into MAPS and MAP_LIST as the page
+  loads, so the skirmish screen, Explore, saved games and Continue find them. The map being edited is also kept
+  (`rh-editor-draft`). Maps menu: new blank map (96 to 216 cells), my maps (open, delete), a copy of any built-in map (its other
+  settings, e.g. Lakeside's `bridgeW`, carried along as `extra`), Export (the entry as JSON text, to add a map to the game for
+  everyone in maps.js) and Import.
+- Check (Save, Explore, Play): both teams need starts, the same number, 6+ cells from the edge, every start reachable from the
+  first over open ground (houses block); warnings for ore trucks cannot reach and no ore at all. Explore and Play save first,
+  then ui.js `EditorHooks`: Explore starts the empty, fog-free look round; Play opens the skirmish screen with the map chosen.
+- Not online: net.js lobby cards leave custom maps out (`mapCardsHtml(..., online = true)`) and `setMap` refuses one. No baked
+  ground or crags for them (painted while loading, as the generated map is).
+- `node tools/sim/editor.js <repo> [out]`: passes in the repo and in the single-file build.
+- **Real view** (owner, next: "can you build it like a real world editor? like i can see the actual build and ground being
+  placed"): the editor now opens over the map built as in a battle (ui.js `EditorHooks.live`: `newWorld(..., empty)` on
+  `MAPS['my-edit']`, a working copy not in the map lists, seed 1 so a plot's houses stay put; `G.editing`: no Loading card,
+  starts in pairs padded with stand-ins off the map). After each change (stroke lifted, object placed, undo, settings) it is
+  rebuilt 250 ms later with the camera kept: about 0.35 s on a computer, then the ground tiles stream in. While a stroke is
+  under way its cells are tinted on the real ground (`pending`). Overlays are drawn on the real ground through the game's
+  camera and hills (`EditorHooks.w2s` / `s2w`): starts with their base ring, plateau rings and ramp arrows, plot, square and
+  house outlines, gem rings. The editor's canvas covers only the battlefield (the radar beside it stays usable). Pan with
+  Move, right-drag or two fingers; zoom with the wheel or a pinch (`EditorHooks.zoomTo`, the game's 0.75-3.5 range).
+  Zoom also has + and − buttons (bottom right). The PC zoom limit (`zMin` in ui.js) does not apply while `G.editing`,
+  so a computer gets the full 0.75-3.5 too; the wheel keeps the editor's wanted zoom between notches, so a trackpad's
+  small steps add up instead of being snapped away (owner, 2026-11-25: "allow us to zoom in and out in the map editor").
+  **Plan view** (the flat one, every cell a colour) stays one button away for big changes or seeing the whole map; the
+  game's camera looks at the map corner-on, so the plan's diagonals are the real view's up and down. Explore is gone from
+  the editor (the real view is it). Close or Play ends the working copy (`EditorHooks.leave`: a fresh menu world).
+
+## HD graphics (2026-11-25, not released, looks only, both modes; an Options switch, off by default)
+
+Owner, after a study of Red Alert Remastered's screenshots: "go ahead with 1, 2 and 4 as an HD option" (1: the models at 4x
+detail, 2: sprites at 2x drawn smoothly, 4: soft shadows). Remastered's trick is art made larger than it is ever shown and
+shrunk to the screen; ours was the reverse: sprites at one pixel per world pixel, in a frame of one pixel per world pixel,
+stretched 2x to 7x (zoom x screen sharpness) with no smoothing.
+- **Switch:** Options, Graphics, "HD graphics" (shown on every device), `localStorage` `rh-hd`; `?hd=1` / `?hd=0` for one
+  load. Chosen at launch (the sheets and the frame's size): from the start menu the page reloads at once, in a battle it
+  says it takes effect next time. Needs WebGL 2 (art.js `HD.on`); the 2D way (`?gl=off`, a lost context) draws HD pictures at
+  their world size, in an ordinary frame.
+- **The frame (gl.js `RS` = `R.rs`, art.js `FRAME_RS`):** the scene, its depth and normals and the lit frame are `RS` (2) times
+  the view's size. Everything is still placed in view pixels: `uSize` stays the view's size, only framebuffers and viewports
+  grow, and the light pass works its view position back (`uRS`). Picture spots round to half pixels (`frameRound`, gl.js
+  `rnd`), so units move in finer steps. The ground's tiles are sampled smoothly (a linear sampler on units 0 and 1 during
+  `R.ground`, unbound after), and the lit frame is put on the screen smoothly. The 2D cut-out layer (curves, text) stays at
+  the view's size, as before.
+- **Pictures with `_k`:** an HD picture holds `_k` pixels per world pixel; art.js `hdArgs` (uprightCtx's drawImage) and gl.js's
+  recorder draw it at its world size, with a source rectangle given in world pixels (a structure rising from its pad).
+  `picW`/`picH` give its world size; `sdPic` makes a one-pixel-per-world-pixel copy for what is painted into the ground
+  (wrecks, bodies: `charredLook`, `dimmed`); `redSprite` keeps `_k`.
+- **Baked (tools/bake-sprites.js `--hd`):** `sprites-hd/` and `normals-hd/` (same layout, normal maps from gl.js `nrmPic` in
+  the same run). `tools/hd-vox.js` (loaded by the bake only) builds every model at `HD_D` = 4x detail: boxes still cover
+  whole design voxels, but cylinders, ellipsoids and lines are filled at the fine grid, so they come out round;
+  `paint`/`paintTop` patterns keep their size; `stampModel` and lookstructs.js `tsWeather` have fine-grid versions there.
+  Pictures at `HD_K` = 2, soft edged (no crisp infantry), shadows blurred (art.js `softShadow`). The manifest has `k` and
+  `structs` (baked with lookstructs.js's models, so those structure pictures are kept: lookstructs.js no longer refuses them
+  in HD). About 20 MB, fetched only with HD on (the service worker keeps them once used; not precached). The hash covers
+  models.js, voxel.js, lookstructs.js, hd-vox.js, nrmPic and softShadow: **rebake (`--hd`) whenever the ordinary sheets are
+  rebaked, and after changing lookstructs.js.** Missing or older files: the ordinary sheets are used.
+- **Not baked (live):** art.js wraps `sprite` in HD so what is rendered while playing (damaged structures, turret heads, a
+  structure going up, anything the sheets lack) is rendered at 2x with soft shadows, from the ordinary (1x detail) models:
+  sharper but still stepped. About 4x the time of an ordinary sprite (a structure ~90 ms once).
+- **Cost:** the GPU fills 4x the pixels. Measure on the owner's iPhone before it is ever the default.
+- Windows app: desktop/scripts/prep.js copies `sprites-hd` and `normals-hd`. (It does not copy `normals` or `cliffs`, before
+  this change too.)
+
+## PC zoom-out limit (after 2026.11.25, computers only, both modes)
+
+Owner: "on pc we should limit the zoom out, so if you're zoomed in all the way two mouse scroll wheel out should be the max".
+ui.js `zMin()`: on a computer (`!isTouch`) the widest zoom is where two wheel notches (`PC_WHEEL_OUT`, each `wheelStep`) from
+`Z_MAX` land after `snapZ`; phones keep `Z_MIN_TOUCH` (0.75) for pinching. Measured: screen scale 1 → 4, 3, 2 (min 2);
+1.5 → 3.33, 2.67, 2 (min 2); 2 → 3.5, 3, 2.5 (min 2.5). Old saves and the starting zoom are pulled in by `clampCam`.
+
+## Wrecks and bodies hidden by dug craters (2026-11-25, bug fix, looks only, both modes)
+
+Owner: "wrecks and dead bodies were not present in my first HD game". Not HD: since the dug craters (2026-11-22,
+`digCrater`) a crater's shaded bowl (lookfx.js `craterPic`) was drawn over the finished ground every frame (`lookCraters`,
+from `lookFxGround`), so it covered whatever was baked into the ground there. A vehicle's death digs one (rad 5, `DIG_MIN`)
+under its own wreck, and blasts that kill soldiers dig under their bodies, so most wrecks and many bodies were hidden, in
+every mode. Now art.js `crater` paints the bowl itself when its `dig` flag is set (the mark already carried it, so old saves
+and online guests get it too), into the ground layer under the wrecks layer; `MARK_BOX.crater` is 56 for dug ones (the
+picture is up to 105 px across). `lookCraters` is no longer called (`G.craters` stays for `craterSink` and the scorch check).
+Checked with a scratch Playwright scene (four tanks killed in a row, HD off and on): wrecks lie in their craters.
+
+## HD ground (2026-11-25, not released, looks only, both modes; part of HD graphics)
+
+Owner, on HD: "we need to redo the terrain". Picked a full 2x ground, on for computers, behind a switch on phones to try on
+an iPhone first (memory: four times the ground; the phone's compressed whole-map ground, gl.js stage 6, needs baked sheets).
+- **Switch:** art.js `HD.ground` (with HD on): on by default on a computer, off on a phone or tablet (`HD.phone`: touch or a
+  phone's user agent); Options "HD ground" (shown with HD on), `localStorage` `rh-hd-ground` '1' / '0', `?hdground=1` / `0`.
+  Chosen at launch. `GK`: the ground's pixels per world pixel (2, or 1).
+- **The painter** (`groundPixels.pixels(d, X0, Y0, w, h, K)`, `paintCliffs`, `paintRuts`, all with `K`): each of the K x K
+  small pixels is worked out at its own middle (world `(xi + 0.5) / K - 0.5`); the grain is on the fine grid (`speck`, crests,
+  white water: their spacing kept, lines thinner). Grass: the blade tile sampled between its pixels (`tileAt`) with its contrast
+  put back (x 1.7: smoothing flattened it) and a half-size copy mixed in (`HD_FINE` 0.3). K 1 is pixel for pixel as before
+  (checked: every fixed map's whole ground, old code against new). The bakes' `--check` hash the source, so ground and crags
+  were rebaked (same pixels).
+- **Tiles:** makeGround `K` (GK; 1 for baked sheets and old saves' pictures): tile canvases `T x K`, workers paint at K (`m.K`;
+  the preview stays at a quarter of world size), `decorate` scaled (scenery pictures at their world size, `picW`; bridges drawn
+  at K), the soft patches and dressing scaled, the marks' scratch picture at K (`markPic`, `g._gk`). Drawn at world size by
+  the 2D way (`draw`, `drawChunk`, `whole`); WebGL samples tiles by world position, so only memory changes. Kept tiles
+  (`keepN`): a roomy computer 400 (~400 MB), a phone a quarter of before; gl.js `TEX_MAX` a quarter on phones.
+- **No baked ground with HD ground** (`newGround`: `baked` only at GK 1): painted live by the workers, so no stage 6 either.
+  Desktop (swiftshader, not a real GPU): Frostlight ready in ~2.6 s; scrolling about as before. Baking `grounds-hd/` (~4x
+  the files) is the way to bring stage 6 to phones if they cope.
+- **Marks at HD:** `standOnGround` draws at K (`uprightCtx` `g._px`: upright pictures and pixels at that scale), and `charred`
+  / `dimmed` keep the HD sprites (no `sdPic`), so wrecks and bodies are as sharp as the units; dug craters (`craterPic(.., K)`)
+  worked out at K.
+- **HD crags:** look.js `cliffPts(L, c, K)` samples the rock's height on the fine grid (smoothed over the same world width,
+  in two passes) and `cliffPic(.., K)` draws K x K columns per world pixel into a picture of K pixels per view pixel (`_k`,
+  `k`; X0, Y0, w, h stay in view pixels); `cliffBlit` draws a crag, live or cut from a sheet, at its view size. Baked:
+  `tools/bake-cliffs.js <repo> --hd [--check]` into `cliffs-hd/` (2048 px sheets; index x, y, w, h in the sheet's pixels;
+  manifest `k`), loaded by `CliffSheets` with HD ground (a manifest of another `k` is ignored: crags made in play at GK).
+  K 1 crags are the same as before (the rebake changed only the manifest).
+- **Crag shadows with HD ground:** there is no baked ground to carry them, so finishSome paints them into each tile
+  (`cliffShadowPaint`, as the ground bake does) and `cliffShadowsBaked` is true: no shadow pictures.
+- Windows app: prep.js copies `cliffs-hd`. Release: CLAUDE.md steps 2 and 4 list it.
+
+## Survivors from structures: Technicians (after 2026-11-25, not released, owner OK'd for both modes; the server must match)
+
+- Owner: destroyed buildings only *may* let people out, and they come out hurt; full-health people only when you sell.
+- `world.js escapeSurvivors(b, sold)`: same head count as before (1-3 by footprint, 4 from a Construction Yard). Each is a
+  Technician with chance `SURVIVOR_TECH` (1/3), else Rifle Infantry. Destroyed: `SURVIVORS_ESCAPE` (0.5) chance anyone
+  gets out, at 25-50% health. Sold (`kill` with `sellT > 0`): always, at full health. Host only (`G.remote` returns).
+- Technician (`UNIT_DEFS.technician`): a civilian with a pistol, 25 HP, dmg 4, range 60, cannot be built (`factions: []`).
+  Like the Pilot, not counted in `stats.units`, and drawn live (not in the baked sheets: those only hold buildable types).
+  Model: `models.js infModel` (`TC`), bare-headed, shirt in the side's colour, work trousers, no pack.
+
+## Attack move (2026-11-25, not released, both modes)
+
+Owner's ask: from the AUTO button, an "Attack move": pick a spot, every unit goes there and stops to fight anything on the
+way; not a recurring wave, it turns off right after.
+
+- **Button:** AUTO now opens the picker (title "Attack") whenever Auto Attack is off, and in team games always. With one
+  enemy side the picker shows "Auto attack" (disabled until the enemy base is scouted), "Attack move" and Cancel; with Auto
+  Attack on, a press still just turns it off. Team games list the enemy sides as before, plus Attack move.
+- **Aiming:** after "Attack move" the button pulses (`.icon.auto.amove`) and the next tap on the map is the spot (ui.js
+  `aimMove`, checked first in `tap`). Pressing AUTO again calls it off. One tap, one trip: nothing stays switched on.
+- **Order** (world.js `commandAttackMove`, `canAttackMove`): every armed ground unit of the side (no harvesters, transports,
+  aircraft, units in houses) gets a Guard order with `hold` and `amove`, spread in formation round the spot, and is taken
+  out of the auto logic (`takeOver`, like Guard). While `amove` is set the guard leash to the spot is off, so it fights
+  whatever it meets on the way and then walks on; within 1.5 cells of its spot `amove` clears and it holds there as a
+  Guard. Stop sends it home as usual.
+- **Online:** `commandAttackMove` is in netcore `COMMANDS`, so a guest's order goes to the host or server.
+- Test: `tools/sim/attack-move.js`.
