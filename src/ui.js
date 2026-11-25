@@ -179,7 +179,7 @@
   }
   const wheelStep = (z) => Math.max(1 / ZDPR, z * 0.12);   // one wheel notch
   function zMin() {
-    if (isTouch) return Z_MIN_TOUCH;
+    if (isTouch || (G && G.editing)) return Z_MIN_TOUCH;   // (the map editor keeps the full range on a computer too)
     let z = snapIn(Z_MAX, Z_MIN_TOUCH);
     for (let i = 0; i < PC_WHEEL_OUT; i++) z = snapIn(z - wheelStep(z), Z_MIN_TOUCH);
     return z;

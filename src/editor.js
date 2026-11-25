@@ -27,7 +27,7 @@ const MapEditor = (() => {
     square: 'Drag a box for a village square: paved, with a fountain, stalls and benches.',
     lot: 'Drag a box for a village plot: houses are built on it, different every battle.',
     lamp: 'Tap to place a street lamp (lit at night near villages and roads).', erase: 'Tap a gem field, start, plateau, house, plot, square or lamp to remove it.',
-    pan: 'Drag to move round the map. Two fingers or the mouse wheel zoom.',
+    pan: 'Drag to move round the map. Two fingers, the mouse wheel or the + and − buttons zoom.',
   };
   let root = null, cv = null, g = null, img = null, imgData = null, S = null, tool = '.', brush = 2, team = 0, house = 0, rot = 0, plat = 9;
   // view: 'real' (the map built as in a battle under the tools, ui.js EditorHooks.live; rebuilt after each change) or
@@ -407,6 +407,8 @@ const MapEditor = (() => {
 #editor .ed-tool[aria-pressed="true"] { border-color: #ff4a33; background: #3a2420; color: #fff; }
 #editor .ed-opts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 8px 8px; background: #17181a; min-height: 40px; }
 #editor .ed-opts small { color: #a9a395; flex-basis: 100%; }
+#editor .ed-zoom { position: absolute; right: 8px; bottom: 8px; z-index: 1; display: flex; flex-direction: column; gap: 6px; }
+#editor .ed-zoom .ed-b { width: 42px; min-height: 42px; padding: 0; font-size: 22px; font-weight: 700; }
 #editor .ed-msg { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); background: rgba(0,0,0,0.8); padding: 6px 12px; border-radius: 3px; pointer-events: none; max-width: 90%; text-align: center; }
 #editor .ed-dlg { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); padding: 12px; }
 #editor .ed-dlg[hidden] { display: none; }
@@ -429,7 +431,7 @@ const MapEditor = (() => {
         <button type="button" class="ed-b" data-ed="undo">Undo</button><button type="button" class="ed-b" data-ed="fit">Whole map</button>
         <button type="button" class="ed-b" data-ed="save">Save</button><button type="button" class="ed-b" data-ed="view">Plan view</button>
         <button type="button" class="ed-b go" data-ed="play">Play</button><button type="button" class="ed-b" data-ed="close" aria-label="Close">✕</button></div>
-      <div class="ed-main"><canvas></canvas><div class="ed-msg" hidden></div><div class="ed-dlg" hidden><div class="ed-card"></div></div></div>
+      <div class="ed-main"><canvas></canvas><div class="ed-zoom"><button type="button" class="ed-b" data-ed="zin" aria-label="Zoom in">+</button><button type="button" class="ed-b" data-ed="zout" aria-label="Zoom out">−</button></div><div class="ed-msg" hidden></div><div class="ed-dlg" hidden><div class="ed-card"></div></div></div>
       <div class="ed-tools" role="toolbar" aria-label="Tools">${TOOLS.map(([k, n]) => {
         const c = COL[k], sw = c ? `background: rgb(${c.join(',')})` : '';
         const ic = { gem: '◆', start: 'A', mesa: '▲', house: '⌂', church: '✝', square: '▦', lot: '▭', lamp: '•', erase: '✕', pan: '✥' }[k] || '';
@@ -441,7 +443,7 @@ const MapEditor = (() => {
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     cv.addEventListener('pointerleave', () => { hover = null; dirty = true; });
     cv.addEventListener('contextmenu', (e) => e.preventDefault());
-    cv.addEventListener('wheel', (e) => { e.preventDefault(); if (view === 'real' && H()) zWant = H().zoom(); zoomAt(...local(e), Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+    cv.addEventListener('wheel', (e) => { e.preventDefault(); if (view === 'real' && H() && Math.abs(zWant - H().zoom()) > 0.5) zWant = H().zoom(); zoomAt(...local(e), Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
     window.addEventListener('resize', () => { dirty = true; });
     window.addEventListener('keydown', (e) => { if (!root.hidden && (e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undoLast(); } });
     root.addEventListener('click', onClick);
@@ -534,6 +536,11 @@ const MapEditor = (() => {
     else if (a === 'settings') settingsDialog();
     else if (a === 'undo') undoLast();
     else if (a === 'fit') fit();
+    else if (a === 'zin' || a === 'zout') {   // (the buttons zoom about the middle of the view)
+      const r = cv.getBoundingClientRect();
+      if (view === 'real' && H() && Math.abs(zWant - H().zoom()) > 0.5) zWant = H().zoom();
+      zoomAt(r.width / 2, r.height / 2, a === 'zin' ? 1.25 : 0.8);
+    }
     else if (a === 'save') save();
     else if (a === 'explore') test('explore');
     else if (a === 'play') test('play');

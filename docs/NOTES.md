@@ -2864,6 +2864,9 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   camera and hills (`EditorHooks.w2s` / `s2w`): starts with their base ring, plateau rings and ramp arrows, plot, square and
   house outlines, gem rings. The editor's canvas covers only the battlefield (the radar beside it stays usable). Pan with
   Move, right-drag or two fingers; zoom with the wheel or a pinch (`EditorHooks.zoomTo`, the game's 0.75-3.5 range).
+  Zoom also has + and − buttons (bottom right). The PC zoom limit (`zMin` in ui.js) does not apply while `G.editing`,
+  so a computer gets the full 0.75-3.5 too; the wheel keeps the editor's wanted zoom between notches, so a trackpad's
+  small steps add up instead of being snapped away (owner, 2026-11-25: "allow us to zoom in and out in the map editor").
   **Plan view** (the flat one, every cell a colour) stays one button away for big changes or seeing the whole map; the
   game's camera looks at the map corner-on, so the plan's diagonals are the real view's up and down. Explore is gone from
   the editor (the real view is it). Close or Play ends the working copy (`EditorHooks.leave`: a fresh menu world).
