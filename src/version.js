@@ -4,6 +4,22 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.25.4', date: '25 November 2026', title: 'Vehicles come apart, attack move', groups: [
+    ['New', [
+      'Vehicles come apart when destroyed: wheels are blown off and go tumbling, bounce and roll away before toppling over; tanks throw road wheels and lengths of track, and plates of armour fly.',
+      'Crews die too: a Ranger\'s driver and gunner are thrown out of it, and truck drivers and tank commanders are sometimes flung clear.',
+      'More ways for soldiers to fall: a sniper\'s shot drops a man where he stands, others sink to their knees and pitch forward or are spun round, and blasts send arms and legs flailing.',
+      'Attack move: tap AUTO and pick Attack move, then tap the map. Your whole army goes there, fighting whatever it meets on the way, then holds the spot.',
+    ]],
+    ['Improved', [
+      'Jets and planes fly level above the hills instead of following the ground.',
+      'Smoother big battles on computers: the game sorts and draws hundreds of units faster.',
+      'Map Editor: changes are quicker, as only the ground that changed is redrawn.',
+    ]],
+    ['Fixed', [
+      'The radar no longer flashes black during busy battles.',
+    ]],
+  ] },
   { v: '2026.11.25.3', date: '25 November 2026', title: 'Water in the rain, waterfalls, survivors', groups: [
     ['New', [
       'Rain water: the rain now runs downhill, soaks the ground darker and gathers in pools that follow the lie of the land, with rain rings on them and water running down the slopes. Dug craters fill and tank tracks hold water.',
