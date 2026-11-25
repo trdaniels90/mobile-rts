@@ -169,11 +169,22 @@
   // scaling makes some pixels wider than others and reads as blur on phones.
   // The steps come from the full resolution (ZDPR), not the one autoRes is drawing at: rounded to that, the zoom changed
   // (2 to 2.4, and back to 2.67) each time the resolution stepped, and the screen jumped on its own (owner, 2026-11-22).
-  function snapZ(z) {
-    z = Math.max(0.75, Math.min(3.5, z));
+  // Zoom limits. On a computer (owner, 2026-11-25) the widest view is two wheel notches out from the closest, so a big
+  // screen never draws the whole map at once; phones keep the full range (pinch).
+  const Z_MAX = 3.5, Z_MIN_TOUCH = 0.75, PC_WHEEL_OUT = 2;
+  function snapIn(z, lo) {
+    z = Math.max(lo, Math.min(Z_MAX, z));
     if (z * ZDPR < 1.5) return z;
     return Math.max(1, Math.round(z * ZDPR)) / ZDPR;
   }
+  const wheelStep = (z) => Math.max(1 / ZDPR, z * 0.12);   // one wheel notch
+  function zMin() {
+    if (isTouch) return Z_MIN_TOUCH;
+    let z = snapIn(Z_MAX, Z_MIN_TOUCH);
+    for (let i = 0; i < PC_WHEEL_OUT; i++) z = snapIn(z - wheelStep(z), Z_MIN_TOUCH);
+    return z;
+  }
+  function snapZ(z) { return snapIn(z, zMin()); }
   const EDGE_KEEP = 8;
   function clampCam() {
     cam.z = snapZ(cam.z);
@@ -1681,7 +1692,7 @@ function draw() {
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const p = local(e), w = { x: cam.x + p.x / cam.z, y: cam.y + p.y / cam.z };   // (on the view plane)
-    cam.z = snapZ(cam.z + Math.sign(-e.deltaY) * Math.max(1 / ZDPR, cam.z * 0.12));
+    cam.z = snapZ(cam.z + Math.sign(-e.deltaY) * wheelStep(cam.z));
     cam.x = w.x - p.x / cam.z; cam.y = w.y - p.y / cam.z;
     clampCam();
   }, { passive: false });
@@ -2287,6 +2298,29 @@ function draw() {
   window.EditorHooks = {
     play: (id) => openSkirmish(id),   // (opened from the menu, which stays up under it)
     explore: (id) => { mapId = id; endPlace(); startExplore(); hideMenu(); },
+    // The editor's real view: the map built as in a battle (empty, no fog, seed 1 so a plot's houses stay put while
+    // editing), rebuilt after each change with the camera kept. G.editing: no Loading card (the ground streams in).
+    live(id) {
+      const keep = G && G.editing ? { x: cam.x, y: cam.y, z: cam.z } : null;
+      Net.leave();
+      if (mission) Report.quit();
+      endPlace();
+      newWorld(faction, diffKey, 1, 0, false, id, null, true);
+      online = null; mission = false;
+      G.spectate = true; G.mapViewUsed = true; G.speed = 1; G.weather = null; G.editing = true;
+      G.seen = new Uint8Array(NCELLS).fill(1); for (const f of G.fog) f.fill(1);
+      afterNewWorld(faction);
+      if (keep) Object.assign(cam, keep); else { cam.z = 1; centerOn(WORLD / 2, WORLD / 2); }
+      clampCam();
+      hideMenu();
+    },
+    leave() { endPlace(); startGame(); showMenu('start'); },
+    rect: () => canvas.getBoundingClientRect(),
+    s2w: (sx, sy) => s2w(sx, sy),   // canvas px -> world px on the ground
+    w2s(x, y) { const [vx, vy] = toView(...hillPt(x, y)); return [(vx - cam.x) * cam.z, (vy - cam.y) * cam.z]; },
+    panBy(dx, dy) { cam.x -= dx / cam.z; cam.y -= dy / cam.z; clampCam(); },
+    zoom: () => cam.z,
+    zoomTo(sx, sy, z) { const wx = cam.x + sx / cam.z, wy = cam.y + sy / cam.z; cam.z = snapZ(z); cam.x = wx - sx / cam.z; cam.y = wy - sy / cam.z; clampCam(); },   // (z wanted: the editor keeps it, as snapZ steps it)
   };
   ui.resumeBtn.addEventListener('click', hideMenu);
   // Map view (the owner's tool for tuning maps, 2026-11-21): the whole map shown, starting places and
@@ -2413,7 +2447,7 @@ function draw() {
   let loadFor = null, loadEl = null, stillKey = null;
   let splashEl = document.getElementById('splash'), splashOk = 0, splashLast = 0;
   function loading(now) {
-    if (!G || G.paused || G.over) return false;
+    if (!G || G.paused || G.over || G.editing) return false;
     if (!loadFor || loadFor.g !== G) loadFor = { g: G, since: now, done: false, at: now, slow: -1e9, nSlow: 0 };
     if (typeof GLR === 'object' && GLR) GLR.probe = !loadFor.done || now - loadFor.doneAt < 5000;   // (gl.js sync: where a freeze is)
     if (loadFor.done) return false;

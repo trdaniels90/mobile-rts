@@ -1,7 +1,7 @@
 // The map editor (src/editor.js), end to end in headless Chromium: a new 96 map painted through the real pointer handlers
 // (water, bridge, ore, trees, gems, two starts, a plateau, a square, a plot, houses, a church, a lamp), checked, saved, picked on
-// the skirmish screen and played; after a reload the map is still there and Explore opens it. Screenshots ed1.png (editor) and
-// ed2.png (battle) go to <out dir>. node tools/sim/editor.js <repo> [out dir]
+// the skirmish screen and played; after a reload the map is still there and the real view builds it. Screenshots ed1.png
+// (plan view), ed2.png (battle) and ed3.png (real view) go to <out dir>. node tools/sim/editor.js <repo> [out dir]
 const { chromium } = require('playwright');
 (async () => {
   const root = require('path').resolve(process.argv[2] || '.'), out = process.argv[3] || require('os').tmpdir();
@@ -11,7 +11,9 @@ const { chromium } = require('playwright');
   await pg.goto('file://' + root + '/index.html'); await pg.waitForTimeout(600);
   await pg.click('#editorBtn'); await pg.waitForTimeout(300);
   // new 96 map
-  await pg.click('[data-ed="maps"]'); await pg.selectOption('[data-ed-size]', '96'); await pg.click('[data-ed="new"]'); await pg.waitForTimeout(300);
+  console.log('real view on opening', await pg.evaluate(() => ({ view: MapEditor.view, map: G.mapId, editing: !!G.editing })));
+  await pg.click('[data-ed="maps"]'); await pg.selectOption('[data-ed-size]', '96'); await pg.click('[data-ed="new"]'); await pg.waitForTimeout(1500);
+  await pg.click('[data-ed="view"]'); await pg.waitForTimeout(300);   // (the plan view: the cells are easy to find)
   const r = await pg.evaluate(() => { const c = document.querySelector('#editor canvas').getBoundingClientRect(); return [c.left, c.top, c.width, c.height]; });
   const N = 96, z = Math.min(r[2], r[3]) / N * 0.95, cx0 = N / 2 - r[2] / z / 2, cy0 = N / 2 - r[3] / z / 2;
   const P = (x, y) => [r[0] + (x + 0.5 - cx0) * z, r[1] + (y + 0.5 - cy0) * z];
@@ -50,8 +52,9 @@ const { chromium } = require('playwright');
   console.log('after reload', await pg.evaluate((id) => !!MAPS[id] && MAP_LIST.includes(id), saved.id));
   await pg.click('#editorBtn'); await pg.waitForTimeout(300);
   console.log('draft back', await pg.evaluate(() => MapEditor.state.id));
-  await pg.click('[data-ed="explore"]'); await pg.waitForTimeout(5000);
-  console.log('explore', await pg.evaluate(() => ({ map: G.mapId, explore: !!G.explore, houses: G.houses.length })));
+  await pg.waitForTimeout(4000);   // (it opened in the real view: the map built under the editor)
+  console.log('real view', await pg.evaluate(() => ({ map: G.mapId, editing: !!G.editing, houses: G.houses.length, mesas: (MAPS[G.mapId].mesas || []).length })));
+  await pg.screenshot({ path: out + '/ed3.png' });
   console.log('errors', errs.slice(0, 8));
   await b.close();
 })();
