@@ -178,7 +178,7 @@ const UNIT_DEFS = {
   htank: {
     name: 'Heavy Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'tank',
     cost: 1150, hp: 550, armor: 'heavy', speed: 38, turn: 2.5, sight: 5, r: 10, size: { len: 22, wid: 16, tur: 6, barrel: 8, twin: true, heavy: true, tz: 6 },
-    weapon: { dmg: 30, rof: 1.7, range: 114, wh: 'AP', proj: 'shell', twin: true, stagger: 0.25 },   // stagger: the second barrel fires this much later
+    weapon: { dmg: 30, rof: 1.7, range: 114, wh: 'AP', proj: 'shell', twin: true, stagger: 0.25, sound: 'cannonTwin' },   // stagger: the second barrel fires this much later
   },
   // Tesla Tank (Soviets, after the Tech Center upgrade `teslatank`): a mobile Tesla Coil, after OpenRA's Red Alert TTNK (cost, health,
   // light armour, speed). Its bolt is shorter-ranged and lighter than the Coil's, hits ground targets only and needs no power.
@@ -204,7 +204,7 @@ const UNIT_DEFS = {
   mammoth: {
     name: 'Mammoth Tank', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['tech'], factions: ['soviets'], draw: 'tank',
     cost: 2000, hp: 950, armor: 'heavy', speed: 25, turn: 2, sight: 6, r: 12, size: { len: 24, wid: 22, tur: 7.5, barrel: 14, twin: true, pods: true, mammoth: true, tz: 4 },
-    weapon: { dmg: 45, rof: 1.9, range: 118, wh: 'AP', proj: 'shell', twin: true },
+    weapon: { dmg: 45, rof: 1.9, range: 118, wh: 'AP', proj: 'shell', twin: true, sound: 'cannonMammoth' },
     weapon2: { dmg: 35, rof: 2.6, range: 140, wh: 'HE', proj: 'rocket', air: true },
   },
   // Long-range support, built once a Radar Dome stands. Neither has a turret: the whole vehicle
