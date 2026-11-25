@@ -932,6 +932,7 @@ function aiRing(team) {
 // Lays what it can of a planned ring from the credits above `keep`. False once the money runs short.
 function aiBuildRing(team, R, keep) {
   const gate = WALLS.gate, wall = WALLS.concrete;
+  let det = null;
   for (const sd of R.sides) {
     if (team.credits - keep < (sd.gate < 0 ? gate.cost : wall.cost)) return false;
     if (sd.gate < 0) {                                   // the side's Gate first: the middle cell nearest the side's middle that fits
@@ -958,8 +959,70 @@ function aiBuildRing(team, R, keep) {
       else lay();
     }
     lay();
+    // Round what blocks its line for good (ore, trees, water, rock, a building): a wall a piece at a time.
+    for (const c of (det || (det = ringDetours(R))).get(sd) || []) {
+      if (team.credits - keep < wall.cost) return false;
+      if (!G.wall[c] && wallOk(team, c, blds)) placeWalls(team, 'concrete', cellX(c), cellY(c), cellX(c), cellY(c));
+    }
   }
   return true;
+}
+// Owner, 2026-11-24 (a Soviet turtle's ring on Lakeside left open): where cells of a ring's line can never be walled (ore,
+// trees, water, rock, a building), the wall goes round them instead of leaving a gap: the fewest pieces (8-way steps:
+// pieces touching at a corner shut the way) from the line's cell before the gap to the one after, at most RING_DETOUR_IN
+// cells inside the ring or RING_DETOUR_OUT outside it, so the ore stays outside and harvesters use the gates. Worked out on
+// each pass (ore is mined away and grows back), given to the side the gap starts on.
+const RING_DETOUR_IN = 8, RING_DETOUR_OUT = 3;
+const ringStuck = (c) => { const x = cellX(c), y = cellY(c); return x < 1 || y < 1 || x > MAP - 2 || y > MAP - 2 || G.terr[c] > 1 || G.block[c] || G.bld[c] || G.ore[c] > 0; };
+function ringDetours(R) {
+  const out = new Map();
+  if (!R.box) return out;
+  const [x0, y0, x1, y1] = R.box, own = new Map();
+  for (const sd of R.sides) for (const c of sd.cells) own.set(c, sd);
+  const loop = [];   // the ring's line in order round it (sides left open at the map's edge are not in it)
+  for (let x = x0; x <= x1; x++) loop.push(idx(x, y0));
+  for (let y = y0 + 1; y < y1; y++) loop.push(idx(x1, y));
+  for (let x = x1; x >= x0; x--) loop.push(idx(x, y1));
+  for (let y = y1 - 1; y > y0; y--) loop.push(idx(x0, y));
+  const n = loop.length, st = loop.map((c) => (!own.has(c) ? 0 : !G.wall[c] && ringStuck(c) ? 2 : 1));   // 0 open side, 1 fine, 2 stuck
+  const start = st.findIndex((v) => v !== 2);
+  if (start < 0) return out;
+  const inside = (x, y) => x > x0 && x < x1 && y > y0 && y < y1, onLine = new Set(loop);
+  for (let k = 0; k < n; k++) {
+    const i = (start + k) % n;
+    if (st[i] !== 2 || st[(i - 1 + n) % n] === 2) continue;
+    let j = i; while (st[(j + 1) % n] === 2 && (j + 1) % n !== i) j = (j + 1) % n;
+    const a = loop[(i - 1 + n) % n], b = loop[(j + 1) % n], len = (j - i + n) % n + 1;
+    if (!st[(i - 1 + n) % n] || !st[(j + 1) % n]) continue;   // (runs into a side left open: the map's edge closes it)
+    let path = null;
+    for (const outw of [0, RING_DETOUR_OUT]) if (!path) path = ringDetour(a, b, len, (x, y) => {
+      if (x < x0 - outw || y < y0 - outw || x > x1 + outw || y > y1 + outw) return false;
+      if (inside(x, y) && Math.min(x - x0, x1 - x, y - y0, y1 - y) > RING_DETOUR_IN) return false;
+      const c = idx(x, y);
+      if (G.wall[c]) return true;
+      if (ringStuck(c)) return false;
+      for (let v = -1; v <= 1; v++) for (let u = -1; u <= 1; u++) if (inMap(x + u, y + v) && G.bld[idx(x + u, y + v)]) return false;   // (not hugging a building: a factory's door)
+      return true;
+    }, onLine);
+    if (!path) continue;
+    const sd = own.get(loop[i]) || own.get(a), l = out.get(sd) || []; l.push(...path); out.set(sd, l);
+  }
+  return out;
+}
+// The fewest pieces from a to b (8-way) over cells ok(x, y) allows, not on the ring's line; null if none within len x 3 + 14.
+function ringDetour(a, b, len, ok, onLine) {
+  const from = new Map([[a, -1]]), q = [a];
+  for (let h = 0; h < q.length && h < 4000; h++) {
+    const c = q[h], cx = cellX(c), cy = cellY(c);
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const x = cx + dx, y = cy + dy, d = idx(x, y);
+      if ((!dx && !dy) || !inMap(x, y) || from.has(d) || (onLine.has(d) && d !== b) || (d !== b && !ok(x, y))) continue;
+      from.set(d, c);
+      if (d === b) { const path = []; for (let k = c; k !== a; k = from.get(k)) path.push(k); return path.length > len * 3 + 14 ? null : path.reverse(); }
+      q.push(d);
+    }
+  }
+  return null;
 }
 // The ring's four sides round the main base's buildings (within 16 cells of its start), facing the enemy first.
 // Up to `room` cells out from the base's middle every way (space to build inside later: aiFindSpot keeps new buildings

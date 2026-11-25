@@ -397,13 +397,27 @@ function cliffHeight(cells) {
     if (d >= 1.2) return 1;
     const k = Math.max(0, Math.min(1, (d - 0.55) / 0.65)); return k * k * (3 - 2 * k);
   };
-  return (x, y) => {
+  // A map's mesas (MAPS mesas, world.js makeHeights; Lakeside): the rim's crags rise from the low ground to the top's
+  // drawn height (gLift: HILL_DRAW x the rules' height), so the plateau stands as one block of cliff, its top level with the rock.
+  const mesas = (G.hgt && MAPS[validMap(G.mapId)].mesas) || [], tops = new Map();
+  const topOf = (c) => {
+    if (!mesas.length) return CLIFF_TOP;
+    let t = tops.get(c);
+    if (t === undefined) {
+      t = CLIFF_TOP;   // (a rim cell up on the top itself: only a lip, so the top stays level)
+      for (const m of mesas) if (Math.hypot(c % MAP + 0.5 - m.x, ((c / MAP) | 0) + 0.5 - m.y) < m.r + 1.5) t = (HG_MAX - G.hgt[c]) * HILL_DRAW + 2;
+      tops.set(c, t);
+    }
+    return t;
+  };
+  // (c: the cell whose crag is being made: its margin's samples are sized for its own foot, so its top is level.)
+  return (x, y, c) => {
     let q = (mound(x, y) - 0.5) * (oreCell.size ? oreFade(x, y) : 1);
     if (bare.size) { const c = Math.floor(y / CELL) * MAP + Math.floor(x / CELL); if (bare.has(c)) q = Math.max(q, 0.12 * (1 - Math.hypot(x / CELL - (c % MAP + 0.5), y / CELL - ((c / MAP | 0) + 0.5)) / 0.75)); }
     if (q <= 0) return 0;
     const s = Math.min(1, q / 0.22), l = cells.get(Math.floor(y / CELL) * MAP + Math.floor(x / CELL));
     const big = Math.min(1, 0.3 + (l ? l.length / 2 : 0) / 9);   // a lone rock stays a boulder; a ridge rises full height
-    return CLIFF_TOP * big * s * s * (3 - 2 * s) + (hash3(x >> 2, y >> 2, 21) - 0.5) * 1.5;
+    return topOf(c === undefined ? Math.floor(y / CELL) * MAP + Math.floor(x / CELL) : c) * big * s * s * (3 - 2 * s) + (hash3(x >> 2, y >> 2, 21) - 0.5) * 1.5;
   };
 }
 // The rock's columns over cell c: [x, y, height, slope x, slope y] per world pixel, and the highest.
@@ -412,19 +426,22 @@ function cliffPts(L, c) {
   // The height over the cell and a margin, smoothed (5 x 5): raised CLIFF_UP times, the ridge's fine noise made the tops
   // bumpy and streaked.
   const B = 4, N = CELL + 2 * B, raw = new Float32Array(N * N), sm = new Float32Array(N * N);
-  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) raw[j * N + i] = Hf(cx * CELL - B + i + 0.5, cy * CELL - B + j + 0.5);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) raw[j * N + i] = Hf(cx * CELL - B + i + 0.5, cy * CELL - B + j + 0.5, c);
   for (let j = 2; j < N - 2; j++) for (let i = 2; i < N - 2; i++) {
     let a = 0; for (let v = -2; v <= 2; v++) for (let u = -2; u <= 2; u++) a += raw[(j + v) * N + i + u];
     sm[j * N + i] = raw[j * N + i] > 0.4 ? a / 25 : 0;
   }
   const at = (x, y) => sm[(y - cy * CELL + B) * N + x - cx * CELL + B];
+  // On a map with mesas (Lakeside), the ground under a rim crag is not level: each column stops at the ground it stands on
+  // (its foot, f world units above the cell's middle), so none of it shows on the plateau's top. Elsewhere f is 0.
+  const ms = G.hgt && MAPS[validMap(G.mapId)].mesas, h0 = ms ? hgtAt((cx + 0.5) * CELL, (cy + 0.5) * CELL, true) : 0;
   const pts = [];
   let top = 0;
   for (let y = cy * CELL; y < (cy + 1) * CELL; y++) for (let x = cx * CELL; x < (cx + 1) * CELL; x++) {
     const h = at(x, y);
     if (h <= 0.4) continue;
     const gx = at(x + 1, y) - at(x - 1, y), gy = at(x, y + 1) - at(x, y - 1);
-    pts.push([x, y, h, gx, gy]); top = Math.max(top, h);
+    pts.push([x, y, h, gx, gy, ms ? (hgtAt(x + 0.5, y + 0.5, true) - h0) * HILL_DRAW : 0]); top = Math.max(top, h);
   }
   return { pts, top };
 }
@@ -448,7 +465,7 @@ function cliffPic(L, c, noShadow) {
     : [[44, 34, 26], [62, 49, 36], [84, 67, 49], [108, 88, 65], [134, 112, 84], [162, 139, 106], [190, 168, 132]];
   const Lx = -0.8, Ly = 0.3, Lz = 0.6, Ll = Math.hypot(Lx, Ly, Lz);   // towards the sun: the screen's upper left
   pts.sort((a, b) => viewDepth(a[0], a[1]) - viewDepth(b[0], b[1]));   // back to front
-  for (const [x, y, h, gx, gy] of pts) {
+  for (const [x, y, h, gx, gy, f] of pts) {
     const [vX, vY] = toView(x + 0.5 - mx, y + 0.5 - my), hz = h * CLIFF_UP;
     const nx = -gx * 0.5 * CLIFF_UP, ny = -gy * 0.5 * CLIFF_UP, nl = Math.hypot(nx, ny, 1);
     const lit = (nx * Lx + ny * Ly + Lz) / nl / Ll, steep = 1 - 1 / nl;
@@ -460,7 +477,8 @@ function cliffPic(L, c, noShadow) {
     const px0 = Math.round(vX - X0 - 0.5), yTop = Math.round(vY - hz * VK - Y0), yBot = Math.round(vY - Y0);
     for (let py = yTop; py <= yBot; py++) {
       const z = hz - (py - yTop) / VK;   // the height of this pixel of the column
-      let v = 1.2 + lit * 4.4 + (sp - 0.5) * 0.7 + (z / CLIFF_TOP) * 0.8;
+      if (f > 0 && z < f) break;          // (below the ground it stands on: cliffPts)
+      let v = 1.2 + lit * 4.4 + (sp - 0.5) * 0.7 + Math.min(1, z / CLIFF_TOP) * 0.8;
       if (steep > 0.45 && ((z + hash3(x >> 3, y >> 3, 5) * 3) % 8) < 1.2) v -= 0.8;   // strata on the faces
       if (z < 4) v -= (4 - z) * 0.3;                                                     // darker at the foot
       if (py === yTop && steep < 0.5) v += 0.4;                                          // a lit lip on flat tops
@@ -516,7 +534,7 @@ const cliffAlpha = (p) => { if (!p.born) return 1; const a = (performance.now() 
 function cliffItems(list, x0, y0, x1, y1, shows) {
   lookGround(lookView, x0, y0, x1, y1, shows && ((x, y) => shows(x, y, 40, 40, 40)));   // (the ground's patches and tracks first: under the cliffs' shadows)
   lookFxGround(lookView, x0, y0, x1, y1);   // lookfx.js: blasts' scorch marks and rings, and the update of its particles
-  lookPuddles(lookView, x0, y0, x1, y1);   // puddles in the rain (under the fog)
+  lookPuddles(lookView, x0, y0, x1, y1, shows && ((x, y) => shows(x, y, 60, 50, 160)));   // puddles in the rain (under the fog)
   lookFogGround(lookView, x0, y0, x1, y1);   // fog lying on the ground, under the units
   poolItems(list, x0, y0, x1, y1, shows);   // lamp posts (light pools), with their shadows
   if (!LOOK.cliffs || !G.cliff) return;
@@ -570,6 +588,20 @@ function cliffShadow(g, e) {
   g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = CLIFF_SA * cliffAlpha(e.p);
   g.drawImage(e.p.sh, Math.round(sx + e.p.X0), Math.round(sy + e.p.Y0));
   g.globalAlpha = 1; g.setTransform(m); g.upright = up;
+}
+// The same as onHill + drawCliff, for a run of crags in the list (ui.js, WebGL): g already in screen px (identity, not
+// upright), WM the world transform the list is drawn through. Its spot on the screen is worked out here, so a run of crags
+// costs no transform changes (zoomed out over Lakeside ~1,100 crags a frame, each with five, were most of "bld").
+function drawCliffAt(g, e, WM) {
+  const p = e.p, L = gLift(e.x, e.y);
+  if (!LIFT_V) LIFT_V = fromView(0, -1);
+  const x = e.x + (L ? LIFT_V[0] * L : 0), y = e.y + (L ? LIFT_V[1] * L : 0);
+  const sx = WM.a * x + WM.c * y + WM.e, sy = WM.b * x + WM.d * y + WM.f;
+  const a = cliffAlpha(p), ga = g.globalAlpha; if (a < 1) g.globalAlpha = ga * a;
+  const X = Math.round(sx + p.X0), Y = Math.round(sy + p.Y0);
+  if (p.sx !== undefined) g.drawImage(p.c, p.sx, p.sy, p.w, p.h, X, Y, p.w, p.h);
+  else g.drawImage(p.c, X, Y);
+  g.globalAlpha = ga;
 }
 function drawCliff(g, e) {
   const m = g.getTransform(), up = g.upright, p = e.p;
@@ -915,6 +947,7 @@ function waterMasks() {
   waterLook = { g: G, wm, sm, any, crest, foam, tmp: [tmp(), tmp()] };
   return waterLook;
 }
+const WATER_PX = 4.5;
 function drawWater(g, x0, y0, x1, y1, shows) {
   if (!LOOK.water || snowy() || mapTheme(G.mapId) === 'marsh') return;   // (no waves or surf on a fen's still water)
   const W = waterMasks();
@@ -932,10 +965,21 @@ function drawWater(g, x0, y0, x1, y1, shows) {
   }
   x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0)); x1 = Math.min(WORLD, Math.ceil(x1)); y1 = Math.min(WORLD, Math.ceil(y1));
   if (x1 <= x0 || y1 <= y0) return;
-  const R = 0.5, tw = Math.ceil((x1 - x0) * R), th = Math.ceil((y1 - y0) * R);
-  for (const T of W.tmp) { if (T.width < tw || T.height < th) { T.width = Math.max(T.width, tw); T.height = Math.max(T.height, th); } T._ver++; }
-  let T = W.tmp[0], c = T.getContext('2d');
+  // Resolution of the scratch canvases (px per world px): 0.5, but zoomed out on a computer no finer than a pixel per WATER_PX
+  // screen px. They are filled and uploaded to WebGL whole every frame: at 0.5, zoomed out over Twin Lakes on a 2560 x 1370
+  // screen, two of 1524 x 1296 (4 million px a frame). Phones (3x pixels) already sit above WATER_PX: unchanged.
+  const zs = (typeof window !== 'undefined' && window.__ps && window.__ps.cam ? window.__ps.cam.z : 1) * ((typeof devicePixelRatio === 'number' && devicePixelRatio) || 1);
+  const R = Math.max(0.2, Math.min(0.5, zs / WATER_PX)), tw = Math.ceil((x1 - x0) * R), th = Math.ceil((y1 - y0) * R);
+  // (sized to what is drawn, in steps of 64 px: WebGL uploads the whole canvas, so one left at its largest after zooming
+  // out stayed that size, and that costly, for the rest of the battle)
+  const cw = Math.ceil(tw / 64) * 64, ch = Math.ceil(th / 64) * 64;
   const t = (G && G.t) || 0;
+  // Filled again only when the battle's clock has moved on a step (1/30 s, as the battle is stepped) or the box has changed:
+  // in between the canvases (and WebGL's copies of them) are drawn as they are. At 60 frames a second that halves the cost,
+  // at 120 it quarters it; the ripples move a few px a second.
+  const key = x0 + ',' + y0 + ',' + x1 + ',' + y1 + ',' + R, fresh = W.key !== key || !(t >= W.t && t - W.t < 1 / 30);
+  if (fresh) { W.key = key; W.t = t; for (const T of W.tmp) { if (T.width !== cw || T.height !== ch) { T.width = cw; T.height = ch; } T._ver++; } }
+  let T = W.tmp[0], c = T.getContext('2d');
   const layer = (pat, sc, dx, dy, alpha) => {
     const P = c.createPattern(pat, 'repeat');
     P.setTransform(new DOMMatrix([sc * R, 0, 0, sc * R, (-x0 + dx) * R, (-y0 + dy) * R]));
@@ -945,15 +989,11 @@ function drawWater(g, x0, y0, x1, y1, shows) {
     c.drawImage(m, x0 / WATER_Q, y0 / WATER_Q, (x1 - x0) / WATER_Q, (y1 - y0) / WATER_Q, 0, 0, (x1 - x0) * R, (y1 - y0) * R); c.globalCompositeOperation = 'source-over'; };
   g.save(); g.imageSmoothingEnabled = true;
   // Ripples.
-  c.clearRect(0, 0, tw, th);
-  layer(W.crest, 3, t * 7, t * 2.5, 0.8); layer(W.crest, 2.2, -t * 5, t * 4, 0.55);
-  mask(W.wm);
+  if (fresh) { c.clearRect(0, 0, tw, th); layer(W.crest, 3, t * 7, t * 2.5, 0.8); layer(W.crest, 2.2, -t * 5, t * 4, 0.55); mask(W.wm); }
   g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.3; g.drawImage(T, 0, 0, tw, th, x0, y0, x1 - x0, y1 - y0);
   // Foam, swelling and ebbing.
   T = W.tmp[1]; c = T.getContext('2d');
-  c.clearRect(0, 0, tw, th);
-  layer(W.foam, 1.5, Math.sin(t * 0.7) * 6, t * 3, 1);
-  mask(W.sm);
+  if (fresh) { c.clearRect(0, 0, tw, th); layer(W.foam, 1.5, Math.sin(t * 0.7) * 6, t * 3, 1); mask(W.sm); }
   g.globalCompositeOperation = 'source-over'; g.globalAlpha = 0.45 + 0.25 * Math.sin(t * 1.3); g.drawImage(T, 0, 0, tw, th, x0, y0, x1 - x0, y1 - y0);
   g.restore();
 }
@@ -1472,7 +1512,9 @@ function lookFogOver(g) {
 const RAIN_FX = !(typeof location !== 'undefined' && /[?&]lookoff=[^&]*\brain\b/.test(location.search));
 const PUDDLE_BIG = 0.22, PUDDLE_GROW = 240;   // share of puddles that keep growing, and over how many seconds after the soak
 const RIV_MAX = 140, RIV_STEP = 6, RIV_IN = 45;   // rivulets: at most, step (world px), seconds after the soak to run fully
-const PUDDLE_MAX = 700, RUNOFF_SPOTS = 5, RAIN_SOAK = 75;   // RAIN_SOAK: seconds of rain until the ground is soaked
+const PUDDLE_MAX = 700, RUNOFF_SPOTS = 3, RAIN_SOAK = 75;   // RAIN_SOAK: seconds of rain until the ground is soaked
+// RUNOFF_GAP: px between two streams off one structure (was 12: the war factory ran four across its front, a curtain of water)
+const RUNOFF_GAP = 26;
 let rainS = null, rainBox = null;
 function rainState() {
   if (!rainS || rainS.g !== G) rainS = { g: G, wet: 0, t: G.t, pud: null, pics: null, spots: new Map() };
@@ -1505,6 +1547,15 @@ function rainPics(S) {
     x.fillStyle = 'rgba(190,205,220,0.16)'; x.fillRect(1, 0, 1, 48);   // a faint trickle joining them
     P.drop.push(c);
   }
+  P.stream = [];
+  for (let f = 0; f < 4; f++) {   // a roof's runoff stream (tiles down the screen), four frames: a bright 2 px core, soft edges, pulses running down
+    const c = mkCanvas(4, 48), x = c.getContext('2d');
+    x.fillStyle = 'rgba(170,190,206,0.35)'; x.fillRect(0, 0, 4, 48);
+    x.fillStyle = 'rgba(214,228,240,0.8)'; x.fillRect(1, 0, 2, 48);
+    x.fillStyle = 'rgba(245,250,255,1)';
+    for (let i = 0; i < 4; i++) { const y0 = (i * 12 + f * 3) % 48; x.fillRect(1, y0, 2, 4); if (y0 + 4 > 48) x.fillRect(1, 0, 2, y0 + 4 - 48); }
+    P.stream.push(c);
+  }
   { const c = mkCanvas(16, 16), x = c.getContext('2d'), gr = x.createRadialGradient(8, 8, 0, 8, 8, 8);   // a soft dab of running water (rivulets)
     gr.addColorStop(0, 'rgba(52,66,76,0.9)'); gr.addColorStop(0.55, 'rgba(46,58,66,0.7)'); gr.addColorStop(1, 'rgba(40,48,52,0)'); x.fillStyle = gr; x.fillRect(0, 0, 16, 16); P.blob = c; }
   { const c = mkCanvas(2, 4), x = c.getContext('2d'); x.fillStyle = 'rgba(200,215,230,0.55)'; x.fillRect(0, 0, 2, 2); x.fillStyle = 'rgba(232,240,248,0.95)'; x.fillRect(0, 2, 2, 2); P.dot = c; }   // a drip
@@ -1532,20 +1583,22 @@ function puddleSpots(S) {
   }
   return (S.pud = rows);
 }
-function lookPuddles(g, x0, y0, x1, y1) {
+// shows(x, y): on the screen (ui.js onScr). The box x0..y1 is the world round a turned screen, about three times its
+// area: without it a PC zoomed out drew ~700 puddles and their rings a frame, most of them off the screen.
+function lookPuddles(g, x0, y0, x1, y1, shows) {
   rainBox = [x0, y0, x1, y1];
   if (!RAIN_FX || !g || !G || !G.weather || G.weather.kind !== 'rain') return;
   const S = rainState();
   if (S.wet < 0.09) return;
   const P = rainPics(S), rows = puddleSpots(S), t = G.t, rings = S.L > 0, grown = Math.min(1, Math.max(0, (G.t - RAIN_SOAK) / PUDDLE_GROW));
   const up = g.upright; g.upright = false; g.imageSmoothingEnabled = true;
-  rivulets(g, S, P, x0, y0, x1, y1);
+  rivulets(g, S, P, x0, y0, x1, y1, shows);
   let n = 0;
   const cy0 = Math.max(0, Math.floor((y0 - 40) / CELL)), cy1 = Math.min(MAP - 1, Math.ceil((y1 + 120) / CELL));
   for (let cy = cy0; cy <= cy1 && n < PUDDLE_MAX; cy++) for (const p of rows[cy]) {
     if (p[0] < x0 - 30 || p[0] > x1 + 30) continue;
     const c = idx(Math.floor(p[0] / CELL), cy);
-    if (G.block[c] || !G.seen[c]) continue;   // (a building on it, or ground not yet uncovered)
+    if (G.block[c] || !G.seen[c] || (shows && !shows(p[0], p[1]))) continue;   // (a building on it, ground not yet uncovered, off the screen)
     const k = Math.min(1, (S.wet - p[4]) / 0.3);
     if (k <= 0) continue;
     const sz = p[3] * (0.45 + 0.55 * k) * (1 + (p[6] - 1) * grown), W = 40 * sz, H = 28 * sz, [wx, wy] = hillPt(p[0], p[1]);
@@ -1579,7 +1632,10 @@ function runoffSpots(type, faction) {
     }
     const r = rng(strSeed(type) ^ 0x51ed);
     for (let i = cand.length - 1; i > 0; i--) { const j = (r() * (i + 1)) | 0; [cand[i], cand[j]] = [cand[j], cand[i]]; }
-    for (const c of cand) if (out.length < RUNOFF_SPOTS && out.every((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) > 12)) out.push(c);
+    // Eaves that drop to the ground first, then the longest falls: a step down onto a lower roof (a few px) could not be seen.
+    const fallOf = (c) => c[2] - c[3], rank = (c) => (c[3] <= 3 ? 0 : 1);
+    cand.sort((a, b) => rank(a) - rank(b) || (fallOf(b) >= 10) - (fallOf(a) >= 10));
+    for (const c of cand) if (fallOf(c) >= 6) if (out.length < RUNOFF_SPOTS && out.every((o) => Math.hypot(o[0] - c[0], o[1] - c[1]) > RUNOFF_GAP)) out.push(c);
   } catch (_) { out = []; }
   S.spots.set(key, out);
   return out;
@@ -1603,13 +1659,21 @@ function lookRunoff(g) {
     sp.forEach(([sx, sy, z0, z1], i) => {
       const len = (z0 - z1) * VK;
       if (len < 3) return;
-      // Drips, one at a time from each spot, every `per` s (0.7-1.6, its own), falling and speeding up (fall time from the
-      // drop height), then a splash; a faint wet streak down from the eave while it runs.
-      const per = 0.7 + ((e.id * 5 + i * 11) % 10) * 0.1, fall = Math.max(0.12, Math.sqrt(len) * 0.07), u = ((t / per + (e.id * 0.37 + i * 0.61)) % 1) * per;
+      // A steady trickle from the eave to the ground (the stream pictures, flowing down), drips falling along it (two at a time
+      // from each spot, every `per` s, 0.7-1.6, its own, speeding up as they fall) and splashes where it lands. Heavier in
+      // heavier rain. (Owner, 2026-11-24, raining on Lakeside: "i dont see any run off": single 2 px drips were too faint.)
+      const per = 0.7 + ((e.id * 5 + i * 11) % 10) * 0.1, fall = Math.max(0.12, Math.sqrt(len) * 0.07), ph = e.id * 0.37 + i * 0.61;
       const [ex, ey] = liftPt(ox + sx, oy + sy, lift + z0 * VK), [gx, gy] = liftPt(ox + sx, oy + sy, lift + z1 * VK);
-      g.globalAlpha = 0.18 * flow; g.drawImage(P.drop[0], ex - 0.5, ey, 1, Math.min(4, len));   // water gathering at the eave
-      if (u < fall) { const f = (u / fall) ** 2; g.globalAlpha = 0.85 * flow; g.drawImage(P.dot, ex + (gx - ex) * f - 1, ey + (gy - ey) * f - 2, 2, 4); }
-      else if (u < fall + 0.2) g.globalAlpha = flow, g.drawImage(P.splash[Math.min(2, Math.floor((u - fall) / 0.067))], gx - 7, gy - 7, 14, 8);
+      const fr = P.stream[Math.floor(t * 16 + i) & 3], h = gy - ey;
+      g.globalAlpha = (0.7 + 0.3 * S.L) * flow;
+      for (let y = 0; y < h; y += 48) { const k = Math.min(48, h - y); g.drawImage(fr, 0, 0, 4, k, ex - 2, ey + y, 4, k); }
+      g.globalAlpha = 0.5 * flow; g.drawImage(P.dot, ex - 1.5, ey - 1, 3, 3);   // water gathering at the eave
+      for (const off of [0, 0.5]) {
+        const u = ((t / per + ph + off) % 1) * per;
+        if (u < fall) { const f = (u / fall) ** 2; g.globalAlpha = 0.95 * flow; g.drawImage(P.dot, ex + (gx - ex) * f - 1.5, ey + (gy - ey) * f - 3, 3, 6); }
+        else if (u < fall + 0.24) g.globalAlpha = flow, g.drawImage(P.splash[Math.min(2, Math.floor((u - fall) / 0.08))], gx - 10, gy - 9, 20, 11);
+      }
+      g.globalAlpha = 0.85 * flow; g.drawImage(P.splash[Math.floor(t * 10 + i * 2) % 3], gx - 8, gy - 7, 16, 9);   // the stream splashing as it lands
     });
   };
   for (const e of G.entities) {
@@ -1653,16 +1717,54 @@ function rivuletPaths(S) {
   out.sort((p, q) => q.pts.length - p.pts.length);
   return (S.riv = out.slice(0, RIV_MAX));
 }
-function rivulets(g, S, P, x0, y0, x1, y1) {
+// Zoomed out (under RIV_ZS screen px per world px), a rivulet that has run its full length is one picture (rivPic) instead of
+// a dab per half step: on a PC zoomed out over Lakeside in the rain, ~17 ms a frame went on the dabs.
+const RIV_ZS = 2, RIV_Q = 0.5, RIV_PICS = typeof GROUND_ROOMY !== 'undefined' && !GROUND_ROOMY ? 40 : 200;
+function lookZoomPx() { return (typeof window !== 'undefined' && window.__ps && window.__ps.cam ? window.__ps.cam.z : 1) * ((typeof devicePixelRatio === 'number' && devicePixelRatio) || 1); }
+// The channel's dabs drawn once into a picture at RIV_Q px per world px (in the raised ground's world coordinates), made
+// again when a cell of it is uncovered or built on (sig). Kept for up to RIV_PICS rivulets, the least lately drawn dropped.
+function rivPic(R, P, S) {
+  const pts = R.pts, n = pts.length / 2;
+  let sig = 0;
+  for (let i = 0; i < n; i++) { const c = idx(Math.floor(pts[i * 2] / CELL), Math.floor(pts[i * 2 + 1] / CELL)); if (G.block[c] || !G.seen[c]) sig = (Math.imul(sig, 31) + i + 1) | 0; }
+  const M = S.rivPics || (S.rivPics = new Map());
+  let e = M.get(R);
+  if (e && e.sig === sig) { M.delete(R); M.set(R, e); return e; }   // (to the end: most lately drawn)
+  const dabs = [];
+  let a = Infinity, b = Infinity, A = -Infinity, B = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const c = idx(Math.floor(pts[i * 2] / CELL), Math.floor(pts[i * 2 + 1] / CELL));
+    if (G.block[c] || !G.seen[c]) continue;
+    const w = 5 + 6 * (i / n);
+    for (const f of i + 1 < n ? [0, 0.5] : [0]) {
+      const [wx, wy] = hillPt(pts[i * 2] + (pts[i * 2 + 2] - pts[i * 2]) * f, pts[i * 2 + 1] + (pts[i * 2 + 3] - pts[i * 2 + 1]) * f);
+      dabs.push(wx, wy, w);
+      a = Math.min(a, wx - w / 2); b = Math.min(b, wy - w / 2); A = Math.max(A, wx + w / 2); B = Math.max(B, wy + w / 2);
+    }
+  }
+  if (!dabs.length) { e = { sig, c: null }; M.set(R, e); return e; }
+  const cw = Math.max(1, Math.ceil((A - a) * RIV_Q) + 2), ch = Math.max(1, Math.ceil((B - b) * RIV_Q) + 2);
+  const c = (e && e.c) || mkCanvas(cw, ch);
+  if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; } else c.getContext('2d').clearRect(0, 0, cw, ch);
+  const x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.globalAlpha = 0.5;
+  for (let i = 0; i < dabs.length; i += 3) { const w = dabs[i + 2]; x.drawImage(P.blob, (dabs[i] - w / 2 - a) * RIV_Q + 1, (dabs[i + 1] - w / 2 - b) * RIV_Q + 1, w * RIV_Q, w * RIV_Q); }
+  c._own = true; c._ver = (c._ver || 0) + 1;   // (gl.js: a texture of its own, uploaded again only when made again)
+  e = { sig, c, x: a - 1 / RIV_Q, y: b - 1 / RIV_Q, w: cw / RIV_Q, h: ch / RIV_Q };
+  M.delete(R); M.set(R, e);
+  if (M.size > RIV_PICS) M.delete(M.keys().next().value);
+  return e;
+}
+function rivulets(g, S, P, x0, y0, x1, y1, shows) {
   const run = Math.min(1, Math.max(0, (G.t - RAIN_SOAK * 0.6) / RIV_IN));
   if (run <= 0) return;
-  const t = G.t;
+  const t = G.t, whole = run >= 1 && lookZoomPx() < RIV_ZS;
   for (const R of rivuletPaths(S)) {
     if (R.box[2] < x0 || R.box[0] > x1 || R.box[3] < y0 || R.box[1] > y1 + 120) continue;
     const pts = R.pts, n = pts.length / 2, m = Math.max(2, Math.floor(n * run));   // (it runs further down as the rain goes on)
-    for (let i = 0; i < m; i++) {
+    if (whole) { const e = rivPic(R, P, S); if (e.c) { g.globalAlpha = 1; g.drawImage(e.c, e.x, e.y, e.w, e.h); } }
+    else for (let i = 0; i < m; i++) {
       const c = idx(Math.floor(pts[i * 2] / CELL), Math.floor(pts[i * 2 + 1] / CELL));
-      if (G.block[c] || !G.seen[c]) continue;
+      if (G.block[c] || !G.seen[c] || (shows && !shows(pts[i * 2], pts[i * 2 + 1]))) continue;
       const w = 5 + 6 * (i / n);
       for (const f of i + 1 < m ? [0, 0.5] : [0]) {   // (half steps too, so the channel is unbroken)
         const [wx, wy] = hillPt(pts[i * 2] + (pts[i * 2 + 2] - pts[i * 2]) * f, pts[i * 2 + 1] + (pts[i * 2 + 3] - pts[i * 2 + 1]) * f);
