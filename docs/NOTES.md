@@ -2713,6 +2713,11 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   on. `lookFalls` (from lookSmoke, over the units, as the roof runoff) draws each pouring lip facing the camera as the runoff's
   stream pictures, as wide as the flow, falling straight down the cliff's outer face from the top's height to the foot's, with
   mist and a splash where it lands; lips facing away are left out (behind the plateau). Both renderers.
+  Owner then: "i dont see it pool on the top": a flat top's rain soaked in and ran off its edges before any pool formed. Now
+  each plateau top (MAPS mesas, the cells within r + 1.5 at the top's height) is a shallow basin in the roughness
+  (`MESA_DISH` 0.7 lower in the middle, its roughness x 0.3) and soaks a third as fast (`F.sk` 0.3: thin soil over rock), and
+  a lip pours only past `FALL_MIN` 0.3 (pond water reaching it, not a hollow on the edge). Lakeside after ~6 min of rain:
+  moderate (0.5) a pond over ~60% of the top, ~5 falls; heavy (0.9) the top flooded, ~30 falls.
 
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 

@@ -1731,7 +1731,7 @@ function lookPuddles(g, x0, y0, x1, y1, shows) {
 // downhill where it flows; the puddles grow or shrink with the water round them, and wet tank ruts shine. Looks only.
 // Rain FLOW_RAIN x its strength a second; the ground takes FLOW_SOAK (FLOW_DRY once dry weather) plus FLOW_SEEP x the depth, so
 // a level cell stays below a pool and only hollows with water running in fill (and a pool stops growing).
-const FALL_DROP = 4, FALL_MIN = 0.14, FALL_K = 0.35;   // a waterfall: the drop it needs (G.hgt units), the depth on the lip it starts at, the share of the rest it pours a step
+const FALL_DROP = 4, FALL_MIN = 0.3, FALL_K = 0.35, MESA_DISH = 0.7;   // MESA_DISH: how much lower a plateau's middle is (its pond)   // a waterfall: the drop it needs (G.hgt units), the depth on the lip it starts at, the share of the rest it pours a step
 const FLOW_SPLIT = 3, FLOW_RELAX = 0.1, FLOW_DT = 0.5, FLOW_RAIN = 0.014, FLOW_SOAK = 0.004, FLOW_SEEP = 0.06, FLOW_DRY = 0.02, FLOW_K = 1.6, FLOW_REF = 0.5, FLOW_MIN = 0.22, FLOW_Q = 0.012, FLOW_POOLS = 500;
 function flowTick(S) {
   if (!LOOK.hills && !G.hgt && S.wet < 0.09) return null;
@@ -1746,6 +1746,15 @@ function flowTick(S) {
       const x = c % MAP, y = (c / MAP) | 0;
       base[c] = (vn(x, y, 3, seed + 811) - 0.5) * 0.9 + (vn(x, y, 8, seed + 812) - 0.5) * 1.4 + (hash3(x, y, seed + 813) - 0.5) * 0.25;
     }
+    // A plateau's top (MAPS mesas) is a shallow basin (owner: rain pools on top, and when the pool is big enough it runs off the
+    // sides): lower toward the middle and smoother, so its rain gathers in a pond that spreads to the rim in heavy rain and
+    // then spills over (the waterfalls).
+    // (thin soil over rock: it soaks the water up more slowly, sk)
+    const sk = new Float32Array(NCELLS).fill(1);
+    for (const ms of (G.hgt && MAPS[validMap(G.mapId)].mesas) || []) { const R = ms.r + 1.5; for (let y = Math.max(0, Math.floor(ms.y - R)); y <= Math.min(MAP - 1, Math.ceil(ms.y + R)); y++) for (let x = Math.max(0, Math.floor(ms.x - R)); x <= Math.min(MAP - 1, Math.ceil(ms.x + R)); x++) {
+      const d = Math.hypot(x + 0.5 - ms.x, y + 0.5 - ms.y) / R, c = y * MAP + x; if (d >= 1 || G.hgt[c] < HG_MAX * (ms.h || 1) - 3) continue;   // (the top only, not the ramp or the ground below)
+      base[c] = base[c] * 0.3 + MESA_DISH * (d * d - 1); sk[c] = 0.3;
+    } }
     // the puddle spots are small hollows (the rain fills them first, as before)
     for (const row of puddleSpots(S)) for (const q of row) base[idx(Math.floor(q[0] / CELL), Math.floor(q[1] / CELL))] -= 0.25 + q[3] * 0.3;
     // Waterfalls: each open cell on high ground beside a cliff, where its water would land if it spilled over (the first open
@@ -1767,7 +1776,7 @@ function flowTick(S) {
       }
       if (best >= 0) { spill[c] = best; sdir[c] = bi; }
     }
-    F = S.flow = { n: NCELLS, dt: FLOW_DT, spill, sdir, SQ: new Float32Array(NCELLS), base, to: new Int32Array(NCELLS).fill(-1), W: new Float32Array(NCELLS), D: new Float32Array(NCELLS), Q: new Float32Array(NCELLS), qx: new Float32Array(NCELLS), qy: new Float32Array(NCELLS), t: G.t };
+    F = S.flow = { n: NCELLS, dt: FLOW_DT, sk, spill, sdir, SQ: new Float32Array(NCELLS), base, to: new Int32Array(NCELLS).fill(-1), W: new Float32Array(NCELLS), D: new Float32Array(NCELLS), Q: new Float32Array(NCELLS), qx: new Float32Array(NCELLS), qy: new Float32Array(NCELLS), t: G.t };
     // A battle already wet (continued, or long in the rain): the water as it would be, worked out at once (coarse steps).
     const pre = Math.min(40, Math.floor(S.rt / 2));
     for (let i = 0; i < pre; i++) flowStep(F, S, 2);
@@ -1801,7 +1810,8 @@ function flowBegin(F, S, dt) {
   for (let c = 0; c < NCELLS; c++) {
     const t = T[c];
     if (t >= 2 || B[c] || (C && C[c])) { W[c] = 0; continue; }   // (woods, rock, lakes and fords, structures: no standing water)
-    let w = W[c] * (1 - seep) + rain - loss;
+    const k = F.sk ? F.sk[c] : 1;
+    let w = W[c] * (1 - seep * k) + rain - loss * k;
     if (w <= 0) { W[c] = 0; continue; }
     W[c] = w;
   }
