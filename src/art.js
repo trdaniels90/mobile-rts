@@ -819,7 +819,7 @@ function drawRagBody(g, fx) {
   const pal = palFor(fx.faction), K = infKit(pal, fx.faction), P = fx.P, burnt = fx.burnt;
   const tunic = burnt ? BURNT.main : pal.main, sleeve = burnt ? BURNT.dark : cssOf(shadeInt(pal.main, 0.86));
   const pants = burnt ? BURNT.deep : cssOf(K.pants), skin = burnt ? '#3a2e26' : K.skin;
-  const head = fx.unitType === 'pilot' ? '#cfcab8' : fx.unitType === 'grenadier' ? '#5d6236' : cssOf(K.helm);
+  const head = fx.unitType === 'pilot' ? '#cfcab8' : fx.unitType === 'technician' ? '#4a3a2a' : fx.unitType === 'grenadier' ? '#5d6236' : cssOf(K.helm);
   const L = (i) => liftPt(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]), X = (i) => L(i)[0], Y = (i) => L(i)[1], Zk = (i) => P[i * 3 + 2] * 4 + P[i * 3 + 1];
   const parts = [];
   const seg = (i, j, w, col) => parts.push({ k: (Zk(i) + Zk(j)) / 2, f: (dark) => pxLine(g, X(i), Y(i), X(j), Y(j), dark ? w + 1 : w, dark ? '#16120e' : col) });
@@ -1962,6 +1962,7 @@ const IDLES = {
   rocket: ['look', 'rest', 'stretch', 'look', 'pushups', 'none'],
   grenadier: ['look', 'juggle', 'rest', 'stretch', 'pushups', 'none'],
   pilot: ['look', 'rest', 'stretch', 'none'],
+  technician: ['look', 'rest', 'stretch', 'look', 'none'],
   sniper: ['look', 'aim', 'aim', 'rest', 'none'],
   flamer: ['look', 'stretch', 'look', 'none'],
   spec: ['look', 'aim', 'stretch', 'rest', 'none'],
@@ -2011,7 +2012,7 @@ function warmSprites(budgetMs, cx, cy) {
       warmDone.add(best.type + f + v);
       if (best.cls === 'inf') {
         for (const pose of WARM_POSES) {
-          if (pose === 7 && (best.type === 'rocket' || best.type === 'grenadier' || best.type === 'pilot' || best.type === 'engineer' || best.type === 'flamer')) continue;
+          if (pose === 7 && (best.type === 'rocket' || best.type === 'grenadier' || best.type === 'pilot' || best.type === 'technician' || best.type === 'engineer' || best.type === 'flamer')) continue;
           for (let i = 0; i < 16; i++) warmJobs.push({ v, run: () => infSprite({ type: best.type, faction: f, face: i * Math.PI / 8 }, palFor(f), pose) });
         }
       } else {
@@ -2057,7 +2058,7 @@ function drawUnitBody(g, u, t) {
     }
     // As in Red Alert: a four-pose walk, the weapon brought up to the shoulder to shoot (and held
     // there a moment), dropping prone under fire through a crouch, crawling, and getting up again.
-    const prone = u.stance === 'prone', gun = u.type !== 'rocket' && u.type !== 'grenadier' && u.type !== 'pilot' && u.type !== 'engineer' && u.type !== 'flamer';
+    const prone = u.stance === 'prone', gun = u.type !== 'rocket' && u.type !== 'grenadier' && u.type !== 'pilot' && u.type !== 'technician' && u.type !== 'engineer' && u.type !== 'flamer';
     let a = INF_ANIM.get(u);
     if (!a) INF_ANIM.set(u, a = { prone, at: -9, aim: -9 });
     if (a.prone !== prone) { a.prone = prone; a.at = t; }

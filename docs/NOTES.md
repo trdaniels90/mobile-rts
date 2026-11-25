@@ -3009,3 +3009,13 @@ an iPhone first (memory: four times the ground; the phone's compressed whole-map
 - **Crag shadows with HD ground:** there is no baked ground to carry them, so finishSome paints them into each tile
   (`cliffShadowPaint`, as the ground bake does) and `cliffShadowsBaked` is true: no shadow pictures.
 - Windows app: prep.js copies `cliffs-hd`. Release: CLAUDE.md steps 2 and 4 list it.
+
+## Survivors from structures: Technicians (after 2026-11-25, not released, owner OK'd for both modes; the server must match)
+
+- Owner: destroyed buildings only *may* let people out, and they come out hurt; full-health people only when you sell.
+- `world.js escapeSurvivors(b, sold)`: same head count as before (1-3 by footprint, 4 from a Construction Yard). Each is a
+  Technician with chance `SURVIVOR_TECH` (1/3), else Rifle Infantry. Destroyed: `SURVIVORS_ESCAPE` (0.5) chance anyone
+  gets out, at 25-50% health. Sold (`kill` with `sellT > 0`): always, at full health. Host only (`G.remote` returns).
+- Technician (`UNIT_DEFS.technician`): a civilian with a pistol, 25 HP, dmg 4, range 60, cannot be built (`factions: []`).
+  Like the Pilot, not counted in `stats.units`, and drawn live (not in the baked sheets: those only hold buildable types).
+  Model: `models.js infModel` (`TC`), bare-headed, shirt in the side's colour, work trousers, no pack.

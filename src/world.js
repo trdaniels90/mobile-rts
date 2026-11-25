@@ -1870,7 +1870,7 @@ function addUnit(type, team, x, y) {
     stuckN: 0, lastX: x, lastY: y, stuckT: 0,
   };
   u.tface = u.face; u.born = G.t;
-  if (!d.harvester && !d.scripted && type !== 'pilot') team.stats.units++;
+  if (!d.harvester && !d.scripted && type !== 'pilot' && type !== 'technician') team.stats.units++;
   if (d.harvester) { u.load = 0; u.hs = 'seek'; u.hcell = -1; u.htimer = 0; }
   if (d.cls === 'air') { u.ammo = d.weapon ? d.weapon.ammo : 0; u.aam = d.weapon2 ? d.weapon2.ammo : 0; u.guns = d.gun ? d.gun.runs : 0; u.flares = d.flares || 0; u.alt = 0; u.as = 'takeoff'; u.rt = 0; u.passT = 0; u.speedCur = 0; }
   G.entities.push(u); G.byId.set(u.id, u);
@@ -3626,7 +3626,7 @@ function kill(e, attacker, wh, from) {
       rubble(G.tctx, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL, seed);
       if (!e.def.defense || e.w * e.h > 1) craterAt(e.x, e.y, 6 + Math.min(4, e.w * e.h * 0.5));   // its fall digs a crater (digCrater)
       notify(team, 'slost', 'Structure lost', 4);
-    }
+    } else escapeSurvivors(e, true);   // sold: the staff walk out
   }
 }
 
@@ -3680,7 +3680,7 @@ function ragdoll(e, wh, from) {
     if (wh === 'TESLA') { G.effects.push({ type: 'spark', x: e.x, y: e.y, lift: 8 * INF_SCALE, t: 0, life: 0.3 }); fx.burnt = true; fx.shock = 0.5 + r() * 0.3; }
   }
   // The weapon, flung loose from the hands.
-  const wl = (e.type === 'rocket' ? 12 : e.type === 'sniper' ? 13 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'engineer' ? 0 : 8) * INF_SCALE;
+  const wl = (e.type === 'rocket' ? 12 : e.type === 'sniper' ? 13 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'technician' || e.type === 'engineer' ? 0 : 8) * INF_SCALE;
   if (wl) {
     const hx = P[18], hy = P[19], hz = (e.type === 'rocket' ? 15 : 10) * INF_SCALE;
     fx.gun = { P: new Float32Array([hx - ca * wl / 2, hy - sa * wl / 2, hz, hx + ca * wl / 2, hy + sa * wl / 2, hz + 0.5]), len: wl };
@@ -3795,7 +3795,9 @@ function deployFob(u) {
   return b;
 }
 
-// Soldiers stumble out of a destroyed structure and join the defence: more from bigger buildings.
+// People get out of a structure as it goes: more from bigger buildings, Rifle Infantry and Technicians (about one in three).
+// Sold, they all walk out unhurt; destroyed, there is a SURVIVORS_ESCAPE chance anyone gets out at all, and those who do
+// are hurt (25-50% health). Owner's rules, 2026-11-25, both modes.
 // A destroyed ground vehicle that did not cook off may leave one rifleman: the crew scrambles out of the
 // wreck and stands guard. Made on the host only (a PvP guest gets the unit in a snapshot).
 const CREW_SURVIVES = 1 / 3;
@@ -3807,14 +3809,17 @@ function crewBailOut(e) {
   u.face = u.tface = e.face;
   setGuard(u);
 }
-function escapeSurvivors(b) {
-  if (WIPING) return;   // a defeated side's wreckage leaves no survivors
+const SURVIVORS_ESCAPE = 0.5, SURVIVOR_TECH = 1 / 3;
+function escapeSurvivors(b, sold) {
+  if (WIPING || G.remote) return;   // a defeated side's wreckage leaves no survivors; a PvP guest gets them in a snapshot
+  if (!sold && Math.random() >= SURVIVORS_ESCAPE) return;
   const team = G.teams[b.team], n = b.type === 'cy' ? 4 : Math.min(3, Math.max(1, Math.round(b.w * b.h / 2)));
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2;
     const c = nearestFreeCell(cellOfPos(b.x + Math.cos(a) * b.w * CELL * 0.6, b.y + Math.sin(a) * b.h * CELL * 0.6), 4);
     if (c < 0) continue;
-    const p = cellCenter(c), u = addUnit('rifle', team, p.x + (Math.random() - 0.5) * 8, p.y + (Math.random() - 0.5) * 8);
+    const p = cellCenter(c), u = addUnit(Math.random() < SURVIVOR_TECH ? 'technician' : 'rifle', team, p.x + (Math.random() - 0.5) * 8, p.y + (Math.random() - 0.5) * 8);
+    if (!sold) u.hp = Math.max(1, Math.round(u.maxHp * (0.25 + Math.random() * 0.25)));
     u.face = u.tface = a;
     setGuard(u);
   }
@@ -5204,7 +5209,7 @@ function unloadOne(h, ai) {
   if (!freeCell(c)) c = nearestFreeCell(cellOfPos(h.x, h.y), 4);
   const p = c >= 0 ? cellCenter(c) : { x: h.x, y: h.y };
   const u = addUnit(r.type, team, h.x + (p.x - h.x) * 0.4, h.y + (p.y - h.y) * 0.4);
-  if (r.type !== 'pilot') team.stats.units--;   // counted when it was trained
+  if (r.type !== 'pilot' && r.type !== 'technician') team.stats.units--;   // counted when it was trained
   u.hp = Math.min(u.maxHp, r.hp); u.rank = r.rank || 0; u.kills = r.kills || 0; u.killWorth = r.kw || 0; u.born = r.born;
   u.face = u.tface = Math.atan2(p.y - h.y, p.x - h.x);
   if (ai === 'guard') { setGuard(u, p.x, p.y); u.staged = true; }
