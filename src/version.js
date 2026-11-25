@@ -4,6 +4,21 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.25', date: '25 November 2026', title: 'Mobile SAM, Lakeside high ground', groups: [
+    ['New', [
+      'Soviet Mobile SAM: a tracked missile launcher built at the War Factory ($800). It fires missiles at aircraft only, out-ranging most air defence, and needs no power.',
+      'Lakeside: the rock ring in the middle of the north ore field is now a plateau with trees on top, cliffs all round and a ramp up the back. Its ore sits round the foot.',
+      'Options: Play over my music. Turn it on to keep your own music app playing while you play (game sounds then follow the silent switch).',
+    ]],
+    ['Improved', [
+      'Rain: water now runs off building roofs in steady streams with drips and splashes, and the falling rain shows again on devices using the faster renderer.',
+      "The computer's base walls now go round ore, trees and rock instead of leaving gaps.",
+      'Main menu: "Welcome back, Commander."',
+    ]],
+    ['Changed', [
+      'The soundtrack has been removed. Sound effects and voices stay.',
+    ]],
+  ] },
   { v: '2026.11.24.1', date: '24 November 2026', title: 'Tank Destroyer, new main menu, smoother on PC', groups: [
     ['New', [
       'Allied Tank Destroyer: built at the War Factory once you have a Tech Center ($1100). No turret, so the whole vehicle turns to aim, but its long gun out-ranges every tank and hits armour hard. Weak against soldiers and buildings, and it cannot shoot at aircraft.',
