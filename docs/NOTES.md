@@ -992,6 +992,14 @@ recorder usage at the top of record.js).
   cycles them (`p.dir`). Drawn along its line (`drawWallIso`: cells corner to corner, CELL x sqrt 2 long), a diagonal wall runs into its ends (ui.js mask),
   and an end with a wall beyond gets a stub of that wall up to its pylon (with the owner's stripe on concrete). The computer's rings still use straight gates.
 
+- **Ring detours** (owner, 2026-11-24, a Soviet turtle on Lakeside "didnt finished his wall"; owner picked "walk round it",
+  both modes): cells of a ring's line that can never be walled (ore, trees, water, rock, a building: ai.js `ringStuck`) were left
+  open for good. Now `ringDetours` (each build pass, ore changes) finds each such stretch on the ring's line and `ringDetour`
+  the fewest pieces round it (8-way: corner-touching pieces shut the way) from the cell before it to the one after, inside the
+  ring first (at most `RING_DETOUR_IN` 8 cells in), else up to `RING_DETOUR_OUT` 3 outside, never next to a building (doors),
+  at most 3 x the gap + 14 pieces. Built by the side the gap starts on, after its line, from the credits above RING_KEEP.
+  Headless (scratch test: Lakeside 3 v 3, all turtles, 16 min): rings with no way out 1 of 6 before, 4 of 6 after (the other
+  two only had plain cells not built yet).
 ## Map "Snowbound", the first 3 v 3 map (a winter map), and per-map sizes (2026.11.11.2; bridges, weather 2026.11.12)
 
 - `MAPS.snowbound` in maps.js: traced from the owner's design `maps/designs/snowbound.png` (126 cells, a lavender-ground palette:
