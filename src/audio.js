@@ -396,7 +396,7 @@ const Sound = (() => {
   const HOLD = { thunder: 4, explodeBig: 1.6, collapse: 1.6, explodeVeh: 1.1, cannonHeavy: 0.9, cannon: 0.6, cannonLight: 0.45, turretGun: 0.6, hitMed: 0.6, tesla: 0.8, flame: 0.9, fireHit: 0.8, missile: 0.9, rocket: 0.9, redeye: 0.9, build: 0.5, die: 0.5, dieBlast: 0.7, dieFire: 0.8, rifle: 0.3, m16: 0.3, mg: 0.22, pillbox: 0.22, cal50: 0.35, dshk: 0.3, sniper: 0.6, hitSmall: 0.3, flak: 0.5, throw: 0.5 };
   const UI_SOUNDS = new Set(['click', 'ready', 'denied', 'sell', 'place', 'cashUp', 'cashDown']);
   // Rough loudness of each effect so distant battles do not drown nearby ones.
-  const LEVEL = { bell: 0.45, chirp: 0.22, rifle: 0.7, m16: 0.7, mg: 0.95, pillbox: 0.95, cal50: 1.0, dshk: 0.95, sniper: 0.9, throw: 0.8, cannon: 0.8, cannonLight: 0.72, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, redeye: 0.65, missile: 0.7, flak: 0.75, tesla: 0.85,
+  const LEVEL = { bell: 0.45, chirp: 0.22, rifle: 0.7, m16: 0.7, mg: 0.95, pillbox: 0.95, cal50: 1.0, dshk: 0.95, sniper: 0.9, throw: 0.8, cannon: 0.8, cannonLight: 0.6, cannonHeavy: 0.75, turretGun: 0.85, rocket: 0.7, redeye: 0.65, missile: 0.7, flak: 0.75, tesla: 0.85,
     hitSmall: 0.7, hitMed: 0.8, explodeVeh: 0.9, explodeBig: 1.0, flame: 0.8, fireHit: 0.8, build: 0.55, collapse: 1.0, die: 0.7, dieBlast: 0.75, dieFire: 0.7 };
 
   // How far each sound carries: the quietest it gets however far away the fighting is.
@@ -475,7 +475,7 @@ const Sound = (() => {
   // Some effects layer several recordings: [clip, delay s, pitch, level].
   const COMBO = {
     cannonHeavy: [['cannon', 0, 0.9, 1], ['cannon', 0.028, 0.86, 0.8]],   // both barrels at once
-    cannonLight: [['cannon', 0, 1.35, 1], ['rifle', 0, 0.75, 0.3]],   // the Light Tank: the cannon pitched up (higher, shorter boom), a rifle crack on top for snap
+    cannonLight: [['cannon', 0, 1.22, 1], ['rifle', 0, 0.75, 0.15]],   // the Light Tank: the cannon pitched up (higher, shorter boom), a rifle crack on top for snap
     // MG Team: the machine-gun report pitched well down with a short cannon thump under it. The M2 .50 cal deepest;
     // the DShK 12.7 mm a little higher, with the SKS crack on top for its harder bark.
     cal50: [['mg', 0, 0.62, 1], ['cannon', 0, 1.55, 0.5]],
