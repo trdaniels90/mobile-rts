@@ -3089,7 +3089,15 @@ way; not a recurring wave, it turns off right after.
   whatever it meets on the way and then walks on; within 1.5 cells of its spot `amove` clears and it holds there as a
   Guard. Stop sends it home as usual.
 - **Online:** `commandAttackMove` is in netcore `COMMANDS`, so a guest's order goes to the host or server.
-- Test: `tools/sim/attack-move.js`.
+- **Aircraft go too** (owner, after 2026.11.25.4: "no aircraft went"): armed aircraft (not transports or scripted planes) get
+  `commandGuard` on the spot, so they take off, fly there, fight what is about it and stay (they arrive before the column).
+- **SAMs at the back** (owner, same report: "they charge right in and die"): an anti-aircraft-only ground unit (`aaOnly`: the
+  Mobile SAM) on a hunt (Auto Attack, the computer's waves) or an Attack move runs `trailArmy` instead of heading for the base
+  or the spot: once a second it picks the nearest friendly ground fighter on the same kind of order (within 40 cells) and
+  drives to 4 cells behind it, away from where it is heading. Aircraft in reach are still shot at. No such friend: on a hunt
+  it waits where it is for the next wave; on an Attack move it holds where it stopped (or goes on alone if it was sent alone).
+  Both modes and the computer too. Measured: before, the SAM was in front of the tanks at every check (30/30); now 0.
+- Test: `tools/sim/attack-move.js` (also the aircraft and both SAM cases).
 
 ## Faster drawing list, finer timing (2026-11-25, after 2026.11.25.3, not released, both modes, speed and reporting only)
 

@@ -4274,7 +4274,9 @@ function updateUnit(u, dt) {
         if (t && (!u.target || t.kind === 'unit')) u.target = t;
       }
       if (!u.target) {
-        if (o.type === 'hunt') {
+        if ((o.type === 'hunt' || o.amove) && aaOnly(u) && trailArmy(u, o)) {
+          // (an anti-aircraft unit keeping to the back of the army: trailArmy moves it)
+        } else if (o.type === 'hunt') {
           if (teamOf(u).isAI) detourToSite(u);
           const b = nearestEnemyBuilding(u);
           if (!b) nothingKnown(u);
@@ -6318,13 +6320,54 @@ function commandGuard(units, x, y) {
     else goTo(u, s.x, s.y);
   });
 }
+// Anti-aircraft-only ground units (the Mobile SAM) on an Auto Attack, a computer wave or an Attack move: they cannot hit
+// anything on the ground, so they keep to the back of the army instead of driving at the enemy base ahead of it (they
+// raced in front and died to the first defences). Each second: the nearest friendly ground fighter on the same kind of
+// order within TRAIL_LOOK cells, and a spot TRAIL_GAP cells behind it (away from where the army is heading). Aircraft
+// that come into reach are still shot at (the target search above runs first). No such friend: on a hunt it waits where
+// it is for the next wave; on an Attack move it holds where it stopped once its escort has arrived, or goes on alone if it
+// never had one (sent there by itself). Returns false to let the usual hunt or Attack move carry on.
+const TRAIL_LOOK = 40, TRAIL_GAP = 4;
+const aaOnly = (u) => { const w = u.def.weapon; return u.cls !== 'air' && !!w && w.ground === false && !(u.def.weapon2 && u.def.weapon2.ground !== false); };
+function trailArmy(u, o) {
+  if (u.trailT > G.t) return true;
+  u.trailT = G.t + 1;
+  const hunt = o.type === 'hunt';
+  let lead = null, best = (TRAIL_LOOK * CELL) ** 2;
+  for (const f of unitsOf(u.team)) {
+    if (f === u || !f.alive || f.cls === 'air' || f.inHouse || f.def.harvester || !f.def.weapon || f.def.weapon.ground === false) continue;
+    if (hunt ? f.order.type !== 'hunt' : !(f.order.type === 'guard' && f.order.amove)) continue;
+    const d = (f.x - u.x) ** 2 + (f.y - u.y) ** 2;
+    if (d < best) { best = d; lead = f; }
+  }
+  if (!lead) {
+    if (hunt) { if (nearestEnemyBuilding(u)) { if (u.dest) goTo(u, u.x, u.y, true); return true; } return false; }
+    if (!u.trailed) return false;
+    o.amove = false; o.x = u.x; o.y = u.y; u.trailed = false;
+    if (u.dest) goTo(u, u.x, u.y, true);
+    return true;
+  }
+  u.trailed = true;
+  const goal = hunt ? (lead.huntTarget && lead.huntTarget.alive ? lead.huntTarget : nearestEnemyBuilding(lead)) : lead.order;
+  if (!goal) return false;
+  const a = Math.atan2(goal.y - lead.y, goal.x - lead.x);
+  let x = lead.x - Math.cos(a) * TRAIL_GAP * CELL, y = lead.y - Math.sin(a) * TRAIL_GAP * CELL;
+  x = Math.max(CELL, Math.min(WORLD - CELL, x)); y = Math.max(CELL, Math.min(WORLD - CELL, y));
+  // Already about there: stay put (no shuffling about behind a group that has stopped to fight).
+  if (Math.hypot(u.x - x, u.y - y) < CELL * 1.5) { if (u.dest) goTo(u, u.x, u.y, true); return true; }
+  if (!u.dest || Math.hypot(u.dest.x - x, u.dest.y - y) > CELL * 1.5) goTo(u, x, y, true);
+  return true;
+}
 // Attack move (the AUTO button's picker, then a tap on the map): one trip, not a standing order. Every armed ground unit
 // heads for the spot and fights whatever it meets on the way (o.amove: no leash to the spot while travelling), then holds
 // the spot like a Guard order once there. A Guard with hold, so the auto logic (Auto Attack, base defence, the Ally
 // button) leaves them be.
-const canAttackMove = (u) => u.alive && u.kind === 'unit' && u.cls !== 'air' && !u.def.harvester && !u.def.lift && !u.def.scripted && !u.inHouse && !!(u.def.weapon || u.def.demo);
+// Armed aircraft go too: a Guard on the spot (as commandGuard), so they fly there, fight whatever is about it and stay.
+const canAttackMove = (u) => u.alive && u.kind === 'unit' && !u.def.harvester && !u.def.lift && !u.def.scripted && !u.inHouse && !u.chute && !!(u.def.weapon || u.def.demo);
 function commandAttackMove(units, x, y) {
-  const list = units.filter(canAttackMove);
+  const air = units.filter((u) => canAttackMove(u) && u.cls === 'air');
+  if (air.length) commandGuard(air, x, y);
+  const list = units.filter((u) => canAttackMove(u) && u.cls !== 'air');
   const spots = formationSpots(list.length, x, y);
   const sorted = list.slice().sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
   sorted.forEach((u, i) => {
