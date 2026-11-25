@@ -2962,6 +2962,16 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   game's camera looks at the map corner-on, so the plan's diagonals are the real view's up and down. Explore is gone from
   the editor (the real view is it). Close or Play ends the working copy (`EditorHooks.leave`: a fresh menu world).
 
+- **Rebuilds keep what did not change** (owner, 2026-11-25: deleting cliffs on a copy of Lakeside blurred the whole ground
+  "for a minute" and redrew every crag). The working copy has no baked ground or crags, so each rebuild painted the whole map
+  again. Now art.js `editorCarry(old, new)` (called from `EditorHooks.live`, result in `EditorHooks.carried`) hands the new
+  build every finished ground tile (`G.ground.adopt`) and every crag picture (look.js `cliffLook.pics`) whose inputs are the
+  same within `EDIT_KEEP_M` (6) cells: terrain, cliffs, shallows, ore, gems, blocked cells, hill heights, houses, roads and
+  bridges (their boxes); a tile also needs the same scenery stamps over it (`painter.stamps()`: they come from one random
+  sequence across the map, so a change can move bushes far away). Look, bridge kind and width, and plateaus are compared as
+  `G.editMap`; any difference repaints everything. Measured (headless, one cliff cell removed on Lakeside): ~80 of 94 tiles
+  and every on-screen crag kept, blurred ground 4.7 s → about 1 s; kept tiles match a fresh repaint pixel for pixel.
+
 ## HD graphics (2026-11-25, not released, looks only, both modes; an Options switch, off by default)
 
 Owner, after a study of Red Alert Remastered's screenshots: "go ahead with 1, 2 and 4 as an HD option" (1: the models at 4x

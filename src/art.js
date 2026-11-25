@@ -527,7 +527,7 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
     g.putImageData(img, ox * K, oy * K);
     decorate(g, X0, Y0, w, h, ox, oy, K);
   }
-  return { paint, decorate, trees: () => { if (!P) prepare(); return P.trees; }, args: [terr, seed, roads, cliffs, fords, theme, hgt, mesas] };
+  return { paint, decorate, trees: () => { if (!P) prepare(); return P.trees; }, stamps: () => { if (!P) prepare(); return P.stamps; }, args: [terr, seed, roads, cliffs, fords, theme, hgt, mesas] };
 }
 // Wheel ruts along the roads, worked out pixel by pixel (not stroked on the canvas, whose smoothing differs with
 // where a picture's edge falls) so they run on unbroken across the ground's tiles. Each rut darkens or lightens a
@@ -1924,6 +1924,12 @@ function makeGround(painter, legacy, baked) {
       return c;
     },
     forget() { tiles.clear(); pending.clear(); ready.clear(); finishing.clear(); },
+    // The map editor (editorCarry): a finished tile of the last build whose ground is unchanged, taken as it is.
+    adopt(k, t) {
+      if (tiles.has(k) || pending.has(k) || finishing.has(k)) return;
+      ready.delete(k); t.used = frameNo; t.ver = (t.ver || 0) + 1; tiles.set(k, t); finished++;
+      if (!pvDone[k]) { const [x0, y0] = at(k), g = pvCtx(); g.imageSmoothingEnabled = true; g.drawImage(t.g, 0, 0, Math.min(T, WORLD - x0) * K, Math.min(T, WORLD - y0) * K, x0 / PV, y0 / PV, Math.min(T, WORLD - x0) / PV, Math.min(T, WORLD - y0) / PV); pvMark(k); }
+    },
     previewDone: () => pvDone.reduce((a, v) => a + v, 0) / (n * n),   // (tests)
   };
 }
@@ -1937,11 +1943,73 @@ function newGround(g, legacy) {
   const baked = GK === 1 && bm && bm.key === groundKey(g) ? { dir: 'grounds/' + id + '/', q: '?k=' + bm.key + (man.code ? '.' + man.code : ''), patched: !!man.patched, dressed: !!bm.dressed } : null;
   const painter = groundPainter(g.terr, groundSeed(g), g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[id].bridge, g.hgt, mesaTops(g.mapId));
   g.ground = makeGround(painter, legacy, baked);
-  g.ground.baked = !!baked;
+  g.ground.baked = !!baked; g.ground.painter = painter;
   // The trees, drawn live over the ground (treesInView, drawTree); an old save's ground pictures have them painted in.
   g.ground.trees = legacy || (typeof HEADLESS !== 'undefined' && HEADLESS) ? [] : painter.trees();
   const G0 = G; G = g;   // (add reads G.marks)
   try { for (let i = 0; i < g.marks.length; i++) g.ground.add(i); } finally { G = G0; }
+}
+
+// The map editor's real view is rebuilt after every change (ui.js EditorHooks.live). Rebuilt from nothing, a big map's
+// whole ground and every crag were painted again (Lakeside: about a minute of blurred ground and crags rising in, owner
+// 2026-11-25). Here the new battle g takes from the last one (old) every ground tile and crag whose inputs are the same:
+// the cells within EDIT_KEEP_M cells (terrain, cliffs, shallows, ore, blocked, hills, houses, roads) and, for a tile,
+// the scenery stamps over it. Only what is near the change is painted again.
+const EDIT_KEEP_M = 6;
+function editorCarry(old, g) {
+  if (!old || !g || old === g || !old.ground || !g.ground || old.terr.length !== g.terr.length) return null;
+  if (old.ground.resident || g.ground.resident || old.ground.baked || g.ground.baked) return null;
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  // (the editor replaces MAPS[id] before each build: what the old one was built from is kept as G.editMap)
+  if (old.mapId !== g.mapId || !old.editMap || !g.editMap || !same(old.editMap, g.editMap) || groundSeed(old) !== groundSeed(g)) return null;
+  const ch = new Uint8Array(NCELLS), mark = (cx, cy) => { if (cx >= 0 && cy >= 0 && cx < MAP && cy < MAP) ch[cy * MAP + cx] = 1; };
+  const arr = (a, b) => { if (!a || !b) { if (a !== b) ch.fill(1); return; } for (let i = 0; i < NCELLS; i++) if (a[i] !== b[i]) ch[i] = 1; };
+  arr(old.terr, g.terr); arr(old.cliff, g.cliff); arr(old.ford, g.ford); arr(old.ore, g.ore); arr(old.gem, g.gem); arr(old.block, g.block); arr(old.hgt, g.hgt);
+  // Houses and roads: those not in both, their cells.
+  const hk = (h) => [h.cx, h.cy, h.w, h.h, h.type].join(), hb = new Set(g.houses.map(hk)), ha = new Set(old.houses.map(hk));
+  for (const [list, other] of [[old.houses, hb], [g.houses, ha]]) for (const h of list) if (!other.has(hk(h))) for (let y = h.cy; y < h.cy + h.h; y++) for (let x = h.cx; x < h.cx + h.w; x++) mark(x, y);
+  const rk = (l) => JSON.stringify(l), rb = new Set((g.road || []).map(rk)), ra = new Set((old.road || []).map(rk));
+  for (const [list, other] of [[old.road || [], rb], [g.road || [], ra]]) for (const l of list) if (!other.has(rk(l))) for (const p of l) { const x = Array.isArray(p) ? p[0] : p.x, y = Array.isArray(p) ? p[1] : p.y; mark(Math.floor(x / CELL), Math.floor(y / CELL)); }
+  // Bridges (each drawn over its own box): those not in both, the cells of their box.
+  const bk = (b) => JSON.stringify([b.a.x, b.a.y, b.b.x, b.b.y, b.w]), bb = new Set((g.bridges || []).map(bk)), ba = new Set((old.bridges || []).map(bk));
+  for (const [list, other] of [[old.bridges || [], bb], [g.bridges || [], ba]]) for (const b of list) if (!other.has(bk(b))) {
+    const e = b.w / 2 + 12;
+    for (let y = Math.floor((Math.min(b.a.y, b.b.y) - e) / CELL); y <= Math.floor((Math.max(b.a.y, b.b.y) + e) / CELL); y++)
+      for (let x = Math.floor((Math.min(b.a.x, b.b.x) - e) / CELL); x <= Math.floor((Math.max(b.a.x, b.b.x) + e) / CELL); x++) mark(x, y);
+  }
+  // Grown by M cells (a summed table: is anything changed in a box).
+  const M = EDIT_KEEP_M, W = MAP + 1, sum = new Int32Array(W * W);
+  for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) sum[(y + 1) * W + x + 1] = ch[y * MAP + x] + sum[y * W + x + 1] + sum[(y + 1) * W + x] - sum[y * W + x];
+  const any = (x0, y0, x1, y1) => { x0 = Math.max(0, x0 - M); y0 = Math.max(0, y0 - M); x1 = Math.min(MAP - 1, x1 + M); y1 = Math.min(MAP - 1, y1 + M); return sum[(y1 + 1) * W + x1 + 1] - sum[y0 * W + x1 + 1] - sum[(y1 + 1) * W + x0] + sum[y0 * W + x0] > 0; };
+  let tiles = 0, crags = 0;
+  // Ground tiles (finished ones: no marks of battle in the editor).
+  const go = old.ground, gn = g.ground, T = GROUND_TILE, n = Math.ceil(WORLD / T);
+  if (go.painter && gn.painter && go.tiles && gn.adopt) {
+    const sa = go.painter.stamps(), sb = gn.painter.stamps();
+    const over = (list, X0, Y0) => list.filter((s) => s.x1 > X0 && s.x0 < X0 + T && s.y1 > Y0 && s.y0 < Y0 + T);
+    for (const [k, t] of go.tiles) {
+      const X0 = (k % n) * T, Y0 = Math.floor(k / n) * T;
+      if (any(Math.floor(X0 / CELL), Math.floor(Y0 / CELL), Math.floor((X0 + T - 1) / CELL), Math.floor((Y0 + T - 1) / CELL))) continue;
+      const a = over(sa, X0, Y0), b = over(sb, X0, Y0);
+      if (a.length !== b.length || a.some((s, i) => s.s !== b[i].s || s.x !== b[i].x || s.y !== b[i].y || !!s.bush !== !!b[i].bush)) continue;
+      gn.adopt(k, t); tiles++;
+    }
+  }
+  // Crags (look.js): the pictures of cliff cells with nothing changed near.
+  if (typeof cliffLook !== 'undefined' && cliffLook && cliffLook.g === old && typeof cliffLookFor === 'function') {
+    const La = cliffLook, G0 = G; G = g;
+    try {
+      const Lb = cliffLookFor();
+      for (const [c, p] of La.pics) {
+        if (!Lb.cells.has(c) || (p && p.baked)) continue;
+        const x = c % MAP, y = (c / MAP) | 0;
+        if (any(x, y, x, y)) continue;
+        if (p) p.born = 0;
+        Lb.pics.set(c, p); crags++;
+      }
+    } finally { G = G0; }
+  }
+  return { tiles, crags };
 }
 
 // ---------------------------------------------------------------------------
