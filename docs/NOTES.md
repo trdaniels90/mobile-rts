@@ -2937,3 +2937,37 @@ every mode. Now art.js `crater` paints the bowl itself when its `dig` flag is se
 and online guests get it too), into the ground layer under the wrecks layer; `MARK_BOX.crater` is 56 for dug ones (the
 picture is up to 105 px across). `lookCraters` is no longer called (`G.craters` stays for `craterSink` and the scorch check).
 Checked with a scratch Playwright scene (four tanks killed in a row, HD off and on): wrecks lie in their craters.
+
+## HD ground (2026-11-25, not released, looks only, both modes; part of HD graphics)
+
+Owner, on HD: "we need to redo the terrain". Picked a full 2x ground, on for computers, behind a switch on phones to try on
+an iPhone first (memory: four times the ground; the phone's compressed whole-map ground, gl.js stage 6, needs baked sheets).
+- **Switch:** art.js `HD.ground` (with HD on): on by default on a computer, off on a phone or tablet (`HD.phone`: touch or a
+  phone's user agent); Options "HD ground" (shown with HD on), `localStorage` `rh-hd-ground` '1' / '0', `?hdground=1` / `0`.
+  Chosen at launch. `GK`: the ground's pixels per world pixel (2, or 1).
+- **The painter** (`groundPixels.pixels(d, X0, Y0, w, h, K)`, `paintCliffs`, `paintRuts`, all with `K`): each of the K x K
+  small pixels is worked out at its own middle (world `(xi + 0.5) / K - 0.5`); the grain is on the fine grid (`speck`, crests,
+  white water: their spacing kept, lines thinner). Grass: the blade tile sampled between its pixels (`tileAt`) with its contrast
+  put back (x 1.7: smoothing flattened it) and a half-size copy mixed in (`HD_FINE` 0.3). K 1 is pixel for pixel as before
+  (checked: every fixed map's whole ground, old code against new). The bakes' `--check` hash the source, so ground and crags
+  were rebaked (same pixels).
+- **Tiles:** makeGround `K` (GK; 1 for baked sheets and old saves' pictures): tile canvases `T x K`, workers paint at K (`m.K`;
+  the preview stays at a quarter of world size), `decorate` scaled (scenery pictures at their world size, `picW`; bridges drawn
+  at K), the soft patches and dressing scaled, the marks' scratch picture at K (`markPic`, `g._gk`). Drawn at world size by
+  the 2D way (`draw`, `drawChunk`, `whole`); WebGL samples tiles by world position, so only memory changes. Kept tiles
+  (`keepN`): a roomy computer 400 (~400 MB), a phone a quarter of before; gl.js `TEX_MAX` a quarter on phones.
+- **No baked ground with HD ground** (`newGround`: `baked` only at GK 1): painted live by the workers, so no stage 6 either.
+  Desktop (swiftshader, not a real GPU): Frostlight ready in ~2.6 s; scrolling about as before. Baking `grounds-hd/` (~4x
+  the files) is the way to bring stage 6 to phones if they cope.
+- **Marks at HD:** `standOnGround` draws at K (`uprightCtx` `g._px`: upright pictures and pixels at that scale), and `charred`
+  / `dimmed` keep the HD sprites (no `sdPic`), so wrecks and bodies are as sharp as the units; dug craters (`craterPic(.., K)`)
+  worked out at K.
+- **HD crags:** look.js `cliffPts(L, c, K)` samples the rock's height on the fine grid (smoothed over the same world width,
+  in two passes) and `cliffPic(.., K)` draws K x K columns per world pixel into a picture of K pixels per view pixel (`_k`,
+  `k`; X0, Y0, w, h stay in view pixels); `cliffBlit` draws a crag, live or cut from a sheet, at its view size. Baked:
+  `tools/bake-cliffs.js <repo> --hd [--check]` into `cliffs-hd/` (2048 px sheets; index x, y, w, h in the sheet's pixels;
+  manifest `k`), loaded by `CliffSheets` with HD ground (a manifest of another `k` is ignored: crags made in play at GK).
+  K 1 crags are the same as before (the rebake changed only the manifest).
+- **Crag shadows with HD ground:** there is no baked ground to carry them, so finishSome paints them into each tile
+  (`cliffShadowPaint`, as the ground bake does) and `cliffShadowsBaked` is true: no shadow pictures.
+- Windows app: prep.js copies `cliffs-hd`. Release: CLAUDE.md steps 2 and 4 list it.

@@ -187,7 +187,7 @@ void main() {
     let e = S.tex.get(k);
     if (e && e.t === t && e.ver === t.ver && !!e.d === !!t.d) { e.used = S.frame; return e; }
     if (!e) {
-      if (S.tex.size >= TEX_MAX) {   // the least recently drawn let go
+      if (S.tex.size >= (GROUND_ROOMY ? TEX_MAX : Math.round(TEX_MAX / ((G.ground.K || 1) ** 2)))) {   // the least recently drawn let go (a phone with HD ground: a quarter as many, each four times the size)
         let old = null; for (const [kk, x] of S.tex) if (!old || x.used < old[1].used) old = [kk, x];
         gl.deleteTexture(old[1].g); if (old[1].d) gl.deleteTexture(old[1].d); S.tex.delete(old[0]);
       }

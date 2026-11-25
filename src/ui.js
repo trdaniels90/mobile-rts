@@ -888,7 +888,7 @@ function draw() {
     const drawnBox = (e) => {
       if (big(e)) return bldBox(e);
       const [hx, hy] = hillAt(e), [X, Y] = toView(...hillPt(hx, hy));
-      if (e.kind === 'cliff') return [X + e.p.X0, Y + e.p.Y0, X + e.p.X0 + (e.p.w || e.p.c.width), Y + e.p.Y0 + (e.p.h || e.p.c.height)];
+      if (e.kind === 'cliff') { const k = e.p.sx !== undefined ? e.p.k || 1 : 1; return [X + e.p.X0, Y + e.p.Y0, X + e.p.X0 + (e.p.w || e.p.c.width) / k, Y + e.p.Y0 + (e.p.h || e.p.c.height) / k]; }   // (an HD baked crag: w, h in its sheet's pixels)
       return [X - 30, Y - (e.kind === 'tree' ? 90 : 70), X + 30, Y + 12];
     };
     const reHill = (c) => {
@@ -2228,7 +2228,22 @@ function draw() {
     if (!G || G.over) { location.reload(); return; }
     syncMenuChoices();
   });
+  // HD ground (art.js HD.ground, GK): the ground painted at twice the detail with HD on; on by default on a computer, off on a
+  // phone (rh-hd-ground '1' / '0'). Chosen at launch, as HD graphics.
+  $('hdGroundBtn').addEventListener('click', () => {
+    HD.groundPref = !HD.groundPref;
+    try { localStorage.setItem('rh-hd-ground', HD.groundPref ? '1' : '0'); } catch (_) {}
+    if (HD.pref && (!G || G.over)) { location.reload(); return; }
+    syncMenuChoices();
+  });
   function syncHd() {
+    const g = $('hdGroundBtn');
+    g.hidden = $('hdGroundStatus').hidden = !HD.pref;
+    g.setAttribute('aria-pressed', String(HD.groundPref));
+    g.textContent = 'HD ground: ' + (HD.groundPref ? 'on' : 'off');
+    $('hdGroundStatus').textContent = HD.groundPref !== HD.ground && HD.on ? 'Takes effect the next time the game opens.'
+      : HD.groundPref ? (HD.phone ? 'Sharper ground. Test: uses four times the memory for the ground; if the game reloads in a battle, turn it off.' : 'The ground at twice the detail.')
+      : 'The ground at the classic detail (less memory).';
     const b = $('hdBtn'), gl2 = typeof WebGL2RenderingContext !== 'undefined';
     b.setAttribute('aria-pressed', String(HD.pref));
     b.textContent = 'HD graphics: ' + (HD.pref ? 'on' : 'off');

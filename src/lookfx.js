@@ -320,8 +320,9 @@ function lookDug(x, y, r) {
 // CRATER_VAR pictures per kind, each crater one of them by its position.
 const CRATER_VAR = 4;
 let craterPics = null;
-function craterPic(v, snow, big) {
-  const key = v + (snow ? 's' : 'g') + (big ? 'b' : '');
+// K (HD ground): K x K pixels per picture pixel, each worked out at its own middle (the grain and dithered rim finer).
+function craterPic(v, snow, big, K = 1) {
+  const key = v + (snow ? 's' : 'g') + (big ? 'b' : '') + (K > 1 ? 'k' + K : '');
   if (!craterPics) craterPics = new Map();
   if (craterPics.has(key)) return craterPics.get(key);
   const Z = big ? 84 : 60, M = Z / 2, R0 = big ? 25 : 17, r = rng(1301 + v * 7919 + (big ? 77 : 0));
@@ -347,8 +348,9 @@ function craterPic(v, snow, big) {
   };
   const sv = fromView(-1, -1), sl = Math.hypot(sv[0], sv[1]), lx = sv[0] / sl * 0.75, ly = sv[1] / sl * 0.75, lz = 0.66;
   const lit = snow ? [246, 250, 255] : [168, 146, 108], mid = snow ? [168, 184, 206] : [104, 86, 60], dark = snow ? [62, 78, 104] : [38, 31, 22];
-  const c = mkCanvas(Z, Z), x = c.getContext('2d'), img = x.createImageData(Z, Z), D = img.data;
-  for (let py = 0; py < Z; py++) for (let px = 0; px < Z; px++) {
+  const ZK = Z * K, c = mkCanvas(ZK, ZK), x = c.getContext('2d'), img = x.createImageData(ZK, ZK), D = img.data;
+  for (let qy = 0; qy < ZK; qy++) for (let qx = 0; qx < ZK; qx++) {
+    const px = (qx + 0.5) / K - 0.5, py = (qy + 0.5) / K - 0.5;   // (K 1: the pixel itself)
     const dx = px + 0.5 - M, dy = py + 0.5 - M, d = Math.hypot(dx, dy), a = Math.atan2(dy, dx), E = edgeAt(a) * R0, q = d / E;
     if (q > 1.3) continue;
     const h = H(px + 0.5, py + 0.5), gx = (H(px + 1.5, py + 0.5) - H(px - 0.5, py + 0.5)) / 2, gy = (H(px + 0.5, py + 1.5) - H(px + 0.5, py - 0.5)) / 2;
@@ -360,7 +362,7 @@ function craterPic(v, snow, big) {
     // Opacity: solid inside, the rim fading out in a hard dither (crisp, no soft blur).
     let al = q < 1 ? 1 : Math.max(0, 1 - (q - 1) / 0.3) * 0.7;
     if (al < 1) al = r() < al ? Math.min(1, 0.55 + al) : 0;
-    const o = (py * Z + px) * 4; D[o] = col[0]; D[o + 1] = col[1]; D[o + 2] = col[2]; D[o + 3] = Math.round(al * (q < 1 ? 235 : 200));
+    const o = (qy * ZK + qx) * 4; D[o] = col[0]; D[o + 1] = col[1]; D[o + 2] = col[2]; D[o + 3] = Math.round(al * (q < 1 ? 235 : 200));
   }
   x.putImageData(img, 0, 0);
   craterPics.set(key, c);

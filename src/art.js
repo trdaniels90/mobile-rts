@@ -23,8 +23,19 @@ const HD = (() => {
   if (/[?&]hd=1\b/.test(q)) pref = true;
   if (/[?&]hd=0\b/.test(q)) pref = false;
   const gl2 = typeof WebGL2RenderingContext !== 'undefined' && !/[?&]gl=off\b/.test(q) && !(typeof HEADLESS !== 'undefined' && HEADLESS);
-  return { K: 2, pref, on: pref && gl2 };
+  // HD ground (owner, 2026-11-25: full 2x ground, computers first, phones behind a switch to try): the ground's tiles
+  // painted at HD.K pixels per world pixel. On by default on a computer, off on a phone or tablet (memory: four times
+  // the ground); Options "HD ground" (rh-hd-ground '1' / '0'), ?hdground=1 / 0 for one load. Only with HD on.
+  const phone = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || /iPhone|iPad|iPod|Android/.test(navigator.userAgent));
+  let gp = null;
+  try { gp = typeof localStorage !== 'undefined' ? localStorage.getItem('rh-hd-ground') : null; } catch (_) {}
+  let ground = gp === '1' ? true : gp === '0' ? false : !phone;
+  if (/[?&]hdground=1\b/.test(q)) ground = true;
+  if (/[?&]hdground=0\b/.test(q)) ground = false;
+  return { K: 2, pref, on: pref && gl2, phone, groundPref: ground, ground: pref && gl2 && ground };
 })();
+// The ground's pixels per world pixel (HD ground: HD.K), and how much of the half-size grass blades HD ground mixes in.
+const GK = HD.ground ? HD.K : 1, HD_FINE = 0.3;
 // The frame's pixels per view pixel: 1, or HD.K while WebGL draws an HD frame (gl.js sets it; the 2D way keeps 1).
 let FRAME_RS = 1;
 const frameRound = (v) => (FRAME_RS > 1 ? Math.round(v * FRAME_RS) / FRAME_RS : Math.round(v));
@@ -71,12 +82,15 @@ function uprightCtx(g) {
   const P = CanvasRenderingContext2D.prototype, di = P.drawImage, fr = P.fillRect, ft = P.fillText;
   // Only the transform changes for the one draw, so it alone is put back: a full save() / restore() for every
   // sprite, effect pixel and label was a quarter to two fifths of a big fight's frame on a large screen.
+  // g._px (a picture painted into HD ground, standOnGround): the canvas holds _px pixels per world pixel, so an upright
+  // draw is made at that scale (spots worked out in its pixels, then divided back), not at one pixel per pixel.
   g.drawImage = function (img, ...a) {
+    const PX = g._px || 1;
     if (img && img._k > 1) {   // (HD: drawn at its world size)
       if (a.length === 8 && img._ox !== undefined) {   // (a part of a sprite: anchored by the source rectangle in world pixels)
         const b = hdArgs(img, a), m = g.getTransform(), ax = a[4] - img._ox - a[0], ay = a[5] - img._oy - a[1];
-        b[4] = frameRound(m.a * ax + m.c * ay + m.e + a[4] - ax); b[5] = frameRound(m.b * ax + m.d * ay + m.f + a[5] - ay);
-        g.setTransform(1, 0, 0, 1, 0, 0); di.call(g, img, ...b); g.setTransform(m);
+        b[4] = frameRound(m.a * ax + m.c * ay + m.e + a[4] * PX - ax * PX) / PX; b[5] = frameRound(m.b * ax + m.d * ay + m.f + a[5] * PX - ay * PX) / PX;
+        g.setTransform(PX, 0, 0, PX, 0, 0); di.call(g, img, ...b); g.setTransform(m);
         return;
       }
       a = hdArgs(img, a);
@@ -89,13 +103,13 @@ function uprightCtx(g) {
     // anything else's middle.
     const ax = sprite ? dx - img._ox - (n === 8 ? a[0] : 0) : dx + w / 2, ay = sprite ? dy - img._oy - (n === 8 ? a[1] : 0) : dy + h / 2;
     const m = g.getTransform(), b = a.slice();
-    b[j] = Math.round(m.a * ax + m.c * ay + m.e + dx - ax); b[j + 1] = Math.round(m.b * ax + m.d * ay + m.f + dy - ay);
-    g.setTransform(1, 0, 0, 1, 0, 0); di.call(g, img, ...b); g.setTransform(m);
+    b[j] = Math.round(m.a * ax + m.c * ay + m.e + (dx - ax) * PX) / PX; b[j + 1] = Math.round(m.b * ax + m.d * ay + m.f + (dy - ay) * PX) / PX;
+    g.setTransform(PX, 0, 0, PX, 0, 0); di.call(g, img, ...b); g.setTransform(m);
   };
   g.fillRect = function (x, y, w, h) {
     if (!g.upright) return fr.call(g, x, y, w, h);
-    const m = g.getTransform(), cx = x + w / 2, cy = y + h / 2;
-    g.setTransform(1, 0, 0, 1, 0, 0); fr.call(g, Math.round(m.a * cx + m.c * cy + m.e - w / 2), Math.round(m.b * cx + m.d * cy + m.f - h / 2), w, h); g.setTransform(m);
+    const PX = g._px || 1, m = g.getTransform(), cx = x + w / 2, cy = y + h / 2;
+    g.setTransform(PX, 0, 0, PX, 0, 0); fr.call(g, Math.round(m.a * cx + m.c * cy + m.e - w / 2 * PX) / PX, Math.round(m.b * cx + m.d * cy + m.f - h / 2 * PX) / PX, w, h); g.setTransform(m);
   };
   g.fillText = function (t, x, y, ...m) {
     if (!g.upright) return ft.call(g, t, x, y, ...m);
@@ -198,21 +212,35 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
     const a = arr[y0 * MAP + x0], b = arr[y0 * MAP + x0 + 1], cc = arr[(y0 + 1) * MAP + x0], dd = arr[(y0 + 1) * MAP + x0 + 1];
     return (a + (b - a) * tx) * (1 - ty) + (cc + (dd - cc) * tx) * ty;
   }
-  // Paints world pixels (X0, Y0, w x h) into d, RGBA w x h.
-  function pixels(d, X0, Y0, w, h) {
+  // The grass tile between its pixels (HD ground): column u, row v, in world pixels.
+  function tileAt(u, v) {
+    const TM = GRASS_TILE_N - 1, tile = P.tile, u0 = Math.floor(u), v0 = Math.floor(v), a = u - u0, b = v - v0;
+    const r0 = (v0 & TM) * GRASS_TILE_N, r1 = ((v0 + 1) & TM) * GRASS_TILE_N, c0 = u0 & TM, c1 = (u0 + 1) & TM;
+    return (tile[r0 + c0] * (1 - a) + tile[r0 + c1] * a) * (1 - b) + (tile[r1 + c0] * (1 - a) + tile[r1 + c1] * a) * b;
+  }
+  // Paints world pixels (X0, Y0, w x h) into d, RGBA w x h. K (HD ground): K x K pixels per world pixel, d (w K) x (h K);
+  // everything smooth is sampled at each small pixel's middle (x, y: world, fractional) and the grain (speck, the grass
+  // blades, crests) is worked out on the fine grid (xi, yi), so the ground gets finer detail, not bigger blocks. K 1: as before.
+  function pixels(d, X0, Y0, w, h, K = 1) {
     if (!P) prepare();
     const { dirt, water, ford, nearFlag, N1, N2, N3, tile } = P, TM = GRASS_TILE_N - 1;
     let p = 0;
-    for (let y = Y0; y < Y0 + h; y++) {
-      const fy = y / CELL - 0.5;
-      for (let x = X0; x < X0 + w; x++, p += 4) {
-        const fx = x / CELL - 0.5;
+    for (let yi = Y0 * K; yi < (Y0 + h) * K; yi++) {
+      const y = K === 1 ? yi : (yi + 0.5) / K - 0.5, fy = y / CELL - 0.5;
+      for (let xi = X0 * K; xi < (X0 + w) * K; xi++, p += 4) {
+        const x = K === 1 ? xi : (xi + 0.5) / K - 0.5, fx = x / CELL - 0.5;
         const n3 = noise(N3, x, y), hh = noise(N1, x, y) * 0.35 + noise(N2, x, y) * 0.45 + n3 * 0.2;
-        const sp = speck(x, y);
+        const sp = speck(xi, yi);
         // Grass: the Blender blade tile gives the strokes. Two lookups (the second turned on its side and shifted)
-        // are mixed by slow noise, so the 128-pixel repeat does not show.
-        const tA = tile[(y & TM) * GRASS_TILE_N + (x & TM)], tB = tile[((x + 53) & TM) * GRASS_TILE_N + ((y + 29) & TM)];
-        const ms = Math.max(0, Math.min(1, (n3 - 0.4) / 0.2)), gt = (tA + (tB - tA) * ms) / 9;
+        // are mixed by slow noise, so the 128-pixel repeat does not show. (HD: the blades between the tile's pixels, their
+        // contrast put back (smoothing them flattened it), and a finer copy of the tile, half size, mixed in for small blades.)
+        const ms = Math.max(0, Math.min(1, (n3 - 0.4) / 0.2));
+        let gt;
+        if (K === 1) { const tA = tile[(y & TM) * GRASS_TILE_N + (x & TM)], tB = tile[((x + 53) & TM) * GRASS_TILE_N + ((y + 29) & TM)]; gt = (tA + (tB - tA) * ms) / 9; }
+        else {
+          const tA = (tileAt(x, y) - 4.5) * 1.7 + 4.5, tB = (tileAt(y + 29, x + 53) - 4.5) * 1.7 + 4.5, fA = tile[((yi + 71) & TM) * GRASS_TILE_N + ((xi + 17) & TM)];
+          gt = ((tA + (tB - tA) * ms) * (1 - HD_FINE) + fA * HD_FINE) / 9;
+        }
         let col = pickTone(GRASS, hh * 1.1 - 0.12 + (gt - 0.5) * STROKE + (sp - 0.5) * 0.1);
         if (sp > 0.992) col = GRASS[4];
         const near = nearFlag[Math.min(MAP - 1, Math.max(0, Math.round(fy))) * MAP + Math.min(MAP - 1, Math.max(0, Math.round(fx)))];
@@ -223,7 +251,7 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
         } else if (!SOFT && dv > 0.42) col = pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6);
         const wv = near & 2 ? bil(water, fx, fy) + (hh - 0.5) * 0.22 : 0;
         if (wv > 0.5) {
-          const crest = ((x * 3 + y * 7 + Math.floor(noise(N1, (x * 3) % WORLD, y) * 30)) % 23 === 0) && sp > 0.4;
+          const crest = ((xi * 3 + yi * 7 + Math.floor(noise(N1, (x * 3) % WORLD, y) * 30 * K)) % (23 * K) === 0) && sp > 0.4;
           col = crest ? (snow ? [70, 94, 118] : marsh ? [84, 98, 86] : [150, 172, 190]) : pickTone(WATER, 0.9 - (wv - 0.5) * 1.6 + (hh - 0.5) * 0.5 + (sp - 0.5) * 0.4);
           if (wv < 0.545) col = marsh ? (sp > 0.35 ? [74, 70, 50] : [58, 56, 40]) : sp > 0.35 ? [178, 192, 198] : [120, 140, 156];   // surf (a fen: a muddy rim)
           if (snow && wv < 0.6 + (hh - 0.5) * 0.25) col = sp > 0.25 ? [206, 222, 234] : [168, 190, 208];   // shelf ice along the shore
@@ -248,7 +276,7 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
               const bed = sp > 0.85 ? [70, 66, 58] : pickTone(SANDS, hh * 1.2 - 0.45 + (sp - 0.5) * 0.5);
               const shade = fordStone(x - 2, y - 2, seed) ? 0.6 : 1;   // stones shade the bed below-right of them
               sh = [(bed[0] + (80 - bed[0]) * 0.42) * shade, (bed[1] + (116 - bed[1]) * 0.42) * shade, (bed[2] + (138 - bed[2]) * 0.42) * shade];
-              if (((x * 2 + Math.floor(noise(N1, x, (y * 4) % WORLD) * 24)) % 13 === 0) && sp > 0.25) sh = [176, 196, 204];   // white water between the stones
+              if (((xi * 2 + Math.floor(noise(N1, x, (y * 4) % WORLD) * 24 * K)) % (13 * K) === 0) && sp > 0.25) sh = [176, 196, 204];   // white water between the stones
             }
             col = [col[0] + (sh[0] - col[0]) * k, col[1] + (sh[1] - col[1]) * k, col[2] + (sh[2] - col[2]) * k];
           }
@@ -273,8 +301,8 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
       }
     }
     const flush = mesas && mesas.length && hgt ? (x, y) => mesas.some((m) => Math.hypot(x / CELL - m.x, y / CELL - m.y) < m.r + 1 && bil(hgt, x / CELL - 0.5, y / CELL - 0.5) >= m.T - 1.5) : null;
-    if (P.cliff) paintCliffs(d, P.cliff, seed, snow, X0, Y0, w, h, flush);
-    if (roads && roads.length) paintRuts(d, roads, X0, Y0, w, h);
+    if (P.cliff) paintCliffs(d, P.cliff, seed, snow, X0, Y0, w, h, flush, K);
+    if (roads && roads.length) paintRuts(d, roads, X0, Y0, w, h, K);
   }
   return { pixels };
 }
@@ -448,8 +476,8 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
       const corners = [[-8, -bw / 2 - 5], [L + 8, -bw / 2 - 5], [-8, bw / 2 + 9], [L + 8, bw / 2 + 9]].map(([u, v]) => [b.a.x + u * Math.cos(ang) - v * Math.sin(ang), b.a.y + u * Math.sin(ang) + v * Math.cos(ang)]);
       const x0 = Math.floor(Math.min(...corners.map((c) => c[0]))) - 2, y0 = Math.floor(Math.min(...corners.map((c) => c[1]))) - 2;
       const x1 = Math.ceil(Math.max(...corners.map((c) => c[0]))) + 2, y1 = Math.ceil(Math.max(...corners.map((c) => c[1]))) + 2;
-      const c = mkCanvas(x1 - x0, y1 - y0), g = c.getContext('2d');
-      g.translate(b.a.x - x0, b.a.y - y0); g.rotate(ang);
+      const c = mkCanvas((x1 - x0) * GK, (y1 - y0) * GK), g = c.getContext('2d');   // (HD ground: at its pixels per world pixel)
+      g.scale(GK, GK); g.translate(b.a.x - x0, b.a.y - y0); g.rotate(ang);
       if (bridgeKind === 'concrete') concreteBridge(g, L, bw, seed, snow);
       else {   // timber
         g.fillStyle = 'rgba(10,20,30,0.45)'; g.fillRect(4, -bw / 2 + 6, L - 8, bw);              // shadow on the water
@@ -468,20 +496,23 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
     P = { bridges: bridgePics, stamps, trees };
   }
   // Bridges and scenery over that part of the ground, already in g at (ox, oy).
-  function decorate(g, X0, Y0, w, h, ox = 0, oy = 0) {
+  // K (HD ground): g holds K pixels per world pixel (ox, oy, w, h stay in world pixels).
+  function decorate(g, X0, Y0, w, h, ox = 0, oy = 0, K = 1) {
     if (!P) prepare();
     g.save();
+    if (K !== 1) g.scale(K, K);
     g.beginPath(); g.rect(ox, oy, w, h); g.clip();
     g.translate(ox - X0, oy - Y0);
 
     // Timber bridges (drawn once each, in prepare, so every tile gets the same pixels).
-    for (const b of P.bridges) g.drawImage(b.c, b.x, b.y);
+    for (const b of P.bridges) g.drawImage(b.c, b.x, b.y, b.c.width / GK, b.c.height / GK);
 
     // Scenery stamps that reach into this part, shadows first.
     const here = P.stamps.filter((s) => s.x1 > X0 && s.x0 < X0 + w && s.y1 > Y0 && s.y0 < Y0 + h);
-    for (const s of here) if (s.s) { g.globalAlpha = 0.45; g.drawImage(s.s.sh, Math.round(s.x + s.s.sox), Math.round(s.y + s.s.soy)); g.globalAlpha = 1; }
+    // (an HD picture, _k, at its world size)
+    for (const s of here) if (s.s) { g.globalAlpha = 0.45; g.drawImage(s.s.sh, Math.round(s.x + s.s.sox), Math.round(s.y + s.s.soy), picW(s.s.sh), picH(s.s.sh)); g.globalAlpha = 1; }
     for (const s of here) {
-      if (s.s) { g.drawImage(s.s.img, Math.round(s.x + s.s.ox), Math.round(s.y + s.s.oy)); continue; }
+      if (s.s) { g.drawImage(s.s.img, Math.round(s.x + s.s.ox), Math.round(s.y + s.s.oy), picW(s.s.img), picH(s.s.img)); continue; }
       const x = s.x, y = s.y;
       g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x + 1, y + 1, 5, 2);
       g.fillStyle = '#1f2e15'; g.fillRect(x - 2, y - 2, 5, 3);
@@ -490,19 +521,20 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
     }
     g.restore();
   }
-  function paint(g, X0, Y0, w, h, ox = 0, oy = 0) {
-    const img = g.createImageData(w, h);
-    px.pixels(img.data, X0, Y0, w, h);
-    g.putImageData(img, ox, oy);
-    decorate(g, X0, Y0, w, h, ox, oy);
+  function paint(g, X0, Y0, w, h, ox = 0, oy = 0, K = 1) {
+    const img = g.createImageData(w * K, h * K);
+    px.pixels(img.data, X0, Y0, w, h, K);
+    g.putImageData(img, ox * K, oy * K);
+    decorate(g, X0, Y0, w, h, ox, oy, K);
   }
   return { paint, decorate, trees: () => { if (!P) prepare(); return P.trees; }, args: [terr, seed, roads, cliffs, fords, theme, hgt, mesas] };
 }
 // Wheel ruts along the roads, worked out pixel by pixel (not stroked on the canvas, whose smoothing differs with
 // where a picture's edge falls) so they run on unbroken across the ground's tiles. Each rut darkens or lightens a
 // pixel once, however many of its segments cover it.
-function paintRuts(d, roads, X0, Y0, w, h) {
-  const mask = new Uint8Array(w * h);
+function paintRuts(d, roads, X0, Y0, w, h, K = 1) {
+  const W = w * K, FX = X0 * K, FY = Y0 * K, FW = (X0 + w) * K, FH = (Y0 + h) * K;   // (HD ground: the fine grid, K per world pixel)
+  const mask = new Uint8Array(W * h * K);
   for (const road of roads) {
     if (road.length < 2) continue;
     for (const [off, col, a, lw] of [[-5, [58, 44, 26], 0.45, 2], [5, [58, 44, 26], 0.45, 2], [-4, [170, 150, 110], 0.18, 1], [6, [170, 150, 110], 0.18, 1]]) {
@@ -515,12 +547,12 @@ function paintRuts(d, roads, X0, Y0, w, h) {
       for (let i = 1; i < pts.length; i++) {
         const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
         if (Math.max(x0, x1) < X0 - 4 || Math.min(x0, x1) > X0 + w + 4 || Math.max(y0, y1) < Y0 - 4 || Math.min(y0, y1) > Y0 + h + 4) continue;
-        const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 2) || 1;
+        const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 2 * K) || 1, L = lw * K;
         for (let k = 0; k <= steps; k++) {
-          const x = x0 + (x1 - x0) * k / steps, y = y0 + (y1 - y0) * k / steps;
-          for (let py = Math.round(y - lw / 2); py < Math.round(y - lw / 2) + lw; py++) for (let px = Math.round(x - lw / 2); px < Math.round(x - lw / 2) + lw; px++) {
-            if (px < X0 || py < Y0 || px >= X0 + w || py >= Y0 + h) continue;
-            const q = (py - Y0) * w + px - X0;
+          const x = (x0 + (x1 - x0) * k / steps + 0.5) * K - 0.5, y = (y0 + (y1 - y0) * k / steps + 0.5) * K - 0.5;
+          for (let py = Math.round(y - L / 2); py < Math.round(y - L / 2) + L; py++) for (let px = Math.round(x - L / 2); px < Math.round(x - L / 2) + L; px++) {
+            if (px < FX || py < FY || px >= FW || py >= FH) continue;
+            const q = (py - FY) * W + px - FX;
             if (!mask[q]) { mask[q] = 1; hit.push(q); }
           }
         }
@@ -611,7 +643,9 @@ function cliffCells(terr, cliffs) {
   return cells;
 }
 // Paints the cliffs over the part of the ground in d (w x h pixels from world X0, Y0).
-function paintCliffs(d, cells, seed, snow, X0, Y0, w, h, flush) {
+// K (HD ground): K x K pixels per world pixel in d; the heights are worked out on that fine grid (xf, yf), at each small
+// pixel's middle (world (xf + 0.5) / K - 0.5). K 1: as before.
+function paintCliffs(d, cells, seed, snow, X0, Y0, w, h, flush, K = 1) {
   // Value noise on an unbounded lattice.
   const hash = (i, j, k) => { let h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(k + seed, 1442695041); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
   const vn = (x, y, s, k) => {
@@ -640,29 +674,30 @@ function paintCliffs(d, cells, seed, snow, X0, Y0, w, h, flush) {
   const lx = -0.55, ly = -0.65, lz = 0.52;   // towards the light
   // Work the height out once per pixel (only cells near a cliff can rise) over this part and a margin (the
   // shading looks one pixel round, the ridge's shadow 6 up and to the left), then shade from that.
-  const MX0 = X0 - 6, MY0 = Y0 - 7, MW = w + 8, MH = h + 9, hts = new Float32Array(MW * MH);
+  const wd = (f) => (K === 1 ? f : (f + 0.5) / K - 0.5), CK = CELL * K;   // a fine pixel's world spot; a cell in fine pixels
+  const MX0 = (X0 - 6) * K, MY0 = (Y0 - 7) * K, MW = (w + 8) * K, MH = (h + 9) * K, hts = new Float32Array(MW * MH);
   let any = false;
-  for (let cy = Math.floor(MY0 / CELL); cy <= Math.floor((MY0 + MH - 1) / CELL); cy++) for (let cx = Math.floor(MX0 / CELL); cx <= Math.floor((MX0 + MW - 1) / CELL); cx++) {
+  for (let cy = Math.floor(MY0 / CK); cy <= Math.floor((MY0 + MH - 1) / CK); cy++) for (let cx = Math.floor(MX0 / CK); cx <= Math.floor((MX0 + MW - 1) / CK); cx++) {
     if (cx < 0 || cy < 0 || cx >= MAP || cy >= MAP || !cells.has(cy * MAP + cx)) continue;
     any = true;
-    for (let y = Math.max(MY0, cy * CELL); y < Math.min(MY0 + MH, (cy + 1) * CELL); y++) for (let x = Math.max(MX0, cx * CELL); x < Math.min(MX0 + MW, (cx + 1) * CELL); x++) hts[(y - MY0) * MW + x - MX0] = height(x, y);
+    for (let y = Math.max(MY0, cy * CK); y < Math.min(MY0 + MH, (cy + 1) * CK); y++) for (let x = Math.max(MX0, cx * CK); x < Math.min(MX0 + MW, (cx + 1) * CK); x++) hts[(y - MY0) * MW + x - MX0] = height(wd(x), wd(y));
   }
   if (!any) return;
-  const H = (x, y) => (x < 0 || y < 0 || x >= WORLD || y >= WORLD ? 0 : hts[(y - MY0) * MW + x - MX0]);
-  for (let y = Y0; y < Y0 + h; y++) for (let x = X0; x < X0 + w; x++) {
-    if (!cells.has(Math.floor(y / CELL) * MAP + Math.floor(x / CELL))) continue;
-    if (flush && flush(x, y)) continue;   // (a mesa's level top: its crags draw the rim)
-    const p = ((y - Y0) * w + x - X0) * 4, hh = H(x, y), sp = hash(x, y, 9);
+  const WK = WORLD * K, H = (x, y) => (x < 0 || y < 0 || x >= WK || y >= WK ? 0 : hts[(y - MY0) * MW + x - MX0]);
+  for (let y = Y0 * K; y < (Y0 + h) * K; y++) for (let x = X0 * K; x < (X0 + w) * K; x++) {
+    if (!cells.has(Math.floor(y / CK) * MAP + Math.floor(x / CK))) continue;
+    if (flush && flush(wd(x), wd(y))) continue;   // (a mesa's level top: its crags draw the rim)
+    const p = ((y - Y0 * K) * w * K + x - X0 * K) * 4, hh = H(x, y), sp = hash(x, y, 9);
     if (hh <= 0.4) {
-      const sh = H(x - 5, y - 6);   // the ridge's shadow on the ground below it
+      const sh = H(x - 5 * K, y - 6 * K);   // the ridge's shadow on the ground below it
       if (sh > 5) { const k = sh > 9 ? 0.55 : 0.7; d[p] *= k; d[p + 1] *= k; d[p + 2] *= k; }
       else if (hh > 0 && sp < 0.35) { const t = ROCK[1 + Math.floor(sp * 8)]; d[p] = t[0]; d[p + 1] = t[1]; d[p + 2] = t[2]; }   // scree
       continue;
     }
-    const gx = H(x + 1, y) - H(x - 1, y), gy = H(x, y + 1) - H(x, y - 1);
+    const gx = (H(x + 1, y) - H(x - 1, y)) * K, gy = (H(x, y + 1) - H(x, y - 1)) * K;
     const nl = Math.hypot(gx * 0.5, gy * 0.5, 1), lit = (-gx * 0.5 * lx - gy * 0.5 * ly + lz) / nl;
     let v = 2.3 + (lit - lz) * 7 + hh / CLIFF_H * 1.2 + (sp - 0.5) * 0.6;   // flat ground mid-brown, sunlit faces tan, the rest dark
-    if (vn(x, y, 4, 5) > 0.72) v -= 1.2;   // cracks and gullies
+    if (vn(wd(x), wd(y), 4, 5) > 0.72) v -= 1.2;   // cracks and gullies
     const t = ROCK[Math.max(0, Math.min(ROCK.length - 1, Math.floor(v)))];
     const a = Math.min(1, (hh - 0.4) * 1.5);   // the foot blends into the ground
     d[p] += (t[0] - d[p]) * a; d[p + 1] += (t[1] - d[p + 1]) * a; d[p + 2] += (t[2] - d[p + 2]) * a;
@@ -691,8 +726,8 @@ function crater(tg, x, y, rad, seed, dig) {
   // finished ground every frame, lookCraters, and hid the wreck of every vehicle, whose death digs one under it.)
   if (dig && typeof LOOK !== 'undefined' && LOOK.craters && typeof craterPic === 'function') {
     const X = Math.round(x), Y = Math.round(y), h = ((X * 73856093) ^ (Y * 19349663)) >>> 0;
-    const pic = craterPic(h % CRATER_VAR, typeof mapTheme === 'function' && mapTheme(G.mapId) === 'snow', rad >= 8);
-    const s = rad >= 8 ? 0.85 + Math.min(0.4, (rad - 8) * 0.12) : 0.8 + (rad - 5) * 0.1, w = pic.width * s;   // (digCrater's bowl: about this size)
+    const K = tg._gk || 1, pic = craterPic(h % CRATER_VAR, typeof mapTheme === 'function' && mapTheme(G.mapId) === 'snow', rad >= 8, K);   // (HD ground: at its detail)
+    const s = rad >= 8 ? 0.85 + Math.min(0.4, (rad - 8) * 0.12) : 0.8 + (rad - 5) * 0.1, w = pic.width / K * s;   // (digCrater's bowl: about this size)
     const sm = tg.imageSmoothingEnabled; tg.imageSmoothingEnabled = false;
     tg.drawImage(pic, Math.round(X - w / 2), Math.round(Y - w / 2), w, w);
     tg.imageSmoothingEnabled = sm;
@@ -717,18 +752,20 @@ function crater(tg, x, y, rad, seed, dig) {
 // in world coordinates, so on the turned, squashed ground they showed as dark slabs and smears.
 // R: half the scratch picture's size, in screen pixels (the world box it can reach is about R / VIEW.F each way).
 let standPic = null;
+// HD ground (tg._gk, set by makeGround's markPic): the scratch picture at the ground's pixels per world pixel, and the
+// pictures in it the HD ones (charred, dimmed keep them), so a wreck is as sharp as the units.
 function standOnGround(tg, x, y, R, fn) {
-  const S = 2 * R;
-  if (!standPic || standPic.width < S) standPic = mkCanvas(S, S);
+  const K = tg._gk || 1, S = 2 * R, SK = S * K;
+  if (!standPic || standPic.width < SK) standPic = mkCanvas(SK, SK);
   const g = uprightCtx(standPic.getContext('2d')), c = VIEW.c, s = VIEW.s, F = VIEW.F;
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, standPic.width, standPic.height);
-  g.setTransform(c, s * F, -s, c * F, R - (c * x - s * y), R - (s * F * x + c * F * y));
-  g.upright = true;
-  try { fn(g); } finally { g.upright = false; g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.setTransform(1, 0, 0, 1, 0, 0); }
+  g.setTransform(K * c, K * s * F, -K * s, K * c * F, K * (R - (c * x - s * y)), K * (R - (s * F * x + c * F * y)));
+  g.upright = true; g._px = K;
+  try { fn(g); } finally { g.upright = false; g._px = 1; g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.setTransform(1, 0, 0, 1, 0, 0); }
   tg.save();
   tg.translate(x, y); tg.transform(c, -s, s / F, c / F, 0, 0);
-  tg.imageSmoothingEnabled = false;   // (restored with the rest)
-  tg.drawImage(standPic, 0, 0, S, S, -R, -R, S, S);
+  tg.imageSmoothingEnabled = K > 1;   // (restored with the rest; HD ground: the picture is at the ground's own scale, but turned)
+  tg.drawImage(standPic, 0, 0, SK, SK, -R, -R, S, S);
   tg.restore();
 }
 // A burnt-out wreck painted into the ground, so it stays for the rest of the battle: the burning hull as it stood (drawHusk).
@@ -751,7 +788,7 @@ function drawTurretAt(g, fx, z) {
   const img = turretImg(fx);
   const [tx, ty] = liftPt(fx.x, fx.y, z + 3);
   g.save(); g.translate(Math.round(tx), Math.round(ty)); g.rotate(fx.rot);
-  g.drawImage(img, -Math.round(img.width / 2), -Math.round(img.height / 2));
+  g.drawImage(img, -Math.round(picW(img) / 2), -Math.round(picH(img) / 2));
   g.restore();
 }
 function bakeTurret(tg, fx) {
@@ -772,7 +809,7 @@ function bakeCorpse(tg, u, seed, angle) {
   tg.save();
   tg.translate(x, y + 1); tg.rotate(a);
   const img = dimmed(s.img);
-  tg.drawImage(img, Math.round(s.ox), Math.round(s.oy));
+  tg.drawImage(img, Math.round(s.ox), Math.round(s.oy), picW(img), picH(img));
   tg.restore();
 }
 // A ragdoll's body, drawn limb by limb from its joints in the uniform's colours (and its
@@ -844,12 +881,13 @@ function bakeRagdoll(tg, fx) {
     drawRagBody(g, fx);
     g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = 'source-atop';
-    g.fillStyle = 'rgba(20,16,12,0.28)'; g.fillRect(0, 0, R * 2, R * 2);
+    g.fillStyle = 'rgba(20,16,12,0.28)'; g.fillRect(0, 0, R * 2 * (g._px || 1), R * 2 * (g._px || 1));
   });
 }
 function dimmed(img) {
-  img = sdPic(img);
+  img = GK > 1 ? img : sdPic(img);   // (HD ground: kept at its own pixels, _k)
   const c = mkCanvas(img.width, img.height), g = c.getContext('2d');
+  if (img._k > 1) c._k = img._k;
   g.drawImage(img, 0, 0);
   g.globalCompositeOperation = 'source-atop';
   g.fillStyle = 'rgba(20,16,12,0.28)'; g.fillRect(0, 0, c.width, c.height);
@@ -867,16 +905,18 @@ function charred(img, seed) {
   return looks[v] || (looks[v] = charredLook(img, v * 7919 + 13));
 }
 function charredLook(img, seed) {
-  img = sdPic(img);   // (painted into the ground, at one pixel per world pixel)
+  img = GK > 1 ? img : sdPic(img);   // (painted into the ground, at one pixel per world pixel; HD ground: at its own, _k)
   const r = rng(seed), c = mkCanvas(img.width, img.height), g = c.getContext('2d');
   c._ox = img._ox; c._oy = img._oy;   // (still a sprite to uprightCtx)
+  if (img._k > 1) c._k = img._k;
   g.drawImage(img, 0, 0);
   g.globalCompositeOperation = 'source-atop';
   g.fillStyle = 'rgba(22,18,14,0.62)'; g.fillRect(0, 0, c.width, c.height);
-  for (let i = 0; i < c.width * c.height / 14; i++) {
+  const ck = c._k || 1;   // (HD: the soot flecks at world size, as before)
+  for (let i = 0; i < c.width * c.height / 14 / (ck * ck); i++) {
     const v = r();
     g.fillStyle = v < 0.5 ? 'rgba(8,6,4,0.55)' : v < 0.8 ? 'rgba(96,52,26,0.45)' : 'rgba(120,112,100,0.3)';
-    g.fillRect((r() * c.width) | 0, (r() * c.height) | 0, 1 + (r() * 2 | 0), 1);
+    g.fillRect(((r() * c.width / ck) | 0) * ck, ((r() * c.height / ck) | 0) * ck, (1 + (r() * 2 | 0)) * ck, ck);
   }
   return c;
 }
@@ -1468,7 +1508,7 @@ function groundWorkers() {
   try {
     const src = ["'use strict';",
       `const CELL = ${CELL}, CLIFF_H = ${CLIFF_H}, GRASS_TILE = ${JSON.stringify(GRASS_TILE)}, GRASS_TILE_N = ${GRASS_TILE_N};`,
-      `const LOOK_SOFT = ${typeof LOOK_SOFT !== 'undefined' && !!LOOK_SOFT};`,
+      `const LOOK_SOFT = ${typeof LOOK_SOFT !== 'undefined' && !!LOOK_SOFT}, HD_FINE = ${HD_FINE};`,
       `const HILL_SHADE = ${typeof HILL_SHADE !== 'undefined' ? HILL_SHADE : 1};`,
       'let MAP = 0, WORLD = 0, NCELLS = 0;',
       ...[rng, groundPixels, cliffCells, paintCliffs, paintRuts, fordStone].map(String),
@@ -1477,9 +1517,9 @@ function groundWorkers() {
         const m = e.data;
         if (m.init) { gen = m.gen; MAP = m.MAP; WORLD = MAP * CELL; NCELLS = MAP * MAP; px = groundPixels(...m.args); return; }
         // (the buffer comes back from the main thread to be used again: no new 256 KB block for every tile)
-        const size = m.w * m.h * 4, d = m.buf && m.buf.byteLength === size ? new Uint8ClampedArray(m.buf) : pvBuf && pvBuf.byteLength === size && m.pv ? new Uint8ClampedArray(pvBuf) : new Uint8ClampedArray(size);
+        const K = m.pv ? 1 : m.K || 1, size = m.w * m.h * K * K * 4, d = m.buf && m.buf.byteLength === size ? new Uint8ClampedArray(m.buf) : pvBuf && pvBuf.byteLength === size && m.pv ? new Uint8ClampedArray(pvBuf) : new Uint8ClampedArray(size);
         if (m.pv) pvBuf = d.buffer;
-        if (m.gen === gen) px.pixels(d, m.x, m.y, m.w, m.h);
+        if (m.gen === gen) px.pixels(d, m.x, m.y, m.w, m.h, K);
         if (!m.pv) { postMessage({ gen: m.gen, k: m.k, w: m.w, h: m.h, d, ok: m.gen === gen }, [d.buffer]); return; }
         // A preview: the same pixels averaged down s times each way (the stand-in for a tile not painted yet).
         const s = m.pv, w2 = Math.ceil(m.w / s), h2 = Math.ceil(m.h / s), o = new Uint8ClampedArray(w2 * h2 * 4);
@@ -1523,8 +1563,13 @@ function makeGround(painter, legacy, baked) {
   // canvases while scrolling costs memory churn and pauses.
   const spare = [];
   let finished = 0;   // tiles finished so far
-  const tileCanvas = () => { const c = spare.pop(); if (!c) return mkCanvas(T, T); c.getContext('2d').clearRect(0, 0, T, T); return c; };
+  // HD ground: a tile's canvas holds K pixels per world pixel (K = GK; baked sheets and old saves' pictures are at 1).
+  const K = legacy || baked ? 1 : GK, TK = T * K;
+  const tileCanvas = () => { const c = spare.pop(); if (!c) return mkCanvas(TK, TK); const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, TK, TK); return c; };
   const tileOf = (tx, ty) => ty * n + tx;
+  // How many painted tiles are kept: a roomy computer all of them (HD ground: 400, about 400 MB at 512 px a tile), a phone
+  // those round the view (HD ground: a quarter as many, each four times the memory).
+  const keepN = (seen) => (GROUND_ROOMY ? (K > 1 ? 400 : n * n) : Math.max(Math.round(140 / (K * K)), seen * 3));
   const at = (k) => [(k % n) * T, Math.floor(k / n) * T];
   // With workers: the tiles wanted, in order (on screen nearest the middle first, then the ring round it), those
   // being worked out, and those whose pixels are back and wait to be finished on the main thread.
@@ -1580,7 +1625,7 @@ function makeGround(painter, legacy, baked) {
   const finishing = new Map();
   function finishSome(k, until) {
     const f = finishing.get(k), list = index[k];
-    if (!f.dr) { f.dr = 1; if (typeof lookDress === 'function') { const [x0, y0] = at(k), tg = f.t.g.getContext('2d'); if (!(f.baked && baked.patched)) lookPatchTile(tg, x0, y0); if (!(f.baked && baked.dressed)) lookDress(tg, x0, y0); } }   // (look.js: the soft patches and ground dressing, once a tile; a baked sheet may have them in)
+    if (!f.dr) { f.dr = 1; if (typeof lookDress === 'function') { const [x0, y0] = at(k), tg = f.t.g.getContext('2d'); tg.save(); tg.scale(K, K); if (K > 1 && typeof cliffShadowPaint === 'function') cliffShadowPaint(tg, x0, y0, T, T); if (!(f.baked && baked.patched)) lookPatchTile(tg, x0, y0); if (!(f.baked && baked.dressed)) lookDress(tg, x0, y0); tg.restore(); } }   // (look.js: the soft patches and ground dressing, once a tile; a baked sheet may have them in)
     while (f.i < list.length) {
       const a = performance.now(), m = G.marks[list[f.i++]];
       drawOn(f.t, k, m);
@@ -1592,7 +1637,7 @@ function makeGround(painter, legacy, baked) {
     finishing.delete(k);
     f.t.used = frameNo;
     f.t.ver = (f.t.ver || 0) + 1; tiles.set(k, f.t); finished++;   // (ver: gl.js uploads a tile again when it changes)
-    if (!pvDone[k] && pool) { const [x0, y0] = at(k), g = pvCtx(); g.imageSmoothingEnabled = true; g.drawImage(f.t.g, 0, 0, Math.min(T, WORLD - x0), Math.min(T, WORLD - y0), x0 / PV, y0 / PV, Math.min(T, WORLD - x0) / PV, Math.min(T, WORLD - y0) / PV); pvMark(k); }
+    if (!pvDone[k] && pool) { const [x0, y0] = at(k), g = pvCtx(); g.imageSmoothingEnabled = true; g.drawImage(f.t.g, 0, 0, Math.min(T, WORLD - x0) * K, Math.min(T, WORLD - y0) * K, x0 / PV, y0 / PV, Math.min(T, WORLD - x0) / PV, Math.min(T, WORLD - y0) / PV); pvMark(k); }
     return true;
   }
   if (pool) {
@@ -1635,7 +1680,7 @@ function makeGround(painter, legacy, baked) {
       }
       const [x0, y0] = at(k), buf = bufs.pop();
       w.job = k; inflight.add(k);
-      w.postMessage({ gen, k, x: x0, y: y0, w: Math.min(T, WORLD - x0), h: Math.min(T, WORLD - y0), buf }, buf ? [buf] : []);
+      w.postMessage({ gen, k, x: x0, y: y0, w: Math.min(T, WORLD - x0), h: Math.min(T, WORLD - y0), K, buf }, buf ? [buf] : []);
     }
   }
   // A tile whose pixels came back from a worker: into a canvas, bridges and scenery on top, then the marks (finishSome).
@@ -1648,10 +1693,10 @@ function makeGround(painter, legacy, baked) {
       finishing.set(k, { t, i: 0, baked: true });
       return;
     }
-    g.putImageData(new ImageData(m.d, m.w, m.h), 0, 0);
+    g.putImageData(new ImageData(m.d, m.w * K, m.h * K), 0, 0);
     if (bufs.length < 8) bufs.push(m.d.buffer);
     const b = performance.now();
-    painter.decorate(g, x0, y0, m.w, m.h, 0, 0);
+    painter.decorate(g, x0, y0, m.w, m.h, 0, 0, K);
     peak.put = Math.max(peak.put, b - a); peak.dec = Math.max(peak.dec, performance.now() - b);
     finishing.set(k, { t, i: 0 });
   }
@@ -1670,17 +1715,18 @@ function makeGround(painter, legacy, baked) {
   // A mark is drawn once into a scratch picture at its box, then copied onto each tile it reaches: drawn straight
   // onto tiles, its smoothed edges would come out a little differently on either side of a tile's edge.
   let scratch = null;
+  // (HD ground: the scratch picture at the tiles' K pixels per world pixel; markCanvas, gl.js stage 6, is only used at 1)
   function markPic(m) {
-    const bx = Math.floor(m[3]), by = Math.floor(m[4]), w = Math.ceil(m[5]) - bx + 1, h = Math.ceil(m[6]) - by + 1;
+    const bx = Math.floor(m[3]), by = Math.floor(m[4]), w = (Math.ceil(m[5]) - bx + 1) * K, h = (Math.ceil(m[6]) - by + 1) * K;
     if (!scratch || scratch.width < w || scratch.height < h) scratch = mkCanvas(Math.max(w, scratch ? scratch.width : 256), Math.max(h, scratch ? scratch.height : 256));
     const g = scratch.getContext('2d');
-    g.clearRect(0, 0, w, h);
-    g.save(); g.translate(-bx, -by); drawMark(g, m); g.restore();
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, h);
+    g.save(); g.scale(K, K); g.translate(-bx, -by); g._gk = K; drawMark(g, m); g._gk = 1; g.restore();
   }
   function copyOn(t, k, m) {
     if (m[0] === 'd' && !t.d) t.d = tileCanvas();
-    const [x0, y0] = at(k), bx = Math.floor(m[3]), by = Math.floor(m[4]), w = Math.ceil(m[5]) - bx + 1, h = Math.ceil(m[6]) - by + 1;
-    (m[0] === 't' ? t.g : t.d).getContext('2d').drawImage(scratch, 0, 0, w, h, bx - x0, by - y0, w, h);
+    const [x0, y0] = at(k), bx = Math.floor(m[3]), by = Math.floor(m[4]), w = (Math.ceil(m[5]) - bx + 1) * K, h = (Math.ceil(m[6]) - by + 1) * K;
+    (m[0] === 't' ? t.g : t.d).getContext('2d').drawImage(scratch, 0, 0, w, h, (bx - x0) * K, (by - y0) * K, w, h);
     t.ver = (t.ver || 0) + 1;   // (gl.js: upload it again)
   }
   function drawOn(t, k, m) { markPic(m); copyOn(t, k, m); }
@@ -1698,7 +1744,7 @@ function makeGround(painter, legacy, baked) {
     }
     while (p.row < h) {
       const rows = Math.min(STRIP, h - p.row);
-      painter.paint(g, x0, y0 + p.row, w, rows, 0, p.row);
+      painter.paint(g, x0, y0 + p.row, w, rows, 0, p.row, K);
       p.row += rows;
       if (until && performance.now() >= until) break;
     }
@@ -1774,7 +1820,7 @@ function makeGround(painter, legacy, baked) {
         const near = want.length;
         // A roomy computer, once the preview is done: the rest of the map, nearest the view first, a few at a time
         // (finished with the `ahead` time only, after what is on and round the screen).
-        if (GROUND_ROOMY && pvCount === n * n && tiles.size + finishing.size < n * n) {
+        if (GROUND_ROOMY && pvCount === n * n && tiles.size + finishing.size < Math.min(n * n, keepN(0))) {
           const cx = pvCenter % n, cy = Math.floor(pvCenter / n), more = [], has = new Set(want);
           for (let c = 0; c < n * n; c++) if (!tiles.has(c) && !has.has(c)) more.push([Math.abs(c % n - cx) + Math.abs(Math.floor(c / n) - cy), c]);
           more.sort((a, b) => a[0] - b[0]);
@@ -1808,11 +1854,12 @@ function makeGround(painter, legacy, baked) {
       }
       this.missing = missing;   // tiles on screen still showing a stand-in (tests)
       this.blocky = blocky;     // of those, with no preview yet: the flat minimap colours
-      trim(GROUND_ROOMY ? n * n : Math.max(140, seen.length * 3));
+      trim(keepN(seen.length));
     },
     // For the WebGL renderer (gl.js): the tile size, tiles across, a tile's corner, the tiles of a box, a painted tile
     // ({ g, d, ver }) or none, and the stand-in for unpainted ground (a pixel a cell).
-    gl: { T, n, at, tilesIn: (sx, sy, sw, sh) => tilesIn(sx, sy, sw, sh), tile: (k) => tiles.get(k), low: () => lowRes(),
+    K,   // (HD ground: the tiles' pixels per world pixel)
+    gl: { T, K, n, at, tilesIn: (sx, sy, sw, sh) => tilesIn(sx, sy, sw, sh), tile: (k) => tiles.get(k), low: () => lowRes(),
       // the preview (quarter size, PV) as the stand-in where it is done, and how many of its tiles are (it changes)
       PV, preview: () => preview, pvN: () => pvCount, pvHas: (k) => pvDone[k] === 1, fade: GROUND_FADE },
     // Draws one layer ('t' the ground, 'd' the wrecks and bodies) of world rect (sx, sy, sw, sh) into g at (dx, dy).
@@ -1835,7 +1882,7 @@ function makeGround(painter, legacy, baked) {
       if (t) {
         t.born = 0;
         const img = layer === 't' ? t.g : t.d;
-        if (img) g.drawImage(img, X0 - x0, Y0 - y0, w, h, X0 - L, Y0 - L, w + 2 * L, h + 2 * L);
+        if (img) g.drawImage(img, (X0 - x0) * K, (Y0 - y0) * K, w * K, h * K, X0 - L, Y0 - L, w + 2 * L, h + 2 * L);
       } else if (layer === 't') {
         if (pvDone[c.k] && preview) { g.imageSmoothingEnabled = true; g.drawImage(preview, X0 / PV, Y0 / PV, w / PV, h / PV, X0 - L, Y0 - L, w + 2 * L, h + 2 * L); g.imageSmoothingEnabled = false; }
         else g.drawImage(lowRes(), X0 / CELL, Y0 / CELL, w / CELL, h / CELL, X0 - L, Y0 - L, w + 2 * L, h + 2 * L);
@@ -1861,9 +1908,9 @@ function makeGround(painter, legacy, baked) {
         if (age < 1) {   // coming in: over its stand-in, more of it each frame
           if (layer === 't') standIn();
           const a = g.globalAlpha; g.globalAlpha = a * Math.max(0, age);
-          g.drawImage(c, ix - x0, iy - y0, iw, ih, dx + ix - sx, dy + iy - sy, iw, ih);
+          g.drawImage(c, (ix - x0) * K, (iy - y0) * K, iw * K, ih * K, dx + ix - sx, dy + iy - sy, iw, ih);
           g.globalAlpha = a;
-        } else { t.born = 0; g.drawImage(c, ix - x0, iy - y0, iw, ih, dx + ix - sx, dy + iy - sy, iw, ih); }
+        } else { t.born = 0; g.drawImage(c, (ix - x0) * K, (iy - y0) * K, iw * K, ih * K, dx + ix - sx, dy + iy - sy, iw, ih); }
       }
     },
     // The whole of one layer in one picture (tests only: too big for a phone on large maps).
@@ -1872,7 +1919,7 @@ function makeGround(painter, legacy, baked) {
       for (let k = 0; k < n * n; k++) {
         if (!tiles.has(k)) paintSome(k, 0);
         const t = tiles.get(k), cv = layer === 't' ? t.g : t.d, [x0, y0] = at(k);
-        if (cv) g.drawImage(cv, x0, y0);
+        if (cv) g.drawImage(cv, x0, y0, cv.width / K, cv.height / K);
       }
       return c;
     },
@@ -1887,7 +1934,7 @@ function newGround(g, legacy) {
   g.marks = g.marks || [];
   g.tctx = GROUND_LAYER; g.dctx = DECAL_LAYER;
   const id = validMap(g.mapId), man = GroundSheets.manifest, bm = GroundSheets.ok() && man && man.maps && man.maps[id];
-  const baked = bm && bm.key === groundKey(g) ? { dir: 'grounds/' + id + '/', q: '?k=' + bm.key + (man.code ? '.' + man.code : ''), patched: !!man.patched, dressed: !!bm.dressed } : null;
+  const baked = GK === 1 && bm && bm.key === groundKey(g) ? { dir: 'grounds/' + id + '/', q: '?k=' + bm.key + (man.code ? '.' + man.code : ''), patched: !!man.patched, dressed: !!bm.dressed } : null;
   const painter = groundPainter(g.terr, groundSeed(g), g.road, g.bridges, g.cliff, g.ford, mapTheme(g.mapId), MAPS[id].bridge, g.hgt, mesaTops(g.mapId));
   g.ground = makeGround(painter, legacy, baked);
   g.ground.baked = !!baked;
