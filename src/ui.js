@@ -2185,6 +2185,7 @@ function draw() {
     menuView('main');
     ui.resumeBtn.hidden = mode !== 'pause';
     ui.quitBtn.hidden = mode !== 'pause';
+    $('editorBtn').hidden = mode === 'pause';   // (testing a map from the editor would end the battle)
     $('saveQuitBtn').hidden = mode !== 'pause' || !Net.canSave;
     syncMapView(mode);
     disarmQuit();
@@ -2250,7 +2251,9 @@ function draw() {
     continueMission().finally(() => { b.disabled = false; showContinue(); });
   });
   // Skirmish opens the map screen first; starting from there builds the battle.
-  ui.startBtn.addEventListener('click', () => {
+  // (the map editor, editor.js: Play opens this screen on its map, Explore goes straight in)
+  const openSkirmish = (sel) => {
+    if (sel) mapId = sel;
     MapSelect.open(mapId, battleMode, setupEl, (id, mode, watch) => {
       mapId = id; battleMode = mode || '1v1';
       ui.startBtn.textContent = 'Loading…';
@@ -2263,7 +2266,12 @@ function draw() {
         if (!G.spectate) eva('Select a structure to build');
       }, 30);
     });
-  });
+  };
+  ui.startBtn.addEventListener('click', () => openSkirmish());
+  window.EditorHooks = {
+    play: (id) => openSkirmish(id),   // (opened from the menu, which stays up under it)
+    explore: (id) => { mapId = id; endPlace(); startExplore(); hideMenu(); },
+  };
   ui.resumeBtn.addEventListener('click', hideMenu);
   // Map view (the owner's tool for tuning maps, 2026-11-21): the whole map shown, starting places and
   // every unit, in a skirmish only. The button shows only to the owner's account; a match where it was

@@ -1395,6 +1395,22 @@ const MAPS = {
 const DEFAULT_MAP = 'bridge';
 const MAP_LIST = Object.keys(MAPS);
 const validMap = (id) => (MAPS[id] ? id : DEFAULT_MAP);
+// Maps made in the map editor (editor.js; owner, 2026-11-25): kept on this device (localStorage), each a MAPS entry with
+// `custom: true` and an id starting 'my-'. Put into MAPS and MAP_LIST as the page loads, so the skirmish screen, Explore,
+// saved games and continuing them all find them. Not offered online (the other players and the server do not have them).
+const CustomMaps = (() => {
+  const KEY = 'rh-custom-maps';
+  const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (_) { return {}; } };
+  const write = (all) => { try { localStorage.setItem(KEY, JSON.stringify(all)); return true; } catch (_) { return false; } };
+  const add = (id, m) => { MAPS[id] = Object.assign(m, { custom: true }); if (!MAP_LIST.includes(id)) MAP_LIST.push(id); };
+  for (const [id, m] of Object.entries(read())) if (m && m.rows && m.spawns) add(id, m);
+  return {
+    list: () => Object.keys(read()),
+    get: (id) => read()[id] || null,
+    save(id, m) { const all = read(); all[id] = m; if (!write(all)) return false; add(id, JSON.parse(JSON.stringify(m))); return true; },
+    remove(id) { const all = read(); delete all[id]; write(all); delete MAPS[id]; const i = MAP_LIST.indexOf(id); if (i >= 0) MAP_LIST.splice(i, 1); },
+  };
+})();
 // A map's size in cells (MAP while it is played, see setMapSize).
 const mapSize = (id) => MAPS[validMap(id)].size || 144;
 // A map's look: 'snow', or undefined for the green summer one.
@@ -1426,9 +1442,10 @@ function battleFits(mapId, mode, any = ANY_BATTLE) {
 // Buttons for every map, the chosen one pressed (data-map holds the id). `cls` styles the group.
 // mode (optional): maps not made for that battle are shown but cannot be picked; with `only`, they are left out.
 // Each card names the largest battle the map is made for.
-function mapCardsHtml(selected, cls = '', mode = null, only = false) {
+// online: leave out the maps made on this device (CustomMaps).
+function mapCardsHtml(selected, cls = '', mode = null, only = false, online = false) {
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  const ids = only && mode ? MAP_LIST.filter((id) => battleFits(id, mode)) : MAP_LIST;
+  const ids = (only && mode ? MAP_LIST.filter((id) => battleFits(id, mode)) : MAP_LIST).filter((id) => !online || !MAPS[id].custom);
   const most = (id) => { const n = Math.max(1, ...['1v1', '2v2', '3v3'].filter((k) => battleFits(id, k)).map((k) => BATTLES[k].size)); return `${n} v ${n}`; };
   return `<div class="pick maps ${cls}" role="group" aria-label="Map">${ids.map((id) =>
     `<button type="button" data-map="${id}" aria-pressed="${id === selected}"${mode && !battleFits(id, mode) ? ' disabled' : ''}>${MAPS[id].img ? `<img class="map-img" src="${MAPS[id].img}" alt="" width="224" height="224">` : ''}<span>${esc(MAPS[id].name)} <em class="map-size">up to ${most(id)}</em></span><small>${esc(MAPS[id].info)}. ${esc(MAPS[id].blurb)}</small></button>`).join('')}</div>`;

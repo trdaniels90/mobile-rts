@@ -2823,3 +2823,30 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   climb). It is closer to the north team's bases (the map is not mirrored there; the south has no twin).
 - `map-check.js`: OK (the top is reached by the ramp; every start and ore cell reachable). Ground and crags rebaked, preview
   redrawn. Saves of a Lakeside battle keep the layout they were made with.
+
+## Map editor (2026-11-25, not released, skirmish only; online unchanged)
+
+- Owner: "can you build me a level editor where i can place grass, cliffs, water, ore, village buildings etc".
+- Main menu → **Map Editor** (hidden in a battle: testing a map would end it). `src/editor.js` (`MapEditor`), its own styles
+  injected. A top-down picture of the cells; one finger or the mouse paints, two fingers or the wheel zoom, Move tool or
+  right-drag pans. Tools: Grass, Dirt road, Trees, Cliff, Water, Shallows, Bridge, Ore (brush 1-8), Gems (a field, size from
+  the brush), Start (team A or B, 4 a team at most; tap one to remove), Plateau (press on the middle, drag toward the ramp;
+  top 6-14 cells; paints the rim and ramp as tools/lakes-mesa.py and adds a MAPS `mesas` entry, height 0.75), House (8 sizes,
+  rotate), Church (rotate: footprint and tower end), Square (drag, 8 x 8 or more: paved, fountain, stalls, benches), Village plot
+  (drag: houses rolled each battle), Lamp, Remove (objects), Undo (40 steps, Ctrl+Z). Settings: name, description, look
+  (summer, winter, fen), rain/snow in half the battles, day and night, timber or concrete bridges; and the map check.
+- A map is an ordinary fixed-layout MAPS entry (`rows`, `spawns` team A then team B, `gems`, `lots`, `houses`, `squares`,
+  `lamps`, `mesas`, `teamSize` = starts a team up to 3, `custom: true`, `img` a 224 px picture). New in world.js genVillage:
+  `houses: [[x0, y0, w, h, kind]]` placed as given (kind 'house', 'church0'/'church1', 'fountain'; on open ground, not
+  overlapping), and `lots` may be left out.
+- Kept on the device: maps.js `CustomMaps` (localStorage `rh-custom-maps`; ids `my-...`), put into MAPS and MAP_LIST as the page
+  loads, so the skirmish screen, Explore, saved games and Continue find them. The map being edited is also kept
+  (`rh-editor-draft`). Maps menu: new blank map (96 to 216 cells), my maps (open, delete), a copy of any built-in map (its other
+  settings, e.g. Lakeside's `bridgeW`, carried along as `extra`), Export (the entry as JSON text, to add a map to the game for
+  everyone in maps.js) and Import.
+- Check (Save, Explore, Play): both teams need starts, the same number, 6+ cells from the edge, every start reachable from the
+  first over open ground (houses block); warnings for ore trucks cannot reach and no ore at all. Explore and Play save first,
+  then ui.js `EditorHooks`: Explore starts the empty, fog-free look round; Play opens the skirmish screen with the map chosen.
+- Not online: net.js lobby cards leave custom maps out (`mapCardsHtml(..., online = true)`) and `setMap` refuses one. No baked
+  ground or crags for them (painted while loading, as the generated map is).
+- `node tools/sim/editor.js <repo> [out]`: passes in the repo and in the single-file build.
