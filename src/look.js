@@ -2077,25 +2077,22 @@ function lookRunoff(g) {
       // heavier rain. (Owner, 2026-11-24, raining on Lakeside: "i dont see any run off": single 2 px drips were too faint.)
       const per = 0.7 + ((e.id * 5 + i * 11) % 10) * 0.1, fall = Math.max(0.12, Math.sqrt(len) * 0.07), ph = e.id * 0.37 + i * 0.61;
       const [ex, ey] = liftPt(ox + sx, oy + sy, lift + z0 * VK), [gx, gy] = liftPt(ox + sx, oy + sy, lift + z1 * VK);
-      // Off a defence (a tower's small top, a pillbox's lip) a thin broken trickle of drops instead of the roof's steady stream
-      // (owner, 2026-11-25, Tesla Coils and Flame Towers in the rain: "run off from these defensive structures looks weird": a
-      // full 4 px stream down a narrow tower read as a grey pole stuck to its side).
-      const thin = !!e.def && !!e.def.defense, h = gy - ey;
-      const fr = thin ? P.drop[Math.floor(t * 12 + i) & 3] : P.stream[Math.floor(t * 16 + i) & 3], fw = thin ? 3 : 4;
-      g.globalAlpha = (thin ? 0.75 + 0.25 * S.L : 0.7 + 0.3 * S.L) * flow;
-      for (let y = 0; y < h; y += 48) { const k = Math.min(48, h - y); g.drawImage(fr, 0, 0, fw, k, ex - fw / 2, ey + y, fw, k); }
+      const fr = P.stream[Math.floor(t * 16 + i) & 3], h = gy - ey;
+      g.globalAlpha = (0.7 + 0.3 * S.L) * flow;
+      for (let y = 0; y < h; y += 48) { const k = Math.min(48, h - y); g.drawImage(fr, 0, 0, 4, k, ex - 2, ey + y, 4, k); }
       g.globalAlpha = 0.5 * flow; g.drawImage(P.dot, ex - 1.5, ey - 1, 3, 3);   // water gathering at the eave
       for (const off of [0, 0.5]) {
         const u = ((t / per + ph + off) % 1) * per;
         if (u < fall) { const f = (u / fall) ** 2; g.globalAlpha = 0.95 * flow; g.drawImage(P.dot, ex + (gx - ex) * f - 1.5, ey + (gy - ey) * f - 3, 3, 6); }
         else if (u < fall + 0.24) g.globalAlpha = flow, g.drawImage(P.splash[Math.min(2, Math.floor((u - fall) / 0.08))], gx - 10, gy - 9, 20, 11);
       }
-      if (!thin) g.globalAlpha = 0.85 * flow, g.drawImage(P.splash[Math.floor(t * 10 + i * 2) % 3], gx - 8, gy - 7, 16, 9);   // the stream splashing as it lands
+      g.globalAlpha = 0.85 * flow; g.drawImage(P.splash[Math.floor(t * 10 + i * 2) % 3], gx - 8, gy - 7, 16, 9);   // the stream splashing as it lands
     });
   };
   for (const e of G.entities) {
-    // (a camouflaged Pillbox only where this side can see it: its own, an ally's, or an enemy's that has given itself away)
-    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || (e.def.camo && camoHidden(e, G.me)) || !G.seen[idx(e.cx, e.cy)]) continue;
+    // None off defences (owner, 2026-11-25, Tesla Coils and Flame Towers in the rain: "two random streams that just stick out":
+    // their small high tops passed as roofs, and neither a stream nor a thin trickle of drops looked right there).
+    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.defense || !G.seen[idx(e.cx, e.cy)]) continue;
     shed(e, e.type, e.faction, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL);
   }
   for (const h of G.houses || []) {
