@@ -21,7 +21,7 @@ const outDir = path.join(root, 'cliffs'), SHEET = 1024, BLOCK = 24, QUALITY = 1;
   await p.route(/fonts|supabase|fly\.dev/, (r) => r.abort());
   await p.goto('file://' + path.resolve(root) + '/index.html'); await p.waitForTimeout(800);
   const info = await p.evaluate(() => {
-    const src = [cliffLookFor, cliffHeight, cliffPts, cliffPic, paintCliffs, cliffCells, hash3, toView, viewDepth, groundSeed, groundKey, mkCanvas].map(String).join('\n')
+    const src = [cliffLookFor, cliffHeight, cliffPts, cliffPic, mesaShade, paintCliffs, cliffCells, groundPixels, hash3, toView, viewDepth, groundSeed, groundKey, mkCanvas].map(String).join('\n')
       + JSON.stringify([VIEW, VK, CLIFF_UP, CLIFF_TOP, CLIFF_SL, CLIFF_SDX, CLIFF_SDY, CELL]);
     const maps = {};
     for (const id of Object.keys(MAPS)) if (MAPS[id].rows) { newWorld('allies', 'hard', 1, 0, false, id); if (G.cliff && G.cliff.some((v) => v)) maps[id] = { key: groundKey(G) }; }

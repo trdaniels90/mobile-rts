@@ -2805,6 +2805,13 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
 - Owner, next: "make the rock wall a little shorter": the top is `h` (0.75) x HG_MAX (wall 47 view px, was 62), so the
   high-ground rules give a little less there (reach and sight scale with the height difference). The natural hills are
   levelled round its foot (back to normal over 6 cells past `r`): one under its south-east rim had made that wall short.
+- Owner, next (picture of the rim's top looking different from the middle): the rim's crag tops were flat painted grass,
+  lighter and smooth, against the ground's textured grass, with a dark band of the rim's shadow and brown rock specks
+  on the top. Now (mesa crags only, cliffPts `gcol`): the crag's top, and any rock within 3 units of the plateau's level,
+  takes the ground's own grass (groundPixels painted without the rock, `L.gp`, lit as level ground at that height); its
+  shadow falls only where the ray lands on lower ground (`mesaShade`; in play, also only at the crag's own foot height,
+  as that picture lies there); and the ground painter leaves the rock, scree and ridge shadow off a mesa's level top
+  (art.js `mesaTops` -> groundPixels `mesas` -> paintCliffs `flush`, also in the ground workers).
 - Crags (look.js cliffHeight `topOf`): a rim cell within `r` + 1.5 of a mesa rises (HG_MAX - its height) x HILL_DRAW + 2
   instead of CLIFF_TOP, so every rim crag's top is level with the drawn top (62 view px) whatever its own foot; a rim cell
   up on the top is only a lip. The height is sized for the cell being drawn (cliffPts passes `c`; its 5 x 5 smoothing had

@@ -443,17 +443,30 @@ function cliffPts(L, c) {
     const gx = at(x + 1, y) - at(x - 1, y), gy = at(x, y + 1) - at(x, y - 1);
     pts.push([x, y, h, gx, gy, ms ? (hgtAt(x + 0.5, y + 0.5, true) - h0) * HILL_DRAW : 0]); top = Math.max(top, h);
   }
-  return { pts, top };
+  // A mesa's crag (ms): its flat top takes the ground's own grass (groundPixels, painted without the rock, lit as level
+  // ground at its height), so the rim's top matches the plateau's middle; and the foot's height (h0, drawn units) for its shadow.
+  let gcol = null;
+  if (ms) {
+    if (!L.gp) L.gp = groundPixels(G.terr, groundSeed(G), G.road, null, G.ford, mapTheme(G.mapId), null);
+    gcol = new Uint8ClampedArray(CELL * CELL * 4); L.gp.pixels(gcol, cx * CELL, cy * CELL, CELL, CELL);
+  }
+  let tAbs = 0;   // the mesa's top (drawn units)
+  if (ms) for (const m of ms) if (Math.hypot(cx + 0.5 - m.x, cy + 0.5 - m.y) < m.r + 1.5) tAbs = HG_MAX * (m.h || 1) * HILL_DRAW;
+  return { pts, top, gcol, h0: h0 * HILL_DRAW, tAbs };
 }
 // Its shadow falls away from the sun: CLIFF_SL x its height along (CLIFF_SDX, CLIFF_SDY) on the ground (world px), drawn
 // at CLIFF_SA (each crag's own: where two meet, darker).
 const CLIFF_SL = 1.1, CLIFF_SDX = 0.8, CLIFF_SDY = -0.3, CLIFF_SA = 0.45;
+// A mesa's crag (Lakeside): its shadow's ray, at height z (drawn units) over world (x, y), lands only where the ground is
+// lower, so the rim casts none over the plateau's own top.
+const mesaShade = (z, x, y) => z > hgtAt(x, y, true) * HILL_DRAW + 1;
 // noShadow: the crag only (its shadow is in the baked ground, or the bake: tools/bake-cliffs.js).
 function cliffPic(L, c, noShadow) {
   const cx = c % MAP, cy = (c / MAP) | 0, mx = (cx + 0.5) * CELL, my = (cy + 0.5) * CELL;
-  const { pts, top } = cliffPts(L, c);
+  const { pts, top, gcol, h0, tAbs } = cliffPts(L, c);
   if (!pts.length) return null;
   const up = top * CLIFF_UP * VK;
+  const lev = gcol ? 1 + (h0 + top) / HILL_DRAW * 0.005 * (typeof HILL_SHADE !== 'undefined' ? HILL_SHADE : 1) : 1;   // (groundPixels' light on level ground that high)
   const cs = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => toView(a * CELL / 2, b * CELL / 2));
   const X0 = Math.floor(Math.min(...cs.map((p) => p[0]))) - 2, X1 = Math.ceil(Math.max(...cs.map((p) => p[0]))) + 2;
   const Y0 = Math.floor(Math.min(...cs.map((p) => p[1])) - up) - 2, Y1 = Math.ceil(Math.max(...cs.map((p) => p[1]))) + 2;
@@ -471,6 +484,8 @@ function cliffPic(L, c, noShadow) {
     const lit = (nx * Lx + ny * Ly + Lz) / nl / Ll, steep = 1 - 1 / nl;
     const sp = hash3(x, y, 11);
     if (sm2) for (let st = 0, len = hz * SL; st <= len; st += 1) {
+      // (a mesa's crag: only where the ray lands on ground at the crag's own foot, as this picture lies at the foot's height)
+      if (gcol && (!mesaShade(h0 + hz - st / SL, x + CLIFF_SDX * st, y + CLIFF_SDY * st) || Math.abs(hgtAt(x + CLIFF_SDX * st, y + CLIFF_SDY * st, true) * HILL_DRAW - h0) > 3)) continue;
       const qx = Math.round(vX - X0 + sdx * st), qy = Math.round(vY - Y0 + sdy * st);
       if (qx >= 0 && qx < SW - 1 && qy >= 0 && qy < SH) sm2[qy * SW + qx] = sm2[qy * SW + qx + 1] = 1;
     }
@@ -483,7 +498,10 @@ function cliffPic(L, c, noShadow) {
       if (z < 4) v -= (4 - z) * 0.3;                                                     // darker at the foot
       if (py === yTop && steep < 0.5) v += 0.4;                                          // a lit lip on flat tops
       let t = ROCK[Math.max(0, Math.min(ROCK.length - 1, Math.floor(v)))];
-      if (py - yTop < 2 && steep < 0.55) {   // the top: grass and moss over the rock, lit by the sun
+      if (gcol && ((py - yTop < 3 && steep < 0.55) || (tAbs && h0 + z > tAbs - 3))) {   // a mesa's top (and rock just under its level): the ground's grass
+        const j = ((y - cy * CELL) * CELL + x - cx * CELL) * 4, m = tAbs && h0 + z > tAbs - 3 ? 1 : Math.min(1, (0.55 - steep) * 3);
+        t = [t[0] + (gcol[j] * lev - t[0]) * m, t[1] + (gcol[j + 1] * lev - t[1]) * m, t[2] + (gcol[j + 2] * lev - t[2]) * m];
+      } else if (py - yTop < 2 && steep < 0.55) {   // the top: grass and moss over the rock, lit by the sun
         const gr = L.snow ? [214, 220, 230] : [64, 84, 40], k = 0.75 + lit * 0.45 + (hash3(x, y, 13) - 0.5) * 0.25, m = Math.min(1, (0.55 - steep) * 3);
         t = [t[0] + (gr[0] * k - t[0]) * m, t[1] + (gr[1] * k - t[1]) * m, t[2] + (gr[2] * k - t[2]) * m];
       }
@@ -509,10 +527,11 @@ function cliffShadowPaint(g, x0, y0, w, h) {
   if (!L.shades) {
     L.shades = [];
     for (const c of L.cells.keys()) {
-      const { pts } = cliffPts(L, c);
+      const { pts, gcol, h0 } = cliffPts(L, c);
       if (!pts.length) continue;
       const on = new Map();
-      for (const [x, y, hh] of pts) for (let st = 0, len = hh * CLIFF_UP * CLIFF_SL; st <= len; st += 0.5) on.set(Math.floor(y + 0.5 + CLIFF_SDY * st) * 65536 + Math.floor(x + 0.5 + CLIFF_SDX * st), 1);
+      for (const [x, y, hh] of pts) for (let st = 0, len = hh * CLIFF_UP * CLIFF_SL; st <= len; st += 0.5) if (!gcol || mesaShade(h0 + hh - st / CLIFF_SL, x + 0.5 + CLIFF_SDX * st, y + 0.5 + CLIFF_SDY * st)) on.set(Math.floor(y + 0.5 + CLIFF_SDY * st) * 65536 + Math.floor(x + 0.5 + CLIFF_SDX * st), 1);
+      if (!on.size) continue;   // (a mesa's crag whose shadow all falls on the top: none)
       let a = 1e9, b = 1e9, A = -1e9, Bm = -1e9;
       for (const k of on.keys()) { const X = k % 65536, Y = Math.floor(k / 65536); a = Math.min(a, X); A = Math.max(A, X); b = Math.min(b, Y); Bm = Math.max(Bm, Y); }
       const W = A - a + 1, H = Bm - b + 1, m = mkCanvas(W, H), mc = m.getContext('2d'), id = mc.createImageData(W, H);
