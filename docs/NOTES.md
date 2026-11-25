@@ -665,7 +665,10 @@ recorder usage at the top of record.js).
   ore, wrecks), `list` (tree shadows, lists, sort), `tree`, `bld` (structures, houses, walls), `unit`, `misc` (village props, folk, hens),
   `edge` (haze past the map), `fx` (shots, effects), `air`, `bars` (bars, labels, shroud), `blit` (the view put on the screen), `night`,
   `wthr`, and counts `nTree`, `nUnit`, `nFx`. Each minute has `dp` (averages, ms) and `dw` (the minute's slowest drawing frame, with `t`);
-  zeros are left out, and `dp` is trimmed first when a report is too big. The parts add up to `drw`. Query:
+  zeros are left out, and `dp` is trimmed first when a report is too big. The parts add up to `drw`. Since 2026-11-25 (after
+  2026.11.25.3) also `tsh` (tree shadows and far-view tree blocks, were in `list`), `crag` (crags found and made, were in `list`)
+  and `gpu` (with WebGL: the recorded frame handed to WebGL and its light pass, were in `air`); with WebGL `air` is now only
+  aircraft and birds, `wthr` the lamps, night lights and weather, `bars` the HUD. Older reports' `air` is mostly `gpu`. Query:
   `select m->>'m' min, m->>'drw' drw, m->'dp' avg, m->'dw' slowest from matches, jsonb_array_elements(stats->'frames'->'minutes') m where id::text like '<id>%'`.
 - **Joining** (net.js `listen`, `knock`, `dropAttempt`, `retryable`; 2026.11.04.2):
   a connection attempt that fails before the lobby connects no longer kills the host's room. The host drops
@@ -3087,6 +3090,19 @@ way; not a recurring wave, it turns off right after.
   Guard. Stop sends it home as usual.
 - **Online:** `commandAttackMove` is in netcore `COMMANDS`, so a guest's order goes to the host or server.
 - Test: `tools/sim/attack-move.js`.
+
+## Faster drawing list, finer timing (2026-11-25, after 2026.11.25.3, not released, both modes, speed and reporting only)
+
+Owner's match 932a916c (PC 2560 x 1370 at 1.5x, Lakeside 3 v 3, 40 min): 115-120 fps early, 41-71 with 450-750 units, no frame
+over 100 ms; drawing 10-16 ms a frame, the biggest part `air` (3-6 ms). Owner picked: split the timing, one HUD pass, faster sort.
+- **Timing:** new parts `tsh`, `crag`, `gpu` (see "Errors and ping in a match"). Headless (software GPU, so `gpu` is far too high
+  there), 1600 x 900 zoomed out at 0.5 over a 10-min Lakeside 3 v 3 (700 units, 250 in view, 1,000 trees): old `air` 23 ms was
+  `gpu` 17 + `wthr` 0.9 + `bars` 0.3 + aircraft 0.2. So the HUD is cheap; the WebGL hand-off is what the next report should show.
+- **depthSort** (ui.js): the drawing list (`ground`) was sorted with `Array.sort` and a comparator, ~1.5 ms a frame headless. Now
+  a bucket pass by `_key` plus one insertion pass: the same order as the stable sort, ties included (3,000 random lists with
+  ties, 0 differences; 11x faster). `list` 3.0 -> 1.75 ms in the headless battle.
+- **HUD in one pass:** the research, capture and PRIMARY bars no longer each loop over every entity; they are picked out in the
+  health-bar pass and drawn after it in the same order. Tiny (the HUD was 0.3 ms).
 
 ## Jets and planes fly above the hills (after 2026.11.25.3, not released, looks only, both modes; the server should match)
 
