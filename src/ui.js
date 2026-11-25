@@ -128,7 +128,15 @@
     document.documentElement.style.setProperty('--gw', W + 'px');
     document.documentElement.style.setProperty('--gh', H + 'px');
     const rr = radar.getBoundingClientRect();
-    radar.width = Math.max(1, Math.round(rr.width * DPR)); radar.height = Math.max(1, Math.round(rr.height * DPR));
+    // Resizing a canvas wipes it: in a busy battle the automatic resolution (below) steps down and the radar went black until
+    // its next redraw (most of a second on a struggling phone). Only resize when the size changes, and keep the picture.
+    const rw = Math.max(1, Math.round(rr.width * DPR)), rh = Math.max(1, Math.round(rr.height * DPR));
+    if (rw !== radar.width || rh !== radar.height) {
+      let old = null;
+      if (radar.width > 1 && radar.height > 1) { old = mkCanvas(radar.width, radar.height); old.getContext('2d').drawImage(radar, 0, 0); }
+      radar.width = rw; radar.height = rh;
+      if (old) { rctx.imageSmoothingEnabled = true; rctx.drawImage(old, 0, 0, rw, rh); }
+    }
     clampCam();
   }
   window.addEventListener('resize', layout);
