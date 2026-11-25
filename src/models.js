@@ -443,6 +443,26 @@ function tdTurret(pal, s) {
   m.paint(-8, -7, 0, 6, 7, 6, (x, y, z, c) => (hash3(x, y, z) > 0.95 && c === rgbInt(pal.main)) ? pal.dark : undefined);
   return m;
 }
+// Soviet Mobile SAM: a light tracked chassis (the generic hull) with a squat drum carrying a rack of four ready missiles, raised at
+// an angle, either side of a guidance radar. The rack is the turret; missiles leave from its front (muzzle: tur + barrel).
+function samTurret(pal, s) {
+  const m = new VModel(-8, -8, 12, 8, 13);
+  m.cylZ(0, 0, 0, 2, 4.5, pal.dark, M_METAL);                                         // turntable
+  m.box(-4, -2, 2, 3, 2, 5, pal.main, M_METAL);                                       // centre housing
+  m.box(-6, -1.5, 5, -3, 1.5, 9, '#5a5e58', M_METAL);                                 // radar mast
+  m.box(-6.5, -3, 8, -5.5, 3, 11, '#3d413c', M_METAL);                                // radar dish (flat panel)
+  const up = 0.45, cx = Math.cos(up), cz = Math.sin(up);
+  for (const y of [-5, -3, 3, 5]) {                                                   // four missiles in two pairs, nose up
+    const side = y < 0 ? -1 : 1;
+    m.box(-4, y - 0.5 * side - 0.5, 2, 3, y - 0.5 * side + 0.5, 4, pal.dark, M_METAL);   // arm
+    for (let t = 0; t <= 12.5; t += 0.4) {
+      const x = -3 + t * cx, z = 4 + t * cz;
+      m.ellipsoid(x, y, z, 1.15, 1.15, 1.15, t > 11 ? C.red : t > 10 ? '#3d413c' : '#e2e0d6', M_METAL);
+    }
+    m.box(-3.5, y - 1.2, 3.5, -2.5, y + 1.2, 5, '#6e726b', M_METAL);                 // tail fins
+  }
+  return m;
+}
 function tankHull(pal, s) {
   if (s.td) return tdHull(pal, s);
   if (s.light) return lightTankHull(pal);
@@ -487,6 +507,7 @@ function teslaTurret(pal, s) {
 function tankTurret(pal, s) {
   if (s.tesla) return teslaTurret(pal, s);
   if (s.td) return tdTurret(pal, s);
+  if (s.sam) return samTurret(pal, s);
   if (s.light) return lightTankTurret(pal);
   if (s.grizzly) return grizzlyTurret(pal, s);
   if (s.mammoth) return mammothTurret(pal, s);

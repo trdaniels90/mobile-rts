@@ -1244,6 +1244,11 @@ recorder usage at the top of record.js).
 
 ## Soundtrack (separate files since 2026.11.03.9)
 
+- **Removed on 2026-11-25 (owner's call): the game has no music for now.** `SONGS` in `audio.js` and `TRACKS` in
+  `sw.js` are empty, `music/` is gone, and `Music.start` does nothing without songs. The Music toggle, music volume
+  slider and Next track button in Options are `hidden` in `index.html`; unhide them when tracks come back. The owner's
+  artifact still holds the old `music/*.mp3` files: remove them on the next artifact publish (`publish_files` `remove`).
+  The notes below describe how tracks worked, for adding new ones.
 - Four recorded tracks, shuffled: Industry, War, Smash, Rain. Each is an MP3 in `music/<name>.mp3`, listed in `SONGS`
   in `audio.js` with `rec: '<name>'`. `Music.loadRec` fetches the file (`music/<id>.mp3`) and decodes it on demand;
   if the fetch or decode fails the song is skipped (`recFailed`). `Music.nextSong` deals a shuffled deck (no immediate
@@ -1259,6 +1264,10 @@ recorder usage at the top of record.js).
   (files left out are kept). Remove `.build` afterwards.
 - The owner supplies the tracks (credited in `CREDITS.md`). Convert with ffmpeg: `loudnorm=I=-16:TP=-1.5`,
   a 2.5 s fade out, 44.1 kHz stereo, 96 kbps.
+- **Play over my music** (Options, `settings.mix`, off by default, 2026-11-25): lets a player's own music app keep
+  playing under the game. On: `navigator.audioSession.type = 'ambient'` (iOS 16.4+) and no looping silent `<audio>`
+  (`keepAlive`), since that media element is what makes iOS and Android stop other apps' audio. Cost: iOS then mutes
+  game sounds when the ring/silent switch is on silent. Off: `'playback'` plus `keepAlive`, as before. `mixSession()` in `audio.js`.
 - Volume sliders (`musicVol`, `sfxVol` in `Sound.settings`, `setVolume`) scale the buses; full is the original mix.
 
 ## Windows app (`desktop/`)
@@ -2768,6 +2777,18 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   a tank 140 px away (out of a tank's reach), 16-28 damage to a rifleman a shot, never fires at a helicopter, and one on one from its range
   against a live Heavy Tank ($1150) it loses by a hair (leaves it under 150 of 550 health).
 
+## Mobile SAM (Soviets) (after 2026.11.23, not released, owner's picks for both modes; the server must match)
+
+- **Mobile SAM** (`msam` in UNIT_DEFS, Soviets only, War Factory, no extra building): $800, 250 health, light armour, speed 60, sight 7.
+  Owner: a mobile SAM rather than a flak track, "to fit with the theme": Soviets fight aircraft with missiles, Allies with flak guns.
+  Weapon: missiles (`proj: 'missile'`, HE) 45 every 1.4 s, range 190, `air: true, ground: false` (aircraft only); no power needed, and
+  AA_FUEL (not the SAM Site's longer SAM_FUEL).
+- **Looks:** `draw: 'tank'` with `size.sam`: the generic tank hull, and `samTurret` (models.js) as the turret: a turntable, a radar panel
+  on a mast and four white red-nosed missiles raised on two arms. The rack turns to aim; the hull does not.
+- **Computer** (ai.js): a Soviet vehicle pick adds a Mobile SAM while it has fewer than 2 (6, picked three times as often, once it has
+  seen enemy aircraft: `anti`). A hard computer-vs-computer game had 1 by 8 minutes and 6 by 16 once the Allies flew.
+- Field Manual entry (Armour). `node tools/sim/mobile-sam.js <repo>`: needs a War Factory, Soviets only, no shots at a tank or a rifleman,
+  shoots down an attack helicopter, the hull stays put.
 ## Lakeside: high ground over the north-middle ore field (2026-11-24, not released, both modes; the server must match)
 
 - Owner (with a picture of the rock ring with woods in the ore field at about 103,69): "this needs to be raised up with a way
