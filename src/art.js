@@ -685,7 +685,19 @@ function scorch(tg, x, y, rad, seed) {
   }
 }
 // Shell crater: thrown-out earth, a raised rim, a dark pit whose far wall catches the light.
-function crater(tg, x, y, rad, seed) {
+function crater(tg, x, y, rad, seed, dig) {
+  // A crater that digs the ground (world.js digCrater, dig set): the shaded bowl (lookfx.js craterPic), painted into the
+  // ground here like every other mark, so the wreck or body baked after it lies on top. (It used to be drawn over the
+  // finished ground every frame, lookCraters, and hid the wreck of every vehicle, whose death digs one under it.)
+  if (dig && typeof LOOK !== 'undefined' && LOOK.craters && typeof craterPic === 'function') {
+    const X = Math.round(x), Y = Math.round(y), h = ((X * 73856093) ^ (Y * 19349663)) >>> 0;
+    const pic = craterPic(h % CRATER_VAR, typeof mapTheme === 'function' && mapTheme(G.mapId) === 'snow', rad >= 8);
+    const s = rad >= 8 ? 0.85 + Math.min(0.4, (rad - 8) * 0.12) : 0.8 + (rad - 5) * 0.1, w = pic.width * s;   // (digCrater's bowl: about this size)
+    const sm = tg.imageSmoothingEnabled; tg.imageSmoothingEnabled = false;
+    tg.drawImage(pic, Math.round(X - w / 2), Math.round(Y - w / 2), w, w);
+    tg.imageSmoothingEnabled = sm;
+    return;
+  }
   const r = rng(seed), ry = rad * 0.7;
   const oval = (cx, cy, rx, ryy, col) => { tg.fillStyle = col; tg.beginPath(); tg.ellipse(cx, cy, rx, ryy, 0, 0, 7); tg.fill(); };
   for (let i = 0; i < rad * 6; i++) {
@@ -1403,7 +1415,7 @@ const MARK_DRAW = {};
 // The box (world pixels, generous) each mark can draw in, from its arguments.
 const MARK_BOX = {
   scorch: ([x, y, rad]) => [x, y, rad * 1.3 + 4],
-  crater: ([x, y, rad]) => [x, y, rad * 1.8 + 4],
+  crater: ([x, y, rad, , dig]) => [x, y, dig ? 56 : rad * 1.8 + 4],   // (a dug crater's picture: up to 84 x 1.25 px across)
   bakeWreck: ([x, y]) => [x, y, 96],
   bakeTurret: ([fx]) => [fx.x, fx.y, 48],
   bakeRagdoll: ([fx]) => [fx.P[6], fx.P[7], 48],

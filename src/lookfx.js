@@ -236,7 +236,7 @@ function lookFxGround(g, x0, y0, x1, y1) {
   if (!G) return;
   const on = (x, y, m) => x > x0 - m && x < x1 + m && y > y0 - m && y < y1 + m + 60, up = g.upright, sm = g.imageSmoothingEnabled;
   g.upright = false; g.imageSmoothingEnabled = true;
-  lookCraters(g, on);   // dug craters (world.js digCrater), under the scorch marks
+  // (dug craters are painted into the ground now, as marks: art.js crater)
   if (!(LOOK.blasts || LOOK.alive)) { g.upright = up; g.imageSmoothingEnabled = sm; return; }
   fxUpdate();
   const S = lookFxS;

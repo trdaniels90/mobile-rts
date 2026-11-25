@@ -2926,3 +2926,14 @@ Owner: "on pc we should limit the zoom out, so if you're zoomed in all the way t
 ui.js `zMin()`: on a computer (`!isTouch`) the widest zoom is where two wheel notches (`PC_WHEEL_OUT`, each `wheelStep`) from
 `Z_MAX` land after `snapZ`; phones keep `Z_MIN_TOUCH` (0.75) for pinching. Measured: screen scale 1 → 4, 3, 2 (min 2);
 1.5 → 3.33, 2.67, 2 (min 2); 2 → 3.5, 3, 2.5 (min 2.5). Old saves and the starting zoom are pulled in by `clampCam`.
+
+## Wrecks and bodies hidden by dug craters (2026-11-25, bug fix, looks only, both modes)
+
+Owner: "wrecks and dead bodies were not present in my first HD game". Not HD: since the dug craters (2026-11-22,
+`digCrater`) a crater's shaded bowl (lookfx.js `craterPic`) was drawn over the finished ground every frame (`lookCraters`,
+from `lookFxGround`), so it covered whatever was baked into the ground there. A vehicle's death digs one (rad 5, `DIG_MIN`)
+under its own wreck, and blasts that kill soldiers dig under their bodies, so most wrecks and many bodies were hidden, in
+every mode. Now art.js `crater` paints the bowl itself when its `dig` flag is set (the mark already carried it, so old saves
+and online guests get it too), into the ground layer under the wrecks layer; `MARK_BOX.crater` is 56 for dug ones (the
+picture is up to 105 px across). `lookCraters` is no longer called (`G.craters` stays for `craterSink` and the scorch check).
+Checked with a scratch Playwright scene (four tanks killed in a row, HD off and on): wrecks lie in their craters.
