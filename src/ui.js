@@ -169,11 +169,22 @@
   // scaling makes some pixels wider than others and reads as blur on phones.
   // The steps come from the full resolution (ZDPR), not the one autoRes is drawing at: rounded to that, the zoom changed
   // (2 to 2.4, and back to 2.67) each time the resolution stepped, and the screen jumped on its own (owner, 2026-11-22).
-  function snapZ(z) {
-    z = Math.max(0.75, Math.min(3.5, z));
+  // Zoom limits. On a computer (owner, 2026-11-25) the widest view is two wheel notches out from the closest, so a big
+  // screen never draws the whole map at once; phones keep the full range (pinch).
+  const Z_MAX = 3.5, Z_MIN_TOUCH = 0.75, PC_WHEEL_OUT = 2;
+  function snapIn(z, lo) {
+    z = Math.max(lo, Math.min(Z_MAX, z));
     if (z * ZDPR < 1.5) return z;
     return Math.max(1, Math.round(z * ZDPR)) / ZDPR;
   }
+  const wheelStep = (z) => Math.max(1 / ZDPR, z * 0.12);   // one wheel notch
+  function zMin() {
+    if (isTouch) return Z_MIN_TOUCH;
+    let z = snapIn(Z_MAX, Z_MIN_TOUCH);
+    for (let i = 0; i < PC_WHEEL_OUT; i++) z = snapIn(z - wheelStep(z), Z_MIN_TOUCH);
+    return z;
+  }
+  function snapZ(z) { return snapIn(z, zMin()); }
   const EDGE_KEEP = 8;
   function clampCam() {
     cam.z = snapZ(cam.z);
@@ -1681,7 +1692,7 @@ function draw() {
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const p = local(e), w = { x: cam.x + p.x / cam.z, y: cam.y + p.y / cam.z };   // (on the view plane)
-    cam.z = snapZ(cam.z + Math.sign(-e.deltaY) * Math.max(1 / ZDPR, cam.z * 0.12));
+    cam.z = snapZ(cam.z + Math.sign(-e.deltaY) * wheelStep(cam.z));
     cam.x = w.x - p.x / cam.z; cam.y = w.y - p.y / cam.z;
     clampCam();
   }, { passive: false });

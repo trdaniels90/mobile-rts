@@ -2886,3 +2886,10 @@ stretched 2x to 7x (zoom x screen sharpness) with no smoothing.
 - **Cost:** the GPU fills 4x the pixels. Measure on the owner's iPhone before it is ever the default.
 - Windows app: desktop/scripts/prep.js copies `sprites-hd` and `normals-hd`. (It does not copy `normals` or `cliffs`, before
   this change too.)
+
+## PC zoom-out limit (after 2026.11.25, computers only, both modes)
+
+Owner: "on pc we should limit the zoom out, so if you're zoomed in all the way two mouse scroll wheel out should be the max".
+ui.js `zMin()`: on a computer (`!isTouch`) the widest zoom is where two wheel notches (`PC_WHEEL_OUT`, each `wheelStep`) from
+`Z_MAX` land after `snapZ`; phones keep `Z_MIN_TOUCH` (0.75) for pinching. Measured: screen scale 1 → 4, 3, 2 (min 2);
+1.5 → 3.33, 2.67, 2 (min 2); 2 → 3.5, 3, 2.5 (min 2.5). Old saves and the starting zoom are pulled in by `clampCam`.
