@@ -4,7 +4,7 @@
 
 // The last frame's drawing time by part (ms) and how many trees, units and effects it drew: set by ui.js draw, read by
 // the match report (report.js noteFrame) for each minute's average and its slowest drawing frame.
-const drawParts = { gnd: 0, list: 0, tree: 0, bld: 0, unit: 0, misc: 0, edge: 0, fx: 0, air: 0, bars: 0, blit: 0, night: 0, wthr: 0, nTree: 0, nUnit: 0, nFx: 0 };
+const drawParts = { gnd: 0, tsh: 0, crag: 0, list: 0, tree: 0, bld: 0, unit: 0, misc: 0, edge: 0, fx: 0, air: 0, gpu: 0, bars: 0, blit: 0, night: 0, wthr: 0, nTree: 0, nUnit: 0, nFx: 0 };
 function mkCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
 function rng(seed) {
   let s = seed >>> 0 || 1;

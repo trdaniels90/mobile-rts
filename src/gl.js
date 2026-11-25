@@ -34,7 +34,7 @@ const GLR = (() => {
   // (#glstats too: a claude.ai artifact passes only the address's #name to the page. A button switches the same battle
   // between WebGL and the 2D way, GLR.paused, to compare on one phone.)
   if (/[?&]gl=stats\b/.test(q) || /[?&]glstats\b/.test(q) || (typeof location !== 'undefined' && /glstats/.test(location.hash)) || (typeof GL_STATS !== 'undefined' && GL_STATS)) {
-    const T = ['gnd', 'list', 'tree', 'bld', 'unit', 'misc', 'edge', 'fx', 'air', 'bars', 'blit', 'night', 'wthr'];
+    const T = ['gnd', 'tsh', 'crag', 'list', 'tree', 'bld', 'unit', 'misc', 'edge', 'fx', 'air', 'gpu', 'bars', 'blit', 'night', 'wthr'];
     let box = null, n = 0, ms = 0, worst = 0, t0 = performance.now();
     const tick = () => {
       requestAnimationFrame(tick);

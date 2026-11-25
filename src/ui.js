@@ -630,6 +630,33 @@ if (SPRITE_KEEP < Infinity && typeof sprite === 'function') {
     return s;
   };
 }
+// The drawing list in depth order (e._key), exactly as a stable sort gives it (ties keep the list's order), in about
+// linear time: each thing dropped into one of n buckets by its key (in the list's order, so ties stay in order), then one
+// insertion pass, which only has to sort within a bucket. ground.sort() with a comparator was ~1.5 ms a frame headless
+// with 2,000 things (trees, crags, units) zoomed out over a 3 v 3.
+let dsCount = new Int32Array(0), dsOut = [];
+function depthSort(a) {
+  const n = a.length;
+  if (n < 64) { a.sort((p, q) => p._key - q._key); return a; }
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < n; i++) { const k = a[i]._key; if (!(k >= lo)) lo = k; if (!(k <= hi)) hi = k; }
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi === lo) { a.sort((p, q) => p._key - q._key); return a; }   // (NaN or all level)
+  const nb = n, sc = (nb - 1) / (hi - lo);
+  if (dsCount.length < nb + 1) dsCount = new Int32Array(nb * 2 + 1);
+  const cnt = dsCount; cnt.fill(0, 0, nb + 1);
+  for (let i = 0; i < n; i++) cnt[((a[i]._key - lo) * sc | 0) + 1]++;
+  for (let b = 1; b <= nb; b++) cnt[b] += cnt[b - 1];
+  const out = dsOut; out.length = n;
+  for (let i = 0; i < n; i++) { const e = a[i]; out[cnt[(e._key - lo) * sc | 0]++] = e; }
+  for (let i = 1; i < n; i++) {   // (strictly greater moves: equal keys keep their order)
+    const e = out[i], k = e._key; let j = i - 1;
+    while (j >= 0 && out[j]._key > k) { out[j + 1] = out[j]; j--; }
+    out[j + 1] = e;
+  }
+  for (let i = 0; i < n; i++) a[i] = out[i];
+  out.length = 0;
+  return a;
+}
 function trimSprites() {
   if (spriteUsed.size <= SPRITE_KEEP) return;
   const old = [...spriteUsed].filter((e) => spriteNow - e[1] > SPRITE_IDLE).sort((a, b) => a[1] - b[1]);
@@ -820,6 +847,7 @@ function draw() {
     let trees = treesInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows, true);   // swaying in the wind, burning (art.js): sorted in with the units below
     if (past) for (const t of rimInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows, true)) trees.push(t);   // the woods past the map's edge
     trees = isoTreeBlocks(v, trees, rimTrees(), vx, vy, VW, VH);   // their shadows; in a far view still trees come from cached blocks (art.js)
+    lap('tsh');   // tree shadows and the far view's cached tree blocks
 
     // An effect on the screen: tracers and Tesla bolts by either end or their middle (a gun just off the screen firing into
     // it), a lightning bolt by its landing spot with room for its top, which is drawn up to about 230 px to the side.
@@ -837,7 +865,9 @@ function draw() {
     for (const w of wallsHere) ground.push(w);
     for (const h of G.houses || []) if (h.alive && houseSeen(h) && h.x > x0 - 60 && h.x < x1 + 60 && h.y > y0 - 60 && h.y < y1 + 120) ground.push(h);
     for (const p of G.props || []) if (inView(p) && G.seen[cellOfPos(p.x, p.y)]) ground.push(p);
+    lap('list');
     lookView = v; cliffItems(ground, x0, y0, x1, y1, onScr);   // tall rock (look.js prototype, off by default)
+    lap('crag');   // the crags in view found (and any made)
     for (const f of G.folk || []) if (f.st !== 'in' && inView(f) && G.seen[cellOfPos(f.x, f.y)]) ground.push({ kind: 'folk', v: f, y: f.y });
     for (const c of G.hens || []) if (inView(c) && G.seen[cellOfPos(c.x, c.y)]) ground.push({ kind: 'hen', v: c, y: c.y });
     if (G.birds) drawBirds(v, false, x0, y0, x1, y1);   // pigeons on the ground
@@ -875,7 +905,7 @@ function draw() {
         if (viewDepth(p.x, p.y) > viewDepth(nx, ny)) e._key = b._key + 0.01;
       }
     }
-    ground.sort((a, b) => a._key - b._key);
+    depthSort(ground);
     v.upright = true;   // from here on, pictures, pixels and labels stand upright (art.js uprightCtx)
     lap('list');   // tree shadows, the lists and the sort
     // Each on the raised ground (look.js onHill): a structure or house at the middle of its footprint.
@@ -1034,8 +1064,16 @@ function draw() {
       }
       // Selection brackets and health bars.
       const selSet = new Set(G.selection);   // (a big selection: includes() for every thing in view added up)
+      // (one pass over the things: the research, capture and PRIMARY bars below are picked out here and drawn after, in
+      // the same order as before, when each had a pass of its own)
+      const rs = G.teams[G.me].research, techs = [], caps = [], prims = [];
       for (const e of G.entities) {
         if (!inView(e) || !visibleToPlayer(e)) continue;
+        if (e.kind === 'bld' && e.alive) {
+          if (rs && e.type === 'tech' && e.team === G.me && e.buildT >= 1) techs.push(e);
+          if (e.capture > 0) caps.push(e);
+          if (e.primary && e.team === G.me) prims.push(e);
+        }
         const sel = selSet.has(e);
         const recent = G.t - e.hitT < 3;
         if (e.rank && e.kind === 'unit') drawRank(v, e);
@@ -1053,23 +1091,20 @@ function draw() {
       }
 
       // Research under way: a bar under each of this side's Tech Centers.
-      const rs = G.teams[G.me].research;
-      if (rs) for (const e of G.entities) {
-        if (!e.alive || e.kind !== 'bld' || e.type !== 'tech' || e.team !== G.me || e.buildT < 1 || !inView(e)) continue;
+      for (const e of techs) {
         const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3));
         v.fillStyle = 'rgba(0,0,0,0.7)'; v.fillRect(tx - 21, ty - 3, 42, 6);
         v.fillStyle = rs.stalled ? '#c98a2a' : '#5ab0ff'; v.fillRect(tx - 20, ty - 2, 40 * rs.progress, 4);
       }
       // A Construction Yard being captured (world.js CAPTURE_CY): a yellow bar over it, for both sides.
-      for (const e of G.entities) {
-        if (!e.alive || e.kind !== 'bld' || !(e.capture > 0) || !inView(e) || !visibleToPlayer(e)) continue;
+      for (const e of caps) {
         const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 10));
         v.fillStyle = 'rgba(0,0,0,0.75)'; v.fillRect(tx - 23, ty - 4, 46, 8);
         v.fillStyle = Math.floor(G.t * 4) % 2 ? '#ffd23e' : '#f2a020'; v.fillRect(tx - 22, ty - 3, 44 * e.capture, 6);
       }
       // PRIMARY over the building new units come out of, when there is more than one of its type.
-      for (const e of G.entities) {
-        if (!e.alive || !e.primary || e.kind !== 'bld' || e.team !== G.me || !inView(e) || producersOfType(e).length < 2) continue;
+      for (const e of prims) {
+        if (producersOfType(e).length < 2) continue;
         const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3));
         v.font = 'bold 7px monospace'; v.textAlign = 'center'; v.textBaseline = 'middle';
         v.fillStyle = 'rgba(0,0,0,0.65)'; v.fillRect(tx - 18, ty - 4.5, 36, 9);
@@ -1110,7 +1145,9 @@ function draw() {
     // searchlights, the pools by night, the storm's darkening, rain and snow, lightning (the 2D way draws them on the screen
     // after the view: see below, skipped when GLR.lit).
     if (glList) { const kk = cam.z * DPR, dnMap = MAPS[validMap(G.mapId)].daynight, still = G.paused || !!G.over;
+      lap('air');   // aircraft and birds
       GLR.listEnd(realV, { vx, vy, cam: [vx, vy], sw: view.width, sh: view.height, over: (g) => {   // (the look's light over the view canvas, as the 2D way now draws it)
+        lap('gpu');   // gl.js: the recorded frame handed to WebGL (flush, scene) and its light pass
         const night = dayNight(G.t).night, near = (x, y, m) => x > vx - m && y > vy - m && x < vx + VW + m && y < vy + VH + m;
         if (LOOK.light && !dnMap && LOOK.lamps) drawLamps(g, vx, vy, 1, G.t, near);
         if (dnMap) {
@@ -1121,9 +1158,12 @@ function draw() {
         lookStorm.dark(g);
         if (wx) drawWeather(g, wx, vx, vy, VW, VH, 1, G.t, still);
         lookStorm.flash(g, 1, still, vx, vy);
+        lap('wthr');   // lamps, night lights, storm, rain and snow
         v = g; toWorld(); v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over';
         try { hud(); } finally { v = realV; }
+        lap('bars');   // bars, labels, shroud and placement
       } });
+      lap('gpu');   // (what went over the light, drawn into the lit frame)
       v = realV;
       toWorld(); v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over'; }
 
