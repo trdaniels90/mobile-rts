@@ -2271,6 +2271,29 @@ function draw() {
   window.EditorHooks = {
     play: (id) => openSkirmish(id),   // (opened from the menu, which stays up under it)
     explore: (id) => { mapId = id; endPlace(); startExplore(); hideMenu(); },
+    // The editor's real view: the map built as in a battle (empty, no fog, seed 1 so a plot's houses stay put while
+    // editing), rebuilt after each change with the camera kept. G.editing: no Loading card (the ground streams in).
+    live(id) {
+      const keep = G && G.editing ? { x: cam.x, y: cam.y, z: cam.z } : null;
+      Net.leave();
+      if (mission) Report.quit();
+      endPlace();
+      newWorld(faction, diffKey, 1, 0, false, id, null, true);
+      online = null; mission = false;
+      G.spectate = true; G.mapViewUsed = true; G.speed = 1; G.weather = null; G.editing = true;
+      G.seen = new Uint8Array(NCELLS).fill(1); for (const f of G.fog) f.fill(1);
+      afterNewWorld(faction);
+      if (keep) Object.assign(cam, keep); else { cam.z = 1; centerOn(WORLD / 2, WORLD / 2); }
+      clampCam();
+      hideMenu();
+    },
+    leave() { endPlace(); startGame(); showMenu('start'); },
+    rect: () => canvas.getBoundingClientRect(),
+    s2w: (sx, sy) => s2w(sx, sy),   // canvas px -> world px on the ground
+    w2s(x, y) { const [vx, vy] = toView(...hillPt(x, y)); return [(vx - cam.x) * cam.z, (vy - cam.y) * cam.z]; },
+    panBy(dx, dy) { cam.x -= dx / cam.z; cam.y -= dy / cam.z; clampCam(); },
+    zoom: () => cam.z,
+    zoomTo(sx, sy, z) { const wx = cam.x + sx / cam.z, wy = cam.y + sy / cam.z; cam.z = snapZ(z); cam.x = wx - sx / cam.z; cam.y = wy - sy / cam.z; clampCam(); },   // (z wanted: the editor keeps it, as snapZ steps it)
   };
   ui.resumeBtn.addEventListener('click', hideMenu);
   // Map view (the owner's tool for tuning maps, 2026-11-21): the whole map shown, starting places and
@@ -2397,7 +2420,7 @@ function draw() {
   let loadFor = null, loadEl = null, stillKey = null;
   let splashEl = document.getElementById('splash'), splashOk = 0, splashLast = 0;
   function loading(now) {
-    if (!G || G.paused || G.over) return false;
+    if (!G || G.paused || G.over || G.editing) return false;
     if (!loadFor || loadFor.g !== G) loadFor = { g: G, since: now, done: false, at: now, slow: -1e9, nSlow: 0 };
     if (typeof GLR === 'object' && GLR) GLR.probe = !loadFor.done || now - loadFor.doneAt < 5000;   // (gl.js sync: where a freeze is)
     if (loadFor.done) return false;

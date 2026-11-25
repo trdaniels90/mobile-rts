@@ -2850,3 +2850,15 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
 - Not online: net.js lobby cards leave custom maps out (`mapCardsHtml(..., online = true)`) and `setMap` refuses one. No baked
   ground or crags for them (painted while loading, as the generated map is).
 - `node tools/sim/editor.js <repo> [out]`: passes in the repo and in the single-file build.
+- **Real view** (owner, next: "can you build it like a real world editor? like i can see the actual build and ground being
+  placed"): the editor now opens over the map built as in a battle (ui.js `EditorHooks.live`: `newWorld(..., empty)` on
+  `MAPS['my-edit']`, a working copy not in the map lists, seed 1 so a plot's houses stay put; `G.editing`: no Loading card,
+  starts in pairs padded with stand-ins off the map). After each change (stroke lifted, object placed, undo, settings) it is
+  rebuilt 250 ms later with the camera kept: about 0.35 s on a computer, then the ground tiles stream in. While a stroke is
+  under way its cells are tinted on the real ground (`pending`). Overlays are drawn on the real ground through the game's
+  camera and hills (`EditorHooks.w2s` / `s2w`): starts with their base ring, plateau rings and ramp arrows, plot, square and
+  house outlines, gem rings. The editor's canvas covers only the battlefield (the radar beside it stays usable). Pan with
+  Move, right-drag or two fingers; zoom with the wheel or a pinch (`EditorHooks.zoomTo`, the game's 0.75-3.5 range).
+  **Plan view** (the flat one, every cell a colour) stays one button away for big changes or seeing the whole map; the
+  game's camera looks at the map corner-on, so the plan's diagonals are the real view's up and down. Explore is gone from
+  the editor (the real view is it). Close or Play ends the working copy (`EditorHooks.leave`: a fresh menu world).
