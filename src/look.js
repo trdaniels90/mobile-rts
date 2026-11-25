@@ -1640,6 +1640,19 @@ function rainPics(S) {
   { const c = mkCanvas(16, 16), x = c.getContext('2d'), gr = x.createRadialGradient(8, 8, 0, 8, 8, 8);   // a soft dab of running water (rivulets)
     gr.addColorStop(0, 'rgba(52,66,76,0.9)'); gr.addColorStop(0.55, 'rgba(46,58,66,0.7)'); gr.addColorStop(1, 'rgba(40,48,52,0)'); x.fillStyle = gr; x.fillRect(0, 0, 16, 16); P.blob = c; }
   { const c = mkCanvas(2, 4), x = c.getContext('2d'); x.fillStyle = 'rgba(200,215,230,0.55)'; x.fillRect(0, 0, 2, 2); x.fillStyle = 'rgba(232,240,248,0.95)'; x.fillRect(0, 2, 2, 2); P.dot = c; }   // a drip
+  P.rimw = [];
+  for (let v = 0; v < 4; v++) {   // a plateau's pond over the top of its rim's rock (lookFalls): a blob of water with a ragged edge
+    const N = 36, c = mkCanvas(N, N), x = c.getContext('2d'), img = x.createImageData(N, N), d = img.data, r = rng(5113 + v * 71);
+    const ph = [r() * 6, r() * 6, r() * 6];
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const dx = (i + 0.5) / N * 2 - 1, dy = (j + 0.5) / N * 2 - 1, a = Math.atan2(dy, dx);
+      const edge = 0.78 + 0.1 * Math.sin(a * 3 + ph[0]) + 0.07 * Math.sin(a * 7 + ph[1]) + 0.05 * Math.sin(a * 13 + ph[2]);
+      if (Math.hypot(dx, dy) > edge) continue;
+      const sh = 0.5 + 0.5 * Math.max(0, -(dx + dy) * 0.5), o = (j * N + i) * 4, gr = (r() - 0.5) * 8;
+      d[o] = 50 + 60 * sh * 0.45 + gr; d[o + 1] = 62 + 68 * sh * 0.45 + gr; d[o + 2] = 70 + 72 * sh * 0.45 + gr; d[o + 3] = 238;
+    }
+    x.putImageData(img, 0, 0); P.rimw.push(c);
+  }
   { const c = mkCanvas(32, 32), x = c.getContext('2d'), gr = x.createRadialGradient(16, 16, 0, 16, 16, 16);   // spray and mist at a waterfall's foot
     gr.addColorStop(0, 'rgba(225,235,242,0.7)'); gr.addColorStop(0.5, 'rgba(210,222,232,0.3)'); gr.addColorStop(1, 'rgba(200,215,228,0)'); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); P.mist = c; }
   { const c = mkCanvas(32, 32), x = c.getContext('2d'), gr = x.createRadialGradient(16, 16, 0, 16, 16, 16);   // fire or a blast shining in a puddle
@@ -1751,9 +1764,9 @@ function flowTick(S) {
     // then spills over (the waterfalls).
     // (thin soil over rock: it soaks the water up more slowly, sk)
     const sk = new Float32Array(NCELLS).fill(1);
-    for (const ms of (G.hgt && MAPS[validMap(G.mapId)].mesas) || []) { const R = ms.r + 1.5; for (let y = Math.max(0, Math.floor(ms.y - R)); y <= Math.min(MAP - 1, Math.ceil(ms.y + R)); y++) for (let x = Math.max(0, Math.floor(ms.x - R)); x <= Math.min(MAP - 1, Math.ceil(ms.x + R)); x++) {
+    for (const ms of (G.hgt && MAPS[validMap(G.mapId)].mesas) || []) { const R = ms.r + 4; for (let y = Math.max(0, Math.floor(ms.y - R)); y <= Math.min(MAP - 1, Math.ceil(ms.y + R)); y++) for (let x = Math.max(0, Math.floor(ms.x - R)); x <= Math.min(MAP - 1, Math.ceil(ms.x + R)); x++) {
       const d = Math.hypot(x + 0.5 - ms.x, y + 0.5 - ms.y) / R, c = y * MAP + x; if (d >= 1 || G.hgt[c] < HG_MAX * (ms.h || 1) - 3) continue;   // (the top only, not the ramp or the ground below)
-      base[c] = base[c] * 0.3 + MESA_DISH * (d * d - 1); sk[c] = 0.3;
+      base[c] = base[c] * 0.3 + MESA_DISH * (Math.min(1, d / 0.7) ** 2 - 1); sk[c] = 0.3;   // (level for its outer ring: a full pond reaches the rim)
     } }
     // the puddle spots are small hollows (the rain fills them first, as before)
     for (const row of puddleSpots(S)) for (const q of row) base[idx(Math.floor(q[0] / CELL), Math.floor(q[1] / CELL))] -= 0.25 + q[3] * 0.3;
@@ -2141,6 +2154,34 @@ function lookFalls(g) {
   if (!F.spill) return;
   const cx0 = Math.max(0, Math.floor(x0 / CELL) - 2), cx1 = Math.min(MAP - 1, Math.ceil(x1 / CELL) + 2), cy0 = Math.max(0, Math.floor(y0 / CELL) - 2), cy1 = Math.min(MAP - 1, Math.ceil(y1 / CELL) + 6);
   const m = g.getTransform(), up = g.upright, zs = Math.hypot(m.a, m.b);
+  // The pond over the rim: the crags' tops are pictures over the ground, so the ground's water stops at their inner edge.
+  // Each rim cliff cell beside a top cell holding pond water gets the pond drawn over its top, at the top's height, out to
+  // the edge the falls pour from (owner: "its still not making it to the edge").
+  if (F.rim === undefined) {
+    F.rim = [];
+    for (const ms of (G.hgt && MAPS[validMap(G.mapId)].mesas) || []) for (let y = Math.max(1, Math.floor(ms.y - ms.r - 3)); y <= Math.min(MAP - 2, Math.ceil(ms.y + ms.r + 3)); y++) for (let x = Math.max(1, Math.floor(ms.x - ms.r - 3)); x <= Math.min(MAP - 2, Math.ceil(ms.x + ms.r + 3)); x++) {
+      const c = y * MAP + x; if (!G.cliff[c]) continue;
+      const tops = [];
+      for (let i = 0; i < 8; i++) { const n = (y + FL_DY[i]) * MAP + x + FL_DX[i]; if (!G.cliff[n] && F.sk[n] < 1) tops.push(n); }
+      if (tops.length) F.rim.push([c, tops]);
+    }
+  }
+  // (the rim's rock can be two cells deep: a cell beside a wet one takes its water too, out to the edge)
+  let rimOn = false;
+  const wetRim = F.wetRim || (F.wetRim = new Map());
+  wetRim.clear();
+  for (const [c, tops] of F.rim) { let w = 0, tn = -1; for (const n of tops) if (F.W[n] > w) { w = F.W[n]; tn = n; } if (w >= 0.24) wetRim.set(c, [w, tn]); }
+  if (!F.rimAll) { F.rimAll = []; const inRim = new Set(F.rim.map((r) => r[0])); for (let y = 1; y < MAP - 1; y++) for (let x = 1; x < MAP - 1; x++) { const c = y * MAP + x; if (!G.cliff[c] || inRim.has(c)) continue; const nb = []; for (let i = 0; i < 8; i++) { const n = (y + FL_DY[i]) * MAP + x + FL_DX[i]; if (inRim.has(n)) nb.push(n); } if (nb.length) F.rimAll.push([c, nb]); } }
+  for (const [c, nb] of F.rimAll) { let best = null; for (const n of nb) { const v = wetRim.get(n); if (v && (!best || v[0] > best[0])) best = v; } if (best) wetRim.set(c, best); }
+  for (const [c, [w, tn]] of wetRim) {
+    if (!G.seen[c]) continue;
+    const x = (c % MAP) * CELL, y = ((c / MAP) | 0) * CELL;
+    if (x < x0 - 40 || x > x1 + 40 || y < y0 - 40 || y > y1 + 120) continue;
+    if (!rimOn) { rimOn = true; g.upright = false; g.imageSmoothingEnabled = false; }
+    const [lx, ly] = liftPt(x, y, gLift((tn % MAP + 0.5) * CELL, (((tn / MAP) | 0) + 0.5) * CELL));
+    g.globalAlpha = Math.min(0.95, (w - 0.2) * 6); g.drawImage(P.rimw[c & 3], lx - CELL * 0.35, ly - CELL * 0.35, CELL * 1.7, CELL * 1.7);
+  }
+  if (rimOn) g.globalAlpha = 1;
   let any = false;
   for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
     const c = cy * MAP + cx, q = F.SQ[c], tc = F.spill[c];
@@ -2166,7 +2207,8 @@ function lookFalls(g) {
     g.globalAlpha = (0.35 + 0.35 * k) * (0.8 + 0.2 * Math.sin(t * 5 + cx)); g.drawImage(P.mist, X1 - mz, Y1 - mz * 0.75, mz * 2, mz * 1.2);
     g.globalAlpha = 0.7 + 0.3 * k; g.drawImage(P.splash[Math.floor(t * 12 + cx) % 3], X1 - 10 * zs * 0.5 * (1 + k), Y1 - 8 * zs * 0.5, 20 * zs * 0.5 * (1 + k), 11 * zs * 0.5);
   }
-  if (any) { g.globalAlpha = 1; g.setTransform(m); g.upright = up; }
+  if (any) { g.globalAlpha = 1; g.setTransform(m); }
+  g.upright = up;
 }
 function lookRunoff(g) {
   if (!RAIN_FX || !g || !G || !rainBox) return;

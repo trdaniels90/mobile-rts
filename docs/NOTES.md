@@ -2718,6 +2718,12 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   (`MESA_DISH` 0.7 lower in the middle, its roughness x 0.3) and soaks a third as fast (`F.sk` 0.3: thin soil over rock), and
   a lip pours only past `FALL_MIN` 0.3 (pond water reaching it, not a hollow on the edge). Lakeside after ~6 min of rain:
   moderate (0.5) a pond over ~60% of the top, ~5 falls; heavy (0.9) the top flooded, ~30 falls.
+  Owner, with a screenshot: "close but ... its still not making it to the edge": the rim's crags are pictures over the ground,
+  so the ground's water stopped at their inner edge. `lookFalls` now draws the pond over the rim's rock (`F.rim`: mesa cliff
+  cells beside a top cell; `F.rimAll`: cliff cells beside those, for a rim two cells deep), at the top's height, wherever the
+  top cell beside it holds 0.24 or more: soft blobs of water with ragged edges (`P.rimw`, 4 of them, 1.7 cells wide,
+  overlapping), under the falls. The basin is level over its outer ring (`(d / 0.7)^2`) and reaches r + 4 (cells at the top's
+  height only), so a full pond reaches the rim.
 
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 
