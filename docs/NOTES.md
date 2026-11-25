@@ -2634,6 +2634,11 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
 - **Rain missing with WebGL** (same report: splash dots but no drops): art.js drawWeather stroked its drops and rings as
   `Path2D` objects (since 73592b4), which gl.js's recorder cannot see (it follows moveTo / lineTo / ellipse on the context), so
   nothing was cut out of its layer and the drops never showed. Now drawn on `g` itself, as quads (stage 5 lines and rings).
+- **No water from stacks** (owner, 2026-11-25, Allied Power Plant in the rain: "its far off the stack"): the 5-neighbour "broad"
+  test let the rim of a chimney or tower pass as a roof, so the Power Plant poured a stream from its small stack's top (30
+  voxels up) beside the stack. `runoffSpots` now also needs most of a 13 x 7 patch behind the eave (70 of 91 voxels within 3
+  of its height). Gone with it: the Soviet Power Plant's and Advanced Power Plant's towers, the Allied Advanced Power Plant's
+  and Construction Yard's tall parts, the Soviet Refinery's tower; roofs keep theirs (War Factory still has none).
 
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 
@@ -2850,6 +2855,18 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
 - Not online: net.js lobby cards leave custom maps out (`mapCardsHtml(..., online = true)`) and `setMap` refuses one. No baked
   ground or crags for them (painted while loading, as the generated map is).
 - `node tools/sim/editor.js <repo> [out]`: passes in the repo and in the single-file build.
+- **Real view** (owner, next: "can you build it like a real world editor? like i can see the actual build and ground being
+  placed"): the editor now opens over the map built as in a battle (ui.js `EditorHooks.live`: `newWorld(..., empty)` on
+  `MAPS['my-edit']`, a working copy not in the map lists, seed 1 so a plot's houses stay put; `G.editing`: no Loading card,
+  starts in pairs padded with stand-ins off the map). After each change (stroke lifted, object placed, undo, settings) it is
+  rebuilt 250 ms later with the camera kept: about 0.35 s on a computer, then the ground tiles stream in. While a stroke is
+  under way its cells are tinted on the real ground (`pending`). Overlays are drawn on the real ground through the game's
+  camera and hills (`EditorHooks.w2s` / `s2w`): starts with their base ring, plateau rings and ramp arrows, plot, square and
+  house outlines, gem rings. The editor's canvas covers only the battlefield (the radar beside it stays usable). Pan with
+  Move, right-drag or two fingers; zoom with the wheel or a pinch (`EditorHooks.zoomTo`, the game's 0.75-3.5 range).
+  **Plan view** (the flat one, every cell a colour) stays one button away for big changes or seeing the whole map; the
+  game's camera looks at the map corner-on, so the plan's diagonals are the real view's up and down. Explore is gone from
+  the editor (the real view is it). Close or Play ends the working copy (`EditorHooks.leave`: a fresh menu world).
 
 ## HD graphics (2026-11-25, not released, looks only, both modes; an Options switch, off by default)
 

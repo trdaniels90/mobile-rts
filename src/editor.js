@@ -30,6 +30,10 @@ const MapEditor = (() => {
     pan: 'Drag to move round the map. Two fingers or the mouse wheel zoom.',
   };
   let root = null, cv = null, g = null, img = null, imgData = null, S = null, tool = '.', brush = 2, team = 0, house = 0, rot = 0, plat = 9;
+  // view: 'real' (the map built as in a battle under the tools, ui.js EditorHooks.live; rebuilt after each change) or
+  // 'plan' (flat, every cell a colour: quick for big changes). pending: cells painted since the last rebuild (shown tinted).
+  let view = 'real', pending = new Map(), liveT = 0, zWant = 1, off = [0, 0];
+  const LIVE = 'my-edit', H = () => window.EditorHooks;
   let cam = { x: 0, y: 0, z: 6 }, undo = [], dirty = true, imgDirty = true, hover = null, drag = null, msgT = 0;
   const ptrs = new Map();
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -89,19 +93,33 @@ const MapEditor = (() => {
   function undoLast() {
     const u = undo.pop();
     if (!u) return say('Nothing to undo');
-    S.grid = u.grid; [S.gems, S.spawns, S.lots, S.houses, S.squares, S.lamps, S.mesas] = JSON.parse(u.o);
+    pending.clear(); S.grid = u.grid; [S.gems, S.spawns, S.lots, S.houses, S.squares, S.lamps, S.mesas] = JSON.parse(u.o);
     imgDirty = dirty = true; keepDraft();
   }
   let draftT = 0;
   function keepDraft() {   // (the map in progress survives closing the editor and reloading the page)
+    scheduleLive();
     clearTimeout(draftT);
     draftT = setTimeout(() => { try { localStorage.setItem('rh-editor-draft', JSON.stringify({ id: S.id, m: toEntry(S) })); } catch (_) {} }, 800);
+  }
+
+  // The real view: the map as it will be played, rebuilt a moment after each change (about 0.3 s on a computer, then the
+  // ground streams in), the camera kept. Not saved anywhere: MAPS[LIVE] only, not in the map lists.
+  function scheduleLive() { if (view !== 'real' || !root || root.hidden) return; clearTimeout(liveT); liveT = setTimeout(syncLive, 250); }
+  function syncLive() {
+    clearTimeout(liveT);
+    if (!H() || !S) return;
+    const m = toEntry(S); m.custom = true;
+    while (m.spawns.length < 2 || m.spawns.length % 2) m.spawns.push([-60, -60 - m.spawns.length]);   // (the battle wants starts in pairs: stand-ins off the map, touching nothing)
+    MAPS[LIVE] = m;
+    try { H().live(LIVE); } catch (err) { say('Could not build the map: ' + (err && err.message)); }
+    pending.clear(); zWant = H().zoom(); dirty = true;
   }
 
   // ---- Changes ----
   function stamp(cx, cy, v) {
     const r = brush - 1;
-    for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) if (Math.hypot(x - cx, y - cy) <= r + 0.35) set(x, y, v);
+    for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) if (Math.hypot(x - cx, y - cy) <= r + 0.35 && at(x, y) >= 0) { set(x, y, v); if (view === 'real') pending.set(y * S.size + x, v); }
     imgDirty = dirty = true;
   }
   function line(a, b, v) {   // a stroke between two pointer moves, without gaps
@@ -216,29 +234,51 @@ const MapEditor = (() => {
     img.getContext('2d').putImageData(imgData, 0, 0);
     imgDirty = false;
   }
-  const toScreen = (x, y) => [(x - cam.x) * cam.z, (y - cam.y) * cam.z];
-  const toCell = (sx, sy) => [sx / cam.z + cam.x, sy / cam.z + cam.y];
+  // Cells to the editor canvas's px and back: on the flat plan, or on the real ground (through the battle's camera and
+  // hills; `off`: where the battle's canvas lies under the editor's).
+  const toScreen = (x, y) => { if (view === 'plan') return [(x - cam.x) * cam.z, (y - cam.y) * cam.z]; const p = H().w2s(x * CELL, y * CELL); return [p[0] + off[0], p[1] + off[1]]; };
+  const toCell = (sx, sy) => { if (view === 'plan') return [sx / cam.z + cam.x, sy / cam.z + cam.y]; const w = H().s2w(sx - off[0], sy - off[1]); return [w.x / CELL, w.y / CELL]; };
+  const pxCell = () => (view === 'plan' ? cam.z : CELL * H().zoom());   // (screen px a cell, about)
   function draw() {
     requestAnimationFrame(draw);
-    if (!root || root.hidden || !dirty) return;
+    if (!root || root.hidden || (!dirty && view === 'plan')) return;
     dirty = false;
+    const real = view === 'real' && !!H() && !!G && G.editing;
+    if (view === 'real' && !real) return;
+    // The real view's canvas covers just the battlefield (the radar beside it stays in sight and answers taps).
+    const mr = cv.parentNode.getBoundingClientRect(), gr0 = real ? H().rect() : null;
+    const want = real ? [Math.max(gr0.left, mr.left) - mr.left, Math.max(gr0.top, mr.top) - mr.top, Math.min(gr0.right, mr.right) - Math.max(gr0.left, mr.left), Math.min(gr0.bottom, mr.bottom) - Math.max(gr0.top, mr.top)] : [0, 0, mr.width, mr.height];
+    const css = want.map((v) => Math.round(v) + 'px');
+    if (cv.style.left !== css[0] || cv.style.top !== css[1] || cv.style.width !== css[2] || cv.style.height !== css[3]) Object.assign(cv.style, { left: css[0], top: css[1], width: css[2], height: css[3] });
     const r = cv.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
     if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(r.height * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
-    if (imgDirty) rebuild();
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const z = pxCell();
+    if (real) {
+      const gr = H().rect(); off = [gr.left - r.left, gr.top - r.top];
+      g.clearRect(0, 0, r.width, r.height);
+      const N = S.size;   // the cells painted since the last rebuild, tinted on the ground
+      for (const [i, v] of pending) { const c = COL[CH[v]]; poly([[i % N, (i / N) | 0], [i % N + 1, (i / N) | 0], [i % N + 1, ((i / N) | 0) + 1], [i % N, ((i / N) | 0) + 1]], `rgba(${c[0]},${c[1]},${c[2]},0.7)`); }
+    } else {
+    if (imgDirty) rebuild();
     g.fillStyle = '#0d0e10'; g.fillRect(0, 0, r.width, r.height);
-    const z = cam.z, [ox, oy] = toScreen(0, 0);
+    const [ox, oy] = toScreen(0, 0);
     g.imageSmoothingEnabled = false; g.drawImage(img, ox, oy, S.size * z, S.size * z);
     g.strokeStyle = '#999'; g.lineWidth = 1; g.strokeRect(ox - 0.5, oy - 0.5, S.size * z + 1, S.size * z + 1);
-    if (z >= 12) {   // the cells
+    }
+    if (!real && z >= 12) {   // the cells
       g.strokeStyle = 'rgba(0,0,0,0.18)'; g.beginPath();
       const [c0, r0] = toCell(0, 0).map((v) => Math.max(0, Math.floor(v))), [c1, r1] = toCell(r.width, r.height).map((v) => Math.min(S.size, Math.ceil(v)));
       for (let x = c0; x <= c1; x++) { const sx = Math.round(ox + x * z) + 0.5; g.moveTo(sx, oy + r0 * z); g.lineTo(sx, oy + r1 * z); }
       for (let y = r0; y <= r1; y++) { const sy = Math.round(oy + y * z) + 0.5; g.moveTo(ox + c0 * z, sy); g.lineTo(ox + c1 * z, sy); }
       g.stroke();
     }
-    const rect = (q, fill, stroke, dash) => { const [x, y] = toScreen(q[0], q[1]); g.setLineDash(dash || []); if (fill) { g.fillStyle = fill; g.fillRect(x, y, (q[2] - q[0] + 1) * z, (q[3] - q[1] + 1) * z); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = 2; g.strokeRect(x, y, (q[2] - q[0] + 1) * z, (q[3] - q[1] + 1) * z); } g.setLineDash([]); };
-    const circ = (x, y, rad, fill, stroke) => { const [sx, sy] = toScreen(x, y); g.beginPath(); g.arc(sx, sy, Math.max(2, rad * z), 0, 7); if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = 2; g.stroke(); } };
+    const rect = (q, fill, stroke, dash) => poly([[q[0], q[1]], [q[2] + 1, q[1]], [q[2] + 1, q[3] + 1], [q[0], q[3] + 1]], fill, stroke, dash);
+    const circ = (x, y, rad, fill, stroke) => {
+      if (!real) { const [sx, sy] = toScreen(x, y); g.beginPath(); g.arc(sx, sy, Math.max(2, rad * z), 0, 7); if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = 2; g.stroke(); } return; }
+      const n = Math.max(12, Math.min(48, Math.round(rad * 6)));   // (on the real ground: round the hills)
+      poly(Array.from({ length: n }, (_, i) => [x + Math.cos(i / n * 6.2832) * Math.max(0.3, rad), y + Math.sin(i / n * 6.2832) * Math.max(0.3, rad)]), fill, stroke);
+    };
     for (const m of S.mesas) {
       circ(m.x, m.y, m.top, 'rgba(255,240,200,0.10)', 'rgba(255,230,170,0.8)');
       const [sx, sy] = toScreen(m.x, m.y), [ex, ey] = toScreen(m.x + m.ramp[0] * (m.top + m.rampLen), m.y + m.ramp[1] * (m.top + m.rampLen));
@@ -246,10 +286,10 @@ const MapEditor = (() => {
       const a = Math.atan2(ey - sy, ex - sx); g.beginPath(); g.moveTo(ex, ey); g.lineTo(ex - 10 * Math.cos(a - 0.5), ey - 10 * Math.sin(a - 0.5)); g.lineTo(ex - 10 * Math.cos(a + 0.5), ey - 10 * Math.sin(a + 0.5)); g.closePath(); g.fillStyle = '#ffe9b0'; g.fill();
       label('HIGH GROUND', sx, sy - m.top * z - 6, '#ffe9b0');
     }
-    for (const q of S.squares) { rect(q, 'rgba(200,190,170,0.35)', '#e0d6c0'); circ((q[0] + q[2] + 1) / 2, (q[1] + q[3] + 1) / 2, 2, '#7fb5d8', '#dfe9f0'); }
+    for (const q of S.squares) { rect(q, real ? null : 'rgba(200,190,170,0.35)', '#e0d6c0'); if (!real) circ((q[0] + q[2] + 1) / 2, (q[1] + q[3] + 1) / 2, 2, '#7fb5d8', '#dfe9f0'); }
     for (const q of S.lots) { rect(q, 'rgba(230,200,140,0.12)', '#e8c98a', [6, 4]); if (z >= 5) label('plot', ...toScreen((q[0] + q[2] + 1) / 2, (q[1] + q[3] + 1) / 2), '#e8c98a'); }
-    for (const [a, b, w, h, k] of S.houses) { rect([a, b, a + w - 1, b + h - 1], k.startsWith('church') ? '#d9d2c4' : '#a0523c', '#2a1a12'); if (k.startsWith('church') && z >= 5) label('✝', ...toScreen(a + w / 2, b + h / 2), '#333'); }
-    for (const [x, y, rr] of S.gems) circ(x, y, rr, 'rgba(190,80,230,0.55)', '#e6a8ff');
+    for (const [a, b, w, h, k] of S.houses) { rect([a, b, a + w - 1, b + h - 1], real ? null : k.startsWith('church') ? '#d9d2c4' : '#a0523c', real ? 'rgba(255,255,255,0.5)' : '#2a1a12'); if (k.startsWith('church') && z >= 5) label('✝', ...toScreen(a + w / 2, b + h / 2), '#333'); }
+    for (const [x, y, rr] of S.gems) circ(x, y, rr, real ? null : 'rgba(190,80,230,0.55)', '#e6a8ff');
     for (const [x, y] of S.lamps) circ(x, y, 0.45, '#ffe066', '#5a4a10');
     S.spawns.forEach(([x, y, t]) => {
       circ(x + 0.5, y + 0.5, 16, null, t ? 'rgba(255,110,90,0.35)' : 'rgba(110,170,255,0.35)');   // (about the size of a base)
@@ -270,14 +310,21 @@ const MapEditor = (() => {
       else if (tool === 'mesa') { circ(hx + 0.5, hy + 0.5, plat, null, 'rgba(255,255,255,0.7)'); circ(hx + 0.5, hy + 0.5, plat + 2.1, null, 'rgba(255,255,255,0.35)'); }
     }
   }
+  function poly(pts, fill, stroke, dash) {
+    g.beginPath(); pts.forEach(([x, y], i) => { const [sx, sy] = toScreen(x, y); if (i) g.lineTo(sx, sy); else g.moveTo(sx, sy); }); g.closePath();
+    if (fill) { g.fillStyle = fill; g.fill(); }
+    if (stroke) { g.setLineDash(dash || []); g.strokeStyle = stroke; g.lineWidth = 2; g.stroke(); g.setLineDash([]); }
+  }
   function label(t, x, y, col) { g.font = 'bold 12px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.7)'; g.strokeText(t, x, y); g.fillStyle = col; g.fillText(t, x, y); }
   function fit() {
+    if (view === 'real') { if (H() && G && G.editing) { const gr = H().rect(); zWant = 0.75; H().zoomTo(gr.width / 2, gr.height / 2, zWant); const c = H().w2s(S.size * CELL / 2, S.size * CELL / 2); H().panBy(gr.width / 2 - c[0], gr.height / 2 - c[1]); } return; }
     const r = cv.getBoundingClientRect();
     cam.z = Math.max(1, Math.min(r.width, r.height) / S.size * 0.95);
     cam.x = S.size / 2 - r.width / cam.z / 2; cam.y = S.size / 2 - r.height / cam.z / 2;
     dirty = true;
   }
   function zoomAt(sx, sy, k) {
+    if (view === 'real') { zWant = Math.max(0.75, Math.min(3.5, zWant * k)); H().zoomTo(sx - off[0], sy - off[1], zWant); return; }
     const [wx, wy] = toCell(sx, sy);
     cam.z = Math.max(1, Math.min(48, cam.z * k));
     cam.x = wx - sx / cam.z; cam.y = wy - sy / cam.z; dirty = true;
@@ -286,10 +333,11 @@ const MapEditor = (() => {
   // ---- Input ----
   const local = (e) => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   const cellAt = (e) => toCell(...local(e)).map(Math.floor);
+  function panBy(dx, dy) { if (view === 'real') H().panBy(dx, dy); else { cam.x -= dx / cam.z; cam.y -= dy / cam.z; } dirty = true; }
   function down(e) {
     cv.setPointerCapture(e.pointerId);
     ptrs.set(e.pointerId, local(e));
-    if (ptrs.size === 2) { if (drag && drag.paint && drag.fresh) undoLast(); drag = { pinch: true, last: [...ptrs.values()] }; return; }   // (two fingers: zoom, not paint)
+    if (ptrs.size === 2) { if (view === 'real' && H()) zWant = H().zoom(); if (drag && drag.paint && drag.fresh) { undoLast(); pending.clear(); } drag = { pinch: true, last: [...ptrs.values()] }; return; }   // (two fingers: zoom, not paint)
     if (ptrs.size > 2) return;
     const c = cellAt(e);
     if (tool === 'pan' || e.button === 1 || e.button === 2) { drag = { pan: local(e) }; return; }
@@ -308,10 +356,10 @@ const MapEditor = (() => {
       const [a, b] = [...ptrs.values()], [a0, b0] = drag.last;
       const m0 = [(a0[0] + b0[0]) / 2, (a0[1] + b0[1]) / 2], m1 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
       const k = Math.hypot(a[0] - b[0], a[1] - b[1]) / Math.max(1, Math.hypot(a0[0] - b0[0], a0[1] - b0[1]));
-      cam.x -= (m1[0] - m0[0]) / cam.z; cam.y -= (m1[1] - m0[1]) / cam.z; zoomAt(m1[0], m1[1], k);
+      panBy(m1[0] - m0[0], m1[1] - m0[1]); zoomAt(m1[0], m1[1], k);
       drag.last = [a, b]; return;
     }
-    if (drag.pan) { cam.x -= (p[0] - drag.pan[0]) / cam.z; cam.y -= (p[1] - drag.pan[1]) / cam.z; drag.pan = p; return; }
+    if (drag.pan) { panBy(p[0] - drag.pan[0], p[1] - drag.pan[1]); drag.pan = p; return; }
     const c = cellAt(e);
     if (drag.paint && (c[0] !== drag.paint[0] || c[1] !== drag.paint[1])) { line(drag.paint, c, CH.indexOf(tool)); drag.paint = c; drag.fresh = false; }
     if (drag.box || drag.mesa) drag.cur = c;
@@ -343,6 +391,8 @@ const MapEditor = (() => {
 #editor { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: #0d0e10; color: #e4e0d4;
   font: 14px system-ui, -apple-system, sans-serif; padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }
 #editor[hidden] { display: none; }
+#editor.real { background: transparent; }
+#editor .ed-busy { position: absolute; right: 10px; top: 10px; background: rgba(0,0,0,0.7); padding: 4px 10px; border-radius: 3px; pointer-events: none; font-size: 12px; }
 #editor button, #editor select, #editor input { font: inherit; color: inherit; }
 #editor .ed-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; background: linear-gradient(180deg, #2c2e30, #1a1b1c); border-bottom: 1px solid #000; }
 #editor .ed-title { font-weight: 700; margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
@@ -350,7 +400,7 @@ const MapEditor = (() => {
 #editor .ed-b.go { background: linear-gradient(180deg, #7a2a1e, #4c160f); }
 #editor .ed-b[aria-pressed="true"] { background: linear-gradient(180deg, #2a5f8a, #173a57); color: #fff; }
 #editor .ed-main { flex: 1; position: relative; min-height: 0; }
-#editor canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+#editor canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
 #editor .ed-tools { display: flex; gap: 4px; overflow-x: auto; padding: 6px 8px 2px; background: #17181a; border-top: 1px solid #000; -webkit-overflow-scrolling: touch; }
 #editor .ed-tool { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 58px; padding: 4px 4px; border: 1px solid #3a3c3e; background: #222427; border-radius: 3px; font-size: 12px; cursor: pointer; }
 #editor .ed-tool i { display: block; width: 22px; height: 16px; border: 1px solid rgba(0,0,0,0.6); border-radius: 2px; font-style: normal; font-size: 12px; line-height: 15px; text-align: center; }
@@ -377,7 +427,7 @@ const MapEditor = (() => {
     root.innerHTML = `<div class="ed-bar"><span class="ed-title"></span>
         <button type="button" class="ed-b" data-ed="maps">Maps</button><button type="button" class="ed-b" data-ed="settings">Settings</button>
         <button type="button" class="ed-b" data-ed="undo">Undo</button><button type="button" class="ed-b" data-ed="fit">Whole map</button>
-        <button type="button" class="ed-b" data-ed="save">Save</button><button type="button" class="ed-b" data-ed="explore">Explore</button>
+        <button type="button" class="ed-b" data-ed="save">Save</button><button type="button" class="ed-b" data-ed="view">Plan view</button>
         <button type="button" class="ed-b go" data-ed="play">Play</button><button type="button" class="ed-b" data-ed="close" aria-label="Close">✕</button></div>
       <div class="ed-main"><canvas></canvas><div class="ed-msg" hidden></div><div class="ed-dlg" hidden><div class="ed-card"></div></div></div>
       <div class="ed-tools" role="toolbar" aria-label="Tools">${TOOLS.map(([k, n]) => {
@@ -391,7 +441,7 @@ const MapEditor = (() => {
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     cv.addEventListener('pointerleave', () => { hover = null; dirty = true; });
     cv.addEventListener('contextmenu', (e) => e.preventDefault());
-    cv.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(...local(e), Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+    cv.addEventListener('wheel', (e) => { e.preventDefault(); if (view === 'real' && H()) zWant = H().zoom(); zoomAt(...local(e), Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
     window.addEventListener('resize', () => { dirty = true; });
     window.addEventListener('keydown', (e) => { if (!root.hidden && (e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undoLast(); } });
     root.addEventListener('click', onClick);
@@ -434,7 +484,9 @@ const MapEditor = (() => {
     if (!r) return;
     if (r.errs.length) return dialog(`<h3>Not ready to play</h3>${r.errs.map((t) => `<p class="ed-err">${esc(t)}</p>`).join('')}${r.warns.map((t) => `<p class="ed-warn">${esc(t)}</p>`).join('')}<button type="button" class="ed-b" data-ed="ok">OK</button>`);
     root.hidden = true;
-    if (window.EditorHooks) window.EditorHooks[how](S.id);
+    if (!H()) return;
+    if (G && G.editing) H().leave();   // (the real view's world goes; the menu is back under the skirmish screen)
+    H()[how](S.id);
   }
   function mapsDialog() {
     const mine = CustomMaps.list().map((id) => [id, CustomMaps.get(id)]).filter(([, m]) => m);
@@ -476,7 +528,8 @@ const MapEditor = (() => {
     else if (d.copy) { const s = fromEntry(MAPS[d.copy]); s.name = MAPS[d.copy].name + ' (copy)'; load(s); closeDialog(); }
     else if (d.del) { if (confirm('Delete this map from this device?')) { CustomMaps.remove(d.del); if (S.id === d.del) { S.id = null; title(); } mapsDialog(); } }
     const a = d.ed;
-    if (a === 'close') { root.hidden = true; keepDraft(); }
+    if (a === 'close') { keepDraft(); root.hidden = true; clearTimeout(liveT); if (G && G.editing && H()) H().leave(); }
+    else if (a === 'view') setView(view === 'real' ? 'plan' : 'real');
     else if (a === 'maps') mapsDialog();
     else if (a === 'settings') settingsDialog();
     else if (a === 'undo') undoLast();
@@ -501,18 +554,31 @@ const MapEditor = (() => {
     S.weather = f('weather').checked; S.daynight = f('daynight').checked; S.bridge = f('bridge').value;
     title(); keepDraft();
   }
-  function load(s) { S = s; undo = []; imgDirty = dirty = true; title(); requestAnimationFrame(fit); keepDraft(); }
+  function load(s) {
+    S = s; undo = []; pending.clear(); imgDirty = dirty = true; title();
+    if (view === 'real') syncLive(); else requestAnimationFrame(fit);
+    keepDraft();
+    if (view === 'real') requestAnimationFrame(fit);
+  }
+  function setView(v) {
+    view = v;
+    root.classList.toggle('real', v === 'real');
+    root.querySelector('[data-ed="view"]').textContent = v === 'real' ? 'Plan view' : 'Real view';
+    if (v === 'real') syncLive(); else { imgDirty = true; const mr = cv.parentNode.getBoundingClientRect(); Object.assign(cv.style, { left: '0px', top: '0px', width: Math.round(mr.width) + 'px', height: Math.round(mr.height) + 'px' }); fit(); }
+    dirty = true;
+  }
   function open() {
     if (!root) build();
     root.hidden = false;
     if (!S) {
       let d = null; try { d = JSON.parse(localStorage.getItem('rh-editor-draft') || 'null'); } catch (_) {}
+      root.classList.toggle('real', view === 'real');
       load(d && d.m && d.m.rows ? fromEntry(d.m, d.id && CustomMaps.get(d.id) ? d.id : null) : blank(144));
       setTool('.');
-    }
+    } else if (view === 'real') { syncLive(); requestAnimationFrame(fit); }
     dirty = true;
   }
   const btn = document.getElementById('editorBtn');
   if (btn) btn.addEventListener('click', open);
-  return { open, get state() { return S; }, toEntry: () => toEntry(S), check: () => check() };
+  return { open, get view() { return view; }, get state() { return S; }, toEntry: () => toEntry(S), check: () => check() };
 })();
