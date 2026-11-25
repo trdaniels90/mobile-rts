@@ -992,6 +992,12 @@ recorder usage at the top of record.js).
   cycles them (`p.dir`). Drawn along its line (`drawWallIso`: cells corner to corner, CELL x sqrt 2 long), a diagonal wall runs into its ends (ui.js mask),
   and an end with a wall beyond gets a stub of that wall up to its pylon (with the owner's stripe on concrete). The computer's rings still use straight gates.
 
+- **Slanted walls and gates on a bend** (2026-11-25, owner's screenshot: a slanted wall drawn as a saw-tooth, a gate on it with a hole
+  beside it; both modes, the server must match): `wallLine` no longer mixes diagonal and straight steps along a slant (that drew the
+  saw-tooth); it lays two straight runs, the longer first (diagonal then straight, or straight then diagonal), still one piece a step and
+  ending on the tapped cell. A gate's end now joins wall in any of its eight neighbours (ui.js mask: a corner join to a gate end, kind 6;
+  art.js `drawWallIso`: a stub from the pylon to that edge or corner), so a gate at the bend, or an old saw-tooth wall, has no hole.
+  `placeTap` turns a gate to lie where your wall (or the gap's wall) is on both sides first, one side only if none. `walls.js` covers the line.
 - **Ring detours** (owner, 2026-11-24, a Soviet turtle on Lakeside "didnt finished his wall"; owner picked "walk round it",
   both modes): cells of a ring's line that can never be walled (ore, trees, water, rock, a building: ai.js `ringStuck`) were left
   open for good. Now `ringDetours` (each build pass, ore changes) finds each such stretch on the ring's line and `ringDetour`

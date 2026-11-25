@@ -3428,8 +3428,9 @@ function drawWallIsoLive(g, e) {
     const half = (dx && dy ? CELL * Math.SQRT2 : CELL) / 2;
     const end = e.id === 6 || one, rise = 2 + 9 * (1 - e.open / GATE_STEPS);
     // The outline from s0 to s1 along the gate (0 = this cell's middle), a either side of the line.
-    const along = (s0, s1, a) => [[mx + dx * s0 - dy * a, my + dy * s0 + dx * a], [mx + dx * s1 - dy * a, my + dy * s1 + dx * a],
+    const alongD = (dx, dy, s0, s1, a) => [[mx + dx * s0 - dy * a, my + dy * s0 + dx * a], [mx + dx * s1 - dy * a, my + dy * s1 + dx * a],
       [mx + dx * s1 + dy * a, my + dy * s1 - dx * a], [mx + dx * s0 + dy * a, my + dy * s0 - dx * a]];
+    const along = (s0, s1, a) => alongD(dx, dy, s0, s1, a);
     // The barrier runs over the middle and halfway into each end, toward the middle.
     const first = A === e.c, last = B === e.c;
     const s0 = one ? 4 - half : first ? 0 : -half, s1 = one ? half - 4 : last ? 0 : half;
@@ -3437,12 +3438,18 @@ function drawWallIsoLive(g, e) {
     const pylons = one ? [2 - half, half - 2] : end ? [0] : [];
     const midP = (p) => [p.reduce((t, q) => t + q[0], 0) / 4, p.reduce((t, q) => t + q[1], 0) / 4];
     const pyl = pylons.map((u) => along(u - 4, u + 4, 4));
-    // An end with a wall beyond it: a stub of that wall from the pylon out to the cell's edge, so the wall runs into it.
+    // An end with wall next to it (any of its eight neighbours but the gate's own cells, a corner neighbour only when the two
+    // cells between are open, as ui.js joins it): a stub of that wall from the pylon out to the cell's edge or corner, so the
+    // wall runs into it, whichever way it comes (a gate on a bend in a wall).
     const stubs = [];
-    if (!one && end) {
-      const out = first ? -1 : 1, nx = e.cx + out * sx, ny = e.cy + out * sy;
-      const wid = inMap(nx, ny) ? G.wall[idx(nx, ny)] : 0, SL = WALL_LOOK[wid];
-      if (SL) stubs.push([out > 0 ? along(4, half, SL.a) : along(-half, -4, SL.a), SL, out > 0 ? [4, half] : [-half, -4], wid]);
+    if (!one && end) for (const [ox, oy] of [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]]) {
+      const nx = e.cx + ox, ny = e.cy + oy;
+      if (!inMap(nx, ny) || cs.includes(idx(nx, ny))) continue;
+      if (ox && oy && (G.wall[idx(nx, e.cy)] || G.wall[idx(e.cx, ny)])) continue;
+      const wid = G.wall[idx(nx, ny)], SL = WALL_LOOK[wid];
+      if (!SL) continue;
+      const l = Math.hypot(ox, oy), ux = ox / l, uy = oy / l, reach = (CELL / 2) * l;
+      stubs.push([alongD(ux, uy, 3, reach, SL.a), SL, [ux, uy, 3, reach], wid]);
     }
     const items = [...pyl.map((p) => ['p', p]), ...stubs.map((t) => ['s', ...t]), ['b']].sort((a, b) => (a[0] === 'b' ? viewDepth(mx, my) : viewDepth(...midP(a[1])))
       - (b[0] === 'b' ? viewDepth(mx, my) : viewDepth(...midP(b[1]))));
@@ -3451,7 +3458,7 @@ function drawWallIsoLive(g, e) {
       if (kind === 's') {
         prism(p, 0, SL.h, SL.top, SL.side, SL.seam, e.hurt ? 0.78 : 1);
         if (wid === 3) {   // concrete: the owner's colour along the top, as on the wall
-          const a = S(mx + dx * span[0], my + dy * span[0], SL.h), b = S(mx + dx * span[1], my + dy * span[1], SL.h);
+          const [ux, uy, r0, r1] = span, a = S(mx + ux * r0, my + uy * r0, SL.h), b = S(mx + ux * r1, my + uy * r1, SL.h);
           g.strokeStyle = e.col; g.lineWidth = 1.5; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
         }
         continue;

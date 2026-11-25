@@ -780,9 +780,10 @@ function draw() {
         // Diagonal joins (16 NE, 32 SE, 64 SW, 128 NW): a piece touching another only at a corner, a diagonal wall.
         if (!d.gate) for (const [dx, dy, bit] of WALL_DIAG) {
           const x = cx + dx, y = cy + dy;
-          // (A gate only when it lies diagonally this way: the wall runs on into it.)
+          // (A gate's middle only when it lies diagonally this way: the wall runs on into it. A gate's end any way: it draws a
+          // stub of wall out to that corner, art.js drawWallIso.)
           const k = idx(x, y), wd = inMap(x, y) && WALL_BY_ID[G.wall[k]];
-          if (wd && !G.wall[idx(x, cy)] && !G.wall[idx(cx, y)] && (!wd.gate || gateDiag(k) === dx * dy)) mask |= bit;
+          if (wd && !G.wall[idx(x, cy)] && !G.wall[idx(cx, y)] && (!wd.gate || G.wall[k] === 6 || gateDiag(k) === dx * dy)) mask |= bit;
         }
         let open = 0, gm = 0;
         if (d.gate) {                                                       // its barrier sinks and rises over about a third of a second (looks only)
@@ -1584,8 +1585,10 @@ function draw() {
           const team = G.teams[G.me], blds = buildingsOf(team.id), W = (x, y) => inMap(x, y) && G.wall[idx(x, y)] > 0, fits = ([dx, dy]) => [-1, 0, 1].every((k) => inMap(cx + k * dx, cy + k * dy) && gateCellOk(team, idx(cx + k * dx, cy + k * dy), blds));
           const own = (x, y) => inMap(x, y) && ownPiece(team, idx(x, y));
           // Your own wall under the tap: the way it runs on from here; else a gap with wall two cells off either side.
-          const runs = DIRS.findIndex(([dx, dy]) => own(cx - dx, cy - dy) || own(cx + dx, cy + dy));
-          const gap = DIRS.findIndex(([dx, dy]) => W(cx - 2 * dx, cy - 2 * dy) || W(cx + 2 * dx, cy + 2 * dy));
+          // (Wall on both sides first, so on a bend it lies along the wall, not off it into the open.)
+          const first = (f) => { const i = DIRS.findIndex((d) => f(d, true)); return i >= 0 ? i : DIRS.findIndex((d) => f(d, false)); };
+          const runs = first(([dx, dy], both) => (both ? own(cx - dx, cy - dy) && own(cx + dx, cy + dy) : own(cx - dx, cy - dy) || own(cx + dx, cy + dy)));
+          const gap = first(([dx, dy], both) => (both ? W(cx - 2 * dx, cy - 2 * dy) && W(cx + 2 * dx, cy + 2 * dy) : W(cx - 2 * dx, cy - 2 * dy) || W(cx + 2 * dx, cy + 2 * dy)));
           p.dir = own(cx, cy) && runs >= 0 ? runs : gap >= 0 ? gap : Math.max(0, DIRS.findIndex(fits));
           p.ax = cx; p.ay = cy;
         }

@@ -719,12 +719,16 @@ function wallLine(kind, x0, y0, x1, y1) {
     const dx = ay > ax ? 0 : Math.sign(x1 - x0) || 1, dy = ay < ax ? 0 : Math.sign(y1 - y0);
     return inMap(x0 - dx, y0 - dy) && inMap(x0 + dx, y0 + dy) ? [idx(x0 - dx, y0 - dy), idx(x0, y0), idx(x0 + dx, y0 + dy)] : [];
   }
-  // A slanted line steps diagonally where it must (one piece a step, so a diagonal wall looks straight in the iso view):
-  // nothing slips between two pieces that touch at a corner (findPath, tryMove and los treat such a corner as shut).
-  const out = [], n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+  // A slanted line is laid as two straight runs, a diagonal one and a straight one, the longer first: mixing the two kinds of
+  // step along the way drew a saw-tooth in the iso view. One piece a step; nothing slips between two pieces that touch at a
+  // corner (findPath, tryMove and los treat such a corner as shut).
+  const out = [], ax = Math.abs(x1 - x0), ay = Math.abs(y1 - y0), sx = Math.sign(x1 - x0), sy = Math.sign(y1 - y0);
+  const nd = Math.min(ax, ay), ns = Math.max(ax, ay) - nd, st = ax > ay ? [sx, 0] : [0, sy];
+  const runs = nd >= ns ? [[[sx, sy], nd], [st, ns]] : [[st, ns], [[sx, sy], nd]];
   const add = (x, y) => { if (out.length < WALL_LINE_MAX && inMap(x, y)) out.push(idx(x, y)); };
-  add(x0, y0);
-  for (let i = 1; i <= n; i++) add(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n));
+  let x = x0, y = y0;
+  add(x, y);
+  for (const [[dx, dy], n] of runs) for (let i = 0; i < n; i++) { x += dx; y += dy; add(x, y); }
   return out;
 }
 // A gate may also be laid over pieces of the side's own wall (sandbags, wire, concrete; not another gate), so a player
