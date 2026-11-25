@@ -443,28 +443,64 @@ function tdTurret(pal, s) {
   m.paint(-8, -7, 0, 6, 7, 6, (x, y, z, c) => (hash3(x, y, z) > 0.95 && c === rgbInt(pal.main)) ? pal.dark : undefined);
   return m;
 }
-// Soviet Mobile SAM: a light tracked chassis (the generic hull) with a squat drum carrying a rack of four ready missiles, raised at
-// an angle, either side of a guidance radar. The rack is the turret; missiles leave from its front (muzzle: tur + barrel).
+// Soviet Mobile SAM, after the SA-13 Gopher: a low, flat, boxy MT-LB-style tracked carrier (msamHull) with a small cab and
+// sloped nose at the front, and on the cargo deck the launcher (samTurret, the turning "turret"): an operator's housing with a
+// window, a round radar dish on a mast in the middle and two box launchers of two canisters each, raised on arms either side.
+// Missiles leave from the launchers' front ends (muzzle: tur + barrel).
+const GOPHER = { box: '#4c5638', boxHi: '#5d6845', boxD: '#353c27' };
+function msamHull(pal, s) {
+  const hl = Math.floor(s.len / 2), hw = Math.floor(s.wid / 2), tw = 3;
+  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 9);
+  for (const side of [-1, 1]) {                                                       // tracks and six big road wheels a side
+    const y0 = side < 0 ? -hw : hw - tw, y1 = y0 + tw, outer = side < 0 ? -hw : hw - 1;
+    m.box(-hl, y0, 0, hl, y1, 3, C.track, M_ROUGH);
+    m.clear(-hl, y0, 0, -hl + 1, y1, 1); m.clear(hl - 1, y0, 0, hl, y1, 1);
+    for (let x = -hl; x < hl; x += 2) m.box(x, y0, 2, x + 1, y1, 3, C.trackHi, M_ROUGH);
+    for (let i = 0; i < 6; i++) { const x = -hl + 2.5 + i * (2 * hl - 5) / 5; m.cylY(outer - 0.2, outer + 1.2, x, 1.4, 1.5, C.wheel, M_METAL); }
+  }
+  m.box(-hl, -hw + 1, 3, hl - 2, hw - 1, 5, pal.dark, M_METAL);                       // the flat box hull, wider than the tracks
+  m.box(-hl, -hw, 5, hl - 3, hw, 6, pal.main, M_METAL);                               // deck, overhanging the tracks
+  m.box(hl - 3, -hw + 1, 3, hl - 1, hw - 1, 5.5, pal.main, M_METAL);                  // sloped nose
+  m.box(hl - 1, -hw + 2, 2, hl, hw - 2, 4, pal.dark, M_METAL);
+  m.box(hl - 7, -hw + 1, 6, hl - 3, hw - 1, 7, pal.light, M_METAL);                   // cab roof, front
+  for (const y of [-hw + 2, hw - 4]) m.box(hl - 4, y, 6, hl - 3, y + 2, 7, C.glass, M_GLASS);   // two vision blocks
+  for (const y of [-hw + 2, hw - 4]) m.cylZ(hl - 6, y + 1, 7, 7.6, 1, pal.deep, M_MATTE);       // round cab hatches
+  for (const y of [-hw + 1, hw - 3]) m.box(-hl + 1, y, 6, -hl + 6, y + 2, 7, pal.light, M_METAL); // rear cargo hatches
+  m.box(-hl - 1, -hw + 2, 3, -hl, hw - 2, 5, pal.dark, M_METAL);                      // rear doors
+  m.box(-hl + 1, hw - 1, 6, -hl + 6, hw, 8, GOPHER.box, M_METAL);                     // stowage box at the back
+  for (const y of [-hw + 1, hw - 2]) m.box(hl - 2, y, 5, hl - 1, y + 1, 6, C.glow, M_GLASS);   // headlights
+  m.paint(-hl, -hw, 3, hl, hw, 8, (x, y, z, c) => (hash3(x, y, z) > 0.93 && c === rgbInt(pal.main)) ? pal.dark : undefined);
+  return m;
+}
 function samTurret(pal, s) {
-  const m = new VModel(-8, -8, 12, 8, 13);
-  m.cylZ(0, 0, 0, 2, 4.5, pal.dark, M_METAL);                                         // turntable
-  m.box(-4, -2, 2, 3, 2, 5, pal.main, M_METAL);                                       // centre housing
-  m.box(-6, -1.5, 5, -3, 1.5, 9, '#5a5e58', M_METAL);                                 // radar mast
-  m.box(-6.5, -3, 8, -5.5, 3, 11, '#3d413c', M_METAL);                                // radar dish (flat panel)
-  const up = 0.45, cx = Math.cos(up), cz = Math.sin(up);
-  for (const y of [-5, -3, 3, 5]) {                                                   // four missiles in two pairs, nose up
-    const side = y < 0 ? -1 : 1;
-    m.box(-4, y - 0.5 * side - 0.5, 2, 3, y - 0.5 * side + 0.5, 4, pal.dark, M_METAL);   // arm
-    for (let t = 0; t <= 12.5; t += 0.4) {
-      const x = -3 + t * cx, z = 4 + t * cz;
-      m.ellipsoid(x, y, z, 1.15, 1.15, 1.15, t > 11 ? C.red : t > 10 ? '#3d413c' : '#e2e0d6', M_METAL);
+  const m = new VModel(-9, -11, 14, 11, 18);
+  m.cylZ(0, 0, 0, 1, 3.5, pal.dark, M_METAL);                                         // turntable ring
+  m.box(-3, -2.5, 1, 3, 2.5, 6, pal.main, M_METAL);                                   // operator's housing
+  m.box(-2, -2, 6, 2, 2, 7, pal.light, M_METAL);
+  m.box(3, -1.8, 2.5, 3.6, 1.8, 5, C.glass, M_GLASS);                                 // its front window
+  m.box(-0.5, -0.6, 7, 0.5, 0.6, 12, '#3a3e36', M_METAL);                             // radar mast
+  for (let y = -3; y <= 3; y += 0.5) for (let z = -3; z <= 3; z += 0.5)               // the round dish, facing forward
+    if (y * y + z * z <= 9.2) m.set(0.8 + (y * y + z * z) * 0.06, y, 13 + z, Math.hypot(y, z) > 2.4 ? '#3f4639' : '#56604a', M_METAL);
+  m.set(1.6, 0, 13, '#22261e', M_METAL);                                              // feed horn
+  const up = 0.32, cx = Math.cos(up), cz = Math.sin(up);
+  for (const side of [-1, 1]) {
+    const yc = side * 7.2;
+    m.line(-1, side * 2.5, 5, -1, yc - side * 1.5, 9, '#3a3e36', M_METAL);          // the arm out to the launcher
+    m.line(-1, side * 2.5, 4, -1, yc - side * 1.5, 8, '#3a3e36', M_METAL);
+    for (let t = 0; t <= 14; t += 0.2) {                                              // two canisters side by side, nose up
+      const x = -6 + t * cx, z = 8 + t * cz;
+      for (let w = -1.8; w <= 1.8; w += 0.3) for (let h = 0; h <= 1.6; h += 0.3) {
+        const edge = t < 0.5 || t > 13.5;
+        m.set(x - h * cz, yc + w, z + h * cx, edge ? GOPHER.boxD : Math.abs(w) < 0.2 ? GOPHER.boxD : h > 1.1 ? GOPHER.boxHi : GOPHER.box, M_METAL);
+      }
     }
-    m.box(-3.5, y - 1.2, 3.5, -2.5, y + 1.2, 5, '#6e726b', M_METAL);                 // tail fins
+    for (const w of [-1, 1]) m.set(-6 + 14 * cx + 0.6, yc + w, 8 + 14 * cz + 0.8, '#1a1c16', M_MATTE);   // the canister mouths
   }
   return m;
 }
 function tankHull(pal, s) {
   if (s.td) return tdHull(pal, s);
+  if (s.sam) return msamHull(pal, s);
   if (s.light) return lightTankHull(pal);
   if (s.grizzly) return grizzlyHull(pal, s);
   if (s.mammoth) return mammothHull(pal, s);

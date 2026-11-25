@@ -194,11 +194,11 @@ const UNIT_DEFS = {
     cost: 1100, hp: 400, armor: 'heavy', speed: 50, turn: 2.6, sight: 6, r: 9, size: { len: 22, wid: 15, tur: 4, barrel: 14, td: true, tz: 5 },
     weapon: { dmg: 90, rof: 2.2, range: 150, wh: 'TD', proj: 'shell' },
   },
-  // Mobile SAM (Soviets, War Factory; owner's pick for both modes): a tracked launcher with four missiles on a turning rack, the
+  // Mobile SAM (Soviets, War Factory; owner's pick for both modes): drawn after the SA-13 Gopher (models.js msamHull, samTurret), the
   // SAM Site on tracks (the Soviets fight aircraft with missiles, the Allies with flak). Air only, needs no power.
   msam: {
     name: 'Mobile SAM', cls: 'veh', cat: 'vehicle', producer: 'factory', factions: ['soviets'], draw: 'tank',
-    cost: 800, hp: 250, armor: 'light', speed: 60, turn: 3, sight: 7, r: 9, size: { len: 21, wid: 14, tur: 4, barrel: 8, sam: true, tz: 5 },
+    cost: 800, hp: 250, armor: 'light', speed: 60, turn: 3, sight: 7, r: 9, size: { len: 22, wid: 14, tur: 4, barrel: 8, sam: true, tz: 6 },
     weapon: { dmg: 45, rof: 1.4, range: 190, wh: 'HE', proj: 'missile', air: true, ground: false },
   },
   mammoth: {

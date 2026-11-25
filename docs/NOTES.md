@@ -2783,8 +2783,11 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   Owner: a mobile SAM rather than a flak track, "to fit with the theme": Soviets fight aircraft with missiles, Allies with flak guns.
   Weapon: missiles (`proj: 'missile'`, HE) 45 every 1.4 s, range 190, `air: true, ground: false` (aircraft only); no power needed, and
   AA_FUEL (not the SAM Site's longer SAM_FUEL).
-- **Looks:** `draw: 'tank'` with `size.sam`: the generic tank hull, and `samTurret` (models.js) as the turret: a turntable, a radar panel
-  on a mast and four white red-nosed missiles raised on two arms. The rack turns to aim; the hull does not.
+- **Looks** (owner: "make it look like this", a photo of an SA-13 Gopher): `draw: 'tank'` with `size.sam`. `msamHull`: a low, flat,
+  boxy MT-LB-style carrier (deck overhanging the tracks, six road wheels a side, small cab with vision blocks and hatches at the front,
+  cargo hatches and a stowage box at the back). `samTurret`: an operator's housing with a window, a round radar dish on a mast and two
+  olive box launchers (two canisters each, `GOPHER` colours) raised on arms either side. The launcher turns to aim; the hull does not.
+  The real one lays its launchers flat on the move; ours keeps them raised (always ready).
 - **Computer** (ai.js): a Soviet vehicle pick adds a Mobile SAM while it has fewer than 2 (6, picked three times as often, once it has
   seen enemy aircraft: `anti`). A hard computer-vs-computer game had 1 by 8 minutes and 6 by 16 once the Allies flew.
 - Field Manual entry (Armour). `node tools/sim/mobile-sam.js <repo>`: needs a War Factory, Soviets only, no shots at a tank or a rifleman,
