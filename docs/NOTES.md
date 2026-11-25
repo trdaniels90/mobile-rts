@@ -1244,6 +1244,11 @@ recorder usage at the top of record.js).
 
 ## Soundtrack (separate files since 2026.11.03.9)
 
+- **Removed on 2026-11-25 (owner's call): the game has no music for now.** `SONGS` in `audio.js` and `TRACKS` in
+  `sw.js` are empty, `music/` is gone, and `Music.start` does nothing without songs. The Music toggle, music volume
+  slider and Next track button in Options are `hidden` in `index.html`; unhide them when tracks come back. The owner's
+  artifact still holds the old `music/*.mp3` files: remove them on the next artifact publish (`publish_files` `remove`).
+  The notes below describe how tracks worked, for adding new ones.
 - Four recorded tracks, shuffled: Industry, War, Smash, Rain. Each is an MP3 in `music/<name>.mp3`, listed in `SONGS`
   in `audio.js` with `rec: '<name>'`. `Music.loadRec` fetches the file (`music/<id>.mp3`) and decodes it on demand;
   if the fetch or decode fails the song is skipped (`recFailed`). `Music.nextSong` deals a shuffled deck (no immediate

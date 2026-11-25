@@ -834,15 +834,8 @@ registerProcessor('sfx-mix', SfxMix);
   // Patterns are 16 steps per bar. Drums: x = hit, o = open hat / accent. Melodic tokens:
   // a semitone offset from the song key, '-' to hold, '.' to rest, 'm' suffix for palm-muted.
   const E = 40; // E2
-  const SONGS = [
-    // Recorded pieces (src/industry.js, src/war.js), played whole instead of sequenced.
-    { name: 'Industry', rec: 'industry', bpm: 120, key: E, parts: {}, order: [] },
-    { name: 'War', rec: 'war', bpm: 120, key: E, parts: {}, order: [] },
-    { name: 'Smash', rec: 'smash', bpm: 120, key: E, parts: {}, order: [] },
-    { name: 'Rain', rec: 'rain', bpm: 120, key: E, parts: {}, order: [] },
-    { name: 'Airstrike', rec: 'airstrike', bpm: 120, key: E, parts: {}, order: [] },
-    { name: 'Roll', rec: 'roll', bpm: 120, key: E, parts: {}, order: [] },
-  ];
+  // The soundtrack was removed on 2026-11-25 (owner's call); add tracks here as { name, rec: '<file>' } with music/<file>.mp3.
+  const SONGS = [];
   for (const song of SONGS) for (const part of Object.values(song.parts)) {
     for (const key of ['gtr', 'bass', 'lead', 'stab', 'pad']) {
       if (part[key]) part[key] = part[key].split('|').map((bar) => bar.trim().split(/\s+/));
@@ -851,9 +844,9 @@ registerProcessor('sfx-mix', SfxMix);
 
   const Music = {
     song: 0, part: 0, bar: 0, step: 0, next: 0, timer: null, started: false,
-    get name() { return SONGS[this.song].name; },
+    get name() { return SONGS.length ? SONGS[this.song].name : ''; },
     start() {
-      if (this.started || !ctx) return;
+      if (this.started || !ctx || !SONGS.length) return;   // no soundtrack: stay silent
       this.started = true;
       this.song = this.nextSong();   // a random track to begin with
       this.next = ctx.currentTime + 0.15;
@@ -872,6 +865,7 @@ registerProcessor('sfx-mix', SfxMix);
       return (this.last = this.deck.pop());
     },
     skip() {
+      if (!SONGS.length) return;
       this.stopRec();
       this.song = this.nextSong(); this.part = 0; this.bar = 0; this.step = 0;
       if (ctx) this.next = ctx.currentTime + 0.3;

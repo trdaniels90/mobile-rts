@@ -112,9 +112,8 @@ share globals. Read this file first (feature notes are in `docs/NOTES.md`); the 
 
 ## Soundtrack
 
-Four recorded MP3s in `music/`, listed in `SONGS` (`audio.js`) and `TRACKS` (`sw.js`). The single-file build does not
-contain them: publish them to the owner's artifact as `music/<name>.mp3` files beside the page (only needed once, or
-when a track changes). Details, adding a track and ffmpeg settings: "Soundtrack" in `docs/NOTES.md`.
+None for now: the owner had all music removed on 2026-11-25 (the player code stays for new tracks). Details and how to add a
+track: "Soundtrack" in `docs/NOTES.md`.
 
 ## Work in progress
 
