@@ -1008,7 +1008,8 @@ function applySpans(list) {
 const HOUSE_SPLASH = 12;   // px round a shell, rocket or missile hitting the ground that reaches a house
 const HOUSE_LOOKS = 6;     // designs per footprint in a battle (models.js houseModel), so a village has a few dozen looks
 function genVillage(m, seed) {
-  if (!m.village || !m.lots) return;
+  if (!m.village || !(m.lots || m.houses)) return;
+  const lots = m.lots || [];
   const r = rng(seed ^ 0x1f0a77e5), taken = new Uint8Array(NCELLS), look = () => (seed * 31 + ((r() * HOUSE_LOOKS) | 0)) >>> 0;
   const free = (x0, y0, w, h, L) => {
     if (x0 < L[0] || y0 < L[1] || x0 + w - 1 > L[2] || y0 + h - 1 > L[3]) return false;
@@ -1029,20 +1030,24 @@ function genVillage(m, seed) {
     G.houses.push(h1); G.byId.set(h1.id, h1);
     setHouse(h1, true);
   };
+  // Houses placed one by one (maps made in the map editor, editor.js): [x0, y0, w, h, kind] (kind 'house', 'church0',
+  // 'church1' (the tower's end), 'fountain'), where they fit (on open ground, not overlapping).
+  const fits = (x0, y0, w, h) => { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) if (!inMap(x, y) || taken[idx(x, y)] || G.terr[idx(x, y)] > 1 || G.ore[idx(x, y)]) return false; return true; };
+  for (const [x0, y0, w, h, kind] of m.houses || []) if (fits(x0, y0, w, h)) put(x0, y0, w, h, kind || 'house');
   // The fountain in the middle of each square.
   for (const [a, b, c, d] of villageSquares(m)) put(Math.round((a + c + 1) / 2) - 2, Math.round((b + d + 1) / 2) - 2, 4, 4, 'fountain');
   // The church: on one of the long plots beside the square, its tower toward the square. A map of several villages
   // (`squares`) has one in each, on a plot of 4 x 6 or more within 3 cells of its square, lying along the plot.
   if (m.squares) for (const [a, b, c, d] of m.squares) {
     const sx = (a + c + 1) / 2, sy = (b + d + 1) / 2, gap = (L) => Math.max(a - L[2], L[0] - c, b - L[3], L[1] - d, 0);
-    const fit = m.lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) >= 3 && Math.max(L[2] - L[0], L[3] - L[1]) >= 5 && gap(L) <= 3);
+    const fit = lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) >= 3 && Math.max(L[2] - L[0], L[3] - L[1]) >= 5 && gap(L) <= 3);
     if (!fit.length) continue;
     const L = fit[(r() * fit.length) | 0], tall = L[3] - L[1] > L[2] - L[0];
     const w = tall ? 4 : 6, h = tall ? 6 : 4, mx = (L[0] + L[2] + 1) / 2, my = (L[1] + L[3] + 1) / 2, near = tall ? my < sy : mx < sx;
     const x0 = tall ? L[0] + ((L[2] - L[0] + 1 - w) >> 1) : near ? L[2] - w + 1 : L[0], y0 = tall ? (near ? L[3] - h + 1 : L[1]) : L[1] + ((L[3] - L[1] + 1 - h) >> 1);
     if (free(x0, y0, w, h, L)) put(x0, y0, w, h, 'church' + (near ? 1 : 0));
   }
-  const longLots = m.squares ? [] : m.lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) === 3);
+  const longLots = m.squares || m.houses ? [] : lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) === 3);
   if (longLots.length) {
     const L = longLots[(r() * longLots.length) | 0], tall = L[3] - L[1] > L[2] - L[0];
     const w = tall ? 4 : 6, h = tall ? 6 : 4, mx = (L[0] + L[2]) / 2, my = (L[1] + L[3]) / 2;
@@ -1050,7 +1055,7 @@ function genVillage(m, seed) {
     put(tall ? L[0] : toward, tall ? toward : L[1], w, h, 'church' + ((tall ? my : mx) < (MAP - 1) / 2 ? 1 : 0));
   }
   const SIZES = [[2, 2], [2, 2], [3, 2], [2, 3], [3, 2], [2, 3], [3, 3], [4, 2], [2, 4]];
-  for (const L of m.lots) {
+  for (const L of lots) {
     const fill = 0.6 + r() * 0.4, area = (L[2] - L[0] + 1) * (L[3] - L[1] + 1);
     let used = 0;
     for (let tries = 0; tries < 160 && used < area * fill * 0.8; tries++) {

@@ -89,6 +89,7 @@ share globals. Read this file first (feature notes are in `docs/NOTES.md`); the 
 | `src/debrief.js` | The end-of-mission debrief |
 | `src/report.js` | Match reporting to Supabase and the leaderboard |
 | `src/profile.js` | Accounts (email plus a 6-digit code), commander names and the service record |
+| `src/editor.js` | The map editor (main menu): paint a fixed-layout map, place starts, gems, plateaus, village houses and plots; maps kept on the device (`CustomMaps` in maps.js), skirmish only |
 | `src/save.js` | Save and continue a skirmish: one slot in IndexedDB, the whole of `G` as a graph (references kept, data.js tables by name), the marks of battle in `G.marks` |
 | `src/netcore.js` | The host's snapshot engine (per remote player: only what their side sees), event and decal relays, carrying out remote orders. Used by a hosting phone and by the server |
 | `src/net.js` | Online play: the game server first, else room codes over Supabase Realtime and WebRTC; the guest's copy and orders; the online page and lobby |
