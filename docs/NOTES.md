@@ -2674,8 +2674,12 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   + water) is lower, by the difference. Structures, cliffs, woods and rock hold none; a lake swallows what runs in. `Q`, `qx`,
   `qy`: how much runs through and which way (smoothed). A wet battle (continued, or long in the rain) works its water out at
   once (40 coarse steps, ~110 ms headless). Drawn under the puddles: a pool where the depth passes `FLOW_MIN` (size and
-  darkness by depth, neighbours overlapping into one sheet; not over ore); where water runs (`FLOW_Q`, on a log scale) glints
-  sliding downhill, and where it gathers into channels a dark wet streak. The puddles scale with the water round them (0.35 to
+  darkness by depth, neighbours overlapping into one sheet; not over ore); where water runs (`FLOW_Q`, on a log scale)
+  `flowStreams` follows it downhill cell to cell (`F.to`: where most of each cell's water goes) into runnels, each one smooth
+  path (Catmull-Rom through jittered cell spots): a dark wet edge and a pale line of water catching the sky, in three widths by
+  how much runs, with highlights sliding along the whole runnel (owner, on the first try: "i dont see it flowing", it had
+  only faint dots, which a time-lapse also hid). Rain `FLOW_RAIN` 0.014, soak 0.004, seep 0.06 x the depth; pools from
+  `FLOW_MIN` 0.22 (Lakeside soaked: ~14% of cells deeper than 0.12, so the pool line is higher). The puddles scale with the water round them (0.35 to
   1.7 x: drained off a slope, filled in a hollow); dug craters fill. Tank ruts on soaked ground hold a thin pale line of water
   (lookGround, the tracks). Looks only, nothing in G, nothing online; snowy maps and Heron Fen's storm-free weather as before.
 

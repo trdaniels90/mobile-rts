@@ -1712,7 +1712,7 @@ function lookPuddles(g, x0, y0, x1, y1, shows) {
 // downhill where it flows; the puddles grow or shrink with the water round them, and wet tank ruts shine. Looks only.
 // Rain FLOW_RAIN x its strength a second; the ground takes FLOW_SOAK (FLOW_DRY once dry weather) plus FLOW_SEEP x the depth, so
 // a level cell stays below a pool and only hollows with water running in fill (and a pool stops growing).
-const FLOW_DT = 0.5, FLOW_RAIN = 0.01, FLOW_SOAK = 0.006, FLOW_SEEP = 0.03, FLOW_DRY = 0.02, FLOW_K = 1.6, FLOW_REF = 0.45, FLOW_MIN = 0.12, FLOW_Q = 0.012, FLOW_POOLS = 500;
+const FLOW_DT = 0.5, FLOW_RAIN = 0.014, FLOW_SOAK = 0.004, FLOW_SEEP = 0.06, FLOW_DRY = 0.02, FLOW_K = 1.6, FLOW_REF = 0.5, FLOW_MIN = 0.22, FLOW_Q = 0.012, FLOW_POOLS = 500;
 function flowTick(S) {
   if (!LOOK.hills && !G.hgt && S.wet < 0.09) return null;
   let F = S.flow;
@@ -1722,7 +1722,7 @@ function flowTick(S) {
       const x = c % MAP, y = (c / MAP) | 0;
       base[c] = (hash3(x, y, seed + 811) - 0.5) * 0.5 + (hash3(x >> 2, y >> 2, seed + 812) - 0.5) * 0.9;
     }
-    F = S.flow = { n: NCELLS, base, W: new Float32Array(NCELLS), D: new Float32Array(NCELLS), Q: new Float32Array(NCELLS), qx: new Float32Array(NCELLS), qy: new Float32Array(NCELLS), t: G.t };
+    F = S.flow = { n: NCELLS, base, to: new Int32Array(NCELLS).fill(-1), W: new Float32Array(NCELLS), D: new Float32Array(NCELLS), Q: new Float32Array(NCELLS), qx: new Float32Array(NCELLS), qy: new Float32Array(NCELLS), t: G.t };
     // A battle already wet (continued, or long in the rain): the water as it would be, worked out at once (coarse steps).
     const pre = Math.min(40, Math.floor(S.rt / 2));
     for (let i = 0; i < pre; i++) flowStep(F, S, 2);
@@ -1735,7 +1735,7 @@ function flowTick(S) {
   return F;
 }
 function flowStep(F, S, dt) {
-  const { W, D, Q, qx, qy, base } = F, H = G.hgt, Dg = G.dig, T = G.terr, B = G.block, C = G.cliff;
+  const { W, D, Q, qx, qy, base, to } = F, H = G.hgt, Dg = G.dig, T = G.terr, B = G.block, C = G.cliff;
   const rain = S.L * FLOW_RAIN * dt, loss = (S.L > 0 ? FLOW_SOAK : FLOW_DRY) * dt, seep = Math.min(0.5, FLOW_SEEP * dt);
   D.fill(0);
   for (let c = 0; c < NCELLS; c++) {
@@ -1762,8 +1762,10 @@ function flowStep(F, S, dt) {
       }
       if (tot > 0) {
         const move = Math.min(w, tot * 0.5) * Math.min(1, FLOW_K * dt * 2);
+        let big = 0; to[c] = -1;
         for (let i = 0; i < 4; i++) if (nb[i] >= 0) {
           const m = move * d4[i] / tot;
+          if (m > big) { big = m; to[c] = nb[i]; }   // (where most of it goes: the stream drawn to there)
           D[nb[i]] += m; out += m;
           if (i === 0) ox += m; else if (i === 1) ox -= m; else if (i === 2) oy += m; else oy -= m;
         }
@@ -1783,6 +1785,7 @@ function flowDraw(g, S, P, F, x0, y0, x1, y1, shows) {
   const cx0 = Math.max(0, Math.floor(x0 / CELL) - 1), cx1 = Math.min(MAP - 1, Math.ceil(x1 / CELL) + 1);
   const cy0 = Math.max(0, Math.floor(y0 / CELL) - 1), cy1 = Math.min(MAP - 1, Math.ceil(y1 / CELL) + 3);
   let n = 0;
+  const segs = new Map();   // cell -> how much runs through it (0..1, log scale), for the streams
   for (let cy = cy0; cy <= cy1 && n < FLOW_POOLS; cy++) for (let cx = cx0; cx <= cx1; cx++) {
     const c = cy * MAP + cx, w = W[c], q = Q[c];
     if (w < FLOW_MIN * 0.5 && q < FLOW_Q) continue;
@@ -1796,15 +1799,73 @@ function flowDraw(g, S, P, F, x0, y0, x1, y1, shows) {
       g.drawImage(P.pud[(h * 6) | 0], wx - Wd / 2, wy - Hd / 2, Wd, Hd);
       n++;
     }
-    if (q > FLOW_Q) {   // water running through: on a slope a thin sheet (faint glints sliding down), where it gathers a channel
-      const l = Math.hypot(qx[c], qy[c]) || 1, dx = qx[c] / l, dy = qy[c] / l, a = Math.max(0, Math.min(1, (Math.log10(q) + 1.95) / 1.4));
-      if (a > 0.3) { g.globalAlpha = (a - 0.3) * 0.8; for (let j = -1; j <= 1; j++) { const [bx, by] = hillPt(mx + dx * j * 7, my + dy * j * 7); g.drawImage(P.blob, bx - 4 - a * 2, by - 3 - a, 8 + a * 4, 6 + a * 2); } }
-      if (S.L > 0 || q > 0.1) for (let j = 0, m = a > 0.5 ? 3 : 1; j < m; j++) {
-        const ph = ((t * (0.6 + a * 0.8) + h * 7 + j / m) % 1) - 0.5, side = (hash3(cx, cy, 979 + j) - 0.5) * 8;
-        const [gx, gy] = hillPt(mx + dx * ph * CELL - dy * side, my + dy * ph * CELL + dx * side);
-        g.globalAlpha = Math.min(1, 0.25 + a) * (1 - Math.abs(ph) * 2); g.drawImage(P.dot, gx - 1, gy - 1.5, 2, 3);
-      }
+    if (q > FLOW_Q) {   // water running through (streams: collected, drawn after the pools)
+      const a = Math.max(0, Math.min(1, (Math.log10(q) + 1.95) / 1.4)), tc = F.to[c];
+      if (tc >= 0 && a > 0.15) segs.set(c, a);
       n++;
+    }
+  }
+  flowStreams(g, P, F, segs, t, S);
+  g.globalAlpha = 1;
+}
+// The streams: the cells water runs through, followed downhill cell to cell (F.to) into runnels, each drawn as one smooth
+// path: a darker wet edge, a pale line of water catching the sky (wider where more runs), and highlights sliding along the
+// whole of it, so the water is seen to run.
+function flowStreams(g, P, F, segs, t, S) {
+  if (!segs.size) return;
+  const into = new Set();
+  for (const c of segs.keys()) { const d = F.to[c]; if (segs.has(d)) into.add(d); }
+  const spot = (c) => { const x = c % MAP, y = (c / MAP) | 0; return hillPt((x + 0.5) * CELL + (hash3(x, y, 977) - 0.5) * 10, (y + 0.5) * CELL + (hash3(x, y, 978) - 0.5) * 8); };
+  const runs = [], used = new Set();
+  for (const c0 of segs.keys()) {
+    if (into.has(c0)) continue;   // (a runnel starts where none runs in)
+    const cells = []; let c = c0;
+    while (c >= 0 && cells.length < 60) {
+      cells.push(c);
+      if (used.has(c)) break;   // (joins one already drawn: ends there)
+      used.add(c);
+      const d = F.to[c]; c = segs.has(d) || (d >= 0 && F.W[d] >= FLOW_MIN) ? d : -1;
+    }
+    if (cells.length < 2) continue;
+    // a smooth curve through the cells' spots (Catmull-Rom, 4 points a cell), and how much runs at each
+    const P0 = cells.map(spot), pts = [], amt = [];
+    for (let i = 0; i < P0.length - 1; i++) {
+      const a = P0[Math.max(0, i - 1)], b = P0[i], c2 = P0[i + 1], d = P0[Math.min(P0.length - 1, i + 2)];
+      for (let k = 0; k < 4; k++) {
+        const u = k / 4, u2 = u * u, u3 = u2 * u;
+        pts.push(0.5 * (2 * b[0] + (-a[0] + c2[0]) * u + (2 * a[0] - 5 * b[0] + 4 * c2[0] - d[0]) * u2 + (-a[0] + 3 * b[0] - 3 * c2[0] + d[0]) * u3),
+          0.5 * (2 * b[1] + (-a[1] + c2[1]) * u + (2 * a[1] - 5 * b[1] + 4 * c2[1] - d[1]) * u2 + (-a[1] + 3 * b[1] - 3 * c2[1] + d[1]) * u3));
+        amt.push(segs.get(cells[i]) || 0.3);
+      }
+    }
+    const e = P0[P0.length - 1]; pts.push(e[0], e[1]); amt.push(segs.get(cells[cells.length - 1]) || 0.3);
+    runs.push({ pts, amt, h: hash3(c0 % MAP, (c0 / MAP) | 0, 979) });
+  }
+  // drawn in three widths (by how much runs), each as one path: the wet edge, then the water
+  g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const [lo, hi, wd] of [[0, 0.4, 1.4], [0.4, 0.7, 2.4], [0.7, 2, 3.4]]) for (const [col, add] of [['rgba(24,30,30,0.38)', 1.6], [`rgba(150,170,186,${S.L > 0 ? 0.62 : 0.45})`, 0]]) {
+    g.strokeStyle = col; g.lineWidth = wd + add; g.beginPath();
+    let any = false;
+    for (const R of runs) for (let i = 0; i + 1 < R.amt.length; i++) {
+      if (R.amt[i] < lo || R.amt[i] >= hi) continue;
+      g.moveTo(R.pts[i * 2], R.pts[i * 2 + 1]); g.lineTo(R.pts[i * 2 + 2], R.pts[i * 2 + 3]); any = true;
+    }
+    if (any) g.stroke();
+  }
+  g.restore();
+  // highlights sliding down each runnel, spaced along its length, faster where more runs
+  const shine = S.L > 0 ? 1 : 0.55;
+  for (const R of runs) {
+    const n = R.amt.length, len = [0];
+    for (let i = 1; i < n; i++) len.push(len[i - 1] + Math.hypot(R.pts[i * 2] - R.pts[i * 2 - 2], R.pts[i * 2 + 1] - R.pts[i * 2 - 1]));
+    const L = len[n - 1]; if (L < 6) continue;
+    const sp = 14 + 18 * R.amt[0], gap = 11;
+    for (let d = (t * sp + R.h * 50) % gap; d < L; d += gap) {
+      let i = 1; while (i < n - 1 && len[i] < d) i++;
+      const f = (d - len[i - 1]) / (len[i] - len[i - 1] || 1), x = R.pts[i * 2 - 2] + (R.pts[i * 2] - R.pts[i * 2 - 2]) * f, y = R.pts[i * 2 - 1] + (R.pts[i * 2 + 1] - R.pts[i * 2 - 1]) * f;
+      const a = R.amt[i], sz = 1.4 + a * 1.4;
+      g.globalAlpha = shine * Math.min(1, 0.5 + a) * Math.min(1, d / 8, (L - d) / 8);
+      g.drawImage(P.dot, x - sz / 2, y - sz * 0.6, sz, sz * 1.2);
     }
   }
   g.globalAlpha = 1;
