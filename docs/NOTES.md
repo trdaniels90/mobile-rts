@@ -2705,6 +2705,15 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   no puddle pictures or pools: units splash and blasts ripple where the depth is over 0.18, fire glows on pooled cells. The
   2D way keeps the puddles and simple pools; the runnel lines are gone in both.
 
+- **Waterfalls** (owner, 2026-11-25, screenshot of Lakeside's plateau: "make it so rain can also pool on top of these and if
+  the pool gets enough it can run off the sides like waterfalls"): the plateau's top holds its rain (cliff cells hold none and
+  pass none). Each open cell on high ground beside a cliff knows where its water would land (`F.spill`: the first open cell
+  across the cliff, 2-4 cells out, `FALL_DROP` 4 or more lower; `F.sdir` the way), and in `flowRows` water standing past
+  `FALL_MIN` on such a lip pours `FALL_K` of the rest down there each step (`F.SQ`: how much, smoothed), where it pools or runs
+  on. `lookFalls` (from lookSmoke, over the units, as the roof runoff) draws each pouring lip facing the camera as the runoff's
+  stream pictures, as wide as the flow, falling straight down the cliff's outer face from the top's height to the foot's, with
+  mist and a splash where it lands; lips facing away are left out (behind the plateau). Both renderers.
+
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 
 - Owner's match 305e950b (Heron Fen, desktop 2560 x 1370, WebGL): 70 fps on average, no frame over 100 ms, but minutes 18, 35

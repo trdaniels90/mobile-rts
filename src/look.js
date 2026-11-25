@@ -1084,6 +1084,7 @@ function smokePics() {
 }
 function lookSmoke(g) {
   lookRunoff(g);   // rain running off the roofs
+  lookFalls(g);    // and off the plateaus' edges
   lookFogOver(g);   // (the fog over the units, lighter: under the smoke)
   if (!LOOK.smoke || !G) return;
   if (!lookSmokeS || lookSmokeS.g !== G) lookSmokeS = { g: G, puffs: [], embers: [], t: G.t, pics: (lookSmokeS && lookSmokeS.pics) || smokePics(), acc: new Map() };
@@ -1639,6 +1640,8 @@ function rainPics(S) {
   { const c = mkCanvas(16, 16), x = c.getContext('2d'), gr = x.createRadialGradient(8, 8, 0, 8, 8, 8);   // a soft dab of running water (rivulets)
     gr.addColorStop(0, 'rgba(52,66,76,0.9)'); gr.addColorStop(0.55, 'rgba(46,58,66,0.7)'); gr.addColorStop(1, 'rgba(40,48,52,0)'); x.fillStyle = gr; x.fillRect(0, 0, 16, 16); P.blob = c; }
   { const c = mkCanvas(2, 4), x = c.getContext('2d'); x.fillStyle = 'rgba(200,215,230,0.55)'; x.fillRect(0, 0, 2, 2); x.fillStyle = 'rgba(232,240,248,0.95)'; x.fillRect(0, 2, 2, 2); P.dot = c; }   // a drip
+  { const c = mkCanvas(32, 32), x = c.getContext('2d'), gr = x.createRadialGradient(16, 16, 0, 16, 16, 16);   // spray and mist at a waterfall's foot
+    gr.addColorStop(0, 'rgba(225,235,242,0.7)'); gr.addColorStop(0.5, 'rgba(210,222,232,0.3)'); gr.addColorStop(1, 'rgba(200,215,228,0)'); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); P.mist = c; }
   { const c = mkCanvas(32, 32), x = c.getContext('2d'), gr = x.createRadialGradient(16, 16, 0, 16, 16, 16);   // fire or a blast shining in a puddle
     gr.addColorStop(0, 'rgba(255,190,90,0.95)'); gr.addColorStop(0.45, 'rgba(240,120,40,0.45)'); gr.addColorStop(1, 'rgba(200,70,20,0)'); x.fillStyle = gr; x.fillRect(0, 0, 32, 32); P.glow = c; }
   for (let f = 0; f < 3; f++) {   // a splash where it lands: droplets thrown up and out
@@ -1728,6 +1731,7 @@ function lookPuddles(g, x0, y0, x1, y1, shows) {
 // downhill where it flows; the puddles grow or shrink with the water round them, and wet tank ruts shine. Looks only.
 // Rain FLOW_RAIN x its strength a second; the ground takes FLOW_SOAK (FLOW_DRY once dry weather) plus FLOW_SEEP x the depth, so
 // a level cell stays below a pool and only hollows with water running in fill (and a pool stops growing).
+const FALL_DROP = 4, FALL_MIN = 0.14, FALL_K = 0.35;   // a waterfall: the drop it needs (G.hgt units), the depth on the lip it starts at, the share of the rest it pours a step
 const FLOW_SPLIT = 3, FLOW_RELAX = 0.1, FLOW_DT = 0.5, FLOW_RAIN = 0.014, FLOW_SOAK = 0.004, FLOW_SEEP = 0.06, FLOW_DRY = 0.02, FLOW_K = 1.6, FLOW_REF = 0.5, FLOW_MIN = 0.22, FLOW_Q = 0.012, FLOW_POOLS = 500;
 function flowTick(S) {
   if (!LOOK.hills && !G.hgt && S.wet < 0.09) return null;
@@ -1744,7 +1748,26 @@ function flowTick(S) {
     }
     // the puddle spots are small hollows (the rain fills them first, as before)
     for (const row of puddleSpots(S)) for (const q of row) base[idx(Math.floor(q[0] / CELL), Math.floor(q[1] / CELL))] -= 0.25 + q[3] * 0.3;
-    F = S.flow = { n: NCELLS, dt: FLOW_DT, base, to: new Int32Array(NCELLS).fill(-1), W: new Float32Array(NCELLS), D: new Float32Array(NCELLS), Q: new Float32Array(NCELLS), qx: new Float32Array(NCELLS), qy: new Float32Array(NCELLS), t: G.t };
+    // Waterfalls: each open cell on high ground beside a cliff, where its water would land if it spilled over (the first open
+    // cell across the cliff, FALL_DROP or more lower), and which way.
+    const spill = new Int32Array(NCELLS).fill(-1), sdir = new Int8Array(NCELLS), gh = (c) => (G.hgt ? G.hgt[c] : 0);
+    if (G.cliff && G.hgt) for (let y = 1; y < MAP - 1; y++) for (let x = 1; x < MAP - 1; x++) {
+      const c = y * MAP + x;
+      if (G.cliff[c] || G.terr[c] >= 2 || G.block[c]) continue;
+      let best = -1, bd = FALL_DROP, bi = 0;
+      for (let i = 0; i < 8; i++) {
+        if (!G.cliff[(y + FL_DY[i]) * MAP + x + FL_DX[i]]) continue;
+        for (let k = 2; k <= 4; k++) {
+          const nx = x + FL_DX[i] * k, ny = y + FL_DY[i] * k; if (nx < 0 || ny < 0 || nx >= MAP || ny >= MAP) break;
+          const n = ny * MAP + nx; if (G.cliff[n]) continue;
+          if (G.terr[n] === 2 || G.terr[n] === 3 || G.block[n]) break;
+          const d = gh(c) - gh(n); if (d > bd) { bd = d; best = n; bi = i; }
+          break;
+        }
+      }
+      if (best >= 0) { spill[c] = best; sdir[c] = bi; }
+    }
+    F = S.flow = { n: NCELLS, dt: FLOW_DT, spill, sdir, SQ: new Float32Array(NCELLS), base, to: new Int32Array(NCELLS).fill(-1), W: new Float32Array(NCELLS), D: new Float32Array(NCELLS), Q: new Float32Array(NCELLS), qx: new Float32Array(NCELLS), qy: new Float32Array(NCELLS), t: G.t };
     // A battle already wet (continued, or long in the rain): the water as it would be, worked out at once (coarse steps).
     const pre = Math.min(40, Math.floor(S.rt / 2));
     for (let i = 0; i < pre; i++) flowStep(F, S, 2);
@@ -1814,6 +1837,10 @@ function flowRows(F, dt, y0, y1) {
         }
         D[c] -= out;
       } else to[c] = -1;
+      // over the edge: water standing past FALL_MIN on a cliff's lip pours down to the foot
+      const sc = F.spill[c];
+      if (sc >= 0 && w - out > FALL_MIN) { const m = (w - out - FALL_MIN) * FALL_K; D[c] -= m; D[sc] += m; F.SQ[c] += (m / dt - F.SQ[c]) * Math.min(1, dt * 2); }
+      else if (sc >= 0) F.SQ[c] *= 1 - Math.min(1, dt);
     }
     // how much runs through (per second, smoothed) and which way, for the glints
     const a = Math.min(1, dt * 2);
@@ -2091,6 +2118,45 @@ function runoffSpots(type, faction) {
   } catch (_) { out = []; }
   S.spots.set(key, out);
   return out;
+}
+// Waterfalls (owner, 2026-11-25, of Lakeside's plateau: "rain can also pool on top of these and if the pool gets enough it can
+// run off the sides like waterfalls"): every lip pouring (rainS.flow.SQ, look.js flowStep) drawn as falling water from the lip
+// down the cliff face to the foot (the roof runoff's stream pictures, as wide as the flow, turned to run between the two
+// spots on the screen), with spray and mist where it lands. Over the units (lookSmoke), as the roof runoff.
+let DOWN_V = null;
+function lookFalls(g) {
+  if (!DOWN_V) { const v = fromView(0, 1), l = Math.hypot(v[0], v[1]); DOWN_V = [v[0] / l, v[1] / l]; }   // (the world's way toward the camera)
+  if (!RAIN_FX || !g || !G || !rainBox || !rainS || rainS.g !== G || !rainS.flow) return;
+  const F = rainS.flow, S = rainS, P = rainPics(S), [x0, y0, x1, y1] = rainBox, t = G.t;
+  if (!F.spill) return;
+  const cx0 = Math.max(0, Math.floor(x0 / CELL) - 2), cx1 = Math.min(MAP - 1, Math.ceil(x1 / CELL) + 2), cy0 = Math.max(0, Math.floor(y0 / CELL) - 2), cy1 = Math.min(MAP - 1, Math.ceil(y1 / CELL) + 6);
+  const m = g.getTransform(), up = g.upright, zs = Math.hypot(m.a, m.b);
+  let any = false;
+  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+    const c = cy * MAP + cx, q = F.SQ[c], tc = F.spill[c];
+    if (tc < 0 || q < 0.004 || !G.seen[c]) continue;
+    const i = F.sdir[c], dx = FL_DX[i], dy = FL_DY[i], dl = Math.hypot(dx, dy), tx = tc % MAP, ty = (tc / MAP) | 0;
+    if ((dx * DOWN_V[0] + dy * DOWN_V[1]) / dl < 0.25) continue;   // (a lip facing away from the camera: its fall is behind the plateau)
+    // straight down from the lip (at the top's height) to the foot (at the height of the ground it lands on)
+    const lx = (tx + 0.5 - dx / dl * 0.75) * CELL, ly = (ty + 0.5 - dy / dl * 0.75) * CELL;   // (the cliff's outer face, over the foot)
+    const [ax, ay] = liftPt(lx, ly, gLift((cx + 0.5) * CELL, (cy + 0.5) * CELL)), [bx, by] = liftPt(lx, ly, gLift((tx + 0.5) * CELL, (ty + 0.5) * CELL));
+    const X0 = m.a * ax + m.c * ay + m.e, Y0 = m.b * ax + m.d * ay + m.f, X1 = m.a * bx + m.c * by + m.e, Y1 = m.b * bx + m.d * by + m.f;
+    if (Y1 < Y0 + 2) continue;
+    if (!any) { any = true; g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0); g.imageSmoothingEnabled = true; }
+    const k = Math.min(1, Math.sqrt(q * 12)), w = (3.5 + 8 * k) * zs * 0.5, len = Math.hypot(X1 - X0, Y1 - Y0), ang = Math.atan2(Y1 - Y0, X1 - X0) - Math.PI / 2;
+    const fr = P.stream[Math.floor(t * 18 + cx) & 3], shine = 0.55 + 0.45 * Math.min(1, S.L * 2 + 0.3);
+    g.save(); g.translate(X0, Y0); g.rotate(ang);
+    for (const [ww, a] of [[w * 1.8, 0.25], [w, 0.85]]) {   // a soft sheet, then the falling water in it
+      g.globalAlpha = a * shine * (0.4 + 0.6 * k);
+      for (let y = 0; y < len; y += 48 * zs * 0.5) { const hh = Math.min(48 * zs * 0.5, len - y); g.drawImage(fr, 0, 0, 4, hh / (zs * 0.5), -ww / 2, y, ww, hh); }
+    }
+    g.restore();
+    // spray and mist where it lands, and a splash of its own now and then
+    const mz = (10 + 22 * k) * zs * 0.5;
+    g.globalAlpha = (0.35 + 0.35 * k) * (0.8 + 0.2 * Math.sin(t * 5 + cx)); g.drawImage(P.mist, X1 - mz, Y1 - mz * 0.75, mz * 2, mz * 1.2);
+    g.globalAlpha = 0.7 + 0.3 * k; g.drawImage(P.splash[Math.floor(t * 12 + cx) % 3], X1 - 10 * zs * 0.5 * (1 + k), Y1 - 8 * zs * 0.5, 20 * zs * 0.5 * (1 + k), 11 * zs * 0.5);
+  }
+  if (any) { g.globalAlpha = 1; g.setTransform(m); g.upright = up; }
 }
 function lookRunoff(g) {
   if (!RAIN_FX || !g || !G || !rainBox) return;
