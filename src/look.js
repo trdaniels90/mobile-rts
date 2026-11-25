@@ -1764,10 +1764,16 @@ function flowTick(S) {
     // then spills over (the waterfalls).
     // (thin soil over rock: it soaks the water up more slowly, sk)
     const sk = new Float32Array(NCELLS).fill(1);
-    for (const ms of (G.hgt && MAPS[validMap(G.mapId)].mesas) || []) { const R = ms.r + 4; for (let y = Math.max(0, Math.floor(ms.y - R)); y <= Math.min(MAP - 1, Math.ceil(ms.y + R)); y++) for (let x = Math.max(0, Math.floor(ms.x - R)); x <= Math.min(MAP - 1, Math.ceil(ms.x + R)); x++) {
-      const d = Math.hypot(x + 0.5 - ms.x, y + 0.5 - ms.y) / R, c = y * MAP + x; if (d >= 1 || G.hgt[c] < HG_MAX * (ms.h || 1) - 3) continue;   // (the top only, not the ramp or the ground below)
-      base[c] = base[c] * 0.3 + MESA_DISH * (Math.min(1, d / 0.7) ** 2 - 1); sk[c] = 0.3;   // (level for its outer ring: a full pond reaches the rim)
-    } }
+    // (every map: plateauTops finds the raised ground ringed by cliffs; its middle lowest, level for its outer cells, so a full
+    // pond reaches the rim. A big one, a whole base on Heron Fen's plateaus, a gentle dip that soaks as any ground does, so
+    // a pond lies in its low middle and does not flood the base.)
+    for (const T of plateauTops()) {
+      const big = T.cells.length > 700, amp = MESA_DISH * (big ? 0.35 : 1), D = Math.max(2, T.far * 0.7), soak = big ? 1 : 0.3;
+      for (let i = 0; i < T.cells.length; i++) {
+        const c = T.cells[i], k = Math.min(1, Math.max(0, (T.dist[i] - 1.5) / D));
+        base[c] = base[c] * (big ? 0.6 : 0.3) - amp * k * k; sk[c] = soak < 1 ? soak : 0.999;   // (0.999: still a plateau's top, for the rim)
+      }
+    }
     // the puddle spots are small hollows (the rain fills them first, as before)
     for (const row of puddleSpots(S)) for (const q of row) base[idx(Math.floor(q[0] / CELL), Math.floor(q[1] / CELL))] -= 0.25 + q[3] * 0.3;
     // Waterfalls: each open cell on high ground beside a cliff, where its water would land if it spilled over (the first open
@@ -1808,6 +1814,42 @@ function flowTick(S) {
 }
 const FL_DX = [1, -1, 0, 0, 1, 1, -1, -1], FL_DY = [0, 0, 1, -1, 1, -1, 1, -1], FL_W = [1, 1, 1, 1, Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2];
 const FL_D8 = new Float32Array(8), FL_NB = new Int32Array(8);
+// The plateaus of this battle's map, for the water (owner, 2026-11-25: "add this new water logic to all maps that can have
+// rain"; it was Lakeside's mesa only): raised ground (G.hgt at least PLAT_H x HG_MAX) joined cell to cell where the ground is
+// level (within 3), at least 15 cells, with most of its edge cliffs. Each: its cells and how far each is from its edge.
+const PLAT_H = 0.45;
+function plateauTops() {
+  const H = G.hgt, C = G.cliff, T = G.terr, out = [];
+  if (!H || !C) return out;
+  const seen = new Uint8Array(NCELLS), open = (c) => !C[c] && T[c] < 3;   // (woods are part of it: they hold no water themselves)
+  for (let c0 = 0; c0 < NCELLS; c0++) {
+    if (seen[c0] || !open(c0) || H[c0] < HG_MAX * PLAT_H) continue;
+    const cells = [c0], inR = new Set([c0]); seen[c0] = 1;
+    let edge = 0, cliffEdge = 0;
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i], x = c % MAP, y = (c / MAP) | 0;
+      for (let k = 0; k < 4; k++) {
+        const nx = x + FL_DX[k], ny = y + FL_DY[k];
+        if (nx < 0 || ny < 0 || nx >= MAP || ny >= MAP) { edge++; continue; }
+        const n = ny * MAP + nx;
+        if (inR.has(n)) continue;
+        if (open(n) && !seen[n] && Math.abs(H[n] - H[c]) < 3 && H[n] >= HG_MAX * PLAT_H) { seen[n] = 1; inR.add(n); cells.push(n); continue; }
+        edge++; if (C[n]) cliffEdge++;
+      }
+    }
+    if (cells.length < 15 || cliffEdge < edge * 0.4) continue;
+    // how far each cell is from the edge (a walk inward from the cells on it)
+    const dist = new Float32Array(cells.length).fill(1e9), at = new Map(cells.map((c, i) => [c, i])), q = [];
+    cells.forEach((c, i) => { const x = c % MAP, y = (c / MAP) | 0; for (let k = 0; k < 4; k++) { const n = (y + FL_DY[k]) * MAP + x + FL_DX[k]; if (!inR.has(n)) { dist[i] = 1; q.push(i); break; } } });
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h], c = cells[i], x = c % MAP, y = (c / MAP) | 0;
+      for (let k = 0; k < 4; k++) { const j = at.get((y + FL_DY[k]) * MAP + x + FL_DX[k]); if (j !== undefined && dist[j] > dist[i] + 1) { dist[j] = dist[i] + 1; q.push(j); } }
+    }
+    let far = 1; for (const d of dist) if (d < 1e9) far = Math.max(far, d);
+    out.push({ cells, dist, far });
+  }
+  return out;
+}
 // For gl.js: the water to draw this frame, or none (no rain look, dry, or not made yet).
 function flowForGl() {
   if (!RAIN_FX || !rainS || rainS.g !== G || !rainS.flow || rainS.flow.n !== NCELLS || rainS.wet < 0.02) return null;
@@ -2159,7 +2201,7 @@ function lookFalls(g) {
   // the edge the falls pour from (owner: "its still not making it to the edge").
   if (F.rim === undefined) {
     F.rim = [];
-    for (const ms of (G.hgt && MAPS[validMap(G.mapId)].mesas) || []) for (let y = Math.max(1, Math.floor(ms.y - ms.r - 3)); y <= Math.min(MAP - 2, Math.ceil(ms.y + ms.r + 3)); y++) for (let x = Math.max(1, Math.floor(ms.x - ms.r - 3)); x <= Math.min(MAP - 2, Math.ceil(ms.x + ms.r + 3)); x++) {
+    if (G.cliff) for (let y = 1; y < MAP - 1; y++) for (let x = 1; x < MAP - 1; x++) {
       const c = y * MAP + x; if (!G.cliff[c]) continue;
       const tops = [];
       for (let i = 0; i < 8; i++) { const n = (y + FL_DY[i]) * MAP + x + FL_DX[i]; if (!G.cliff[n] && F.sk[n] < 1) tops.push(n); }

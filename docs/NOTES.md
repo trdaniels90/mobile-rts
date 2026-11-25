@@ -2724,6 +2724,12 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   top cell beside it holds 0.24 or more: soft blobs of water with ragged edges (`P.rimw`, 4 of them, 1.7 cells wide,
   overlapping), under the falls. The basin is level over its outer ring (`(d / 0.7)^2`) and reaches r + 4 (cells at the top's
   height only), so a full pond reaches the rim.
+  Owner: "add this new water logic to all maps that can have rain": the pools, running water, splashes and wet ground were on
+  every rainy map and storm already; the plateaus were Lakeside's mesa only. Now `plateauTops` finds them on any map: raised
+  ground (G.hgt at least `PLAT_H` 0.45 x HG_MAX) joined where level (within 3), 15+ cells, at least 40% of its edge cliffs;
+  each cell's distance from the edge gives the basin. A big one (over 700 cells: Heron Fen's base plateaus, 1,520 each) is a
+  gentle dip (0.35 x) that soaks as usual, else bases flooded (92% of their tops in 5 min of heavy rain); now ~19%, ~20 falls.
+  Lakeside unchanged; Three Crossings has none; Crossroads Village and River Crossing have a few lips that can pour.
 
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 

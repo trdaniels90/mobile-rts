@@ -4,6 +4,17 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.25.3', date: '25 November 2026', title: 'Water in the rain, waterfalls, survivors', groups: [
+    ['New', [
+      'Rain water: the rain now runs downhill, soaks the ground darker and gathers in pools that follow the lie of the land, with rain rings on them and water running down the slopes. Dug craters fill and tank tracks hold water.',
+      'Waterfalls: rain pools on top of plateaus, and when the pond is big enough it pours over the cliffs. On every map that gets rain or storms.',
+      'Puddles react: tanks and soldiers splash through them, blasts send ripples across them, and fire glows in the water.',
+      'Survivors: when a structure is destroyed there is a chance some of its staff escape, hurt; when you sell one they walk out unhurt. About one in three is a Technician, a civilian with a pistol.',
+    ]],
+    ['Improved', [
+      'Rain runs off defences as a thin trickle of drops instead of a solid stream.',
+    ]],
+  ] },
   { v: '2026.11.25.2', date: '25 November 2026', title: 'HD ground, wrecks back', groups: [
     ['New', [
       'HD ground: with HD graphics on, the ground and cliffs are drawn at twice the detail, and wrecks and fallen soldiers are as sharp as the units. On by default on computers. On phones it is off for now: turn it on in Options, Graphics, to try it (it uses four times the memory for the ground; if the game reloads mid-battle, turn it off).',
