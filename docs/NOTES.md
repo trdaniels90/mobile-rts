@@ -2652,10 +2652,6 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   else `stormRainT` (from world.js `stormPlan` on the battle clock: each storm adds its length, the gaps dry one second a
   second). Wetness, the puddles' growth and the rivulets go by `S.rt`. When the rain stops the roofs stop running and the
   rivulets' glints stop; the puddles shrink as it dries (gone about 75 s after a 70 s storm).
-- **None off defences** (owner, 2026-11-25, screenshot of Tesla Coils and Flame Towers in the rain: "run off from these
-  defensive structures looks weird"): their small high platforms passed as roofs and dropped long streams beside the tower,
-  like grey poles. `lookRunoff` now skips every structure with `defense` (turrets, AA guns, Tesla Coils, pillboxes, Flame
-  Towers, SAM Sites); the puddles round them stay.
 
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 

@@ -1744,9 +1744,7 @@ function lookRunoff(g) {
     });
   };
   for (const e of G.entities) {
-    // Not off defences (owner, 2026-11-25, Tesla Coils and Flame Towers in the rain: "run off from these defensive structures
-    // looks weird"): their tops are small platforms high up, so a stream fell a long way beside the tower like a pole.
-    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.camo || e.def.defense || !G.seen[idx(e.cx, e.cy)]) continue;
+    if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.camo || !G.seen[idx(e.cx, e.cy)]) continue;
     shed(e, e.type, e.faction, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL);
   }
   for (const h of G.houses || []) {
