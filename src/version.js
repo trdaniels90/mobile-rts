@@ -7,9 +7,10 @@ const RELEASES = [
   { v: '2026.11.25.1', date: '25 November 2026', title: 'HD graphics, Map Editor', groups: [
     ['New', [
       'HD graphics (Options, Graphics): sharp, smooth units and buildings instead of pixels. Models are rebuilt at four times the detail, the battle is drawn at twice the resolution, and shadows are soft. Off unless you turn it on. Uses more graphics power, and downloads about 24 MB the first time.',
-      'Map Editor (main menu): paint grass, cliffs, water and ore, place starting spots, plateaus and villages, then play your map in a skirmish.',
+      'Map Editor (main menu): paint grass, cliffs, water and ore, place starting spots, plateaus and villages, then play your map in a skirmish. You edit over the real battlefield, so you see the map as it will play.',
     ]],
     ['Improved', [
+      'PC: the mouse wheel zooms out at most two steps from fully zoomed in. Phones keep the full pinch range.',
       'The Light Tank now has its own lighter, quieter gun sound.',
       'Rain no longer pours from the tops of chimneys and towers.',
     ]],
