@@ -3099,3 +3099,21 @@ ground. The flight code still sees the plain height (`u.altB`, 0..JET_ALT); `u.a
 landings). Since shots, lights, crashes, flares and taps all use `u.alt`, they follow. Helicopters unchanged. Flat maps:
 no change. Side effect: shots at a jet and its gun runs fold the extra height into their path (aimY, muzzle), so they fly a
 little further (up to ~60 px on the hilliest maps); jet-rush.js and cas.js results unchanged within noise.
+
+## Vehicles come apart, more ways for soldiers to fall (2026-11-25, not released, looks only, both modes)
+
+Owner: "more death animations and physics to infantry and vehicles, for example rangers have their tires launched around and
+the driver and gunner die like physics infantry". All effects made in `kill` on the host and relayed to guests like any effect.
+- **Vehicles** (world.js `vehicleDeath`, table `VEH_DEATH` by draw type): wheeled ones (Ranger 2-4 of 4, Ore Truck, V2, Outpost,
+  MCV, Soviet APC 1-3) throw wheels as a `wheel` effect (`updateWheel`): tumbling flight (axle swinging and turning over), bounces,
+  then rolls on its tread if it landed upright, wobbling more as it slows, and falls flat; some smoke as burning tyres; splashes in
+  water, bounces off anything impassable; fades after 16-22 s. Drawn in art.js `drawEffect` 'wheel' as a disc turned in 3D (12 points
+  through `liftPt`), outline, tread, hub, one bolt turning. Tracked ones throw 0-2 road wheels and maybe a length of track (`frag`),
+  more on a cook-off. All throw 2-4 hull plates (`frag`, side's colours; more on a cook-off).
+- **Crew thrown as ragdolls** (`ragdoll(e, 'HE', from, { lift, burn, quiet })`, drawn as Rifle Infantry): the Ranger's driver and
+  gunner always, one fewer when `crewBailOut` made a survivor (it now returns the unit); a truck's driver 45%; a tank's commander
+  30% (not on a cook-off). Only the first cries out. No stats: effects only.
+- **Soldiers** (`ragdoll`): blasts (now also `TD`) flail arms and legs; a Sniper's round (`SN`) snaps the head back and he drops
+  where he stands; small arms (`SA`, `RF`, `CG`, none) 40% of the time: sinks to his knees and pitches forward (55%) or is spun
+  round and falls on his side; otherwise as before (knocked back, fire stagger, Tesla shakes).
+- The wrecks are unchanged (still drawn with their wheels: the burnt sprites are baked).

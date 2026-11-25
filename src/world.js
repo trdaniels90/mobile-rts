@@ -3360,6 +3360,114 @@ function updateTurret(fx, dt) {
   if (fx.down && !fx.pops.length) fx.t = fx.life;
 }
 
+// How a vehicle comes apart (looks only, both modes; owner, 2026-11-25: "rangers have their tires launched around and the
+// driver and gunner die like physics infantry"). Wheeled vehicles lose some of their wheels, which fly off tumbling, bounce,
+// roll away on their rims and fall over (updateWheel); tracked ones throw a road wheel or two and a length of track (more when
+// they cook off). Plates of the hull fly in the side's colour. The crew who sat in the open are thrown out as ragdolls:
+// the Ranger's driver and gunner (one fewer when a crewman got out alive, crewBailOut), a truck's driver now and then, a
+// tank's commander from his hatch sometimes. The wreck stays where it was (bakeWreck).
+// r: wheel radius (px), at: wheel places [forward, side], n: [fewest, most] thrown; crew: [forward, side, seat height, chance].
+const VEH_DEATH = {
+  jeep: { r: 2.5, at: [[5.5, -5], [5.5, 5], [-5.5, -5], [-5.5, 5]], n: [2, 4], crew: [[1.5, -2, 5, 1], [-2, 1.5, 8, 1]] },
+  harv: { r: 3.4, at: [[6, -6], [6, 6], [-6, -6], [-6, 6]], n: [1, 3], crew: [[6, -2, 7, 0.45]] },
+  v2: { r: 2.4, at: [[7, -5], [7, 5], [-3, -5], [-3, 5], [-8, -5], [-8, 5]], n: [1, 3], crew: [[8, -2, 6, 0.45]] },
+  fob: { r: 2.5, at: [[8, -5], [8, 5], [-2, -5], [-2, 5], [-8, -5], [-8, 5]], n: [1, 3], crew: [[9, -2, 6, 0.45]] },
+  mcv: { r: 2.6, at: [[10, -6], [10, 6], [0, -6], [0, 6], [-10, -6], [-10, 6]], n: [1, 3], crew: [[11, -2, 7, 0.45]] },
+  btr: { r: 2.7, at: [[8, -5], [8, 5], [3, -5], [3, 5], [-3, -5], [-3, 5], [-8, -5], [-8, 5]], n: [1, 3] },
+  tracked: { r: 1.5, at: [[5, -5], [5, 5], [0, -5], [0, 5], [-5, -5], [-5, 5]], n: [0, 2], track: true },
+  tank: { r: 1.5, at: [[5, -5], [5, 5], [0, -5], [0, 5], [-5, -5], [-5, 5]], n: [0, 2], track: true, crew: [[-1, -1.5, 10, 0.3]] },
+};
+function vehicleDeath(e, wh, from, cook, bailed) {
+  const d = e.def, r = Math.random;
+  const spec = d.draw === 'jeep' || d.draw === 'harv' || d.draw === 'v2' || d.draw === 'fob' || d.draw === 'mcv' ? VEH_DEATH[d.draw]
+    : e.type === 'btr' ? VEH_DEATH.btr : d.draw === 'tank' ? VEH_DEATH.tank : VEH_DEATH.tracked;
+  const big = spec.track && d.size && d.size.len ? Math.max(0.9, Math.min(1.6, d.size.len / 17)) : 1, ca = Math.cos(e.face), sa = Math.sin(e.face);
+  const away = from && (from.x !== e.x || from.y !== e.y) ? Math.atan2(e.y - from.y, e.x - from.x) : r() * Math.PI * 2;
+  const at = (f, sd) => [e.x + (f * ca - sd * sa) * big, e.y + (f * sa + sd * ca) * big];
+  // Wheels: a random few of its own, from where they were on the hull.
+  const places = spec.at.slice().sort(() => r() - 0.5), n = Math.min(places.length, spec.n[0] + Math.floor(r() * (spec.n[1] - spec.n[0] + 1)) + (cook && spec.track ? 2 : 0));
+  for (let i = 0; i < n; i++) {
+    const [f, sd] = places[i % places.length], [x, y] = at(f, sd);
+    const out = Math.atan2(y - e.y, x - e.x), a = (r() < 0.6 ? out : away) + (r() - 0.5) * 0.9, sp = 30 + r() * 60 + (cook ? 30 : 0);
+    G.effects.push({ type: 'wheel', x, y, z: spec.r * big + 1, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vz: 70 + r() * 110 + (cook ? 60 : 0),
+      r: spec.r * Math.min(1.3, big), hd: e.face, lean: 0, leanV: (r() - 0.5) * 18, yawV: (r() - 0.5) * 10, roll: 0, rolling: false, flat: false,
+      burn: r() < 0.4 ? 2 + r() * 4 : 0, smokeT: 0, t: 0, life: 16 + r() * 6 });
+  }
+  // A length of track flung off a tracked hull.
+  if (spec.track) for (let i = 0, m = (cook ? 2 : 0) + (r() < 0.6 ? 1 : 0); i < m; i++) {
+    const a = away + (r() - 0.5) * 2, sp = 25 + r() * 50;
+    G.effects.push({ type: 'frag', x: e.x + (r() - 0.5) * 8, y: e.y + (r() - 0.5) * 6, alt: 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vz: -40 - r() * 50,
+      rot: r() * 6, spin: (r() - 0.5) * 14, w: 6 + r() * 4, h: 1.6, color: '#2a2925', burning: false, t: 0, life: 14, smokeT: 0 });
+  }
+  // Plates of the hull: hatches, mudguards, panels, in the side's colour or bare steel.
+  const pal = FACTIONS[e.faction].pal;
+  for (let i = 0, m = 2 + Math.floor(r() * 3) + (cook ? 2 : 0); i < m; i++) {
+    const a = r() * Math.PI * 2, sp = 20 + r() * 60;
+    G.effects.push({ type: 'frag', x: e.x, y: e.y, alt: 4 + r() * 4, vx: Math.cos(a) * sp + Math.cos(away) * 20, vy: Math.sin(a) * sp + Math.sin(away) * 20, vz: -50 - r() * 80,
+      rot: r() * 6, spin: (r() - 0.5) * 24, w: 2.5 + r() * 3, h: 1.5 + r() * 2, color: r() < 0.65 ? pal.main || '#555' : r() < 0.5 ? pal.dark || '#3b3a36' : '#3b3a36',
+      burning: r() < 0.3, t: 0, life: 10, smokeT: 0 });
+  }
+  // The crew out in the open, thrown out by the blast. (A crewman who got out alive takes one place.)
+  if (!spec.crew || cook) return;
+  let left = bailed ? 1 : 0, cried = false;
+  for (const [f, sd, z, ch] of spec.crew) {
+    if (left > 0) { left--; continue; }
+    if (r() >= ch) continue;
+    const [x, y] = at(f, sd);
+    ragdoll({ ...e, type: 'rifle', x, y, face: e.face + (r() - 0.5) }, 'HE', from || e, { lift: z * big, burn: 0.25, quiet: cried });
+    cried = true;
+  }
+}
+// A wheel torn off: it tumbles through the air (its axle turning end over end and swinging round), bounces, then, landing on
+// its tread, rolls away on it, wobbling more as it slows, and falls over flat. Some smoke as the tyre burns.
+function updateWheel(fx, dt) {
+  const r = Math.random;
+  if (fx.burn > 0 && (fx.smokeT -= dt) <= 0) { fx.smokeT = 0.09; fx.burn -= 0.09; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, lift: fx.z, r: 1.4 + r(), t: 0, life: 1.2, alpha: 0.5, color: '#2c2a27', vy: -8 }); }
+  if (fx.flat) return;
+  const R = fx.r, rest = () => R * Math.abs(Math.cos(fx.lean)) + 0.6 * Math.abs(Math.sin(fx.lean));
+  const moveTo = (nx, ny) => {
+    if (nx < 4 || ny < 4 || nx > WORLD - 4 || ny > WORLD - 4 || (!passableAt(nx, ny) && !(G.terr[cellOfPos(Math.max(0, Math.min(WORLD - 1, nx)), Math.max(0, Math.min(WORLD - 1, ny)))] >= 4))) {
+      fx.vx *= -0.4; fx.vy *= -0.4; return;   // off a wall, a building, a rock
+    }
+    fx.x = nx; fx.y = ny;
+  };
+  if (!fx.rolling) {
+    fx.vz -= 420 * dt; fx.z += fx.vz * dt;
+    moveTo(fx.x + fx.vx * dt, fx.y + fx.vy * dt);
+    fx.lean += fx.leanV * dt; fx.hd += fx.yawV * dt; fx.roll += 12 * dt;
+    if (fx.z > rest() || fx.vz > 0) return;
+    if (wetAt(fx.x, fx.y)) { waterSplash(fx.x, fx.y, false); fx.t = fx.life; return; }
+    fx.z = rest();
+    if (fx.vz < -45) {   // bounce
+      fx.vz *= -0.42; fx.vx *= 0.75; fx.vy *= 0.75; fx.leanV = fx.leanV * 0.6 + (r() - 0.5) * 8; fx.yawV *= 0.6;
+      G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 2, t: 0, life: 0.6, alpha: 0.4, color: '#8a7a62' });
+      return;
+    }
+    // Down for good: on its tread (rolls away) if near upright, else on its side.
+    fx.vz = 0;
+    const up = Math.abs(Math.cos(fx.lean));
+    if (up > 0.6 && Math.hypot(fx.vx, fx.vy) > 12) {
+      fx.rolling = true; fx.lean = Math.atan2(Math.sin(fx.lean), Math.abs(Math.cos(fx.lean))) * 0.3; fx.leanV = 0;
+      fx.hd = Math.atan2(fx.vy, fx.vx);
+    } else fx.rolling = true, fx.vx *= 0.2, fx.vy *= 0.2;
+    return;
+  }
+  // Rolling on its tread: slowed by the ground, steered by its lean, wobbling more as it slows, until it falls over.
+  let sp = Math.hypot(fx.vx, fx.vy);
+  sp = Math.max(0, sp - 22 * dt);
+  const wob = Math.max(0, 1 - sp / 50);
+  fx.leanV += (Math.sin(fx.lean) * 9 * (0.3 + wob) + (r() - 0.5) * 4 * wob) * dt;
+  fx.lean += fx.leanV * dt;
+  fx.hd += Math.sin(fx.lean) * 1.6 * dt * (sp > 1 ? 1 : 0);   // a leaning wheel turns toward its lean
+  fx.vx = Math.cos(fx.hd) * sp; fx.vy = Math.sin(fx.hd) * sp;
+  fx.roll += sp / R * dt;
+  moveTo(fx.x + fx.vx * dt, fx.y + fx.vy * dt);
+  if (fx.vx || fx.vy) fx.hd = Math.atan2(fx.vy, fx.vx);
+  if (wetAt(fx.x, fx.y)) { waterSplash(fx.x, fx.y, false); fx.t = fx.life; return; }
+  if (Math.abs(fx.lean) >= Math.PI / 2) { fx.lean = Math.sign(fx.lean) * Math.PI / 2; fx.flat = true; fx.vx = fx.vy = 0; }
+  fx.z = rest();
+}
+
 // A wreck smoulders for a while after the flames die down.
 function smoulder(x, y, life) { G.effects.push({ type: 'smoulder', x, y, t: 0, life, puffT: 0 }); }
 
@@ -3587,8 +3695,10 @@ function kill(e, attacker, wh, from) {
       scorch(G.tctx, e.x, e.y, 12, seed);
       craterAt(e.x + Math.cos(e.face) * 6, e.y + Math.sin(e.face) * 6, 5);
       bakeWreck(G.dctx, e.x, e.y, e.def, e.face, e.tface, cook);
+      let bailed = false;
       if (cook) cookOff(e, seed);
-      else if (!G.remote && Math.random() < CREW_SURVIVES) crewBailOut(e);   // no cook-off: the crew may get out
+      else if (!G.remote && Math.random() < CREW_SURVIVES) bailed = !!crewBailOut(e);   // no cook-off: the crew may get out
+      vehicleDeath(e, wh, from || attacker, cook, bailed);   // wheels, plates and crew thrown (looks only)
       for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: e.x + (Math.random() - 0.5) * 8, y: e.y + (Math.random() - 0.5) * 6, t: -i * 0.3, life: 2.5 + Math.random() * 2 });
       smoulder(e.x, e.y - 4, 25);
     } else if ((e.alt || 0) > 4) {
@@ -3643,15 +3753,17 @@ const RAG_PTS = [   // [forward, side, height]
 const RAG_STICKS = [[0, 1], [1, 2], [3, 4], [1, 3], [1, 4], [3, 2], [4, 2], [0, 3], [0, 4], [3, 5], [4, 6], [2, 7], [2, 8], [7, 9], [8, 10], [7, 8]];
 const RAG_STIFF = [[2, 9], [2, 10], [1, 9], [1, 10]];          // legs locked straight for a moment
 const RAG_MIN = [[2, 9, 0.5], [2, 10, 0.5], [1, 5, 0.45], [1, 6, 0.45], [0, 2, 0.95]];   // no folding flat
-function ragdoll(e, wh, from) {
+// opt (a crewman thrown from a dying vehicle, vehicleDeath): lift, how high he sat (px); burn, the chance he burns; quiet, no cry.
+function ragdoll(e, wh, from, opt) {
   const r = Math.random;
   const a = from && (from.x !== e.x || from.y !== e.y) ? Math.atan2(e.y - from.y, e.x - from.x) : r() * Math.PI * 2;
-  const blast = wh === 'HE' || wh === 'GR' || wh === 'AP' || wh === 'ART' || wh === 'AT' || wh === 'HF';
+  const blast = wh === 'HE' || wh === 'GR' || wh === 'AP' || wh === 'ART' || wh === 'AT' || wh === 'HF' || wh === 'TD';
   const fx = { type: 'ragdoll', x: e.x, y: e.y, unitType: e.type, faction: e.faction, v: teamOf(e).variant | 0, face: e.face, t: 0, life: 14, age: 0, still: 0, acc: 0 };
   // Joints in world space, standing as the soldier stood.
   const n = RAG_PTS.length, ca = Math.cos(e.face), sa = Math.sin(e.face);
   const P = new Float32Array(n * 3), V = new Float32Array(n * 3);
-  RAG_PTS.forEach(([f, sd, z], i) => { f *= INF_SCALE; sd *= INF_SCALE; P[i * 3] = e.x + f * ca - sd * sa; P[i * 3 + 1] = e.y + f * sa + sd * ca; P[i * 3 + 2] = z * INF_SCALE; });
+  const lift = (opt && opt.lift) || 0;
+  RAG_PTS.forEach(([f, sd, z], i) => { f *= INF_SCALE; sd *= INF_SCALE; P[i * 3] = e.x + f * ca - sd * sa; P[i * 3 + 1] = e.y + f * sa + sd * ca; P[i * 3 + 2] = z * INF_SCALE + lift; });
   const dx = Math.cos(a), dy = Math.sin(a), px = -dy, py = dx;
   const kick = (i, vx, vy, vz) => { V[i * 3] += vx; V[i * 3 + 1] += vy; V[i * 3 + 2] += vz; };
   if (blast) {
@@ -3663,7 +3775,30 @@ function ragdoll(e, wh, from) {
       const ox = w[0] / wl * ws, oy = w[1] / wl * ws, oz = w[2] / wl * ws;
       kick(i, dx * p + oy * rz - oz * ry, dy * p * 0.8 + oz * rx - ox * rz, up + ox * ry - oy * rx);
     }
+    for (const i of [5, 6, 9, 10]) kick(i, (r() - 0.5) * 70, (r() - 0.5) * 70, (r() - 0.3) * 50);   // arms and legs flailing
     fx.stiff = 0;
+    if (opt && r() < (opt.burn || 0)) fx.burnt = true;
+  } else if (wh === 'SN') {
+    // A sniper's round: the head snaps back and he drops where he stands, the legs folding under him.
+    kick(0, dx * 70, dy * 70, 10); kick(1, dx * 20, dy * 20, 0);
+    kick(2, 0, 0, -45); kick(7, ca * 22 + (r() - 0.5) * 16, sa * 22 + (r() - 0.5) * 16, 0); kick(8, ca * 18 + (r() - 0.5) * 16, sa * 18 + (r() - 0.5) * 16, 0);
+    for (const i of [5, 6]) kick(i, (r() - 0.5) * 30, (r() - 0.5) * 30, 15);   // the arms fly loose
+    fx.stiff = 0;
+  } else if ((!wh || wh === 'SA' || wh === 'RF' || wh === 'CG') && r() < 0.4) {
+    if (r() < 0.55) {
+      // Hit, he sinks to his knees, then pitches forward onto his face.
+      kick(2, -ca * 6, -sa * 6, -55); kick(7, ca * 30, sa * 30, 0); kick(8, ca * 26, sa * 26, 0);
+      for (const i of [0, 1, 3, 4]) kick(i, ca * 22 + dx * 8, sa * 22 + dy * 8, -6);
+      for (const i of [5, 6]) kick(i, ca * 10, sa * 10, 18);   // hands to the wound
+      fx.stiff = 0;
+    } else {
+      // Spun round by the hit, arms out, and down on his side.
+      const sp = (r() < 0.5 ? -1 : 1) * (90 + r() * 50), p = 25 + r() * 20;
+      kick(3, px * sp + dx * p, py * sp + dy * p, 8); kick(4, -px * sp + dx * p, -py * sp + dy * p, 8);
+      kick(5, px * sp * 1.6, py * sp * 1.6, 20); kick(6, -px * sp * 1.6, -py * sp * 1.6, 20);
+      kick(0, dx * p, dy * p, 0); kick(2, 0, 0, -20);
+      fx.stiff = r() < 0.5 ? 0.12 : 0;
+    }
   } else {
     // Knocked back at the chest; sometimes forward instead (hit from behind, or slumping).
     const dir = r() < 0.22 ? -0.6 : 1, p = (40 + r() * 50) * dir, twist = (r() - 0.5) * 50;
@@ -3693,7 +3828,7 @@ function ragdoll(e, wh, from) {
   fx.rest = RAG_STICKS.concat(RAG_STIFF).map(([i, j]) => Math.hypot(P[i * 3] - P[j * 3], P[i * 3 + 1] - P[j * 3 + 1], P[i * 3 + 2] - P[j * 3 + 2]));
   fx.minL = RAG_MIN.map(([i, j, f]) => Math.hypot(P[i * 3] - P[j * 3], P[i * 3 + 1] - P[j * 3 + 1], P[i * 3 + 2] - P[j * 3 + 2]) * f);
   if (fx.gun) fx.gun.Q = toPrev(fx.gun.P, fx.gun.V);
-  hooks.sfx(blast ? 'dieBlast' : wh === 'FIRE' ? 'dieFire' : 'die', e.x, e.y);
+  if (!(opt && opt.quiet)) hooks.sfx(blast ? 'dieBlast' : wh === 'FIRE' ? 'dieFire' : 'die', e.x, e.y);
   G.effects.push(fx);
 }
 // One fixed physics step for a set of points: gravity, damping, ground contact with friction
@@ -3808,6 +3943,7 @@ function crewBailOut(e) {
   const p = cellCenter(c), u = addUnit('rifle', G.teams[e.team], p.x, p.y);
   u.face = u.tface = e.face;
   setGuard(u);
+  return u;
 }
 const SURVIVORS_ESCAPE = 0.5, SURVIVOR_TECH = 1 / 3;
 function escapeSurvivors(b, sold) {
@@ -6553,6 +6689,7 @@ function updateEffects(dt) {
     else if (fx.type === 'eject') updateEject(fx, dt);
     else if (fx.type === 'ragdoll') updateRagdoll(fx, dt);
     else if (fx.type === 'turret') updateTurret(fx, dt);
+    else if (fx.type === 'wheel') updateWheel(fx, dt);
     else if (fx.type === 'expl' && fx.t >= 0 && fx.size >= 9 && !litFx.has(fx)) { litFx.add(fx); igniteTrees(fx.x, fx.y + 3, Math.max(12, fx.size * 1.4)); }
     else if (fx.type === 'flare' && fx.t >= 0) {
       fx.vx *= Math.exp(-1.4 * dt); fx.vy += (14 - fx.vy) * (1 - Math.exp(-1.2 * dt));   // drag, then a slow fall
@@ -6566,7 +6703,7 @@ function updateEffects(dt) {
     fx.t += dt;
     if (fx.drag && fx.t > 0) { const k = Math.exp(-fx.drag * dt); fx.vx *= k; fx.vy = fx.vy * k - 3 * (1 - k); }   // billowing smoke slows, then rises
     if (fx.type === 'smoke' && fx.t > 0) { const carry = Math.min(1, fx.t / 1.2) * dt; fx.x += wind.x * carry; fx.y += wind.y * carry; }
-    if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') {
+    if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret' && fx.type !== 'wheel') {
       // Smoke and flames rise: their climb is kept as a height (fx.lift), drawn straight up the screen whatever the camera
       // (ui.js), while wind and vx carry them over the ground.
       if (fx.type === 'smoke' || fx.type === 'fire' || fx.type === 'flakburst') fx.lift = (fx.lift || 0) - fx.vy * dt; else fx.y += fx.vy * dt;

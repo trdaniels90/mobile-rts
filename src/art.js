@@ -3342,6 +3342,35 @@ function drawEffect(g, fx) {
       g.restore(); g.globalAlpha = 1;
       break;
     }
+    case 'wheel': {
+      // A wheel torn off a vehicle (world.js updateWheel): its rim drawn as a disc turned in 3D (axle swung by hd, tipped by
+      // lean), so it shows round when side-on and thin when edge-on; a lighter hub and one bolt that turns as it rolls.
+      const fade = Math.min(1, (fx.life - fx.t) / 2), R = fx.r, hgt = fx.z / VK;
+      g.globalAlpha = fade;
+      const [shx, shy] = fromView(hgt * SHADOW_DX, hgt * SHADOW_DY * VIEW.F);
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(fx.x + shx, fx.y + shy + 0.5, R * 0.9, R * 0.5, 0, 0, 7); g.fill();
+      const ch = Math.cos(fx.hd), sh = Math.sin(fx.hd), cl = Math.cos(fx.lean), sl = Math.sin(fx.lean);
+      const ax = -sh * cl, ay = ch * cl, az = sl;                       // the axle
+      const ux = ch, uy = sh, vx = -az * uy, vy = az * ux, vz = ax * uy - ay * ux;   // two directions in the wheel's face
+      const disc = (rr, col, rot) => {
+        g.fillStyle = col; g.beginPath();
+        for (let i = 0; i < 12; i++) {
+          const q = i / 12 * Math.PI * 2 + (rot || 0), c = Math.cos(q) * rr, s2 = Math.sin(q) * rr;
+          const [px, py] = liftPt(fx.x + ux * c + vx * s2, fx.y + uy * c + vy * s2, fx.z + vz * s2);
+          if (i) g.lineTo(px, py); else g.moveTo(px, py);
+        }
+        g.fill();
+      };
+      const fl = fx.burn > 0 && Math.random() < 0.5;
+      disc(R + 0.5, '#121210');                                       // dark outline, so it reads against the ground
+      disc(R, fx.burn > 0 ? '#24221f' : '#3a3833');
+      disc(R * 0.55, '#8a8a80');
+      const c = Math.cos(fx.roll) * R * 0.3, s2 = Math.sin(fx.roll) * R * 0.3, [bx, by] = liftPt(fx.x + ux * c + vx * s2, fx.y + uy * c + vy * s2, fx.z + vz * s2);
+      g.fillStyle = '#9a9a90'; g.fillRect(Math.round(bx), Math.round(by), 1, 1);
+      if (fl) { const [fx2, fy2] = liftPt(fx.x, fx.y, fx.z + R); g.fillStyle = Math.random() < 0.5 ? 'rgba(255,170,60,0.85)' : 'rgba(255,110,30,0.85)'; g.fillRect(Math.round(fx2 - 1), Math.round(fy2 - 1), 2, 2); }
+      g.globalAlpha = 1;
+      break;
+    }
     case 'ring': {
       g.globalAlpha = 1 - k;
       g.strokeStyle = fx.color; g.lineWidth = 1;
