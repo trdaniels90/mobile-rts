@@ -4,6 +4,20 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.25.2', date: '25 November 2026', title: 'HD ground, wrecks back', groups: [
+    ['New', [
+      'HD ground: with HD graphics on, the ground and cliffs are drawn at twice the detail, and wrecks and fallen soldiers are as sharp as the units. On by default on computers. On phones it is off for now: turn it on in Options, Graphics, to try it (it uses four times the memory for the ground; if the game reloads mid-battle, turn it off).',
+    ]],
+    ['Fixed', [
+      'Wrecks and fallen soldiers stay on the battlefield again: the new craters were drawn over them.',
+    ]],
+    ['Improved', [
+      'Heavy and Mammoth Tanks have their own deeper gun sounds.',
+      'Map Editor: zoom in and out on a computer too, and + / − zoom buttons.',
+      'Storms now soak the ground: puddles, rivulets and water running off roofs while the storm rains.',
+      'Walls built at a slant run in two straight lines instead of a saw-tooth, and gates join walls on any side.',
+    ]],
+  ] },
   { v: '2026.11.25.1', date: '25 November 2026', title: 'HD graphics, Map Editor', groups: [
     ['New', [
       'HD graphics (Options, Graphics): sharp, smooth units and buildings instead of pixels. Models are rebuilt at four times the detail, the battle is drawn at twice the resolution, and shadows are soft. Off unless you turn it on. Uses more graphics power, and downloads about 24 MB the first time.',
