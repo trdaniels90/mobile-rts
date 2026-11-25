@@ -11,6 +11,54 @@ function rng(seed) {
   return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 }
 
+// HD graphics (owner, 2026-11-25: "go ahead ... as an HD option"; looks only, both modes). Off: the game as before. On (menu
+// Options, localStorage rh-hd; ?hd=1 / ?hd=0 for one load), with WebGL only: the frame is drawn at HD.K times the world's
+// pixels (gl.js R.rs) and the sprites come from sprites-hd/ (tools/bake-sprites.js --hd: the models built at 4x detail, the
+// pictures at 2x, soft shadows); what is not baked is rendered live at 2x (hdSprite below). A picture with _k > 1 holds
+// _k pixels per world pixel and is always drawn at its world size (hdArgs): code that places pictures keeps world units.
+const HD = (() => {
+  const q = typeof location !== 'undefined' ? location.search : '';
+  let pref = false;
+  try { pref = typeof localStorage !== 'undefined' && localStorage.getItem('rh-hd') === '1'; } catch (_) {}
+  if (/[?&]hd=1\b/.test(q)) pref = true;
+  if (/[?&]hd=0\b/.test(q)) pref = false;
+  const gl2 = typeof WebGL2RenderingContext !== 'undefined' && !/[?&]gl=off\b/.test(q) && !(typeof HEADLESS !== 'undefined' && HEADLESS);
+  return { K: 2, pref, on: pref && gl2 };
+})();
+// The frame's pixels per view pixel: 1, or HD.K while WebGL draws an HD frame (gl.js sets it; the 2D way keeps 1).
+let FRAME_RS = 1;
+const frameRound = (v) => (FRAME_RS > 1 ? Math.round(v * FRAME_RS) / FRAME_RS : Math.round(v));
+// drawImage's arguments for a picture of _k pixels per world pixel, so it covers its world size: (x, y) gets the size,
+// a source rectangle (given in world pixels, as for any sprite) is scaled to the picture's own.
+function hdArgs(img, a) {
+  const k = img._k, n = a.length;
+  if (n === 2) return [a[0], a[1], img.width / k, img.height / k];
+  if (n === 8) return [a[0] * k, a[1] * k, a[2] * k, a[3] * k, a[4], a[5], a[6], a[7]];
+  return a;
+}
+// The world-size height and width of a sprite's picture.
+const picW = (img) => img.width / (img._k || 1), picH = (img) => img.height / (img._k || 1);
+// A picture at one pixel per world pixel (for what is painted into the ground, which is at that size): HD ones made smaller once.
+const sdMemo = new WeakMap();
+function sdPic(img) {
+  if (!img || !(img._k > 1)) return img;
+  let c = sdMemo.get(img);
+  if (!c) {
+    c = mkCanvas(Math.max(1, Math.round(picW(img))), Math.max(1, Math.round(picH(img))));
+    const g = c.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, c.width, c.height);
+    if (img._ox !== undefined) { c._ox = img._ox; c._oy = img._oy; }
+    sdMemo.set(img, c);
+  }
+  return c;
+}
+// A cast shadow's mask softened (HD): blurred by about a world pixel, its edge fading instead of stepping.
+function softShadow(c, k) {
+  const P = Math.ceil(k * 1.5), o = mkCanvas(c.width + 2 * P, c.height + 2 * P), g = o.getContext('2d');
+  g.filter = `blur(${(k * 0.75).toFixed(2)}px)`; g.drawImage(c, P, P); g.filter = 'none';
+  o._pad = P;
+  return o;
+}
+
 // The iso view (voxel.js VIEW): the battle is drawn on a context whose transform takes world coordinates to the
 // turned, squashed view plane, which is right for the ground and everything lying on it. A sprite must stand upright,
 // so uprightCtx(g) makes g draw any rendered sprite (a picture with _ox / _oy, set by renderVox and SpriteSheets)
@@ -24,6 +72,15 @@ function uprightCtx(g) {
   // Only the transform changes for the one draw, so it alone is put back: a full save() / restore() for every
   // sprite, effect pixel and label was a quarter to two fifths of a big fight's frame on a large screen.
   g.drawImage = function (img, ...a) {
+    if (img && img._k > 1) {   // (HD: drawn at its world size)
+      if (a.length === 8 && img._ox !== undefined) {   // (a part of a sprite: anchored by the source rectangle in world pixels)
+        const b = hdArgs(img, a), m = g.getTransform(), ax = a[4] - img._ox - a[0], ay = a[5] - img._oy - a[1];
+        b[4] = frameRound(m.a * ax + m.c * ay + m.e + a[4] - ax); b[5] = frameRound(m.b * ax + m.d * ay + m.f + a[5] - ay);
+        g.setTransform(1, 0, 0, 1, 0, 0); di.call(g, img, ...b); g.setTransform(m);
+        return;
+      }
+      a = hdArgs(img, a);
+    }
     const sprite = img && img._ox !== undefined;
     if (!sprite && !g.upright) return di.call(g, img, ...a);
     const n = a.length, j = n === 8 ? 4 : 0, dx = a[j], dy = a[j + 1];
@@ -56,10 +113,10 @@ function uprightCtx(g) {
 function blit(g, s, x, y, shadow, on) {
   if (g.upright && g._upright) {
     const m = g.getTransform(), X = m.a * x + m.c * y + m.e, Y = m.b * x + m.d * y + m.f;
-    const px = on ? on[0] + Math.round(X - on[2]) : Math.round(X), py = on ? on[1] + Math.round(Y - on[3]) : Math.round(Y);
+    const R = frameRound, px = on ? on[0] + R(X - on[2]) : R(X), py = on ? on[1] + R(Y - on[3]) : R(Y);
     g.upright = false; g.setTransform(1, 0, 0, 1, 0, 0);
-    if (shadow !== false && s.sh) { g.globalAlpha = 0.45; g.drawImage(s.sh, px + Math.round(s.sox), py + Math.round(s.soy)); g.globalAlpha = 1; }
-    g.drawImage(s.img, px + Math.round(s.ox), py + Math.round(s.oy));
+    if (shadow !== false && s.sh) { g.globalAlpha = 0.45; g.drawImage(s.sh, px + R(s.sox), py + R(s.soy)); g.globalAlpha = 1; }
+    g.drawImage(s.img, px + R(s.ox), py + R(s.oy));
     g.setTransform(m); g.upright = true;
     return [px, py, X, Y];
   }
@@ -233,12 +290,20 @@ const SpriteSheets = (() => {
   // Manifests are always checked with the server (cache: 'no-cache') and each sheet is asked for with its bake's hash in the
   // address, so a browser's cached sheet from an older bake is never cut with a newer manifest's layout (owner, 2026-11-21:
   // after 2026.11.21.3 moved 456 sprites in allies0, a phone drew its own units from the wrong spots: invisible).
-  const manifest = () => manP || (manP = fetch('sprites/manifest.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).then((m) => (man = m)).catch(() => null));
+  // HD (HD.on): sprites-hd/ and normals-hd/, the same layout with pictures of man.k pixels per world pixel; if they are
+  // not there (an older copy of the files), the ordinary ones.
+  let dir = 'sprites/', ndir = 'normals/';
+  const getMan = (d) => fetch(d + 'manifest.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const manifest = () => manP || (manP = (async () => {
+    if (HD.on) { const m = await getMan('sprites-hd/'); if (m && m.k > 1) { dir = 'sprites-hd/'; ndir = 'normals-hd/'; return (man = m); } }
+    return (man = await getMan('sprites/'));
+  })());
   async function load(name) {
     const m = await manifest();
     const sh = m && m.sheets.find((x) => x.file.split('.')[0] === name);
     if (!sh) return;
-    const r = await fetch('sprites/' + sh.file + '?h=' + m.hash);
+    const K = m.k || 1;
+    const r = await fetch(dir + sh.file + '?h=' + m.hash);
     if (!r.ok) return;
     const bmp = await createImageBitmap(await r.blob());
     const cut = (x, y, w, h) => createImageBitmap(bmp, x, y, w, h);
@@ -246,17 +311,18 @@ const SpriteSheets = (() => {
     // if they were baked from these very sprites: each picture's goes with it (img._nrm), so it is not worked out in play.
     let nbmp = null;
     if (typeof GLR !== 'undefined' && GLR.on) {
-      const nm = await (nmanP || (nmanP = fetch('normals/manifest.json', { cache: 'no-cache' }).then((x) => (x.ok ? x.json() : null)).catch(() => null)));
+      const nm = await (nmanP || (nmanP = fetch(ndir + 'manifest.json', { cache: 'no-cache' }).then((x) => (x.ok ? x.json() : null)).catch(() => null)));
       const ns = nm && nm.sprites === m.hash && nm.sheets.find((x) => x.of === sh.file);
-      if (ns) { const r2 = await fetch('normals/' + ns.file + '?h=' + nm.hash).catch(() => null); if (r2 && r2.ok) nbmp = await createImageBitmap(await r2.blob()).catch(() => null); }
+      if (ns) { const r2 = await fetch(ndir + ns.file + '?h=' + nm.hash).catch(() => null); if (r2 && r2.ok) nbmp = await createImageBitmap(await r2.blob()).catch(() => null); }
     }
     for (let i = 0; i < sh.sprites.length; i += 64) {   // a few at a time, so loading never holds up a frame
       await Promise.all(sh.sprites.slice(i, i + 64).map(async (e) => {
         if (spriteCache2.has(e[0])) return;
         const s = { img: await cut(e[1], e[2], e[3], e[4]), ox: e[5], oy: e[6] };
         s.img._ox = e[5]; s.img._oy = e[6];   // (uprightCtx)
+        if (K > 1) s.img._k = K;
         if (nbmp) s.img._nrm = await createImageBitmap(nbmp, e[1], e[2], e[3], e[4]);
-        if (e.length > 7) { s.sh = await cut(e[7], e[8], e[9], e[10]); s.sox = e[11]; s.soy = e[12]; s.sh._ox = e[11]; s.sh._oy = e[12]; }
+        if (e.length > 7) { s.sh = await cut(e[7], e[8], e[9], e[10]); s.sox = e[11]; s.soy = e[12]; s.sh._ox = e[11]; s.sh._oy = e[12]; if (K > 1) s.sh._k = K; }
         if (spriteCache2.has(e[0])) return;
         spriteCache2.set(e[0], s);
         const mk = e[0].slice(0, e[0].lastIndexOf('|'));
@@ -276,9 +342,30 @@ const SpriteSheets = (() => {
     }
   }
   // ready(): every sheet asked for so far is in (ui.js holds a battle's start on it, briefly).
-  return { need, ready: () => pending === 0, get pending() { return pending; }, loaded: () => [...loaded], get manifest() { return man; } };
+  return { need, ready: () => pending === 0, get pending() { return pending; }, loaded: () => [...loaded], get manifest() { return man; }, get dir() { return dir; } };
 })();
 SpriteSheets.need(['allies0', 'soviets0', 'burnt']);   // the main colours, in the background from the start
+// HD: a sprite not in the baked sheets (a damaged structure, a turret head, a structure going up) is rendered here at HD.K
+// pixels per world pixel, with soft edges (not crisp) and a soft shadow; its offsets stay in world pixels. Not for what
+// is painted into the ground (FLAT_PASS), which is at one pixel per world pixel.
+if (HD.on && typeof sprite === 'function') {
+  const orig = sprite, K = HD.K;
+  sprite = function (mkey, build, angle, fkey, opts) {
+    if (FLAT_PASS) return orig(mkey, build, angle, fkey, opts);
+    const o = Object.assign({}, opts), div = o.fit ? K : (o.scale || 1) * K;
+    o.scale = (o.scale || 1) * K; o.fit = true; o.crisp = false;
+    const s = orig(mkey, build, angle, fkey, o);
+    if (!s || s._hd || !s.img || s.img._k || (typeof ImageBitmap !== 'undefined' && s.img instanceof ImageBitmap)) return s;   // (baked: as it is)
+    s._hd = true;
+    s.ox /= div; s.oy /= div; s.img._ox = s.ox; s.img._oy = s.oy; s.img._k = K;
+    if (s.sh) {
+      const sh = softShadow(s.sh, K);
+      s.sox = s.sox / div - sh._pad / K; s.soy = s.soy / div - sh._pad / K;
+      sh._ox = s.sox; sh._oy = s.soy; sh._k = K; sh._shade = s.sh._shade; s.sh = sh;
+    }
+    return s;
+  };
+}
 
 // The baked ground (tools/bake-ground.js): the fixed maps' ground (maps traced from a design, `rows` in MAPS) painted
 // once into pictures, grounds/<map>/<i>.webp in GROUND_SHEET squares (row by row) and grounds/<map>/preview.webp at a
@@ -749,6 +836,7 @@ function bakeRagdoll(tg, fx) {
   });
 }
 function dimmed(img) {
+  img = sdPic(img);
   const c = mkCanvas(img.width, img.height), g = c.getContext('2d');
   g.drawImage(img, 0, 0);
   g.globalCompositeOperation = 'source-atop';
@@ -767,6 +855,7 @@ function charred(img, seed) {
   return looks[v] || (looks[v] = charredLook(img, v * 7919 + 13));
 }
 function charredLook(img, seed) {
+  img = sdPic(img);   // (painted into the ground, at one pixel per world pixel)
   const r = rng(seed), c = mkCanvas(img.width, img.height), g = c.getContext('2d');
   c._ox = img._ox; c._oy = img._oy;   // (still a sprite to uprightCtx)
   g.drawImage(img, 0, 0);
@@ -2181,7 +2270,7 @@ function drawCraneHook(g, b, c, px, py, pz) {
 // ---------------------------------------------------------------------------
 let buildSweepT = 0;
 function drawBuildUp(g, b, s, x, y, k, selling, camo) {
-  const W = b.w * CELL, Hh = b.h * CELL, H = s.img.height, up = g.upright;
+  const W = b.w * CELL, Hh = b.h * CELL, H = picH(s.img), up = g.upright;
   const pal = palFor(b.faction), soviet = b.faction === 'soviets';
   const mdl = modelCache.get('S' + b.type + camoPal(b.faction, camo).key);
   const hFull = (mdl ? mdl.d : H / VK) * VK, hb = hFull * k + 3;
@@ -2253,7 +2342,7 @@ const RED_SPR = new WeakMap();
 function redSprite(s) {
   let r = RED_SPR.get(s);
   if (r) return r;
-  const c = document.createElement('canvas'); c.width = s.img.width; c.height = s.img.height;
+  const c = document.createElement('canvas'); c.width = s.img.width; c.height = s.img.height; c._k = s.img._k;
   const x = c.getContext('2d'); x.drawImage(s.img, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = '#ff2a1e'; x.fillRect(0, 0, c.width, c.height);
   r = { img: c, ox: s.ox, oy: s.oy };
   RED_SPR.set(s, r);
