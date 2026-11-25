@@ -3,6 +3,9 @@
 // To add a map: give it an entry here, then make `genMap` (world.js) lay it out when `G.mapId` is its id.
 // `teamSize` says which battles it is made for (BATTLES, battleFits): 2 for 2 v 2 and co-op, 3 for 3 v 3 too.
 // A map with `rows` is a fixed layout (`genLayoutMap`); make one from a picture with tools/map-from-image.py.
+// Owner's rules (2026-11-24): rain (`weather: { kind: 'rain', ... }`) only on the maps the owner names. Any map with rain
+// always gets the whole rain look: puddles and rivulets (look.js lookPuddles) and runoff from buildings (lookRunoff), never
+// gated per map. Every map's open water moves (look.js drawWater: waves and surf), except icy winter water and the fen's still pools.
 
 const MAPS = {
   bridge: {
@@ -418,9 +421,10 @@ const MAPS = {
   lakes: {
     name: 'Lakeside',
     img: 'maps/lakes.png',
-    blurb: 'A big island of lakes for 3 v 3. The north fights the south round the lakes in the middle: four bridges cross them, and narrow land joins the flanks. Every base has ore of its own, with gems behind each and out by the lakes. Some battles are fought in a thunderstorm.',
+    blurb: 'A big island of lakes for 3 v 3. The north fights the south round the lakes in the middle: four bridges cross them, and narrow land joins the flanks. Every base has ore of its own, with gems behind each and out by the lakes. North of the middle, a plateau ringed by cliffs looks down over a big ore field: one ramp up its back. Some battles are fought in a thunderstorm.',
     info: '192 × 192 cells · 6 start positions · made for 3 v 3',
     bridge: 'concrete',   // concrete bridges (art.js concreteBridge)
+    bridgeW: 4,   // its traced bridges (6 to 10 cells wide) trimmed to 4 across (world.js genLayoutMap; owner, 2026-11-24)
     weather: { kind: 'rain', chance: 0.5 },   // rolled per battle (rollWeather in art.js); looks only. Rain brings lightning (drawWeather)
     size: 192,   // cells a side: the design at twice its size (96 design cells, so each is 2 x 2 game cells; 96 until 2026.11.14.5, which ran out of ore)
     // The north (start positions 0-2) against the south (3-5); the design's two middle starts were removed (owner's call). Nearly symmetric by a half turn, so each start has a
@@ -435,6 +439,12 @@ const MAPS = {
     gems: [[23, 25, 3.2], [105, 21, 3.2], [169, 17, 3.2], [27, 163, 3.2], [109, 169, 3.2], [173, 161, 3.2], [21, 89, 3.2], [167, 95, 3.2],
       [85, 45, 3.5], [113, 139, 3.5], [61, 117, 3.5], [133, 77, 3.5]],
     spawns: [[35,33],[101,31],[157,25],[39,155],[101,159],[163,163]],
+    // High ground over the north-middle ore field (owner, 2026-11-24; world.js makeHeights): a block of cliff, flat at HG_MAX
+    // out to `top` cells from (x, y), dropping sheer to the low ground under its rim of rock out to `r` (the layout, from
+    // tools/lakes-mesa.py: keep its numbers the same; look.js cliffHeight raises the rim's crags to the top), and down a ramp
+    // `rampLen` cells long and `rampW` either side of its line, in direction `ramp` (north, the back, toward the north bases).
+    // `h`: the top's height as a share of HG_MAX (owner: "make the rock wall a little shorter").
+    mesas: [{ x: 103, y: 69, top: 9.5, r: 11.6, h: 0.75, ramp: [0, -1], rampW: 3.5, rampLen: 8 }],
     rows: [
       '192~',
       '192~',
@@ -487,41 +497,41 @@ const MAPS = {
       '14~2#36.2#16~4#58.10#8.16o4.2#20~',
       '14~2#36.2#16~4#58.10#8.16o4.2#20~',
       '12~2#38.2#20~6#46.6#10~4,2.10o2T6o4.2#20~',
-      '12~2#38.2#20~6#46.6#10~4,2.10o2T6o4.2#20~',
-      '12~2#14.2o2.14o6.2#26~4,8.4o30.2#16~2,4.16o4.6T16~',
-      '12~2#14.2o2.14o6.2#26~4,8.4o30.2#16~2,4.16o4.6T16~',
-      '12~2#6T6.2o2T14o6T4#28~2,22.2o2.2o12.4#18~6.12o2.2o2.8T2#12~',
-      '12~2#6T6.2o2T14o6T4#28~2,22.2o2.2o12.4#18~6.12o2.2o2.8T2#12~',
-      '12~2#8T4.18o8T30~2,12.10o2.4o12.2#20~2,4.4o2T10o2.10T12~',
-      '12~2#8T4.18o8T30~2,12.10o2.4o12.2#20~2,4.4o2T10o2.10T12~',
-      '12~2#8T4.6o2.8o2.6T2#26~4,10.4o2.8o2T10o6.2#20~2,6.4o2.6o6.2#4T2#12~',
-      '12~2#8T4.6o2.8o2.6T2#26~4,10.4o2.8o2T10o6.2#20~2,6.4o2.6o6.2#4T2#12~',
-      '16~6#12o2.4o6T2#30~2,6.2o2.24o10.2#22~2#2,2.12o10.4#12~',
-      '16~6#12o2.4o6T2#30~2,6.2o2.24o10.2#22~2#2,2.12o10.4#12~',
-      '20~2#4o2.2o2.6o2.8T30~2,8.8o2#2o6#8o2.2o6.2#24~2,4.10o10.2#14~',
-      '20~2#4o2.2o2.6o2.8T30~2,8.8o2#2o6#8o2.2o6.2#24~2,4.10o10.2#14~',
-      '18~2#4.10o4.2o8T32~2#4.2o2.6o10#8o8.4#24~2,6.4o4.2o8.2#14~',
-      '18~2#4.10o4.2o8T32~2#4.2o2.6o10#8o8.4#24~2,6.4o4.2o8.2#14~',
-      '18~2#4.14o8.2#32~2#6.8o4#6T12o6.2#24~2,6.2o4.2o10.2#14~',
-      '18~2#4.14o8.2#32~2#6.8o4#6T12o6.2#24~2,6.2o4.2o10.2#14~',
-      '18~2#2.6o2T4o4.2o8.2#30~2#4.10o4#8T2#8o8.2#22~2,12.2o10.2#14~',
-      '18~2#2.6o2T4o4.2o8.2#30~2#4.10o4#8T2#8o8.2#22~2,12.2o10.2#14~',
-      '18~2#18o10.2,30~2#2o4.4o2T2o4#8T4o2.2o10.2,22~2,24.2#14~',
-      '18~2#18o10.2,30~2#2o4.4o2T2o4#8T4o2.2o10.2,22~2,24.2#14~',
-      '18~2.2o2.14o8.2#32~2#2o6.6o12#8o12.4,4#2,4~4,6T24.2#14~',
-      '18~2.2o2.14o8.2#32~2#2o6.6o12#8o12.4,4#2,4~4,6T24.2#14~',
-      '16~4.4o2.14o6.2#32~2#2o6.12o6#8o18.2#8.2#8T24.2#12~',
-      '16~4.4o2.14o6.2#32~2#2o6.12o6#8o18.2#8.2#8T24.2#12~',
-      '14~4,4.8o2.4o10.2#32~4#6.22o2.2o30.8T24.2#12~',
-      '14~4,4.8o2.4o10.2#32~4#6.22o2.2o30.8T24.2#12~',
-      '12~4,30.6#30~2#8.12o2.10o62.2#12~',
-      '12~4,30.6#30~2#8.12o2.10o62.2#12~',
-      '12~2,38.4#26~24.4o4.2o62.2#12~',
-      '12~2,38.4#26~24.4o4.2o62.2#12~',
-      '12~2,40.2#24~10.2=18.6o64.2#10~',
-      '12~2,40.2#24~10.2=18.6o64.2#10~',
-      '12~2,42.2#24~2,2#6=8.8#72.2,10~',
-      '12~2,42.2#24~2,2#6=8.8#72.2,10~',
+      '12~2#38.2#20~6#20.6,2.o17.6#10~4,2.10o2T6o4.2#20~',
+      '12~2#14.2o2.14o6.2#26~4,8.4o4.6,2.3o15.2#16~2,4.16o4.6T16~',
+      '12~2#14.2o2.14o6.2#26~4,8.6o2.6,2.4o14.2#16~2,4.16o4.6T16~',
+      '12~2#6T6.2o2T14o6T4#28~2,7.2o.4o2.6,8o10.4#18~6.12o2.2o2.8T2#12~',
+      '12~2#6T6.2o2T14o6T4#28~2,8.6o2.6,8o10.4#18~6.12o2.2o2.8T2#12~',
+      '12~2#8T4.18o8T30~2,6.10o6,2.8o8.2#20~2,4.4o2T10o2.10T12~',
+      '12~2#8T4.18o8T30~2,5.11o6,2.9o7.2#20~2,4.4o2T10o2.10T12~',
+      '12~2#8T4.6o2.8o2.6T2#26~4,7.7o2.2#6,2#10o6.2#20~2,6.4o2.6o6.2#4T2#12~',
+      '12~2#8T4.6o2.8o2.6T2#26~4,6.8o4#3,2.,4#9o5.2#20~2,6.4o2.6o6.2#4T2#12~',
+      '16~6#12o2.4o6T2#30~2,6.9o4#8.4#8o5.2#22~2#2,2.12o10.4#12~',
+      '16~6#12o2.4o6T2#30~2,6.8o3#2T9.4#7o5.2#22~2#2,2.12o10.4#12~',
+      '20~2#4o2.2o2.6o2.8T30~2,6.7o3#T3.T9.3#7o4.2#24~2,4.10o10.2#14~',
+      '20~2#4o2.2o2.6o2.8T30~2,5.o.6o2#.8T4.3T2#o.5o4.2#24~2,4.10o10.2#14~',
+      '18~2#4.10o4.2o8T32~2#3.7o3#2.T2.T3.T3.T.2T2#.5o2.4#24~2,6.4o4.2o8.2#14~',
+      '18~2#4.10o4.2o8T32~2#3.7o2#4.T.5T5.T.2#2.4o2.4#24~2,6.4o4.2o8.2#14~',
+      '18~2#4.14o8.2#32~2#3.7o2#2.2T4.T9.2#7o3.2#24~2,6.2o4.2o10.2#14~',
+      '18~2#4.14o8.2#32~2#3.6o3#3.T4.2T7.T3#6o3.2#24~2,6.2o4.2o10.2#14~',
+      '18~2#2.6o2T4o4.2o8.2#30~2#3.6o3#T16.T.2#5o6.2#22~2,12.2o10.2#14~',
+      '18~2#2.6o2T4o4.2o8.2#30~2#3.6o2#4.T13.T3#6o5.2#22~2,12.2o10.2#14~',
+      '18~2#18o10.2,30~2#2o.6o3#.3T8.T5.3#6o5.2,22~2,24.2#14~',
+      '18~2#18o10.2,30~2#2o.7o2#2.2T7.T.T3.T2#7o5.2,22~2,24.2#14~',
+      '18~2.2o2.14o8.2#32~2#2o2.6o2#T6.T10.2#6o8.4,4#2,4~4,6T24.2#14~',
+      '18~2.2o2.14o8.2#32~2#2o.7o3#16.3#7o7.4,4#2,4~4,6T24.2#14~',
+      '16~4.4o2.14o6.2#32~2#2o2.7o3#15.2#7o14.2#8.2#8T24.2#12~',
+      '16~4.4o2.14o6.2#32~2#2o2.7o3#4.T4.T4.3#6o15.2#8.2#8T24.2#12~',
+      '14~4,4.8o2.4o10.2#32~4#2.8o4#7.T3.3#2.6o26.8T24.2#12~',
+      '14~4,4.8o2.4o10.2#32~4#3.8o3#7.T.4#o.6o27.8T24.2#12~',
+      '12~4,30.6#30~2#4.8o6#.7#9o59.2#12~',
+      '12~4,30.6#30~2#4.10o10#10o60.2#12~',
+      '12~2,38.4#26~6.o.7o4.4#.10o62.2#12~',
+      '12~2,38.4#26~8.9o7.11o61.2#12~',
+      '12~2,40.2#24~10.2=24o64.2#10~',
+      '12~2,40.2#24~10.2=24o64.2#10~',
+      '12~2,42.2#24~2,2#6=.7o8#4o68.2,10~',
+      '12~2,42.2#24~2,2#6=6.2o8#3o69.2,10~',
       '12~2,42.2#26~8=2#6,6~2#70.2,12~',
       '12~2,42.2#26~8=2#6,6~2#70.2,12~',
       '14~2#42.2#22~8=2#12~2#14.2#54.2,14~',
@@ -1385,6 +1395,22 @@ const MAPS = {
 const DEFAULT_MAP = 'bridge';
 const MAP_LIST = Object.keys(MAPS);
 const validMap = (id) => (MAPS[id] ? id : DEFAULT_MAP);
+// Maps made in the map editor (editor.js; owner, 2026-11-25): kept on this device (localStorage), each a MAPS entry with
+// `custom: true` and an id starting 'my-'. Put into MAPS and MAP_LIST as the page loads, so the skirmish screen, Explore,
+// saved games and continuing them all find them. Not offered online (the other players and the server do not have them).
+const CustomMaps = (() => {
+  const KEY = 'rh-custom-maps';
+  const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (_) { return {}; } };
+  const write = (all) => { try { localStorage.setItem(KEY, JSON.stringify(all)); return true; } catch (_) { return false; } };
+  const add = (id, m) => { MAPS[id] = Object.assign(m, { custom: true }); if (!MAP_LIST.includes(id)) MAP_LIST.push(id); };
+  for (const [id, m] of Object.entries(read())) if (m && m.rows && m.spawns) add(id, m);
+  return {
+    list: () => Object.keys(read()),
+    get: (id) => read()[id] || null,
+    save(id, m) { const all = read(); all[id] = m; if (!write(all)) return false; add(id, JSON.parse(JSON.stringify(m))); return true; },
+    remove(id) { const all = read(); delete all[id]; write(all); delete MAPS[id]; const i = MAP_LIST.indexOf(id); if (i >= 0) MAP_LIST.splice(i, 1); },
+  };
+})();
 // A map's size in cells (MAP while it is played, see setMapSize).
 const mapSize = (id) => MAPS[validMap(id)].size || 144;
 // A map's look: 'snow', or undefined for the green summer one.
@@ -1414,35 +1440,44 @@ function battleFits(mapId, mode, any = ANY_BATTLE) {
 }
 
 // Buttons for every map, the chosen one pressed (data-map holds the id). `cls` styles the group.
-// mode (optional): maps not made for that battle are shown but cannot be picked.
-function mapCardsHtml(selected, cls = '', mode = null) {
+// mode (optional): maps not made for that battle are shown but cannot be picked; with `only`, they are left out.
+// Each card names the largest battle the map is made for.
+// online: leave out the maps made on this device (CustomMaps).
+function mapCardsHtml(selected, cls = '', mode = null, only = false, online = false) {
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  return `<div class="pick maps ${cls}" role="group" aria-label="Map">${MAP_LIST.map((id) =>
-    `<button type="button" data-map="${id}" aria-pressed="${id === selected}"${mode && !battleFits(id, mode) ? ' disabled' : ''}>${MAPS[id].img ? `<img class="map-img" src="${MAPS[id].img}" alt="" width="224" height="224">` : ''}<span>${esc(MAPS[id].name)}</span><small>${esc(MAPS[id].info)}. ${esc(MAPS[id].blurb)}</small></button>`).join('')}</div>`;
+  const ids = (only && mode ? MAP_LIST.filter((id) => battleFits(id, mode)) : MAP_LIST).filter((id) => !online || !MAPS[id].custom);
+  const most = (id) => { const n = Math.max(1, ...['1v1', '2v2', '3v3'].filter((k) => battleFits(id, k)).map((k) => BATTLES[k].size)); return `${n} v ${n}`; };
+  return `<div class="pick maps ${cls}" role="group" aria-label="Map">${ids.map((id) =>
+    `<button type="button" data-map="${id}" aria-pressed="${id === selected}"${mode && !battleFits(id, mode) ? ' disabled' : ''}>${MAPS[id].img ? `<img class="map-img" src="${MAPS[id].img}" alt="" width="224" height="224">` : ''}<span>${esc(MAPS[id].name)} <em class="map-size">up to ${most(id)}</em></span><small>${esc(MAPS[id].info)}. ${esc(MAPS[id].blurb)}</small></button>`).join('')}</div>`;
 }
 
-// The skirmish map screen: MapSelect.open(selectedId, (id) => start the game).
+// The skirmish screen: MapSelect.open(selectedId, mode, setupEl, (id, mode, watch) => start the game).
+// Tabs along the top pick the battle (1 v 1, 2 v 2, 3 v 3: you and computer allies against computers) and show only
+// the maps made for it; setupEl (ui.js: the side and difficulty pickers) is put above the maps.
 const MapSelect = (() => {
   let root = null, chosen = DEFAULT_MAP, go = null, mode = '1v1';
-  // The battle: 1 v 1 against the computer, or a team battle (you and computer allies against computers),
-  // only those the chosen map is made for.
-  const modes = () => Object.keys(BATTLES).filter((k) => BATTLES[k].skirmish && battleFits(chosen, k)).map((k) => [k, BATTLES[k].skirmish]);
+  const TABS = Object.keys(BATTLES).filter((k) => BATTLES[k].skirmish);
   function render() {
-    if (!battleFits(chosen, mode)) mode = '1v1';
-    const MODES = modes();
-    root.querySelector('.map-body').innerHTML = mapCardsHtml(chosen) +
-      `<div class="on-modes" role="radiogroup" aria-label="Battle">${MODES.map(([k, l]) => `<button type="button" class="pf-btn${k === mode ? ' on-go' : ''}" role="radio" aria-checked="${k === mode}" data-mode="${k}">${l}</button>`).join('')}</div>` +
-      '<div class="on-btns"><button type="button" class="pf-btn on-go" data-map-go>Start skirmish</button>' +
-      (typeof Account !== 'undefined' && Account.owner ? ' <button type="button" class="pf-btn" data-map-watch>Watch AI vs AI · ' + battleOf(mode).label + ' (every side a computer)</button>' : '') + '</div>';
+    if (!TABS.includes(mode)) mode = '1v1';
+    if (!battleFits(chosen, mode)) chosen = MAP_LIST.find((id) => battleFits(id, mode)) || chosen;
+    root.querySelector('.fm-tabs').innerHTML = TABS.map((k) =>
+      `<button type="button" role="tab" data-mode="${k}" aria-selected="${k === mode}" aria-current="${k === mode}">${BATTLES[k].label}</button>`).join('');
+    const n = MAP_LIST.filter((id) => battleFits(id, mode)).length;
+    root.querySelector('.map-mode').textContent = `${BATTLES[mode].skirmish}: ${n} map${n === 1 ? '' : 's'}`;
+    root.querySelector('.map-body').innerHTML = mapCardsHtml(chosen, '', mode, true);
+    root.querySelector('.map-btns').innerHTML = `<button type="button" class="mm-btn mm-go" data-map-go>Start ${BATTLES[mode].label}</button>` +
+      '<button type="button" class="pf-btn" data-map-explore>Explore this map · empty, no fog of war</button>' +
+      (typeof Account !== 'undefined' && Account.owner ? '<button type="button" class="pf-btn" data-map-watch>Watch AI vs AI · ' + battleOf(mode).label + ' (every side a computer)</button>' : '');
   }
   function build() {
     root = document.createElement('div');
     root.id = 'maps';
     root.hidden = true;
-    root.innerHTML = `<div class="fm-book" role="dialog" aria-modal="true" aria-labelledby="mapTitle">
-      <header class="fm-top"><span class="fm-brand">Skirmish</span><div class="fm-tabs"></div>
+    root.innerHTML = `<div class="fm-book mm-book" role="dialog" aria-modal="true" aria-labelledby="mapTitle">
+      <header class="fm-top"><span class="fm-brand" id="mapTitle">Skirmish</span><div class="fm-tabs mm-tabs" role="tablist" aria-label="Battle"></div>
         <button type="button" class="fm-close" aria-label="Close">✕</button></header>
-      <div class="fm-page"><h2 id="mapTitle">Choose a map</h2><div class="map-body"></div></div>
+      <div class="fm-page mm-page"><div class="map-setup"></div><h3 class="map-mode"></h3><div class="map-body"></div></div>
+      <footer class="fm-foot map-btns"></footer>
     </div>`;
     document.body.appendChild(root);
     root.addEventListener('click', (e) => {
@@ -1450,14 +1485,16 @@ const MapSelect = (() => {
       const card = e.target.closest('[data-map]');
       if (card) { chosen = validMap(card.dataset.map); render(); return; }
       const m = e.target.closest('[data-mode]');
-      if (m) { mode = m.dataset.mode; render(); return; }
+      if (m) { mode = m.dataset.mode; render(); root.querySelector('.fm-page').scrollTop = 0; return; }
       if (e.target.closest('[data-map-go]')) { const f = go; close(); if (f) f(chosen, mode); }
+      if (e.target.closest('[data-map-explore]')) { const f = go; close(); if (f) f(chosen, mode, 'explore'); }   // (ui.js startExplore)
       if (e.target.closest('[data-map-watch]')) { const f = go; close(); if (f) f(chosen, mode, true); }   // (owner only: ui.js startWatch)
     });
   }
-  function open(selected, onGo) {
+  function open(selected, selMode, setupEl, onGo) {
     if (!root) build();
-    chosen = validMap(selected); go = onGo;
+    chosen = validMap(selected); mode = selMode || '1v1'; go = onGo;
+    if (setupEl) { root.querySelector('.map-setup').appendChild(setupEl); setupEl.hidden = false; }
     render();
     root.hidden = false;
   }

@@ -28,7 +28,8 @@ let hooks = { eva() {}, evaFor() {}, gameOver() {}, sfx() {}, shake() {} };
 // sides (optional, for team games): one entry per side, { faction, ally, ai, name }. Sides with the
 // same `ally` fight together and share what they have uncovered (their G.fog entries are one array).
 // Without it: the classic 1 v 1, this device's side (me) against the computer (or, pvp, a person).
-function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId = DEFAULT_MAP, sides = null) {
+// empty: the map explorer (ui.js startExplore): no starting bases or units, and no battle to win or lose (G.explore).
+function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId = DEFAULT_MAP, sides = null, empty = false) {
   seed = seed || (Math.random() * 1e9) | 0;
   mapId = validMap(mapId);
   setMapSize(mapSize(mapId));
@@ -89,7 +90,8 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
   newGround(G);
   G.weather = rollWeather(mapId, seed);   // rain or snow for this battle, or none (looks only; art.js drawWeather)
 
-  for (const team of G.teams) {
+  if (empty) { G.explore = true; for (const t of G.teams) t.isAI = false; }
+  else for (const team of G.teams) {
     const b = addBuilding('cy', team, team.start.cx - 1, team.start.cy - 1);
     b.buildT = 1;
     const a = Math.atan2(MID - team.start.cy, MID - team.start.cx);   // out toward the middle
@@ -199,6 +201,7 @@ function makeHeights(mapId) {
   // A map with `plateau` (Heron Fen): every base on a high plateau, flat out to r cells, falling to the low ground over
   // ease (its cliffs and ramps are in the layout); the low ground only gentle swells (low x the usual hills).
   const pl = MAPS[validMap(mapId)].plateau;
+  const mesas = MAPS[validMap(mapId)].mesas || [];
   for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
     const c = y * MAP + x;
     let v = raw(x + 0.5, y + 0.5);
@@ -206,6 +209,15 @@ function makeHeights(mapId) {
       v *= pl.low;
       for (const p of sp) { const d = Math.hypot(x - p.cx, y - p.cy); v = Math.max(v, HG_MAX * (1 - S(Math.max(0, Math.min(1, (d - pl.r) / pl.ease))))); }
     } else for (const [fx, fy, fh] of flat) { const d = Math.hypot(x + 0.5 - fx, y + 0.5 - fy); if (d < BASE_FLAT + BASE_EASE) { const k = S(Math.max(0, Math.min(1, (d - BASE_FLAT) / BASE_EASE))); v = fh + (v - fh) * k; } }
+    for (const m of mesas) {   // a map's `mesas`: high ground ringed by cliff, with a ramp (Lakeside)
+      const dx = x + 0.5 - m.x, dy = y + 0.5 - m.y, d = Math.hypot(dx, dy);
+      const T = HG_MAX * (m.h || 1);   // the top's height
+      v *= S(Math.max(0, Math.min(1, (d - m.r) / 6)));   // the low ground round its foot level, so its walls are as tall all round
+      v = Math.max(v, T * (1 - S(Math.max(0, Math.min(1, (d - m.top) / (m.r - m.top))))));   // sheer: down under the rim's rock
+      const along = dx * m.ramp[0] + dy * m.ramp[1], across = Math.abs(-dx * m.ramp[1] + dy * m.ramp[0]);
+      if (along > 0) v = Math.max(v, T * (1 - S(Math.max(0, Math.min(1, (along - m.top) / m.rampLen))))
+        * (1 - S(Math.max(0, Math.min(1, (across - m.rampW) / 2)))));
+    }
     v *= S(Math.min(1, (wd[c] === 255 ? 6 : wd[c]) / 5));   // down to the water's edge
     h[c] = G.terr[c] >= 4 ? 0 : v;
   }
@@ -511,6 +523,25 @@ function genLayoutMap(m) {
     if (!wet) fordOff.push(c);
   }
   if (!m.marsh) for (const c of fordOff) { G.ford[c] = 0; T[c] = 1; }   // (a fen's shallows stay wherever they are)
+  // Bridges no wider than m.bridgeW cells (Lakeside, owner 2026-11-24: "these two bridges are huge they need to be smaller"):
+  // each run of deck cells keeps a band that wide along its main axis (as the bridge is drawn below); the rest is lake.
+  if (m.bridgeW) {
+    const seen = new Uint8Array(NCELLS);
+    for (let c0 = 0; c0 < NCELLS; c0++) {
+      if (T[c0] !== 5 || G.ford[c0] || seen[c0]) continue;
+      const cells = [c0]; seen[c0] = 1;
+      for (let i = 0; i < cells.length; i++) for (const [dx, dy] of DIRS8) {
+        const x = cellX(cells[i]) + dx, y = cellY(cells[i]) + dy;
+        if (inMap(x, y) && T[idx(x, y)] === 5 && !G.ford[idx(x, y)] && !seen[idx(x, y)]) { seen[idx(x, y)] = 1; cells.push(idx(x, y)); }
+      }
+      const xs = cells.map(cellX), ys = cells.map(cellY), mx = xs.reduce((s, v) => s + v, 0) / xs.length, my = ys.reduce((s, v) => s + v, 0) / ys.length;
+      let sxx = 0, syy = 0, sxy = 0;
+      xs.forEach((x, i) => { sxx += (x - mx) ** 2; syy += (ys[i] - my) ** 2; sxy += (x - mx) * (ys[i] - my); });
+      const ang = Math.atan2(2 * sxy, sxx - syy) / 2, ux = Math.cos(ang), uy = Math.sin(ang);
+      const across = xs.map((x, i) => -(x - mx) * uy + (ys[i] - my) * ux), mid = (Math.max(...across) + Math.min(...across)) / 2;
+      cells.forEach((c, i) => { if (Math.abs(across[i] - mid) > m.bridgeW / 2) T[c] = 4; });
+    }
+  }
   // Ground cleared for each start position's Construction Yard.
   for (const s of G.spawns) for (let y = s.cy - 3; y <= s.cy + 3; y++) for (let x = s.cx - 3; x <= s.cx + 3; x++) {
     if (inMap(x, y) && Math.hypot(x - s.cx, y - s.cy) < 3.2 && T[idx(x, y)] <= 3) T[idx(x, y)] = 1;
@@ -688,12 +719,16 @@ function wallLine(kind, x0, y0, x1, y1) {
     const dx = ay > ax ? 0 : Math.sign(x1 - x0) || 1, dy = ay < ax ? 0 : Math.sign(y1 - y0);
     return inMap(x0 - dx, y0 - dy) && inMap(x0 + dx, y0 + dy) ? [idx(x0 - dx, y0 - dy), idx(x0, y0), idx(x0 + dx, y0 + dy)] : [];
   }
-  // A slanted line steps diagonally where it must (one piece a step, so a diagonal wall looks straight in the iso view):
-  // nothing slips between two pieces that touch at a corner (findPath, tryMove and los treat such a corner as shut).
-  const out = [], n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+  // A slanted line is laid as two straight runs, a diagonal one and a straight one, the longer first: mixing the two kinds of
+  // step along the way drew a saw-tooth in the iso view. One piece a step; nothing slips between two pieces that touch at a
+  // corner (findPath, tryMove and los treat such a corner as shut).
+  const out = [], ax = Math.abs(x1 - x0), ay = Math.abs(y1 - y0), sx = Math.sign(x1 - x0), sy = Math.sign(y1 - y0);
+  const nd = Math.min(ax, ay), ns = Math.max(ax, ay) - nd, st = ax > ay ? [sx, 0] : [0, sy];
+  const runs = nd >= ns ? [[[sx, sy], nd], [st, ns]] : [[st, ns], [[sx, sy], nd]];
   const add = (x, y) => { if (out.length < WALL_LINE_MAX && inMap(x, y)) out.push(idx(x, y)); };
-  add(x0, y0);
-  for (let i = 1; i <= n; i++) add(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n));
+  let x = x0, y = y0;
+  add(x, y);
+  for (const [[dx, dy], n] of runs) for (let i = 0; i < n; i++) { x += dx; y += dy; add(x, y); }
   return out;
 }
 // A gate may also be laid over pieces of the side's own wall (sandbags, wire, concrete; not another gate), so a player
@@ -977,7 +1012,8 @@ function applySpans(list) {
 const HOUSE_SPLASH = 12;   // px round a shell, rocket or missile hitting the ground that reaches a house
 const HOUSE_LOOKS = 6;     // designs per footprint in a battle (models.js houseModel), so a village has a few dozen looks
 function genVillage(m, seed) {
-  if (!m.village || !m.lots) return;
+  if (!m.village || !(m.lots || m.houses)) return;
+  const lots = m.lots || [];
   const r = rng(seed ^ 0x1f0a77e5), taken = new Uint8Array(NCELLS), look = () => (seed * 31 + ((r() * HOUSE_LOOKS) | 0)) >>> 0;
   const free = (x0, y0, w, h, L) => {
     if (x0 < L[0] || y0 < L[1] || x0 + w - 1 > L[2] || y0 + h - 1 > L[3]) return false;
@@ -998,20 +1034,24 @@ function genVillage(m, seed) {
     G.houses.push(h1); G.byId.set(h1.id, h1);
     setHouse(h1, true);
   };
+  // Houses placed one by one (maps made in the map editor, editor.js): [x0, y0, w, h, kind] (kind 'house', 'church0',
+  // 'church1' (the tower's end), 'fountain'), where they fit (on open ground, not overlapping).
+  const fits = (x0, y0, w, h) => { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) if (!inMap(x, y) || taken[idx(x, y)] || G.terr[idx(x, y)] > 1 || G.ore[idx(x, y)]) return false; return true; };
+  for (const [x0, y0, w, h, kind] of m.houses || []) if (fits(x0, y0, w, h)) put(x0, y0, w, h, kind || 'house');
   // The fountain in the middle of each square.
   for (const [a, b, c, d] of villageSquares(m)) put(Math.round((a + c + 1) / 2) - 2, Math.round((b + d + 1) / 2) - 2, 4, 4, 'fountain');
   // The church: on one of the long plots beside the square, its tower toward the square. A map of several villages
   // (`squares`) has one in each, on a plot of 4 x 6 or more within 3 cells of its square, lying along the plot.
   if (m.squares) for (const [a, b, c, d] of m.squares) {
     const sx = (a + c + 1) / 2, sy = (b + d + 1) / 2, gap = (L) => Math.max(a - L[2], L[0] - c, b - L[3], L[1] - d, 0);
-    const fit = m.lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) >= 3 && Math.max(L[2] - L[0], L[3] - L[1]) >= 5 && gap(L) <= 3);
+    const fit = lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) >= 3 && Math.max(L[2] - L[0], L[3] - L[1]) >= 5 && gap(L) <= 3);
     if (!fit.length) continue;
     const L = fit[(r() * fit.length) | 0], tall = L[3] - L[1] > L[2] - L[0];
     const w = tall ? 4 : 6, h = tall ? 6 : 4, mx = (L[0] + L[2] + 1) / 2, my = (L[1] + L[3] + 1) / 2, near = tall ? my < sy : mx < sx;
     const x0 = tall ? L[0] + ((L[2] - L[0] + 1 - w) >> 1) : near ? L[2] - w + 1 : L[0], y0 = tall ? (near ? L[3] - h + 1 : L[1]) : L[1] + ((L[3] - L[1] + 1 - h) >> 1);
     if (free(x0, y0, w, h, L)) put(x0, y0, w, h, 'church' + (near ? 1 : 0));
   }
-  const longLots = m.squares ? [] : m.lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) === 3);
+  const longLots = m.squares || m.houses ? [] : lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) === 3);
   if (longLots.length) {
     const L = longLots[(r() * longLots.length) | 0], tall = L[3] - L[1] > L[2] - L[0];
     const w = tall ? 4 : 6, h = tall ? 6 : 4, mx = (L[0] + L[2]) / 2, my = (L[1] + L[3]) / 2;
@@ -1019,7 +1059,7 @@ function genVillage(m, seed) {
     put(tall ? L[0] : toward, tall ? toward : L[1], w, h, 'church' + ((tall ? my : mx) < (MAP - 1) / 2 ? 1 : 0));
   }
   const SIZES = [[2, 2], [2, 2], [3, 2], [2, 3], [3, 2], [2, 3], [3, 3], [4, 2], [2, 4]];
-  for (const L of m.lots) {
+  for (const L of lots) {
     const fill = 0.6 + r() * 0.4, area = (L[2] - L[0] + 1) * (L[3] - L[1] + 1);
     let used = 0;
     for (let tries = 0; tries < 160 && used < area * fill * 0.8; tries++) {
@@ -1830,7 +1870,7 @@ function addUnit(type, team, x, y) {
     stuckN: 0, lastX: x, lastY: y, stuckT: 0,
   };
   u.tface = u.face; u.born = G.t;
-  if (!d.harvester && !d.scripted && type !== 'pilot') team.stats.units++;
+  if (!d.harvester && !d.scripted && type !== 'pilot' && type !== 'technician') team.stats.units++;
   if (d.harvester) { u.load = 0; u.hs = 'seek'; u.hcell = -1; u.htimer = 0; }
   if (d.cls === 'air') { u.ammo = d.weapon ? d.weapon.ammo : 0; u.aam = d.weapon2 ? d.weapon2.ammo : 0; u.guns = d.gun ? d.gun.runs : 0; u.flares = d.flares || 0; u.alt = 0; u.as = 'takeoff'; u.rt = 0; u.passT = 0; u.speedCur = 0; }
   G.entities.push(u); G.byId.set(u.id, u);
@@ -3586,7 +3626,7 @@ function kill(e, attacker, wh, from) {
       rubble(G.tctx, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL, seed);
       if (!e.def.defense || e.w * e.h > 1) craterAt(e.x, e.y, 6 + Math.min(4, e.w * e.h * 0.5));   // its fall digs a crater (digCrater)
       notify(team, 'slost', 'Structure lost', 4);
-    }
+    } else escapeSurvivors(e, true);   // sold: the staff walk out
   }
 }
 
@@ -3640,7 +3680,7 @@ function ragdoll(e, wh, from) {
     if (wh === 'TESLA') { G.effects.push({ type: 'spark', x: e.x, y: e.y, lift: 8 * INF_SCALE, t: 0, life: 0.3 }); fx.burnt = true; fx.shock = 0.5 + r() * 0.3; }
   }
   // The weapon, flung loose from the hands.
-  const wl = (e.type === 'rocket' ? 12 : e.type === 'sniper' ? 13 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'engineer' ? 0 : 8) * INF_SCALE;
+  const wl = (e.type === 'rocket' ? 12 : e.type === 'sniper' ? 13 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'technician' || e.type === 'engineer' ? 0 : 8) * INF_SCALE;
   if (wl) {
     const hx = P[18], hy = P[19], hz = (e.type === 'rocket' ? 15 : 10) * INF_SCALE;
     fx.gun = { P: new Float32Array([hx - ca * wl / 2, hy - sa * wl / 2, hz, hx + ca * wl / 2, hy + sa * wl / 2, hz + 0.5]), len: wl };
@@ -3755,7 +3795,9 @@ function deployFob(u) {
   return b;
 }
 
-// Soldiers stumble out of a destroyed structure and join the defence: more from bigger buildings.
+// People get out of a structure as it goes: more from bigger buildings, Rifle Infantry and Technicians (about one in three).
+// Sold, they all walk out unhurt; destroyed, there is a SURVIVORS_ESCAPE chance anyone gets out at all, and those who do
+// are hurt (25-50% health). Owner's rules, 2026-11-25, both modes.
 // A destroyed ground vehicle that did not cook off may leave one rifleman: the crew scrambles out of the
 // wreck and stands guard. Made on the host only (a PvP guest gets the unit in a snapshot).
 const CREW_SURVIVES = 1 / 3;
@@ -3767,14 +3809,17 @@ function crewBailOut(e) {
   u.face = u.tface = e.face;
   setGuard(u);
 }
-function escapeSurvivors(b) {
-  if (WIPING) return;   // a defeated side's wreckage leaves no survivors
+const SURVIVORS_ESCAPE = 0.5, SURVIVOR_TECH = 1 / 3;
+function escapeSurvivors(b, sold) {
+  if (WIPING || G.remote) return;   // a defeated side's wreckage leaves no survivors; a PvP guest gets them in a snapshot
+  if (!sold && Math.random() >= SURVIVORS_ESCAPE) return;
   const team = G.teams[b.team], n = b.type === 'cy' ? 4 : Math.min(3, Math.max(1, Math.round(b.w * b.h / 2)));
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2;
     const c = nearestFreeCell(cellOfPos(b.x + Math.cos(a) * b.w * CELL * 0.6, b.y + Math.sin(a) * b.h * CELL * 0.6), 4);
     if (c < 0) continue;
-    const p = cellCenter(c), u = addUnit('rifle', team, p.x + (Math.random() - 0.5) * 8, p.y + (Math.random() - 0.5) * 8);
+    const p = cellCenter(c), u = addUnit(Math.random() < SURVIVOR_TECH ? 'technician' : 'rifle', team, p.x + (Math.random() - 0.5) * 8, p.y + (Math.random() - 0.5) * 8);
+    if (!sold) u.hp = Math.max(1, Math.round(u.maxHp * (0.25 + Math.random() * 0.25)));
     u.face = u.tface = a;
     setGuard(u);
   }
@@ -4076,7 +4121,7 @@ function updateUnit(u, dt) {
       // Whoever fired on this unit is chased a little past its own reach; anything else is
       // dropped once out of sight.
       // Long-range guns guarding an area fire at whatever their side has in view within reach.
-      const far = o.type === 'guard' && o.hold && w && wRange(u, w) > sight;
+      const far = o.type === 'guard' && o.hold && !o.amove && w && wRange(u, w) > sight;
       const spot = !far && spotter(u);   // (Artillery, V2: whatever its side sees in reach)
       const avenging = u.target && u.target === u.avenge;
       const spotted = spot && u.target && distTo(u, u.target) <= wRange(u, w) && spottedBy(u.team)(u.target);
@@ -4086,7 +4131,7 @@ function updateUnit(u, dt) {
       // second (they ran back and forth without getting anywhere).
       const told = u.defending && u.target && u.target.kind === 'unit' && (teamOf(u).raiders || []).includes(u.target.id);
       if (u.target && !told && distTo(u, u.target) > reach) u.target = null;
-      if (o.type === 'guard' && u.target && !avenging && !told && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : spotted ? Math.max(sight * 1.6, wRange(u, w)) : sight * 1.6)) u.target = null;
+      if (o.type === 'guard' && !o.amove && u.target && !avenging && !told && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : spotted ? Math.max(sight * 1.6, wRange(u, w)) : sight * 1.6)) u.target = null;
       if (!u.target || u.target.kind === 'bld') {
         const t = far ? acquire(u, wRange(u, w), [w, u.def.weapon2], teamOf(u).isAI ? null : inViewOf(u.team)) :
           (spot && acquire(u, sight, [w, u.def.weapon2])) || (spot ? acquire(u, wRange(u, w), [w], spottedBy(u.team)) : acquire(u, sight, [w, u.def.weapon2]));
@@ -4098,6 +4143,8 @@ function updateUnit(u, dt) {
           const b = nearestEnemyBuilding(u);
           if (!b) nothingKnown(u);
           else if (u.huntTarget !== b || (!u.dest && !u.needPath)) { u.huntTarget = b; goTo(u, b.x, b.y); }
+        } else if (o.amove && !u.dest && !u.needPath && Math.hypot(u.x - o.x, u.y - o.y) <= CELL * 1.5) {
+          o.amove = false;   // an attack move that has arrived: it holds the spot like a Guard order
         } else if (!u.dest && !u.needPath && Math.hypot(u.x - o.x, u.y - o.y) > 24) {
           // Shoved off its spot by friends: if one of them stands there now, it guards from where it is (walking back shoved that one
           // off in turn, and a crowd of waiting units ran back and forth for minutes: 234 such units in a 30-minute 2 v 2).
@@ -5187,7 +5234,7 @@ function unloadOne(h, ai) {
   if (!freeCell(c)) c = nearestFreeCell(cellOfPos(h.x, h.y), 4);
   const p = c >= 0 ? cellCenter(c) : { x: h.x, y: h.y };
   const u = addUnit(r.type, team, h.x + (p.x - h.x) * 0.4, h.y + (p.y - h.y) * 0.4);
-  if (r.type !== 'pilot') team.stats.units--;   // counted when it was trained
+  if (r.type !== 'pilot' && r.type !== 'technician') team.stats.units--;   // counted when it was trained
   u.hp = Math.min(u.maxHp, r.hp); u.rank = r.rank || 0; u.kills = r.kills || 0; u.killWorth = r.kw || 0; u.born = r.born;
   u.face = u.tface = Math.atan2(p.y - h.y, p.x - h.x);
   if (ai === 'guard') { setGuard(u, p.x, p.y); u.staged = true; }
@@ -6034,7 +6081,7 @@ function logWave(team, big) {
 // A side with nothing left to fight with is out (`out`); the battle ends when only one alliance has a
 // side still in it. The winner is that alliance's `ally` number (in a 1 v 1, the same as its side).
 function checkWin() {
-  if (G.over) return;
+  if (G.over || G.explore) return;   // (the map explorer: nobody to win or lose)
   for (const t of G.teams) if (!t.out && !inTheFight(t.id)) {
     t.out = true; startWipe(t);
     if (teamGame()) for (const o of G.teams) if (o !== t && !o.out) say(o.id, alliedSides(o.id, t.id) ? 'Ally defeated' : 'Enemy defeated');
@@ -6133,6 +6180,23 @@ function commandGuard(units, x, y) {
     u.staged = false; u.defending = false; u.homeward = false; u.focus = null; u.oneStrike = false; u.scrambled = false; takeOver(u, 'guard');
     if (u.cls === 'air') { if (u.as === 'landed' && !airEmpty(u) && !u.repairHold) u.as = 'takeoff'; }
     else goTo(u, s.x, s.y);
+  });
+}
+// Attack move (the AUTO button's picker, then a tap on the map): one trip, not a standing order. Every armed ground unit
+// heads for the spot and fights whatever it meets on the way (o.amove: no leash to the spot while travelling), then holds
+// the spot like a Guard order once there. A Guard with hold, so the auto logic (Auto Attack, base defence, the Ally
+// button) leaves them be.
+const canAttackMove = (u) => u.alive && u.kind === 'unit' && u.cls !== 'air' && !u.def.harvester && !u.def.lift && !u.def.scripted && !u.inHouse && !!(u.def.weapon || u.def.demo);
+function commandAttackMove(units, x, y) {
+  const list = units.filter(canAttackMove);
+  const spots = formationSpots(list.length, x, y);
+  const sorted = list.slice().sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
+  sorted.forEach((u, i) => {
+    const s = spots[i];
+    setGuard(u, s.x, s.y); u.order.hold = true; u.order.amove = true;
+    u.target = null; u.focus = null; u.huntTarget = null; u.staged = false; u.defending = false; u.homeward = false; u.oneStrike = false;
+    takeOver(u, 'guard');
+    goTo(u, s.x, s.y);
   });
 }
 // Stop: every order dropped, back to what a new unit does: ground units wait around the base,

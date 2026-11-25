@@ -58,7 +58,7 @@
 <aside id="sidebar" data-faction="allies">
   <div class="sb-radar"><canvas id="radar" aria-label="Radar"></canvas></div>
   <div class="sb-buttons">
-    <button id="autoBtn" class="icon auto" type="button" aria-pressed="false" title="Auto attack: switching it on sends every idle unit to attack, then new ground units set out in groups of 10 and aircraft go straight away; when off, everything guards the base"><span>⚔</span><small>AUTO</small></button>
+    <button id="autoBtn" class="icon auto" type="button" aria-pressed="false" title="Attack: Auto attack sends every idle unit to attack, then new ground units set out in groups of 10 and aircraft go straight away (when off, everything guards the base); Attack move sends every ground unit once to a spot you tap, fighting on the way"><span>⚔</span><small>AUTO</small></button>
     <button id="allyBtn" class="icon" type="button" aria-pressed="false" hidden title="Help ally: sends every idle ground unit to guard an ally's base, and new ones follow; press again to bring them home"><span>⛨</span><small>ALLY</small></button>
     <button id="giveBtn" class="icon" type="button" hidden title="Give credits to an ally"><span>⇪</span><small>GIVE</small></button>
     <button id="returnBtn" class="icon" type="button" hidden title="Return: bring every unit and aircraft out attacking or helping an ally home again"><span>↩</span><small>RETURN</small></button>
@@ -77,52 +77,65 @@
   </div>
 </aside>
 
-<div id="menu" hidden>
-  <div class="card">
-    <p class="eyebrow">Allies vs Soviets</p>
-    <h1 id="menuTitle">Red Horizon</h1>
-    <p id="menuSub"></p>
-    <div class="pick sides" role="group" aria-label="Side">
-      <button type="button" data-faction="allies" aria-pressed="true"><span class="crest"></span>Allies<small>Fast tanks, attack helicopters, gun turrets</small></button>
-      <button type="button" data-faction="soviets" aria-pressed="false"><span class="crest"></span>Soviets<small>Heavy armour, Tesla coils, MiGs</small></button>
-    </div>
-    <div class="pick diff" role="group" aria-label="Difficulty">
-      <button type="button" data-diff="easy" aria-pressed="false">Easy</button>
-      <button type="button" data-diff="normal" aria-pressed="true">Normal</button>
-      <button type="button" data-diff="hard" aria-pressed="false">Hard</button>
-    </div>
-    <div class="buttons">
-      <button id="resumeBtn" class="primary alt" type="button" hidden>Resume</button>
-      <button id="continueBtn" class="primary alt continue-btn" type="button" hidden>Continue</button>
-      <button id="startBtn" class="primary" type="button">Skirmish</button>
-      <button id="onlineBtn" class="primary alt" type="button">Play online</button>
-    </div>
-    <button id="saveQuitBtn" class="quit-btn" type="button" hidden>Save and leave</button>
-    <button id="quitBtn" class="quit-btn" type="button" hidden>Quit mission</button>
-    <button id="speedBtn" class="quit-btn" type="button" hidden>Speed: 1x</button>
-    <button id="mapViewBtn" class="quit-btn" type="button" aria-pressed="false" hidden>Map view: off</button>
-    <div class="book-btns">
-      <button id="manualBtn" class="manual-btn" type="button">Field Manual</button>
-      <button id="newsBtn" class="manual-btn" type="button">What's New</button>
-      <button id="boardBtn" class="manual-btn" type="button">Leaderboard</button>
-      <button id="profileBtn" class="manual-btn" type="button">Profile</button>
-    </div>
-    <div class="audio" role="group" aria-label="Sound">
-      <button type="button" data-audio="music" aria-pressed="true">Music</button>
-      <button type="button" data-audio="sfx" aria-pressed="true">Effects</button>
-      <button type="button" data-audio="voice" aria-pressed="true">Voice</button>
-      <label class="vol">Music volume <input type="range" id="musicVol" min="0" max="100" step="5" aria-label="Music volume"></label>
-      <label class="vol">Game sound volume <input type="range" id="sfxVol" min="0" max="100" step="5" aria-label="Game sound volume (effects and voice)"></label>
-      <button type="button" id="trackBtn" class="track">Next track <span id="trackName"></span></button>
-      <p id="audioStatus" class="audio-status">Sound: waiting for a tap</p>
-    </div>
-    <div class="audio touch-only" role="group" aria-label="Graphics">
-      <button type="button" id="fpsBtn" class="track touch-only" aria-pressed="false">Always 60 fps: off</button>
-      <p id="fpsStatus" class="audio-status touch-only"></p>
-    </div>
-    <button type="button" id="updateBtn" class="update-btn" hidden>New version ready: tap to restart</button>
-    <p class="version-tag" id="versionTag"></p>
-    <details class="how credits">
+<!-- The main menu: its own screen (no battle drawn behind it at the start), a title on the left and a column of
+     command buttons on the right, as in the classic RTS menus. In a battle it opens over it as the pause menu.
+     data-view: main (the buttons), options (sound and graphics) or info (credits and briefing). -->
+<div id="menu" hidden data-view="main">
+  <div class="mm-bg" aria-hidden="true"><div class="mm-grid"></div><div class="mm-radar"><i></i></div><div class="mm-scan"></div></div>
+  <div class="mm-wrap">
+    <header class="mm-head">
+      <p class="eyebrow">Allies vs Soviets</p>
+      <h1 id="menuTitle">Red Horizon</h1>
+      <p id="menuSub"></p>
+      <p class="version-tag" id="versionTag"></p>
+      <button type="button" id="updateBtn" class="update-btn" hidden>New version ready: tap to restart</button>
+    </header>
+    <nav class="mm-col card" data-panel="main" aria-label="Main menu">
+      <button id="resumeBtn" class="mm-btn mm-go" type="button" hidden>Resume</button>
+      <button id="continueBtn" class="mm-btn mm-go continue-btn" type="button" hidden>Continue</button>
+      <button id="startBtn" class="mm-btn" type="button">Skirmish</button>
+      <button id="onlineBtn" class="mm-btn" type="button">Play online</button>
+      <button id="editorBtn" class="mm-btn" type="button">Map Editor</button>
+      <button id="saveQuitBtn" class="mm-btn mm-red" type="button" hidden>Save and leave</button>
+      <button id="quitBtn" class="mm-btn mm-red" type="button" hidden>Quit mission</button>
+      <button id="speedBtn" class="mm-btn mm-small" type="button" hidden>Speed: 1x</button>
+      <button id="mapViewBtn" class="mm-btn mm-small" type="button" aria-pressed="false" hidden>Map view: off</button>
+      <div class="mm-rule"></div>
+      <div class="mm-sub">
+        <button id="manualBtn" class="mm-btn mm-small manual-btn" type="button">Field Manual</button>
+        <button id="newsBtn" class="mm-btn mm-small manual-btn" type="button">What's New</button>
+        <button id="boardBtn" class="mm-btn mm-small manual-btn" type="button">Leaderboard</button>
+        <button id="profileBtn" class="mm-btn mm-small manual-btn" type="button">Profile</button>
+        <button class="mm-btn mm-small" type="button" data-view="options">Options</button>
+        <button class="mm-btn mm-small" type="button" data-view="info">Credits</button>
+      </div>
+    </nav>
+    <section class="mm-col mm-panel card" data-panel="options" aria-label="Options">
+      <h2 class="mm-ptitle">Options</h2>
+      <div class="audio" role="group" aria-label="Sound">
+        <button type="button" data-audio="music" aria-pressed="true" hidden>Music</button>
+        <button type="button" data-audio="sfx" aria-pressed="true">Effects</button>
+        <button type="button" data-audio="voice" aria-pressed="true">Voice</button>
+        <label class="vol" hidden>Music volume <input type="range" id="musicVol" min="0" max="100" step="5" aria-label="Music volume"></label>
+        <label class="vol">Game sound volume <input type="range" id="sfxVol" min="0" max="100" step="5" aria-label="Game sound volume (effects and voice)"></label>
+        <button type="button" id="trackBtn" class="track" hidden>Next track <span id="trackName"></span></button>
+        <button type="button" data-audio="mix" class="track" aria-pressed="false">Play over my music</button>
+        <p class="audio-status">On: your music app keeps playing during the game. Game sounds then follow the phone's silent switch.</p>
+        <p id="audioStatus" class="audio-status">Sound: waiting for a tap</p>
+      </div>
+      <div class="audio" role="group" aria-label="Graphics">
+        <button type="button" id="hdBtn" class="track" aria-pressed="false">HD graphics: off</button>
+        <p id="hdStatus" class="audio-status"></p>
+        <button type="button" id="hdGroundBtn" class="track" aria-pressed="false">HD ground: off</button>
+        <p id="hdGroundStatus" class="audio-status"></p>
+        <button type="button" id="fpsBtn" class="track touch-only" aria-pressed="false">Always 60 fps: off</button>
+        <p id="fpsStatus" class="audio-status touch-only"></p>
+      </div>
+      <button class="mm-btn mm-small mm-back" type="button" data-view="main">Back</button>
+    </section>
+    <section class="mm-col mm-panel card" data-panel="info" aria-label="Credits and briefing">
+      <h2 class="mm-ptitle">Credits and briefing</h2>
+    <details class="how credits" open>
       <summary>Credits</summary>
       <p>Code, art, music compositions and interface sounds are original.</p>
       <p>Sound effects from OpenGameArt.org: gunshots and rocket launches by dklon, explosions by qubodup
@@ -149,6 +162,20 @@
         <li>Keep power above demand or production slows and Tesla coils go dark. To win, destroy every enemy <b>production building</b>: Construction Yards, Barracks, War Factories, Helicopter Bases and Airfields (and any Mobile Construction Yard). Lose all of yours and the mission is over.</li>
       </ul>
     </details>
+      <button class="mm-btn mm-small mm-back" type="button" data-view="main">Back</button>
+    </section>
+  </div>
+  <!-- Moved into the skirmish screen (MapSelect) by ui.js: the side and the computer's difficulty. -->
+  <div id="skirmishSetup" hidden>
+    <div class="pick sides" role="group" aria-label="Side">
+      <button type="button" data-faction="allies" aria-pressed="true"><span class="crest"></span>Allies<small>Fast tanks, attack helicopters, gun turrets</small></button>
+      <button type="button" data-faction="soviets" aria-pressed="false"><span class="crest"></span>Soviets<small>Heavy armour, Tesla coils, MiGs</small></button>
+    </div>
+    <div class="pick diff" role="group" aria-label="Difficulty">
+      <button type="button" data-diff="easy" aria-pressed="false">Easy</button>
+      <button type="button" data-diff="normal" aria-pressed="true">Normal</button>
+      <button type="button" data-diff="hard" aria-pressed="false">Hard</button>
+    </div>
   </div>
 </div>
 <!-- END BODY -->
@@ -176,6 +203,7 @@
 <script src="src/netcore.js"></script>
 <script src="src/net.js"></script>
 <script src="src/save.js"></script>
+<script src="src/editor.js"></script>
 <script src="src/ui.js"></script>
 </body>
 </html>

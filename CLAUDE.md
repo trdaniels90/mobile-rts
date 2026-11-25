@@ -42,12 +42,12 @@ share globals. Read this file first (feature notes are in `docs/NOTES.md`); the 
    then `.1`, `.2`... on the same day. `VERSION` is the first entry. The menu shows its title, and
    What's New carries a NEW badge until it is read.
 2. Check every script with `node --check`, and that the baked sprites are current: `node tools/bake-sprites.js <repo> --check`
-   (if stale, rebake: `node tools/bake-sprites.js <repo>`, see "Baked sprites" in `docs/NOTES.md`), and the baked ground: `node tools/bake-ground.js <repo> --check`, and the baked crags: `node tools/bake-cliffs.js <repo> --check`, and (once the WebGL renderer is in) the baked
+   (if stale, rebake: `node tools/bake-sprites.js <repo>`, see "Baked sprites" in `docs/NOTES.md`), and the HD sheets: `node tools/bake-sprites.js <repo> --hd --check` (rebake with `--hd` after every ordinary rebake; "HD graphics" in `docs/NOTES.md`), and the baked ground: `node tools/bake-ground.js <repo> --check`, and the baked crags: `node tools/bake-cliffs.js <repo> --check` and the HD crags: `node tools/bake-cliffs.js <repo> --hd --check` (rebake with `--hd` after every ordinary crag rebake; "HD ground" in `docs/NOTES.md`), and (once the WebGL renderer is in) the baked
    normal maps: `node tools/bake-normals.js <repo> --check` (rebake with `node tools/bake-normals.js <repo>` after every sprite
    rebake; see "WebGL renderer" in `docs/NOTES.md`).
 3. Build the single file: `python3 scripts/build-single-file.py <out.html>`. Load it in headless
    Playwright and start a game to check it runs without errors.
-4. **Owner's build:** publish `<out.html>` (and, when they changed, the files in `sprites/` as `sprites/<name>` and in `grounds/` as `grounds/<path>`, and in `cliffs/` as `cliffs/<path>`, and in `normals/` as `normals/<name>`) to the artifact URL above with the Artifact tool
+4. **Owner's build:** publish `<out.html>` (and, when they changed, the files in `sprites/` as `sprites/<name>`, in `sprites-hd/` and `normals-hd/` the same way and in `grounds/` as `grounds/<path>`, and in `cliffs/` and `cliffs-hd/` as `cliffs/<path>` and `cliffs-hd/<path>`, and in `normals/` as `normals/<name>`) to the artifact URL above with the Artifact tool
    (artifact slug `d3b16e49-e1b0-4114-9609-965e7c8a302b`; `get_artifact` for the base version).
    `publish_files` only reads files inside the repo folder, so build to `.build/index.html`, publish,
    then `rm -rf .build` (it is not gitignored, and the Stop hook complains about untracked files).
@@ -66,6 +66,14 @@ share globals. Read this file first (feature notes are in `docs/NOTES.md`); the 
 7. **New scripts:** add any new script to `index.html` and to `FILES` in `sw.js`, the offline
    cache. Installed copies notice the new version and offer a restart.
 
+## Rain and water (owner's rules, 2026-11-24)
+
+- **Rain only where the owner says.** Never add `weather: { kind: 'rain' }` to a map on your own; ask.
+- **A map with rain always gets the full rain look:** puddles and rivulets (look.js `lookPuddles`) and runoff from buildings
+  (`lookRunoff`). Never gate these per map; a new rain effect goes on every rainy map.
+- **Water moves on every map** that has open water (look.js `drawWater`: waves and surf), in both renderers (WebGL and
+  `?gl=off`). Exceptions: icy winter water and Heron Fen's still pools. Details: "Rain and water rules" in `docs/NOTES.md`.
+
 ## Code map
 
 | File | What it holds |
@@ -81,6 +89,7 @@ share globals. Read this file first (feature notes are in `docs/NOTES.md`); the 
 | `src/debrief.js` | The end-of-mission debrief |
 | `src/report.js` | Match reporting to Supabase and the leaderboard |
 | `src/profile.js` | Accounts (email plus a 6-digit code), commander names and the service record |
+| `src/editor.js` | The map editor (main menu): paint a fixed-layout map, place starts, gems, plateaus, village houses and plots; maps kept on the device (`CustomMaps` in maps.js), skirmish only |
 | `src/save.js` | Save and continue a skirmish: one slot in IndexedDB, the whole of `G` as a graph (references kept, data.js tables by name), the marks of battle in `G.marks` |
 | `src/netcore.js` | The host's snapshot engine (per remote player: only what their side sees), event and decal relays, carrying out remote orders. Used by a hosting phone and by the server |
 | `src/net.js` | Online play: the game server first, else room codes over Supabase Realtime and WebRTC; the guest's copy and orders; the online page and lobby |
@@ -104,9 +113,8 @@ share globals. Read this file first (feature notes are in `docs/NOTES.md`); the 
 
 ## Soundtrack
 
-Four recorded MP3s in `music/`, listed in `SONGS` (`audio.js`) and `TRACKS` (`sw.js`). The single-file build does not
-contain them: publish them to the owner's artifact as `music/<name>.mp3` files beside the page (only needed once, or
-when a track changes). Details, adding a track and ffmpeg settings: "Soundtrack" in `docs/NOTES.md`.
+None for now: the owner had all music removed on 2026-11-25 (the player code stays for new tracks). Details and how to add a
+track: "Soundtrack" in `docs/NOTES.md`.
 
 ## Work in progress
 

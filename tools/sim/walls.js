@@ -23,6 +23,7 @@ ok('no second piece on the same cell', run(`placeWalls(T0, 'sandbag', bx - 2, by
 ok('not far from the base', run(`placeWalls(T0, 'sandbag', bx, by + 30, bx + 3, by + 30)`) === 0);
 ok('money runs out mid-line', run(`(T0.credits = 60, placeWalls(T0, 'sandbag', bx - 2, by + 2, bx + 4, by + 2))`) === 2 && run('T0.credits') === 10);
 ok('a slanted line steps diagonally, one piece a step', run(`(() => { const l = wallLine('sandbag', 5, 5, 9, 8); for (let i = 1; i < l.length; i++) if (Math.max(Math.abs(cellX(l[i]) - cellX(l[i - 1])), Math.abs(cellY(l[i]) - cellY(l[i - 1]))) !== 1) return false; return l.length === 5 && wallLine('sandbag', 5, 5, 9, 9).length === 5; })()`));
+ok('a slanted line is two straight runs (diagonal, then straight)', run(`(() => { const l = wallLine('sandbag', 5, 5, 14, 9).map((c) => [cellX(c), cellY(c)]); let turns = 0; for (let i = 2; i < l.length; i++) if (l[i][0] - l[i - 1][0] !== l[i - 1][0] - l[i - 2][0] || l[i][1] - l[i - 1][1] !== l[i - 1][1] - l[i - 2][1]) turns++; return turns === 1 && l.length === 10 && l[9][0] === 14 && l[9][1] === 9; })()`));
 ok('a line stops at ' + run('WALL_LINE_MAX') + ' pieces', run(`wallLine('sandbag', 2, 2, 100, 2).length`) === run('WALL_LINE_MAX'));
 ok('selling gives half back', run(`(T0.credits = 0, sellWall(T0, bx - 2, by + 2))`) === true && run('T0.credits') === 12 && run(`G.wall[idx(bx - 2, by + 2)]`) === 0 && run(`G.block[idx(bx - 2, by + 2)]`) === 0);
 ok('not another side to sell', run(`sellWall(T1, bx, by)`) === false);
