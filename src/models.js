@@ -1542,7 +1542,8 @@ function infModel(pal, faction, type, frame) {
   const sov = faction === 'soviets', sovRk = sov && type === 'rocket';
   const step = frame === 1 ? 1.5 : frame === 2 ? -1.5 : 0, throwing = frame === 3;
   const pose = frame === 6 ? 'rest' : frame === 7 ? 'aim' : frame === 10 ? 'stretch' : frame === 11 ? 'sam' : null;
-  const K = infKit(pal, faction), tunic = pal.main, sleeve = shadeInt(pal.main, 0.84), hi = shadeInt(pal.main, 1.12);
+  const TC = type === 'technician';   // Technician: a civilian in a shirt of the side's colour, work trousers, bare-headed, a pistol
+  const K = TC ? { ...infKit(pal, faction), pants: '#3e4d66' } : infKit(pal, faction), tunic = pal.main, sleeve = shadeInt(pal.main, 0.84), hi = shadeInt(pal.main, 1.12);
   const R = type === 'rifle', wood = '#6a4426';
   const E = type === 'engineer', vest = '#5a6b3a';   // Engineer: an olive tactical vest with pouches, knee pads, a toolbox, no weapon   // Rifle Infantry: long coat, shoulder plates, knee pads, hip satchel, wooden-furniture rifle
   // Boots and trousers, legs apart with a gap between them, swinging when walking.
@@ -1557,7 +1558,7 @@ function infModel(pal, faction, type, frame) {
   m.box(-1, -1, 6, 2, 1, 8, K.pants);                                               // seat
   // Belt with pouches and buckle.
   m.box(-2, -3, 8, 2, 3, 9, K.web);
-  for (const y of [-3, 2]) m.box(1, y, 8, 3, y + 1, 10, K.pouch);
+  if (!TC) for (const y of [-3, 2]) m.box(1, y, 8, 3, y + 1, 10, K.pouch);
   m.set(2, 0, 8, '#c9a227', M_METAL);
   if (R) {
     m.box(-2, -3, 6, 2, 3, 8, shadeInt(tunic, 0.88));                              // coat skirt over the hips
@@ -1567,7 +1568,8 @@ function infModel(pal, faction, type, frame) {
   m.box(-2, -3, 9, 2, 3, 14, tunic);
   m.box(1, -2, 9, 2, 2, 13, hi);
   m.box(-2, -4, 12, 2, 4, 14, tunic);                                               // shoulders
-  m.paint(-2, -3, 9, 2, 3, 14, (x, y, z) => (x === 1 && y === z - 12) ? K.web : undefined);   // strap across the chest
+  if (TC) { m.set(2, -2, 12, '#e8e4d8'); m.set(2, -2, 13, '#2a2a24'); }   // a breast pocket with a pen
+  else m.paint(-2, -3, 9, 2, 3, 14, (x, y, z) => (x === 1 && y === z - 12) ? K.web : undefined);   // strap across the chest
   m.box(-1, -1, 14, 2, 2, 14.5, shadeInt(tunic, 0.72));                             // collar
   if (R) {
     m.box(-2, -2, 14, 3, 3, 15, shadeInt(tunic, 0.8));                              // high turned-up collar
@@ -1587,7 +1589,7 @@ function infModel(pal, faction, type, frame) {
     for (const y of [-4, 3]) { m.box(-1, y, 12, 1, y + 1, 20, sleeve); hand(0, y, 20); hand(0, y, 21); }
   } else if (pose === 'rest') {
     m.box(-1, -4, 9, 1, -3, 14, sleeve); hand(0, -4, 8);
-    if (type === 'grenadier' || type === 'pilot' || E) { m.box(-1, 3, 9, 1, 4, 14, sleeve); hand(0, 3, 8); }
+    if (type === 'grenadier' || type === 'pilot' || TC || E) { m.box(-1, 3, 9, 1, 4, 14, sleeve); hand(0, 3, 8); }
     else { m.box(-1, 3, 11, 1, 4, 14, sleeve); m.box(1, 3, 11, 2, 4, 12, sleeve); hand(2, 4, 11); }
   } else if (pose === 'aim') {
     m.box(-1, -4, 12, 5, -3, 13, sleeve); m.box(-1, 3, 12, 2, 4, 13, sleeve); m.box(1, 1, 12, 2, 3, 13, sleeve);
@@ -1599,7 +1601,7 @@ function infModel(pal, faction, type, frame) {
   } else if (type === 'rocket' || type === 'hmgG') {
     m.box(-1, 3, 12, 1, 4, 14, sleeve); m.box(1, 3, 13, 3, 4, 14, sleeve); hand(3, 3, 14);      // right hand up on the grip
     m.box(-2, -4, 10, 1, -3, 14, sleeve); m.box(1, -4, 10, 3, -3, 11, sleeve); hand(3, -3, 10); // left hand steadying it
-  } else if (type === 'pilot' || E || type === 'hmgL') {
+  } else if (type === 'pilot' || TC || E || type === 'hmgL') {
     for (const y of [-4, 3]) { m.box(-1, y, 9, 1, y + 1, 14, sleeve); hand(0, y, 8); }
   } else {
     // Rifle held ready across the body: right hand at the hip on the grip, left forward on the stock.
@@ -1629,6 +1631,8 @@ function infModel(pal, faction, type, frame) {
     for (const y of [-3, 1]) { m.box(-5, y, 8, -2, y + 2, 13, '#8a7a4a'); m.box(-5, y, 12, -3, y + 2, 13, '#6e6038'); m.set(-5, y + 1, 10, '#c8281e', M_METAL); }
     m.box(-6, -3, 10, -5, 3, 11, K.web);
     m.line(-4, -2, 13, -6, -3, 20, '#2a2a24', M_METAL);
+  } else if (TC) {
+    // no pack
   } else if (type === 'pilot') {
     m.box(-4, -2, 8, -2, 2, 13, '#c9c3a8'); m.box(-4, -2, 12, -2, 2, 13, '#a49d82');   // parachute pack
   } else {
@@ -1666,6 +1670,9 @@ function infModel(pal, faction, type, frame) {
   } else if (type === 'grenadier') {
     m.box(-2, -2, 16, 2, 3, 18, '#5d6236'); m.box(-1, -1, 18, 2, 2, 18.5, '#5d6236');
     m.box(2, -2, 16, 3, 3, 16.5, '#474a28'); m.set(2, 0, 17, '#c8281e');                       // field cap, red star
+  } else if (TC) {
+    m.box(-2, -2, 16, 1, 3, 18, '#4a3a2a'); m.box(-1, -1, 18, 1, 2, 18.5, '#4a3a2a'); m.box(1, -2, 17, 2, 3, 18, '#4a3a2a');   // short hair, no helmet
+    m.box(3, 2, 10, 6, 3, 11, C.gun, M_METAL);                                                 // pistol
   } else if (type === 'pilot') {
     m.box(-2, -2, 15, 2, 3, 18, '#e4e0d0'); m.box(-1, -1, 18, 2, 2, 19, '#e4e0d0');            // flight helmet, dark visor
     m.box(2, -1, 15, 3, 2, 17, '#22262a', M_GLASS);
@@ -1689,7 +1696,7 @@ function infModel(pal, faction, type, frame) {
     m.set(0, 6, tz + 2, '#2a2a24');                                          // latch
   }
   // Weapons.
-  const RIF = !['rocket', 'grenadier', 'pilot', 'engineer', 'hmgG', 'hmgL', 'flamer'].includes(type), SN = type === 'sniper';
+  const RIF = !['rocket', 'grenadier', 'pilot', 'technician', 'engineer', 'hmgG', 'hmgL', 'flamer'].includes(type), SN = type === 'sniper';
   const tube = sovRk ? '#5f6a3c' : '#c3c4b8', tubeD = sovRk ? '#2f3520' : '#5d5f58';   // Soviet: olive RPG-style launcher
   if (pose === 'stretch') {                                                  // slung on the back
     if (type === 'rocket') { m.cylY(-6, 6, -6, 13, 1.4, tube); m.box(-7, 5, 12, -5, 6, 15, tubeD); }
@@ -5461,9 +5468,9 @@ function proneModel(pal, faction, type, crawl) {
   }
   m.box(-6, -2, 0, 2, 2, 3, pal.main); m.box(-6, -3, 2, 2, 3, 3, shadeInt(pal.main, 0.9));
   m.box(-6, -2, 0, -5, 2, 3, K.web);
-  if (type !== 'pilot') m.box(-5, -2, 3, -1, 2, 4, C.oliveD);
+  if (type !== 'pilot' && type !== 'technician') m.box(-5, -2, 3, -1, 2, 4, C.oliveD);
   m.box(2, -1, 0, 5, 2, 3, K.skin);
-  m.box(1, -2, 2, 5, 3, 4, type === 'pilot' ? '#cfcab8' : type === 'grenadier' ? '#5d6236' : K.helm);
+  m.box(1, -2, 2, 5, 3, 4, type === 'pilot' ? '#cfcab8' : type === 'technician' ? '#4a3a2a' : type === 'grenadier' ? '#5d6236' : K.helm);
   for (const y of [-3, 2]) {
     const d = cs * (y < 0 ? -2 : 2);                                            // the arm opposite the forward leg reaches out
     m.box(1, y, 0, 5 + d, y + 1, 1.5, shadeInt(pal.main, 0.86)); m.set(5 + d, y, 0, K.skin);
@@ -5486,15 +5493,15 @@ function pushupModel(pal, faction, type, up) {
   m.box(-6, -2, lift / 2, -2, 2, 2 + lift / 2 + 1, pal.main);                       // hips, rising toward the chest
   m.box(-2, -2, lift, 2, 2, 3 + lift, pal.main); m.box(-2, -3, 2 + lift, 2, 3, 3 + lift, shadeInt(pal.main, 0.9));
   m.box(-6, -2, lift / 2, -5, 2, 3 + lift / 2, K.web);
-  if (type !== 'pilot' && type !== 'grenadier') m.box(-5, -2, 3 + lift / 2, -1, 2, 4 + lift / 2, C.oliveD);
+  if (type !== 'pilot' && type !== 'technician' && type !== 'grenadier') m.box(-5, -2, 3 + lift / 2, -1, 2, 4 + lift / 2, C.oliveD);
   m.box(2, -1, lift, 5, 2, 3 + lift, K.skin);
-  m.box(1, -2, 2 + lift, 5, 3, 4 + lift, type === 'pilot' ? '#cfcab8' : type === 'grenadier' ? '#5d6236' : K.helm);
+  m.box(1, -2, 2 + lift, 5, 3, 4 + lift, type === 'pilot' ? '#cfcab8' : type === 'technician' ? '#4a3a2a' : type === 'grenadier' ? '#5d6236' : K.helm);
   for (const y of [-3, 2]) {
     if (up) { m.box(0, y, 1, 1, y + 1, 5, shadeInt(pal.main, 0.86)); m.set(0, y, 0, K.skin); }          // straight arms
     else { m.box(-1, y + (y < 0 ? -1 : 1), 0, 1, y + (y < 0 ? 0 : 2), 2, shadeInt(pal.main, 0.86)); m.set(1, y, 0, K.skin); }   // elbows out
   }
   if (type === 'rocket') { m.cylX(-8, 4, -5, 0.7, 0.9, '#56603a'); if (faction === 'soviets') m.ellipsoid(5, -5, 0.8, 1.6, 1.3, 1.3, '#4a4f3a', M_METAL); }
-  else if (type !== 'grenadier' && type !== 'pilot' && type !== 'engineer') { m.box(-6, 4, 0, 3, 5, 1, C.gun, M_METAL); m.box(-9, 4, 0, -6, 5, 1.5, '#6a4426'); }
+  else if (type !== 'grenadier' && type !== 'pilot' && type !== 'technician' && type !== 'engineer') { m.box(-6, 4, 0, 3, 5, 1, C.gun, M_METAL); m.box(-9, 4, 0, -6, 5, 1.5, '#6a4426'); }
   return m;
 }
 function infSprite(u, pal, frame) {

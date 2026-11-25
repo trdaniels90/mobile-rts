@@ -152,6 +152,12 @@ const UNIT_DEFS = {
     name: 'Pilot', cls: 'inf', cat: 'infantry', factions: [], cost: 0, hp: 35, armor: 'inf', speed: 32, sight: 4, r: 5,
     weapon: { dmg: 5, rof: 1.1, range: 60, wh: 'SA', proj: 'bullet' },
   },
+  // A Technician: a civilian worker from a structure, with a pistol. Comes out of a structure that is sold or destroyed
+  // (world.js escapeSurvivors); cannot be built.
+  technician: {
+    name: 'Technician', cls: 'inf', cat: 'infantry', factions: [], cost: 0, hp: 25, armor: 'inf', speed: 32, sight: 4, r: 5,
+    weapon: { dmg: 4, rof: 1.2, range: 60, wh: 'SA', proj: 'bullet' },
+  },
   // A Dragon rocket for armour and a RedEye missile, with more reach, for aircraft. Both fire as often
   // as a Medium Tank's gun. Both sides train it; the Soviet one is drawn with an olive RPG-style launcher.
   rocket: {
