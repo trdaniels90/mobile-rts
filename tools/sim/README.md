@@ -53,6 +53,7 @@ Supabase.
 | `ai-starved.js` | Headless: a computer with no ore near its refineries buys a Mobile Outpost first and holds army production until it is out |
 | `ai-timing.js` | Headless 1 v 1 of two computers: when each side sends waves, how many squads retreat or turn home. `<repo> [games] [minutes] [difficulty] [map]` |
 | `ally-defend.js` | Headless 3 v 3: Defend ally goes to the picked ally, switches, answers raiders at its base and just outside. `<repo> [map]` |
+| `attack-move.js` | Headless: Attack move (AUTO picker): every armed ground unit goes to the spot, kills what it meets on the way, then holds it; Auto Attack stays off |
 | `manual-override.js` | Headless: a direct order (move, guard, attack) takes a unit out of Auto Attack and base defence until Stop |
 | `ore-econ.js` | Headless team game of computers: ore left on the map and each side's income every 5 minutes. `<repo> [sides 4\|6] [minutes] [map] [seed]` |
 | `pop-cap.js` | Headless 2 v 2 of computers: each army against its cap, once a minute. `<repo> [minutes] [difficulty] [map] [seed]` |

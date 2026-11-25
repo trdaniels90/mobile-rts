@@ -4120,7 +4120,7 @@ function updateUnit(u, dt) {
       // Whoever fired on this unit is chased a little past its own reach; anything else is
       // dropped once out of sight.
       // Long-range guns guarding an area fire at whatever their side has in view within reach.
-      const far = o.type === 'guard' && o.hold && w && wRange(u, w) > sight;
+      const far = o.type === 'guard' && o.hold && !o.amove && w && wRange(u, w) > sight;
       const spot = !far && spotter(u);   // (Artillery, V2: whatever its side sees in reach)
       const avenging = u.target && u.target === u.avenge;
       const spotted = spot && u.target && distTo(u, u.target) <= wRange(u, w) && spottedBy(u.team)(u.target);
@@ -4130,7 +4130,7 @@ function updateUnit(u, dt) {
       // second (they ran back and forth without getting anywhere).
       const told = u.defending && u.target && u.target.kind === 'unit' && (teamOf(u).raiders || []).includes(u.target.id);
       if (u.target && !told && distTo(u, u.target) > reach) u.target = null;
-      if (o.type === 'guard' && u.target && !avenging && !told && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : spotted ? Math.max(sight * 1.6, wRange(u, w)) : sight * 1.6)) u.target = null;
+      if (o.type === 'guard' && !o.amove && u.target && !avenging && !told && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : spotted ? Math.max(sight * 1.6, wRange(u, w)) : sight * 1.6)) u.target = null;
       if (!u.target || u.target.kind === 'bld') {
         const t = far ? acquire(u, wRange(u, w), [w, u.def.weapon2], teamOf(u).isAI ? null : inViewOf(u.team)) :
           (spot && acquire(u, sight, [w, u.def.weapon2])) || (spot ? acquire(u, wRange(u, w), [w], spottedBy(u.team)) : acquire(u, sight, [w, u.def.weapon2]));
@@ -4142,6 +4142,8 @@ function updateUnit(u, dt) {
           const b = nearestEnemyBuilding(u);
           if (!b) nothingKnown(u);
           else if (u.huntTarget !== b || (!u.dest && !u.needPath)) { u.huntTarget = b; goTo(u, b.x, b.y); }
+        } else if (o.amove && !u.dest && !u.needPath && Math.hypot(u.x - o.x, u.y - o.y) <= CELL * 1.5) {
+          o.amove = false;   // an attack move that has arrived: it holds the spot like a Guard order
         } else if (!u.dest && !u.needPath && Math.hypot(u.x - o.x, u.y - o.y) > 24) {
           // Shoved off its spot by friends: if one of them stands there now, it guards from where it is (walking back shoved that one
           // off in turn, and a crowd of waiting units ran back and forth for minutes: 234 such units in a 30-minute 2 v 2).
@@ -6155,6 +6157,23 @@ function commandGuard(units, x, y) {
     u.staged = false; u.defending = false; u.homeward = false; u.focus = null; u.oneStrike = false; u.scrambled = false; takeOver(u, 'guard');
     if (u.cls === 'air') { if (u.as === 'landed' && !airEmpty(u) && !u.repairHold) u.as = 'takeoff'; }
     else goTo(u, s.x, s.y);
+  });
+}
+// Attack move (the AUTO button's picker, then a tap on the map): one trip, not a standing order. Every armed ground unit
+// heads for the spot and fights whatever it meets on the way (o.amove: no leash to the spot while travelling), then holds
+// the spot like a Guard order once there. A Guard with hold, so the auto logic (Auto Attack, base defence, the Ally
+// button) leaves them be.
+const canAttackMove = (u) => u.alive && u.kind === 'unit' && u.cls !== 'air' && !u.def.harvester && !u.def.lift && !u.def.scripted && !u.inHouse && !!(u.def.weapon || u.def.demo);
+function commandAttackMove(units, x, y) {
+  const list = units.filter(canAttackMove);
+  const spots = formationSpots(list.length, x, y);
+  const sorted = list.slice().sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
+  sorted.forEach((u, i) => {
+    const s = spots[i];
+    setGuard(u, s.x, s.y); u.order.hold = true; u.order.amove = true;
+    u.target = null; u.focus = null; u.huntTarget = null; u.staged = false; u.defending = false; u.homeward = false; u.oneStrike = false;
+    takeOver(u, 'guard');
+    goTo(u, s.x, s.y);
   });
 }
 // Stop: every order dropped, back to what a new unit does: ground units wait around the base,

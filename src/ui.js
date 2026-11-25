@@ -448,6 +448,7 @@
     if (!resumed && !G.spectate) G.teams[G.me].auto = false;
     document.body.classList.toggle('spectate', !!G.spectate);
     ui.autoBtn.setAttribute('aria-pressed', String(!!G.teams[G.me].auto));
+    setAimMove(false);
     ui.allyBtn.hidden = ui.returnBtn.hidden = ui.giveBtn.hidden = !teamGame();
     if (giveEl) giveEl.hidden = true;
     layout();
@@ -1345,12 +1346,22 @@ function draw() {
   let lastTap = null;
   // Attack ground (the ATTACK GROUND button): aimSpan holds the units waiting for the next tap, which orders them to
   // fire at that spot, or at the bridge span there (world.js commandAttackGround).
-  let aimSpan = null, spanSig = '', wallArmed = null;
+  let aimSpan = null, spanSig = '', wallArmed = null, aimMove = false;
+  function setAimMove(on) { aimMove = !!on; ui.autoBtn.classList.toggle('amove', aimMove); }
   const WALL_SELL_GAP = 600;   // ms: a second tap on your own wall sooner than this is part of a double tap, not a confirmation
   function tap(sx, sy, shift) {
     if (!G || G.over) return;
     const w = s2w(sx, sy);
     if (G.place) { placeTap(w); return; }
+    if (aimMove) {   // Attack move (picked under the AUTO button): this tap is the spot; one trip, then it is off again
+      setAimMove(false);
+      const units = G.entities.filter((e) => e.kind === 'unit' && e.team === G.me && canAttackMove(e));
+      if (!units.length) { evaCalm('No units to send', 3); return; }
+      commandAttackMove(units, w.x, w.y);
+      marker(w.x, w.y, '#ff4a3a'); Sound.ack(units[0].cls === 'inf' ? 'attack' : units[0].cls);
+      eva('Attack move');
+      return;
+    }
     if (aimSpan) {
       const units = aimSpan.filter((u) => u.alive), hit = pick(w.x, w.y, (isTouch ? 16 : 6) / cam.z);
       aimSpan = null;
@@ -1848,14 +1859,13 @@ function draw() {
   ui.autoBtn.addEventListener('click', () => {
     if (!G) return;
     const team = G.teams[G.me];
-    // A team game with more than one enemy side: a picker says whom to attack.
-    if (G.teams.filter((t) => hostile(team.id, t.id)).length > 1) { autoPicker(team); return; }
-    if (!team.auto && !enemyBaseKnown()) { evaCalm('Enemy base not located', 4); return; }   // scout it first
-    setAuto(team, !team.auto);
-    ui.autoBtn.setAttribute('aria-pressed', String(team.auto));
-    if (team.auto) {
-      eva('Auto attack on');
-    } else eva('Auto attack off. New units guard the base');
+    if (aimMove) { setAimMove(false); evaCalm('Attack move cancelled', 3); return; }   // waiting for the spot: a second press calls it off
+    // On with one enemy side: a press turns it off. Otherwise a picker: Auto Attack (whom to attack, in a team game
+    // with more than one enemy side) or a one-off Attack move.
+    if (team.auto && G.teams.filter((t) => hostile(team.id, t.id)).length === 1) {
+      setAuto(team, false); ui.autoBtn.setAttribute('aria-pressed', 'false'); eva('Auto attack off. New units guard the base'); return;
+    }
+    autoPicker(team);
   });
   // The Auto Attack picker (team games): each enemy side by colour and name, only those whose base this
   // side has found (scouted) can be picked; "Nearest" leaves the choice to the units, as before.
@@ -1874,6 +1884,7 @@ function draw() {
         pickerEl.hidden = true;
         if (!G || G.over) return;
         const me = G.teams[G.me], v = b.dataset.pick;
+        if (v === 'amove') { setAimMove(true); evaCalm('Tap the map: every unit attack-moves there', 5); return; }
         if (v === 'off') { setAuto(me, false); eva('Auto attack off. New units guard the base'); }
         else if (v === 'near') { setAuto(me, true, null); eva('Auto attack on'); }
         else if (v !== 'cancel') { const t = G.teams[+v]; setAuto(me, true, t.id); eva(`Auto attack on: ${sideLabel(t)}`); }
@@ -1889,11 +1900,12 @@ function draw() {
       return `<button type="button" class="pf-btn ap-row${cur === String(t.id) ? ' on' : ''}" data-pick="${t.id}"${known ? '' : ' disabled'}>`
         + `<i style="background:${sideColour(t)}"></i>${esc(sideLabel(t))}${note ? `<small>${note}</small>` : ''}</button>`;
     };
-    const any = enemyBaseKnown(team.id);
-    pickerEl.innerHTML = '<div class="nw-card" role="dialog" aria-label="Auto attack"><p class="nw-title">Auto attack</p>'
-      + `<p class="nw-sub">${any ? 'Choose the enemy to attack.' : 'No enemy base located yet: scout first.'}</p><div class="ap-list">`
-      + foes.map(row).join('')
-      + `<button type="button" class="pf-btn ap-row${cur === 'near' ? ' on' : ''}" data-pick="near"${any ? '' : ' disabled'}><i class="ap-any"></i>Nearest enemy</button>`
+    const any = enemyBaseKnown(team.id), one = foes.length === 1;
+    pickerEl.innerHTML = '<div class="nw-card" role="dialog" aria-label="Auto attack"><p class="nw-title">Attack</p>'
+      + `<p class="nw-sub">${one ? 'Auto attack keeps sending units; Attack move sends them all once.' : any ? 'Choose the enemy to attack.' : 'No enemy base located yet: scout first.'}</p><div class="ap-list">`
+      + (one ? '' : foes.map(row).join(''))
+      + `<button type="button" class="pf-btn ap-row${cur === 'near' ? ' on' : ''}" data-pick="near"${any ? '' : ' disabled'}><i class="ap-any"></i>${one ? 'Auto attack' : 'Nearest enemy'}${any ? '' : '<small>Not scouted</small>'}</button>`
+      + '<button type="button" class="pf-btn ap-row" data-pick="amove"><i class="ap-move"></i>Attack move<small>Tap a spot, once</small></button>'
       + (team.auto ? '<button type="button" class="pf-btn ap-row" data-pick="off">Auto attack off</button>' : '')
       + '<button type="button" class="pf-btn ap-row ap-cancel" data-pick="cancel">Cancel</button></div></div>';
     pickerEl.hidden = false;

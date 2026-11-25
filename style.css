@@ -746,6 +746,9 @@ body.touch #menuBtn::after { content: ''; position: absolute; left: -6px; right:
 .ap-row.on { outline: 3px solid #5a3b18; }
 .ap-row:disabled { opacity: 0.45; cursor: default; }
 .ap-cancel { justify-content: center; }
+.ap-row i.ap-move { background: #c8392b; border-radius: 50%; }
+.icon.auto.amove { outline: 3px solid #ff4a3a; outline-offset: -3px; animation: amovePulse 0.9s ease-in-out infinite alternate; }
+@keyframes amovePulse { from { outline-color: #ff4a3a; } to { outline-color: #ffd23e; } }
 .icon.aimed { box-shadow: inset 0 -4px 0 var(--aim); }
 
 /* Watch AI vs AI (owner's map tool, ui.js startWatch): only the radar stays in the sidebar. */

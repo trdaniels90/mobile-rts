@@ -3059,3 +3059,21 @@ an iPhone first (memory: four times the ground; the phone's compressed whole-map
 - Technician (`UNIT_DEFS.technician`): a civilian with a pistol, 25 HP, dmg 4, range 60, cannot be built (`factions: []`).
   Like the Pilot, not counted in `stats.units`, and drawn live (not in the baked sheets: those only hold buildable types).
   Model: `models.js infModel` (`TC`), bare-headed, shirt in the side's colour, work trousers, no pack.
+
+## Attack move (2026-11-25, not released, both modes)
+
+Owner's ask: from the AUTO button, an "Attack move": pick a spot, every unit goes there and stops to fight anything on the
+way; not a recurring wave, it turns off right after.
+
+- **Button:** AUTO now opens the picker (title "Attack") whenever Auto Attack is off, and in team games always. With one
+  enemy side the picker shows "Auto attack" (disabled until the enemy base is scouted), "Attack move" and Cancel; with Auto
+  Attack on, a press still just turns it off. Team games list the enemy sides as before, plus Attack move.
+- **Aiming:** after "Attack move" the button pulses (`.icon.auto.amove`) and the next tap on the map is the spot (ui.js
+  `aimMove`, checked first in `tap`). Pressing AUTO again calls it off. One tap, one trip: nothing stays switched on.
+- **Order** (world.js `commandAttackMove`, `canAttackMove`): every armed ground unit of the side (no harvesters, transports,
+  aircraft, units in houses) gets a Guard order with `hold` and `amove`, spread in formation round the spot, and is taken
+  out of the auto logic (`takeOver`, like Guard). While `amove` is set the guard leash to the spot is off, so it fights
+  whatever it meets on the way and then walks on; within 1.5 cells of its spot `amove` clears and it holds there as a
+  Guard. Stop sends it home as usual.
+- **Online:** `commandAttackMove` is in netcore `COMMANDS`, so a guest's order goes to the host or server.
+- Test: `tools/sim/attack-move.js`.

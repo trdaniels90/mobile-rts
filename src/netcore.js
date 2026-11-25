@@ -200,7 +200,7 @@ const NetCore = (() => {
   const COMMANDS = ['commandMove', 'commandAttack', 'commandHunt', 'commandGuard', 'commandStop', 'startProduction', 'cancelProduction',
     'placeStructure', 'launchPower', 'deployFob', 'setAuto', 'setAssist', 'recallAlly', 'setRepair', 'sellStructure', 'commandRepair', 'sendCredits',
     'setPrimary', 'setRally', 'commandAttackGround', 'commandEngineer', 'placeWalls', 'sellWall', 'commandGarrison', 'commandExit', 'startResearch', 'cancelResearch',
-    'commandBoard', 'commandAirAssault', 'commandUnload'];
+    'commandBoard', 'commandAirAssault', 'commandUnload', 'commandAttackMove'];
   const ORIGC = {};
   for (const f of COMMANDS) ORIGC[f] = root[f];
   function applyCommand(side, m) {
