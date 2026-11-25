@@ -2652,6 +2652,12 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   else `stormRainT` (from world.js `stormPlan` on the battle clock: each storm adds its length, the gaps dry one second a
   second). Wetness, the puddles' growth and the rivulets go by `S.rt`. When the rain stops the roofs stop running and the
   rivulets' glints stop; the puddles shrink as it dries (gone about 75 s after a 70 s storm).
+- **Defences: a trickle, not a stream** (owner, 2026-11-25, screenshot of Tesla Coils and Flame Towers in the rain: "run off
+  from these defensive structures looks weird", then: keep it on them, just make it look better): the full 4 px stream down a
+  narrow tower read as a grey pole stuck to its side. Off a structure with `defense`, `lookRunoff` now draws the thin broken
+  drops (`P.drop`, 3 px) with the falling drips and their splashes, and no steady splash at the foot. The camouflaged Pillbox
+  sheds water only where the viewing side can see it (`camoHidden(e, G.me)`: its own or an ally's, or an enemy's that has
+  given itself away), so the runoff cannot give a hidden one away.
 
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 
