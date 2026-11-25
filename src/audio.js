@@ -475,7 +475,7 @@ const Sound = (() => {
   // Some effects layer several recordings: [clip, delay s, pitch, level].
   const COMBO = {
     cannonHeavy: [['cannon', 0, 0.9, 1], ['cannon', 0.028, 0.86, 0.8]],   // both barrels at once
-    cannonLight: [['cannon', 0, 1.12, 1], ['rifle', 0, 0.75, 0.1]],   // the Light Tank: the cannon pitched up (higher, shorter boom), a rifle crack on top for snap
+    cannonLight: [['flak', 0, 0.75, 1], ['cannon', 0, 1.5, 0.3]],   // the Light Tank: a smaller caliber, the flak bang pitched down with a light cannon thump under it
     // MG Team: the machine-gun report pitched well down with a short cannon thump under it. The M2 .50 cal deepest;
     // the DShK 12.7 mm a little higher, with the SKS crack on top for its harder bark.
     cal50: [['mg', 0, 0.62, 1], ['cannon', 0, 1.55, 0.5]],
