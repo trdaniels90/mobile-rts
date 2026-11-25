@@ -397,13 +397,27 @@ function cliffHeight(cells) {
     if (d >= 1.2) return 1;
     const k = Math.max(0, Math.min(1, (d - 0.55) / 0.65)); return k * k * (3 - 2 * k);
   };
-  return (x, y) => {
+  // A map's mesas (MAPS mesas, world.js makeHeights; Lakeside): the rim's crags rise from the low ground to the top's
+  // drawn height (gLift: HILL_DRAW x the rules' height), so the plateau stands as one block of cliff, its top level with the rock.
+  const mesas = (G.hgt && MAPS[validMap(G.mapId)].mesas) || [], tops = new Map();
+  const topOf = (c) => {
+    if (!mesas.length) return CLIFF_TOP;
+    let t = tops.get(c);
+    if (t === undefined) {
+      t = CLIFF_TOP;   // (a rim cell up on the top itself: only a lip, so the top stays level)
+      for (const m of mesas) if (Math.hypot(c % MAP + 0.5 - m.x, ((c / MAP) | 0) + 0.5 - m.y) < m.r + 1.5) t = (HG_MAX - G.hgt[c]) * HILL_DRAW + 2;
+      tops.set(c, t);
+    }
+    return t;
+  };
+  // (c: the cell whose crag is being made: its margin's samples are sized for its own foot, so its top is level.)
+  return (x, y, c) => {
     let q = (mound(x, y) - 0.5) * (oreCell.size ? oreFade(x, y) : 1);
     if (bare.size) { const c = Math.floor(y / CELL) * MAP + Math.floor(x / CELL); if (bare.has(c)) q = Math.max(q, 0.12 * (1 - Math.hypot(x / CELL - (c % MAP + 0.5), y / CELL - ((c / MAP | 0) + 0.5)) / 0.75)); }
     if (q <= 0) return 0;
     const s = Math.min(1, q / 0.22), l = cells.get(Math.floor(y / CELL) * MAP + Math.floor(x / CELL));
     const big = Math.min(1, 0.3 + (l ? l.length / 2 : 0) / 9);   // a lone rock stays a boulder; a ridge rises full height
-    return CLIFF_TOP * big * s * s * (3 - 2 * s) + (hash3(x >> 2, y >> 2, 21) - 0.5) * 1.5;
+    return topOf(c === undefined ? Math.floor(y / CELL) * MAP + Math.floor(x / CELL) : c) * big * s * s * (3 - 2 * s) + (hash3(x >> 2, y >> 2, 21) - 0.5) * 1.5;
   };
 }
 // The rock's columns over cell c: [x, y, height, slope x, slope y] per world pixel, and the highest.
@@ -412,19 +426,22 @@ function cliffPts(L, c) {
   // The height over the cell and a margin, smoothed (5 x 5): raised CLIFF_UP times, the ridge's fine noise made the tops
   // bumpy and streaked.
   const B = 4, N = CELL + 2 * B, raw = new Float32Array(N * N), sm = new Float32Array(N * N);
-  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) raw[j * N + i] = Hf(cx * CELL - B + i + 0.5, cy * CELL - B + j + 0.5);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) raw[j * N + i] = Hf(cx * CELL - B + i + 0.5, cy * CELL - B + j + 0.5, c);
   for (let j = 2; j < N - 2; j++) for (let i = 2; i < N - 2; i++) {
     let a = 0; for (let v = -2; v <= 2; v++) for (let u = -2; u <= 2; u++) a += raw[(j + v) * N + i + u];
     sm[j * N + i] = raw[j * N + i] > 0.4 ? a / 25 : 0;
   }
   const at = (x, y) => sm[(y - cy * CELL + B) * N + x - cx * CELL + B];
+  // On a map with mesas (Lakeside), the ground under a rim crag is not level: each column stops at the ground it stands on
+  // (its foot, f world units above the cell's middle), so none of it shows on the plateau's top. Elsewhere f is 0.
+  const ms = G.hgt && MAPS[validMap(G.mapId)].mesas, h0 = ms ? hgtAt((cx + 0.5) * CELL, (cy + 0.5) * CELL, true) : 0;
   const pts = [];
   let top = 0;
   for (let y = cy * CELL; y < (cy + 1) * CELL; y++) for (let x = cx * CELL; x < (cx + 1) * CELL; x++) {
     const h = at(x, y);
     if (h <= 0.4) continue;
     const gx = at(x + 1, y) - at(x - 1, y), gy = at(x, y + 1) - at(x, y - 1);
-    pts.push([x, y, h, gx, gy]); top = Math.max(top, h);
+    pts.push([x, y, h, gx, gy, ms ? (hgtAt(x + 0.5, y + 0.5, true) - h0) * HILL_DRAW : 0]); top = Math.max(top, h);
   }
   return { pts, top };
 }
@@ -448,7 +465,7 @@ function cliffPic(L, c, noShadow) {
     : [[44, 34, 26], [62, 49, 36], [84, 67, 49], [108, 88, 65], [134, 112, 84], [162, 139, 106], [190, 168, 132]];
   const Lx = -0.8, Ly = 0.3, Lz = 0.6, Ll = Math.hypot(Lx, Ly, Lz);   // towards the sun: the screen's upper left
   pts.sort((a, b) => viewDepth(a[0], a[1]) - viewDepth(b[0], b[1]));   // back to front
-  for (const [x, y, h, gx, gy] of pts) {
+  for (const [x, y, h, gx, gy, f] of pts) {
     const [vX, vY] = toView(x + 0.5 - mx, y + 0.5 - my), hz = h * CLIFF_UP;
     const nx = -gx * 0.5 * CLIFF_UP, ny = -gy * 0.5 * CLIFF_UP, nl = Math.hypot(nx, ny, 1);
     const lit = (nx * Lx + ny * Ly + Lz) / nl / Ll, steep = 1 - 1 / nl;
@@ -460,7 +477,8 @@ function cliffPic(L, c, noShadow) {
     const px0 = Math.round(vX - X0 - 0.5), yTop = Math.round(vY - hz * VK - Y0), yBot = Math.round(vY - Y0);
     for (let py = yTop; py <= yBot; py++) {
       const z = hz - (py - yTop) / VK;   // the height of this pixel of the column
-      let v = 1.2 + lit * 4.4 + (sp - 0.5) * 0.7 + (z / CLIFF_TOP) * 0.8;
+      if (f > 0 && z < f) break;          // (below the ground it stands on: cliffPts)
+      let v = 1.2 + lit * 4.4 + (sp - 0.5) * 0.7 + Math.min(1, z / CLIFF_TOP) * 0.8;
       if (steep > 0.45 && ((z + hash3(x >> 3, y >> 3, 5) * 3) % 8) < 1.2) v -= 0.8;   // strata on the faces
       if (z < 4) v -= (4 - z) * 0.3;                                                     // darker at the foot
       if (py === yTop && steep < 0.5) v += 0.4;                                          // a lit lip on flat tops

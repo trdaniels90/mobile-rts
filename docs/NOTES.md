@@ -2769,8 +2769,15 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   (a few small clumps and singles, about 1 cell in 5), a cliff rim out to 11.6, a gap 7 cells wide on the north (the back,
   away from the camera, toward the north bases) with a dirt ramp 8 cells long. The 274 ore cells it covered were put back
   as a ring round its foot (nearest open grass first), so the field holds as much ore.
-- Heights: `MAPS.lakes.mesas` (world.js makeHeights; any map can use it): HG_MAX on top, falling over `ease` (3) past the
-  rim, and down the ramp over `rampLen`. The usual high-ground rules apply (+2 sight, longer reach down, shorter up, slow
+- Owner, after the first try (a raised hill ringed by a low crag wall): "i still wanted it to be like a cliff how it was drawn
+  originally just bigger to where units could get on it". So it is one block of cliff, drawn like the map's other crags:
+- Heights: `MAPS.lakes.mesas` (world.js makeHeights; any map can use it): HG_MAX on top, dropping sheer to 0 under the rim
+  (from `top` to `r`), nothing outside, and down the ramp over `rampLen`.
+- Crags (look.js cliffHeight `topOf`): a rim cell within `r` + 1.5 of a mesa rises (HG_MAX - its height) x HILL_DRAW + 2
+  instead of CLIFF_TOP, so every rim crag's top is level with the drawn top (62 view px) whatever its own foot; a rim cell
+  up on the top is only a lip. The height is sized for the cell being drawn (cliffPts passes `c`; its 5 x 5 smoothing had
+  taken the next cell's taller target), and each column stops at the ground under it (cliffPts `f`), so no rock shows on
+  the top. Maps without mesas are drawn as before (the rock shading's height term is capped at CLIFF_TOP, a hair at most). The usual high-ground rules apply (+2 sight, longer reach down, shorter up, slow
   climb). It is closer to the north team's bases (the map is not mirrored there; the south has no twin).
 - `map-check.js`: OK (the top is reached by the ramp; every start and ore cell reachable). Ground and crags rebaked, preview
   redrawn. Saves of a Lakeside battle keep the layout they were made with.

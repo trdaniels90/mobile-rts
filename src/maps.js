@@ -439,11 +439,11 @@ const MAPS = {
     gems: [[23, 25, 3.2], [105, 21, 3.2], [169, 17, 3.2], [27, 163, 3.2], [109, 169, 3.2], [173, 161, 3.2], [21, 89, 3.2], [167, 95, 3.2],
       [85, 45, 3.5], [113, 139, 3.5], [61, 117, 3.5], [133, 77, 3.5]],
     spawns: [[35,33],[101,31],[157,25],[39,155],[101,159],[163,163]],
-    // High ground over the north-middle ore field (owner, 2026-11-24; world.js makeHeights): flat at HG_MAX out to `top`
-    // cells from (x, y), ringed by cliff to `r` (the layout, from tools/lakes-mesa.py: keep its numbers the same), falling to
-    // the low ground over `ease` beyond it, and down a ramp `rampLen` cells long and `rampW` either side of its line, in
-    // direction `ramp` (north, the back, toward the north bases).
-    mesas: [{ x: 103, y: 69, top: 9.5, r: 11.6, ease: 3, ramp: [0, -1], rampW: 3.5, rampLen: 8 }],
+    // High ground over the north-middle ore field (owner, 2026-11-24; world.js makeHeights): a block of cliff, flat at HG_MAX
+    // out to `top` cells from (x, y), dropping sheer to the low ground under its rim of rock out to `r` (the layout, from
+    // tools/lakes-mesa.py: keep its numbers the same; look.js cliffHeight raises the rim's crags to the top), and down a ramp
+    // `rampLen` cells long and `rampW` either side of its line, in direction `ramp` (north, the back, toward the north bases).
+    mesas: [{ x: 103, y: 69, top: 9.5, r: 11.6, ramp: [0, -1], rampW: 3.5, rampLen: 8 }],
     rows: [
       '192~',
       '192~',
