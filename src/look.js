@@ -1645,7 +1645,12 @@ function runoffSpots(type, faction) {
       if (z < 5) continue;
       const broad = T(x - 1, y) >= z - 2 && T(x + 1, y) >= z - 3 && T(x, y - 1) >= z - 2 && T(x - 2, y) >= z - 3 && T(x, y - 2) >= z - 3;   // a roof, not a mast or a chimney
       if (!broad) continue;
+      // ...and broad behind the eave too: most of a 13 x 7 patch on the roof's side at about this height. The 5-neighbour test
+      // alone let a chimney's or tower's top pass (the Allied Power Plant poured water from its small stack's rim, in the air).
+      const behind = (sx, sy) => { let n = 0; for (let j = 0; j < 7; j++) for (let i = -6; i <= 6; i++) if (T(x + (sx ? -j : i), y + (sx ? i : -j)) >= z - 3) n++; return n >= 70; };
       const zs = T(x, y + 1), ze = T(x + 1, y);
+      if (z - zs >= 4 && !behind(0, 1)) continue;
+      if (z - zs < 4 && z - ze >= 4 && !behind(1, 0)) continue;
       if (z - zs >= 4) cand.push([x + m.x0 + 0.5, y + m.y0 + 1.2, z + 0.5, Math.max(0, zs + 1)]);
       else if (z - ze >= 4) cand.push([x + m.x0 + 1.2, y + m.y0 + 0.5, z + 0.5, Math.max(0, ze + 1)]);
     }

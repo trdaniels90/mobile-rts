@@ -2634,6 +2634,11 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
 - **Rain missing with WebGL** (same report: splash dots but no drops): art.js drawWeather stroked its drops and rings as
   `Path2D` objects (since 73592b4), which gl.js's recorder cannot see (it follows moveTo / lineTo / ellipse on the context), so
   nothing was cut out of its layer and the drops never showed. Now drawn on `g` itself, as quads (stage 5 lines and rings).
+- **No water from stacks** (owner, 2026-11-25, Allied Power Plant in the rain: "its far off the stack"): the 5-neighbour "broad"
+  test let the rim of a chimney or tower pass as a roof, so the Power Plant poured a stream from its small stack's top (30
+  voxels up) beside the stack. `runoffSpots` now also needs most of a 13 x 7 patch behind the eave (70 of 91 voxels within 3
+  of its height). Gone with it: the Soviet Power Plant's and Advanced Power Plant's towers, the Allied Advanced Power Plant's
+  and Construction Yard's tall parts, the Soviet Refinery's tower; roofs keep theirs (War Factory still has none).
 
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 
