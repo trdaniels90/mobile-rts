@@ -211,9 +211,11 @@ function makeHeights(mapId) {
     } else for (const [fx, fy, fh] of flat) { const d = Math.hypot(x + 0.5 - fx, y + 0.5 - fy); if (d < BASE_FLAT + BASE_EASE) { const k = S(Math.max(0, Math.min(1, (d - BASE_FLAT) / BASE_EASE))); v = fh + (v - fh) * k; } }
     for (const m of mesas) {   // a map's `mesas`: high ground ringed by cliff, with a ramp (Lakeside)
       const dx = x + 0.5 - m.x, dy = y + 0.5 - m.y, d = Math.hypot(dx, dy);
-      v = Math.max(v, HG_MAX * (1 - S(Math.max(0, Math.min(1, (d - m.top) / (m.r - m.top))))));   // sheer: down under the rim's rock
+      const T = HG_MAX * (m.h || 1);   // the top's height
+      v *= S(Math.max(0, Math.min(1, (d - m.r) / 6)));   // the low ground round its foot level, so its walls are as tall all round
+      v = Math.max(v, T * (1 - S(Math.max(0, Math.min(1, (d - m.top) / (m.r - m.top))))));   // sheer: down under the rim's rock
       const along = dx * m.ramp[0] + dy * m.ramp[1], across = Math.abs(-dx * m.ramp[1] + dy * m.ramp[0]);
-      if (along > 0) v = Math.max(v, HG_MAX * (1 - S(Math.max(0, Math.min(1, (along - m.top) / m.rampLen))))
+      if (along > 0) v = Math.max(v, T * (1 - S(Math.max(0, Math.min(1, (along - m.top) / m.rampLen))))
         * (1 - S(Math.max(0, Math.min(1, (across - m.rampW) / 2)))));
     }
     v *= S(Math.min(1, (wd[c] === 255 ? 6 : wd[c]) / 5));   // down to the water's edge

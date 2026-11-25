@@ -405,7 +405,7 @@ function cliffHeight(cells) {
     let t = tops.get(c);
     if (t === undefined) {
       t = CLIFF_TOP;   // (a rim cell up on the top itself: only a lip, so the top stays level)
-      for (const m of mesas) if (Math.hypot(c % MAP + 0.5 - m.x, ((c / MAP) | 0) + 0.5 - m.y) < m.r + 1.5) t = (HG_MAX - G.hgt[c]) * HILL_DRAW + 2;
+      for (const m of mesas) if (Math.hypot(c % MAP + 0.5 - m.x, ((c / MAP) | 0) + 0.5 - m.y) < m.r + 1.5) t = (HG_MAX * (m.h || 1) - G.hgt[c]) * HILL_DRAW + 2;
       tops.set(c, t);
     }
     return t;

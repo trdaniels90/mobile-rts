@@ -443,7 +443,8 @@ const MAPS = {
     // out to `top` cells from (x, y), dropping sheer to the low ground under its rim of rock out to `r` (the layout, from
     // tools/lakes-mesa.py: keep its numbers the same; look.js cliffHeight raises the rim's crags to the top), and down a ramp
     // `rampLen` cells long and `rampW` either side of its line, in direction `ramp` (north, the back, toward the north bases).
-    mesas: [{ x: 103, y: 69, top: 9.5, r: 11.6, ramp: [0, -1], rampW: 3.5, rampLen: 8 }],
+    // `h`: the top's height as a share of HG_MAX (owner: "make the rock wall a little shorter").
+    mesas: [{ x: 103, y: 69, top: 9.5, r: 11.6, h: 0.75, ramp: [0, -1], rampW: 3.5, rampLen: 8 }],
     rows: [
       '192~',
       '192~',
