@@ -2659,6 +2659,32 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   sheds water only where the viewing side can see it (`camoHidden(e, G.me)`: its own or an ally's, or an enemy's that has
   given itself away), so the runoff cannot give a hidden one away.
 
+- **Puddles that react** (owner, 2026-11-25: "add physics to the puddles", picked splashes and blast ripples; flowing water
+  later): look.js `puddleMovers` (ground units on and round the screen that moved since the last frame, by map row),
+  `puddleWade` (a unit inside a filled puddle's ellipse, 13 x 9 x its size: a ring centred a little behind it, a vehicle every
+  0.22 s, a soldier every 0.4 s, and droplets thrown up and back), `puddleBlasts` (each new `expl` effect: up to 4 puddles within
+  2.5 x its size + 14 px get two rings and a spray of 8-18 droplets away from it), `puddleRipples` (draws and ages them: rings
+  spread by the square root of age; droplets fly on `SPRAY_G` gravity, drawn with `hillPt` at their height), `puddleGlow`
+  (fire and blasts within 90 px shine in a puddle, 'lighter'). Kept in `rainS.rip` (at most `RIP_MAX` 160), on the battle
+  clock; nothing in G, nothing online. Same in both renderers.
+
+- **Water that flows** (owner, 2026-11-25: "lets do option 3"): look.js `flowTick` / `flowStep` / `flowDraw`. A depth per cell
+  over the whole map (`rainS.flow.W`, G.hgt units), stepped every `FLOW_DT` 0.5 s of battle clock (at most 2 steps a frame;
+  ~2.5 ms a step on a 192-cell map in headless Chromium). Each step: rain adds `FLOW_RAIN` x its strength, the ground takes
+  `FLOW_SOAK` (`FLOW_DRY` in dry weather) plus `FLOW_SEEP` x the depth (so pools stop growing and level ground stays below a
+  pool); each cell passes water to its four neighbours whose surface (G.hgt + G.dig + a little roughness from the ground seed
+  + water) is lower, by the difference. Structures, cliffs, woods and rock hold none; a lake swallows what runs in. `Q`, `qx`,
+  `qy`: how much runs through and which way (smoothed). A wet battle (continued, or long in the rain) works its water out at
+  once (40 coarse steps, ~110 ms headless). Drawn under the puddles: a pool where the depth passes `FLOW_MIN` (size and
+  darkness by depth, neighbours overlapping into one sheet; not over ore); where water runs (`FLOW_Q`, on a log scale)
+  `flowStreams` follows it downhill cell to cell (`F.to`: where most of each cell's water goes) into runnels, each one smooth
+  path (Catmull-Rom through jittered cell spots): a dark wet edge and a pale line of water catching the sky, in three widths by
+  how much runs, with highlights sliding along the whole runnel (owner, on the first try: "i dont see it flowing", it had
+  only faint dots, which a time-lapse also hid). Rain `FLOW_RAIN` 0.014, soak 0.004, seep 0.06 x the depth; pools from
+  `FLOW_MIN` 0.22 (Lakeside soaked: ~14% of cells deeper than 0.12, so the pool line is higher). The puddles scale with the water round them (0.35 to
+  1.7 x: drained off a slope, filled in a hollow); dug craters fill. Tank ruts on soaked ground hold a thin pale line of water
+  (lookGround, the tracks). Looks only, nothing in G, nothing online; snowy maps and Heron Fen's storm-free weather as before.
+
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 
 - Owner's match 305e950b (Heron Fen, desktop 2560 x 1370, WebGL): 70 fps on average, no frame over 100 ms, but minutes 18, 35
