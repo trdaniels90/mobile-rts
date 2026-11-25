@@ -2862,3 +2862,39 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   **Plan view** (the flat one, every cell a colour) stays one button away for big changes or seeing the whole map; the
   game's camera looks at the map corner-on, so the plan's diagonals are the real view's up and down. Explore is gone from
   the editor (the real view is it). Close or Play ends the working copy (`EditorHooks.leave`: a fresh menu world).
+
+## HD graphics (2026-11-25, not released, looks only, both modes; an Options switch, off by default)
+
+Owner, after a study of Red Alert Remastered's screenshots: "go ahead with 1, 2 and 4 as an HD option" (1: the models at 4x
+detail, 2: sprites at 2x drawn smoothly, 4: soft shadows). Remastered's trick is art made larger than it is ever shown and
+shrunk to the screen; ours was the reverse: sprites at one pixel per world pixel, in a frame of one pixel per world pixel,
+stretched 2x to 7x (zoom x screen sharpness) with no smoothing.
+- **Switch:** Options, Graphics, "HD graphics" (shown on every device), `localStorage` `rh-hd`; `?hd=1` / `?hd=0` for one
+  load. Chosen at launch (the sheets and the frame's size): from the start menu the page reloads at once, in a battle it
+  says it takes effect next time. Needs WebGL 2 (art.js `HD.on`); the 2D way (`?gl=off`, a lost context) draws HD pictures at
+  their world size, in an ordinary frame.
+- **The frame (gl.js `RS` = `R.rs`, art.js `FRAME_RS`):** the scene, its depth and normals and the lit frame are `RS` (2) times
+  the view's size. Everything is still placed in view pixels: `uSize` stays the view's size, only framebuffers and viewports
+  grow, and the light pass works its view position back (`uRS`). Picture spots round to half pixels (`frameRound`, gl.js
+  `rnd`), so units move in finer steps. The ground's tiles are sampled smoothly (a linear sampler on units 0 and 1 during
+  `R.ground`, unbound after), and the lit frame is put on the screen smoothly. The 2D cut-out layer (curves, text) stays at
+  the view's size, as before.
+- **Pictures with `_k`:** an HD picture holds `_k` pixels per world pixel; art.js `hdArgs` (uprightCtx's drawImage) and gl.js's
+  recorder draw it at its world size, with a source rectangle given in world pixels (a structure rising from its pad).
+  `picW`/`picH` give its world size; `sdPic` makes a one-pixel-per-world-pixel copy for what is painted into the ground
+  (wrecks, bodies: `charredLook`, `dimmed`); `redSprite` keeps `_k`.
+- **Baked (tools/bake-sprites.js `--hd`):** `sprites-hd/` and `normals-hd/` (same layout, normal maps from gl.js `nrmPic` in
+  the same run). `tools/hd-vox.js` (loaded by the bake only) builds every model at `HD_D` = 4x detail: boxes still cover
+  whole design voxels, but cylinders, ellipsoids and lines are filled at the fine grid, so they come out round;
+  `paint`/`paintTop` patterns keep their size; `stampModel` and lookstructs.js `tsWeather` have fine-grid versions there.
+  Pictures at `HD_K` = 2, soft edged (no crisp infantry), shadows blurred (art.js `softShadow`). The manifest has `k` and
+  `structs` (baked with lookstructs.js's models, so those structure pictures are kept: lookstructs.js no longer refuses them
+  in HD). About 20 MB, fetched only with HD on (the service worker keeps them once used; not precached). The hash covers
+  models.js, voxel.js, lookstructs.js, hd-vox.js, nrmPic and softShadow: **rebake (`--hd`) whenever the ordinary sheets are
+  rebaked, and after changing lookstructs.js.** Missing or older files: the ordinary sheets are used.
+- **Not baked (live):** art.js wraps `sprite` in HD so what is rendered while playing (damaged structures, turret heads, a
+  structure going up, anything the sheets lack) is rendered at 2x with soft shadows, from the ordinary (1x detail) models:
+  sharper but still stepped. About 4x the time of an ordinary sprite (a structure ~90 ms once).
+- **Cost:** the GPU fills 4x the pixels. Measure on the owner's iPhone before it is ever the default.
+- Windows app: desktop/scripts/prep.js copies `sprites-hd` and `normals-hd`. (It does not copy `normals` or `cliffs`, before
+  this change too.)

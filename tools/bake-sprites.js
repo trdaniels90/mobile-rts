@@ -4,11 +4,16 @@
 // the burnt hulls and turrets of wrecks. Rendered by the game's own code in headless Chromium, so they match exactly.
 //   node tools/bake-sprites.js <repo>           bake
 //   node tools/bake-sprites.js <repo> --check   exit 1 if the sheets are stale (models, voxel renderer or colours changed)
+//   node tools/bake-sprites.js <repo> --hd [--check]   the HD graphics' sheets (art.js HD): sprites-hd/ and their normal maps,
+//     normals-hd/ (the same layout), the models built at 4x detail (tools/hd-vox.js) and drawn at 2 pixels per world pixel,
+//     with soft shadows. Also hashes src/lookstructs.js (the structures are baked with its models) and tools/hd-vox.js.
 // Rebake after changing src/models.js, src/voxel.js or FACTIONS colours in src/data.js (the release checklist runs --check).
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
-const [root, flag] = process.argv.slice(2);
-const outDir = path.join(root, 'sprites');
+const [root, ...flags] = process.argv.slice(2);
+const flag = flags.includes('--check') ? '--check' : null, HDB = flags.includes('--hd');
+const HD_D = 4, HD_K = 2;   // (the detail the models are built at, and the pictures' pixels per world pixel)
+const outDir = path.join(root, HDB ? 'sprites-hd' : 'sprites'), nrmDir = path.join(root, 'normals-hd');
 
 (async () => {
   const b = await chromium.launch();
@@ -16,24 +21,34 @@ const outDir = path.join(root, 'sprites');
   await p.route(/fonts|supabase|fly\.dev/, (r) => r.abort());
   await p.goto('file://' + path.resolve(root) + '/index.html'); await p.waitForTimeout(800);
   const colours = await p.evaluate(() => JSON.stringify([FACTIONS, BURNT]));
-  const hash = crypto.createHash('sha1').update(fs.readFileSync(path.join(root, 'src/models.js'))).update(fs.readFileSync(path.join(root, 'src/voxel.js'))).update(colours).digest('hex').slice(0, 16);
+  const hh = crypto.createHash('sha1').update(fs.readFileSync(path.join(root, 'src/models.js'))).update(fs.readFileSync(path.join(root, 'src/voxel.js'))).update(colours);
+  if (HDB) {
+    hh.update(fs.readFileSync(path.join(root, 'src/lookstructs.js'))).update(fs.readFileSync(path.join(root, 'tools/hd-vox.js'))).update(`hd${HD_D}x${HD_K}`);
+    hh.update(await p.evaluate(() => (GLR.nrmPic ? GLR.nrmPic.toString() : '') + softShadow.toString()));
+    await p.addScriptTag({ path: path.join(root, 'tools/hd-vox.js') });
+    await p.evaluate(([D, K]) => installHdVox(D, K), [HD_D, HD_K]);
+  }
+  const hash = hh.digest('hex').slice(0, 16);
   if (flag === '--check') {
     let old = null;
     try { old = JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf8')).hash; } catch (_) {}
     console.log(old === hash ? 'sprites up to date' : `sprites STALE (baked ${old}, now ${hash}): run node tools/bake-sprites.js <repo>`);
     await b.close(); process.exit(old === hash ? 0 : 1);
   }
-  fs.mkdirSync(outDir, { recursive: true });
-  for (const f of fs.readdirSync(outDir)) fs.unlinkSync(path.join(outDir, f));
+  for (const d of HDB ? [outDir, nrmDir] : [outDir]) {
+    fs.mkdirSync(d, { recursive: true });
+    for (const f of fs.readdirSync(d)) fs.unlinkSync(path.join(d, f));
+  }
   // Each set: the sprites one palette makes (faction and variant), or the burnt ones. Rendered in the page, packed
   // into a sheet there, sent back as lossless WebP (PNG if WebP does not come back pixel for pixel).
   const sets = [];
   for (const faction of ['allies', 'soviets']) for (const v of [0, 1, 2]) sets.push({ faction, v });
   sets.push({ burnt: true });
-  const manifest = { hash, sheets: [] };
+  const manifest = HDB ? { hash, k: HD_K, structs: await p.evaluate(() => !!LOOK.structs), sheets: [] } : { hash, sheets: [] };
+  const nman = { hash: hash + 'n', sprites: hash, sheets: [] }, nlay = new Map();
   let total = 0;
   for (const set of sets) {
-    const r = await p.evaluate(async (set) => {
+    const r = await p.evaluate(async ([set, HDB]) => {
       spriteSpend = -1e9;
       const before = new Set(spriteCache2.keys());
       const keep = drawVar;
@@ -71,6 +86,12 @@ const outDir = path.join(root, 'sprites');
       for (const q of pics) { if (x + q.c.width + 1 > W) { x = 0; y += rowH + 1; rowH = 0; } q.x = x; q.y = y; x += q.c.width + 1; rowH = Math.max(rowH, q.c.height); }
       const sheet = document.createElement('canvas'); sheet.width = W; sheet.height = y + rowH; const g = sheet.getContext('2d');
       for (const q of pics) g.drawImage(q.c, q.x, q.y);
+      // HD: the normal maps in the same layout (gl.js nrmPic, from the very models these pictures were rendered from).
+      let nsheet = null;
+      if (HDB) {
+        nsheet = document.createElement('canvas'); nsheet.width = W; nsheet.height = sheet.height; const ng = nsheet.getContext('2d');
+        for (const q of pics) if (q.part === 'img') { const n = GLR.nrmPic(q.c); if (n) ng.drawImage(n, q.x, q.y); }
+      }
       const at = new Map(pics.map((q) => [q.k + '/' + q.part, q]));
       const entries = keys.map((k) => {
         const s = spriteCache2.get(k), a = at.get(k + '/img'), e = [k, a.x, a.y, s.img.width, s.img.height, s.ox, s.oy];
@@ -79,26 +100,39 @@ const outDir = path.join(root, 'sprites');
       });
       // Lossless WebP if it decodes back to the same pixels, else PNG.
       const toB64 = async (blob) => { const u = new Uint8Array(await blob.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
-      const same = async (blob) => {
+      const same = async (blob, src) => {
         const bmp = await createImageBitmap(blob), c = document.createElement('canvas'); c.width = W; c.height = sheet.height;
         const cg = c.getContext('2d'); cg.drawImage(bmp, 0, 0);
-        const a = g.getImageData(0, 0, W, sheet.height).data, bb = cg.getImageData(0, 0, W, sheet.height).data;
+        const a = src.getContext('2d').getImageData(0, 0, W, sheet.height).data, bb = cg.getImageData(0, 0, W, sheet.height).data;
         // Solid pixels exact; see-through edge pixels within 4/255 (the canvas keeps colours premultiplied by alpha).
         for (let i = 0; i < a.length; i++) { const al = a[i + 3 - (i % 4)]; if (al === 255 ? a[i] !== bb[i] : al && Math.abs(a[i] - bb[i]) > 4) return false; }
         return true;
       };
-      let blob = await new Promise((res) => sheet.toBlob(res, 'image/webp', 1)), ext = 'webp';
-      if (!blob || blob.type !== 'image/webp' || !(await same(blob))) { blob = await new Promise((res) => sheet.toBlob(res, 'image/png')); ext = 'png'; }
-      return { entries, w: W, h: sheet.height, ext, data: await toB64(blob) };
-    }, set);
+      const enc = async (sheet) => {
+        let blob = await new Promise((res) => sheet.toBlob(res, 'image/webp', 1)), ext = 'webp';
+        if (!blob || blob.type !== 'image/webp' || !(await same(blob, sheet))) { blob = await new Promise((res) => sheet.toBlob(res, 'image/png')); ext = 'png'; }
+        return { ext, data: await toB64(blob) };
+      };
+      const main = await enc(sheet), nrm = nsheet ? await enc(nsheet) : null;
+      return { entries, w: W, h: sheet.height, ext: main.ext, data: main.data, nrm, lay: JSON.stringify(entries.map((e) => e.slice(1, 5))) };
+    }, [set, HDB]);
     const name = (set.burnt ? 'burnt' : set.faction + set.v) + '.' + r.ext;
     const buf = Buffer.from(r.data, 'base64');
     fs.writeFileSync(path.join(outDir, name), buf);
     total += buf.length;
     manifest.sheets.push({ file: name, w: r.w, h: r.h, sprites: r.entries });
     console.log(name, r.entries.length, 'sprites,', r.w + 'x' + r.h, (buf.length / 1e6).toFixed(2), 'MB');
+    if (r.nrm) {   // (the team colours share a layout: one normal map sheet for them)
+      if (nlay.has(r.lay)) nman.sheets.push({ file: nlay.get(r.lay), of: name });
+      else {
+        const nn = (set.burnt ? 'burnt' : set.faction + set.v) + '.' + r.nrm.ext, nb = Buffer.from(r.nrm.data, 'base64');
+        fs.writeFileSync(path.join(nrmDir, nn), nb); total += nb.length; nlay.set(r.lay, nn); nman.sheets.push({ file: nn, of: name });
+        console.log('  normals', nn, (nb.length / 1e6).toFixed(2), 'MB');
+      }
+    }
   }
   fs.writeFileSync(path.join(outDir, 'manifest.json'), JSON.stringify(manifest));
+  if (HDB) fs.writeFileSync(path.join(nrmDir, 'manifest.json'), JSON.stringify(nman));
   console.log('total', (total / 1e6).toFixed(2), 'MB; manifest', (fs.statSync(path.join(outDir, 'manifest.json')).size / 1e3).toFixed(0), 'KB; hash', hash);
   await b.close();
 })();

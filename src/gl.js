@@ -62,6 +62,11 @@ const GLR = (() => {
   }
   if (!R.on) return R;
   const GL_STEP = 16, TEX_MAX = 140;
+  // HD graphics (art.js HD): the frame (the scene, its depth and normals, the lit frame) is RS times the view's size, so the
+  // HD sprites' pixels show. Everything is still placed in view pixels (uSize stays the view's size): only the
+  // framebuffers and viewports are RS times larger, and the light pass works its view position back (uRS).
+  const RS = typeof HD !== 'undefined' && HD.on ? HD.K : 1;
+  R.rs = RS;
   let FW = 1, FH = 1, cv = null, gl = null, P = null, loc = null, failed = false;
   const VS = `#version 300 es
 in vec2 aP; in float aD; in vec2 aW; in vec2 aN; uniform vec2 uCam, uSize; out vec2 vW; out vec2 vN;
@@ -126,6 +131,10 @@ void main() {
     R.buf = gl.createBuffer(); R.ibuf = gl.createBuffer();
     R.none = texFrom(null);
     return true;
+  }
+  function linSampler() {
+    if (!R.linS) { R.linS = gl.createSampler(); for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.samplerParameteri(R.linS, k, gl.LINEAR); gl.samplerParameteri(R.linS, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.samplerParameteri(R.linS, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); }
+    return R.linS;
   }
   function texFrom(src, repeat) {
     const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
@@ -195,6 +204,7 @@ void main() {
   // plane). False when WebGL cannot: the caller draws it the 2D way.
   R.ground = (v, vx, vy, VW, VH, sx, sy, sw, sh) => {
     R.lit = false;   // (set again by listEnd when this frame's light pass ran)
+    if (typeof FRAME_RS !== 'undefined') FRAME_RS = 1;   // (the 2D way, unless WebGL draws this frame)
     if (failed || R.paused || !G || !G.ground || !G.ground.gl) return false;   // (paused: tools draw a frame the 2D way to compare)
     try {
       if (!gl && !init()) return false;
@@ -210,10 +220,12 @@ void main() {
       try { resTick(A); } catch (err) { resOff(S.res, 'tick: ' + (err && err.message)); }
       const R6 = S.res && S.res.state === 'ready' ? S.res : null;
       FW = VW; FH = VH;   // (the frame's size: the view's)
-      sceneFb(VW, VH);   // (stage 4: into the scene's framebuffer, colour and normals; the light pass draws it into the canvas)
-      gl.viewport(0, 0, VW, VH); gl.clearColor(0, 0, 0, 0); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      sceneFb(VW * RS, VH * RS);   // (stage 4: into the scene's framebuffer, colour and normals; the light pass draws it into the canvas)
+      if (typeof FRAME_RS !== 'undefined') FRAME_RS = RS;
+      gl.viewport(0, 0, VW * RS, VH * RS); gl.clearColor(0, 0, 0, 0); gl.clearDepth(1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.depthMask(true); gl.disable(gl.BLEND);
       gl.useProgram(P);
+      if (RS > 1) { const ls = linSampler(); gl.bindSampler(0, ls); gl.bindSampler(1, ls); }   // (HD: the ground's tiles sampled smoothly, not in blocks; unbound after R.ground)
       gl.uniform2f(loc.uCam, vx, vy); gl.uniform2f(loc.uSize, VW, VH); gl.uniform1f(loc.uTile, A.T); gl.uniform1f(loc.uWorld, WORLD);
       // The stand-in (a pixel a cell) for tiles not painted yet; the look's soft patches.
       const low = A.low();
@@ -291,6 +303,10 @@ void main() {
       return true;   // (kept in the GL canvas: listBegin records what is drawn over it, listEnd puts the frame into v once)
     } catch (err) { failed = true; console.warn('WebGL ground off:', err); note('ground off: ' + (err && err.message)); return false; }
   };
+  if (RS > 1) {   // (HD: the ground's smooth sampler let go, so the pictures drawn next on those units keep their own)
+    const ground0 = R.ground;
+    R.ground = (...a) => { const r = ground0(...a); if (gl && R.linS) { try { gl.bindSampler(0, null); gl.bindSampler(1, null); } catch (_) {} } return r; };
+  }
   // ---- Stage 6: the whole ground on the GPU, compressed (phones; owner, 2026-11-21: "I don't want any loading in while
   // jumping") ---------------------------------------------------------------------------------------------------------
   // A battle on a baked map loads every ground sheet while the Loading card is up, compresses it to ETC2 (etcEncode, in
@@ -750,7 +766,7 @@ void main() {
     const orig = sprite;
     sprite = function (mkey, build, angle, fkey, opts) {
       const s2 = orig(mkey, build, angle, fkey, opts);
-      if (s2 && s2.img && !s2.img._vox) {
+      if (s2 && s2.img && !s2.img._vox && !(s2.img._k > 1)) {   // (an HD picture not rendered here: its normals come baked, normals-hd/, or none)
         const flat = FLAT_PASS, k = (flat ? mkey + '~flat' : mkey) + '|' + fkey;
         if (spriteCache2.get(k) === s2) s2.img._vox = { mkey: flat ? mkey + '~flat' : mkey, build, angle, opts: flat ? Object.assign({}, opts, { flat: true }) : opts };
       }
@@ -768,6 +784,7 @@ void main() {
   let mCache = null;
   const curM = () => mCache || (mCache = lctx.getTransform());
   const tp = (x, y) => { const m = curM(); return [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]; };
+  const rnd = RS > 1 ? (v) => Math.round(v * RS) / RS : Math.round;   // (a picture's spot: whole pixels of the frame)
   const scl = () => { const m = curM(); return Math.hypot(m.a, m.b) + Math.hypot(m.c, m.d); };
   // (stage 3) The blend the bits are drawn with: when it changes between two WebGL does, what is on the layer is cut out
   // first and drawn with its own (a glow drawn 'lighter' adds, as in 2D); other blends act on the layer as it is.
@@ -864,9 +881,12 @@ void main() {
     for (const a of atlases) a.used = false;
     const draw = (img, ...a) => {
       if (!img || !img.width || !img.height || (img.complete === false)) return;
+      // (K: an HD picture's pixels per world pixel (art.js hdArgs): sizes and the source rectangle in world pixels, its
+      // texture coordinates in its own)
+      const K = img._k > 1 ? img._k : 1, IW = img.width / K, IH = img.height / K;
       const n = a.length, j = n === 8 ? 4 : 0, dx = a[j], dy = a[j + 1];
-      const w = n === 2 ? img.width : a[j + 2], h = n === 2 ? img.height : a[j + 3];
-      const sx = n === 8 ? a[0] : 0, sy = n === 8 ? a[1] : 0, sw = n === 8 ? a[2] : img.width, sh = n === 8 ? a[3] : img.height;
+      const w = n === 2 ? IW : a[j + 2], h = n === 2 ? IH : a[j + 3];
+      const sx = n === 8 ? a[0] : 0, sy = n === 8 ? a[1] : 0, sw = n === 8 ? a[2] : IW, sh = n === 8 ? a[3] : IH;
       const m = curM(), sprite = img._ox !== undefined;
       let q;
       if (!sprite && !lctx.upright) {
@@ -874,7 +894,7 @@ void main() {
         q = [...P(dx, dy), ...P(dx + w, dy), ...P(dx, dy + h), ...P(dx + w, dy + h)];
       } else {
         const ax = sprite ? dx - img._ox - sx : dx + w / 2, ay = sprite ? dy - img._oy - sy : dy + h / 2;
-        const X = Math.round(m.a * ax + m.c * ay + m.e + dx - ax), Y = Math.round(m.b * ax + m.d * ay + m.f + dy - ay);
+        const X = rnd(m.a * ax + m.c * ay + m.e + dx - ax), Y = rnd(m.b * ax + m.d * ay + m.f + dy - ay);
         q = [X, Y, X + w, Y, X, Y + h, X + w, Y + h];
       }
       const op = lctx.globalCompositeOperation, b = BLENDS[op];
@@ -884,7 +904,7 @@ void main() {
         return;
       }
       flush();
-      rec.push({ img, q, u0: sx / img.width, v0: sy / img.height, u1: (sx + sw) / img.width, v1: (sy + sh) / img.height, a: lctx.globalAlpha, b, d: depth, s: lctx.imageSmoothingEnabled && (Math.abs(w) !== sw || Math.abs(h) !== sh) ? 1 : 0 });   // (s: stretched with smoothing on, as the haze past the edge: sampled smooth)
+      rec.push({ img, q, u0: sx / IW, v0: sy / IH, u1: (sx + sw) / IW, v1: (sy + sh) / IH, a: lctx.globalAlpha, b, d: depth, s: lctx.imageSmoothingEnabled && (Math.abs(w) !== sw || Math.abs(h) !== sh) ? 1 : 0 });   // (s: stretched with smoothing on, as the haze past the edge: sampled smooth)
     };
     // The canvas's own drawImage (trees, with their sway's shear): through the transform as it is, no upright anchor.
     const rawDraw = function (img, ...a) { const up = lctx.upright, ox = img._ox; lctx.upright = false; if (ox !== undefined) img._ox = undefined; try { draw(img, ...a); } finally { lctx.upright = up; if (ox !== undefined) img._ox = ox; } };
@@ -1021,7 +1041,7 @@ void main() {
   // Draws the recorded quads (into the bound framebuffer: the scene's, tested against the ground's depth; or the canvas,
   // without depth, for what goes over the light pass).
   function drawRec(useDepth) {
-    gl.useProgram(P2); gl.viewport(0, 0, FW, FH);
+    gl.useProgram(P2); gl.viewport(0, 0, FW * RS, FH * RS);
     if (useDepth) { gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); } else gl.disable(gl.DEPTH_TEST);
     gl.depthMask(false); gl.enable(gl.BLEND);
     gl.uniform2f(loc2.uSize, FW, FH); gl.uniform1i(loc2.uTex, 0); gl.activeTexture(gl.TEXTURE0);
@@ -1154,12 +1174,12 @@ precision highp float; out vec4 o;
 uniform sampler2D uScene, uNrm, uSh, uGlow, uWarm, uPool, uCloud;
 uniform vec2 uSize, uOrg, uCam, uScr, uHalf;
 uniform float uLook, uSat, uGlowK, uCloudK, uWarmK, uNight, uT, uNrmK;
-uniform float uSunK, uSunSt, uGroundSt, uHD, uHS, uAmb; uniform vec3 uBakeL, uSunL, uSunC; uniform vec2 uRot, uSunG;
+uniform float uSunK, uSunSt, uGroundSt, uHD, uHS, uAmb, uRS; uniform vec3 uBakeL, uSunL, uSunC; uniform vec2 uRot, uSunG;
 uniform vec3 uGrade; uniform vec4 uSun, uShade, uHaze, uTint, uVig;
 float sl(float b, float s) { float d = b <= 0.25 ? ((16.0 * b - 12.0) * b + 4.0) * b : sqrt(b); return s <= 0.5 ? b - (1.0 - 2.0 * s) * b * (1.0 - b) : b + (2.0 * s - 1.0) * (d - b); }
 float lightAt(vec2 uv) { vec4 h = texture(uSh, uv); return (1.0 - h.r) + (1.0 - h.g) + dot(texture(uGlow, uv).rgb + texture(uWarm, uv).rgb, vec3(0.333)); }
 void main() {
-  vec2 uv = gl_FragCoord.xy / uSize, P = vec2(gl_FragCoord.x, uSize.y - gl_FragCoord.y);
+  vec2 uv = gl_FragCoord.xy / uSize, P = vec2(gl_FragCoord.x, uSize.y - gl_FragCoord.y) / uRS;   // (P: view pixels)
   vec3 c = texture(uScene, uv).rgb;
   float nf = 1.0;   // how much this pixel's surface faces the light here (1: flat, as 2D)
   vec4 nn = texture(uNrm, uv);
@@ -1217,7 +1237,7 @@ void main() {
     P3 = gl.createProgram(); gl.attachShader(P3, mk(gl.VERTEX_SHADER, VS3)); gl.attachShader(P3, mk(gl.FRAGMENT_SHADER, FS3)); gl.linkProgram(P3);
     if (!gl.getProgramParameter(P3, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(P3));
     loc3 = { aQ: gl.getAttribLocation(P3, 'aQ') };
-    for (const n of ['uScene', 'uNrm', 'uSh', 'uGlow', 'uWarm', 'uPool', 'uCloud', 'uSize', 'uOrg', 'uCam', 'uScr', 'uHalf', 'uLook', 'uSat', 'uGlowK', 'uCloudK', 'uWarmK', 'uNight', 'uT', 'uNrmK', 'uGrade', 'uSun', 'uShade', 'uHaze', 'uTint', 'uVig', 'uSunK', 'uSunSt', 'uGroundSt', 'uHD', 'uHS', 'uBakeL', 'uSunL', 'uRot', 'uSunG', 'uAmb', 'uSunC']) loc3[n] = gl.getUniformLocation(P3, n);
+    for (const n of ['uScene', 'uNrm', 'uSh', 'uGlow', 'uWarm', 'uPool', 'uCloud', 'uSize', 'uRS', 'uOrg', 'uCam', 'uScr', 'uHalf', 'uLook', 'uSat', 'uGlowK', 'uCloudK', 'uWarmK', 'uNight', 'uT', 'uNrmK', 'uGrade', 'uSun', 'uShade', 'uHaze', 'uTint', 'uVig', 'uSunK', 'uSunSt', 'uGroundSt', 'uHD', 'uHS', 'uBakeL', 'uSunL', 'uRot', 'uSunG', 'uAmb', 'uSunC']) loc3[n] = gl.getUniformLocation(P3, n);
     tri = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, tri); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
   }
   // Soft pictures (lights) into a light buffer: [picture, view x, view y, w, h, alpha]; the blend set by the caller.
@@ -1283,12 +1303,12 @@ void main() {
     to(3, 0, 0, 0, 0); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR);
     splat(dayL.filter((l) => l[4][0] === 'p').map(([x, y, r, a, col, f]) => [Lp[col], x - r, y - r * f, r * 2, r * 2 * f, a * POOL_DAY]), L, hw, hh, sc);
     // The scene, lit, into the canvas.
-    litFb(W, H); gl.viewport(0, 0, W, H); gl.disable(gl.BLEND);
+    litFb(W * RS, H * RS); gl.viewport(0, 0, W * RS, H * RS); gl.disable(gl.BLEND);
     gl.useProgram(P3);
     const bind = (u, t, i) => { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, t); gl.uniform1i(loc3[u], i); };
     if (look && !cloudT && typeof cloudShadowPic === 'function') cloudT = texFrom(cloudShadowPic(), true);
     bind('uScene', SC.c, 0); bind('uNrm', SC.n, 1); bind('uSh', B.b[0].t, 2); bind('uGlow', B.b[1].t, 3); bind('uWarm', B.b[2].t, 4); bind('uPool', B.b[3].t, 5); bind('uCloud', cloudT || R.none, 6);
-    gl.uniform2f(loc3.uSize, W, H); gl.uniform2f(loc3.uHalf, hw, hh);
+    gl.uniform2f(loc3.uSize, W * RS, H * RS); gl.uniform1f(loc3.uRS, RS); gl.uniform2f(loc3.uHalf, hw, hh);
     gl.uniform2f(loc3.uOrg, L ? L.vx : 0, L ? L.vy : 0); gl.uniform2f(loc3.uCam, L ? L.cam[0] : 0, L ? L.cam[1] : 0); gl.uniform2f(loc3.uScr, L ? L.sw : W, L ? L.sh : H);
     gl.uniform1f(loc3.uLook, look ? 1 : 0); gl.uniform1f(loc3.uT, G ? G.t : 0); gl.uniform1f(loc3.uNrmK, L && !R.lite ? R.nrmK : 0);
     const SUN = L && dnMap && R.sun ? sunNow(G.t) : null;
@@ -1350,7 +1370,7 @@ void main() { o = texture(uLit, vUV); }`;
       gl.useProgram(P4);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, LIT.t); gl.uniform1i(loc4.uLit, 0);
       if (!R.linS) { R.linS = gl.createSampler(); for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.samplerParameteri(R.linS, k, gl.LINEAR); gl.samplerParameteri(R.linS, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.samplerParameteri(R.linS, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); }
-      gl.bindSampler(0, smooth ? R.linS : null);
+      gl.bindSampler(0, smooth || RS > 1 ? R.linS : null);   // (HD: the frame is finer than the view; always smooth)
       gl.uniform4f(loc4.uRect, x, y, w, h); gl.uniform2f(loc4.uScreen, cv.width, cv.height);
       gl.bindBuffer(gl.ARRAY_BUFFER, R.unit); gl.enableVertexAttribArray(loc4.aQ); gl.vertexAttribPointer(loc4.aQ, 2, gl.FLOAT, false, 8, 0);
       gl.drawArrays(gl.TRIANGLES, 0, 6); R.calls++;
@@ -1422,7 +1442,7 @@ void main() { o = texture(uLit, vUV); }`;
       sync(null);
       const t0 = performance.now();
       flush(); sync('wFlush');
-      sceneFb(FW, FH); drawRec(true); sync('wScene');
+      sceneFb(FW * RS, FH * RS); drawRec(true); sync('wScene');
       const t1 = performance.now();
       lightPass(L || null); sync('wLight');
       const t2 = performance.now();

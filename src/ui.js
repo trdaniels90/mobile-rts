@@ -2206,6 +2206,22 @@ function draw() {
     syncMenuChoices();
   });
   $('fpsBtn').addEventListener('click', () => { full60 = !full60; try { localStorage.setItem('rh-full60', full60 ? '1' : ''); } catch (_) {} syncMenuChoices(); });
+  // HD graphics (art.js HD): kept in rh-hd, used from the next launch (the sheets and the frame's size are chosen at load).
+  // From the start menu, with no battle running, the game reloads at once.
+  $('hdBtn').addEventListener('click', () => {
+    HD.pref = !HD.pref;
+    try { localStorage.setItem('rh-hd', HD.pref ? '1' : ''); } catch (_) {}
+    if (!G || G.over) { location.reload(); return; }
+    syncMenuChoices();
+  });
+  function syncHd() {
+    const b = $('hdBtn'), gl2 = typeof WebGL2RenderingContext !== 'undefined';
+    b.setAttribute('aria-pressed', String(HD.pref));
+    b.textContent = 'HD graphics: ' + (HD.pref ? 'on' : 'off');
+    $('hdStatus').textContent = !gl2 ? 'Needs WebGL 2, which this device does not have.'
+      : HD.pref !== HD.on ? 'Takes effect the next time the game opens.'
+      : HD.on ? 'Sharp, smooth units and buildings. Uses more graphics power and memory.' : 'Classic pixel look.';
+  }
   function syncFps() {
     const b = $('fpsBtn');
     b.setAttribute('aria-pressed', String(full60));
@@ -2224,7 +2240,7 @@ function draw() {
     for (const b of ui.menu.querySelectorAll('[data-audio]')) b.setAttribute('aria-pressed', String(!!Sound.settings[b.dataset.audio]));
     $('trackName').textContent = '· ' + Sound.music.name;
     $('audioStatus').textContent = 'Sound: ' + Sound.status();
-    syncFps();
+    syncFps(); syncHd();
     for (const b of setupEl.querySelectorAll('[data-faction]')) b.setAttribute('aria-pressed', String(b.dataset.faction === faction));
     for (const b of setupEl.querySelectorAll('[data-diff]')) b.setAttribute('aria-pressed', String(b.dataset.diff === diffKey));
     ui.menu.dataset.faction = faction;
