@@ -845,6 +845,24 @@ function lookGround(g, x0, y0, x1, y1, shows) {
     g.stroke();
     }
   }
+  // Rain: the ruts hold water (look.js flowing water), a thin pale line of it in each, the newer the brighter.
+  const wet = typeof RAIN_FX !== 'undefined' && RAIN_FX && !snow && rainS && rainS.g === G ? rainS.wet : 0;
+  if (wet > 0.35) {
+    g.lineWidth = 0.9;
+    for (let b = 1; b < B; b++) {
+      if (!bands[b].length) continue;
+      g.strokeStyle = `rgba(150,172,192,${((wet - 0.35) * (0.12 + b * 0.09)).toFixed(2)})`;
+      const L = bands[b];
+      for (let i = 0; i < L.length; i += 1500) {
+        g.beginPath();
+        for (const [x, y, a, w] of L.slice(i, i + 1500)) {
+          const c = Math.cos(a), s = Math.sin(a), [hx, hy] = hillPt(x, y), lx = hx - x, ly = hy - y;
+          for (const o of [-w, w]) { const px = x - s * o + lx, py = y + c * o + ly - 0.4; g.moveTo(px - c * 2.5, py - s * 2.5); g.lineTo(px + c * 2.5, py + s * 2.5); }
+        }
+        g.stroke();
+      }
+    }
+  }
   g.restore();
 }
 
@@ -1658,6 +1676,8 @@ function lookPuddles(g, x0, y0, x1, y1, shows) {
   const up = g.upright; g.upright = false; g.imageSmoothingEnabled = true;
   rivulets(g, S, P, x0, y0, x1, y1, shows);
   const mv = puddleMovers(S, x0, y0, x1, y1), lights = puddleLights(x0, y0, x1, y1);
+  const F = flowTick(S);
+  if (F) flowDraw(g, S, P, F, x0, y0, x1, y1, shows);
   let n = 0;
   const cy0 = Math.max(0, Math.floor((y0 - 40) / CELL)), cy1 = Math.min(MAP - 1, Math.ceil((y1 + 120) / CELL));
   for (let cy = cy0; cy <= cy1 && n < PUDDLE_MAX; cy++) for (const p of rows[cy]) {
@@ -1666,7 +1686,8 @@ function lookPuddles(g, x0, y0, x1, y1, shows) {
     if (G.block[c] || !G.seen[c] || (shows && !shows(p[0], p[1]))) continue;   // (a building on it, ground not yet uncovered, off the screen)
     const k = Math.min(1, (S.wet - p[4]) / 0.3);
     if (k <= 0) continue;
-    const sz = p[3] * (0.45 + 0.55 * k) * (1 + (p[6] - 1) * grown), W = 40 * sz, H = 28 * sz, [wx, wy] = hillPt(p[0], p[1]);
+    const fw = F ? Math.max(0.35, Math.min(1.7, 0.55 + F.W[c] / FLOW_REF)) : 1;   // (flowing water: drained off a slope, or filled in a hollow)
+    const sz = p[3] * (0.45 + 0.55 * k) * (1 + (p[6] - 1) * grown) * fw, W = 40 * sz, H = 28 * sz, [wx, wy] = hillPt(p[0], p[1]);
     g.globalAlpha = Math.min(1, k * 1.6); g.drawImage(P.pud[p[2]], wx - W / 2, wy - H / 2, W, H);
     if (k > 0.3) {
       const rx = 13 * sz, ry = 9 * sz;
@@ -1682,6 +1703,111 @@ function lookPuddles(g, x0, y0, x1, y1, shows) {
   puddleBlasts(S, rows);
   puddleRipples(g, S, P);
   g.globalAlpha = 1; g.upright = up;
+}
+// ---- Water that flows (owner, 2026-11-25: "lets do option 3"): a water depth per cell over the whole map (FL.W, in G.hgt's
+// units), stepped every FLOW_DT s of battle clock. Rain fills every open cell by its strength, the ground soaks it up (faster
+// once the rain stops), and each cell passes water to lower neighbours by how much higher its surface is (ground: the hills,
+// dug craters, and a little roughness from the ground seed so flat maps have hollows too). Structures, cliffs, woods and
+// the lakes take none (a lake swallows what runs into it). Drawn (flowDraw) as pools where it gathers and glints running
+// downhill where it flows; the puddles grow or shrink with the water round them, and wet tank ruts shine. Looks only.
+// Rain FLOW_RAIN x its strength a second; the ground takes FLOW_SOAK (FLOW_DRY once dry weather) plus FLOW_SEEP x the depth, so
+// a level cell stays below a pool and only hollows with water running in fill (and a pool stops growing).
+const FLOW_DT = 0.5, FLOW_RAIN = 0.01, FLOW_SOAK = 0.006, FLOW_SEEP = 0.03, FLOW_DRY = 0.02, FLOW_K = 1.6, FLOW_REF = 0.45, FLOW_MIN = 0.12, FLOW_Q = 0.012, FLOW_POOLS = 500;
+function flowTick(S) {
+  if (!LOOK.hills && !G.hgt && S.wet < 0.09) return null;
+  let F = S.flow;
+  if (!F || F.n !== NCELLS) {
+    const seed = (typeof groundSeed === 'function' ? groundSeed(G) : G.seed) | 0, base = new Float32Array(NCELLS);
+    for (let c = 0; c < NCELLS; c++) {   // roughness: two scales of hash noise, about a quarter of a dug crater deep
+      const x = c % MAP, y = (c / MAP) | 0;
+      base[c] = (hash3(x, y, seed + 811) - 0.5) * 0.5 + (hash3(x >> 2, y >> 2, seed + 812) - 0.5) * 0.9;
+    }
+    F = S.flow = { n: NCELLS, base, W: new Float32Array(NCELLS), D: new Float32Array(NCELLS), Q: new Float32Array(NCELLS), qx: new Float32Array(NCELLS), qy: new Float32Array(NCELLS), t: G.t };
+    // A battle already wet (continued, or long in the rain): the water as it would be, worked out at once (coarse steps).
+    const pre = Math.min(40, Math.floor(S.rt / 2));
+    for (let i = 0; i < pre; i++) flowStep(F, S, 2);
+    F.t = G.t;
+  }
+  if (G.t < F.t) F.t = G.t;   // (a load or a new clock)
+  let k = 0;
+  while (G.t - F.t >= FLOW_DT && k < 2) { flowStep(F, S, FLOW_DT); F.t += FLOW_DT; k++; }
+  if (G.t - F.t > 1) F.t = G.t;   // (far behind, as after a pause in the menu: skip ahead)
+  return F;
+}
+function flowStep(F, S, dt) {
+  const { W, D, Q, qx, qy, base } = F, H = G.hgt, Dg = G.dig, T = G.terr, B = G.block, C = G.cliff;
+  const rain = S.L * FLOW_RAIN * dt, loss = (S.L > 0 ? FLOW_SOAK : FLOW_DRY) * dt, seep = Math.min(0.5, FLOW_SEEP * dt);
+  D.fill(0);
+  for (let c = 0; c < NCELLS; c++) {
+    const t = T[c];
+    if (t >= 2 || B[c] || (C && C[c])) { W[c] = 0; continue; }   // (woods, rock, lakes and fords, structures: no standing water)
+    let w = W[c] * (1 - seep) + rain - loss;
+    if (w <= 0) { W[c] = 0; continue; }
+    W[c] = w;
+  }
+  for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
+    const c = y * MAP + x, w = W[c];
+    let ox = 0, oy = 0, out = 0;
+    if (w > 0.002) {
+      const s0 = (H ? H[c] : 0) + (Dg ? Dg[c] : 0) + base[c] + w;
+      let tot = 0; const d4 = [0, 0, 0, 0], nb = [-1, -1, -1, -1];
+      for (let i = 0; i < 4; i++) {
+        const nx = x + (i === 0 ? 1 : i === 1 ? -1 : 0), ny = y + (i === 2 ? 1 : i === 3 ? -1 : 0);
+        if (nx < 0 || ny < 0 || nx >= MAP || ny >= MAP) continue;
+        const n = ny * MAP + nx, tn = T[n];
+        if (B[n] || (C && C[n]) || tn === 2 || tn === 3) continue;
+        const sn = tn >= 4 ? -1e3 : (H ? H[n] : 0) + (Dg ? Dg[n] : 0) + base[n] + W[n];   // (a lake: everything runs in)
+        const d = s0 - sn;
+        if (d > 0) { d4[i] = Math.min(d, w); nb[i] = n; tot += d4[i]; }
+      }
+      if (tot > 0) {
+        const move = Math.min(w, tot * 0.5) * Math.min(1, FLOW_K * dt * 2);
+        for (let i = 0; i < 4; i++) if (nb[i] >= 0) {
+          const m = move * d4[i] / tot;
+          D[nb[i]] += m; out += m;
+          if (i === 0) ox += m; else if (i === 1) ox -= m; else if (i === 2) oy += m; else oy -= m;
+        }
+        D[c] -= out;
+      }
+    }
+    // how much runs through (per second, smoothed) and which way, for the glints
+    const a = Math.min(1, dt * 2);
+    Q[c] += (out / dt - Q[c]) * a; qx[c] += (ox - qx[c]) * a; qy[c] += (oy - qy[c]) * a;
+  }
+  for (let c = 0; c < NCELLS; c++) if (D[c]) { const t = T[c]; W[c] = t >= 4 ? 0 : Math.max(0, W[c] + D[c]); }
+}
+// Pools (lobed water, its size and darkness by depth; neighbours overlap into one sheet) and, where water runs, a dark wet
+// line with glints sliding downhill.
+function flowDraw(g, S, P, F, x0, y0, x1, y1, shows) {
+  const { W, Q, qx, qy } = F, t = G.t;
+  const cx0 = Math.max(0, Math.floor(x0 / CELL) - 1), cx1 = Math.min(MAP - 1, Math.ceil(x1 / CELL) + 1);
+  const cy0 = Math.max(0, Math.floor(y0 / CELL) - 1), cy1 = Math.min(MAP - 1, Math.ceil(y1 / CELL) + 3);
+  let n = 0;
+  for (let cy = cy0; cy <= cy1 && n < FLOW_POOLS; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+    const c = cy * MAP + cx, w = W[c], q = Q[c];
+    if (w < FLOW_MIN * 0.5 && q < FLOW_Q) continue;
+    if (!G.seen[c] || G.ore[c]) continue;   // (not over ore, which must stay in sight)
+    const h = hash3(cx, cy, 977), mx = (cx + 0.5) * CELL + (h - 0.5) * 8, my = (cy + 0.5) * CELL + (hash3(cx, cy, 978) - 0.5) * 6;
+    if (shows && !shows(mx, my)) continue;
+    const [wx, wy] = hillPt(mx, my);
+    if (w >= FLOW_MIN) {   // a pool
+      const k = Math.min(1, (w - FLOW_MIN) / FLOW_REF), sz = 0.7 + 0.9 * Math.sqrt(k), Wd = 40 * sz, Hd = 28 * sz;
+      g.globalAlpha = Math.min(0.95, 0.35 + k * 0.7) * Math.min(1, S.wet * 1.5);
+      g.drawImage(P.pud[(h * 6) | 0], wx - Wd / 2, wy - Hd / 2, Wd, Hd);
+      n++;
+    }
+    if (q > FLOW_Q) {   // water running through: on a slope a thin sheet (faint glints sliding down), where it gathers a channel
+      const l = Math.hypot(qx[c], qy[c]) || 1, dx = qx[c] / l, dy = qy[c] / l, a = Math.max(0, Math.min(1, (Math.log10(q) + 1.95) / 1.4));
+      if (a > 0.3) { g.globalAlpha = (a - 0.3) * 0.8; for (let j = -1; j <= 1; j++) { const [bx, by] = hillPt(mx + dx * j * 7, my + dy * j * 7); g.drawImage(P.blob, bx - 4 - a * 2, by - 3 - a, 8 + a * 4, 6 + a * 2); } }
+      if (S.L > 0 || q > 0.1) for (let j = 0, m = a > 0.5 ? 3 : 1; j < m; j++) {
+        const ph = ((t * (0.6 + a * 0.8) + h * 7 + j / m) % 1) - 0.5, side = (hash3(cx, cy, 979 + j) - 0.5) * 8;
+        const [gx, gy] = hillPt(mx + dx * ph * CELL - dy * side, my + dy * ph * CELL + dx * side);
+        g.globalAlpha = Math.min(1, 0.25 + a) * (1 - Math.abs(ph) * 2); g.drawImage(P.dot, gx - 1, gy - 1.5, 2, 3);
+      }
+      n++;
+    }
+  }
+  g.globalAlpha = 1;
 }
 // ---- Puddles that react (owner, 2026-11-25: "add physics to the puddles", options 1 and 2): a unit wading through one sets
 // off rings and a splash (a vehicle a wake of them, faster and bigger), a blast near one throws its water up and sends a

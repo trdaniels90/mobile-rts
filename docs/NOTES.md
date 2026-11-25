@@ -2666,6 +2666,19 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   (fire and blasts within 90 px shine in a puddle, 'lighter'). Kept in `rainS.rip` (at most `RIP_MAX` 160), on the battle
   clock; nothing in G, nothing online. Same in both renderers.
 
+- **Water that flows** (owner, 2026-11-25: "lets do option 3"): look.js `flowTick` / `flowStep` / `flowDraw`. A depth per cell
+  over the whole map (`rainS.flow.W`, G.hgt units), stepped every `FLOW_DT` 0.5 s of battle clock (at most 2 steps a frame;
+  ~2.5 ms a step on a 192-cell map in headless Chromium). Each step: rain adds `FLOW_RAIN` x its strength, the ground takes
+  `FLOW_SOAK` (`FLOW_DRY` in dry weather) plus `FLOW_SEEP` x the depth (so pools stop growing and level ground stays below a
+  pool); each cell passes water to its four neighbours whose surface (G.hgt + G.dig + a little roughness from the ground seed
+  + water) is lower, by the difference. Structures, cliffs, woods and rock hold none; a lake swallows what runs in. `Q`, `qx`,
+  `qy`: how much runs through and which way (smoothed). A wet battle (continued, or long in the rain) works its water out at
+  once (40 coarse steps, ~110 ms headless). Drawn under the puddles: a pool where the depth passes `FLOW_MIN` (size and
+  darkness by depth, neighbours overlapping into one sheet; not over ore); where water runs (`FLOW_Q`, on a log scale) glints
+  sliding downhill, and where it gathers into channels a dark wet streak. The puddles scale with the water round them (0.35 to
+  1.7 x: drained off a slope, filled in a hollow); dug craters fill. Tank ruts on soaked ground hold a thin pale line of water
+  (lookGround, the tracks). Looks only, nothing in G, nothing online; snowy maps and Heron Fen's storm-free weather as before.
+
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 
 - Owner's match 305e950b (Heron Fen, desktop 2560 x 1370, WebGL): 70 fps on average, no frame over 100 ms, but minutes 18, 35
