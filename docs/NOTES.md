@@ -1264,6 +1264,10 @@ recorder usage at the top of record.js).
   (files left out are kept). Remove `.build` afterwards.
 - The owner supplies the tracks (credited in `CREDITS.md`). Convert with ffmpeg: `loudnorm=I=-16:TP=-1.5`,
   a 2.5 s fade out, 44.1 kHz stereo, 96 kbps.
+- **Play over my music** (Options, `settings.mix`, off by default, 2026-11-25): lets a player's own music app keep
+  playing under the game. On: `navigator.audioSession.type = 'ambient'` (iOS 16.4+) and no looping silent `<audio>`
+  (`keepAlive`), since that media element is what makes iOS and Android stop other apps' audio. Cost: iOS then mutes
+  game sounds when the ring/silent switch is on silent. Off: `'playback'` plus `keepAlive`, as before. `mixSession()` in `audio.js`.
 - Volume sliders (`musicVol`, `sfxVol` in `Sound.settings`, `setVolume`) scale the buses; full is the original mix.
 
 ## Windows app (`desktop/`)
