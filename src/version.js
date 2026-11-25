@@ -4,6 +4,16 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.25.1', date: '25 November 2026', title: 'HD graphics, Map Editor', groups: [
+    ['New', [
+      'HD graphics (Options, Graphics): sharp, smooth units and buildings instead of pixels. Models are rebuilt at four times the detail, the battle is drawn at twice the resolution, and shadows are soft. Off unless you turn it on. Uses more graphics power, and downloads about 24 MB the first time.',
+      'Map Editor (main menu): paint grass, cliffs, water and ore, place starting spots, plateaus and villages, then play your map in a skirmish.',
+    ]],
+    ['Improved', [
+      'The Light Tank now has its own lighter, quieter gun sound.',
+      'Rain no longer pours from the tops of chimneys and towers.',
+    ]],
+  ] },
   { v: '2026.11.25', date: '25 November 2026', title: 'Mobile SAM, Lakeside high ground', groups: [
     ['New', [
       'Soviet Mobile SAM: a tracked missile launcher built at the War Factory ($800). It fires missiles at aircraft only, out-ranging most air defence, and needs no power.',
