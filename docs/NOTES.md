@@ -2679,7 +2679,15 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   path (Catmull-Rom through jittered cell spots): a dark wet edge and a pale line of water catching the sky, in three widths by
   how much runs, with highlights sliding along the whole runnel (owner, on the first try: "i dont see it flowing", it had
   only faint dots, which a time-lapse also hid). Rain `FLOW_RAIN` 0.014, soak 0.004, seep 0.06 x the depth; pools from
-  `FLOW_MIN` 0.22 (Lakeside soaked: ~14% of cells deeper than 0.12, so the pool line is higher). The puddles scale with the water round them (0.35 to
+  `FLOW_MIN` 0.22 (Lakeside soaked: ~14% of cells deeper than 0.12, so the pool line is higher).
+  Owner then: "make them wander more and make it look more realistic" (no physics engine: a fluid engine would cost far more
+  than this, which is only how it is drawn and how the water is routed). Changes: water passes to eight neighbours (a
+  diagonal's drop over its longer way, `FL_DX`/`FL_DY`/`FL_W`); the roughness is smooth value noise at 3 and 8 cells plus a
+  little grain (the old 4 x 4-cell blocks made runnels run straight along their edges); each runnel meanders (two sideways
+  waves of its own along it, fading at the ends), starts as a trickle, only carries real water (log amount > 0.3), never
+  starts in a pool and ends where it reaches one, and never crosses another's diagonal; the highlights are unevenly spaced,
+  each with its own size, brightness and flicker. A step is spread over `FLOW_SPLIT` 3 frames (`flowBegin`, `flowRows`,
+  `flowEnd`): ~5 ms a step on a 192-cell map headless, so under 2 ms a frame. The puddles scale with the water round them (0.35 to
   1.7 x: drained off a slope, filled in a hollow); dug craters fill. Tank ruts on soaked ground hold a thin pale line of water
   (lookGround, the tracks). Looks only, nothing in G, nothing online; snowy maps and Heron Fen's storm-free weather as before.
 
