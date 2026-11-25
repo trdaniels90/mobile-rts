@@ -2965,6 +2965,16 @@ have maps filtered by tabs on the top 1v1 2v2 and 3v3".
   game's camera looks at the map corner-on, so the plan's diagonals are the real view's up and down. Explore is gone from
   the editor (the real view is it). Close or Play ends the working copy (`EditorHooks.leave`: a fresh menu world).
 
+- **Rebuilds keep what did not change** (owner, 2026-11-25: deleting cliffs on a copy of Lakeside blurred the whole ground
+  "for a minute" and redrew every crag). The working copy has no baked ground or crags, so each rebuild painted the whole map
+  again. Now art.js `editorCarry(old, new)` (called from `EditorHooks.live`, result in `EditorHooks.carried`) hands the new
+  build every finished ground tile (`G.ground.adopt`) and every crag picture (look.js `cliffLook.pics`) whose inputs are the
+  same within `EDIT_KEEP_M` (6) cells: terrain, cliffs, shallows, ore, gems, blocked cells, hill heights, houses, roads and
+  bridges (their boxes); a tile also needs the same scenery stamps over it (`painter.stamps()`: they come from one random
+  sequence across the map, so a change can move bushes far away). Look, bridge kind and width, and plateaus are compared as
+  `G.editMap`; any difference repaints everything. Measured (headless, one cliff cell removed on Lakeside): ~80 of 94 tiles
+  and every on-screen crag kept, blurred ground 4.7 s → about 1 s; kept tiles match a fresh repaint pixel for pixel.
+
 ## HD graphics (2026-11-25, not released, looks only, both modes; an Options switch, off by default)
 
 Owner, after a study of Red Alert Remastered's screenshots: "go ahead with 1, 2 and 4 as an HD option" (1: the models at 4x
@@ -3093,3 +3103,15 @@ over 100 ms; drawing 10-16 ms a frame, the biggest part `air` (3-6 ms). Owner pi
   ties, 0 differences; 11x faster). `list` 3.0 -> 1.75 ms in the headless battle.
 - **HUD in one pass:** the research, capture and PRIMARY bars no longer each loop over every entity; they are picked out in the
   health-bar pass and drawn after it in the same order. Tiny (the HUD was 0.3 ms).
+
+## Jets and planes fly above the hills (after 2026.11.25.3, not released, looks only, both modes; the server should match)
+
+Owner: "make jets and planes fly higher so they're not influenced by the terrain as much? leave helicopters alone". Aircraft
+are drawn on the raised ground (look.js `gLift`), so jets rose and dipped with every hill. world.js `jetAbove` (wraps
+`updateAir` / `updateFlight` for every `fly: 'jet'` aircraft: Strike Jet, MiG, A-10, Su-25, bomber, transport, spy plane)
+tops up `u.alt` after the flight code by `(hillTop() - hgtAt) x VK x JET_HILL` (JET_HILL = look.js HILL_DRAW), scaled by
+`altB / JET_ALT`: level flight sits just above the map's highest hill, the climb and descent blend in, landed jets are on the
+ground. The flight code still sees the plain height (`u.altB`, 0..JET_ALT); `u.altD` notices alt set elsewhere (spawns,
+landings). Since shots, lights, crashes, flares and taps all use `u.alt`, they follow. Helicopters unchanged. Flat maps:
+no change. Side effect: shots at a jet and its gun runs fold the extra height into their path (aimY, muzzle), so they fly a
+little further (up to ~60 px on the hilliest maps); jet-rush.js and cas.js results unchanged within noise.

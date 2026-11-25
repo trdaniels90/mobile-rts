@@ -2379,15 +2379,17 @@ function draw() {
     // The editor's real view: the map built as in a battle (empty, no fog, seed 1 so a plot's houses stay put while
     // editing), rebuilt after each change with the camera kept. G.editing: no Loading card (the ground streams in).
     live(id) {
-      const keep = G && G.editing ? { x: cam.x, y: cam.y, z: cam.z } : null;
+      const keep = G && G.editing ? { x: cam.x, y: cam.y, z: cam.z } : null, was = G && G.editing ? G : null;
       Net.leave();
       if (mission) Report.quit();
       endPlace();
       newWorld(faction, diffKey, 1, 0, false, id, null, true);
       online = null; mission = false;
       G.spectate = true; G.mapViewUsed = true; G.speed = 1; G.weather = null; G.editing = true;
+      G.editMap = [mapTheme(id), MAPS[id].bridge || '', MAPS[id].bridgeW || 0, MAPS[id].mesas || []];   // (editorCarry)
       G.seen = new Uint8Array(NCELLS).fill(1); for (const f of G.fog) f.fill(1);
       afterNewWorld(faction);
+      if (was) try { this.carried = editorCarry(was, G); } catch (err) { this.carried = null; }   // (art.js: the unchanged ground and crags kept)
       if (keep) Object.assign(cam, keep); else { cam.z = 1; centerOn(WORLD / 2, WORLD / 2); }
       clampCam();
       hideMenu();
