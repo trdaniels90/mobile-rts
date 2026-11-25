@@ -74,12 +74,73 @@ void main() { vec2 s = (aP - uCam) / uSize * 2.0 - 1.0; gl_Position = vec4(s.x, 
   const FS = `#version 300 es
 precision highp float; in vec2 vW; in vec2 vN; layout(location = 0) out vec4 o; layout(location = 1) out vec4 o1;
 uniform sampler2D uT, uD, uLow, uPatch, uPv; uniform vec2 uT0, uS0, uSS; uniform float uTile, uWorld, uLowOnly, uPatchK, uPatchS, uPvOn, uPvS, uFade, uRes;
+uniform sampler2D uWa, uWb; uniform float uWater, uWm, uWet, uRain, uTime, uSnowy;
+// (a hash with no sin(): sin of large numbers loses precision on GPUs and the noise turned to speckle far into the map)
+float hsh(vec2 p) { vec3 q = fract(vec3(mod(p, 4096.0).xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+float vno(vec2 p) { vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hsh(i), hsh(i + vec2(1.0, 0.0)), u.x), mix(hsh(i + vec2(0.0, 1.0)), hsh(i + vec2(1.0, 1.0)), u.x), u.y); }
+// Rain on standing water: rings spreading from drops, a few per cell of a 9 px grid (two grids, offset), each its own time.
+float rings(vec2 p) {
+  float r = 0.0;
+  for (int k = 0; k < 2; k++) {
+    vec2 g = p / 9.0 + float(k) * vec2(0.37, 0.61), id = floor(g), f = fract(g) - 0.5 - (vec2(hsh(id), hsh(id + 7.0)) - 0.5) * 0.5;
+    float t = fract(uTime * (0.7 + hsh(id + 3.0) * 0.6) + hsh(id + 5.0)), d = length(f * vec2(1.0, 1.35));
+    r += smoothstep(0.05, 0.0, abs(d - t * 0.48)) * (1.0 - t) * step(hsh(id + 11.0), 0.25 + uRain * 0.6);
+  }
+  return r;
+}
+// The rain's water on the ground (look.js flowing water: depth, how much runs and which way, per cell, smoothed between
+// cells): wet ground darker and a little glossy, pools whose edges follow the water (a little noise, no stamped shapes)
+// reflecting the overcast sky with rings from the rain, and where water runs its surface sliding downhill (a flow map:
+// two layers of ripple noise moving along the flow, blended so neither jumps back).
+vec3 water(vec3 c, vec2 w) {
+  vec4 a = mix(texture(uWa, w / uWorld), texture(uWb, w / uWorld), uWm);
+  float depth = a.r * 2.0, flux = a.g; vec2 dir = a.ba * 2.0 - 1.0;
+  float wetL = uWet * (0.6 + 0.4 * smoothstep(0.02, 0.18, depth + flux * 0.25));
+  c *= 1.0 - 0.24 * wetL; c = mix(c, c * vec3(0.93, 0.97, 1.03), wetL * 0.6);   // soaked: darker, a little cooler
+  float e = depth + (vno(w / 6.0) - 0.5) * 0.12 + (vno(w / 2.2) - 0.5) * 0.05 + (hsh(floor(w)) - 0.5) * 0.012;
+  float pool = smoothstep(0.205, 0.222, e), rim = smoothstep(0.16, 0.205, e) * (1.0 - pool), shore = pool * (1.0 - smoothstep(0.222, 0.245, e));
+  vec3 sky = uSnowy > 0.5 ? vec3(0.62, 0.68, 0.76) : vec3(0.5, 0.58, 0.64);
+  // running water: ripple noise carried along the flow
+  // Running water, in the flow's own frame (along it, across it): each of the four nearest cells' patterns with that cell's
+  // own direction, blended (a direction smoothed between cells, turning every pixel, scrambled the pattern into speckle).
+  ivec2 N = textureSize(uWa, 0); float cp = uWorld / float(N.x);
+  vec2 cf = w / cp - 0.5, fw = fract(cf); ivec2 i0 = ivec2(floor(cf));
+  float ph = fract(uTime * 0.45), ph2 = fract(uTime * 0.45 + 0.5), sp = 10.0 + flux * 16.0, run = 0.0, riv = 0.0;
+  for (int k = 0; k < 4; k++) {
+    ivec2 o = ivec2(k & 1, k >> 1), ci = clamp(i0 + o, ivec2(0), N - 1);
+    vec4 tq = mix(texelFetch(uWa, ci, 0), texelFetch(uWb, ci, 0), uWm);
+    vec2 d = tq.ba * 2.0 - 1.0; d = length(d) > 0.01 ? normalize(d) : vec2(0.0, 1.0);
+    vec2 pp = vec2(-d.y, d.x); float al = dot(w, d), ac = dot(w, pp);
+    float wk = (o.x == 1 ? fw.x : 1.0 - fw.x) * (o.y == 1 ? fw.y : 1.0 - fw.y);
+    float n1 = vno(vec2((al - ph * sp) / 5.0, ac / 1.3) + 3.1), n2 = vno(vec2((al - ph2 * sp) / 5.0, ac / 1.3) + 9.7);
+    run += mix(n1, n2, abs(2.0 * ph - 1.0)) * wk;
+    riv += vno(vec2(ac / 3.0, al / 14.0) + vno(w / 9.0) * 1.5) * wk;
+  }
+  float runK = smoothstep(0.3, 0.75, flux) * wetL;
+  // the pool: dark (the ground dimly under it) with the grey sky's sheen drifting over it, a thin bright line at its edge
+  float sheen = 0.45 + 0.55 * smoothstep(0.25, 0.85, vno(w / 15.0 + vec2(uTime * 0.02, 0.0)));
+  vec3 wcol = mix(vec3(0.17, 0.22, 0.25), c, 0.22) + sky * 0.34 * sheen;
+  float rr = rings(w) * uRain;
+  wcol += vec3(0.75, 0.82, 0.88) * (rr * 0.32 + smoothstep(0.62, 0.8, run) * runK * 0.2);
+  c = mix(c, c * 0.66, rim);   // the soaked mud round it
+  c = mix(c, wcol, pool);
+  c += sky * shore * 0.35;
+  // water running down a slope: a glossy film along its way (edges broken by noise), with the moving shimmer on it
+  // rivulets: narrow lines of water along the flow, wandering (noise across the flow, stretched along it), more of them
+  // and wider where more runs
+  float film = runK * (1.0 - pool) * smoothstep(0.73 - flux * 0.15, 0.81 - flux * 0.12, riv);
+  c = mix(c, c * 0.62 + sky * 0.2, film);
+  c += vec3(0.72, 0.8, 0.87) * smoothstep(0.55, 0.8, run) * film * 0.55;
+  return c;
+}
 float sl(float b, float s) { float d = b <= 0.25 ? ((16.0 * b - 12.0) * b + 4.0) * b : sqrt(b); return s <= 0.5 ? b - (1.0 - 2.0 * s) * b * (1.0 - b) : b + (2.0 * s - 1.0) * (d - b); }
 void main() {
   vec2 uv = (vW - uT0) / uTile;
   if (uRes > 0.5) {   // (stage 6: the compressed sheet, uT, with the tile's overlay of marks, uD, premultiplied)
     vec3 b = texture(uT, (vW - uS0) / uSS).rgb; vec4 v = texture(uD, uv);
-    o = vec4(b * (1.0 - v.a) + v.rgb, 1.0); o1 = vec4(vN * 0.5 + 0.5, 0.0, 1.0); return;
+    vec3 g = b * (1.0 - v.a) + v.rgb; if (uWater > 0.5) g = water(g, vW);
+    o = vec4(g, 1.0); o1 = vec4(vN * 0.5 + 0.5, 0.0, 1.0); return;
   }
   // The stand-in for a tile not uploaded yet: the blurred preview where it is done, else a pixel a cell; a tile just in
   // fades in over it (uFade 0 to 1) rather than popping in.
@@ -88,6 +149,7 @@ void main() {
   vec4 d = texture(uD, uv); c.rgb = mix(c.rgb, d.rgb, d.a * (1.0 - uLowOnly));
   if (uLowOnly < 0.5 && uFade < 1.0) c.rgb = mix(lo.rgb, c.rgb, uFade);
   if (uPatchK > 0.0) { vec4 p = texture(uPatch, vW / uPatchS); vec3 s = vec3(sl(c.r, p.r), sl(c.g, p.g), sl(c.b, p.b)); c.rgb = mix(c.rgb, s, p.a * uPatchK); }
+  if (uWater > 0.5 && uLowOnly < 0.5) c.rgb = water(c.rgb, vW);
   o = vec4(c.rgb, 1.0); o1 = vec4(vN * 0.5 + 0.5, 0.0, 1.0);   // (o1: the normals' layer; the ground's from the hills (stage 5): flat ground (0, 0) is lit as 2D)
 }`;
   function init() {
@@ -125,9 +187,10 @@ void main() {
     if (!gl.getProgramParameter(P, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(P));
     gl.useProgram(P);
     loc = {};
-    for (const n of ['uCam', 'uSize', 'uT', 'uD', 'uLow', 'uPatch', 'uT0', 'uTile', 'uWorld', 'uLowOnly', 'uPatchK', 'uPatchS', 'uPv', 'uPvOn', 'uPvS', 'uFade', 'uRes', 'uS0', 'uSS']) loc[n] = gl.getUniformLocation(P, n);
+    for (const n of ['uCam', 'uSize', 'uT', 'uD', 'uLow', 'uPatch', 'uT0', 'uTile', 'uWorld', 'uLowOnly', 'uPatchK', 'uPatchS', 'uPv', 'uPvOn', 'uPvS', 'uFade', 'uRes', 'uS0', 'uSS',
+      'uWa', 'uWb', 'uWater', 'uWm', 'uWet', 'uRain', 'uTime', 'uSnowy']) loc[n] = gl.getUniformLocation(P, n);
     for (const n of ['aP', 'aD', 'aW', 'aN']) loc[n] = gl.getAttribLocation(P, n);
-    gl.uniform1i(loc.uT, 0); gl.uniform1i(loc.uD, 1); gl.uniform1i(loc.uLow, 2); gl.uniform1i(loc.uPatch, 3); gl.uniform1i(loc.uPv, 4);
+    gl.uniform1i(loc.uT, 0); gl.uniform1i(loc.uD, 1); gl.uniform1i(loc.uLow, 2); gl.uniform1i(loc.uPatch, 3); gl.uniform1i(loc.uPv, 4); gl.uniform1i(loc.uWa, 5); gl.uniform1i(loc.uWb, 6);
     R.buf = gl.createBuffer(); R.ibuf = gl.createBuffer();
     R.none = texFrom(null);
     return true;
@@ -200,10 +263,44 @@ void main() {
     e.t = t; e.ver = t.ver; e.used = S.frame;
     return e;
   }
+  // The rain's water (look.js flowTick: rainS.flow) as two small textures, a cell a texel (R: depth / 2, G: how much runs,
+  // log scale, BA: which way), the step before and the last one, mixed by how far the next step has come (uWm), so the water
+  // changes smoothly between steps. R.waterOn: drawn this frame (look.js then leaves out its 2D puddles and runnels).
+  let WT = null;
+  function waterBind() {
+    const Fw = typeof flowForGl === 'function' ? flowForGl() : null;
+    R.waterOn = !!Fw;
+    gl.uniform1f(loc.uWater, Fw ? 1 : 0);
+    if (!Fw) return;
+    const { F, S } = Fw, n = MAP;
+    if (!WT || WT.n !== n || WT.F !== F) {
+      if (WT) { gl.deleteTexture(WT.a); gl.deleteTexture(WT.b); }
+      const mkT = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, n, n);
+        for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; };
+      WT = { n, F, a: mkT(), b: mkT(), ver: -1, at: 0, px: new Uint8Array(n * n * 4) };
+    }
+    gl.activeTexture(gl.TEXTURE5);
+    if (WT.ver !== F.ver) {   // a new step: the last becomes the one before, this one goes in
+      const t = WT.a; WT.a = WT.b; WT.b = t;
+      const px = WT.px, W = F.W, Q = F.Q, qx = F.qx, qy = F.qy;
+      for (let c = 0, o = 0; c < n * n; c++, o += 4) {
+        const l = Math.hypot(qx[c], qy[c]) || 1;
+        px[o] = Math.min(255, W[c] * 127.5); px[o + 1] = Math.max(0, Math.min(255, (Math.log10(Q[c] + 1e-6) + 2.6) / 1.6 * 255));   // (0.0025 a second: none; 0.1: full)
+        px[o + 2] = (qx[c] / l * 0.5 + 0.5) * 255; px[o + 3] = (qy[c] / l * 0.5 + 0.5) * 255;
+      }
+      gl.bindTexture(gl.TEXTURE_2D, WT.b); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, n, n, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      if (WT.ver < 0) { gl.bindTexture(gl.TEXTURE_2D, WT.a); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, n, n, gl.RGBA, gl.UNSIGNED_BYTE, px); }
+      WT.ver = F.ver; WT.at = G.t;
+    }
+    gl.bindTexture(gl.TEXTURE_2D, WT.a); gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, WT.b);
+    gl.uniform1f(loc.uWm, Math.max(0, Math.min(1, (G.t - WT.at) / F.dt)));
+    gl.uniform1f(loc.uWet, S.wet); gl.uniform1f(loc.uRain, S.L); gl.uniform1f(loc.uTime, G.t % 1000); gl.uniform1f(loc.uSnowy, 0);
+  }
   // Draws the ground of world box (sx, sy, sw, sh) into the 2D view canvas v (VW x VH, top left (vx, vy) on the view
   // plane). False when WebGL cannot: the caller draws it the 2D way.
   R.ground = (v, vx, vy, VW, VH, sx, sy, sw, sh) => {
-    R.lit = false;   // (set again by listEnd when this frame's light pass ran)
+    R.lit = false; R.waterOn = false;   // (set again by listEnd when this frame's light pass ran; by waterBind when the water is drawn)
     if (typeof FRAME_RS !== 'undefined') FRAME_RS = 1;   // (the 2D way, unless WebGL draws this frame)
     if (failed || R.paused || !G || !G.ground || !G.ground.gl) return false;   // (paused: tools draw a frame the 2D way to compare)
     try {
@@ -227,6 +324,7 @@ void main() {
       gl.useProgram(P);
       if (RS > 1) { const ls = linSampler(); gl.bindSampler(0, ls); gl.bindSampler(1, ls); }   // (HD: the ground's tiles sampled smoothly, not in blocks; unbound after R.ground)
       gl.uniform2f(loc.uCam, vx, vy); gl.uniform2f(loc.uSize, VW, VH); gl.uniform1f(loc.uTile, A.T); gl.uniform1f(loc.uWorld, WORLD);
+      waterBind();
       // The stand-in (a pixel a cell) for tiles not painted yet; the look's soft patches.
       const low = A.low();
       if (S.lowSrc !== low) { if (S.low) gl.deleteTexture(S.low); S.low = texFrom(low); S.lowSrc = low; gl.bindTexture(gl.TEXTURE_2D, S.low); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); }

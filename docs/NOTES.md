@@ -2693,6 +2693,20 @@ Owner picked "faster buildings/walls/props" next (no look change). Same benchmar
   1.7 x: drained off a slope, filled in a hollow); dug craters fill. Tank ruts on soaked ground hold a thin pale line of water
   (lookGround, the tracks). Looks only, nothing in G, nothing online; snowy maps and Heron Fen's storm-free weather as before.
 
+- **Water drawn by WebGL** (owner, 2026-11-25, of the runnels: "it just doesnt look good"; picked a proper water surface):
+  gl.js `water()` in the ground shader, both ways of drawing the ground (tiles and stage 6). `waterBind` packs look.js's water
+  (`flowForGl`: rainS.flow) into two MAP x MAP RGBA textures (depth / 2; how much runs, log scale 0.0025-0.1 a second; which
+  way), the step before and the last one (`F.ver`), mixed by `uWm` over a step so it changes smoothly. In the shader: soaked
+  ground darker and cooler (`uWet`); pools where the smoothed depth (with a little noise for ragged edges) passes ~0.21: dark
+  water with the grey sky's sheen drifting over it, a bright waterline, a band of darker wet mud round it, and rings where
+  drops land (`rings`, by the rain's strength); running water as rivulets: a pattern in each cell's own flow frame (stretched
+  along the flow, sliding down it as a two-phase flow map), the four nearest cells' blended (a direction smoothed between
+  cells turned every pixel and scrambled into speckle), shown where enough runs. `hsh` has no sin() (precision far into the
+  map). The water's routing: `FLOW_RELAX` 0.1 of each difference a neighbour (more sloshed to and fro, pools flickering), the
+  puddle spots are hollows in the roughness so the rain fills them first. With the water drawn (`GLR.waterOn`), look.js draws
+  no puddle pictures or pools: units splash and blasts ripple where the depth is over 0.18, fire glows on pooled cells. The
+  2D way keeps the puddles and simple pools; the runnel lines are gone in both.
+
 ## Lighter light when frames run slow; GPU timing in match reports (2026-11-24, not released, looks only, both modes)
 
 - Owner's match 305e950b (Heron Fen, desktop 2560 x 1370, WebGL): 70 fps on average, no frame over 100 ms, but minutes 18, 35

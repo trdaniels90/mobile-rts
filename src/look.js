@@ -1677,6 +1677,22 @@ function lookPuddles(g, x0, y0, x1, y1, shows) {
   rivulets(g, S, P, x0, y0, x1, y1, shows);
   const mv = puddleMovers(S, x0, y0, x1, y1), lights = puddleLights(x0, y0, x1, y1);
   const F = flowTick(S);
+  // WebGL draws the water itself (gl.js water(): pools, wet ground, running water): here only what moves over it, the
+  // splashes and rings of units and blasts and the glow of fire, found from the water's depth instead of the puddles.
+  if (F && typeof GLR !== 'undefined' && GLR.waterOn) {
+    for (const l of mv.values()) for (const u of l) { const c = idx(Math.floor(u.x / CELL), Math.floor(u.y / CELL)), w = F.W[c]; if (w >= 0.18 && G.seen[c]) puddleWade(S, u, null, Math.min(1.6, 0.7 + w)); }
+    if (lights.length) for (const [lx, ly, b] of lights) for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) {
+      const cx = Math.floor(lx / CELL) + i, cy = Math.floor(ly / CELL) + j; if (cx < 0 || cy < 0 || cx >= MAP || cy >= MAP) continue;
+      const c = cy * MAP + cx, w = F.W[c]; if (w < 0.18 || !G.seen[c]) continue;
+      const x = (cx + 0.5) * CELL, y = (cy + 0.5) * CELL, d = Math.hypot(x - lx, y - ly), k = b * (1 - d / 90) * Math.min(1, w * 2);
+      if (k < 0.04) continue;
+      const [wx, wy] = hillPt(x, y), op = g.globalCompositeOperation; g.globalCompositeOperation = 'lighter'; g.globalAlpha = Math.min(0.7, k);
+      g.drawImage(P.glow, wx - 16, wy - 11, 32, 22); g.globalCompositeOperation = op;
+    }
+    puddleBlasts(S, rows, F); puddleRipples(g, S, P);
+    g.globalAlpha = 1; g.upright = up;
+    return;
+  }
   if (F) flowDraw(g, S, P, F, x0, y0, x1, y1, shows);
   let n = 0;
   const cy0 = Math.max(0, Math.floor((y0 - 40) / CELL)), cy1 = Math.min(MAP - 1, Math.ceil((y1 + 120) / CELL));
@@ -1712,7 +1728,7 @@ function lookPuddles(g, x0, y0, x1, y1, shows) {
 // downhill where it flows; the puddles grow or shrink with the water round them, and wet tank ruts shine. Looks only.
 // Rain FLOW_RAIN x its strength a second; the ground takes FLOW_SOAK (FLOW_DRY once dry weather) plus FLOW_SEEP x the depth, so
 // a level cell stays below a pool and only hollows with water running in fill (and a pool stops growing).
-const FLOW_SPLIT = 3, FLOW_DT = 0.5, FLOW_RAIN = 0.014, FLOW_SOAK = 0.004, FLOW_SEEP = 0.06, FLOW_DRY = 0.02, FLOW_K = 1.6, FLOW_REF = 0.5, FLOW_MIN = 0.22, FLOW_Q = 0.012, FLOW_POOLS = 500;
+const FLOW_SPLIT = 3, FLOW_RELAX = 0.1, FLOW_DT = 0.5, FLOW_RAIN = 0.014, FLOW_SOAK = 0.004, FLOW_SEEP = 0.06, FLOW_DRY = 0.02, FLOW_K = 1.6, FLOW_REF = 0.5, FLOW_MIN = 0.22, FLOW_Q = 0.012, FLOW_POOLS = 500;
 function flowTick(S) {
   if (!LOOK.hills && !G.hgt && S.wet < 0.09) return null;
   let F = S.flow;
@@ -1726,7 +1742,9 @@ function flowTick(S) {
       const x = c % MAP, y = (c / MAP) | 0;
       base[c] = (vn(x, y, 3, seed + 811) - 0.5) * 0.9 + (vn(x, y, 8, seed + 812) - 0.5) * 1.4 + (hash3(x, y, seed + 813) - 0.5) * 0.25;
     }
-    F = S.flow = { n: NCELLS, base, to: new Int32Array(NCELLS).fill(-1), W: new Float32Array(NCELLS), D: new Float32Array(NCELLS), Q: new Float32Array(NCELLS), qx: new Float32Array(NCELLS), qy: new Float32Array(NCELLS), t: G.t };
+    // the puddle spots are small hollows (the rain fills them first, as before)
+    for (const row of puddleSpots(S)) for (const q of row) base[idx(Math.floor(q[0] / CELL), Math.floor(q[1] / CELL))] -= 0.25 + q[3] * 0.3;
+    F = S.flow = { n: NCELLS, dt: FLOW_DT, base, to: new Int32Array(NCELLS).fill(-1), W: new Float32Array(NCELLS), D: new Float32Array(NCELLS), Q: new Float32Array(NCELLS), qx: new Float32Array(NCELLS), qy: new Float32Array(NCELLS), t: G.t };
     // A battle already wet (continued, or long in the rain): the water as it would be, worked out at once (coarse steps).
     const pre = Math.min(40, Math.floor(S.rt / 2));
     for (let i = 0; i < pre; i++) flowStep(F, S, 2);
@@ -1745,6 +1763,11 @@ function flowTick(S) {
 }
 const FL_DX = [1, -1, 0, 0, 1, 1, -1, -1], FL_DY = [0, 0, 1, -1, 1, -1, 1, -1], FL_W = [1, 1, 1, 1, Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2, Math.SQRT1_2];
 const FL_D8 = new Float32Array(8), FL_NB = new Int32Array(8);
+// For gl.js: the water to draw this frame, or none (no rain look, dry, or not made yet).
+function flowForGl() {
+  if (!RAIN_FX || !rainS || rainS.g !== G || !rainS.flow || rainS.flow.n !== NCELLS || rainS.wet < 0.02) return null;
+  return { F: rainS.flow, S: rainS };
+}
 // One step: flowBegin (rain, soaking), flowRows (the water passed on, a band of rows; play spreads them over FLOW_SPLIT frames
 // so a phone never spends a whole step in one frame), flowEnd (moved).
 function flowStep(F, S, dt) { flowBegin(F, S, dt); flowRows(F, dt, 0, MAP); flowEnd(F); }
@@ -1780,10 +1803,12 @@ function flowRows(F, dt, y0, y1) {
         if (d > 0) { d8[i] = Math.min(d, w); nb[i] = n; tot += d8[i]; }
       }
       if (tot > 0) {
-        const move = Math.min(w, tot * 0.5) * Math.min(1, FLOW_K * dt * 2);
+        // each neighbour takes FLOW_RELAX of the difference (with eight of them, more made the water slosh to and fro and the
+        // pools' shapes flicker), and never more than the cell holds
+        const scale = Math.min(FLOW_RELAX, w * 0.9 / tot);
         let big = 0; to[c] = -1;
         for (let i = 0; i < 8; i++) if (nb[i] >= 0) {
-          const m = move * d8[i] / tot;
+          const m = d8[i] * scale;
           if (m > big) { big = m; to[c] = nb[i]; }   // (where most of it goes: the stream drawn to there)
           D[nb[i]] += m; out += m; ox += m * FL_DX[i] * FL_W[i]; oy += m * FL_DY[i] * FL_W[i];
         }
@@ -1797,6 +1822,7 @@ function flowRows(F, dt, y0, y1) {
 }
 function flowEnd(F) {
   const { W, D } = F, T = G.terr;
+  F.ver = (F.ver || 0) + 1;   // (gl.js uploads the water again)
   for (let c = 0; c < NCELLS; c++) if (D[c]) { const t = T[c]; W[c] = t >= 4 ? 0 : Math.max(0, W[c] + D[c]); }
 }
 // Pools (lobed water, its size and darkness by depth; neighbours overlap into one sheet) and, where water runs, a dark wet
@@ -1826,7 +1852,7 @@ function flowDraw(g, S, P, F, x0, y0, x1, y1, shows) {
       n++;
     }
   }
-  flowStreams(g, P, F, segs, t, S);
+  // (no runnels drawn: lines on the ground never looked like water; WebGL shows running water in gl.js water())
   g.globalAlpha = 1;
 }
 // The streams: the cells water runs through, followed downhill cell to cell (F.to) into runnels, each drawn as one smooth
@@ -1944,7 +1970,7 @@ function puddleWade(S, u, p, sz) {
     n: u.veh ? 6 : 3, sp: u.veh ? 26 : 14, hx: -u.dx / l, hy: -u.dy / l, seed: (t * 1000 + u.id * 7) | 0 });
 }
 // New blasts: the puddles within reach of each send rings across and throw their water up.
-function puddleBlasts(S, rows) {
+function puddleBlasts(S, rows, F) {
   const seen = S.fxSeen || (S.fxSeen = new WeakSet());
   for (const f of G.effects) {
     if (f.type !== 'expl' || f.t < 0 || seen.has(f)) continue;
@@ -1952,6 +1978,19 @@ function puddleBlasts(S, rows) {
     if (f.t > 0.2) continue;
     const reach = (f.size || 8) * 2.5 + 14, cy0 = Math.max(0, Math.floor((f.y - reach) / CELL)), cy1 = Math.min(MAP - 1, Math.floor((f.y + reach) / CELL));
     let hit = 0;
+    if (F) {   // (WebGL water: the pooled cells within reach, nearest first)
+      const cells = [];
+      for (let cy = cy0; cy <= cy1; cy++) for (let cx = Math.max(0, Math.floor((f.x - reach) / CELL)); cx <= Math.min(MAP - 1, Math.floor((f.x + reach) / CELL)); cx++) {
+        const c = cy * MAP + cx, d = Math.hypot((cx + 0.5) * CELL - f.x, (cy + 0.5) * CELL - f.y); if (F.W[c] >= 0.18 && d < reach) cells.push([d, (cx + 0.5) * CELL, (cy + 0.5) * CELL]);
+      }
+      cells.sort((a, b) => a[0] - b[0]);
+      for (const [d, x, y] of cells.slice(0, 4)) {
+        const pw = Math.max(0, 1 - d / reach), l = d || 1;
+        puddleRip(S, { x, y, t0: G.t, R: 16, a: 0.6 + 0.4 * pw, life: 1.3, n: 0 });
+        puddleRip(S, { x, y, t0: G.t, R: 0, a: 0, life: 1.2, n: 8 + Math.round(10 * pw), sp: 30 + 40 * pw, hx: (x - f.x) / l, hy: (y - f.y) / l, up: 1.6, seed: (f.seed || 1) + hit++ * 31 });
+      }
+      continue;
+    }
     for (let cy = cy0; cy <= cy1 && hit < 4; cy++) for (const p of rows[cy]) {
       const d = Math.hypot(p[0] - f.x, p[1] - f.y);
       if (d > reach || p[4] > S.wet - 0.1) continue;
