@@ -5,7 +5,7 @@
 // src/voices.js.
 
 const Sound = (() => {
-  const settings = { music: true, sfx: true, voice: true, musicVol: 1, sfxVol: 1 };   // volumes 0 to 1; 1 is the mix the game was balanced at
+  const settings = { music: true, sfx: true, voice: true, musicVol: 1, sfxVol: 1, mix: false };   // mix: play over the phone's own music (see mixSession)   // volumes 0 to 1; 1 is the mix the game was balanced at
   try { Object.assign(settings, JSON.parse(localStorage.getItem('ps-audio') || '{}')); } catch (_) {}
   // Slider position to gain: squared, so the lower half of the slider is not all loud.
   const volOf = (k) => { const v = Math.min(1, Math.max(0, +settings[k])); return v * v; };
@@ -38,6 +38,13 @@ const Sound = (() => {
   // mode, so older iPhones do not mute Web Audio when the ring/silent switch is on silent.
   const SILENT = 'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAACQAAA2AAVVVVVVVVVVVVVVVqampqampqampqaoCAgICAgICAgICAlZWVlZWVlZWVlZWqqqqqqqqqqqqqqsDAwMDAwMDAwMDA1dXV1dXV1dXV1dXq6urq6urq6urq6v//////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCYAAAAAAAAANgUN8OnAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/+MYxAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MYxDsAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MYxHYAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MYxLEAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MYxMQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MYxMQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/+MYxMQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/+MYxMQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/+MYxMQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV';
   let keepAlive = null;
+  // "Play over my music" (settings.mix): an 'ambient' audio session and no silent media element, so the player's
+  // own music app (Spotify, Apple Music...) keeps playing under the game. The cost: iOS then mutes game sounds
+  // when the ring/silent switch is on silent. Off: 'playback', which plays through the switch but stops other audio.
+  function mixSession() {
+    try { if (navigator.audioSession) navigator.audioSession.type = settings.mix ? 'ambient' : 'playback'; } catch (_) {}
+    if (settings.mix && keepAlive) keepAlive.pause();
+  }
 
   // Called from every tap, click and key press. iOS only lets audio start inside the end of a
   // touch (or a click), and can suspend it again after calls, app switches or screen locks.
@@ -50,6 +57,7 @@ const Sound = (() => {
       b.buffer = ctx.createBuffer(1, 1, 22050);
       b.connect(ctx.destination); b.start(0);
     } catch (_) {}
+    if (settings.mix) return;   // no media element: it would stop the player's own music
     if (!keepAlive && typeof Audio !== 'undefined') {
       try {
         keepAlive = new Audio(SILENT);
@@ -71,8 +79,8 @@ const Sound = (() => {
     if (ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    // Let iOS play game audio even with the ring/silent switch on silent.
-    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (_) {}
+    // 'playback' lets iOS play game audio even with the ring/silent switch on silent; 'ambient' mixes with the player's music.
+    mixSession();
     // Larger audio buffers: a little more latency, but no crackle when the phone is busy.
     try { ctx = new AC({ latencyHint: 'playback' }); } catch (_) { ctx = new AC(); }
     const comp = ctx.createDynamicsCompressor();
@@ -115,7 +123,7 @@ const Sound = (() => {
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
     if (document.hidden) { ctx.suspend(); if (keepAlive) keepAlive.pause(); }
-    else { ctx.resume().catch(() => {}); if (keepAlive) keepAlive.play().catch(() => {}); }
+    else { ctx.resume().catch(() => {}); if (keepAlive && !settings.mix) keepAlive.play().catch(() => {}); }
   });
 
   function gain(v, dest) { const g = ctx.createGain(); g.gain.value = v; if (dest) g.connect(dest); return g; }
@@ -834,15 +842,8 @@ registerProcessor('sfx-mix', SfxMix);
   // Patterns are 16 steps per bar. Drums: x = hit, o = open hat / accent. Melodic tokens:
   // a semitone offset from the song key, '-' to hold, '.' to rest, 'm' suffix for palm-muted.
   const E = 40; // E2
-  const SONGS = [
-    // Recorded pieces (src/industry.js, src/war.js), played whole instead of sequenced.
-    { name: 'Industry', rec: 'industry', bpm: 120, key: E, parts: {}, order: [] },
-    { name: 'War', rec: 'war', bpm: 120, key: E, parts: {}, order: [] },
-    { name: 'Smash', rec: 'smash', bpm: 120, key: E, parts: {}, order: [] },
-    { name: 'Rain', rec: 'rain', bpm: 120, key: E, parts: {}, order: [] },
-    { name: 'Airstrike', rec: 'airstrike', bpm: 120, key: E, parts: {}, order: [] },
-    { name: 'Roll', rec: 'roll', bpm: 120, key: E, parts: {}, order: [] },
-  ];
+  // The soundtrack was removed on 2026-11-25 (owner's call); add tracks here as { name, rec: '<file>' } with music/<file>.mp3.
+  const SONGS = [];
   for (const song of SONGS) for (const part of Object.values(song.parts)) {
     for (const key of ['gtr', 'bass', 'lead', 'stab', 'pad']) {
       if (part[key]) part[key] = part[key].split('|').map((bar) => bar.trim().split(/\s+/));
@@ -851,9 +852,9 @@ registerProcessor('sfx-mix', SfxMix);
 
   const Music = {
     song: 0, part: 0, bar: 0, step: 0, next: 0, timer: null, started: false,
-    get name() { return SONGS[this.song].name; },
+    get name() { return SONGS.length ? SONGS[this.song].name : ''; },
     start() {
-      if (this.started || !ctx) return;
+      if (this.started || !ctx || !SONGS.length) return;   // no soundtrack: stay silent
       this.started = true;
       this.song = this.nextSong();   // a random track to begin with
       this.next = ctx.currentTime + 0.15;
@@ -872,6 +873,7 @@ registerProcessor('sfx-mix', SfxMix);
       return (this.last = this.deck.pop());
     },
     skip() {
+      if (!SONGS.length) return;
       this.stopRec();
       this.song = this.nextSong(); this.part = 0; this.bar = 0; this.step = 0;
       if (ctx) this.next = ctx.currentTime + 0.3;
@@ -981,6 +983,7 @@ registerProcessor('sfx-mix', SfxMix);
   function setOption(key, on) {
     settings[key] = on;
     save();
+    if (key === 'mix') { mixSession(); if (!on) unlock(); return; }
     if (!ctx) return;
     if (key === 'music') musicBus.gain.setTargetAtTime(musicLevel(), ctx.currentTime, 0.1);
     if (key === 'sfx') sfxBus.gain.setTargetAtTime(sfxLevel(), ctx.currentTime, 0.05);

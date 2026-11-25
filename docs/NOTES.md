@@ -1244,6 +1244,11 @@ recorder usage at the top of record.js).
 
 ## Soundtrack (separate files since 2026.11.03.9)
 
+- **Removed on 2026-11-25 (owner's call): the game has no music for now.** `SONGS` in `audio.js` and `TRACKS` in
+  `sw.js` are empty, `music/` is gone, and `Music.start` does nothing without songs. The Music toggle, music volume
+  slider and Next track button in Options are `hidden` in `index.html`; unhide them when tracks come back. The owner's
+  artifact still holds the old `music/*.mp3` files: remove them on the next artifact publish (`publish_files` `remove`).
+  The notes below describe how tracks worked, for adding new ones.
 - Four recorded tracks, shuffled: Industry, War, Smash, Rain. Each is an MP3 in `music/<name>.mp3`, listed in `SONGS`
   in `audio.js` with `rec: '<name>'`. `Music.loadRec` fetches the file (`music/<id>.mp3`) and decodes it on demand;
   if the fetch or decode fails the song is skipped (`recFailed`). `Music.nextSong` deals a shuffled deck (no immediate
@@ -1259,6 +1264,10 @@ recorder usage at the top of record.js).
   (files left out are kept). Remove `.build` afterwards.
 - The owner supplies the tracks (credited in `CREDITS.md`). Convert with ffmpeg: `loudnorm=I=-16:TP=-1.5`,
   a 2.5 s fade out, 44.1 kHz stereo, 96 kbps.
+- **Play over my music** (Options, `settings.mix`, off by default, 2026-11-25): lets a player's own music app keep
+  playing under the game. On: `navigator.audioSession.type = 'ambient'` (iOS 16.4+) and no looping silent `<audio>`
+  (`keepAlive`), since that media element is what makes iOS and Android stop other apps' audio. Cost: iOS then mutes
+  game sounds when the ring/silent switch is on silent. Off: `'playback'` plus `keepAlive`, as before. `mixSession()` in `audio.js`.
 - Volume sliders (`musicVol`, `sfxVol` in `Sound.settings`, `setVolume`) scale the buses; full is the original mix.
 
 ## Windows app (`desktop/`)
