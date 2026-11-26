@@ -5173,8 +5173,10 @@ function splitHead(m, cut, part) {
 // type every time (seeded by its name), and `damageSpots` gives their positions so the fires
 // and smoke come out of them.
 // ---------------------------------------------------------------------------
-const DMG_AT = [0.6, 0.3];
-function dmgStage(b) { const f = b.hp / b.maxHp; return f < DMG_AT[1] ? 2 : f < DMG_AT[0] ? 1 : 0; }
+// Stage 3 (below 12%): it starts to come down. A slab of the roof breaks away along a jagged crack and sags on its hinge
+// into the floor below (slumpModel); structures carrying a turning head keep the stage 2 model, so the head never floats.
+const DMG_AT = [0.6, 0.3, 0.12];
+function dmgStage(b) { const f = b.hp / b.maxHp; return f < DMG_AT[2] ? 3 : f < DMG_AT[1] ? 2 : f < DMG_AT[0] ? 1 : 0; }
 function strSeed(s) { let h = 7; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; }
 function copyModel(m) {
   const c = Object.create(VModel.prototype);
@@ -5214,6 +5216,7 @@ function damageSpots(type, faction) {
   return spots;
 }
 function damageModel(base, stage, type, faction) {
+  if (stage >= 3) { const m = damageModel(base, 2, type, faction); return slumps(type) ? slumpModel(m, type) : m; }
   const m = copyModel(base), top = topOf(base), spots = damageSpots(type, faction).filter((p) => p.s <= stage), r = rng(strSeed(type) + stage * 977);
   const W = m.w, H = m.h, D = m.d, CHAR = rgbInt('#1f1c19'), EMBER = [rgbInt('#ff7a1a'), rgbInt('#e8460f'), rgbInt('#ffb040')];
   const removed = [];
@@ -5293,6 +5296,45 @@ function damageModel(base, stage, type, faction) {
       const z = tz + 1 + (r() < 0.3 ? 1 : 0), c = removed[(r() * removed.length) | 0];
       for (let zz = tz + 1; zz <= z && zz < D; zz++) { const i = (zz * H + y) * W + x; m.col[i] = r() < 0.3 ? CHAR : darken(c, 0.6 + r() * 0.3); m.mat[i] = M_ROUGH; }
     }
+  }
+  return m;
+}
+// Whether a type sags at stage 3: not one with a weapon head or the SAM's launcher sitting on its roof.
+function slumps(type) { return !(typeof HEADS !== 'undefined' && HEADS[type]) && type !== 'sam'; }
+// Stage 3: a line is cut across the structure at a slant chosen by its name; on one side (the front, where it shows) of it everything above the lower
+// quarter of its height drops, the more the further from the line, so that half of the roof hangs from the crack like a
+// broken slab. The crack itself opens, its edges char, and what is pushed below the floor is heaped as rubble round the
+// foot of the fallen side.
+function slumpModel(src, type) {
+  const top = topOf(src), W = src.w, H = src.h, D = src.d, r = rng(strSeed(type) + 3 * 977), CHAR = rgbInt('#1f1c19');
+  let maxZ = 0;
+  for (let i = 0; i < top.length; i++) maxZ = Math.max(maxZ, top[i]);
+  if (maxZ < 6) return src;
+  const m = copyModel(src), zF = Math.max(2, Math.round(maxZ * 0.25)), a = Math.PI / 4 + (r() - 0.5) * Math.PI * 0.8, nx = Math.cos(a), ny = Math.sin(a);
+  const cx = W * (0.5 + (r() - 0.5) * 0.3), cy = H * (0.5 + (r() - 0.5) * 0.3), maxDrop = maxZ * 0.6, slope = 0.55 + r() * 0.35;
+  for (let i = zF * W * H; i < m.col.length; i++) m.col[i] = -1;
+  const lost = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const d = (x - cx) * nx + (y - cy) * ny + (hash3(x >> 1, y >> 1, 41) - 0.5) * 2.2;   // (a jagged crack, not a ruled line)
+    const drop = d <= 0 ? 0 : Math.min(maxDrop, d * slope + 1);
+    for (let z = zF; z < D; z++) {
+      const i = (z * H + y) * W + x, c = src.col[i];
+      if (c < 0) continue;
+      if (Math.abs(d) < 1.3) { if (hash3(x, y, z) < 0.5) lost.push(c); continue; }   // the crack opens
+      const nz = Math.round(z - drop);
+      if (nz < zF) { lost.push(c); continue; }
+      const j = (nz * H + y) * W + x;
+      if (m.col[j] >= 0) continue;
+      m.col[j] = drop > 0 ? darken(c, 0.82 - Math.min(0.3, drop / maxZ * 0.4)) : c; m.mat[j] = src.mat[i];
+      if (Math.abs(d) < 3 && hash3(x, y, z + 5) < 0.6) { m.col[j] = hash3(z, x, y) < 0.4 ? CHAR : darken(m.col[j], 0.4); m.mat[j] = M_ROUGH; }
+    }
+  }
+  // Rubble at the foot of the fallen side, on bare foundation.
+  const top2 = topOf(m);
+  for (let k = 0; k < Math.min(lost.length, 60 + W * H / 40); k++) {
+    const x = Math.floor(r() * W), y = Math.floor(r() * H), d = (x - cx) * nx + (y - cy) * ny, tz = top2[y * W + x];
+    if (d < 2 || tz < 0 || tz > 1) continue;
+    for (let z = tz + 1; z <= tz + 1 + (r() < 0.4 ? 1 : 0) && z < D; z++) { const i = (z * H + y) * W + x; m.col[i] = r() < 0.3 ? CHAR : darken(lost[(r() * lost.length) | 0], 0.55 + r() * 0.3); m.mat[i] = M_ROUGH; }
   }
   return m;
 }

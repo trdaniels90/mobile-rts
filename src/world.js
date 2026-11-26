@@ -1171,6 +1171,48 @@ function collapseHouse(h) {
   for (let i = 0; i < 3; i++) smoulder((h.cx + 0.3 + Math.random() * (h.w - 0.6)) * CELL, (h.cy + 0.3 + Math.random() * (h.h - 0.6)) * CELL, 14 + Math.random() * 10);
   rubble(G.tctx, h.cx * CELL, h.cy * CELL, h.w * CELL, h.h * CELL, seed);
   scorch(G.tctx, h.x, h.y, Math.min(h.w, h.h) * CELL * 0.45, seed + 3);
+  fallDown(h, houseStructure(h.type), 'allies', 0, seed);
+}
+// A destroyed structure (or village house) does not vanish: it shudders, then sinks into its own rubble over FALL_T s
+// (art.js drawFall: its most damaged model, models.js slumpModel, cut off at the ground), shedding big chunks from its top
+// and rolling out a cloud of dust, which bursts along the ground when it lands; the stump left settles and fades. Looks
+// only: the cells are free at once. The host sends the 'fall' effect to an online guest, and each copy runs the rest
+// itself (updateFall, in the effects pass).
+const FALL_T = 1.6;
+function fallSink(k) { return k < 0.18 ? 0 : 0.84 * Math.pow((k - 0.18) / 0.82, 1.7); }   // a moment's shudder, then gathering speed
+function fallDown(e, btype, faction, v, seed) {
+  G.effects.push({ type: 'fall', btype, faction, v, cx: e.cx, cy: e.cy, w: e.w, h: e.h, x: e.x, y: e.y, t: 0, life: FALL_T + 3.5, seed, chunkT: 0 });
+}
+function updateFall(fx, dt) {
+  if (fx.t < 0) return;
+  const spots = damageSpots(fx.btype, fx.faction), top = (spots.maxZ || 10) * VK, ox = fx.cx * CELL, oy = fx.cy * CELL, W = fx.w * CELL, Hh = fx.h * CELL;
+  const k = Math.min(1, fx.t / FALL_T), size = Math.sqrt(fx.w * fx.h), pal = FACTIONS[fx.faction].pal;
+  const cols = [pal.main, pal.dark || '#3b3a36', '#5b5850', '#2a2622', '#45423d', '#6f6a60', '#3b3a36'];
+  const dust = (x, y, lift, r, vx, vy, life, delay, drag) => G.effects.push({ type: 'smoke', x, y, lift, r, t: -delay, life, alpha: 0.55, color: Math.random() < 0.5 ? '#8a7a62' : '#9a8d78', vx, vy, drag });
+  const edge = () => {   // a point on the footprint's rim, and the way out from its middle
+    const u = Math.random(), side = (Math.random() * 4) | 0;
+    const x = side === 0 ? ox + u * W : side === 1 ? ox + W : side === 2 ? ox + u * W : ox, y = side === 0 ? oy : side === 1 ? oy + u * Hh : side === 2 ? oy + Hh : oy + u * Hh;
+    const a = Math.atan2(y - (oy + Hh / 2), x - (ox + W / 2));
+    return [x, y, Math.cos(a), Math.sin(a)];
+  };
+  if (!fx.dusted) {   // the first cloud as it gives way
+    fx.dusted = true;
+    for (let i = 0; i < 4 + size * 3; i++) { const [x, y, cx, cy] = edge(), sp = 8 + Math.random() * 14; dust(x, y, Math.random() * top * 0.5, 5 + Math.random() * 3 + size, cx * sp, cy * sp - 6, 2.5 + Math.random() * 1.5, Math.random() * 0.5, 1.2); }
+  }
+  if (k < 1 && (fx.chunkT -= dt) <= 0) {   // chunks break off the top as it goes down
+    fx.chunkT = 0.07 / Math.min(2.5, size);
+    const h = top * (1 - fallSink(k)), x = ox + Math.random() * W, y = oy + Math.random() * Hh, a = Math.atan2(y - (oy + Hh / 2), x - (ox + W / 2)), sp = 8 + Math.random() * 26;
+    G.effects.push({ type: 'frag', x, y, alt: Math.max(2, h * (0.45 + Math.random() * 0.55)), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.8, vz: -10 - Math.random() * 30,
+      rot: Math.random() * 6, spin: (Math.random() - 0.5) * 12, w: 2.5 + Math.random() * 4.5, h: 2 + Math.random() * 3, color: cols[(Math.random() * cols.length) | 0],
+      burning: Math.random() < 0.25, t: 0, life: 3 + Math.random() * 2, smokeT: 0 });
+    if (Math.random() < 0.35) dust(x, y, h, 4 + Math.random() * 3, (Math.random() - 0.5) * 10, -8, 2 + Math.random(), 0, 1.5);
+  }
+  if (k >= 1 && !fx.landed) {   // it lands: dust bursts out along the ground
+    fx.landed = true;
+    hooks.shake(fx.x, fx.y, 1 + size);
+    for (let i = 0; i < 6 + size * 4; i++) { const [x, y, cx, cy] = edge(), sp = 25 + Math.random() * 30; dust(x, y, 1, 4 + Math.random() * 3 + size * 0.6, cx * sp, cy * sp * 0.8, 2 + Math.random() * 1.5, Math.random() * 0.15, 2.2); }
+    for (let i = 0; i < 2 + size; i++) smoulder(ox + (0.2 + Math.random() * 0.6) * W, oy + (0.2 + Math.random() * 0.6) * Hh, 10 + Math.random() * 15);
+  }
 }
 // Fire and smoke from a badly damaged house (below 30% health), run with the effects on every copy.
 function houseFx(dt) {
@@ -3738,10 +3780,11 @@ function kill(e, attacker, wh, from) {
       escapeSurvivors(e);
       const n = e.w * e.h + 2;
       for (let i = 0; i < n; i++) {
-        G.effects.push({ type: 'expl', x: (e.cx + Math.random() * e.w) * CELL, y: (e.cy + Math.random() * e.h) * CELL, size: 10 + Math.random() * 8,
-          t: -i * 0.18, life: 0.8, seed: seed + i, debris: i % 2 === 0 });
+        G.effects.push({ type: 'expl', x: (e.cx + Math.random() * e.w) * CELL, y: (e.cy + Math.random() * e.h) * CELL, size: i < 2 ? 10 + Math.random() * 8 : 6 + Math.random() * 5,
+          t: -i * 0.18, life: 0.8, seed: seed + i, debris: i % 2 === 0 });   // (after the first two, smaller: the fall shows through, fallDown)
       }
       rubble(G.tctx, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL, seed);
+      fallDown(e, e.type, e.faction, G.teams[e.team].variant | 0, seed);
       if (!e.def.defense || e.w * e.h > 1) craterAt(e.x, e.y, 6 + Math.min(4, e.w * e.h * 0.5));   // its fall digs a crater (digCrater)
       notify(team, 'slost', 'Structure lost', 4);
     } else escapeSurvivors(e, true);   // sold: the staff walk out
@@ -6737,6 +6780,7 @@ function updateEffects(dt) {
   for (const fx of G.effects) {
     if (fx.type === 'crash') updateCrash(fx, dt);
     else if (fx.type === 'frag') updateFrag(fx, dt);
+    else if (fx.type === 'fall') updateFall(fx, dt);
     else if (fx.type === 'eject') updateEject(fx, dt);
     else if (fx.type === 'ragdoll') updateRagdoll(fx, dt);
     else if (fx.type === 'turret') updateTurret(fx, dt);
@@ -6837,33 +6881,36 @@ function structureDamageFx(dt) {
     const live = spots.filter((p) => p.s <= stage);
     if (!live.length) continue;
     const spot = () => live[(Math.random() * live.length) | 0];
-    const piece = (p, kick) => {
+    // big: a slab rather than a scrap (when a stage gives way), a few times the size.
+    const piece = (p, kick, big) => {
       const a = Math.random() * Math.PI, sp = 4 + Math.random() * kick;
       G.effects.push({ type: 'frag', x: ox + p.x + (Math.random() - 0.5) * p.r, y: oy + p.y, alt: p.z * VK, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.8 + 4, vz: -6 - Math.random() * kick * 0.5,
-        rot: Math.random() * 6, spin: (Math.random() - 0.5) * 16, w: 1.5 + Math.random() * 3, h: 1.5 + Math.random() * 2,
-        color: [pal.main, pal.dark || '#3b3a36', '#d6d3c9', '#2a2622', '#8f8d84'][(Math.random() * 5) | 0], burning: stage === 2 && Math.random() < 0.3, t: 0, life: 4, smokeT: 0 });
+        rot: Math.random() * 6, spin: (Math.random() - 0.5) * (big ? 9 : 16), w: big ? 3 + Math.random() * 4 : 1.5 + Math.random() * 3, h: big ? 2.5 + Math.random() * 3 : 1.5 + Math.random() * 2,
+        color: [pal.main, pal.dark || '#3b3a36', '#d6d3c9', '#2a2622', '#8f8d84'][(Math.random() * 5) | 0], burning: stage >= 2 && Math.random() < 0.3, t: 0, life: big ? 5 : 4, smokeT: 0 });
     };
-    if (stage > b.dmgSeen) {   // a chunk gives way
-      const fresh = live.filter((p) => p.s === stage), p = fresh.length ? fresh[0] : spot();
-      G.effects.push({ type: 'expl', x: ox + p.x, y: oy + p.y, lift: p.z * VK, size: 9, t: 0, life: 0.6, seed: (Math.random() * 1e6) | 0, debris: true });
-      for (let i = 0; i < 7; i++) piece(p, 26);
-      for (let i = 0; i < 4; i++) G.effects.push({ type: 'smoke', x: ox + p.x + (Math.random() - 0.5) * 10, y: oy + p.y, lift: p.z * VK * 0.5, r: 4, t: -i * 0.05, life: 1.4, alpha: 0.6, color: '#8a7a62', vy: -10, vx: (Math.random() - 0.5) * 20, drag: 1.5 });
-      hooks.sfx('hitMed', ox + p.x, oy + p.y);
+    if (stage > b.dmgSeen) {   // a chunk gives way (stage 3: half the roof comes down, models.js slumpModel)
+      const fresh = live.filter((p) => p.s === stage), p = fresh.length ? fresh[0] : spot(), heavy = stage === 3;
+      G.effects.push({ type: 'expl', x: ox + p.x, y: oy + p.y, lift: p.z * VK, size: heavy ? 13 : 9, t: 0, life: 0.6, seed: (Math.random() * 1e6) | 0, debris: true });
+      for (let i = 0; i < (heavy ? 8 : 4); i++) piece(heavy ? spot() : p, 30, true);
+      for (let i = 0; i < (heavy ? 6 : 4); i++) piece(p, 26);
+      for (let i = 0; i < (heavy ? 10 : 4); i++) { const q = heavy ? spot() : p; G.effects.push({ type: 'smoke', x: ox + q.x + (Math.random() - 0.5) * 10, y: oy + q.y, lift: q.z * VK * 0.5, r: heavy ? 6 : 4, t: -i * 0.05, life: heavy ? 2.4 : 1.4, alpha: 0.6, color: '#8a7a62', vy: -10, vx: (Math.random() - 0.5) * 20, drag: 1.5 }); }
+      hooks.sfx(heavy ? 'collapse' : 'hitMed', ox + p.x, oy + p.y);
+      if (heavy) hooks.shake(b.x, b.y, 1 + b.w * b.h * 0.3);
     }
     b.dmgSeen = stage;
     if (b.dmgHp - b.hp > b.maxHp * 0.015) { const p = spot(); for (let i = 0; i < 1 + (Math.random() * 2 | 0); i++) piece(p, 16); }
     b.dmgHp = b.hp;
-    if ((b.dropT = (b.dropT === undefined ? Math.random() * 3 : b.dropT) - dt) <= 0) { b.dropT = stage === 2 ? 1.2 + Math.random() * 2 : 3 + Math.random() * 4; piece(spot(), 8); }
+    if ((b.dropT = (b.dropT === undefined ? Math.random() * 3 : b.dropT) - dt) <= 0) { b.dropT = stage === 3 ? 0.6 + Math.random() * 1.2 : stage === 2 ? 1.2 + Math.random() * 2 : 3 + Math.random() * 4; piece(spot(), 8); }
     if ((b.dmgFxT = (b.dmgFxT || 0) - dt) > 0) continue;
-    b.dmgFxT = stage === 2 ? 0.12 : 0.2;
+    b.dmgFxT = stage >= 2 ? 0.12 : 0.2;
     // Thick black smoke rolling away on the wind, from one of the holes each tick.
     const p = spot(), px = ox + p.x + (Math.random() - 0.5) * p.r, py = oy + p.y;
-    G.effects.push({ type: 'smoke', x: px, y: py, lift: p.z * VK + 2, vy: -20 - Math.random() * 6, vx: 7 + Math.random() * 3, r: (stage === 2 ? 6.5 : 4.5) + Math.random() * 2.5, t: 0,
-      life: stage === 2 ? 3.6 : 2.8, alpha: stage === 2 ? 0.85 : 0.7, color: '#2e2b28' });
+    G.effects.push({ type: 'smoke', x: px, y: py, lift: p.z * VK + 2, vy: -20 - Math.random() * 6, vx: 7 + Math.random() * 3, r: (stage >= 2 ? 6.5 : 4.5) + Math.random() * 2.5, t: 0,
+      life: stage >= 2 ? 3.6 : 2.8, alpha: stage >= 2 ? 0.85 : 0.7, color: '#2e2b28' });
     // Flames: in every hole at stage 2, in the first one at stage 1.
-    const fp = stage === 2 ? spot() : live[0];
-    if (Math.random() < (stage === 2 ? 0.6 : 0.35)) G.effects.push({ type: 'fire', x: ox + fp.x + (Math.random() - 0.5) * fp.r, y: oy + fp.y, lift: fp.z * VK - 3 - Math.random() * 2, t: 0,
-      life: 0.5 + Math.random() * 0.3, s: stage === 2 ? 1.3 + Math.random() * 0.5 : 1, vy: -5 });
+    const fp = stage >= 2 ? spot() : live[0];
+    if (Math.random() < (stage >= 2 ? 0.6 : 0.35)) G.effects.push({ type: 'fire', x: ox + fp.x + (Math.random() - 0.5) * fp.r, y: oy + fp.y, lift: fp.z * VK - 3 - Math.random() * 2, t: 0,
+      life: 0.5 + Math.random() * 0.3, s: stage >= 2 ? 1.3 + Math.random() * 0.5 : 1, vy: -5 });
   }
 }
 function sweepDead() {

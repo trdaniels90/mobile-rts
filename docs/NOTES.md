@@ -3160,3 +3160,33 @@ art.js and used by both renderers. `nightLights` adds two pools on the ground ah
 and 24) to the darkness's holes and the warm glow. `navLights` adds the two lamps at the cab's front corners (harvModel: x 8,
 5 out, 6 up). The lamps fade out as the truck turns to face up the screen, where the cab would hide them. Trucks are lit
 only where the viewer sees them (their own side and allies, or under uncovered ground).
+
+## Structures break up and come down (contributor's change by JGFortanelli, not released, both modes, looks only)
+
+Owner's ask: "building destruction need to look better ... maybe big chunks being broken off or starting to collapse
+depending on damage dealt". Nothing in the battle changes (health, cells, timings): only what is drawn.
+
+- **Stage 3 of battle damage** (models.js `DMG_AT` is now `[0.6, 0.3, 0.12]`, `dmgStage` returns 0 to 3): below 12% health
+  the structure starts to come down. `slumpModel` takes the stage 2 model and cuts a jagged crack across it (angle from the
+  type's name, always with the fallen side to the front, south and east, where the camera sees it); on that side everything
+  above the lower quarter drops, the more the further from the crack (a slab hanging from its hinge), the crack opens and
+  chars, and what is pushed below the floor is heaped as rubble round the foot. Structures with a weapon head (`HEADS`) and
+  the SAM keep the stage 2 model (`slumps`), so heads never float. At stage 3 the turning parts (radar dish, yard crane),
+  flags, banners and look.js roof lamps are not drawn (their spots may have fallen). Heads, spinners and the crane take at
+  most stage 2 (art.js `drawStructure`). Village houses use the same stages.
+- **Bigger chunks** (world.js `structureDamageFx`): reaching a new stage throws slabs (3 to 7 px) as well as scraps; reaching
+  stage 3 is a heavy event: more slabs from every hole, a bigger dust cloud, the `collapse` sound and a small shake. At stage
+  3 a piece falls off every 0.6 to 1.8 s.
+- **The fall** (world.js `fallDown`, `updateFall`, `FALL_T` 1.6 s; art.js `drawFall`): a destroyed structure or house no
+  longer vanishes. A `fall` effect draws its stage 3 model shuddering for a moment, then sinking into its footprint with
+  gathering speed (`fallSink`), cut off along the footprint's front edges as a structure going up is (`drawBuildUp`). Big
+  chunks break off its top as it goes, dust rolls out from its rim, and when it lands dust bursts along the ground and
+  smoulders start; the stump left fades out over the rubble decal in 1.5 s (life `FALL_T + 3.5` s). The cells are free at
+  once, as before. ui.js sorts the effect in with the structures (`kind: 'fall'`, a `big` item) and only where the viewer has
+  seen. The death blasts after the first two are smaller (6 to 11 px) so the fall shows through.
+- **Online:** the host sends the one `fall` effect; each copy runs the chunks and dust itself (`updateFall` in the effects
+  pass, `G.inFx`), so nothing more goes over the network. The game server runs `updateFall` too (cheap, no drawing).
+- **Bakes:** damaged models are made at runtime, never baked, so no baked picture changes, but the bake manifests hash
+  models.js: `bake-sprites.js --check` (and `--hd`) report stale until the owner refreshes the manifests at release.
+- Tested: `tools/sim/village.js` (all pass), a headless computer 2 v 2 (`teams.js`), and a Playwright run through each
+  stage and the fall of a War Factory, Power Plant and Construction Yard (screenshots, no page errors).

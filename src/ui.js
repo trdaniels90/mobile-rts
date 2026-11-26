@@ -865,6 +865,8 @@ function draw() {
     for (const w of wallsHere) ground.push(w);
     for (const h of G.houses || []) if (h.alive && houseSeen(h) && h.x > x0 - 60 && h.x < x1 + 60 && h.y > y0 - 60 && h.y < y1 + 120) ground.push(h);
     for (const p of G.props || []) if (inView(p) && G.seen[cellOfPos(p.x, p.y)]) ground.push(p);
+    // Structures coming down (world.js fallDown), sorted in as the structure was.
+    for (const fx of G.effects) if (fx.type === 'fall' && fx.t >= 0 && inView(fx) && G.seen[cellOfPos(fx.x, fx.y)]) ground.push({ kind: 'fall', fx, cx: fx.cx, cy: fx.cy, w: fx.w, h: fx.h, x: fx.x, y: fx.y });
     lap('list');
     lookView = v; cliffItems(ground, x0, y0, x1, y1, onScr);   // tall rock (look.js prototype, off by default)
     lap('crag');   // the crags in view found (and any made)
@@ -876,7 +878,7 @@ function draw() {
     // A structure sorts by its footprint's front corner. Anything standing beside one is in front of it when it is nearer
     // the camera than the closest point of the footprint (beside a front wall), and is then moved to just after it;
     // otherwise (beside a back wall) it is already before it.
-    const big = (e) => e.kind === 'bld' || e.kind === 'house';
+    const big = (e) => e.kind === 'bld' || e.kind === 'house' || e.kind === 'fall';
     const posOf = (e) => (e.kind === 'folk' || e.kind === 'hen' ? e.v : e);
     for (const e of ground) {
       if (big(e)) {
@@ -913,6 +915,7 @@ function draw() {
     const drawOne = (e, v) => {   // (v: the view canvas, or gl.js's recorder while WebGL draws the list)
       if (e.kind === 'bld') { drawStructure(v, e, G.t); lookAlive(v, e); lap('bld'); }   // (lookAlive: lookfx.js, living structures)
       else if (e.kind === 'house') { drawHouse(v, e); lap('bld'); }
+      else if (e.kind === 'fall') { drawFall(v, e.fx); lap('bld'); }
       else if (e.kind === 'prop') { drawProp(v, e); lap('misc'); }
       else if (e.kind === 'folk') { drawFolk(v, e.v); lap('misc'); }
       else if (e.kind === 'hen') { drawHen(v, e.v); lap('misc'); }
@@ -1028,7 +1031,7 @@ function draw() {
       }
     }
     for (const fx of G.effects) {
-      if (!(fx.t >= 0 && fx.type !== 'husk' && fx.type !== 'corpse' && fx.x > x0 && fx.x < x1 && fx.y > y0 && fx.y < y1 && fxShows(fx))) continue;
+      if (!(fx.t >= 0 && fx.type !== 'husk' && fx.type !== 'corpse' && fx.type !== 'fall' && fx.x > x0 && fx.x < x1 && fx.y > y0 && fx.y < y1 && fxShows(fx))) continue;
       DP.nFx++;
       // Up in the air (rising smoke and flames, world.js updateEffects): drawn that high straight up the screen; and on the
       // raised ground (look.js gLift; a tracer's or bolt's far end by the ground there).
