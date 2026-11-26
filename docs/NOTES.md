@@ -3175,3 +3175,22 @@ art.js and used by both renderers. `nightLights` adds two pools on the ground ah
 and 24) to the darkness's holes and the warm glow. `navLights` adds the two lamps at the cab's front corners (harvModel: x 8,
 5 out, 6 up). The lamps fade out as the truck turns to face up the screen, where the cab would hide them. Trucks are lit
 only where the viewer sees them (their own side and allies, or under uncovered ground).
+
+## Tree shadows from cached blocks on hilly maps; resolution and zoom in match reports (2026-11-26, after 2026.11.26.1, not released, both modes, speed and reporting only)
+
+Owner's co-op 24a2bd9e/9594e5fa (Heron Fen, 2 v AI on the game server): DSM4LIFE's iPad (1180 x 788 at 2x) fell from ~30 to 17 fps at
+minute 33 and stayed there to the end. Not the battle (its own simulation under 1 ms, and it stayed at 17 when the units halved) nor
+the server: drawing went 17 -> 37 ms as the trees in view went 120 -> 437 -> 814 (a wide view over the woods), tree shadows 3 -> 11 ms.
+- **Why:** on maps with raised ground (look.js hills, every map with `G.hgt`) `isoTreeBlocks` never used its cached far-view blocks,
+  so every tree's shadow was drawn one by one through `onHill`.
+- **art.js `shadowBlocks`:** there, with over `SHADOW_FAR_N` (260) trees in view (off again under `SHADOW_NEAR_N` 200), the shadows
+  of standing and burnt trees are drawn once into 640 x 640 blocks of the view plane (`TREE_BLOCK`, same build budget and keep rules
+  as the tree blocks) and kept; burning trees and blocks not made yet are drawn one by one. Trees stay one by one (hills hide them).
+  Blocks are keyed by where the shadow shows on the raised ground (`liftKey`, lift without craters) so none is cut at a block's edge.
+  Same picture: an offscreen compare of 620 trees' shadows at a whole-pixel camera: 159 of 85,000 pixels off by under 8 (rounding).
+  Headless iPad size, Heron Fen woods (919 trees in view), CPU 4x slowed: `tsh` 6.6 -> 0.7-1 ms a frame.
+- The tree blocks (and these) now bump `_ver` when redrawn, so WebGL uploads the new picture (a block redrawn after a tree burnt
+  kept its old texture).
+- **Report** (report.js): each minute's `res` (lowest drawing resolution, pixels a CSS pixel: ui.js `autoRes` steps it down when frames
+  run slow) and `z` (lowest zoom). That match could not show whether autoRes had already stepped the iPad down; its drawing time was
+  CPU (shadows, ground, crags), which fewer pixels do not help.

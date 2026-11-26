@@ -214,6 +214,13 @@ const Report = (() => {
       const pk = G.ground && G.ground.peak;   // the ground's worst single steps: a tile's pixels put in, its scenery, one mark
       if (pk) { m.gp = Math.max(m.gp || 0, pk.put); m.gd = Math.max(m.gd || 0, pk.dec); if (pk.mark > (m.gm || 0)) { m.gm = pk.mark; m.gmk = pk.mk; } }
       if (G.ground && G.ground.blocky) m.blk = (m.blk || 0) + 1;
+      // The drawing resolution (pixels a CSS pixel: ui.js autoRes steps it down when frames run slow) and the zoom, the lowest of each
+      // in the minute (owner's co-op 24a2bd9e: 17 fps on an iPad with 800 trees in view, and neither was known).
+      try {
+        const cv = document.getElementById('game'), res = cv && cv.clientWidth ? +(cv.width / cv.clientWidth).toFixed(2) : null, z = window.__ps ? +window.__ps.cam.z.toFixed(2) : null;
+        if (res && !(m.res <= res)) m.res = res;
+        if (z && !(m.z <= z)) m.z = z;
+      } catch (_) {}
       if (gap > 0.1 && p) {
         const mine = p.upd + p.drw + p.oth;
         if (gap * 1000 - mine > 50) m.lx = (m.lx || 0) + 1;   // long frames mostly outside the game's code
@@ -273,7 +280,7 @@ const Report = (() => {
       worst: Math.round(m.worst), upd: +(m.upd / m.f).toFixed(1), drw: +(m.drw / m.f).toFixed(1), jumps: m.jumps, wait: m.wait, units: m.units,
       wu: Math.round(m.wu || 0), wd: Math.round(m.wd || 0), wg: Math.round(m.wg || 0), wo: Math.round(m.wo || 0), gnd: +((m.gnd || 0) / m.f).toFixed(1), tiles: m.tiles || 0, lx: m.lx || 0, lf: m.lf || [],
       gp: Math.round(m.gp || 0), gd: Math.round(m.gd || 0), gm: Math.round(m.gm || 0), gmk: m.gmk || '', blk: m.blk || 0,
-      dp: partsOf(m.dp, m.f), dw: m.dw ? { ...partsOf(m.dw, 1), t: m.dw.t } : null,
+      res: m.res, z: m.z, dp: partsOf(m.dp, m.f), dw: m.dw ? { ...partsOf(m.dw, 1), t: m.dw.t } : null,
       gq: m.q && m.q.n ? { rec: +(m.q.rec / m.q.n).toFixed(1), light: +(m.q.light / m.q.n).toFixed(1), over: +(m.q.over / m.q.n).toFixed(1),
         wr: Math.round(m.q.wr), wl: Math.round(m.q.wl), wv: Math.round(m.q.wv), ls: +(m.q.ls / m.q.n).toFixed(2),
         gpu: m.q.gn ? +(m.q.gpu / m.q.gn).toFixed(1) : null, wg: m.q.gn ? Math.round(m.q.wg) : null } : undefined })) };
