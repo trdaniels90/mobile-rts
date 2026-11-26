@@ -4,6 +4,15 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.26.2', date: '26 November 2026', title: 'Smoother wide views, quicker menu', groups: [
+    ['Improved', [
+      'Smoother play when zoomed out over woods on maps with hills: tree shadows are drawn far faster.',
+      'iPhone and iPad: the main menu and the Skirmish button answer at once instead of freezing for a few seconds.',
+    ]],
+    ['Fixed', [
+      'Burnt trees no longer sometimes show their old look in a wide view.',
+    ]],
+  ] },
   { v: '2026.11.26.1', date: '26 November 2026', title: 'AA Gun barrels recoil', groups: [
     ['Improved', [
       'The AA Gun\'s twin barrels now fire in turn, and each one kicks back when it fires.',
