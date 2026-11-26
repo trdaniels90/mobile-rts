@@ -3792,7 +3792,7 @@ function ragdoll(e, wh, from, opt) {
     kick(2, 0, 0, -45); kick(7, ca * 22 + (r() - 0.5) * 16, sa * 22 + (r() - 0.5) * 16, 0); kick(8, ca * 18 + (r() - 0.5) * 16, sa * 18 + (r() - 0.5) * 16, 0);
     for (const i of [5, 6]) kick(i, (r() - 0.5) * 30, (r() - 0.5) * 30, 15);   // the arms fly loose
     fx.stiff = 0;
-  } else if ((!wh || wh === 'SA' || wh === 'RF' || wh === 'CG') && r() < 0.4) {
+  } else if ((!wh || wh === 'SA' || wh === 'PB' || wh === 'RF' || wh === 'CG') && r() < 0.4) {
     if (r() < 0.55) {
       // Hit, he sinks to his knees, then pitches forward onto his face.
       kick(2, -ca * 6, -sa * 6, -55); kick(7, ca * 30, sa * 30, 0); kick(8, ca * 26, sa * 26, 0);

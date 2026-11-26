@@ -74,6 +74,7 @@ const INF_SCALE = 0.65;   // soldiers are drawn at this share of their voxel mod
 const BUILD_UP = 2.5;   // seconds a structure takes to go up once placed (world.js updateBuilding; art.js drawBuildUp); both modes, the server must match
 const WARHEADS = {
   SA:    { inf: 1.0, light: 0.55, heavy: 0.25, bld: 0.3, air: 0.6 },   // small arms
+  PB:    { inf: 1.0, light: 0.215, heavy: 0.098, bld: 0.117, air: 0.235 },   // the Pillbox's gun: SA x 9/23 off infantry, so its 23-damage bullets hit vehicles as the old 9 did
   AP:    { inf: 0.3, light: 0.9,  heavy: 1.0,  bld: 0.7, air: 1.0 },   // tank shells
   HE:    { inf: 0.5, light: 1.0,  heavy: 0.8,  bld: 0.9, air: 1.0 },   // rockets and missiles
   FLAK:  { inf: 0,   light: 0,    heavy: 0,    bld: 0,   air: 1.0 },
@@ -347,7 +348,7 @@ const BUILD_DEFS = {
   tesla:    { name: 'Tesla Coil',   w: 1, h: 2, hp: 450,  power: -100, cost: 1200, req: ['barracks'], factions: ['soviets'], defense: true,
               weapon: { dmg: 100, rof: 2.6, range: 190, wh: 'TESLA', proj: 'tesla', needsPower: true } },
   pillbox:  { name: 'Pillbox',      w: 1, h: 1, hp: 400,  power: -15, cost: 400,  req: ['barracks'], factions: ['allies'], defense: true, camo: true,
-              weapon: { dmg: 9, rof: 1.2, range: 145, wh: 'SA', proj: 'bullet', burst: 5, gap: 0.08, sound: 'pillbox' } },   // its own gun sound
+              weapon: { dmg: 23, rof: 1.2, range: 145, wh: 'PB', proj: 'bullet', burst: 5, gap: 0.08, splash: 14, sound: 'pillbox' } },   // its own gun sound; one burst kills a Rifleman (owner, 2026-11-26)
   ftur:     { name: 'Flame Tower',  w: 1, h: 1, hp: 400,  power: -20, cost: 600,  req: ['barracks'], factions: ['soviets'], defense: true,
               weapon: { dmg: 40, rof: 2.0, range: 130, wh: 'FIRE', proj: 'fireball', burst: 2, gap: 0.3, splash: 18,
                         jet: { dps: 10, width: 7 } } },   // jet: the stream of fire burns what stands in it between shots (world.js flameBurn)

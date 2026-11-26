@@ -640,6 +640,12 @@ recorder usage at the top of record.js).
 - Tested with throwaway scripts: hidden/exposed/hidden again, and an online host/guest pair (the guest
   has no entry for a hidden host Pillbox, gets it when exposed, keeps `exposed` current afterwards).
 
+- **One burst kills a Rifleman, with splash (after 2026.11.26, not released, both modes, owner's pick):** bullets 9 to 23 damage, `splash: 14`
+  (the rifle bullet splash in `fireWeapon`), and its own warhead `PB` (inf 1.0, everything else SA x 9/23, so vehicles, buildings and
+  aircraft take what they did before). Infantry go prone on the first hit, so all 5 bullets are halved: 5 x 23 x 0.5 x 0.9 = 51.75 at the
+  lowest roll, enough for 50 health (Rifleman, Grenadier, Engineer); not MG Teams, Specialists, veterans past the first rank or men behind
+  sandbags. Checked with a throwaway script: a lone rifleman died to the first burst 6 of 6; a Ranger took 24 to 26 per burst as before.
+
 ## Errors and ping in a match (2026.11.04.1)
 
 - The main loop (`frame` in ui.js) runs each part (update or `guestStep`, `hostTick`, draw, sidebar,
