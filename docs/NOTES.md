@@ -3328,3 +3328,28 @@ below Frostlight's 21 x 21 = 441 tiles:
   code form, and hosting falls back to phone to phone with a code, as before.
 - Every hosted game is public (no private rooms yet). The server tests (`server.js`, `server-teams.js`, `give-credits.js`,
   `team-beaten.js`, `coop-save-ui.js`) now join from the list.
+
+## Lighter late-game simulation in big team games (2026-11-26, after 2026.11.26.4, not released, both modes, speed only)
+
+Owner's PC match 01f0fd2c (Snowbound 3 v 3, 26 min): 117 fps early, 32-45 from minute 20, with frames of 60-80 ms. The drawing
+stayed at 10-13 ms; the simulation grew from 0.3 to 7.3 ms a frame (worst 80) while the units fell from 700 to 420. A headless
+Snowbound 3 v 3 of computers (scratch profiler: every part of `update` timed per minute, and a CPU profile of minutes 16-19)
+showed the same: about 280 structures by minute 16, armies crossing the map. Late-game shares: units' own thinking 45% (of it
+the spotting sight map 8-10%), route-finding 6-14% (one run 45%: a wave hunting a target it could not reach, every search
+running to the 14,000-cell limit), sending groups 6% (most of it `defendAllies` and `defendBase`).
+- **Spotting** (world.js `liveSight`): the sight map artillery and V2s pick targets from is made at most every `LIVE_SIGHT_T`
+  (0.25 s) per alliance, not every step. A target comes into their sight up to a quarter of a second later.
+- **Routes** (world.js `findPath`, `pathMemo`, not saved): a unit starting within `PATH_SHARE_R` (2) cells of where a route to
+  the same goal cell was found under `PATH_SHARE_T` (1) s ago, with a clear line to its first cell, smooths a copy of it; a
+  search that never reached its goal remembers the nearest cell it got to, and for `PATH_FAIL_T` (3) s units starting within
+  `PATH_FAIL_R` (12) cells head there instead (where the failed search sent them anyway). Both keyed by the pass rules
+  (alliance, infantry) where walls are about.
+- **Route queue** (`processPaths`): the one route always worked out a step waits when the step has already taken
+  `PATH_LATE_MS` (8 ms) and the next in line is the computer's, asked for under `PATH_WAIT_MAX` (0.5) s ago. A player's units
+  are never held back.
+- **Base defence checks** (`bldBins`): "is this enemy near any of these structures" tests only structures in 8 x 8-cell bins
+  in reach (r x 1.2 on hills, where `distTo` shortens a distance from above). Same answers: 25,956 checks against the old
+  test, 0 differences.
+- Headless, minutes 14-26: average step 22.8 -> 20.7 ms, worst 110 -> 82 ms; units' thinking 10.6 -> 7.8 ms, sending
+  groups 1.6 -> 1.0 ms (the two battles go differently, so route-finding varies run to run). Route waits (2 v 2, 12 min):
+  90th percentile 1.47 -> 0.63 s. `ally-defend.js` passes.

@@ -1689,13 +1689,38 @@ function pathField(sx, sy, maxCost) {
   return d;
 }
 
+// Routes shared and dead ends remembered (owner's match 01f0fd2c, a late 3 v 3: route-finding was 6-14% of the simulation,
+// whole waves asking for the same cross-map route one by one, and searches for a goal nobody can reach running to the
+// 14,000-cell limit again and again). Kept off G (not saved), and only for the same pass rules (MOVER's alliance and
+// whether it is infantry, where walls are about: softBlocks).
+// - A unit starting within PATH_SHARE_R cells of where a route to the same goal cell was worked out less than
+//   PATH_SHARE_T s ago, in a straight line of that route's first cell, takes a copy of its cells (smoothed for itself).
+// - A search that never reached its goal remembers the nearest cell it got to; for PATH_FAIL_T s, units starting within
+//   PATH_FAIL_R cells of it head for that cell instead (where the failed search would have sent them anyway).
+const PATH_SHARE_T = 1, PATH_SHARE_R = 2, PATH_FAIL_T = 3, PATH_FAIL_R = 12;
+let pathMemo = { G: null, share: new Map(), fail: new Map() };
+const pathPassKey = () => (G.wallN && MOVER ? (G.teams[MOVER.team] ? G.teams[MOVER.team].ally : MOVER.team) + (MOVER.cls === 'inf' ? 'i' : '') : '');
+const cellsNear = (a, b, r) => Math.abs(cellX(a) - cellX(b)) <= r && Math.abs(cellY(a) - cellY(b)) <= r;
+const memoFresh = (m, T) => m && G.t >= m.at && G.t - m.at < T;
 function findPath(sx, sy, tx, ty, rad) {
   let s = cellOfPos(sx, sy), t = cellOfPos(tx, ty);
-  const exactEnd = freeCell(t);
+  let exactEnd = freeCell(t);
   if (!exactEnd) t = nearestFreeCell(t, 12);
   if (!freeCell(s)) s = nearestFreeCell(s, 3);
   if (s < 0 || t < 0) return null;
+  if (pathMemo.G !== G) pathMemo = { G, share: new Map(), fail: new Map() };
+  const pk = pathPassKey(), fm = pathMemo.fail.get(t + '|' + pk);
+  if (memoFresh(fm, PATH_FAIL_T) && cellsNear(s, fm.s, PATH_FAIL_R)) { t = fm.best; exactEnd = false; }
   if (s === t) return [exactEnd ? { x: tx, y: ty } : cellCenter(t)];   // (a goal inside water or rock: stop at the nearest open cell, never push at the goal itself)
+  const shareKey = t + '|' + pk, sh = pathMemo.share.get(shareKey);
+  if (memoFresh(sh, PATH_SHARE_T) && cellsNear(s, sh.s, PATH_SHARE_R) && sh.cells.length && sh.cells[0] !== s) {
+    const p0 = cellCenter(sh.cells[0]);
+    if (los(sx, sy, p0.x, p0.y, rad * 0.8)) {
+      const pts = sh.cells.map(cellCenter);
+      if (sh.found && exactEnd) pts[pts.length - 1] = { x: tx, y: ty };
+      return smoothPath(sx, sy, pts, rad);
+    }
+  }
   const stamp = ++PF.stamp;
   const heapK = [], heapV = [];
   const push = (k, v) => {
@@ -1746,6 +1771,8 @@ function findPath(sx, sy, tx, ty, rad) {
   const cells = [];
   for (let c = end; c >= 0; c = PF.from[c]) { cells.push(c); if (c === s) break; }
   cells.reverse();
+  if (!found && best !== s) pathMemo.fail.set(t + '|' + pk, { s, best, at: G.t });
+  if (cells.length > 1) pathMemo.share.set(shareKey, { s, cells: cells.slice(1), found, at: G.t });
   const pts = cells.slice(1).map(cellCenter);
   if (found && exactEnd) { if (pts.length) pts[pts.length - 1] = { x: tx, y: ty }; else pts.push({ x: tx, y: ty }); }
   return smoothPath(sx, sy, pts, rad);
@@ -1787,7 +1814,7 @@ function goTo(u, x, y, force, auto) {
   }
   u.dest = { x, y };
   u.path = null; u.pathIdx = 0; u.stuckN = 0; u.nearBest = null;
-  if (!u.needPath) { u.needPath = true; G.pathQueue.push(u); }
+  if (!u.needPath) { u.needPath = true; u.pathAsk = G.t; G.pathQueue.push(u); }
 }
 // Infantry on the attack march a little off the straight line, each by its own sideways offset
 // (its lane), so a wave arrives strung out instead of in one ball that a V2 or a shell wipes out.
@@ -1826,15 +1853,21 @@ function laneOffsetPath(u) {
 }
 // Routes are worked out from a queue: up to 8 a step, and once PATH_MS of route-finding is spent the rest wait
 // for the next step (a long route round the river can take 20 to 40 ms; 8 at once stalled the battle).
-const PATH_MS = 6;
+// One route is always worked out, but not when the step has already taken PATH_LATE_MS and the next in line is the
+// computer's, asked for under PATH_WAIT_MAX s ago: it waits for a lighter step (a long route on top of a heavy step was a
+// stutter, owner's match 01f0fd2c). A player's units are never held back.
+const PATH_MS = 6, PATH_LATE_MS = 8, PATH_WAIT_MAX = 0.5;
 const clockMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+let stepT0 = 0;   // (when this simulation step began: update)
 function processPaths() {
   let budget = 8;
-  const t0 = clockMs();
+  const t0 = clockMs(), late = t0 - stepT0 > PATH_LATE_MS;
   while (budget-- > 0 && G.pathQueue.length && (budget === 7 || clockMs() - t0 < PATH_MS)) {
     // A player's units are served before the computer's (a big computer wave must not hold a human's army in the queue).
     let qi = 0;
     for (let k = 0, n = Math.min(G.pathQueue.length, 64); k < n; k++) if (!G.teams[G.pathQueue[k].team].isAI) { qi = k; break; }
+    const c = G.pathQueue[qi];
+    if (late && budget === 7 && c.alive && c.needPath && G.teams[c.team].isAI && G.t - (c.pathAsk || 0) < PATH_WAIT_MAX) break;
     const u = qi ? G.pathQueue.splice(qi, 1)[0] : G.pathQueue.shift();
     if (!u.alive || !u.needPath || !u.dest) { u.needPath = false; continue; }
     u.needPath = false;
@@ -2032,11 +2065,13 @@ const LOBBED = { artyshell: 1, v2: 1, grenade: 1 };
 // anywhere in reach that their side or a teammate has in sight right now (liveSight), not only within their own sight.
 const spotter = (u) => !!(u.def.weapon && LOBBED[u.def.weapon.proj] && u.def.weapon.range > u.def.sight * CELL);
 // What an alliance sees this moment (sight circles of its units and structures, further from a hilltop, as revealAround),
-// worked out at most once a step per alliance; kept off G (not saved).
+// worked out at most every LIVE_SIGHT_T s per alliance (it was every step: 8-10% of a late 3 v 3's simulation, owner's
+// match 01f0fd2c); kept off G (not saved).
+const LIVE_SIGHT_T = 0.25;
 let liveSightOf = { G: null, t: -1, m: {} };
 function liveSight(side) {
   const ally = G.teams[side] ? G.teams[side].ally : side;
-  if (liveSightOf.G !== G || liveSightOf.t !== G.t) liveSightOf = { G, t: G.t, m: {} };
+  if (liveSightOf.G !== G || !(G.t >= liveSightOf.t && G.t - liveSightOf.t < LIVE_SIGHT_T)) liveSightOf = { G, t: G.t, m: {} };
   let s = liveSightOf.m[ally];
   if (s) return s;
   s = liveSightOf.m[ally] = new Uint8Array(NCELLS);
@@ -2467,6 +2502,7 @@ function defendAllies(team) {
   const allies = team.isAI ? alliesOf(team) : [assistAlly(team)].filter(Boolean);
   if (!allies.length) return;
   const allyBlds = new Map(allies.map((a) => [a, buildingsOf(a.id)]));   // once, not per enemy unit
+  const allyNear = new Map(allies.map((a) => [a, bldBins(allyBlds.get(a))]));
   // Each ally's buildings' box, 14 cells wider: an enemy outside it is near none of them (the exact test below
   // was 330,000 distance checks a second in a 3 v 3, a tenth of the whole game's time).
   const R = CELL * 14, R2 = CELL * 22, box = new Map(allies.map((a) => {
@@ -2477,7 +2513,7 @@ function defendAllies(team) {
   const inBox = (a, u) => { const q = box.get(a); return u.x >= q[0] && u.x <= q[2] && u.y >= q[1] && u.y <= q[3]; };
   // Raiders at the base, or enemy units (a little further out) shooting at that ally's units just outside it.
   const onUnits = (a, u) => u.target && u.target.alive && u.target.kind === 'unit' && G.teams[u.target.team] && G.teams[u.target.team].ally === a.ally;
-  const hit = (a, u) => (inBox(a, u) && allyBlds.get(a).some((b) => { const d = distTo(u, b); return d < R || (d < R2 && onUnits(a, u)); })) ||
+  const hit = (a, u) => (inBox(a, u) && allyNear.get(a)(u, R2, (b) => { const d = distTo(u, b); return d < R || (d < R2 && onUnits(a, u)); })) ||
     (a.baseHit && a.baseHit.until > G.t && Math.hypot(u.x - a.baseHit.x, u.y - a.baseHit.y) < CELL * 8);
   const threats = helping ? enemyUnitsOf(team.id).filter((u) => !isAirborne(u) && !u.def.harvester && !u.def.scripted && !u.chute && allies.some((a) => hit(a, u))) : [];
   if (!threats.length) {
@@ -2622,13 +2658,32 @@ function launchAircraft(u, focus) {
 // hit; once the area has been quiet for a few seconds, defenders return to where they were waiting.
 // Runs once a second.
 const DEFEND_CALM = 4;
+// Structures binned by area (BIN_CELLS square), so "is u in reach of any of them" tests only the nearby ones (defendBase,
+// defendAllies: every enemy unit against every structure once a second was most of the computer's thinking late in a 3 v 3,
+// owner's match 01f0fd2c). Same answers: a structure further than r (r x (1 + HG_DOWN) on hills, where distTo shortens a
+// distance from above) is never in reach. A structure on a bin's edge is in each of its bins (test may see it twice).
+const BIN_CELLS = 8;
+function bldBins(blds) {
+  const bins = new Map(), bin = (v) => Math.floor(v / BIN_CELLS);
+  for (const b of blds) for (let y = bin(b.cy); y <= bin(b.cy + b.h - 1); y++) for (let x = bin(b.cx); x <= bin(b.cx + b.w - 1); x++) {
+    const k = y * 1024 + x; let a = bins.get(k); if (!a) bins.set(k, a = []); a.push(b);
+  }
+  return (u, r, test) => {   // (r in px) does test(b) hold for some structure b within r of u?
+    const rc = r * (G.hgt ? 1 + HG_DOWN : 1) / CELL, ux = u.x / CELL, uy = u.y / CELL;
+    for (let y = bin(uy - rc); y <= bin(uy + rc); y++) for (let x = bin(ux - rc); x <= bin(ux + rc); x++) {
+      const a = bins.get(y * 1024 + x);
+      if (a) for (const b of a) if (test(b)) return true;
+    }
+    return false;
+  };
+}
 function defendBase(team) {
-  const mine = buildingsOf(team.id);
+  const mine = buildingsOf(team.id), mineNear = bldBins(mine);
   // Measured from building edges, so a big base is covered all the way round.
   // (A box round the whole base first: most enemy units are nowhere near it.)
   let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
   for (const b of mine) { bx0 = Math.min(bx0, b.cx * CELL); by0 = Math.min(by0, b.cy * CELL); bx1 = Math.max(bx1, (b.cx + b.w) * CELL); by1 = Math.max(by1, (b.cy + b.h) * CELL); }
-  const nearBase = (u, r) => u.x > bx0 - CELL * r && u.x < bx1 + CELL * r && u.y > by0 - CELL * r && u.y < by1 + CELL * r && mine.some((b) => distTo(u, b) < CELL * r);
+  const nearBase = (u, r) => u.x > bx0 - CELL * r && u.x < bx1 + CELL * r && u.y > by0 - CELL * r && u.y < by1 + CELL * r && mineNear(u, CELL * r, (b) => distTo(u, b) < CELL * r);
   const hh = team.harvHit && team.harvHit.until > G.t ? team.harvHit : null;
   const nearHarv = (u, r) => hh && Math.hypot(u.x - hh.x, u.y - hh.y) < CELL * r;
   const bh = team.baseHit && team.baseHit.until > G.t ? team.baseHit : null;
@@ -6550,6 +6605,7 @@ function separate() {
 
 function update(dt) {
   if (!G || G.paused || G.hold) return;   // hold: an online battle waiting for a player
+  stepT0 = clockMs();
   G.t += dt;
   buildGrid();
   for (const e of G.entities) {
