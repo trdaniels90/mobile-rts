@@ -343,19 +343,29 @@ const SpriteSheets = (() => {
       const ns = nm && nm.sprites === m.hash && nm.sheets.find((x) => x.of === sh.file);
       if (ns) { const r2 = await fetch(ndir + ns.file + '?h=' + nm.hash).catch(() => null); if (r2 && r2.ok) nbmp = await createImageBitmap(await r2.blob()).catch(() => null); }
     }
-    for (let i = 0; i < sh.sprites.length; i += 64) {   // a few at a time, so loading never holds up a frame
-      await Promise.all(sh.sprites.slice(i, i + 64).map(async (e) => {
-        if (spriteCache2.has(e[0])) return;
-        const s = { img: await cut(e[1], e[2], e[3], e[4]), ox: e[5], oy: e[6] };
-        s.img._ox = e[5]; s.img._oy = e[6];   // (uprightCtx)
-        if (K > 1) s.img._k = K;
-        if (nbmp) s.img._nrm = await createImageBitmap(nbmp, e[1], e[2], e[3], e[4]);
-        if (e.length > 7) { s.sh = await cut(e[7], e[8], e[9], e[10]); s.sox = e[11]; s.soy = e[12]; s.sh._ox = e[11]; s.sh._oy = e[12]; if (K > 1) s.sh._k = K; }
-        if (spriteCache2.has(e[0])) return;
-        spriteCache2.set(e[0], s);
-        const mk = e[0].slice(0, e[0].lastIndexOf('|'));
-        if (!spriteAny.has(mk)) spriteAny.set(mk, s);
-      }));
+    // A few at a time, so loading never holds up a frame. Cutting a picture is work on the page's own thread on iPhones
+    // and iPads (three per sprite with WebGL: picture, normals, shadow), so while no battle is loading (the start menu,
+    // where this begins) each slice gets a few milliseconds and the menu answers between them; a battle's Loading card
+    // takes bigger slices.
+    const one = async (e) => {
+      if (spriteCache2.has(e[0])) return;
+      // (all three cuts asked for at once: what they cost on this thread falls inside the slice that asked)
+      const pi = cut(e[1], e[2], e[3], e[4]), pn = nbmp ? createImageBitmap(nbmp, e[1], e[2], e[3], e[4]) : null, ps = e.length > 7 ? cut(e[7], e[8], e[9], e[10]) : null;
+      const s = { img: await pi, ox: e[5], oy: e[6] };
+      s.img._ox = e[5]; s.img._oy = e[6];   // (uprightCtx)
+      if (K > 1) s.img._k = K;
+      if (pn) s.img._nrm = await pn;
+      if (ps) { s.sh = await ps; s.sox = e[11]; s.soy = e[12]; s.sh._ox = e[11]; s.sh._oy = e[12]; if (K > 1) s.sh._k = K; }
+      if (spriteCache2.has(e[0])) return;
+      spriteCache2.set(e[0], s);
+      const mk = e[0].slice(0, e[0].lastIndexOf('|'));
+      if (!spriteAny.has(mk)) spriteAny.set(mk, s);
+    };
+    for (let i = 0; i < sh.sprites.length;) {
+      const rush = typeof G !== 'undefined' && G && !G.paused, t0 = performance.now(), batch = [];
+      while (i < sh.sprites.length && batch.length < 64 && (batch.length < 4 || performance.now() - t0 < (rush ? 24 : 5))) batch.push(one(sh.sprites[i++]));
+      await Promise.all(batch);
+      if (!rush) await new Promise((r) => setTimeout(r, 30));
     }
     if (bmp.close) bmp.close();
     if (nbmp && nbmp.close) nbmp.close();

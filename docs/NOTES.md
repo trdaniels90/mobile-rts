@@ -2458,6 +2458,21 @@ taps and scrolls. Now four static frames are made once per radar size (`radarNoi
 the sidebar and radar are not updated at all while the menu covers a paused battle (`still` in `frame`). In a headless
 iPhone profile at 4x CPU throttle, the repeating 100 to 180 ms long tasks on the menu went to none.
 
+## Main menu and Skirmish answer on iPhone and iPad (2026-11-26, not released, performance only, both modes)
+
+- Owner, 2026-11-26: "on the iphone and ipad the main menu lags and is un responsive for a while, when you click on skirmish
+  it is un responsive again".
+- Menu: the baked sprite sheets start loading at once (art.js `SpriteSheets.need` at load) and were cut 64 sprites at a
+  time with no pause, three `createImageBitmap`s each with WebGL (picture, normals, shadow): about 15,000 cuts, which
+  Safari does on the page's own thread. Now `load` cuts in slices: while no battle runs (`G` paused or missing: the start
+  menu) about 5 ms of cutting, then a 30 ms gap; once a battle is loading (Loading card) slices of up to 24 ms, no gap.
+  The menu loads all three sheets in about 6 s (headless iPhone, 4x CPU throttle) and answers meanwhile.
+- Skirmish: the first tap starts the sound (audio.js `init`), whose `preload` decoded every effect and voice clip and the 56
+  soundtrack instrument clips inside that tap. Now it decodes a few milliseconds' worth every 50 ms, starting 300 ms
+  later, and the instruments only when `SONGS` has a track.
+- Measured (headless iPhone, 4x throttle): long tasks on the menu after the loading screen, 6 (up to 365 ms) to none; the
+  Skirmish tap, 377 ms to 171 ms (what is left is making the AudioContext and its reverb).
+
 ## Loading screen (after 2026.11.22.1, looks only, both modes)
 
 `#splash` at the top of the body in `index.html` (its own inline style, so it paints before `style.css` and the scripts
