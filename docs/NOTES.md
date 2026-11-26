@@ -3146,3 +3146,12 @@ the driver and gunner die like physics infantry". All effects made in `kill` on 
   where he stands; small arms (`SA`, `RF`, `CG`, none) 40% of the time: sinks to his knees and pitches forward (55%) or is spun
   round and falls on his side; otherwise as before (knocked back, fire stagger, Tesla shakes).
 - The wrecks are unchanged (still drawn with their wheels: the burnt sprites are baked).
+
+## Ore trucks' headlights (2026-11-26, not released, looks only, both modes)
+
+After dark, on night maps (Heron Fen's `clock: 0`) and on day/night maps as night falls, Ore Trucks (`def.harvester`) show
+headlights. They follow `dayNight().night`, as the other night lights do, so they fade in at dusk. There are two parts, both in
+art.js and used by both renderers. `nightLights` adds two pools on the ground ahead of the cab (17 and 30 ahead, radius 16
+and 24) to the darkness's holes and the warm glow. `navLights` adds the two lamps at the cab's front corners (harvModel: x 8,
+5 out, 6 up). The lamps fade out as the truck turns to face up the screen, where the cab would hide them. Trucks are lit
+only where the viewer sees them (their own side and allies, or under uncovered ground).

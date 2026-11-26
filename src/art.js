@@ -1265,6 +1265,12 @@ function nightLights(vx, vy, vw, vh, night) {
     else if (fx.type === 'bolt') add(fx.x, fx.y, 260, 1, false);
   }
   for (const b of G.bolts || []) add(b.x, b.y, 50, Math.min(1, b.t / 3), true);
+  // Ore trucks' headlights: two pools of light on the ground ahead of the cab (the beams' lamps: navLights)
+  for (const u of G.entities) {
+    if (!u.alive || !u.def.harvester || u.inHouse || !(alliedSides(u.team, G.me) || G.seen[cellOfPos(u.x, u.y)])) continue;
+    const c = Math.cos(u.face), s = Math.sin(u.face);
+    add(u.x + c * 17, u.y + s * 17, 16, 0.9, true); add(u.x + c * 30, u.y + s * 30, 24, 0.75, true);
+  }
   return lights;
 }
 function drawNightRest(g, vx, vy, k, t, night, near, vis, n, nW, nH, nk, W, H, lights) {
@@ -1298,7 +1304,13 @@ const PLANE_LIGHTS = { b1: { tip: [-13.5, 17.5, 4.5], tail: [-20, 12.5], top: [-
 function navLights(g, vx, vy, k, t, night, near, vis) {
   const pts = [];
   for (const u of G.entities) {
-    if (!u.alive || u.cls !== 'air' || (vis && !vis(u))) continue;
+    if (!u.alive || (vis && !vis(u))) continue;
+    if (u.def.harvester) {   // ore trucks' headlights, at the cab's front corners (harvModel: cab front x 8, lamps 5 out, 6 up)
+      const c = Math.cos(u.face), s = Math.sin(u.face), a = Math.max(0, Math.min(1, 1 + s * 1.6));   // (fades out as it turns away up the screen: the cab hides them)
+      for (const l of [-5, 5]) { const [x, y] = toView(...liftPt(u.x + c * 8 - s * l, u.y + s * 8 + c * l, 6 * VK + gLift(u.x, u.y))); if (near(x, y, 20)) pts.push([x, y, '255,244,210', a, 3.2]); }
+      continue;
+    }
+    if (u.cls !== 'air') continue;
     // alt: over the raised ground too (gLift), as ui.js draws the aircraft (onHill): without it the lights stayed down at the
     // flat ground's height under a plane or helicopter over a hill, or landed on a raised Airfield (owner, 2026-11-22)
     const alt = (u.alt || 0) + gLift(u.x, u.y), c = Math.cos(u.face), s = Math.sin(u.face), heli = u.def.fly === 'heli', r = u.def.r || 9;
