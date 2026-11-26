@@ -3315,3 +3315,15 @@ below Frostlight's 21 x 21 = 441 tiles:
   8 s. Phones keep drawing every frame while a ping is up (`skipFrame`).
 - Tested with a throwaway script (server in-process, a 2 v 2 with iPhone, iPad, PC and portrait iPhone pages): team chat only to the ally,
   all chat to all, pings only to the ally, Alt+click, quick messages, no page errors.
+
+## Server browser instead of room codes (2026-11-26, not released, online only; the server must match)
+
+- The Online page lists the server's open games (net.js `Online.roomsHtml`, `Net.browse`): the leader's name, the battle, the map,
+  co-op difficulty, "saved battle", players here / needed, and Join. It asks `GET /rooms` on the game server (server.js `openRooms`:
+  rooms in their lobby with a free place, at most 50) when the page opens and every 4 s while it is open with no game; Refresh asks at once.
+  Join uses the room's code underneath (`Net.join(code, true)`); a room that has just started or closed gives a message, with no phone
+  to phone search. A hosted server game says it is listed under Open games; no code is shown.
+- **Codes only as the fallback:** when the server cannot be reached or runs another version, the page says so and shows the 4-letter
+  code form, and hosting falls back to phone to phone with a code, as before.
+- Every hosted game is public (no private rooms yet). The server tests (`server.js`, `server-teams.js`, `give-credits.js`,
+  `team-beaten.js`, `coop-save-ui.js`) now join from the list.

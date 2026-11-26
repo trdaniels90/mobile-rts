@@ -9,6 +9,9 @@
 // alliance is the computer's. Even slots (0, 2, 4) are one alliance (ally 0), odd slots the other.
 // A battle is only offered on maps made for it (battleFits); ANY_BATTLE=1 lifts that, for tests.
 //
+// The server browser: GET /rooms lists the rooms still in their lobby with a place free (openRooms); a phone joins one
+// by its code as before, so the code never has to be typed.
+//
 // Messages are the same JSON the phones send each other phone to phone (net.js), plus the room ones:
 //   phone -> server: { k: 'create', name, v, gid, faction, map } | { k: 'join', code, name, v, gid }
 //                    { k: 'lobby', faction, map } (leader, 1 v 1: side 0's faction)
@@ -609,7 +612,23 @@ function onMessage(ws, m, st) {
 }
 
 // ---------------------------------------------------------------------------
+// The server browser (net.js Online): rooms in their lobby with a place free, leader's name first.
+function openRooms() {
+  const list = [];
+  for (const R of rooms.values()) {
+    if (R.phase !== 'lobby' || !R.seats.length || R.loading) continue;
+    const need = humanSlots(R).length, have = R.seats.length;
+    if (have >= need) continue;
+    list.push({ code: R.code, name: R.seats[0].name, mode: R.mode, map: R.map, diff: R.diff, players: have, max: need, resume: !!R.resume });
+  }
+  return list.slice(0, 50);
+}
 const server = http.createServer((req, res) => {
+  if (req.url && req.url.split('?')[0] === '/rooms') {
+    res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ version: VERSION, rooms: openRooms() }));
+    return;
+  }
   // A health check, and a little to look at.
   res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
   res.end(JSON.stringify({ ok: true, game: 'red-horizon', version: VERSION, rooms: rooms.size,

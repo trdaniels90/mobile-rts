@@ -23,9 +23,9 @@ const { chromium, devices } = require('playwright');
     const P = [];
     for (let i = 0; i < n; i++) P.push(await open('P' + i));
     await P[0].tap('[data-on=host]');
-    await P[0].waitForSelector('.on-code');
-    const code = await P[0].textContent('.on-code');
-    for (const p of P.slice(1)) { await p.fill('#onCode', code); await p.tap('#online form button[type=submit]'); await p.waitForFunction(() => Net.lobby && Net.lobby.connected, null, { timeout: 15000 }); }
+    await P[0].waitForFunction(() => Net.lobby && Net.lobby.code && Net.lobby.connected);
+    const code = await P[0].evaluate(() => Net.lobby.code);
+    for (const p of P.slice(1)) { await p.tap(`[data-on=joinroom][data-v="${code}"]`, { timeout: 15000 }); await p.waitForFunction(() => Net.lobby && Net.lobby.connected, null, { timeout: 15000 }); }
     return { P, code };
   }
   // --- 2 v 2 ---
@@ -33,7 +33,7 @@ const { chromium, devices } = require('playwright');
     const { P, code } = await gather(1);
     await P[0].tap('[data-on=mode][data-v="2v2"]');
     await P[0].waitForFunction(() => Net.lobby.mode === '2v2');
-    for (let i = 1; i < 4; i++) { const p = await open('P' + i); await p.fill('#onCode', code); await p.tap('#online form button[type=submit]'); await p.waitForFunction(() => Net.lobby && Net.lobby.connected && Net.lobby.slots, null, { timeout: 15000 }); P.push(p); }
+    for (let i = 1; i < 4; i++) { const p = await open('P' + i); await p.tap(`[data-on=joinroom][data-v="${code}"]`, { timeout: 15000 }); await p.waitForFunction(() => Net.lobby && Net.lobby.connected && Net.lobby.slots, null, { timeout: 15000 }); P.push(p); }
     await P[0].waitForFunction(() => Net.lobby.ready, null, { timeout: 5000 }).catch(() => {});
     // P1 switches team (to team 1 is where it is; switching moves it to team 1's other... it is full), P3 flips its faction.
     await P[3].evaluate(() => Net.setFaction(Net.lobby.mine, 'allies'));

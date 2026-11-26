@@ -312,7 +312,17 @@ const Net = (() => {
       listener();
     });
   }
-  function join(code) {
+  // The server browser: the server's open rooms, { version, rooms } (server.js openRooms), or null if it cannot be reached.
+  function browse() {
+    if (!SERVER || typeof fetch === 'undefined') return Promise.resolve(null);
+    const url = SERVER.replace(/^ws/, 'http').replace(/\/+$/, '') + '/rooms';
+    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const t = setTimeout(() => ctl && ctl.abort(), SERVER_TIMEOUT);
+    return fetch(url, { cache: 'no-store', signal: ctl && ctl.signal }).then((r) => (r.ok ? r.json() : null))
+      .then((j) => (j && Array.isArray(j.rooms) ? j : null)).catch(() => null).finally(() => clearTimeout(t));
+  }
+  // listed: picked in the server browser, so the room is on the server (no phone to phone search when it is gone).
+  function join(code, listed) {
     leave();
     code = String(code).toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
     lobby = { code, me: 'guest', gid: newId(), host: null, guest: { name: myName() }, connected: false, status: 'joining' };
@@ -322,6 +332,7 @@ const Net = (() => {
       if (lobby !== L) { if (ws) try { ws.close(); } catch (_) {} return; }
       if (ok) { wireServer(ws, m); return; }
       if (m && m.k === 'err' && m.why === 'full') { fail('That game is already full.'); return; }
+      if (listed) { fail(m && m.k === 'err' && m.why === 'version' ? 'The game server runs a different version. Restart the game to update, then try again.' : 'That game has just started or closed. Pick another, or host one.'); return; }
       lobby.via = 'p2p';   // not a server game: look for a phone hosting it
       knock();
     });
@@ -726,7 +737,7 @@ const Net = (() => {
   }
 
   return {
-    host, join, leave, swapSides, setMap, setMode, setDiff, setFaction, switchTeam, setMate, startBattle, listSaves, loadSave, saveAndLeave, get canSave() { return canSave(); }, surrender, watch, rematch, talk, hostTick, guestStep, hookHost, netStats,
+    host, join, browse, leave, swapSides, setMap, setMode, setDiff, setFaction, switchTeam, setMate, startBattle, listSaves, loadSave, saveAndLeave, get canSave() { return canSave(); }, surrender, watch, rematch, talk, hostTick, guestStep, hookHost, netStats,
     get role() { return role; }, get lobby() { return lobby; }, get waiting() { return !!wait; },
     // For tests: drop the connection without a word, and a shorter wait.
     test: { drop() { const L = link; if (L) { try { L.pc.close(); } catch (_) {} } lost(); }, waitLimit(s) { WAIT_LIMIT = s; }, get resyncs() { return resyncs; } },
@@ -734,11 +745,15 @@ const Net = (() => {
   };
 })();
 
-// The online page: host or join with a code, then the lobby.
+// The online page: host a game or join one from the server browser (a 4-letter code only phone to phone, when the server
+// cannot be reached), then the lobby.
 const Online = (() => {
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const SIDE = { allies: 'Allies', soviets: 'Soviets' };
   let root = null, body = null, faction = 'allies', noteMsg = null;
+  // The server browser: what the server last said (null: not asked yet; 'off': it cannot be reached), refreshed every few seconds.
+  let rooms = null, browseT = 0, asking = false;
+  const BROWSE_EVERY = 4000;
   function build() {
     root = document.createElement('div');
     root.id = 'online';
@@ -746,7 +761,7 @@ const Online = (() => {
     root.innerHTML = `<div class="fm-book" role="dialog" aria-modal="true" aria-labelledby="onTitle">
       <header class="fm-top"><span class="fm-brand">Online</span><div class="fm-tabs"></div>
         <button type="button" class="fm-close" aria-label="Close">✕</button></header>
-      <div class="fm-page"><h2 id="onTitle">Play a friend</h2><div class="on-body"></div></div>
+      <div class="fm-page"><h2 id="onTitle">Play online</h2><div class="on-body"></div></div>
     </div>`;
     document.body.appendChild(root);
     body = root.querySelector('.on-body');
@@ -759,6 +774,8 @@ const Online = (() => {
       const act = b.dataset.on;
       if (act === 'host' || act === 'cancel') noteMsg = null;
       if (act === 'host') Net.host(faction);
+      else if (act === 'joinroom') Net.join(b.dataset.v, true);
+      else if (act === 'refresh') refresh();
       else if (act === 'swap') Net.swapSides();
       else if (act === 'start') Net.startBattle();
       else if (act === 'cancel') { Net.leave(); render(); }
@@ -784,12 +801,15 @@ const Online = (() => {
     if (Net.role) { close(); return; }   // the battle has started
     const L = Net.lobby;
     if (!L || L.failed) {
+      const fallback = rooms === 'off' || (rooms && rooms.version !== VERSION);
       body.innerHTML = `${L && L.failed ? `<p class="on-error" role="alert">${esc(L.failed)}</p>` : ''}${noteMsg ? `<p class="lb-intro" role="status"><b>${esc(noteMsg)}</b></p>` : ''}
-        <p class="lb-intro">Play one of your friends, phone to phone. One of you hosts and gets a 4-letter code; the other joins with it. The battle runs on the game server (or, if it cannot be reached, on the host's phone).</p>
+        <p class="lb-intro">Host a game for others to join, or join one of the open games below.</p>
         <div class="on-btns"><button type="button" class="pf-btn on-go" data-on="host">Host a game</button></div>
-        <form class="pf-form"><label for="onCode">Join with a code</label><div class="pf-row">
+        <div class="on-browser"><div class="on-browse-top"><h3>Open games</h3><button type="button" class="pf-btn" data-on="refresh"${asking ? ' disabled' : ''}>${asking ? 'Looking…' : 'Refresh'}</button></div>
+        ${roomsHtml()}</div>
+        ${fallback ? `<form class="pf-form"><label for="onCode">Phone to phone: join a friend's game with its 4-letter code</label><div class="pf-row">
           <input id="onCode" type="text" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCD" enterkeyhint="go">
-          <button type="submit">Join</button></div><p class="pf-msg" role="status"></p></form>`;
+          <button type="submit">Join</button></div><p class="pf-msg" role="status"></p></form>` : ''}`;
       return;
     }
     if (L.status === 'starting') {
@@ -799,7 +819,7 @@ const Online = (() => {
     if (L.via === 'server' && L.connected && L.slots) { serverLobby(L); return; }
     if (!L.connected || !L.guest) {
       const msg = L.me === 'host'
-        ? (L.status === 'connecting' ? 'Your friend is joining…' : 'Tell your friend to tap Play online, then join with this code.')
+        ? (L.status === 'connecting' ? 'Your friend is joining…' : 'The game server cannot be reached, so this game is phone to phone: tell your friend to tap Play online, then join with this code.')
         : (L.status === 'connecting' ? 'Found the game. Connecting…' : `Looking for game ${esc(L.code)}…`);
       body.innerHTML = `${L.me === 'host' ? `<p class="on-code" aria-label="Room code">${esc(L.code)}</p>` : ''}<p class="lb-intro">${msg}</p>
         <div class="on-btns"><button type="button" class="pf-btn" data-on="cancel">Cancel</button></div>`;
@@ -817,6 +837,30 @@ const Online = (() => {
       <div class="on-btns">${me ? '<button type="button" class="pf-btn" data-on="swap">Swap sides</button><button type="button" class="pf-btn on-go" data-on="start">Start battle</button>' : '<p class="pf-small">Waiting for the host…</p>'}
         <button type="button" class="pf-btn" data-on="cancel">Leave</button></div>`;
   }
+  function roomsHtml() {
+    if (rooms === null) return '<p class="pf-small">Looking for games…</p>';
+    if (rooms === 'off') return '<p class="pf-small">The game server cannot be reached right now. You can still play a friend phone to phone: one of you hosts and gets a 4-letter code, the other joins with it below.</p>';
+    if (rooms.version !== VERSION) return '<p class="pf-small">The game server runs a different version of the game. Restart the game to update. Until then you can play a friend phone to phone: one of you hosts and gets a 4-letter code, the other joins with it below.</p>';
+    if (!rooms.rooms.length) return '<p class="pf-small">No open games right now. Host one, and it shows up here for everyone else.</p>';
+    return `<ul class="on-rooms">${rooms.rooms.map((r) => {
+      const map = MAPS[validMap(r.map)] ? MAPS[validMap(r.map)].name : r.map, B = BATTLES[r.mode];
+      const what = [(B && B.online) || r.mode, map, B && B.coop ? DIFF_NAME[r.diff] || '' : '', r.resume ? 'saved battle' : ''].filter(Boolean).join(' · ');
+      return `<li><div><b>${esc(r.name || 'Commander')}</b><small>${esc(what)}</small></div><span class="on-count">${r.players} / ${r.max}</span>
+        <button type="button" class="pf-btn on-go" data-on="joinroom" data-v="${esc(r.code)}">Join</button></li>`;
+    }).join('')}</ul>`;
+  }
+  const DIFF_NAME = { easy: 'Easy', normal: 'Normal', hard: 'Hard' };
+  function refresh() {
+    if (asking) return;
+    asking = true; browseT = performance.now();
+    if (!Net.lobby || Net.lobby.failed) render();
+    Net.browse().then((j) => { asking = false; rooms = j || 'off'; browseT = performance.now(); if (!Net.lobby || Net.lobby.failed) render(); });
+  }
+  // While the page is open with no game: ask the server again every few seconds.
+  setInterval(() => {
+    if (!root || root.hidden || (Net.lobby && !Net.lobby.failed) || asking) return;
+    if (performance.now() - browseT > BROWSE_EVERY) refresh();
+  }, 1000);
   // A room on the game server: the battle (1 v 1, 2 v 2 or 3 v 3, or two or three of you against the
   // computer), its sides and who sits where, the map, and Start once every player's place is taken.
   // Only the battles the room's map is made for are offered (battleFits), and the current one always.
@@ -841,8 +885,7 @@ const Online = (() => {
     const mineAlly = L.slots[L.mine] && L.slots[L.mine].ally;
     const map = validMap(L.host && L.host.map);
     const canMove = B.size > 1 && !B.coop && L.slots.some((x, i) => x.ally !== mineAlly && !x.ai && !x.name);
-    body.innerHTML = `<p class="on-code" aria-label="Room code">${esc(L.code)}</p>
-      <p class="lb-intro">${have < need ? `Friends join with this code (${have} of ${need} players here).` : lead ? 'Everyone is here. Start when ready.' : 'Everyone is here. The leader starts the battle.'}</p>
+    body.innerHTML = `<p class="lb-intro">${have < need ? `Your game is listed under Open games for anyone to join (${have} of ${need} players here).` : lead ? 'Everyone is here. Start when ready.' : 'Everyone is here. The leader starts the battle.'}</p>
       ${L.saveErr ? `<p class="on-error" role="alert">${esc(L.saveErr)}</p>` : ''}
       ${R ? `<p class="lb-intro"><b>Continuing a saved battle</b> (${Math.floor((R.t || 0) / 60)} min in). Everyone takes their own place again; ${lead ? 'give the place of anyone who is not here to the computer, then start.' : 'the leader starts it.'}</p>
         ${lead ? '<div class="on-btns"><button type="button" class="pf-btn" data-on="unload">New battle instead</button></div>' : ''}` : ''}
@@ -874,6 +917,7 @@ const Online = (() => {
     faction = f || faction;
     if (note && !Net.lobby) noteMsg = note;
     root.hidden = false;
+    refresh();
     render();
   }
   function close() { if (root) root.hidden = true; }

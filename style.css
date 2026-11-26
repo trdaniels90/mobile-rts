@@ -780,3 +780,14 @@ body.spectate #sidebar .sb-buttons, body.spectate #sidebar .sb-strips, body.spec
   #chatLog { bottom: calc(176px + var(--safe-b) + 60px); width: calc(100vw - var(--safe-l) - var(--safe-r) - 16px); }
   #chatBox { width: calc(100vw - var(--safe-l) - var(--safe-r) - 16px); }
 }
+
+/* The server browser on the Online page (net.js Online roomsHtml). */
+.on-browser { margin: 14px 0 6px; }
+.on-browse-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.on-browse-top h3 { margin: 0; }
+.on-rooms { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }
+.on-rooms li { display: flex; align-items: center; gap: 10px; padding: 6px 8px; background: rgba(90,74,42,0.12); border: 1px solid rgba(90,74,42,0.45); }
+.on-rooms li > div { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.on-rooms li b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.on-rooms li small { opacity: 0.8; }
+.on-count { font-variant-numeric: tabular-nums; white-space: nowrap; }

@@ -40,9 +40,9 @@ const { chromium, devices } = require('playwright');
   for (const choice of ['watch', 'debrief']) {
     const P = [await page('P0', '?server=ws%3A%2F%2Flocalhost%3A18473'), await page('P1', '?server=ws%3A%2F%2Flocalhost%3A18473')];
     for (const p of P) await p.tap('#onlineBtn');
-    await P[0].tap('[data-on=host]'); await P[0].waitForSelector('.on-code');
-    const code = await P[0].textContent('.on-code');
-    await P[1].fill('#onCode', code); await P[1].tap('#online form button[type=submit]'); await P[1].waitForFunction(() => Net.lobby && Net.lobby.connected, null, { timeout: 15000 });
+    await P[0].tap('[data-on=host]'); await P[0].waitForFunction(() => Net.lobby && Net.lobby.code && Net.lobby.connected);
+    const code = await P[0].evaluate(() => Net.lobby.code);
+    await P[1].tap(`[data-on=joinroom][data-v="${code}"]`, { timeout: 15000 }); await P[1].waitForFunction(() => Net.lobby && Net.lobby.connected, null, { timeout: 15000 });
     await P[0].tap('[data-on=mode][data-v="coop"]'); await P[0].waitForFunction(() => Net.lobby.mode === 'coop' && Net.lobby.ready);
     await P[0].tap('[data-on=start]');
     for (const p of P) await p.waitForFunction(() => Net.role === 'guest' && G.entities.length > 0, null, { timeout: 15000 });

@@ -23,9 +23,9 @@ const { chromium, devices } = require('playwright');
   };
   const gather = async (lead, other) => {
     await lead.tap('[data-on=host]');
-    await lead.waitForSelector('.on-code');
-    const code = await lead.textContent('.on-code');
-    await other.fill('#onCode', code); await other.tap('#online form button[type=submit]');
+    await lead.waitForFunction(() => Net.lobby && Net.lobby.code && Net.lobby.connected);
+    const code = await lead.evaluate(() => Net.lobby.code);
+    await other.tap(`[data-on=joinroom][data-v="${code}"]`, { timeout: 15000 });
     await other.waitForFunction(() => Net.lobby && Net.lobby.connected && Net.lobby.slots, null, { timeout: 15000 });
     return code;
   };

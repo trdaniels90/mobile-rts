@@ -20,10 +20,12 @@ const { chromium, devices } = require('playwright');
   const out = {};
   const A = await open('A'), B = await open('B');
   await A.tap('[data-on=host]');
-  await A.waitForSelector('.on-code');
-  const code = await A.textContent('.on-code');
+  await A.waitForFunction(() => Net.lobby && Net.lobby.code && Net.lobby.connected);
+  const code = await A.evaluate(() => Net.lobby.code);
   out.via = await A.evaluate(() => Net.lobby.via);
-  await B.fill('#onCode', code); await B.tap('#online form button[type=submit]');
+  await B.waitForSelector(`[data-on=joinroom][data-v="${code}"]`, { timeout: 15000 });
+  out.listed = await B.evaluate(() => [...document.querySelectorAll(".on-rooms li")].map((l) => l.innerText.replace(/\s+/g, " ")));   // the server browser
+  await B.tap(`[data-on=joinroom][data-v="${code}"]`, { timeout: 15000 });
   await A.waitForSelector('[data-on=start]', { timeout: 15000 });
   await A.tap('[data-on=faction][data-slot="0"]'); await A.waitForTimeout(300);
   out.lobbyB = await B.evaluate(() => document.querySelector('.on-teams').innerText.replace(/\s+/g, ' '));
