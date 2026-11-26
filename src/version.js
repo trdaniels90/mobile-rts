@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.26.4', date: '26 November 2026', title: 'Map pictures in the game list', groups: [
+    ['New', [
+      'Online page: each open game shows a picture of its map.',
+    ]],
+  ] },
   { v: '2026.11.26.3', date: '26 November 2026', title: 'Structures come down in pieces', groups: [
     ['New', [
       'Online battles: CHAT and PING buttons. Chat to everyone or just your team, with quick messages (Enter on a computer). Ping the map or radar to show allies a spot (Alt+click on a computer).',
