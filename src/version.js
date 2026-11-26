@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.26.1', date: '26 November 2026', title: 'AA Gun barrels recoil', groups: [
+    ['Improved', [
+      'The AA Gun\'s twin barrels now fire in turn, and each one kicks back when it fires.',
+    ]],
+  ] },
   { v: '2026.11.26', date: '26 November 2026', title: 'Headlights, sharper HD battle debris', groups: [
     ['New', [
       'Ore Trucks switch on their headlights after dark, lighting the ground ahead of them: all night on night maps, and as dusk falls on maps with day and night.',
