@@ -4,6 +4,102 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.25.4', date: '25 November 2026', title: 'Vehicles come apart, attack move', groups: [
+    ['New', [
+      'Vehicles come apart when destroyed: wheels are blown off and go tumbling, bounce and roll away before toppling over; tanks throw road wheels and lengths of track, and plates of armour fly.',
+      'Crews die too: a Ranger\'s driver and gunner are thrown out of it, and truck drivers and tank commanders are sometimes flung clear.',
+      'More ways for soldiers to fall: a sniper\'s shot drops a man where he stands, others sink to their knees and pitch forward or are spun round, and blasts send arms and legs flailing.',
+      'Attack move: tap AUTO and pick Attack move, then tap the map. Your whole army goes there, fighting whatever it meets on the way, then holds the spot.',
+    ]],
+    ['Improved', [
+      'Jets and planes fly level above the hills instead of following the ground.',
+      'Smoother big battles on computers: the game sorts and draws hundreds of units faster.',
+      'Map Editor: changes are quicker, as only the ground that changed is redrawn.',
+    ]],
+    ['Fixed', [
+      'The radar no longer flashes black during busy battles.',
+    ]],
+  ] },
+  { v: '2026.11.25.3', date: '25 November 2026', title: 'Water in the rain, waterfalls, survivors', groups: [
+    ['New', [
+      'Rain water: the rain now runs downhill, soaks the ground darker and gathers in pools that follow the lie of the land, with rain rings on them and water running down the slopes. Dug craters fill and tank tracks hold water.',
+      'Waterfalls: rain pools on top of plateaus, and when the pond is big enough it pours over the cliffs. On every map that gets rain or storms.',
+      'Puddles react: tanks and soldiers splash through them, blasts send ripples across them, and fire glows in the water.',
+      'Survivors: when a structure is destroyed there is a chance some of its staff escape, hurt; when you sell one they walk out unhurt. About one in three is a Technician, a civilian with a pistol.',
+    ]],
+    ['Improved', [
+      'Rain runs off defences as a thin trickle of drops instead of a solid stream.',
+    ]],
+  ] },
+  { v: '2026.11.25.2', date: '25 November 2026', title: 'HD ground, wrecks back', groups: [
+    ['New', [
+      'HD ground: with HD graphics on, the ground and cliffs are drawn at twice the detail, and wrecks and fallen soldiers are as sharp as the units. On by default on computers. On phones it is off for now: turn it on in Options, Graphics, to try it (it uses four times the memory for the ground; if the game reloads mid-battle, turn it off).',
+    ]],
+    ['Fixed', [
+      'Wrecks and fallen soldiers stay on the battlefield again: the new craters were drawn over them.',
+    ]],
+    ['Improved', [
+      'Heavy and Mammoth Tanks have their own deeper gun sounds.',
+      'Map Editor: zoom in and out on a computer too, and + / − zoom buttons.',
+      'Storms now soak the ground: puddles, rivulets and water running off roofs while the storm rains.',
+      'Walls built at a slant run in two straight lines instead of a saw-tooth, and gates join walls on any side.',
+    ]],
+  ] },
+  { v: '2026.11.25.1', date: '25 November 2026', title: 'HD graphics, Map Editor', groups: [
+    ['New', [
+      'HD graphics (Options, Graphics): sharp, smooth units and buildings instead of pixels. Models are rebuilt at four times the detail, the battle is drawn at twice the resolution, and shadows are soft. Off unless you turn it on. Uses more graphics power, and downloads about 24 MB the first time.',
+      'Map Editor (main menu): paint grass, cliffs, water and ore, place starting spots, plateaus and villages, then play your map in a skirmish. You edit over the real battlefield, so you see the map as it will play.',
+    ]],
+    ['Improved', [
+      'PC: the mouse wheel zooms out at most two steps from fully zoomed in. Phones keep the full pinch range.',
+      'The Light Tank now has its own lighter, quieter gun sound.',
+      'Rain no longer pours from the tops of chimneys and towers.',
+    ]],
+  ] },
+  { v: '2026.11.25', date: '25 November 2026', title: 'Mobile SAM, Lakeside high ground', groups: [
+    ['New', [
+      'Soviet Mobile SAM: a tracked missile launcher built at the War Factory ($800). It fires missiles at aircraft only, out-ranging most air defence, and needs no power.',
+      'Lakeside: the rock ring in the middle of the north ore field is now a plateau with trees on top, cliffs all round and a ramp up the back. Its ore sits round the foot.',
+      'Options: Play over my music. Turn it on to keep your own music app playing while you play (game sounds then follow the silent switch).',
+    ]],
+    ['Improved', [
+      'Rain: water now runs off building roofs in steady streams with drips and splashes, and the falling rain shows again on devices using the faster renderer.',
+      "The computer's base walls now go round ore, trees and rock instead of leaving gaps.",
+      'Main menu: "Welcome back, Commander."',
+    ]],
+    ['Changed', [
+      'The soundtrack has been removed. Sound effects and voices stay.',
+    ]],
+  ] },
+  { v: '2026.11.24.1', date: '24 November 2026', title: 'Tank Destroyer, new main menu, smoother on PC', groups: [
+    ['New', [
+      'Allied Tank Destroyer: built at the War Factory once you have a Tech Center ($1100). No turret, so the whole vehicle turns to aim, but its long gun out-ranges every tank and hits armour hard. Weak against soldiers and buildings, and it cannot shoot at aircraft.',
+      'Explore a map: from the map screen, walk over any battlefield with no bases, no enemies and no fog of war, to learn the ground.',
+      'A new main menu on a screen of its own. Side and difficulty are now picked on the skirmish screen, where the maps sit under 1v1, 2v2 and 3v3 tabs.',
+    ]],
+    ['Improved', [
+      'Smoother on computers, especially zoomed out and late in big battles: water, rain, puddles, night searchlights and cliffs all cost far less to draw.',
+      'Paratrooper drops no longer slow the game down while the parachutes are in the air.',
+    ]],
+    ['Changed', [
+      'Lakeside: the bridges are narrower, about 4 cells wide.',
+    ]],
+    ['Fixed', [
+      'Water ripples and foam move again (they were frozen), and stray white wave lines no longer drift over the grass.',
+    ]],
+  ] },
+  { v: '2026.11.24', date: '24 November 2026', title: 'Planes break apart, Heron Fen at night', groups: [
+    ['Improved', [
+      'A jet that hits the ground and bounces now breaks apart: wings, tail, body sections and burning engines tumble on with its speed, and the wreck burns where it hit.',
+      'Smoother in big battles: when frames start to slow down, the lighting switches to a lighter version for a while (it looks almost the same), then back to full once things are smooth again.',
+    ]],
+    ['Changed', [
+      'Heron Fen is now always night instead of early morning: much darker, with the lamps, windows and fires lighting the fen.',
+    ]],
+    ['Fixed', [
+      'Ore Trucks you send to a field now keep working that field until it is completely empty, instead of moving to another field when it runs low.',
+    ]],
+  ] },
   { v: '2026.11.23.1', date: '23 November 2026', title: 'Specialist, aircraft crashes in 3D', groups: [
     ['New', [
       'Specialist, for both sides: a commando trained at the Barracks once you have a Tech Center ($1200, up to 2 at a time). He carries an assault rifle. Send him at an enemy building and he plants a charge, moves off, and 5 seconds later the building is destroyed. The building flashes red while the charge counts down.',

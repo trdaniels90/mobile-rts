@@ -40,6 +40,8 @@ Supabase.
 | `village.js` | Headless: Crossroads Village houses: seeded layout, blocking, blast and ordered damage, collapse, online snapshot, a computer 2 v 2 |
 | `mg-team.js` | Headless: the MG Team sets up before firing, packs before moving, is dug in once set up, and a staged fight against riflemen |
 | `tesla-tank.js` | Headless: the Tesla Tank's upgrade, bolt, damage, and no shots at aircraft |
+| `tank-destroyer.js` | Headless: the Tank Destroyer needs a Tech Center, turns its hull to aim, out-ranges a tank, little to infantry, no shots at aircraft, a duel with a Heavy Tank |
+| `mobile-sam.js` | Headless: the Mobile SAM needs a War Factory, never fires at ground units, shoots down a helicopter |
 | `comanche.js` | Headless: Tech Center research (cost, refund, kept, one at a time), the Comanche's pads, bays, lock-on, missiles for tanks only, gun after, stand-off, staged fights |
 | `ai-lift.js` | Headless: a Normal 1 v 1 per personality (first air assault, how many, kind, soldiers landed and alive 60 s later), and a turtle reinforcing an outlying refinery |
 | `transport.js` | Headless: transport helicopters (board, drop, park, UNLOAD HERE), Air Assault's balanced pick, shot down with troops aboard, a forged online order, the computer's air assault |
@@ -51,6 +53,7 @@ Supabase.
 | `ai-starved.js` | Headless: a computer with no ore near its refineries buys a Mobile Outpost first and holds army production until it is out |
 | `ai-timing.js` | Headless 1 v 1 of two computers: when each side sends waves, how many squads retreat or turn home. `<repo> [games] [minutes] [difficulty] [map]` |
 | `ally-defend.js` | Headless 3 v 3: Defend ally goes to the picked ally, switches, answers raiders at its base and just outside. `<repo> [map]` |
+| `attack-move.js` | Headless: Attack move (AUTO picker): every armed ground unit goes to the spot, kills what it meets on the way, then holds it; Auto Attack stays off; armed aircraft go too; Mobile SAMs keep behind the tanks on an Attack move and an Auto Attack |
 | `manual-override.js` | Headless: a direct order (move, guard, attack) takes a unit out of Auto Attack and base defence until Stop |
 | `ore-econ.js` | Headless team game of computers: ore left on the map and each side's income every 5 minutes. `<repo> [sides 4\|6] [minutes] [map] [seed]` |
 | `pop-cap.js` | Headless 2 v 2 of computers: each army against its cap, once a minute. `<repo> [minutes] [difficulty] [map] [seed]` |
@@ -59,5 +62,6 @@ Supabase.
 | `stuck.js` | Finds computer units sitting still with an order, and Ore Trucks not mining or unloading. `<repo> [minutes] [map] [1v1\|2v2] [seed]` |
 | `truck-queue.js` | Headless: 8 full trucks sent to one refinery queue at the dock; how long until all are unloaded. `<repo> [trucks]` |
 | `wipe-out.js` | A defeated side in a team game loses everything it has left |
+| `editor.js` | The map editor end to end (`<repo> [out dir]`, about 30 s): paints a map through the pointer handlers, checks and saves it, plays it from the skirmish screen, reloads, explores it; prints what the battle built (houses, ore fields, plateau height) and any page errors |
 | `map-check.js` | Every map's ground, no battle played (`<repo> [seeds for the generated map]`, about a minute): starts reach each other (also with breakable bridges down, and not only through one-cell gaps), every ore and gem cell open and reachable, the nearest field to each start, unreachable pockets, and the drawn cliffs (look.js crags) against the blocked cells |
 | `cas-careful.js` | Close Air Support shot down: losing every plane of a strike adds 120 s to the recharge (one plane lost does not); the computer holds a strike where known anti-air covers the target or the way in |

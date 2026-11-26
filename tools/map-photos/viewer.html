@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Red Horizon maps</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a field officer's map case, plain and working.
+   IDEA: a briefing-room map table: each map a photo print you pick up and study close.
+   PICTURE: the maps themselves, large, then a full-screen loupe with pinch and drag.
+   COLOUR and TYPE: gunmetal ground, map-paper cards, one signal red; Oswald titles, Inter text.
+   LAYOUT: title strip, grid of map prints, full-screen viewer over everything. */
+:root{color-scheme:dark;--bg:#16191c;--card:#20252a;--ink:#e9ece8;--dim:#9aa3a0;--red:#d8392b;--line:#2f363c}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow-x:clip}
+h1,h2{font-family:Oswald,Impact,sans-serif;font-weight:700;line-height:1.05;margin:0;text-wrap:balance}
+h1{font-size:clamp(32px,5vw,48px)}
+h2{font-size:22px;font-weight:500}
+.band{padding:clamp(24px,4vw,48px) max(5vw,16px)}
+header p{color:var(--dim);max-width:62ch;margin:.6em 0 0}
+header b{color:var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:18px;max-width:1240px}
+.card{all:unset;cursor:pointer;display:block;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;transition:transform .15s}
+.card:hover,.card:focus-visible{transform:translateY(-2px);border-color:var(--red)}
+.card:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.card .ph{aspect-ratio:16/9;background:#0e1012 center/cover no-repeat}
+.card .tx{padding:12px 14px 14px}
+.card .tx span{display:block;color:var(--dim);font-size:14px}
+#view{position:fixed;inset:0;background:#0b0d0f;display:none;touch-action:none;overflow:hidden;z-index:5}
+#view.on{display:block}
+#view img{position:absolute;left:0;top:0;transform-origin:0 0;user-select:none;-webkit-user-drag:none;image-rendering:auto;will-change:transform}
+.bar{position:absolute;left:0;right:0;top:0;display:flex;gap:8px;align-items:center;padding:10px max(12px,env(safe-area-inset-left));background:linear-gradient(#0b0d0fee,#0b0d0f00);z-index:2}
+.bar h2{flex:1;font-size:20px}
+.bar button{font:600 15px Inter,sans-serif;color:var(--ink);background:#262c31;border:1px solid var(--line);border-radius:8px;min-width:44px;min-height:44px;padding:0 12px;cursor:pointer}
+.bar button:focus-visible{outline:2px solid var(--red)}
+.bar .x{background:var(--red);border-color:var(--red)}
+#load{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--dim)}
+.hint{position:absolute;bottom:12px;left:0;right:0;text-align:center;color:var(--dim);font-size:13px;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.card{transition:none}}
+</style>
+</head>
+<body>
+<header class="band">
+  <h1>Red Horizon: every map, whole</h1>
+  <p>Each map rendered by the game itself, fog lifted, at the closest zoom, stitched from screenshots. <b>Tap a map</b>, then pinch or scroll to zoom and drag to look round for problems.</p>
+</header>
+<main class="band" style="padding-top:0"><div class="grid" id="grid"></div></main>
+<div id="view" role="dialog" aria-modal="true" aria-label="Map viewer">
+  <img id="img" alt="">
+  <div id="load">Loading the full picture…</div>
+  <div class="bar"><h2 id="vt"></h2><button id="zo" aria-label="Zoom out">−</button><button id="zi" aria-label="Zoom in">+</button><button id="fit">Fit</button><button class="x" id="close" aria-label="Close">✕</button></div>
+  <div class="hint">Pinch or scroll to zoom · drag to move · double-tap to zoom in</div>
+</div>
+<script>
+{
+const grid = document.getElementById('grid'), view = document.getElementById('view'), img = document.getElementById('img');
+const vt = document.getElementById('vt'), load = document.getElementById('load');
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let maps = [], cur = null, s = 1, tx = 0, ty = 0;
+const apply = () => { img.style.transform = `translate(${tx}px,${ty}px) scale(${s})`; };
+const fit = () => { if (!img.naturalWidth) return; const W = view.clientWidth, H = view.clientHeight;
+  s = Math.min(W / img.naturalWidth, (H - 60) / img.naturalHeight); tx = (W - img.naturalWidth * s) / 2; ty = 60 + (H - 60 - img.naturalHeight * s) / 2; apply(); };
+const zoomAt = (k, x, y) => { const n = Math.max(0.05, Math.min(3, s * k)); k = n / s; tx = x - (x - tx) * k; ty = y - (y - ty) * k; s = n; apply(); };
+function open(i) {
+  cur = maps[i]; vt.textContent = cur.name; view.classList.add('on'); load.style.display = 'block';
+  img.onload = () => { load.style.display = 'none'; fit(); };
+  img.src = cur.small; img.dataset.id = cur.id;
+  const full = new Image(); full.onload = () => { if (img.dataset.id !== cur.id) return; const k = img.naturalWidth / full.naturalWidth; img.onload = () => { s *= k; apply(); load.style.display = 'none'; }; img.src = full.src; };
+  full.src = cur.full;
+  try { history.replaceState(null, '', '#' + cur.id); } catch (_) {}
+}
+function close() { view.classList.remove('on'); img.removeAttribute('src'); cur = null; try { history.replaceState(null, '', location.pathname); } catch (_) {} }
+document.getElementById('close').onclick = close;
+document.getElementById('fit').onclick = fit;
+document.getElementById('zi').onclick = () => zoomAt(1.5, view.clientWidth / 2, view.clientHeight / 2);
+document.getElementById('zo').onclick = () => zoomAt(1 / 1.5, view.clientWidth / 2, view.clientHeight / 2);
+addEventListener('keydown', (e) => { if (!cur) return; if (e.key === 'Escape') close(); if (e.key === '+' || e.key === '=') zoomAt(1.4, innerWidth / 2, innerHeight / 2); if (e.key === '-') zoomAt(1 / 1.4, innerWidth / 2, innerHeight / 2); });
+view.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * 0.0018), e.clientX, e.clientY); }, { passive: false });
+const pts = new Map(); let last = null, lastTap = 0;
+view.addEventListener('pointerdown', (e) => { if (e.target.closest('.bar')) return; view.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); last = null;
+  if (pts.size === 1) { const now = Date.now(); if (now - lastTap < 300) zoomAt(2, e.clientX, e.clientY); lastTap = now; } });
+view.addEventListener('pointermove', (e) => {
+  if (!pts.has(e.pointerId)) return; const p = pts.get(e.pointerId); const nx = e.clientX, ny = e.clientY;
+  if (pts.size === 1) { tx += nx - p[0]; ty += ny - p[1]; apply(); }
+  pts.set(e.pointerId, [nx, ny]);
+  if (pts.size === 2) { const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]), cx = (a[0] + b[0]) / 2, cy = (a[1] + b[1]) / 2;
+    if (last) { zoomAt(d / last.d, cx, cy); tx += cx - last.cx; ty += cy - last.cy; apply(); } last = { d, cx, cy }; }
+});
+const up = (e) => { pts.delete(e.pointerId); last = null; };
+view.addEventListener('pointerup', up); view.addEventListener('pointercancel', up);
+addEventListener('resize', () => { if (cur) fit(); });
+fetch('maps.json').then((r) => r.json()).then((list) => {
+  maps = list;
+  grid.innerHTML = maps.map((m, i) => `<button class="card" data-i="${i}"><div class="ph" style="background-image:url('${esc(m.small)}')"></div><div class="tx"><h2>${esc(m.name)}</h2><span>${esc(m.info)}</span></div></button>`).join('');
+  grid.querySelectorAll('.card').forEach((c) => c.onclick = () => open(+c.dataset.i));
+  const h = location.hash.slice(1), i = maps.findIndex((m) => m.id === h); if (i >= 0) open(i);
+}).catch(() => { grid.textContent = 'The map list did not load.'; });
+}
+</script>
+</body>
+</html>

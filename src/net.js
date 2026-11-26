@@ -402,7 +402,7 @@ const Net = (() => {
     listener();
   }
   function setMap(id) {
-    if (!lobby || lobby.me !== 'host' || !lobby.host) return;
+    if (!lobby || lobby.me !== 'host' || !lobby.host || MAPS[validMap(id)].custom) return;   // (maps made on this device: not online)
     if (onServer() && lobby.mode !== '1v1') { send({ k: 'setup', map: validMap(id) }); return; }
     lobby.host.map = validMap(id);
     send({ k: 'lobby', faction: lobby.host.faction, map: lobby.host.map });
@@ -810,7 +810,7 @@ const Online = (() => {
         ${row(me ? 'You' : 'Host', L.host && L.host.name, hostF)}
         ${row(me ? 'Friend' : 'You', L.guest && L.guest.name, guestF)}
       </tbody></table>
-      ${me ? mapCardsHtml(validMap(L.host && L.host.map)) : `<p class="lb-intro">Map: <b>${esc(MAPS[validMap(L.host && L.host.map)].name)}</b></p>`}
+      ${me ? mapCardsHtml(validMap(L.host && L.host.map), '', null, false, true) : `<p class="lb-intro">Map: <b>${esc(MAPS[validMap(L.host && L.host.map)].name)}</b></p>`}
       <div class="on-btns">${me ? '<button type="button" class="pf-btn" data-on="swap">Swap sides</button><button type="button" class="pf-btn on-go" data-on="start">Start battle</button>' : '<p class="pf-small">Waiting for the host…</p>'}
         <button type="button" class="pf-btn" data-on="cancel">Leave</button></div>`;
   }
@@ -848,7 +848,7 @@ const Online = (() => {
       ${lead && !R && Object.values(BATTLES).some((x) => x.coop) ? savesHtml(L) : ''}
       <div class="on-teams">${team(0)}${team(1)}</div>
       ${canMove ? '<div class="on-btns"><button type="button" class="pf-btn" data-on="team">Switch team</button></div>' : ''}
-      ${lead && !R ? mapCardsHtml(map, '', mode) : `<p class="lb-intro">Map: <b>${esc(MAPS[map].name)}</b></p>`}
+      ${lead && !R ? mapCardsHtml(map, '', mode, false, true) : `<p class="lb-intro">Map: <b>${esc(MAPS[map].name)}</b></p>`}
       <div class="on-btns">${lead ? `<button type="button" class="pf-btn on-go" data-on="start"${L.ready ? '' : ' disabled'}>${R ? 'Continue battle' : 'Start battle'}</button>` : '<p class="pf-small">Waiting for the leader…</p>'}
         <button type="button" class="pf-btn" data-on="cancel">Leave</button></div>`;
   }

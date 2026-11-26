@@ -402,7 +402,105 @@ function lightTankTurret(pal) {
   return m;
 }
 // BLENDER:ltank end
+// Allied Tank Destroyer: a low tracked hull carrying a sloped armoured casemate with a long high-velocity gun and no turret
+// (`fixed`: the whole vehicle turns to aim). The casemate is drawn as the "turret" (tdTurret), which a fixed unit keeps in line
+// with the hull (u.tface follows u.face), so it gets the tank's recoil and muzzle flash for free.
+function tdHull(pal, s) {
+  const hl = Math.floor(s.len / 2), hw = Math.floor(s.wid / 2), tw = 3;
+  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 8);
+  for (const side of [-1, 1]) {                                                       // tracks, road wheels, skirts
+    const y0 = side < 0 ? -hw : hw - tw, y1 = y0 + tw, outer = side < 0 ? -hw : hw - 1;
+    m.box(-hl, y0, 0, hl, y1, 3, C.track, M_ROUGH);
+    m.clear(-hl, y0, 0, -hl + 1, y1, 1); m.clear(hl - 1, y0, 0, hl, y1, 1);
+    for (let x = -hl; x < hl; x += 2) m.box(x, y0, 2, x + 1, y1, 3, C.trackHi, M_ROUGH);
+    for (let x = -hl + 2; x < hl - 2; x += 3) m.box(x, outer, 0, x + 2, outer + 1, 2, C.wheel, M_METAL);
+    m.box(-hl + 1, y0, 3, hl - 1, y1, 4, pal.dark, M_METAL);                         // track guards
+  }
+  m.box(-hl + 1, -hw + tw, 1, hl - 1, hw - tw, 4, pal.dark, M_METAL);                 // hull body
+  m.box(-hl + 1, -hw + 1, 4, hl - 2, hw - 1, 5, pal.main, M_METAL);                   // deck
+  m.box(hl - 2, -hw + 2, 2, hl, hw - 2, 4, pal.light, M_METAL);                       // sloped glacis
+  for (let y = -hw + 3; y < hw - 3; y += 2) m.box(-hl + 1, y, 5, -hl + 4, y + 1, 6, pal.deep, M_MATTE);   // engine grille at the back
+  m.box(-hl + 4, -hw, 5, -hl + 9, -hw + 1, 6, C.oliveD);                              // tool box
+  m.box(hl - 3, -hw + 1, 4, hl - 2, -hw + 2, 5, C.glow, M_GLASS); m.box(hl - 3, hw - 2, 4, hl - 2, hw - 1, 5, C.glow, M_GLASS);   // lights
+  return m;
+}
+function tdTurret(pal, s) {
+  const reach = s.tur + s.barrel;
+  const m = new VModel(-9, -7, reach + 3, 7, 8);
+  for (let z = 0; z < 5; z++) {                                                       // the casemate: its front and sides lean in as it rises
+    const f = 5 - z * 0.8, b = -7 + z * 0.3, w = 6 - z * 0.5;
+    m.box(b, -w, z, f, w, z + 1, z === 4 ? pal.light : pal.main, M_METAL);
+  }
+  m.box(-6, -4, 4, 1, 4, 5, pal.light, M_METAL);                                      // flat roof
+  m.box(-6.5, -5, 0, -6, 5, 4, pal.dark, M_METAL);                                    // rear plate
+  m.cylZ(-3, 2.5, 5, 6, 1.4, pal.deep, M_MATTE);                                      // commander's hatch
+  m.box(-1, -3.5, 5, 1, -2, 6, '#2b3036', M_METAL);                                   // sight block
+  m.box(3, -2.5, 0, 6, 2.5, 3.5, pal.dark, M_METAL);                                  // gun mantlet
+  m.cylX(5, reach, 0, 2, 1.0, C.gun, M_METAL);                                        // the long gun
+  m.cylX(5, 9, 0, 2, 1.35, C.gun, M_METAL);                                           // thicker at the breech end
+  m.box(reach - 2, -1.6, 1, reach, 1.6, 3, C.gun, M_METAL);                           // muzzle brake
+  m.line(-6, 4.5, 4, -6, 4.5, 8, C.black);                                            // aerial
+  m.paint(-8, -7, 0, 6, 7, 6, (x, y, z, c) => (hash3(x, y, z) > 0.95 && c === rgbInt(pal.main)) ? pal.dark : undefined);
+  return m;
+}
+// Soviet Mobile SAM, after the SA-13 Gopher: a low, flat, boxy MT-LB-style tracked carrier (msamHull) with a small cab and
+// sloped nose at the front, and on the cargo deck the launcher (samTurret, the turning "turret"): an operator's housing with a
+// window, a round radar dish on a mast in the middle and two box launchers of two canisters each, raised on arms either side.
+// Missiles leave from the launchers' front ends (muzzle: tur + barrel).
+const GOPHER = { box: '#4c5638', boxHi: '#5d6845', boxD: '#353c27' };
+function msamHull(pal, s) {
+  const hl = Math.floor(s.len / 2), hw = Math.floor(s.wid / 2), tw = 3;
+  const m = new VModel(-hl - 2, -hw - 2, hl + 3, hw + 3, 9);
+  for (const side of [-1, 1]) {                                                       // tracks and six big road wheels a side
+    const y0 = side < 0 ? -hw : hw - tw, y1 = y0 + tw, outer = side < 0 ? -hw : hw - 1;
+    m.box(-hl, y0, 0, hl, y1, 3, C.track, M_ROUGH);
+    m.clear(-hl, y0, 0, -hl + 1, y1, 1); m.clear(hl - 1, y0, 0, hl, y1, 1);
+    for (let x = -hl; x < hl; x += 2) m.box(x, y0, 2, x + 1, y1, 3, C.trackHi, M_ROUGH);
+    for (let i = 0; i < 6; i++) { const x = -hl + 2.5 + i * (2 * hl - 5) / 5; m.cylY(outer - 0.2, outer + 1.2, x, 1.4, 1.5, C.wheel, M_METAL); }
+  }
+  m.box(-hl, -hw + 1, 3, hl - 2, hw - 1, 5, pal.dark, M_METAL);                       // the flat box hull, wider than the tracks
+  m.box(-hl, -hw, 5, hl - 3, hw, 6, pal.main, M_METAL);                               // deck, overhanging the tracks
+  m.box(hl - 3, -hw + 1, 3, hl - 1, hw - 1, 5.5, pal.main, M_METAL);                  // sloped nose
+  m.box(hl - 1, -hw + 2, 2, hl, hw - 2, 4, pal.dark, M_METAL);
+  m.box(hl - 7, -hw + 1, 6, hl - 3, hw - 1, 7, pal.light, M_METAL);                   // cab roof, front
+  for (const y of [-hw + 2, hw - 4]) m.box(hl - 4, y, 6, hl - 3, y + 2, 7, C.glass, M_GLASS);   // two vision blocks
+  for (const y of [-hw + 2, hw - 4]) m.cylZ(hl - 6, y + 1, 7, 7.6, 1, pal.deep, M_MATTE);       // round cab hatches
+  for (const y of [-hw + 1, hw - 3]) m.box(-hl + 1, y, 6, -hl + 6, y + 2, 7, pal.light, M_METAL); // rear cargo hatches
+  m.box(-hl - 1, -hw + 2, 3, -hl, hw - 2, 5, pal.dark, M_METAL);                      // rear doors
+  m.box(-hl + 1, hw - 1, 6, -hl + 6, hw, 8, GOPHER.box, M_METAL);                     // stowage box at the back
+  for (const y of [-hw + 1, hw - 2]) m.box(hl - 2, y, 5, hl - 1, y + 1, 6, C.glow, M_GLASS);   // headlights
+  m.paint(-hl, -hw, 3, hl, hw, 8, (x, y, z, c) => (hash3(x, y, z) > 0.93 && c === rgbInt(pal.main)) ? pal.dark : undefined);
+  return m;
+}
+function samTurret(pal, s) {
+  const m = new VModel(-9, -11, 14, 11, 18);
+  m.cylZ(0, 0, 0, 1, 3.5, pal.dark, M_METAL);                                         // turntable ring
+  m.box(-3, -2.5, 1, 3, 2.5, 6, pal.main, M_METAL);                                   // operator's housing
+  m.box(-2, -2, 6, 2, 2, 7, pal.light, M_METAL);
+  m.box(3, -1.8, 2.5, 3.6, 1.8, 5, C.glass, M_GLASS);                                 // its front window
+  m.box(-0.5, -0.6, 7, 0.5, 0.6, 12, '#3a3e36', M_METAL);                             // radar mast
+  for (let y = -3; y <= 3; y += 0.5) for (let z = -3; z <= 3; z += 0.5)               // the round dish, facing forward
+    if (y * y + z * z <= 9.2) m.set(0.8 + (y * y + z * z) * 0.06, y, 13 + z, Math.hypot(y, z) > 2.4 ? '#3f4639' : '#56604a', M_METAL);
+  m.set(1.6, 0, 13, '#22261e', M_METAL);                                              // feed horn
+  const up = 0.32, cx = Math.cos(up), cz = Math.sin(up);
+  for (const side of [-1, 1]) {
+    const yc = side * 7.2;
+    m.line(-1, side * 2.5, 5, -1, yc - side * 1.5, 9, '#3a3e36', M_METAL);          // the arm out to the launcher
+    m.line(-1, side * 2.5, 4, -1, yc - side * 1.5, 8, '#3a3e36', M_METAL);
+    for (let t = 0; t <= 14; t += 0.2) {                                              // two canisters side by side, nose up
+      const x = -6 + t * cx, z = 8 + t * cz;
+      for (let w = -1.8; w <= 1.8; w += 0.3) for (let h = 0; h <= 1.6; h += 0.3) {
+        const edge = t < 0.5 || t > 13.5;
+        m.set(x - h * cz, yc + w, z + h * cx, edge ? GOPHER.boxD : Math.abs(w) < 0.2 ? GOPHER.boxD : h > 1.1 ? GOPHER.boxHi : GOPHER.box, M_METAL);
+      }
+    }
+    for (const w of [-1, 1]) m.set(-6 + 14 * cx + 0.6, yc + w, 8 + 14 * cz + 0.8, '#1a1c16', M_MATTE);   // the canister mouths
+  }
+  return m;
+}
 function tankHull(pal, s) {
+  if (s.td) return tdHull(pal, s);
+  if (s.sam) return msamHull(pal, s);
   if (s.light) return lightTankHull(pal);
   if (s.grizzly) return grizzlyHull(pal, s);
   if (s.mammoth) return mammothHull(pal, s);
@@ -444,6 +542,8 @@ function teslaTurret(pal, s) {
 }
 function tankTurret(pal, s) {
   if (s.tesla) return teslaTurret(pal, s);
+  if (s.td) return tdTurret(pal, s);
+  if (s.sam) return samTurret(pal, s);
   if (s.light) return lightTankTurret(pal);
   if (s.grizzly) return grizzlyTurret(pal, s);
   if (s.mammoth) return mammothTurret(pal, s);
@@ -1442,7 +1542,8 @@ function infModel(pal, faction, type, frame) {
   const sov = faction === 'soviets', sovRk = sov && type === 'rocket';
   const step = frame === 1 ? 1.5 : frame === 2 ? -1.5 : 0, throwing = frame === 3;
   const pose = frame === 6 ? 'rest' : frame === 7 ? 'aim' : frame === 10 ? 'stretch' : frame === 11 ? 'sam' : null;
-  const K = infKit(pal, faction), tunic = pal.main, sleeve = shadeInt(pal.main, 0.84), hi = shadeInt(pal.main, 1.12);
+  const TC = type === 'technician';   // Technician: a civilian in a shirt of the side's colour, work trousers, bare-headed, a pistol
+  const K = TC ? { ...infKit(pal, faction), pants: '#3e4d66' } : infKit(pal, faction), tunic = pal.main, sleeve = shadeInt(pal.main, 0.84), hi = shadeInt(pal.main, 1.12);
   const R = type === 'rifle', wood = '#6a4426';
   const E = type === 'engineer', vest = '#5a6b3a';   // Engineer: an olive tactical vest with pouches, knee pads, a toolbox, no weapon   // Rifle Infantry: long coat, shoulder plates, knee pads, hip satchel, wooden-furniture rifle
   // Boots and trousers, legs apart with a gap between them, swinging when walking.
@@ -1457,7 +1558,7 @@ function infModel(pal, faction, type, frame) {
   m.box(-1, -1, 6, 2, 1, 8, K.pants);                                               // seat
   // Belt with pouches and buckle.
   m.box(-2, -3, 8, 2, 3, 9, K.web);
-  for (const y of [-3, 2]) m.box(1, y, 8, 3, y + 1, 10, K.pouch);
+  if (!TC) for (const y of [-3, 2]) m.box(1, y, 8, 3, y + 1, 10, K.pouch);
   m.set(2, 0, 8, '#c9a227', M_METAL);
   if (R) {
     m.box(-2, -3, 6, 2, 3, 8, shadeInt(tunic, 0.88));                              // coat skirt over the hips
@@ -1467,7 +1568,8 @@ function infModel(pal, faction, type, frame) {
   m.box(-2, -3, 9, 2, 3, 14, tunic);
   m.box(1, -2, 9, 2, 2, 13, hi);
   m.box(-2, -4, 12, 2, 4, 14, tunic);                                               // shoulders
-  m.paint(-2, -3, 9, 2, 3, 14, (x, y, z) => (x === 1 && y === z - 12) ? K.web : undefined);   // strap across the chest
+  if (TC) { m.set(2, -2, 12, '#e8e4d8'); m.set(2, -2, 13, '#2a2a24'); }   // a breast pocket with a pen
+  else m.paint(-2, -3, 9, 2, 3, 14, (x, y, z) => (x === 1 && y === z - 12) ? K.web : undefined);   // strap across the chest
   m.box(-1, -1, 14, 2, 2, 14.5, shadeInt(tunic, 0.72));                             // collar
   if (R) {
     m.box(-2, -2, 14, 3, 3, 15, shadeInt(tunic, 0.8));                              // high turned-up collar
@@ -1487,7 +1589,7 @@ function infModel(pal, faction, type, frame) {
     for (const y of [-4, 3]) { m.box(-1, y, 12, 1, y + 1, 20, sleeve); hand(0, y, 20); hand(0, y, 21); }
   } else if (pose === 'rest') {
     m.box(-1, -4, 9, 1, -3, 14, sleeve); hand(0, -4, 8);
-    if (type === 'grenadier' || type === 'pilot' || E) { m.box(-1, 3, 9, 1, 4, 14, sleeve); hand(0, 3, 8); }
+    if (type === 'grenadier' || type === 'pilot' || TC || E) { m.box(-1, 3, 9, 1, 4, 14, sleeve); hand(0, 3, 8); }
     else { m.box(-1, 3, 11, 1, 4, 14, sleeve); m.box(1, 3, 11, 2, 4, 12, sleeve); hand(2, 4, 11); }
   } else if (pose === 'aim') {
     m.box(-1, -4, 12, 5, -3, 13, sleeve); m.box(-1, 3, 12, 2, 4, 13, sleeve); m.box(1, 1, 12, 2, 3, 13, sleeve);
@@ -1499,7 +1601,7 @@ function infModel(pal, faction, type, frame) {
   } else if (type === 'rocket' || type === 'hmgG') {
     m.box(-1, 3, 12, 1, 4, 14, sleeve); m.box(1, 3, 13, 3, 4, 14, sleeve); hand(3, 3, 14);      // right hand up on the grip
     m.box(-2, -4, 10, 1, -3, 14, sleeve); m.box(1, -4, 10, 3, -3, 11, sleeve); hand(3, -3, 10); // left hand steadying it
-  } else if (type === 'pilot' || E || type === 'hmgL') {
+  } else if (type === 'pilot' || TC || E || type === 'hmgL') {
     for (const y of [-4, 3]) { m.box(-1, y, 9, 1, y + 1, 14, sleeve); hand(0, y, 8); }
   } else {
     // Rifle held ready across the body: right hand at the hip on the grip, left forward on the stock.
@@ -1529,6 +1631,8 @@ function infModel(pal, faction, type, frame) {
     for (const y of [-3, 1]) { m.box(-5, y, 8, -2, y + 2, 13, '#8a7a4a'); m.box(-5, y, 12, -3, y + 2, 13, '#6e6038'); m.set(-5, y + 1, 10, '#c8281e', M_METAL); }
     m.box(-6, -3, 10, -5, 3, 11, K.web);
     m.line(-4, -2, 13, -6, -3, 20, '#2a2a24', M_METAL);
+  } else if (TC) {
+    // no pack
   } else if (type === 'pilot') {
     m.box(-4, -2, 8, -2, 2, 13, '#c9c3a8'); m.box(-4, -2, 12, -2, 2, 13, '#a49d82');   // parachute pack
   } else {
@@ -1566,6 +1670,9 @@ function infModel(pal, faction, type, frame) {
   } else if (type === 'grenadier') {
     m.box(-2, -2, 16, 2, 3, 18, '#5d6236'); m.box(-1, -1, 18, 2, 2, 18.5, '#5d6236');
     m.box(2, -2, 16, 3, 3, 16.5, '#474a28'); m.set(2, 0, 17, '#c8281e');                       // field cap, red star
+  } else if (TC) {
+    m.box(-2, -2, 16, 1, 3, 18, '#4a3a2a'); m.box(-1, -1, 18, 1, 2, 18.5, '#4a3a2a'); m.box(1, -2, 17, 2, 3, 18, '#4a3a2a');   // short hair, no helmet
+    m.box(3, 2, 10, 6, 3, 11, C.gun, M_METAL);                                                 // pistol
   } else if (type === 'pilot') {
     m.box(-2, -2, 15, 2, 3, 18, '#e4e0d0'); m.box(-1, -1, 18, 2, 2, 19, '#e4e0d0');            // flight helmet, dark visor
     m.box(2, -1, 15, 3, 2, 17, '#22262a', M_GLASS);
@@ -1589,7 +1696,7 @@ function infModel(pal, faction, type, frame) {
     m.set(0, 6, tz + 2, '#2a2a24');                                          // latch
   }
   // Weapons.
-  const RIF = !['rocket', 'grenadier', 'pilot', 'engineer', 'hmgG', 'hmgL', 'flamer'].includes(type), SN = type === 'sniper';
+  const RIF = !['rocket', 'grenadier', 'pilot', 'technician', 'engineer', 'hmgG', 'hmgL', 'flamer'].includes(type), SN = type === 'sniper';
   const tube = sovRk ? '#5f6a3c' : '#c3c4b8', tubeD = sovRk ? '#2f3520' : '#5d5f58';   // Soviet: olive RPG-style launcher
   if (pose === 'stretch') {                                                  // slung on the back
     if (type === 'rocket') { m.cylY(-6, 6, -6, 13, 1.4, tube); m.box(-7, 5, 12, -5, 6, 15, tubeD); }
@@ -5365,9 +5472,9 @@ function proneModel(pal, faction, type, crawl) {
   }
   m.box(-6, -2, 0, 2, 2, 3, pal.main); m.box(-6, -3, 2, 2, 3, 3, shadeInt(pal.main, 0.9));
   m.box(-6, -2, 0, -5, 2, 3, K.web);
-  if (type !== 'pilot') m.box(-5, -2, 3, -1, 2, 4, C.oliveD);
+  if (type !== 'pilot' && type !== 'technician') m.box(-5, -2, 3, -1, 2, 4, C.oliveD);
   m.box(2, -1, 0, 5, 2, 3, K.skin);
-  m.box(1, -2, 2, 5, 3, 4, type === 'pilot' ? '#cfcab8' : type === 'grenadier' ? '#5d6236' : K.helm);
+  m.box(1, -2, 2, 5, 3, 4, type === 'pilot' ? '#cfcab8' : type === 'technician' ? '#4a3a2a' : type === 'grenadier' ? '#5d6236' : K.helm);
   for (const y of [-3, 2]) {
     const d = cs * (y < 0 ? -2 : 2);                                            // the arm opposite the forward leg reaches out
     m.box(1, y, 0, 5 + d, y + 1, 1.5, shadeInt(pal.main, 0.86)); m.set(5 + d, y, 0, K.skin);
@@ -5390,15 +5497,15 @@ function pushupModel(pal, faction, type, up) {
   m.box(-6, -2, lift / 2, -2, 2, 2 + lift / 2 + 1, pal.main);                       // hips, rising toward the chest
   m.box(-2, -2, lift, 2, 2, 3 + lift, pal.main); m.box(-2, -3, 2 + lift, 2, 3, 3 + lift, shadeInt(pal.main, 0.9));
   m.box(-6, -2, lift / 2, -5, 2, 3 + lift / 2, K.web);
-  if (type !== 'pilot' && type !== 'grenadier') m.box(-5, -2, 3 + lift / 2, -1, 2, 4 + lift / 2, C.oliveD);
+  if (type !== 'pilot' && type !== 'technician' && type !== 'grenadier') m.box(-5, -2, 3 + lift / 2, -1, 2, 4 + lift / 2, C.oliveD);
   m.box(2, -1, lift, 5, 2, 3 + lift, K.skin);
-  m.box(1, -2, 2 + lift, 5, 3, 4 + lift, type === 'pilot' ? '#cfcab8' : type === 'grenadier' ? '#5d6236' : K.helm);
+  m.box(1, -2, 2 + lift, 5, 3, 4 + lift, type === 'pilot' ? '#cfcab8' : type === 'technician' ? '#4a3a2a' : type === 'grenadier' ? '#5d6236' : K.helm);
   for (const y of [-3, 2]) {
     if (up) { m.box(0, y, 1, 1, y + 1, 5, shadeInt(pal.main, 0.86)); m.set(0, y, 0, K.skin); }          // straight arms
     else { m.box(-1, y + (y < 0 ? -1 : 1), 0, 1, y + (y < 0 ? 0 : 2), 2, shadeInt(pal.main, 0.86)); m.set(1, y, 0, K.skin); }   // elbows out
   }
   if (type === 'rocket') { m.cylX(-8, 4, -5, 0.7, 0.9, '#56603a'); if (faction === 'soviets') m.ellipsoid(5, -5, 0.8, 1.6, 1.3, 1.3, '#4a4f3a', M_METAL); }
-  else if (type !== 'grenadier' && type !== 'pilot' && type !== 'engineer') { m.box(-6, 4, 0, 3, 5, 1, C.gun, M_METAL); m.box(-9, 4, 0, -6, 5, 1.5, '#6a4426'); }
+  else if (type !== 'grenadier' && type !== 'pilot' && type !== 'technician' && type !== 'engineer') { m.box(-6, 4, 0, 3, 5, 1, C.gun, M_METAL); m.box(-9, 4, 0, -6, 5, 1.5, '#6a4426'); }
   return m;
 }
 function infSprite(u, pal, frame) {

@@ -141,7 +141,6 @@ const Report = (() => {
     const L = out.log, F = out.frames;
     const steps = [
       () => { if (F && F.minutes.some((m) => m.lf.length)) { F.minutes.forEach((m) => { m.lf = []; }); return true; } },   // long-frame details
-      () => { if (F && F.minutes.some((m) => m.dp)) { F.minutes.forEach((m) => { delete m.dp; }); return true; } },   // drawing parts' averages (the slowest frame's stay)
       () => { if (L.samples && L.samples.length > 40) { L.samples = L.samples.filter((_, i) => i % 2 === 0); return true; } },   // a coarser graph
       () => {   // the fallen with fewest kills (the debrief's lists keep the best)
         const all = L.fallen.concat(L.alive);
@@ -154,6 +153,8 @@ const Report = (() => {
         return L.fallen.length < n;
       },
       () => { if (out.net && out.net.minutes) { delete out.net.minutes; return true; } },
+      () => { if (F && F.minutes.some((m) => m.dp)) { F.minutes.forEach((m) => { delete m.dp; }); return true; } },   // drawing parts' averages (the slowest frame's stay): after the graph and the fallen, as they tell where an
+      // ordinary frame's time goes (2026.11.24.1: a 38-minute match lost them at 76 KB)
       () => { if (F) { delete out.frames; return true; } },
       () => { if (L.samples) { delete L.samples; return true; } },
       () => { if (L.events.length > 50) { L.events = L.events.slice(-50); return true; } },

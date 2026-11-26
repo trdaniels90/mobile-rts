@@ -128,7 +128,15 @@
     document.documentElement.style.setProperty('--gw', W + 'px');
     document.documentElement.style.setProperty('--gh', H + 'px');
     const rr = radar.getBoundingClientRect();
-    radar.width = Math.max(1, Math.round(rr.width * DPR)); radar.height = Math.max(1, Math.round(rr.height * DPR));
+    // Resizing a canvas wipes it: in a busy battle the automatic resolution (below) steps down and the radar went black until
+    // its next redraw (most of a second on a struggling phone). Only resize when the size changes, and keep the picture.
+    const rw = Math.max(1, Math.round(rr.width * DPR)), rh = Math.max(1, Math.round(rr.height * DPR));
+    if (rw !== radar.width || rh !== radar.height) {
+      let old = null;
+      if (radar.width > 1 && radar.height > 1) { old = mkCanvas(radar.width, radar.height); old.getContext('2d').drawImage(radar, 0, 0); }
+      radar.width = rw; radar.height = rh;
+      if (old) { rctx.imageSmoothingEnabled = true; rctx.drawImage(old, 0, 0, rw, rh); }
+    }
     clampCam();
   }
   window.addEventListener('resize', layout);
@@ -169,11 +177,22 @@
   // scaling makes some pixels wider than others and reads as blur on phones.
   // The steps come from the full resolution (ZDPR), not the one autoRes is drawing at: rounded to that, the zoom changed
   // (2 to 2.4, and back to 2.67) each time the resolution stepped, and the screen jumped on its own (owner, 2026-11-22).
-  function snapZ(z) {
-    z = Math.max(0.75, Math.min(3.5, z));
+  // Zoom limits. On a computer (owner, 2026-11-25) the widest view is two wheel notches out from the closest, so a big
+  // screen never draws the whole map at once; phones keep the full range (pinch).
+  const Z_MAX = 3.5, Z_MIN_TOUCH = 0.75, PC_WHEEL_OUT = 2;
+  function snapIn(z, lo) {
+    z = Math.max(lo, Math.min(Z_MAX, z));
     if (z * ZDPR < 1.5) return z;
     return Math.max(1, Math.round(z * ZDPR)) / ZDPR;
   }
+  const wheelStep = (z) => Math.max(1 / ZDPR, z * 0.12);   // one wheel notch
+  function zMin() {
+    if (isTouch || (G && G.editing)) return Z_MIN_TOUCH;   // (the map editor keeps the full range on a computer too)
+    let z = snapIn(Z_MAX, Z_MIN_TOUCH);
+    for (let i = 0; i < PC_WHEEL_OUT; i++) z = snapIn(z - wheelStep(z), Z_MIN_TOUCH);
+    return z;
+  }
+  function snapZ(z) { return snapIn(z, zMin()); }
   const EDGE_KEEP = 8;
   function clampCam() {
     cam.z = snapZ(cam.z);
@@ -437,11 +456,12 @@
     if (!resumed && !G.spectate) G.teams[G.me].auto = false;
     document.body.classList.toggle('spectate', !!G.spectate);
     ui.autoBtn.setAttribute('aria-pressed', String(!!G.teams[G.me].auto));
+    setAimMove(false);
     ui.allyBtn.hidden = ui.returnBtn.hidden = ui.giveBtn.hidden = !teamGame();
     if (giveEl) giveEl.hidden = true;
     layout();
     if (resumed) return;
-    const cy = G.entities.find((e) => e.team === G.me && e.type === 'cy');
+    const cy = G.entities.find((e) => e.team === G.me && e.type === 'cy') || { x: (G.teams[G.me].start.cx + 0.5) * CELL, y: (G.teams[G.me].start.cy + 0.5) * CELL };   // (the map explorer: no base, its start)
     cam.z = Math.max(1, Math.min(2.5, Math.round((W / (CELL * 18)) * 4) / 4));
     centerOn(cy.x + 40, cy.y - 30);
   }
@@ -500,6 +520,19 @@
   }
   // Watch AI vs AI (the owner's tool for tuning maps, 2026-11-21): every side a computer, the whole map shown, the
   // controls hidden, nothing reported or saved (the saved skirmish is kept). Speed in the Options menu.
+  // Explore a map (owner, 2026-11-24: "an option in the game to load into an empty map with no fog of war"): the map
+  // screen's Explore button. No bases, units or computer players, the whole map uncovered, no weather; nothing saved or
+  // reported. Look round with the usual camera; the menu's Quit leaves it.
+  function startExplore() {
+    Net.leave();
+    if (mission) Report.quit();
+    newWorld(faction, diffKey, undefined, 0, false, mapId, null, true);
+    online = null; mission = false;
+    G.spectate = true; G.mapViewUsed = true; G.speed = 1; G.weather = null;
+    G.seen = new Uint8Array(NCELLS).fill(1); for (const f of G.fog) f.fill(1);
+    afterNewWorld(faction);
+    Sound.newMatch();
+  }
   function startWatch() {
     Net.leave();
     if (mission) Report.quit();
@@ -596,6 +629,33 @@ if (SPRITE_KEEP < Infinity && typeof sprite === 'function') {
     if (s && s.img && !(typeof ImageBitmap !== 'undefined' && s.img instanceof ImageBitmap)) spriteUsed.set((FLAT_PASS ? mkey + '~flat' : mkey) + '|' + fkey, spriteNow);
     return s;
   };
+}
+// The drawing list in depth order (e._key), exactly as a stable sort gives it (ties keep the list's order), in about
+// linear time: each thing dropped into one of n buckets by its key (in the list's order, so ties stay in order), then one
+// insertion pass, which only has to sort within a bucket. ground.sort() with a comparator was ~1.5 ms a frame headless
+// with 2,000 things (trees, crags, units) zoomed out over a 3 v 3.
+let dsCount = new Int32Array(0), dsOut = [];
+function depthSort(a) {
+  const n = a.length;
+  if (n < 64) { a.sort((p, q) => p._key - q._key); return a; }
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < n; i++) { const k = a[i]._key; if (!(k >= lo)) lo = k; if (!(k <= hi)) hi = k; }
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi === lo) { a.sort((p, q) => p._key - q._key); return a; }   // (NaN or all level)
+  const nb = n, sc = (nb - 1) / (hi - lo);
+  if (dsCount.length < nb + 1) dsCount = new Int32Array(nb * 2 + 1);
+  const cnt = dsCount; cnt.fill(0, 0, nb + 1);
+  for (let i = 0; i < n; i++) cnt[((a[i]._key - lo) * sc | 0) + 1]++;
+  for (let b = 1; b <= nb; b++) cnt[b] += cnt[b - 1];
+  const out = dsOut; out.length = n;
+  for (let i = 0; i < n; i++) { const e = a[i]; out[cnt[(e._key - lo) * sc | 0]++] = e; }
+  for (let i = 1; i < n; i++) {   // (strictly greater moves: equal keys keep their order)
+    const e = out[i], k = e._key; let j = i - 1;
+    while (j >= 0 && out[j]._key > k) { out[j + 1] = out[j]; j--; }
+    out[j + 1] = e;
+  }
+  for (let i = 0; i < n; i++) a[i] = out[i];
+  out.length = 0;
+  return a;
 }
 function trimSprites() {
   if (spriteUsed.size <= SPRITE_KEEP) return;
@@ -756,9 +816,10 @@ function draw() {
         // Diagonal joins (16 NE, 32 SE, 64 SW, 128 NW): a piece touching another only at a corner, a diagonal wall.
         if (!d.gate) for (const [dx, dy, bit] of WALL_DIAG) {
           const x = cx + dx, y = cy + dy;
-          // (A gate only when it lies diagonally this way: the wall runs on into it.)
+          // (A gate's middle only when it lies diagonally this way: the wall runs on into it. A gate's end any way: it draws a
+          // stub of wall out to that corner, art.js drawWallIso.)
           const k = idx(x, y), wd = inMap(x, y) && WALL_BY_ID[G.wall[k]];
-          if (wd && !G.wall[idx(x, cy)] && !G.wall[idx(cx, y)] && (!wd.gate || gateDiag(k) === dx * dy)) mask |= bit;
+          if (wd && !G.wall[idx(x, cy)] && !G.wall[idx(cx, y)] && (!wd.gate || G.wall[k] === 6 || gateDiag(k) === dx * dy)) mask |= bit;
         }
         let open = 0, gm = 0;
         if (d.gate) {                                                       // its barrier sinks and rises over about a third of a second (looks only)
@@ -786,6 +847,7 @@ function draw() {
     let trees = treesInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows, true);   // swaying in the wind, burning (art.js): sorted in with the units below
     if (past) for (const t of rimInView(v, ox - 20, oy - 4, ox + bw + 20, oy + bh + 40, treeShows, true)) trees.push(t);   // the woods past the map's edge
     trees = isoTreeBlocks(v, trees, rimTrees(), vx, vy, VW, VH);   // their shadows; in a far view still trees come from cached blocks (art.js)
+    lap('tsh');   // tree shadows and the far view's cached tree blocks
 
     // An effect on the screen: tracers and Tesla bolts by either end or their middle (a gun just off the screen firing into
     // it), a lightning bolt by its landing spot with room for its top, which is drawn up to about 230 px to the side.
@@ -803,7 +865,9 @@ function draw() {
     for (const w of wallsHere) ground.push(w);
     for (const h of G.houses || []) if (h.alive && houseSeen(h) && h.x > x0 - 60 && h.x < x1 + 60 && h.y > y0 - 60 && h.y < y1 + 120) ground.push(h);
     for (const p of G.props || []) if (inView(p) && G.seen[cellOfPos(p.x, p.y)]) ground.push(p);
+    lap('list');
     lookView = v; cliffItems(ground, x0, y0, x1, y1, onScr);   // tall rock (look.js prototype, off by default)
+    lap('crag');   // the crags in view found (and any made)
     for (const f of G.folk || []) if (f.st !== 'in' && inView(f) && G.seen[cellOfPos(f.x, f.y)]) ground.push({ kind: 'folk', v: f, y: f.y });
     for (const c of G.hens || []) if (inView(c) && G.seen[cellOfPos(c.x, c.y)]) ground.push({ kind: 'hen', v: c, y: c.y });
     if (G.birds) drawBirds(v, false, x0, y0, x1, y1);   // pigeons on the ground
@@ -841,7 +905,7 @@ function draw() {
         if (viewDepth(p.x, p.y) > viewDepth(nx, ny)) e._key = b._key + 0.01;
       }
     }
-    ground.sort((a, b) => a._key - b._key);
+    depthSort(ground);
     v.upright = true;   // from here on, pictures, pixels and labels stand upright (art.js uprightCtx)
     lap('list');   // tree shadows, the lists and the sort
     // Each on the raised ground (look.js onHill): a structure or house at the middle of its footprint.
@@ -863,7 +927,7 @@ function draw() {
     const drawnBox = (e) => {
       if (big(e)) return bldBox(e);
       const [hx, hy] = hillAt(e), [X, Y] = toView(...hillPt(hx, hy));
-      if (e.kind === 'cliff') return [X + e.p.X0, Y + e.p.Y0, X + e.p.X0 + (e.p.w || e.p.c.width), Y + e.p.Y0 + (e.p.h || e.p.c.height)];
+      if (e.kind === 'cliff') { const k = e.p.sx !== undefined ? e.p.k || 1 : 1; return [X + e.p.X0, Y + e.p.Y0, X + e.p.X0 + (e.p.w || e.p.c.width) / k, Y + e.p.Y0 + (e.p.h || e.p.c.height) / k]; }   // (an HD baked crag: w, h in its sheet's pixels)
       return [X - 30, Y - (e.kind === 'tree' ? 90 : 70), X + 30, Y + 12];
     };
     const reHill = (c) => {
@@ -875,13 +939,23 @@ function draw() {
     // gl.js (stage 2): with the ground in WebGL, the list's pictures become WebGL quads (in this order, each tested against
     // the ground's depth at its base, so a hill hides what stands behind it: no reHill), the rest drawn on a layer above.
     const glList = glRec, lv = v;
+    // Crags with WebGL: a run of them in the list is drawn in screen px from one transform change (look.js drawCliffAt).
+    const fastCliff = glList && !occs, WM = fastCliff ? lv.getTransform() : null;
+    let scr = false, scrUp = false;
+    const toList = () => { if (scr) { lv.setTransform(WM); lv.upright = scrUp; scr = false; } };
     for (const e of ground) {
       if (occs) { while (oi < occs.length && occs[oi].key - 6 <= e._key) reHill(occs[oi++]); drawn.push(drawnBox(e)); }
       if (glList) GLR.listDepth(e._key + (big(e) ? 2 : e.kind === 'tree' ? 14 : e.kind === 'cliff' ? 16 : 10 + craterSink(...hillAt(e))));
+      if (fastCliff && e.kind === 'cliff') {
+        if (!scr) { scrUp = lv.upright; lv.upright = false; lv.setTransform(1, 0, 0, 1, 0, 0); scr = true; }
+        drawCliffAt(lv, e, WM); lap('bld'); continue;
+      }
+      toList();
       if (e.kind === 'tree') { drawTree(lv, e); lap('tree'); DP.nTree++; continue; }   // (lifted in drawTree)
       const [hx, hy] = hillAt(e);
       onHill(lv, hx, hy, () => drawOne(e, lv));
     }
+    toList();
     // gl.js (stage 3): the recording goes on past the list: smoke, blasts, the edge's haze, shots, effects and aircraft are
     // WebGL quads too (shots and effects tested against the ground's depth at their spot), the frame put into the view after them.
     const glDepth = glList ? (d) => GLR.listDepth(d) : () => {};
@@ -990,8 +1064,16 @@ function draw() {
       }
       // Selection brackets and health bars.
       const selSet = new Set(G.selection);   // (a big selection: includes() for every thing in view added up)
+      // (one pass over the things: the research, capture and PRIMARY bars below are picked out here and drawn after, in
+      // the same order as before, when each had a pass of its own)
+      const rs = G.teams[G.me].research, techs = [], caps = [], prims = [];
       for (const e of G.entities) {
         if (!inView(e) || !visibleToPlayer(e)) continue;
+        if (e.kind === 'bld' && e.alive) {
+          if (rs && e.type === 'tech' && e.team === G.me && e.buildT >= 1) techs.push(e);
+          if (e.capture > 0) caps.push(e);
+          if (e.primary && e.team === G.me) prims.push(e);
+        }
         const sel = selSet.has(e);
         const recent = G.t - e.hitT < 3;
         if (e.rank && e.kind === 'unit') drawRank(v, e);
@@ -1009,23 +1091,20 @@ function draw() {
       }
 
       // Research under way: a bar under each of this side's Tech Centers.
-      const rs = G.teams[G.me].research;
-      if (rs) for (const e of G.entities) {
-        if (!e.alive || e.kind !== 'bld' || e.type !== 'tech' || e.team !== G.me || e.buildT < 1 || !inView(e)) continue;
+      for (const e of techs) {
         const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3));
         v.fillStyle = 'rgba(0,0,0,0.7)'; v.fillRect(tx - 21, ty - 3, 42, 6);
         v.fillStyle = rs.stalled ? '#c98a2a' : '#5ab0ff'; v.fillRect(tx - 20, ty - 2, 40 * rs.progress, 4);
       }
       // A Construction Yard being captured (world.js CAPTURE_CY): a yellow bar over it, for both sides.
-      for (const e of G.entities) {
-        if (!e.alive || e.kind !== 'bld' || !(e.capture > 0) || !inView(e) || !visibleToPlayer(e)) continue;
+      for (const e of caps) {
         const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 10));
         v.fillStyle = 'rgba(0,0,0,0.75)'; v.fillRect(tx - 23, ty - 4, 46, 8);
         v.fillStyle = Math.floor(G.t * 4) % 2 ? '#ffd23e' : '#f2a020'; v.fillRect(tx - 22, ty - 3, 44 * e.capture, 6);
       }
       // PRIMARY over the building new units come out of, when there is more than one of its type.
-      for (const e of G.entities) {
-        if (!e.alive || !e.primary || e.kind !== 'bld' || e.team !== G.me || !inView(e) || producersOfType(e).length < 2) continue;
+      for (const e of prims) {
+        if (producersOfType(e).length < 2) continue;
         const [tx, ty] = toView(...hillPt(e.cx * CELL + e.w * CELL / 2, e.cy * CELL + e.h * CELL - 3));
         v.font = 'bold 7px monospace'; v.textAlign = 'center'; v.textBaseline = 'middle';
         v.fillStyle = 'rgba(0,0,0,0.65)'; v.fillRect(tx - 18, ty - 4.5, 36, 9);
@@ -1066,7 +1145,9 @@ function draw() {
     // searchlights, the pools by night, the storm's darkening, rain and snow, lightning (the 2D way draws them on the screen
     // after the view: see below, skipped when GLR.lit).
     if (glList) { const kk = cam.z * DPR, dnMap = MAPS[validMap(G.mapId)].daynight, still = G.paused || !!G.over;
+      lap('air');   // aircraft and birds
       GLR.listEnd(realV, { vx, vy, cam: [vx, vy], sw: view.width, sh: view.height, over: (g) => {   // (the look's light over the view canvas, as the 2D way now draws it)
+        lap('gpu');   // gl.js: the recorded frame handed to WebGL (flush, scene) and its light pass
         const night = dayNight(G.t).night, near = (x, y, m) => x > vx - m && y > vy - m && x < vx + VW + m && y < vy + VH + m;
         if (LOOK.light && !dnMap && LOOK.lamps) drawLamps(g, vx, vy, 1, G.t, near);
         if (dnMap) {
@@ -1077,9 +1158,12 @@ function draw() {
         lookStorm.dark(g);
         if (wx) drawWeather(g, wx, vx, vy, VW, VH, 1, G.t, still);
         lookStorm.flash(g, 1, still, vx, vy);
+        lap('wthr');   // lamps, night lights, storm, rain and snow
         v = g; toWorld(); v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over';
         try { hud(); } finally { v = realV; }
+        lap('bars');   // bars, labels, shroud and placement
       } });
+      lap('gpu');   // (what went over the light, drawn into the lit frame)
       v = realV;
       toWorld(); v.imageSmoothingEnabled = false; v.globalAlpha = 1; v.globalCompositeOperation = 'source-over'; }
 
@@ -1310,12 +1394,22 @@ function draw() {
   let lastTap = null;
   // Attack ground (the ATTACK GROUND button): aimSpan holds the units waiting for the next tap, which orders them to
   // fire at that spot, or at the bridge span there (world.js commandAttackGround).
-  let aimSpan = null, spanSig = '', wallArmed = null;
+  let aimSpan = null, spanSig = '', wallArmed = null, aimMove = false;
+  function setAimMove(on) { aimMove = !!on; ui.autoBtn.classList.toggle('amove', aimMove); }
   const WALL_SELL_GAP = 600;   // ms: a second tap on your own wall sooner than this is part of a double tap, not a confirmation
   function tap(sx, sy, shift) {
     if (!G || G.over) return;
     const w = s2w(sx, sy);
     if (G.place) { placeTap(w); return; }
+    if (aimMove) {   // Attack move (picked under the AUTO button): this tap is the spot; one trip, then it is off again
+      setAimMove(false);
+      const units = G.entities.filter((e) => e.kind === 'unit' && e.team === G.me && canAttackMove(e));
+      if (!units.length) { evaCalm('No units to send', 3); return; }
+      commandAttackMove(units, w.x, w.y);
+      marker(w.x, w.y, '#ff4a3a'); Sound.ack(units[0].cls === 'inf' ? 'attack' : units[0].cls);
+      eva('Attack move');
+      return;
+    }
     if (aimSpan) {
       const units = aimSpan.filter((u) => u.alive), hit = pick(w.x, w.y, (isTouch ? 16 : 6) / cam.z);
       aimSpan = null;
@@ -1550,8 +1644,10 @@ function draw() {
           const team = G.teams[G.me], blds = buildingsOf(team.id), W = (x, y) => inMap(x, y) && G.wall[idx(x, y)] > 0, fits = ([dx, dy]) => [-1, 0, 1].every((k) => inMap(cx + k * dx, cy + k * dy) && gateCellOk(team, idx(cx + k * dx, cy + k * dy), blds));
           const own = (x, y) => inMap(x, y) && ownPiece(team, idx(x, y));
           // Your own wall under the tap: the way it runs on from here; else a gap with wall two cells off either side.
-          const runs = DIRS.findIndex(([dx, dy]) => own(cx - dx, cy - dy) || own(cx + dx, cy + dy));
-          const gap = DIRS.findIndex(([dx, dy]) => W(cx - 2 * dx, cy - 2 * dy) || W(cx + 2 * dx, cy + 2 * dy));
+          // (Wall on both sides first, so on a bend it lies along the wall, not off it into the open.)
+          const first = (f) => { const i = DIRS.findIndex((d) => f(d, true)); return i >= 0 ? i : DIRS.findIndex((d) => f(d, false)); };
+          const runs = first(([dx, dy], both) => (both ? own(cx - dx, cy - dy) && own(cx + dx, cy + dy) : own(cx - dx, cy - dy) || own(cx + dx, cy + dy)));
+          const gap = first(([dx, dy], both) => (both ? W(cx - 2 * dx, cy - 2 * dy) && W(cx + 2 * dx, cy + 2 * dy) : W(cx - 2 * dx, cy - 2 * dy) || W(cx + 2 * dx, cy + 2 * dy)));
           p.dir = own(cx, cy) && runs >= 0 ? runs : gap >= 0 ? gap : Math.max(0, DIRS.findIndex(fits));
           p.ax = cx; p.ay = cy;
         }
@@ -1658,7 +1754,7 @@ function draw() {
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const p = local(e), w = { x: cam.x + p.x / cam.z, y: cam.y + p.y / cam.z };   // (on the view plane)
-    cam.z = snapZ(cam.z + Math.sign(-e.deltaY) * Math.max(1 / ZDPR, cam.z * 0.12));
+    cam.z = snapZ(cam.z + Math.sign(-e.deltaY) * wheelStep(cam.z));
     cam.x = w.x - p.x / cam.z; cam.y = w.y - p.y / cam.z;
     clampCam();
   }, { passive: false });
@@ -1811,14 +1907,13 @@ function draw() {
   ui.autoBtn.addEventListener('click', () => {
     if (!G) return;
     const team = G.teams[G.me];
-    // A team game with more than one enemy side: a picker says whom to attack.
-    if (G.teams.filter((t) => hostile(team.id, t.id)).length > 1) { autoPicker(team); return; }
-    if (!team.auto && !enemyBaseKnown()) { evaCalm('Enemy base not located', 4); return; }   // scout it first
-    setAuto(team, !team.auto);
-    ui.autoBtn.setAttribute('aria-pressed', String(team.auto));
-    if (team.auto) {
-      eva('Auto attack on');
-    } else eva('Auto attack off. New units guard the base');
+    if (aimMove) { setAimMove(false); evaCalm('Attack move cancelled', 3); return; }   // waiting for the spot: a second press calls it off
+    // On with one enemy side: a press turns it off. Otherwise a picker: Auto Attack (whom to attack, in a team game
+    // with more than one enemy side) or a one-off Attack move.
+    if (team.auto && G.teams.filter((t) => hostile(team.id, t.id)).length === 1) {
+      setAuto(team, false); ui.autoBtn.setAttribute('aria-pressed', 'false'); eva('Auto attack off. New units guard the base'); return;
+    }
+    autoPicker(team);
   });
   // The Auto Attack picker (team games): each enemy side by colour and name, only those whose base this
   // side has found (scouted) can be picked; "Nearest" leaves the choice to the units, as before.
@@ -1837,6 +1932,7 @@ function draw() {
         pickerEl.hidden = true;
         if (!G || G.over) return;
         const me = G.teams[G.me], v = b.dataset.pick;
+        if (v === 'amove') { setAimMove(true); evaCalm('Tap the map: every unit attack-moves there', 5); return; }
         if (v === 'off') { setAuto(me, false); eva('Auto attack off. New units guard the base'); }
         else if (v === 'near') { setAuto(me, true, null); eva('Auto attack on'); }
         else if (v !== 'cancel') { const t = G.teams[+v]; setAuto(me, true, t.id); eva(`Auto attack on: ${sideLabel(t)}`); }
@@ -1852,11 +1948,12 @@ function draw() {
       return `<button type="button" class="pf-btn ap-row${cur === String(t.id) ? ' on' : ''}" data-pick="${t.id}"${known ? '' : ' disabled'}>`
         + `<i style="background:${sideColour(t)}"></i>${esc(sideLabel(t))}${note ? `<small>${note}</small>` : ''}</button>`;
     };
-    const any = enemyBaseKnown(team.id);
-    pickerEl.innerHTML = '<div class="nw-card" role="dialog" aria-label="Auto attack"><p class="nw-title">Auto attack</p>'
-      + `<p class="nw-sub">${any ? 'Choose the enemy to attack.' : 'No enemy base located yet: scout first.'}</p><div class="ap-list">`
-      + foes.map(row).join('')
-      + `<button type="button" class="pf-btn ap-row${cur === 'near' ? ' on' : ''}" data-pick="near"${any ? '' : ' disabled'}><i class="ap-any"></i>Nearest enemy</button>`
+    const any = enemyBaseKnown(team.id), one = foes.length === 1;
+    pickerEl.innerHTML = '<div class="nw-card" role="dialog" aria-label="Auto attack"><p class="nw-title">Attack</p>'
+      + `<p class="nw-sub">${one ? 'Auto attack keeps sending units; Attack move sends them all once.' : any ? 'Choose the enemy to attack.' : 'No enemy base located yet: scout first.'}</p><div class="ap-list">`
+      + (one ? '' : foes.map(row).join(''))
+      + `<button type="button" class="pf-btn ap-row${cur === 'near' ? ' on' : ''}" data-pick="near"${any ? '' : ' disabled'}><i class="ap-any"></i>${one ? 'Auto attack' : 'Nearest enemy'}${any ? '' : '<small>Not scouted</small>'}</button>`
+      + '<button type="button" class="pf-btn ap-row" data-pick="amove"><i class="ap-move"></i>Attack move<small>Tap a spot, once</small></button>'
       + (team.auto ? '<button type="button" class="pf-btn ap-row" data-pick="off">Auto attack off</button>' : '')
       + '<button type="button" class="pf-btn ap-row ap-cancel" data-pick="cancel">Cancel</button></div></div>';
     pickerEl.hidden = false;
@@ -2151,11 +2248,18 @@ function draw() {
   // ---------------------------------------------------------------------------
   // Menus
   // ---------------------------------------------------------------------------
+  // The menu's pages: main (the command buttons), options (sound, graphics), info (credits, briefing).
+  // The side and difficulty pickers live on the skirmish screen (MapSelect puts them in its setup slot).
+  const setupEl = $('skirmishSetup');
+  function menuView(v) { ui.menu.dataset.view = v; ui.menu.scrollTop = 0; }
+  for (const b of ui.menu.querySelectorAll('button[data-view]')) b.addEventListener('click', () => menuView(b.dataset.view));
   function showMenu(mode) {
     ui.menu.hidden = false;
     ui.menu.dataset.mode = mode;
+    menuView('main');
     ui.resumeBtn.hidden = mode !== 'pause';
     ui.quitBtn.hidden = mode !== 'pause';
+    $('editorBtn').hidden = mode === 'pause';   // (testing a map from the editor would end the battle)
     $('saveQuitBtn').hidden = mode !== 'pause' || !Net.canSave;
     syncMapView(mode);
     disarmQuit();
@@ -2163,7 +2267,7 @@ function draw() {
     ui.menu.dataset.mode = mode;
     if (mode === 'pause') autosave();
     showContinue();
-    if (mode === 'start') { ui.menuTitle.textContent = 'Red Horizon'; ui.menuSub.textContent = 'Choose your side, commander.'; ui.startBtn.textContent = 'Skirmish'; }
+    if (mode === 'start') { ui.menuTitle.textContent = 'Red Horizon'; ui.menuSub.textContent = 'Welcome back, Commander.'; ui.startBtn.textContent = 'Skirmish'; }
     if (mode === 'pause') { ui.menuTitle.textContent = 'Paused'; ui.menuSub.textContent = 'Mission time ' + fmt(G.t); ui.startBtn.textContent = 'New skirmish'; }
     if (mode === 'pause' && Net.role) { ui.menuTitle.textContent = 'Menu'; ui.menuSub.textContent = 'Online: the battle goes on while this menu is open.'; }
     syncMenuChoices();
@@ -2176,6 +2280,47 @@ function draw() {
     syncMenuChoices();
   });
   $('fpsBtn').addEventListener('click', () => { full60 = !full60; try { localStorage.setItem('rh-full60', full60 ? '1' : ''); } catch (_) {} syncMenuChoices(); });
+  // HD graphics (art.js HD): kept in rh-hd, used from the next launch (the sheets and the frame's size are chosen at load).
+  // From the start menu, with no battle running, the game reloads at once.
+  $('hdBtn').addEventListener('click', () => {
+    HD.pref = !HD.pref;
+    try { localStorage.setItem('rh-hd', HD.pref ? '1' : ''); } catch (_) {}
+    if (!G || G.over) { location.reload(); return; }
+    syncMenuChoices();
+  });
+  // HD ground (art.js HD.ground, GK): the ground painted at twice the detail with HD on; on by default on a computer, off on a
+  // phone (rh-hd-ground '1' / '0'). Chosen at launch, as HD graphics.
+  $('hdGroundBtn').addEventListener('click', () => {
+    HD.groundPref = !HD.groundPref;
+    try { localStorage.setItem('rh-hd-ground', HD.groundPref ? '1' : '0'); } catch (_) {}
+    if (HD.pref && (!G || G.over)) { location.reload(); return; }
+    syncMenuChoices();
+  });
+  function syncHd() {
+    const g = $('hdGroundBtn');
+    g.hidden = $('hdGroundStatus').hidden = !HD.pref;
+    g.setAttribute('aria-pressed', String(HD.groundPref));
+    g.textContent = 'HD ground: ' + (HD.groundPref ? 'on' : 'off');
+    $('hdGroundStatus').textContent = HD.groundPref !== HD.ground && HD.on ? 'Takes effect the next time the game opens.'
+      : HD.groundPref ? (HD.phone ? 'Sharper ground. Test: uses four times the memory for the ground; if the game reloads in a battle, turn it off.' : 'The ground at twice the detail.')
+      : 'The ground at the classic detail (less memory).';
+    const b = $('hdBtn'), gl2 = typeof WebGL2RenderingContext !== 'undefined';
+    b.setAttribute('aria-pressed', String(HD.pref));
+    b.textContent = 'HD graphics: ' + (HD.pref ? 'on' : 'off');
+    $('hdStatus').textContent = !gl2 ? 'Needs WebGL 2, which this device does not have.'
+      : HD.pref !== HD.on ? 'Takes effect the next time the game opens.'
+      : HD.on ? 'Sharp, smooth units and buildings. Uses more graphics power and memory.' : 'Classic pixel look.';
+  }
+  // Full screen (the PC and Mac app only: preload.js rhDesktop.fullScreen; an older app without it shows no button). The app
+  // remembers it and opens that way; F11 switches it too, and the button follows.
+  if (window.rhDesktop && rhDesktop.fullScreen) {
+    const fb = $('fullBtn');
+    const show = (on) => { fb.setAttribute('aria-pressed', String(on)); fb.textContent = 'Full screen: ' + (on ? 'on' : 'off'); };
+    fb.hidden = $('fullStatus').hidden = false;
+    fb.addEventListener('click', () => rhDesktop.fullScreen(fb.getAttribute('aria-pressed') !== 'true').then(show, () => {}));
+    if (rhDesktop.onFullScreen) rhDesktop.onFullScreen(show);
+    rhDesktop.fullScreen().then(show, () => {});
+  }
   function syncFps() {
     const b = $('fpsBtn');
     b.setAttribute('aria-pressed', String(full60));
@@ -2194,9 +2339,9 @@ function draw() {
     for (const b of ui.menu.querySelectorAll('[data-audio]')) b.setAttribute('aria-pressed', String(!!Sound.settings[b.dataset.audio]));
     $('trackName').textContent = '· ' + Sound.music.name;
     $('audioStatus').textContent = 'Sound: ' + Sound.status();
-    syncFps();
-    for (const b of ui.menu.querySelectorAll('[data-faction]')) b.setAttribute('aria-pressed', String(b.dataset.faction === faction));
-    for (const b of ui.menu.querySelectorAll('[data-diff]')) b.setAttribute('aria-pressed', String(b.dataset.diff === diffKey));
+    syncFps(); syncHd();
+    for (const b of setupEl.querySelectorAll('[data-faction]')) b.setAttribute('aria-pressed', String(b.dataset.faction === faction));
+    for (const b of setupEl.querySelectorAll('[data-diff]')) b.setAttribute('aria-pressed', String(b.dataset.diff === diffKey));
     ui.menu.dataset.faction = faction;
   }
   const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
@@ -2221,20 +2366,52 @@ function draw() {
     continueMission().finally(() => { b.disabled = false; showContinue(); });
   });
   // Skirmish opens the map screen first; starting from there builds the battle.
-  ui.startBtn.addEventListener('click', () => {
-    MapSelect.open(mapId, (id, mode, watch) => {
+  // (the map editor, editor.js: Play opens this screen on its map, Explore goes straight in)
+  const openSkirmish = (sel) => {
+    if (sel) mapId = sel;
+    MapSelect.open(mapId, battleMode, setupEl, (id, mode, watch) => {
       mapId = id; battleMode = mode || '1v1';
       ui.startBtn.textContent = 'Loading…';
       ui.startBtn.disabled = true;
       setTimeout(() => {
         endPlace();
-        if (watch && Account.owner) startWatch(); else startMission();
+        if (watch === 'explore') startExplore(); else if (watch && Account.owner) startWatch(); else startMission();
         ui.startBtn.disabled = false;
         hideMenu();
         if (!G.spectate) eva('Select a structure to build');
       }, 30);
     });
-  });
+  };
+  ui.startBtn.addEventListener('click', () => openSkirmish());
+  window.EditorHooks = {
+    play: (id) => openSkirmish(id),   // (opened from the menu, which stays up under it)
+    explore: (id) => { mapId = id; endPlace(); startExplore(); hideMenu(); },
+    // The editor's real view: the map built as in a battle (empty, no fog, seed 1 so a plot's houses stay put while
+    // editing), rebuilt after each change with the camera kept. G.editing: no Loading card (the ground streams in).
+    live(id) {
+      const keep = G && G.editing ? { x: cam.x, y: cam.y, z: cam.z } : null, was = G && G.editing ? G : null;
+      Net.leave();
+      if (mission) Report.quit();
+      endPlace();
+      newWorld(faction, diffKey, 1, 0, false, id, null, true);
+      online = null; mission = false;
+      G.spectate = true; G.mapViewUsed = true; G.speed = 1; G.weather = null; G.editing = true;
+      G.editMap = [mapTheme(id), MAPS[id].bridge || '', MAPS[id].bridgeW || 0, MAPS[id].mesas || []];   // (editorCarry)
+      G.seen = new Uint8Array(NCELLS).fill(1); for (const f of G.fog) f.fill(1);
+      afterNewWorld(faction);
+      if (was) try { this.carried = editorCarry(was, G); } catch (err) { this.carried = null; }   // (art.js: the unchanged ground and crags kept)
+      if (keep) Object.assign(cam, keep); else { cam.z = 1; centerOn(WORLD / 2, WORLD / 2); }
+      clampCam();
+      hideMenu();
+    },
+    leave() { endPlace(); startGame(); showMenu('start'); },
+    rect: () => canvas.getBoundingClientRect(),
+    s2w: (sx, sy) => s2w(sx, sy),   // canvas px -> world px on the ground
+    w2s(x, y) { const [vx, vy] = toView(...hillPt(x, y)); return [(vx - cam.x) * cam.z, (vy - cam.y) * cam.z]; },
+    panBy(dx, dy) { cam.x -= dx / cam.z; cam.y -= dy / cam.z; clampCam(); },
+    zoom: () => cam.z,
+    zoomTo(sx, sy, z) { const wx = cam.x + sx / cam.z, wy = cam.y + sy / cam.z; cam.z = snapZ(z); cam.x = wx - sx / cam.z; cam.y = wy - sy / cam.z; clampCam(); },   // (z wanted: the editor keeps it, as snapZ steps it)
+  };
   ui.resumeBtn.addEventListener('click', hideMenu);
   // Map view (the owner's tool for tuning maps, 2026-11-21): the whole map shown, starting places and
   // every unit, in a skirmish only. The button shows only to the owner's account; a match where it was
@@ -2360,7 +2537,7 @@ function draw() {
   let loadFor = null, loadEl = null, stillKey = null;
   let splashEl = document.getElementById('splash'), splashOk = 0, splashLast = 0;
   function loading(now) {
-    if (!G || G.paused || G.over) return false;
+    if (!G || G.paused || G.over || G.editing) return false;
     if (!loadFor || loadFor.g !== G) loadFor = { g: G, since: now, done: false, at: now, slow: -1e9, nSlow: 0 };
     if (typeof GLR === 'object' && GLR) GLR.probe = !loadFor.done || now - loadFor.doneAt < 5000;   // (gl.js sync: where a freeze is)
     if (loadFor.done) return false;
@@ -2426,8 +2603,11 @@ function draw() {
     // A battle paused under the menu (and the one behind the start menu) does not change: it is drawn once and kept on the
     // screen until the menu closes, the screen changes size or the camera moves. Redrawn every frame with WebGL, it kept
     // the owner's iPhone's graphics busy and the menus slow to answer.
-    const still = !!(G && G.paused && !Net.role && !ui.menu.hidden), key = still ? `${W}x${H}x${DPR}:${cam.x},${cam.y},${cam.z}` : null;
-    if (still && stillKey === key) { /* (the last frame stays on the screen) */ }
+    // The start menu is a screen of its own (owner, 2026-11-24: "dont have the battle drawn in the background"): the
+    // battle made behind it is not drawn at all until a game starts.
+    const offstage = !!(G && !ui.menu.hidden && ui.menu.dataset.mode === 'start');
+    const still = offstage || !!(G && G.paused && !Net.role && !ui.menu.hidden), key = still && !offstage ? `${W}x${H}x${DPR}:${cam.x},${cam.y},${cam.z}` : null;
+    if (offstage || (still && stillKey === key)) { /* (the last frame stays on the screen, or none under the start menu) */ }
     else try { if (G && Net.role !== 'guest' && !G.paused) guard('smooth', () => Smooth.apply(stepAcc / STEP)); guard('draw', draw); } finally { Smooth.restore(); }
     stillKey = key;
     // The loading screen (index.html) goes once the start menu answers: the battle behind it drawn, then 20 frames in a

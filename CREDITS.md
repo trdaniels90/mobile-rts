@@ -25,8 +25,7 @@ Sounds are trimmed, pitched, mixed, filtered and level-matched for the game by
 
 ## Recorded track
 
-"Industry", "War", "Smash", "Rain", "Airstrike" and "Roll" (`music/*.mp3`) are recorded pieces supplied by the owner, converted to a
-96 kbps MP3 and level-matched with ffmpeg. They are currently the whole soundtrack.
+The game has no soundtrack since 2026-11-25: the owner's recorded tracks (Industry, War, Smash, Rain, Airstrike, Roll) were removed.
 
 ## Music instruments
 

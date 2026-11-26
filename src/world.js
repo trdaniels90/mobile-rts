@@ -28,7 +28,8 @@ let hooks = { eva() {}, evaFor() {}, gameOver() {}, sfx() {}, shake() {} };
 // sides (optional, for team games): one entry per side, { faction, ally, ai, name }. Sides with the
 // same `ally` fight together and share what they have uncovered (their G.fog entries are one array).
 // Without it: the classic 1 v 1, this device's side (me) against the computer (or, pvp, a person).
-function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId = DEFAULT_MAP, sides = null) {
+// empty: the map explorer (ui.js startExplore): no starting bases or units, and no battle to win or lose (G.explore).
+function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId = DEFAULT_MAP, sides = null, empty = false) {
   seed = seed || (Math.random() * 1e9) | 0;
   mapId = validMap(mapId);
   setMapSize(mapSize(mapId));
@@ -89,7 +90,8 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
   newGround(G);
   G.weather = rollWeather(mapId, seed);   // rain or snow for this battle, or none (looks only; art.js drawWeather)
 
-  for (const team of G.teams) {
+  if (empty) { G.explore = true; for (const t of G.teams) t.isAI = false; }
+  else for (const team of G.teams) {
     const b = addBuilding('cy', team, team.start.cx - 1, team.start.cy - 1);
     b.buildT = 1;
     const a = Math.atan2(MID - team.start.cy, MID - team.start.cx);   // out toward the middle
@@ -199,6 +201,7 @@ function makeHeights(mapId) {
   // A map with `plateau` (Heron Fen): every base on a high plateau, flat out to r cells, falling to the low ground over
   // ease (its cliffs and ramps are in the layout); the low ground only gentle swells (low x the usual hills).
   const pl = MAPS[validMap(mapId)].plateau;
+  const mesas = MAPS[validMap(mapId)].mesas || [];
   for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
     const c = y * MAP + x;
     let v = raw(x + 0.5, y + 0.5);
@@ -206,6 +209,15 @@ function makeHeights(mapId) {
       v *= pl.low;
       for (const p of sp) { const d = Math.hypot(x - p.cx, y - p.cy); v = Math.max(v, HG_MAX * (1 - S(Math.max(0, Math.min(1, (d - pl.r) / pl.ease))))); }
     } else for (const [fx, fy, fh] of flat) { const d = Math.hypot(x + 0.5 - fx, y + 0.5 - fy); if (d < BASE_FLAT + BASE_EASE) { const k = S(Math.max(0, Math.min(1, (d - BASE_FLAT) / BASE_EASE))); v = fh + (v - fh) * k; } }
+    for (const m of mesas) {   // a map's `mesas`: high ground ringed by cliff, with a ramp (Lakeside)
+      const dx = x + 0.5 - m.x, dy = y + 0.5 - m.y, d = Math.hypot(dx, dy);
+      const T = HG_MAX * (m.h || 1);   // the top's height
+      v *= S(Math.max(0, Math.min(1, (d - m.r) / 6)));   // the low ground round its foot level, so its walls are as tall all round
+      v = Math.max(v, T * (1 - S(Math.max(0, Math.min(1, (d - m.top) / (m.r - m.top))))));   // sheer: down under the rim's rock
+      const along = dx * m.ramp[0] + dy * m.ramp[1], across = Math.abs(-dx * m.ramp[1] + dy * m.ramp[0]);
+      if (along > 0) v = Math.max(v, T * (1 - S(Math.max(0, Math.min(1, (along - m.top) / m.rampLen))))
+        * (1 - S(Math.max(0, Math.min(1, (across - m.rampW) / 2)))));
+    }
     v *= S(Math.min(1, (wd[c] === 255 ? 6 : wd[c]) / 5));   // down to the water's edge
     h[c] = G.terr[c] >= 4 ? 0 : v;
   }
@@ -511,6 +523,25 @@ function genLayoutMap(m) {
     if (!wet) fordOff.push(c);
   }
   if (!m.marsh) for (const c of fordOff) { G.ford[c] = 0; T[c] = 1; }   // (a fen's shallows stay wherever they are)
+  // Bridges no wider than m.bridgeW cells (Lakeside, owner 2026-11-24: "these two bridges are huge they need to be smaller"):
+  // each run of deck cells keeps a band that wide along its main axis (as the bridge is drawn below); the rest is lake.
+  if (m.bridgeW) {
+    const seen = new Uint8Array(NCELLS);
+    for (let c0 = 0; c0 < NCELLS; c0++) {
+      if (T[c0] !== 5 || G.ford[c0] || seen[c0]) continue;
+      const cells = [c0]; seen[c0] = 1;
+      for (let i = 0; i < cells.length; i++) for (const [dx, dy] of DIRS8) {
+        const x = cellX(cells[i]) + dx, y = cellY(cells[i]) + dy;
+        if (inMap(x, y) && T[idx(x, y)] === 5 && !G.ford[idx(x, y)] && !seen[idx(x, y)]) { seen[idx(x, y)] = 1; cells.push(idx(x, y)); }
+      }
+      const xs = cells.map(cellX), ys = cells.map(cellY), mx = xs.reduce((s, v) => s + v, 0) / xs.length, my = ys.reduce((s, v) => s + v, 0) / ys.length;
+      let sxx = 0, syy = 0, sxy = 0;
+      xs.forEach((x, i) => { sxx += (x - mx) ** 2; syy += (ys[i] - my) ** 2; sxy += (x - mx) * (ys[i] - my); });
+      const ang = Math.atan2(2 * sxy, sxx - syy) / 2, ux = Math.cos(ang), uy = Math.sin(ang);
+      const across = xs.map((x, i) => -(x - mx) * uy + (ys[i] - my) * ux), mid = (Math.max(...across) + Math.min(...across)) / 2;
+      cells.forEach((c, i) => { if (Math.abs(across[i] - mid) > m.bridgeW / 2) T[c] = 4; });
+    }
+  }
   // Ground cleared for each start position's Construction Yard.
   for (const s of G.spawns) for (let y = s.cy - 3; y <= s.cy + 3; y++) for (let x = s.cx - 3; x <= s.cx + 3; x++) {
     if (inMap(x, y) && Math.hypot(x - s.cx, y - s.cy) < 3.2 && T[idx(x, y)] <= 3) T[idx(x, y)] = 1;
@@ -688,12 +719,16 @@ function wallLine(kind, x0, y0, x1, y1) {
     const dx = ay > ax ? 0 : Math.sign(x1 - x0) || 1, dy = ay < ax ? 0 : Math.sign(y1 - y0);
     return inMap(x0 - dx, y0 - dy) && inMap(x0 + dx, y0 + dy) ? [idx(x0 - dx, y0 - dy), idx(x0, y0), idx(x0 + dx, y0 + dy)] : [];
   }
-  // A slanted line steps diagonally where it must (one piece a step, so a diagonal wall looks straight in the iso view):
-  // nothing slips between two pieces that touch at a corner (findPath, tryMove and los treat such a corner as shut).
-  const out = [], n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+  // A slanted line is laid as two straight runs, a diagonal one and a straight one, the longer first: mixing the two kinds of
+  // step along the way drew a saw-tooth in the iso view. One piece a step; nothing slips between two pieces that touch at a
+  // corner (findPath, tryMove and los treat such a corner as shut).
+  const out = [], ax = Math.abs(x1 - x0), ay = Math.abs(y1 - y0), sx = Math.sign(x1 - x0), sy = Math.sign(y1 - y0);
+  const nd = Math.min(ax, ay), ns = Math.max(ax, ay) - nd, st = ax > ay ? [sx, 0] : [0, sy];
+  const runs = nd >= ns ? [[[sx, sy], nd], [st, ns]] : [[st, ns], [[sx, sy], nd]];
   const add = (x, y) => { if (out.length < WALL_LINE_MAX && inMap(x, y)) out.push(idx(x, y)); };
-  add(x0, y0);
-  for (let i = 1; i <= n; i++) add(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n));
+  let x = x0, y = y0;
+  add(x, y);
+  for (const [[dx, dy], n] of runs) for (let i = 0; i < n; i++) { x += dx; y += dy; add(x, y); }
   return out;
 }
 // A gate may also be laid over pieces of the side's own wall (sandbags, wire, concrete; not another gate), so a player
@@ -977,7 +1012,8 @@ function applySpans(list) {
 const HOUSE_SPLASH = 12;   // px round a shell, rocket or missile hitting the ground that reaches a house
 const HOUSE_LOOKS = 6;     // designs per footprint in a battle (models.js houseModel), so a village has a few dozen looks
 function genVillage(m, seed) {
-  if (!m.village || !m.lots) return;
+  if (!m.village || !(m.lots || m.houses)) return;
+  const lots = m.lots || [];
   const r = rng(seed ^ 0x1f0a77e5), taken = new Uint8Array(NCELLS), look = () => (seed * 31 + ((r() * HOUSE_LOOKS) | 0)) >>> 0;
   const free = (x0, y0, w, h, L) => {
     if (x0 < L[0] || y0 < L[1] || x0 + w - 1 > L[2] || y0 + h - 1 > L[3]) return false;
@@ -998,20 +1034,24 @@ function genVillage(m, seed) {
     G.houses.push(h1); G.byId.set(h1.id, h1);
     setHouse(h1, true);
   };
+  // Houses placed one by one (maps made in the map editor, editor.js): [x0, y0, w, h, kind] (kind 'house', 'church0',
+  // 'church1' (the tower's end), 'fountain'), where they fit (on open ground, not overlapping).
+  const fits = (x0, y0, w, h) => { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) if (!inMap(x, y) || taken[idx(x, y)] || G.terr[idx(x, y)] > 1 || G.ore[idx(x, y)]) return false; return true; };
+  for (const [x0, y0, w, h, kind] of m.houses || []) if (fits(x0, y0, w, h)) put(x0, y0, w, h, kind || 'house');
   // The fountain in the middle of each square.
   for (const [a, b, c, d] of villageSquares(m)) put(Math.round((a + c + 1) / 2) - 2, Math.round((b + d + 1) / 2) - 2, 4, 4, 'fountain');
   // The church: on one of the long plots beside the square, its tower toward the square. A map of several villages
   // (`squares`) has one in each, on a plot of 4 x 6 or more within 3 cells of its square, lying along the plot.
   if (m.squares) for (const [a, b, c, d] of m.squares) {
     const sx = (a + c + 1) / 2, sy = (b + d + 1) / 2, gap = (L) => Math.max(a - L[2], L[0] - c, b - L[3], L[1] - d, 0);
-    const fit = m.lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) >= 3 && Math.max(L[2] - L[0], L[3] - L[1]) >= 5 && gap(L) <= 3);
+    const fit = lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) >= 3 && Math.max(L[2] - L[0], L[3] - L[1]) >= 5 && gap(L) <= 3);
     if (!fit.length) continue;
     const L = fit[(r() * fit.length) | 0], tall = L[3] - L[1] > L[2] - L[0];
     const w = tall ? 4 : 6, h = tall ? 6 : 4, mx = (L[0] + L[2] + 1) / 2, my = (L[1] + L[3] + 1) / 2, near = tall ? my < sy : mx < sx;
     const x0 = tall ? L[0] + ((L[2] - L[0] + 1 - w) >> 1) : near ? L[2] - w + 1 : L[0], y0 = tall ? (near ? L[3] - h + 1 : L[1]) : L[1] + ((L[3] - L[1] + 1 - h) >> 1);
     if (free(x0, y0, w, h, L)) put(x0, y0, w, h, 'church' + (near ? 1 : 0));
   }
-  const longLots = m.squares ? [] : m.lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) === 3);
+  const longLots = m.squares || m.houses ? [] : lots.filter((L) => Math.min(L[2] - L[0], L[3] - L[1]) === 3);
   if (longLots.length) {
     const L = longLots[(r() * longLots.length) | 0], tall = L[3] - L[1] > L[2] - L[0];
     const w = tall ? 4 : 6, h = tall ? 6 : 4, mx = (L[0] + L[2]) / 2, my = (L[1] + L[3]) / 2;
@@ -1019,7 +1059,7 @@ function genVillage(m, seed) {
     put(tall ? L[0] : toward, tall ? toward : L[1], w, h, 'church' + ((tall ? my : mx) < (MAP - 1) / 2 ? 1 : 0));
   }
   const SIZES = [[2, 2], [2, 2], [3, 2], [2, 3], [3, 2], [2, 3], [3, 3], [4, 2], [2, 4]];
-  for (const L of m.lots) {
+  for (const L of lots) {
     const fill = 0.6 + r() * 0.4, area = (L[2] - L[0] + 1) * (L[3] - L[1] + 1);
     let used = 0;
     for (let tries = 0; tries < 160 && used < area * fill * 0.8; tries++) {
@@ -1830,7 +1870,7 @@ function addUnit(type, team, x, y) {
     stuckN: 0, lastX: x, lastY: y, stuckT: 0,
   };
   u.tface = u.face; u.born = G.t;
-  if (!d.harvester && !d.scripted && type !== 'pilot') team.stats.units++;
+  if (!d.harvester && !d.scripted && type !== 'pilot' && type !== 'technician') team.stats.units++;
   if (d.harvester) { u.load = 0; u.hs = 'seek'; u.hcell = -1; u.htimer = 0; }
   if (d.cls === 'air') { u.ammo = d.weapon ? d.weapon.ammo : 0; u.aam = d.weapon2 ? d.weapon2.ammo : 0; u.guns = d.gun ? d.gun.runs : 0; u.flares = d.flares || 0; u.alt = 0; u.as = 'takeoff'; u.rt = 0; u.passT = 0; u.speedCur = 0; }
   G.entities.push(u); G.byId.set(u.id, u);
@@ -3328,6 +3368,114 @@ function updateTurret(fx, dt) {
   if (fx.down && !fx.pops.length) fx.t = fx.life;
 }
 
+// How a vehicle comes apart (looks only, both modes; owner, 2026-11-25: "rangers have their tires launched around and the
+// driver and gunner die like physics infantry"). Wheeled vehicles lose some of their wheels, which fly off tumbling, bounce,
+// roll away on their rims and fall over (updateWheel); tracked ones throw a road wheel or two and a length of track (more when
+// they cook off). Plates of the hull fly in the side's colour. The crew who sat in the open are thrown out as ragdolls:
+// the Ranger's driver and gunner (one fewer when a crewman got out alive, crewBailOut), a truck's driver now and then, a
+// tank's commander from his hatch sometimes. The wreck stays where it was (bakeWreck).
+// r: wheel radius (px), at: wheel places [forward, side], n: [fewest, most] thrown; crew: [forward, side, seat height, chance].
+const VEH_DEATH = {
+  jeep: { r: 2.5, at: [[5.5, -5], [5.5, 5], [-5.5, -5], [-5.5, 5]], n: [2, 4], crew: [[1.5, -2, 5, 1], [-2, 1.5, 8, 1]] },
+  harv: { r: 3.4, at: [[6, -6], [6, 6], [-6, -6], [-6, 6]], n: [1, 3], crew: [[6, -2, 7, 0.45]] },
+  v2: { r: 2.4, at: [[7, -5], [7, 5], [-3, -5], [-3, 5], [-8, -5], [-8, 5]], n: [1, 3], crew: [[8, -2, 6, 0.45]] },
+  fob: { r: 2.5, at: [[8, -5], [8, 5], [-2, -5], [-2, 5], [-8, -5], [-8, 5]], n: [1, 3], crew: [[9, -2, 6, 0.45]] },
+  mcv: { r: 2.6, at: [[10, -6], [10, 6], [0, -6], [0, 6], [-10, -6], [-10, 6]], n: [1, 3], crew: [[11, -2, 7, 0.45]] },
+  btr: { r: 2.7, at: [[8, -5], [8, 5], [3, -5], [3, 5], [-3, -5], [-3, 5], [-8, -5], [-8, 5]], n: [1, 3] },
+  tracked: { r: 1.5, at: [[5, -5], [5, 5], [0, -5], [0, 5], [-5, -5], [-5, 5]], n: [0, 2], track: true },
+  tank: { r: 1.5, at: [[5, -5], [5, 5], [0, -5], [0, 5], [-5, -5], [-5, 5]], n: [0, 2], track: true, crew: [[-1, -1.5, 10, 0.3]] },
+};
+function vehicleDeath(e, wh, from, cook, bailed) {
+  const d = e.def, r = Math.random;
+  const spec = d.draw === 'jeep' || d.draw === 'harv' || d.draw === 'v2' || d.draw === 'fob' || d.draw === 'mcv' ? VEH_DEATH[d.draw]
+    : e.type === 'btr' ? VEH_DEATH.btr : d.draw === 'tank' ? VEH_DEATH.tank : VEH_DEATH.tracked;
+  const big = spec.track && d.size && d.size.len ? Math.max(0.9, Math.min(1.6, d.size.len / 17)) : 1, ca = Math.cos(e.face), sa = Math.sin(e.face);
+  const away = from && (from.x !== e.x || from.y !== e.y) ? Math.atan2(e.y - from.y, e.x - from.x) : r() * Math.PI * 2;
+  const at = (f, sd) => [e.x + (f * ca - sd * sa) * big, e.y + (f * sa + sd * ca) * big];
+  // Wheels: a random few of its own, from where they were on the hull.
+  const places = spec.at.slice().sort(() => r() - 0.5), n = Math.min(places.length, spec.n[0] + Math.floor(r() * (spec.n[1] - spec.n[0] + 1)) + (cook && spec.track ? 2 : 0));
+  for (let i = 0; i < n; i++) {
+    const [f, sd] = places[i % places.length], [x, y] = at(f, sd);
+    const out = Math.atan2(y - e.y, x - e.x), a = (r() < 0.6 ? out : away) + (r() - 0.5) * 0.9, sp = 30 + r() * 60 + (cook ? 30 : 0);
+    G.effects.push({ type: 'wheel', x, y, z: spec.r * big + 1, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vz: 70 + r() * 110 + (cook ? 60 : 0),
+      r: spec.r * Math.min(1.3, big), hd: e.face, lean: 0, leanV: (r() - 0.5) * 18, yawV: (r() - 0.5) * 10, roll: 0, rolling: false, flat: false,
+      burn: r() < 0.4 ? 2 + r() * 4 : 0, smokeT: 0, t: 0, life: 16 + r() * 6 });
+  }
+  // A length of track flung off a tracked hull.
+  if (spec.track) for (let i = 0, m = (cook ? 2 : 0) + (r() < 0.6 ? 1 : 0); i < m; i++) {
+    const a = away + (r() - 0.5) * 2, sp = 25 + r() * 50;
+    G.effects.push({ type: 'frag', x: e.x + (r() - 0.5) * 8, y: e.y + (r() - 0.5) * 6, alt: 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vz: -40 - r() * 50,
+      rot: r() * 6, spin: (r() - 0.5) * 14, w: 6 + r() * 4, h: 1.6, color: '#2a2925', burning: false, t: 0, life: 14, smokeT: 0 });
+  }
+  // Plates of the hull: hatches, mudguards, panels, in the side's colour or bare steel.
+  const pal = FACTIONS[e.faction].pal;
+  for (let i = 0, m = 2 + Math.floor(r() * 3) + (cook ? 2 : 0); i < m; i++) {
+    const a = r() * Math.PI * 2, sp = 20 + r() * 60;
+    G.effects.push({ type: 'frag', x: e.x, y: e.y, alt: 4 + r() * 4, vx: Math.cos(a) * sp + Math.cos(away) * 20, vy: Math.sin(a) * sp + Math.sin(away) * 20, vz: -50 - r() * 80,
+      rot: r() * 6, spin: (r() - 0.5) * 24, w: 2.5 + r() * 3, h: 1.5 + r() * 2, color: r() < 0.65 ? pal.main || '#555' : r() < 0.5 ? pal.dark || '#3b3a36' : '#3b3a36',
+      burning: r() < 0.3, t: 0, life: 10, smokeT: 0 });
+  }
+  // The crew out in the open, thrown out by the blast. (A crewman who got out alive takes one place.)
+  if (!spec.crew || cook) return;
+  let left = bailed ? 1 : 0, cried = false;
+  for (const [f, sd, z, ch] of spec.crew) {
+    if (left > 0) { left--; continue; }
+    if (r() >= ch) continue;
+    const [x, y] = at(f, sd);
+    ragdoll({ ...e, type: 'rifle', x, y, face: e.face + (r() - 0.5) }, 'HE', from || e, { lift: z * big, burn: 0.25, quiet: cried });
+    cried = true;
+  }
+}
+// A wheel torn off: it tumbles through the air (its axle turning end over end and swinging round), bounces, then, landing on
+// its tread, rolls away on it, wobbling more as it slows, and falls over flat. Some smoke as the tyre burns.
+function updateWheel(fx, dt) {
+  const r = Math.random;
+  if (fx.burn > 0 && (fx.smokeT -= dt) <= 0) { fx.smokeT = 0.09; fx.burn -= 0.09; G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, lift: fx.z, r: 1.4 + r(), t: 0, life: 1.2, alpha: 0.5, color: '#2c2a27', vy: -8 }); }
+  if (fx.flat) return;
+  const R = fx.r, rest = () => R * Math.abs(Math.cos(fx.lean)) + 0.6 * Math.abs(Math.sin(fx.lean));
+  const moveTo = (nx, ny) => {
+    if (nx < 4 || ny < 4 || nx > WORLD - 4 || ny > WORLD - 4 || (!passableAt(nx, ny) && !(G.terr[cellOfPos(Math.max(0, Math.min(WORLD - 1, nx)), Math.max(0, Math.min(WORLD - 1, ny)))] >= 4))) {
+      fx.vx *= -0.4; fx.vy *= -0.4; return;   // off a wall, a building, a rock
+    }
+    fx.x = nx; fx.y = ny;
+  };
+  if (!fx.rolling) {
+    fx.vz -= 420 * dt; fx.z += fx.vz * dt;
+    moveTo(fx.x + fx.vx * dt, fx.y + fx.vy * dt);
+    fx.lean += fx.leanV * dt; fx.hd += fx.yawV * dt; fx.roll += 12 * dt;
+    if (fx.z > rest() || fx.vz > 0) return;
+    if (wetAt(fx.x, fx.y)) { waterSplash(fx.x, fx.y, false); fx.t = fx.life; return; }
+    fx.z = rest();
+    if (fx.vz < -45) {   // bounce
+      fx.vz *= -0.42; fx.vx *= 0.75; fx.vy *= 0.75; fx.leanV = fx.leanV * 0.6 + (r() - 0.5) * 8; fx.yawV *= 0.6;
+      G.effects.push({ type: 'smoke', x: fx.x, y: fx.y, r: 2, t: 0, life: 0.6, alpha: 0.4, color: '#8a7a62' });
+      return;
+    }
+    // Down for good: on its tread (rolls away) if near upright, else on its side.
+    fx.vz = 0;
+    const up = Math.abs(Math.cos(fx.lean));
+    if (up > 0.6 && Math.hypot(fx.vx, fx.vy) > 12) {
+      fx.rolling = true; fx.lean = Math.atan2(Math.sin(fx.lean), Math.abs(Math.cos(fx.lean))) * 0.3; fx.leanV = 0;
+      fx.hd = Math.atan2(fx.vy, fx.vx);
+    } else fx.rolling = true, fx.vx *= 0.2, fx.vy *= 0.2;
+    return;
+  }
+  // Rolling on its tread: slowed by the ground, steered by its lean, wobbling more as it slows, until it falls over.
+  let sp = Math.hypot(fx.vx, fx.vy);
+  sp = Math.max(0, sp - 22 * dt);
+  const wob = Math.max(0, 1 - sp / 50);
+  fx.leanV += (Math.sin(fx.lean) * 9 * (0.3 + wob) + (r() - 0.5) * 4 * wob) * dt;
+  fx.lean += fx.leanV * dt;
+  fx.hd += Math.sin(fx.lean) * 1.6 * dt * (sp > 1 ? 1 : 0);   // a leaning wheel turns toward its lean
+  fx.vx = Math.cos(fx.hd) * sp; fx.vy = Math.sin(fx.hd) * sp;
+  fx.roll += sp / R * dt;
+  moveTo(fx.x + fx.vx * dt, fx.y + fx.vy * dt);
+  if (fx.vx || fx.vy) fx.hd = Math.atan2(fx.vy, fx.vx);
+  if (wetAt(fx.x, fx.y)) { waterSplash(fx.x, fx.y, false); fx.t = fx.life; return; }
+  if (Math.abs(fx.lean) >= Math.PI / 2) { fx.lean = Math.sign(fx.lean) * Math.PI / 2; fx.flat = true; fx.vx = fx.vy = 0; }
+  fx.z = rest();
+}
+
 // A wreck smoulders for a while after the flames die down.
 function smoulder(x, y, life) { G.effects.push({ type: 'smoulder', x, y, t: 0, life, puffT: 0 }); }
 
@@ -3555,8 +3703,10 @@ function kill(e, attacker, wh, from) {
       scorch(G.tctx, e.x, e.y, 12, seed);
       craterAt(e.x + Math.cos(e.face) * 6, e.y + Math.sin(e.face) * 6, 5);
       bakeWreck(G.dctx, e.x, e.y, e.def, e.face, e.tface, cook);
+      let bailed = false;
       if (cook) cookOff(e, seed);
-      else if (!G.remote && Math.random() < CREW_SURVIVES) crewBailOut(e);   // no cook-off: the crew may get out
+      else if (!G.remote && Math.random() < CREW_SURVIVES) bailed = !!crewBailOut(e);   // no cook-off: the crew may get out
+      vehicleDeath(e, wh, from || attacker, cook, bailed);   // wheels, plates and crew thrown (looks only)
       for (let i = 0; i < 4; i++) G.effects.push({ type: 'fire', x: e.x + (Math.random() - 0.5) * 8, y: e.y + (Math.random() - 0.5) * 6, t: -i * 0.3, life: 2.5 + Math.random() * 2 });
       smoulder(e.x, e.y - 4, 25);
     } else if ((e.alt || 0) > 4) {
@@ -3594,7 +3744,7 @@ function kill(e, attacker, wh, from) {
       rubble(G.tctx, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL, seed);
       if (!e.def.defense || e.w * e.h > 1) craterAt(e.x, e.y, 6 + Math.min(4, e.w * e.h * 0.5));   // its fall digs a crater (digCrater)
       notify(team, 'slost', 'Structure lost', 4);
-    }
+    } else escapeSurvivors(e, true);   // sold: the staff walk out
   }
 }
 
@@ -3611,15 +3761,17 @@ const RAG_PTS = [   // [forward, side, height]
 const RAG_STICKS = [[0, 1], [1, 2], [3, 4], [1, 3], [1, 4], [3, 2], [4, 2], [0, 3], [0, 4], [3, 5], [4, 6], [2, 7], [2, 8], [7, 9], [8, 10], [7, 8]];
 const RAG_STIFF = [[2, 9], [2, 10], [1, 9], [1, 10]];          // legs locked straight for a moment
 const RAG_MIN = [[2, 9, 0.5], [2, 10, 0.5], [1, 5, 0.45], [1, 6, 0.45], [0, 2, 0.95]];   // no folding flat
-function ragdoll(e, wh, from) {
+// opt (a crewman thrown from a dying vehicle, vehicleDeath): lift, how high he sat (px); burn, the chance he burns; quiet, no cry.
+function ragdoll(e, wh, from, opt) {
   const r = Math.random;
   const a = from && (from.x !== e.x || from.y !== e.y) ? Math.atan2(e.y - from.y, e.x - from.x) : r() * Math.PI * 2;
-  const blast = wh === 'HE' || wh === 'GR' || wh === 'AP' || wh === 'ART' || wh === 'AT' || wh === 'HF';
+  const blast = wh === 'HE' || wh === 'GR' || wh === 'AP' || wh === 'ART' || wh === 'AT' || wh === 'HF' || wh === 'TD';
   const fx = { type: 'ragdoll', x: e.x, y: e.y, unitType: e.type, faction: e.faction, v: teamOf(e).variant | 0, face: e.face, t: 0, life: 14, age: 0, still: 0, acc: 0 };
   // Joints in world space, standing as the soldier stood.
   const n = RAG_PTS.length, ca = Math.cos(e.face), sa = Math.sin(e.face);
   const P = new Float32Array(n * 3), V = new Float32Array(n * 3);
-  RAG_PTS.forEach(([f, sd, z], i) => { f *= INF_SCALE; sd *= INF_SCALE; P[i * 3] = e.x + f * ca - sd * sa; P[i * 3 + 1] = e.y + f * sa + sd * ca; P[i * 3 + 2] = z * INF_SCALE; });
+  const lift = (opt && opt.lift) || 0;
+  RAG_PTS.forEach(([f, sd, z], i) => { f *= INF_SCALE; sd *= INF_SCALE; P[i * 3] = e.x + f * ca - sd * sa; P[i * 3 + 1] = e.y + f * sa + sd * ca; P[i * 3 + 2] = z * INF_SCALE + lift; });
   const dx = Math.cos(a), dy = Math.sin(a), px = -dy, py = dx;
   const kick = (i, vx, vy, vz) => { V[i * 3] += vx; V[i * 3 + 1] += vy; V[i * 3 + 2] += vz; };
   if (blast) {
@@ -3631,7 +3783,30 @@ function ragdoll(e, wh, from) {
       const ox = w[0] / wl * ws, oy = w[1] / wl * ws, oz = w[2] / wl * ws;
       kick(i, dx * p + oy * rz - oz * ry, dy * p * 0.8 + oz * rx - ox * rz, up + ox * ry - oy * rx);
     }
+    for (const i of [5, 6, 9, 10]) kick(i, (r() - 0.5) * 70, (r() - 0.5) * 70, (r() - 0.3) * 50);   // arms and legs flailing
     fx.stiff = 0;
+    if (opt && r() < (opt.burn || 0)) fx.burnt = true;
+  } else if (wh === 'SN') {
+    // A sniper's round: the head snaps back and he drops where he stands, the legs folding under him.
+    kick(0, dx * 70, dy * 70, 10); kick(1, dx * 20, dy * 20, 0);
+    kick(2, 0, 0, -45); kick(7, ca * 22 + (r() - 0.5) * 16, sa * 22 + (r() - 0.5) * 16, 0); kick(8, ca * 18 + (r() - 0.5) * 16, sa * 18 + (r() - 0.5) * 16, 0);
+    for (const i of [5, 6]) kick(i, (r() - 0.5) * 30, (r() - 0.5) * 30, 15);   // the arms fly loose
+    fx.stiff = 0;
+  } else if ((!wh || wh === 'SA' || wh === 'RF' || wh === 'CG') && r() < 0.4) {
+    if (r() < 0.55) {
+      // Hit, he sinks to his knees, then pitches forward onto his face.
+      kick(2, -ca * 6, -sa * 6, -55); kick(7, ca * 30, sa * 30, 0); kick(8, ca * 26, sa * 26, 0);
+      for (const i of [0, 1, 3, 4]) kick(i, ca * 22 + dx * 8, sa * 22 + dy * 8, -6);
+      for (const i of [5, 6]) kick(i, ca * 10, sa * 10, 18);   // hands to the wound
+      fx.stiff = 0;
+    } else {
+      // Spun round by the hit, arms out, and down on his side.
+      const sp = (r() < 0.5 ? -1 : 1) * (90 + r() * 50), p = 25 + r() * 20;
+      kick(3, px * sp + dx * p, py * sp + dy * p, 8); kick(4, -px * sp + dx * p, -py * sp + dy * p, 8);
+      kick(5, px * sp * 1.6, py * sp * 1.6, 20); kick(6, -px * sp * 1.6, -py * sp * 1.6, 20);
+      kick(0, dx * p, dy * p, 0); kick(2, 0, 0, -20);
+      fx.stiff = r() < 0.5 ? 0.12 : 0;
+    }
   } else {
     // Knocked back at the chest; sometimes forward instead (hit from behind, or slumping).
     const dir = r() < 0.22 ? -0.6 : 1, p = (40 + r() * 50) * dir, twist = (r() - 0.5) * 50;
@@ -3648,7 +3823,7 @@ function ragdoll(e, wh, from) {
     if (wh === 'TESLA') { G.effects.push({ type: 'spark', x: e.x, y: e.y, lift: 8 * INF_SCALE, t: 0, life: 0.3 }); fx.burnt = true; fx.shock = 0.5 + r() * 0.3; }
   }
   // The weapon, flung loose from the hands.
-  const wl = (e.type === 'rocket' ? 12 : e.type === 'sniper' ? 13 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'engineer' ? 0 : 8) * INF_SCALE;
+  const wl = (e.type === 'rocket' ? 12 : e.type === 'sniper' ? 13 : e.type === 'grenadier' || e.type === 'pilot' || e.type === 'technician' || e.type === 'engineer' ? 0 : 8) * INF_SCALE;
   if (wl) {
     const hx = P[18], hy = P[19], hz = (e.type === 'rocket' ? 15 : 10) * INF_SCALE;
     fx.gun = { P: new Float32Array([hx - ca * wl / 2, hy - sa * wl / 2, hz, hx + ca * wl / 2, hy + sa * wl / 2, hz + 0.5]), len: wl };
@@ -3661,7 +3836,7 @@ function ragdoll(e, wh, from) {
   fx.rest = RAG_STICKS.concat(RAG_STIFF).map(([i, j]) => Math.hypot(P[i * 3] - P[j * 3], P[i * 3 + 1] - P[j * 3 + 1], P[i * 3 + 2] - P[j * 3 + 2]));
   fx.minL = RAG_MIN.map(([i, j, f]) => Math.hypot(P[i * 3] - P[j * 3], P[i * 3 + 1] - P[j * 3 + 1], P[i * 3 + 2] - P[j * 3 + 2]) * f);
   if (fx.gun) fx.gun.Q = toPrev(fx.gun.P, fx.gun.V);
-  hooks.sfx(blast ? 'dieBlast' : wh === 'FIRE' ? 'dieFire' : 'die', e.x, e.y);
+  if (!(opt && opt.quiet)) hooks.sfx(blast ? 'dieBlast' : wh === 'FIRE' ? 'dieFire' : 'die', e.x, e.y);
   G.effects.push(fx);
 }
 // One fixed physics step for a set of points: gravity, damping, ground contact with friction
@@ -3763,7 +3938,9 @@ function deployFob(u) {
   return b;
 }
 
-// Soldiers stumble out of a destroyed structure and join the defence: more from bigger buildings.
+// People get out of a structure as it goes: more from bigger buildings, Rifle Infantry and Technicians (about one in three).
+// Sold, they all walk out unhurt; destroyed, there is a SURVIVORS_ESCAPE chance anyone gets out at all, and those who do
+// are hurt (25-50% health). Owner's rules, 2026-11-25, both modes.
 // A destroyed ground vehicle that did not cook off may leave one rifleman: the crew scrambles out of the
 // wreck and stands guard. Made on the host only (a PvP guest gets the unit in a snapshot).
 const CREW_SURVIVES = 1 / 3;
@@ -3774,15 +3951,19 @@ function crewBailOut(e) {
   const p = cellCenter(c), u = addUnit('rifle', G.teams[e.team], p.x, p.y);
   u.face = u.tface = e.face;
   setGuard(u);
+  return u;
 }
-function escapeSurvivors(b) {
-  if (WIPING) return;   // a defeated side's wreckage leaves no survivors
+const SURVIVORS_ESCAPE = 0.5, SURVIVOR_TECH = 1 / 3;
+function escapeSurvivors(b, sold) {
+  if (WIPING || G.remote) return;   // a defeated side's wreckage leaves no survivors; a PvP guest gets them in a snapshot
+  if (!sold && Math.random() >= SURVIVORS_ESCAPE) return;
   const team = G.teams[b.team], n = b.type === 'cy' ? 4 : Math.min(3, Math.max(1, Math.round(b.w * b.h / 2)));
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2;
     const c = nearestFreeCell(cellOfPos(b.x + Math.cos(a) * b.w * CELL * 0.6, b.y + Math.sin(a) * b.h * CELL * 0.6), 4);
     if (c < 0) continue;
-    const p = cellCenter(c), u = addUnit('rifle', team, p.x + (Math.random() - 0.5) * 8, p.y + (Math.random() - 0.5) * 8);
+    const p = cellCenter(c), u = addUnit(Math.random() < SURVIVOR_TECH ? 'technician' : 'rifle', team, p.x + (Math.random() - 0.5) * 8, p.y + (Math.random() - 0.5) * 8);
+    if (!sold) u.hp = Math.max(1, Math.round(u.maxHp * (0.25 + Math.random() * 0.25)));
     u.face = u.tface = a;
     setGuard(u);
   }
@@ -4042,6 +4223,7 @@ function updateUnit(u, dt) {
   u.moving = false;
   tickBurst(u, dt);
   tickStrafe(u, dt);
+  if (u.cls === 'air' && u.def.fly === 'jet') { jetAbove(u, () => (u.def.scripted ? updateFlight(u, dt) : updateAir(u, dt))); return; }
   if (u.def.scripted) { updateFlight(u, dt); return; }
   if (u.chute > 0) { u.chute -= dt; if (u.chute <= 0) landChute(u); return; }
   if (u.cls === 'air') { updateAir(u, dt); return; }
@@ -4083,7 +4265,7 @@ function updateUnit(u, dt) {
       // Whoever fired on this unit is chased a little past its own reach; anything else is
       // dropped once out of sight.
       // Long-range guns guarding an area fire at whatever their side has in view within reach.
-      const far = o.type === 'guard' && o.hold && w && wRange(u, w) > sight;
+      const far = o.type === 'guard' && o.hold && !o.amove && w && wRange(u, w) > sight;
       const spot = !far && spotter(u);   // (Artillery, V2: whatever its side sees in reach)
       const avenging = u.target && u.target === u.avenge;
       const spotted = spot && u.target && distTo(u, u.target) <= wRange(u, w) && spottedBy(u.team)(u.target);
@@ -4093,18 +4275,22 @@ function updateUnit(u, dt) {
       // second (they ran back and forth without getting anywhere).
       const told = u.defending && u.target && u.target.kind === 'unit' && (teamOf(u).raiders || []).includes(u.target.id);
       if (u.target && !told && distTo(u, u.target) > reach) u.target = null;
-      if (o.type === 'guard' && u.target && !avenging && !told && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : spotted ? Math.max(sight * 1.6, wRange(u, w)) : sight * 1.6)) u.target = null;
+      if (o.type === 'guard' && !o.amove && u.target && !avenging && !told && Math.hypot(u.target.x - o.x, u.target.y - o.y) > (o.hold ? guardReach(u) : spotted ? Math.max(sight * 1.6, wRange(u, w)) : sight * 1.6)) u.target = null;
       if (!u.target || u.target.kind === 'bld') {
         const t = far ? acquire(u, wRange(u, w), [w, u.def.weapon2], teamOf(u).isAI ? null : inViewOf(u.team)) :
           (spot && acquire(u, sight, [w, u.def.weapon2])) || (spot ? acquire(u, wRange(u, w), [w], spottedBy(u.team)) : acquire(u, sight, [w, u.def.weapon2]));
         if (t && (!u.target || t.kind === 'unit')) u.target = t;
       }
       if (!u.target) {
-        if (o.type === 'hunt') {
+        if ((o.type === 'hunt' || o.amove) && aaOnly(u) && trailArmy(u, o)) {
+          // (an anti-aircraft unit keeping to the back of the army: trailArmy moves it)
+        } else if (o.type === 'hunt') {
           if (teamOf(u).isAI) detourToSite(u);
           const b = nearestEnemyBuilding(u);
           if (!b) nothingKnown(u);
           else if (u.huntTarget !== b || (!u.dest && !u.needPath)) { u.huntTarget = b; goTo(u, b.x, b.y); }
+        } else if (o.amove && !u.dest && !u.needPath && Math.hypot(u.x - o.x, u.y - o.y) <= CELL * 1.5) {
+          o.amove = false;   // an attack move that has arrived: it holds the spot like a Guard order
         } else if (!u.dest && !u.needPath && Math.hypot(u.x - o.x, u.y - o.y) > 24) {
           // Shoved off its spot by friends: if one of them stands there now, it guards from where it is (walking back shoved that one
           // off in turn, and a crowd of waiting units ran back and forth for minutes: 234 such units in a 30-minute 2 v 2).
@@ -4687,6 +4873,28 @@ function dropFlare(t) {
 
 const HELI_ALT = 20, JET_ALT = 30;
 
+// Jets and planes fly above the hills (owner, 2026-11-25: "make jets and planes fly higher so they're not influenced by the
+// terrain as much? leave helicopters alone"). The ground is drawn raised (look.js gLift: hgt x VK x HILL_DRAW) and aircraft
+// are drawn on it, so a jet rose and dipped with every hill it crossed. Now a flying jet's alt is topped up by the gap
+// between the map's highest ground and the ground under it, so it cruises level just above the highest hill. The flight
+// code works on the plain height (u.altB, from 0 to JET_ALT); jetAbove adds the top-up after it runs (in full at JET_ALT,
+// less on the climb and descent, none landed), so everything drawn at its height follows (shots, lights, crashes, taps).
+const JET_HILL = 2.5;   // = look.js HILL_DRAW (the hills are drawn that many times as tall as G.hgt)
+let hgtTopOf = null, hgtTop = 0;
+function hillTop() {
+  const H = G.hgt;
+  if (!H) return 0;
+  if (hgtTopOf !== H) { hgtTopOf = H; hgtTop = 0; for (let i = 0; i < H.length; i++) if (H[i] > hgtTop) hgtTop = H[i]; }
+  return hgtTop;
+}
+function jetAbove(u, fly) {
+  if (u.altB !== undefined && u.alt === u.altD) u.alt = u.altB;   // (alt set anywhere else since: taken as the plain height)
+  fly();
+  const b = u.alt || 0, k = Math.max(0, Math.min(1, b / JET_ALT));
+  u.altB = b;
+  u.alt = u.altD = b + (k > 0 ? Math.max(0, hillTop() - hgtAt(u.x, u.y, true)) * VK * JET_HILL * k : 0);
+}
+
 // Every aircraft has a home pad. New ones are based at whichever pad has the fewest aircraft,
 // and if a home pad is lost they move to the least crowded one left, so aircraft spread out
 // over all the player's Helipads or Airfields instead of piling onto the nearest.
@@ -5172,7 +5380,7 @@ function unloadOne(h, ai) {
   if (!freeCell(c)) c = nearestFreeCell(cellOfPos(h.x, h.y), 4);
   const p = c >= 0 ? cellCenter(c) : { x: h.x, y: h.y };
   const u = addUnit(r.type, team, h.x + (p.x - h.x) * 0.4, h.y + (p.y - h.y) * 0.4);
-  if (r.type !== 'pilot') team.stats.units--;   // counted when it was trained
+  if (r.type !== 'pilot' && r.type !== 'technician') team.stats.units--;   // counted when it was trained
   u.hp = Math.min(u.maxHp, r.hp); u.rank = r.rank || 0; u.kills = r.kills || 0; u.killWorth = r.kw || 0; u.born = r.born;
   u.face = u.tface = Math.atan2(p.y - h.y, p.x - h.x);
   if (ai === 'guard') { setGuard(u, p.x, p.y); u.staged = true; }
@@ -6019,7 +6227,7 @@ function logWave(team, big) {
 // A side with nothing left to fight with is out (`out`); the battle ends when only one alliance has a
 // side still in it. The winner is that alliance's `ally` number (in a 1 v 1, the same as its side).
 function checkWin() {
-  if (G.over) return;
+  if (G.over || G.explore) return;   // (the map explorer: nobody to win or lose)
   for (const t of G.teams) if (!t.out && !inTheFight(t.id)) {
     t.out = true; startWipe(t);
     if (teamGame()) for (const o of G.teams) if (o !== t && !o.out) say(o.id, alliedSides(o.id, t.id) ? 'Ally defeated' : 'Enemy defeated');
@@ -6118,6 +6326,64 @@ function commandGuard(units, x, y) {
     u.staged = false; u.defending = false; u.homeward = false; u.focus = null; u.oneStrike = false; u.scrambled = false; takeOver(u, 'guard');
     if (u.cls === 'air') { if (u.as === 'landed' && !airEmpty(u) && !u.repairHold) u.as = 'takeoff'; }
     else goTo(u, s.x, s.y);
+  });
+}
+// Anti-aircraft-only ground units (the Mobile SAM) on an Auto Attack, a computer wave or an Attack move: they cannot hit
+// anything on the ground, so they keep to the back of the army instead of driving at the enemy base ahead of it (they
+// raced in front and died to the first defences). Each second: the nearest friendly ground fighter on the same kind of
+// order within TRAIL_LOOK cells, and a spot TRAIL_GAP cells behind it (away from where the army is heading). Aircraft
+// that come into reach are still shot at (the target search above runs first). No such friend: on a hunt it waits where
+// it is for the next wave; on an Attack move it holds where it stopped once its escort has arrived, or goes on alone if it
+// never had one (sent there by itself). Returns false to let the usual hunt or Attack move carry on.
+const TRAIL_LOOK = 40, TRAIL_GAP = 4;
+const aaOnly = (u) => { const w = u.def.weapon; return u.cls !== 'air' && !!w && w.ground === false && !(u.def.weapon2 && u.def.weapon2.ground !== false); };
+function trailArmy(u, o) {
+  if (u.trailT > G.t) return true;
+  u.trailT = G.t + 1;
+  const hunt = o.type === 'hunt';
+  let lead = null, best = (TRAIL_LOOK * CELL) ** 2;
+  for (const f of unitsOf(u.team)) {
+    if (f === u || !f.alive || f.cls === 'air' || f.inHouse || f.def.harvester || !f.def.weapon || f.def.weapon.ground === false) continue;
+    if (hunt ? f.order.type !== 'hunt' : !(f.order.type === 'guard' && f.order.amove)) continue;
+    const d = (f.x - u.x) ** 2 + (f.y - u.y) ** 2;
+    if (d < best) { best = d; lead = f; }
+  }
+  if (!lead) {
+    if (hunt) { if (nearestEnemyBuilding(u)) { if (u.dest) goTo(u, u.x, u.y, true); return true; } return false; }
+    if (!u.trailed) return false;
+    o.amove = false; o.x = u.x; o.y = u.y; u.trailed = false;
+    if (u.dest) goTo(u, u.x, u.y, true);
+    return true;
+  }
+  u.trailed = true;
+  const goal = hunt ? (lead.huntTarget && lead.huntTarget.alive ? lead.huntTarget : nearestEnemyBuilding(lead)) : lead.order;
+  if (!goal) return false;
+  const a = Math.atan2(goal.y - lead.y, goal.x - lead.x);
+  let x = lead.x - Math.cos(a) * TRAIL_GAP * CELL, y = lead.y - Math.sin(a) * TRAIL_GAP * CELL;
+  x = Math.max(CELL, Math.min(WORLD - CELL, x)); y = Math.max(CELL, Math.min(WORLD - CELL, y));
+  // Already about there: stay put (no shuffling about behind a group that has stopped to fight).
+  if (Math.hypot(u.x - x, u.y - y) < CELL * 1.5) { if (u.dest) goTo(u, u.x, u.y, true); return true; }
+  if (!u.dest || Math.hypot(u.dest.x - x, u.dest.y - y) > CELL * 1.5) goTo(u, x, y, true);
+  return true;
+}
+// Attack move (the AUTO button's picker, then a tap on the map): one trip, not a standing order. Every armed ground unit
+// heads for the spot and fights whatever it meets on the way (o.amove: no leash to the spot while travelling), then holds
+// the spot like a Guard order once there. A Guard with hold, so the auto logic (Auto Attack, base defence, the Ally
+// button) leaves them be.
+// Armed aircraft go too: a Guard on the spot (as commandGuard), so they fly there, fight whatever is about it and stay.
+const canAttackMove = (u) => u.alive && u.kind === 'unit' && !u.def.harvester && !u.def.lift && !u.def.scripted && !u.inHouse && !u.chute && !!(u.def.weapon || u.def.demo);
+function commandAttackMove(units, x, y) {
+  const air = units.filter((u) => canAttackMove(u) && u.cls === 'air');
+  if (air.length) commandGuard(air, x, y);
+  const list = units.filter((u) => canAttackMove(u) && u.cls !== 'air');
+  const spots = formationSpots(list.length, x, y);
+  const sorted = list.slice().sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
+  sorted.forEach((u, i) => {
+    const s = spots[i];
+    setGuard(u, s.x, s.y); u.order.hold = true; u.order.amove = true;
+    u.target = null; u.focus = null; u.huntTarget = null; u.staged = false; u.defending = false; u.homeward = false; u.oneStrike = false;
+    takeOver(u, 'guard');
+    goTo(u, s.x, s.y);
   });
 }
 // Stop: every order dropped, back to what a new unit does: ground units wait around the base,
@@ -6474,6 +6740,7 @@ function updateEffects(dt) {
     else if (fx.type === 'eject') updateEject(fx, dt);
     else if (fx.type === 'ragdoll') updateRagdoll(fx, dt);
     else if (fx.type === 'turret') updateTurret(fx, dt);
+    else if (fx.type === 'wheel') updateWheel(fx, dt);
     else if (fx.type === 'expl' && fx.t >= 0 && fx.size >= 9 && !litFx.has(fx)) { litFx.add(fx); igniteTrees(fx.x, fx.y + 3, Math.max(12, fx.size * 1.4)); }
     else if (fx.type === 'flare' && fx.t >= 0) {
       fx.vx *= Math.exp(-1.4 * dt); fx.vy += (14 - fx.vy) * (1 - Math.exp(-1.2 * dt));   // drag, then a slow fall
@@ -6487,7 +6754,7 @@ function updateEffects(dt) {
     fx.t += dt;
     if (fx.drag && fx.t > 0) { const k = Math.exp(-fx.drag * dt); fx.vx *= k; fx.vy = fx.vy * k - 3 * (1 - k); }   // billowing smoke slows, then rises
     if (fx.type === 'smoke' && fx.t > 0) { const carry = Math.min(1, fx.t / 1.2) * dt; fx.x += wind.x * carry; fx.y += wind.y * carry; }
-    if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret') {
+    if (fx.vy && fx.t > 0 && fx.type !== 'crash' && fx.type !== 'ragdoll' && fx.type !== 'turret' && fx.type !== 'wheel') {
       // Smoke and flames rise: their climb is kept as a height (fx.lift), drawn straight up the screen whatever the camera
       // (ui.js), while wind and vx carry them over the ground.
       if (fx.type === 'smoke' || fx.type === 'fire' || fx.type === 'flakburst') fx.lift = (fx.lift || 0) - fx.vy * dt; else fx.y += fx.vy * dt;
