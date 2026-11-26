@@ -1171,6 +1171,86 @@ function collapseHouse(h) {
   for (let i = 0; i < 3; i++) smoulder((h.cx + 0.3 + Math.random() * (h.w - 0.6)) * CELL, (h.cy + 0.3 + Math.random() * (h.h - 0.6)) * CELL, 14 + Math.random() * 10);
   rubble(G.tctx, h.cx * CELL, h.cy * CELL, h.w * CELL, h.h * CELL, seed);
   scorch(G.tctx, h.x, h.y, Math.min(h.w, h.h) * CELL * 0.45, seed + 3);
+  fallDown(h, houseStructure(h.type), 'allies', 0, seed, 2);   // (a house is only ever shown to stage 2 before it falls: houseFx)
+}
+// A destroyed structure (or village house) does not vanish: it comes down in pieces. It stands a moment, shuddering, then
+// gives way from one point outward: pieces of its own model (models.js pieceSet) drop, tip outward (big slabs topple,
+// small ones tumble), bounce and settle in a heap on its foundation and round it, each throwing up dust where it lands;
+// the heap smoulders, then fades over the rubble painted in the ground. Looks only: the cells are free at once. The host
+// sends the one 'fall' effect to an online guest; the pieces are made by whichever copy draws it (art.js drawFall calls
+// fallParts), and moved in the effects pass (updateFall), so none of it goes over the network or runs on the game server.
+const FALL_T = 1.6, FALL_G = 110;   // (FALL_T: about when it is down; FALL_G: voxels per second per second)
+function fallDown(e, btype, faction, v, seed, st) {
+  if (st === undefined) st = e.dmgSeen === undefined ? 0 : e.dmgSeen;   // (the damage it showed before the last blow: structureDamageFx)
+  G.effects.push({ type: 'fall', btype, faction, v, st, cx: e.cx, cy: e.cy, w: e.w, h: e.h, x: e.x, y: e.y, t: 0, life: 9, seed });
+}
+// The pieces' motion, from their shapes (plain numbers from models.js pieceSet: x, y from the footprint's corner, cz the
+// middle's height, z0 the bottom, h the height, hr half the width, n voxels, ax/ay the axis it tips about).
+// from: the time the pieces start (later than its fall when they were not made in time: art.js drawFall).
+function fallParts(fx, geom, from = 0) {
+  const r = rng(fx.seed | 0), W = fx.w * CELL, Hh = fx.h * CELL, fpx = W * (0.2 + r() * 0.6), fpy = Hh * (0.2 + r() * 0.6), span = Math.hypot(W, Hh);
+  let top = 1;
+  for (const q of geom) top = Math.max(top, q.cz);
+  fx.parts = geom.map((q, i) => {
+    let ox = q.x - W / 2, oy = q.y - Hh / 2;
+    const l = Math.hypot(ox, oy) || 1, big = q.n > 1500;
+    ox /= l; oy /= l;
+    const out = (5 + r() * 16) * (0.3 + q.cz / top), inside = q.x > 0 && q.x < W && q.y > 0 && q.y < Hh;
+    return { i, x: q.x, y: q.y, cz: q.cz, z0: q.z0, h: q.h, hr: q.hr, big,
+      d: from + (from ? 0.05 : 0.3) + Math.hypot(q.x - fpx, q.y - fpy) / span * 0.55 + r() * 0.15,
+      dx: 0, dy: 0, dz: 0, vx: ox * out + (r() - 0.5) * 4, vy: oy * out + (r() - 0.5) * 4, vz: r() * 3,
+      tl: 0, tlV: (big ? 1.4 + r() * 1.2 : 2.5 + r() * 4.5) * (q.ax * oy - q.ay * ox < 0 ? -1 : 1), st: 0, b: 0,
+      tt: q.h <= 3 ? 0 : q.h > q.hr * 1.4 ? 1.1 + r() * 0.4 : 0.3 + r() * 0.6,   // (once down it goes on over to about this tilt: a tall piece topples, the rest lean, flat ones lie)
+      floor: Math.min(q.z0, 0.5 + r() * 1.5 + (inside ? r() * 4 : 0)) };   // (never lifted: one on the ground stays there)
+  });
+  fx.from = from;
+  for (let t = from; t < fx.t; t += 1 / 30) stepParts(fx, 1 / 30, t, true);   // (first seen part way through: as it would be by now)
+}
+function stepParts(fx, dt, now, quiet) {
+  for (const p of fx.parts) {
+    if (p.st === 0) { if (now >= p.d) p.st = 1; else continue; }
+    if (p.st === 2) continue;
+    p.vz -= FALL_G * dt; p.dz += p.vz * dt; p.dx += p.vx * dt; p.dy += p.vy * dt;
+    p.tl += p.tlV * dt;
+    if (p.big) p.tl = Math.max(-1.4, Math.min(1.4, p.tl));
+    // Its lowest point: the middle less the half height, tipped toward half the width.
+    const a = Math.abs(p.tl) % Math.PI, low = p.cz + p.dz - ((p.cz - p.z0) * Math.abs(Math.cos(a)) + p.hr * Math.sin(a));
+    if (low > p.floor) continue;
+    p.dz += p.floor - low;
+    if (!quiet && !p.hit) {   // (dust once where it lands, and again after a bounce)
+      const wx = fx.cx * CELL + p.x + p.dx, wy = fx.cy * CELL + p.y + p.dy, sz = Math.sqrt(p.hr);
+      if (p.big || Math.random() < 0.4) G.effects.push({ type: 'smoke', x: wx + (Math.random() - 0.5) * p.hr, y: wy + (Math.random() - 0.5) * p.hr, lift: 1, r: 2 + sz, t: 0, life: 1.2 + Math.random() * 0.6, alpha: 0.35,
+        color: Math.random() < 0.5 ? '#8a7a62' : '#9a8d78', vx: (Math.random() - 0.5) * 16 + p.vx, vy: -4, drag: 2 });
+    }
+    p.hit = 1;
+    if (!p.b && p.vz < -25) { p.b = 1; p.hit = 0; p.vz *= -0.2; p.vx *= 0.45; p.vy *= 0.45; p.tlV *= 0.4; continue; }
+    const fr = Math.exp(-6 * dt); p.vz = 0; p.vx *= fr; p.vy *= fr;   // (sliding to a stop on the ground)
+    if (Math.abs(p.tl) < p.tt) { if (Math.abs(p.tlV) < 1.2) p.tlV = Math.sign(p.tlV || 1) * 1.2; continue; }   // still going over
+    if (p.tt) p.tl = Math.sign(p.tl) * Math.min(Math.abs(p.tl), p.tt);
+    p.st = 2;
+  }
+}
+function updateFall(fx, dt) {
+  if (fx.t < 0) return;
+  if (fx.parts) stepParts(fx, dt, fx.t, false);
+  const ox = fx.cx * CELL, oy = fx.cy * CELL, W = fx.w * CELL, Hh = fx.h * CELL, size = Math.sqrt(fx.w * fx.h);
+  const dust = (x, y, lift, r, vx, vy, life, delay, drag) => G.effects.push({ type: 'smoke', x, y, lift, r, t: -delay, life, alpha: 0.55, color: Math.random() < 0.5 ? '#8a7a62' : '#9a8d78', vx, vy, drag });
+  const edge = () => {   // a point on the footprint's rim, and the way out from its middle
+    const u = Math.random(), side = (Math.random() * 4) | 0;
+    const x = side === 0 ? ox + u * W : side === 1 ? ox + W : side === 2 ? ox + u * W : ox, y = side === 0 ? oy : side === 1 ? oy + u * Hh : side === 2 ? oy + Hh : oy + u * Hh;
+    const a = Math.atan2(y - (oy + Hh / 2), x - (ox + W / 2));
+    return [x, y, Math.cos(a), Math.sin(a)];
+  };
+  if (!fx.dusted && fx.t >= 0.3) {   // dust as it gives way
+    fx.dusted = true;
+    for (let i = 0; i < 3 + size * 2; i++) { const [x, y, cx, cy] = edge(), sp = 6 + Math.random() * 10; dust(x, y, Math.random() * 10, 5 + Math.random() * 3 + size, cx * sp, cy * sp - 4, 2.5 + Math.random() * 1.5, Math.random() * 0.5, 1.2); }
+  }
+  if (fx.t >= FALL_T && !fx.landed) {   // down: a burst of dust along the ground, and the heap smoulders
+    fx.landed = true;
+    hooks.shake(fx.x, fx.y, 1 + size);
+    for (let i = 0; i < 3 + size * 2; i++) { const [x, y, cx, cy] = edge(), sp = 26 + Math.random() * 26; dust(x, y, 1, 3 + Math.random() * 3 + size * 0.5, cx * sp, cy * sp * 0.8, 2 + Math.random() * 1.5, Math.random() * 0.15, 2.2); }
+    for (let i = 0; i < 2 + size; i++) smoulder(ox + (0.2 + Math.random() * 0.6) * W, oy + (0.2 + Math.random() * 0.6) * Hh, 10 + Math.random() * 15);
+  }
 }
 // Fire and smoke from a badly damaged house (below 30% health), run with the effects on every copy.
 function houseFx(dt) {
@@ -3738,10 +3818,11 @@ function kill(e, attacker, wh, from) {
       escapeSurvivors(e);
       const n = e.w * e.h + 2;
       for (let i = 0; i < n; i++) {
-        G.effects.push({ type: 'expl', x: (e.cx + Math.random() * e.w) * CELL, y: (e.cy + Math.random() * e.h) * CELL, size: 10 + Math.random() * 8,
-          t: -i * 0.18, life: 0.8, seed: seed + i, debris: i % 2 === 0 });
+        G.effects.push({ type: 'expl', x: (e.cx + Math.random() * e.w) * CELL, y: (e.cy + Math.random() * e.h) * CELL, size: i < 2 ? 9 + Math.random() * 6 : 5 + Math.random() * 3,
+          t: -i * 0.18, life: 0.8, seed: seed + i, debris: i % 2 === 0 });   // (after the first two, smaller: the fall shows through, fallDown)
       }
       rubble(G.tctx, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL, seed);
+      fallDown(e, e.type, e.faction, G.teams[e.team].variant | 0, seed);
       if (!e.def.defense || e.w * e.h > 1) craterAt(e.x, e.y, 6 + Math.min(4, e.w * e.h * 0.5));   // its fall digs a crater (digCrater)
       notify(team, 'slost', 'Structure lost', 4);
     } else escapeSurvivors(e, true);   // sold: the staff walk out
@@ -6736,7 +6817,8 @@ function updateEffects(dt) {
   const wind = windNow();
   for (const fx of G.effects) {
     if (fx.type === 'crash') updateCrash(fx, dt);
-    else if (fx.type === 'frag') updateFrag(fx, dt);
+    else if (fx.type === 'frag' || fx.type === 'vchunk') updateFrag(fx, dt);
+    else if (fx.type === 'fall') updateFall(fx, dt);
     else if (fx.type === 'eject') updateEject(fx, dt);
     else if (fx.type === 'ragdoll') updateRagdoll(fx, dt);
     else if (fx.type === 'turret') updateTurret(fx, dt);
@@ -6837,33 +6919,37 @@ function structureDamageFx(dt) {
     const live = spots.filter((p) => p.s <= stage);
     if (!live.length) continue;
     const spot = () => live[(Math.random() * live.length) | 0];
-    const piece = (p, kick) => {
+    // big: a lump of the structure itself (models.js debrisSet, drawn as 'vchunk') rather than a scrap.
+    const piece = (p, kick, big) => {
       const a = Math.random() * Math.PI, sp = 4 + Math.random() * kick;
-      G.effects.push({ type: 'frag', x: ox + p.x + (Math.random() - 0.5) * p.r, y: oy + p.y, alt: p.z * VK, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.8 + 4, vz: -6 - Math.random() * kick * 0.5,
-        rot: Math.random() * 6, spin: (Math.random() - 0.5) * 16, w: 1.5 + Math.random() * 3, h: 1.5 + Math.random() * 2,
-        color: [pal.main, pal.dark || '#3b3a36', '#d6d3c9', '#2a2622', '#8f8d84'][(Math.random() * 5) | 0], burning: stage === 2 && Math.random() < 0.3, t: 0, life: 4, smokeT: 0 });
+      G.effects.push({ type: big ? 'vchunk' : 'frag', btype: b.type, faction: b.faction, v: G.teams[b.team].variant | 0, i: (Math.random() * 12) | 0,
+        x: ox + p.x + (Math.random() - 0.5) * p.r, y: oy + p.y, alt: p.z * VK, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.8 + 4, vz: -6 - Math.random() * kick * 0.5,
+        rot: Math.random() * 6, spin: (Math.random() - 0.5) * (big ? 9 : 16), w: big ? 3 + Math.random() * 4 : 1.5 + Math.random() * 3, h: big ? 2.5 + Math.random() * 3 : 1.5 + Math.random() * 2,
+        color: [pal.main, pal.dark || '#3b3a36', '#d6d3c9', '#2a2622', '#8f8d84'][(Math.random() * 5) | 0], burning: stage >= 2 && Math.random() < 0.3, t: 0, life: big ? 5 : 4, smokeT: 0 });
     };
-    if (stage > b.dmgSeen) {   // a chunk gives way
-      const fresh = live.filter((p) => p.s === stage), p = fresh.length ? fresh[0] : spot();
-      G.effects.push({ type: 'expl', x: ox + p.x, y: oy + p.y, lift: p.z * VK, size: 9, t: 0, life: 0.6, seed: (Math.random() * 1e6) | 0, debris: true });
-      for (let i = 0; i < 7; i++) piece(p, 26);
-      for (let i = 0; i < 4; i++) G.effects.push({ type: 'smoke', x: ox + p.x + (Math.random() - 0.5) * 10, y: oy + p.y, lift: p.z * VK * 0.5, r: 4, t: -i * 0.05, life: 1.4, alpha: 0.6, color: '#8a7a62', vy: -10, vx: (Math.random() - 0.5) * 20, drag: 1.5 });
-      hooks.sfx('hitMed', ox + p.x, oy + p.y);
+    if (stage > b.dmgSeen) {   // a chunk gives way (stage 3: half the roof comes down, models.js slumpModel)
+      const fresh = live.filter((p) => p.s === stage), p = fresh.length ? fresh[0] : spot(), heavy = stage === 3;
+      G.effects.push({ type: 'expl', x: ox + p.x, y: oy + p.y, lift: p.z * VK, size: heavy ? 13 : 9, t: 0, life: 0.6, seed: (Math.random() * 1e6) | 0, debris: true });
+      for (let i = 0; i < (heavy ? 8 : 4); i++) piece(heavy ? spot() : p, 30, true);
+      for (let i = 0; i < (heavy ? 6 : 4); i++) piece(p, 26);
+      for (let i = 0; i < (heavy ? 10 : 4); i++) { const q = heavy ? spot() : p; G.effects.push({ type: 'smoke', x: ox + q.x + (Math.random() - 0.5) * 10, y: oy + q.y, lift: q.z * VK * 0.5, r: heavy ? 6 : 4, t: -i * 0.05, life: heavy ? 2.4 : 1.4, alpha: 0.6, color: '#8a7a62', vy: -10, vx: (Math.random() - 0.5) * 20, drag: 1.5 }); }
+      hooks.sfx(heavy ? 'collapse' : 'hitMed', ox + p.x, oy + p.y);
+      if (heavy) hooks.shake(b.x, b.y, 1 + b.w * b.h * 0.3);
     }
     b.dmgSeen = stage;
-    if (b.dmgHp - b.hp > b.maxHp * 0.015) { const p = spot(); for (let i = 0; i < 1 + (Math.random() * 2 | 0); i++) piece(p, 16); }
+    if (b.dmgHp - b.hp > b.maxHp * 0.015) { const p = spot(); for (let i = 0; i < 1 + (Math.random() * 2 | 0); i++) piece(p, 16, Math.random() < 0.5); }
     b.dmgHp = b.hp;
-    if ((b.dropT = (b.dropT === undefined ? Math.random() * 3 : b.dropT) - dt) <= 0) { b.dropT = stage === 2 ? 1.2 + Math.random() * 2 : 3 + Math.random() * 4; piece(spot(), 8); }
+    if ((b.dropT = (b.dropT === undefined ? Math.random() * 3 : b.dropT) - dt) <= 0) { b.dropT = stage === 3 ? 0.6 + Math.random() * 1.2 : stage === 2 ? 1.2 + Math.random() * 2 : 3 + Math.random() * 4; piece(spot(), 8, true); }
     if ((b.dmgFxT = (b.dmgFxT || 0) - dt) > 0) continue;
-    b.dmgFxT = stage === 2 ? 0.12 : 0.2;
+    b.dmgFxT = stage >= 2 ? 0.12 : 0.2;
     // Thick black smoke rolling away on the wind, from one of the holes each tick.
     const p = spot(), px = ox + p.x + (Math.random() - 0.5) * p.r, py = oy + p.y;
-    G.effects.push({ type: 'smoke', x: px, y: py, lift: p.z * VK + 2, vy: -20 - Math.random() * 6, vx: 7 + Math.random() * 3, r: (stage === 2 ? 6.5 : 4.5) + Math.random() * 2.5, t: 0,
-      life: stage === 2 ? 3.6 : 2.8, alpha: stage === 2 ? 0.85 : 0.7, color: '#2e2b28' });
+    G.effects.push({ type: 'smoke', x: px, y: py, lift: p.z * VK + 2, vy: -20 - Math.random() * 6, vx: 7 + Math.random() * 3, r: (stage >= 2 ? 6.5 : 4.5) + Math.random() * 2.5, t: 0,
+      life: stage >= 2 ? 3.6 : 2.8, alpha: stage >= 2 ? 0.85 : 0.7, color: '#2e2b28' });
     // Flames: in every hole at stage 2, in the first one at stage 1.
-    const fp = stage === 2 ? spot() : live[0];
-    if (Math.random() < (stage === 2 ? 0.6 : 0.35)) G.effects.push({ type: 'fire', x: ox + fp.x + (Math.random() - 0.5) * fp.r, y: oy + fp.y, lift: fp.z * VK - 3 - Math.random() * 2, t: 0,
-      life: 0.5 + Math.random() * 0.3, s: stage === 2 ? 1.3 + Math.random() * 0.5 : 1, vy: -5 });
+    const fp = stage >= 2 ? spot() : live[0];
+    if (Math.random() < (stage >= 2 ? 0.6 : 0.35)) G.effects.push({ type: 'fire', x: ox + fp.x + (Math.random() - 0.5) * fp.r, y: oy + fp.y, lift: fp.z * VK - 3 - Math.random() * 2, t: 0,
+      life: 0.5 + Math.random() * 0.3, s: stage >= 2 ? 1.3 + Math.random() * 0.5 : 1, vy: -5 });
   }
 }
 function sweepDead() {

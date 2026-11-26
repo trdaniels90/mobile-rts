@@ -2581,7 +2581,8 @@ function drawStructure(g, b, t) {
   let k = b.buildT;
   if (b.sellT > 0) k = Math.min(k, b.sellT / 1.2);
   if (k < 1) { drawBuildUp(g, b, s, x, y, k, b.sellT > 0, camo); return; }
-  const stage = dmgStage(b), body = stage ? damagedSprite(b.type, b.faction, stage, camo) : s;
+  const st = dmgStage(b), body = st ? damagedSprite(b.type, b.faction, st, camo) : s, stage = Math.min(2, st);   // (heads and turning parts: two stages)
+  if (b.hp < b.maxHp) pieceSet(b.type, b.faction, camo, false, st);   // (what it will break into, made ahead in the background once hit: drawFall)
   blit(g, body, x, y);
   // A Specialist's charge on it (world.js demolish): the whole structure flashes red, faster as the fuse runs down (both sides see it).
   if (b.c4T > G.t) {
@@ -2616,7 +2617,7 @@ function drawStructure(g, b, t) {
       const m = headTip(b, Math.max(0, (b.shots || 1) - 1)); flash(g, ...liftPt(m.x, m.y + m.h, m.h), 2);
     } else if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
   }
-  const sp = SPINNERS[b.type] && SPINNERS[b.type][b.faction];
+  const sp = st < 3 && SPINNERS[b.type] && SPINNERS[b.type][b.faction];   // (gone once the roof under it has come down)
   if (sp) {   // a turning part that is not a weapon (the Soviet radar's dish, the yard's crane)
     const [lx, ly] = liftPt(x + sp[1], y + sp[2], sp[3] * VK);
     let a;
@@ -2625,8 +2626,8 @@ function drawStructure(g, b, t) {
     blit(g, spinnerSprite(b.type, b.faction, a, stage), lx, ly, false);
   }
   if (b.type === 'pillbox' && b.fireT > 0) { const m = muzzle(b); flash(g, ...liftPt(m.x, m.y + m.h, m.h), 2); }
-  const fs = FLAG_SPOTS[b.type] && FLAG_SPOTS[b.type][b.faction];
-  if (b.faction === 'soviets' && BANNERS[b.type]) drawBanners(g, b, x, y, palFor(b.faction));
+  const fs = st < 3 && FLAG_SPOTS[b.type] && FLAG_SPOTS[b.type][b.faction];
+  if (st < 3 && b.faction === 'soviets' && BANNERS[b.type]) drawBanners(g, b, x, y, palFor(b.faction));
   if (fs) { const pal = palFor(b.faction); standAt(g, x + fs[0], y + fs[1], fs[2] * VK, () => drawFlag(g, x + fs[0], y + fs[1], fs[3], fs[4], pal.main, pal.dark || pal.main, b.id, fs[5])); }
   if (b.type === 'tesla' && b.charge > 0) {
     g.fillStyle = `rgba(140,190,255,${0.25 + 0.45 * b.charge})`;
@@ -2639,11 +2640,41 @@ function drawStructure(g, b, t) {
   }
 }
 
+// A destroyed structure or house coming down (world.js fallDown): until its pieces (models.js pieceSet) start to move, its
+// model at the damage it had reached (fx.st) shuddering; then its foundation and every piece where world.js stepParts has it, back to front, each
+// at its tilt, with a shadow on the ground under those in the air. The heap fades out at the end over the rubble.
+function drawFall(g, fx) {
+  drawVar = fx.v | 0;
+  const camo = fx.btype === 'pillbox' ? groundColour(fx) : undefined, x = fx.cx * CELL, y = fx.cy * CELL;
+  const fade = Math.max(0, Math.min(1, (fx.life - fx.t) / 2));
+  if (fade <= 0) return;
+  // (Pieces not made yet, as for a structure destroyed unhurt: it stands shuddering while the background makes them, and
+  // then comes down from that moment.)
+  const st = fx.st === undefined ? 3 : fx.st, set = pieceSet(fx.btype, fx.faction, camo, false, st, true);
+  if (!set && !fx.parts) fx.wait = fx.t;
+  if (set && !fx.parts) fallParts(fx, set.parts.map((q) => ({ x: q.x, y: q.y, cz: q.cz, z0: q.z0, h: q.h, hr: q.hr, n: q.n, ax: q.ax, ay: q.ay })), fx.wait !== undefined && fx.wait < FALL_T + 1 ? fx.wait : 0);
+  const t0 = fx.t - (fx.from || 0), shake = !fx.parts || t0 < 1 ? Math.sin(fx.t * 57 + fx.seed) * 0.9 * (1 - Math.min(1, Math.max(0, t0))) : 0;
+  if (!fx.parts || fx.parts.every((p) => p.st === 0)) { blit(g, st ? damagedSprite(fx.btype, fx.faction, st, camo) : structureSprite(fx.btype, fx.faction, camo), x + shake, y + shake * 0.4, false); return; }
+  g.globalAlpha = fade;
+  blit(g, baseSprite(set), x, y, false);
+  const key = (p) => viewDepth(p.x + p.dx, p.y + p.dy) * VK + (p.cz + p.dz) * VIEW.F;   // (as voxel.js renderVox orders voxels)
+  const order = fx.parts.slice().sort((a, b) => key(a) - key(b));
+  for (const p of order) {
+    const wx = x + p.x + p.dx + (p.st ? 0 : shake), wy = y + p.y + p.dy, step = Math.round(Math.abs(p.tl) / TILT_STEP) % 8;
+    if (p.st === 1 && p.dz < -2) {   // in the air: its shadow on the ground
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(wx, wy, p.hr * 0.9, p.hr * 0.6, 0, 0, 7); g.fill();
+    }
+    const ps = partSprite(set, p.i, step);
+    blit(g, ps.s, ...liftPt(wx, wy, (p.cz + p.dz - ps.zc) * VK), false);
+  }
+  g.globalAlpha = 1;
+}
 // A village house (world.js genVillage; models.js houseModel): neutral, so no side colours. Damaged copies as for any
 // structure; a fallen house is only rubble in the ground.
 function drawHouse(g, h) {
   drawVar = 0;
   const type = houseStructure(h.type), stage = dmgStage(h), s = structureSprite(type, 'allies');
+  if (stage >= 2) pieceSet(type, 'allies', undefined, false, 2);   // (made ahead: drawFall; a house falls from stage 2)
   const fort = h.n ? fortSprite(type, stage) : null;   // held: sandbags and wire (models.js fortifyModel)
   blit(g, fort || (stage ? damagedSprite(type, 'allies', stage) : s), h.cx * CELL, h.cy * CELL);
   if (type.startsWith('hv:fountain') && stage < 2) fountainWater(g, h);
@@ -3437,6 +3468,19 @@ function drawEffect(g, fx) {
       const [sx, sy] = at(-1.5);
       g.fillStyle = '#2b2b27'; g.fillRect(Math.round(sx - 2.5), Math.round(sy - 2.5), 5, 5);
       blit(g, infSprite({ type: 'pilot', faction: fx.faction, face: fx.face }, palFor(fx.faction), 4), ...at(-3), false);
+      break;
+    }
+    case 'vchunk': {
+      // A lump knocked off a structure (world.js structureDamageFx; models.js debrisSet): tumbling as it flies, a shadow below.
+      const set = debrisSet(fx.btype, fx.faction), fade = Math.min(1, (fx.life - fx.t) / 1.5);
+      if (!set.parts.length) break;
+      g.globalAlpha = fade;
+      const hgt = fx.alt / VK, [shx, shy] = fromView(hgt * SHADOW_DX, hgt * SHADOW_DY * VIEW.F);
+      if (fx.alt > 0.5) { g.fillStyle = 'rgba(0,0,0,0.22)'; g.beginPath(); g.ellipse(fx.x + shx, fx.y + shy, 2.5, 1.5, 0, 0, 7); g.fill(); }
+      const step = ((Math.floor(Math.abs(fx.rot) / (Math.PI / 4)) % 4) + 4) % 4, face = ((Math.floor(fx.rot * 1.3 / (Math.PI / 4)) % 8) + 8) % 8;
+      const d = debrisSprite(set, fx.i | 0, step, face);
+      blit(g, d.s, ...liftPt(fx.x, fx.y, fx.alt - d.zc * VK), false);
+      g.globalAlpha = 1;
       break;
     }
     case 'frag': {
