@@ -5173,8 +5173,10 @@ function splitHead(m, cut, part) {
 // type every time (seeded by its name), and `damageSpots` gives their positions so the fires
 // and smoke come out of them.
 // ---------------------------------------------------------------------------
-const DMG_AT = [0.6, 0.3];
-function dmgStage(b) { const f = b.hp / b.maxHp; return f < DMG_AT[1] ? 2 : f < DMG_AT[0] ? 1 : 0; }
+// Stage 3 (below 12%): it starts to come down. A slab of the roof breaks away along a jagged crack and sags on its hinge
+// into the floor below (slumpModel); structures carrying a turning head keep the stage 2 model, so the head never floats.
+const DMG_AT = [0.6, 0.3, 0.12];
+function dmgStage(b) { const f = b.hp / b.maxHp; return f < DMG_AT[2] ? 3 : f < DMG_AT[1] ? 2 : f < DMG_AT[0] ? 1 : 0; }
 function strSeed(s) { let h = 7; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; }
 function copyModel(m) {
   const c = Object.create(VModel.prototype);
@@ -5214,6 +5216,7 @@ function damageSpots(type, faction) {
   return spots;
 }
 function damageModel(base, stage, type, faction) {
+  if (stage >= 3) { const m = damageModel(base, 2, type, faction); return slumps(type) ? slumpModel(m, type) : m; }
   const m = copyModel(base), top = topOf(base), spots = damageSpots(type, faction).filter((p) => p.s <= stage), r = rng(strSeed(type) + stage * 977);
   const W = m.w, H = m.h, D = m.d, CHAR = rgbInt('#1f1c19'), EMBER = [rgbInt('#ff7a1a'), rgbInt('#e8460f'), rgbInt('#ffb040')];
   const removed = [];
@@ -5295,6 +5298,235 @@ function damageModel(base, stage, type, faction) {
     }
   }
   return m;
+}
+// Whether a type sags at stage 3: not one with a weapon head or the SAM's launcher sitting on its roof.
+function slumps(type) { return !(typeof HEADS !== 'undefined' && HEADS[type]) && type !== 'sam'; }
+// Stage 3: a line is cut across the structure at a slant chosen by its name; on one side (the front, where it shows) of it everything above the lower
+// quarter of its height drops, the more the further from the line, so that half of the roof hangs from the crack like a
+// broken slab. The crack itself opens, its edges char, and what is pushed below the floor is heaped as rubble round the
+// foot of the fallen side.
+function slumpModel(src, type) {
+  const top = topOf(src), W = src.w, H = src.h, D = src.d, r = rng(strSeed(type) + 3 * 977), CHAR = rgbInt('#1f1c19');
+  let maxZ = 0;
+  for (let i = 0; i < top.length; i++) maxZ = Math.max(maxZ, top[i]);
+  if (maxZ < 6) return src;
+  const m = copyModel(src), zF = Math.max(2, Math.round(maxZ * 0.25)), a = Math.PI / 4 + (r() - 0.5) * Math.PI * 0.8, nx = Math.cos(a), ny = Math.sin(a);
+  const cx = W * (0.5 + (r() - 0.5) * 0.3), cy = H * (0.5 + (r() - 0.5) * 0.3), maxDrop = maxZ * 0.6, slope = 0.55 + r() * 0.35;
+  for (let i = zF * W * H; i < m.col.length; i++) m.col[i] = -1;
+  const lost = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const d = (x - cx) * nx + (y - cy) * ny + (hash3(x >> 1, y >> 1, 41) - 0.5) * 2.2;   // (a jagged crack, not a ruled line)
+    const drop = d <= 0 ? 0 : Math.min(maxDrop, d * slope + 1);
+    for (let z = zF; z < D; z++) {
+      const i = (z * H + y) * W + x, c = src.col[i];
+      if (c < 0) continue;
+      if (Math.abs(d) < 1.3) { if (hash3(x, y, z) < 0.5) lost.push(c); continue; }   // the crack opens
+      const nz = Math.round(z - drop);
+      if (nz < zF) { lost.push(c); continue; }
+      const j = (nz * H + y) * W + x;
+      if (m.col[j] >= 0) continue;
+      m.col[j] = drop > 0 ? darken(c, 0.82 - Math.min(0.3, drop / maxZ * 0.4)) : c; m.mat[j] = src.mat[i];
+      if (Math.abs(d) < 3 && hash3(x, y, z + 5) < 0.6) { m.col[j] = hash3(z, x, y) < 0.4 ? CHAR : darken(m.col[j], 0.4); m.mat[j] = M_ROUGH; }
+    }
+  }
+  // Rubble at the foot of the fallen side, on bare foundation.
+  const top2 = topOf(m);
+  for (let k = 0; k < Math.min(lost.length, 60 + W * H / 40); k++) {
+    const x = Math.floor(r() * W), y = Math.floor(r() * H), d = (x - cx) * nx + (y - cy) * ny, tz = top2[y * W + x];
+    if (d < 2 || tz < 0 || tz > 1) continue;
+    for (let z = tz + 1; z <= tz + 1 + (r() < 0.4 ? 1 : 0) && z < D; z++) { const i = (z * H + y) * W + x; m.col[i] = r() < 0.3 ? CHAR : darken(lost[(r() * lost.length) | 0], 0.55 + r() * 0.3); m.mat[i] = M_ROUGH; }
+  }
+  return m;
+}
+// ---------------------------------------------------------------------------
+// Pieces of a structure: what it breaks into when it comes down (art.js drawFall, world.js fallParts) and the small lumps
+// knocked off it by hits (effect 'vchunk'). Both are cut from its own voxel model, so they carry its walls, roof, paint and
+// battle damage; the faces where a piece broke from its neighbours are bare, cracked concrete. A piece is turned (tipped
+// about a level axis, in steps of TILT_STEP) by turning its voxels and rendering again, so it tumbles in 3D. Made per
+// type, colours and damage stage, once, in the background (pumpPieces) when a structure is first hit.
+// ---------------------------------------------------------------------------
+const TILT_STEP = Math.PI / 8, pieceSets = new Map(), pieceQueue = [], debrisSets = new Map();
+// The collapse set (from the model of the damage stage it had reached) {key, base, parts: [{m, x, y, z0, cz, h, hr, n, ax, ay}]}: base is the foundation (it stays), each part's
+// model centred on its middle (x, y from the structure's corner in world px, cz its height in voxels, z0 its bottom).
+// now: make it at once (tests); else null until the background has made it (urgent: before the others waiting).
+function pieceSet(type, faction, camo, now, stage = 3, urgent) {
+  const k = 'P' + type + camoPal(faction, camo).key + 's' + stage;
+  let s = pieceSets.get(k);
+  if (s && s.ready) return s;
+  if (now) {   // (needed this frame: made whole, the parts' sprites too, whatever the frame's budget, so no piece is missing)
+    if (!s) { s = makePieceSet(k, type, faction, camo, stage); pieceSets.set(k, s); }
+    const keep = spriteSpend; spriteSpend = -1e9;
+    for (let i = 0; i < s.parts.length; i++) partSprite(s, i, 0);
+    baseSprite(s); spriteSpend = keep;
+    s.ready = true;
+    return s;
+  }
+  const qi = pieceQueue.findIndex((q) => q.k === k);
+  if (qi < 0) {
+    pieceQueue[urgent ? 'unshift' : 'push']({ k, type, faction, camo, stage, v: drawVar, i: 0 });
+    if (pieceQueue.length === 1) setTimeout(pumpPieces, 0);
+  } else if (urgent && qi > 1) pieceQueue.unshift(pieceQueue.splice(qi, 1)[0]);   // (one coming down now goes next)
+  return null;
+}
+function pumpPieces() {
+  const q = pieceQueue[0];
+  if (!q) return;
+  const set = pieceSets.get(q.k);
+  if (!set) {
+    const keep = drawVar, t0 = performance.now(); drawVar = q.v;
+    q.gen = q.gen || pieceGen(q.k, q.type, q.faction, q.camo, q.stage);
+    for (let r; performance.now() - t0 < 4;) if ((r = q.gen.next()).done) { pieceSets.set(q.k, r.value); q.gen = null; break; }
+    drawVar = keep;
+  } else if (set.ready) pieceQueue.shift();
+  else {   // then the parts' upright sprites, a few milliseconds' worth a tick, and the foundation
+    const t0 = performance.now();
+    while (q.i < set.parts.length && performance.now() - t0 < 4) { spriteSpend = -1e9; partSprite(set, q.i++, 0); }
+    if (q.i >= set.parts.length) { spriteSpend = -1e9; baseSprite(set); set.ready = true; pieceQueue.shift(); }
+  }
+  if (pieceQueue.length) setTimeout(pumpPieces, 16);
+}
+function cutFace(c, x, y, z) { const n = hash3(x, y, z + 77); return n < 0.25 ? rgbInt('#3d3a35') : darken(mixInt(c, 0x8a857b, 0.75), 0.75 + n * 0.3); }
+function mixInt(a, b, k) {
+  const ch = (s) => Math.round(((a >> s) & 255) * (1 - k) + ((b >> s) & 255) * k);
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
+function makePieceSet(key, type, faction, camo, stage) {
+  const g = pieceGen(key, type, faction, camo, stage);
+  let r;
+  while (!(r = g.next()).done);
+  return r.value;
+}
+// Made a few thousand voxels at a time (yield), so the background spreads it over several ticks.
+function* pieceGen(key, type, faction, camo, stage) {
+  const pal = camoPal(faction, camo), bk = 'S' + type + pal.key, base = model(bk, () => STRUCTURES[type](pal, faction));
+  const src = stage ? model(bk + 'd' + stage, () => damageModel(base, stage, type, faction)) : base, W = src.w, H = src.h, D = src.d, r = rng(strSeed(type) + 555);
+  const filled = [];
+  for (let i = W * H; i < src.col.length; i++) if (src.col[i] >= 0) filled.push(i);   // (z 0, the foundation, stays)
+  yield;
+  const K = Math.max(6, Math.min(28, Math.round(filled.length / 1400)));
+  const seeds = [];
+  for (let k = 0; k < K && filled.length; k++) {
+    const i = filled[(r() * filled.length) | 0], z = (i / (W * H)) | 0, rest = i - z * W * H;
+    seeds.push([rest % W, (rest / W) | 0, z]);
+  }
+  // Each voxel takes the nearest seed, worked out per 2 x 2 x 2 block (rough, stepped edges, and an eighth of the work),
+  // the block's spot jittered once so the breaks are not straight; pieces a little flatter than they are wide.
+  let work = 0;
+  const own = new Int8Array(src.col.length).fill(-1), BW = (W + 1) >> 1, BH = (H + 1) >> 1, blk = new Int8Array(BW * BH * ((D + 1) >> 1)).fill(-1);
+  for (const i of filled) {
+    const z = (i / (W * H)) | 0, rest = i - z * W * H, y = (rest / W) | 0, x = rest - y * W, bx = x >> 1, by = y >> 1, bz = z >> 1, bi = (bz * BH + by) * BW + bx;
+    if (blk[bi] < 0) {
+      const jx = bx * 2 + 1 + (hash3(bx, by, bz) - 0.5) * 5, jy = by * 2 + 1 + (hash3(by, bz, bx) - 0.5) * 5, jz = bz * 2 + 1 + (hash3(bz, bx, by) - 0.5) * 3;
+      let best = 1e9, bk = 0;
+      for (let k = 0; k < seeds.length; k++) { const [sx, sy, sz] = seeds[k], d = (jx - sx) ** 2 + (jy - sy) ** 2 + ((jz - sz) * 1.4) ** 2; if (d < best) { best = d; bk = k; } }
+      blk[bi] = bk;
+    }
+    own[i] = blk[bi];
+    if ((++work & 4095) === 0) yield;
+  }
+  const lists = seeds.map(() => []);
+  for (const i of filled) lists[own[i]].push(i);
+  const parts = [];
+  for (let k = 0; k < lists.length; k++) {
+    const L = lists[k];
+    if (L.length < 6) continue;
+    let x0 = 1e9, y0 = 1e9, z0 = 1e9, x1 = -1, y1 = -1, z1 = -1, sx = 0, sy = 0, sz = 0;
+    for (const i of L) {
+      const z = (i / (W * H)) | 0, rest = i - z * W * H, y = (rest / W) | 0, x = rest - y * W;
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); z0 = Math.min(z0, z); z1 = Math.max(z1, z); sx += x; sy += y; sz += z;
+    }
+    const cx = Math.round(sx / L.length), cy = Math.round(sy / L.length), cz = sz / L.length;
+    const m = new VModel(x0 - cx, y0 - cy, x1 - cx + 1, y1 - cy + 1, z1 - z0 + 1);
+    const WH = W * H, N = own.length, mw = m.w, mwh = m.w * m.h;
+    for (const i of L) {
+      const z = (i / WH) | 0, rest = i - z * WH, y = (rest / W) | 0, x = rest - y * W;
+      let c = src.col[i], mt = src.mat[i];
+      if (z > 1) {   // a face where it broke from another piece
+        const o = (j) => j >= WH && j < N && own[j] >= 0 && own[j] !== k;
+        if ((x > 0 && o(i - 1)) || (x < W - 1 && o(i + 1)) || (y > 0 && o(i - W)) || (y < H - 1 && o(i + W)) || o(i - WH) || o(i + WH)) { c = cutFace(c, x, y, z); mt = M_ROUGH; }
+      }
+      const j = (z - z0) * mwh + (y - y0) * mw + (x - x0);
+      m.col[j] = c; m.mat[j] = mt;
+    }
+    m.zc = cz - z0;
+    const a = r() * Math.PI * 2;
+    yield;
+    parts.push({ m, x: cx + src.x0, y: cy + src.y0, z0, cz, h: z1 - z0 + 1, hr: Math.max(x1 - x0, y1 - y0) / 2 + 0.5, n: L.length, ax: Math.cos(a), ay: Math.sin(a) });
+  }
+  const bm = new VModel(src.x0, src.y0, src.x0 + W, src.y0 + H, 1);   // (the foundation: its bottom layer only)
+  bm.col.set(src.col.subarray(0, W * H)); bm.mat.set(src.mat.subarray(0, W * H));
+  return { key, base: bm, parts };
+}
+// A part's model tipped by `step` TILT_STEPs about its own level axis (ax, ay) through its middle; zc: its middle's height
+// in the turned model. Every voxel is turned as 8 sub-points, so the turned piece has no holes.
+function tipModel(m, ax, ay, step) {
+  if (!step) return m;
+  const th = step * TILT_STEP, c = Math.cos(th), sn = Math.sin(th), pts = new Map();
+  let x0 = 1e9, y0 = 1e9, z0 = 1e9, x1 = -1e9, y1 = -1e9, z1 = -1e9;
+  for (let z = 0; z < m.d; z++) for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
+    const i = (z * m.h + y) * m.w + x;
+    if (m.col[i] < 0) continue;
+    for (let s = 0; s < 8; s++) {
+      const vx = x + m.x0 + 0.25 + (s & 1) * 0.5, vy = y + m.y0 + 0.25 + ((s >> 1) & 1) * 0.5, vz = z - m.zc + 0.25 + ((s >> 2) & 1) * 0.5;
+      const kd = ax * vx + ay * vy;   // Rodrigues, axis (ax, ay, 0)
+      const rx = vx * c + ay * vz * sn + ax * kd * (1 - c), ry = vy * c - ax * vz * sn + ay * kd * (1 - c), rz = vz * c + (ax * vy - ay * vx) * sn;
+      const X = Math.floor(rx), Y = Math.floor(ry), Z = Math.floor(rz), kk = ((Z + 512) * 1024 + Y + 512) * 1024 + X + 512;
+      if (!pts.has(kk)) { pts.set(kk, i); x0 = Math.min(x0, X); x1 = Math.max(x1, X); y0 = Math.min(y0, Y); y1 = Math.max(y1, Y); z0 = Math.min(z0, Z); z1 = Math.max(z1, Z); }
+    }
+  }
+  const t = new VModel(x0, y0, x1 + 1, y1 + 1, z1 - z0 + 1);
+  for (const [kk, i] of pts) {
+    const X = (kk % 1024) - 512, Y = (Math.floor(kk / 1024) % 1024) - 512, Z = Math.floor(kk / 1048576) - 512;
+    t.set(X, Y, Z - z0, m.col[i], m.mat[i]);
+  }
+  t.zc = -z0;
+  return t;
+}
+// A part's sprite at a tilt, with the height of its middle above the sprite's origin (voxels). Past the frame's budget for
+// making sprites, the nearest tilt already made stands in.
+function partSprite(set, i, step) {
+  const p = set.parts[i], mk = set.key + 'p' + i + 't' + step;
+  const ready = spriteCache2.get(mk + '|0');
+  if (!ready && spriteSpend > SPRITE_BUDGET) { for (let s = step - 1; s >= 0; s--) if (spriteCache2.has(set.key + 'p' + i + 't' + s + '|0')) return partSprite(set, i, s); }
+  const s = sprite(mk, () => tipModel(p.m, p.ax, p.ay, step), 0, 0, { shadow: false });
+  const m = modelCache.get(mk);
+  return { s, zc: m ? m.zc : p.m.zc };
+}
+function baseSprite(set) { return sprite(set.key + 'base', () => set.base, 0, 0, { shadow: false }); }
+// Lumps knocked off by hits: a dozen small pieces of the structure's surface (walls and roof), each a few voxels across,
+// centred on their middle; tipped about one axis as they tumble.
+function debrisSet(type, faction, camo) {
+  const pal = camoPal(faction, camo), k = 'L' + type + pal.key;
+  let set = debrisSets.get(k);
+  if (set) return set;
+  const base = model('S' + type + pal.key, () => STRUCTURES[type](pal, faction)), top = topOf(base), W = base.w, H = base.h, r = rng(strSeed(type) + 99);
+  set = { key: k, parts: [] };
+  for (let tries = 0; set.parts.length < 12 && tries < 300; tries++) {
+    const x = Math.floor(r() * W), y = Math.floor(r() * H), tz = top[y * W + x];
+    if (tz < 3) continue;
+    const z = r() < 0.5 ? tz : Math.max(2, Math.floor(tz * r())), R = 1.6 + r() * 1.8;
+    const m = new VModel(-4, -4, 5, 5, 9);
+    let n = 0;
+    for (let dz = -4; dz <= 4; dz++) for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+      const X = x + dx, Y = y + dy, Z = z + dz;
+      if (X < 0 || Y < 0 || Z < 1 || X >= W || Y >= H || Z >= base.d) continue;
+      const i = (Z * H + Y) * W + X;
+      if (base.col[i] < 0 || Math.hypot(dx, dy, dz * 1.3) + (hash3(X, Y, Z) - 0.5) * 1.5 > R) continue;
+      const edge = Math.hypot(dx, dy, dz * 1.3) > R - 1.2 && hash3(Z, X, Y) < 0.5;
+      m.set(dx, dy, dz + 4, edge ? cutFace(base.col[i], X, Y, Z) : base.col[i], edge ? M_ROUGH : base.mat[i]); n++;
+    }
+    if (n < 5) continue;
+    m.zc = 4;
+    set.parts.push({ m });
+  }
+  debrisSets.set(k, set);
+  return set;
+}
+// A lump's sprite: tumbling about its x axis (4 steps of a half turn) and spun round (8 facings).
+function debrisSprite(set, i, step, face) {
+  const p = set.parts[i % set.parts.length], mk = set.key + 'd' + (i % set.parts.length) + 't' + step;
+  const s = sprite(mk, () => tipModel(p.m, 1, 0, step * 2), face * Math.PI / 4, face, { shadow: false }), m = modelCache.get(mk);
+  return { s, zc: m ? m.zc : 4 };
 }
 // Weapon heads only char and lose a few pieces.
 function scorchModel(base, stage, type) {

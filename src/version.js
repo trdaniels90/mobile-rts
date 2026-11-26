@@ -4,6 +4,21 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.26.3', date: '26 November 2026', title: 'Structures come down in pieces', groups: [
+    ['New', [
+      'Badly damaged structures start to give way: part of the roof cracks and sags, with rubble at its foot.',
+      'Destroyed structures and houses no longer vanish: they shudder, break into jagged pieces of themselves and come down in a smouldering heap.',
+      'Structures on slopes stand on footings of earth and stone, and factories have ramps from their doors down to the ground.',
+    ]],
+    ['Changed', [
+      'Pillbox: one burst now kills a Rifleman, and its bullets splash. Vehicles, buildings and aircraft take the same damage as before.',
+      'Team games: a freshly mined ore field rests for 40 seconds before it regrows, so trucks head out to other fields.',
+    ]],
+    ['Fixed', [
+      'PC with HD ground: no more ground detail popping in when jumping round the map with the radar.',
+      'Structure lights stay on structures built on slopes.',
+    ]],
+  ] },
   { v: '2026.11.26.2', date: '26 November 2026', title: 'Smoother wide views, quicker menu', groups: [
     ['Improved', [
       'Smoother play when zoomed out over woods on maps with hills: tree shadows are drawn far faster.',
