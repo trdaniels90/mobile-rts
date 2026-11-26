@@ -2203,6 +2203,13 @@ function warmSprites(budgetMs, cx, cy) {
 const INF_ANIM = new WeakMap(), WALK = [1, 12, 2, 13];   // per soldier: when they last changed stance and last fired (drawing only)
 // A vehicle just out of the War Factory (world.js updateDoors) is drawn rolling from the doorway to where it stands,
 // coming out of the dark over EMERGE.
+// Where a vehicle rolling out of the War Factory is drawn (drawUnit), for the height it is drawn at (look.js standLift).
+function emergePos(u) {
+  const ek = u.outT == null ? 1 : (G.t - u.outT) / EMERGE;
+  if (!(ek >= 0 && ek < 1)) return [u.x, u.y];
+  const e = ek * (2 - ek);
+  return [u.outX + (u.x - u.outX) * e, u.outY + (u.y - u.outY) * e];
+}
 function drawUnit(g, u, t) {
   const ek = u.outT == null ? 1 : (G.t - u.outT) / EMERGE;
   if (!(ek >= 0 && ek < 1)) return drawUnitBody(g, u, t);

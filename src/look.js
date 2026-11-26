@@ -76,7 +76,8 @@ function drawFoundation(g, e) {
   if (!LOOK.hills || !G || !G.hgt) return;
   const L = bldLift(e), x0 = e.cx * CELL - FOUND_M, y0 = e.cy * CELL - FOUND_M, x1 = (e.cx + e.w) * CELL + FOUND_M, y1 = (e.cy + e.h) * CELL + FOUND_M;
   const P = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], D = P.map(([x, y]) => Math.max(0, L - gLift(x, y)));
-  if (Math.max(...D) < 1) return;
+  const ramp = rampOf(e);
+  if (Math.max(...D) < 1 && !ramp) return;
   if (!LIFT_V) LIFT_V = fromView(0, -1);
   const down = (i) => [P[i][0] - LIFT_V[0] * D[i], P[i][1] - LIFT_V[1] * D[i]];
   const snow = typeof snowy === 'function' && snowy(), base = snow ? [104, 102, 100] : [92, 78, 58];
@@ -105,11 +106,84 @@ function drawFoundation(g, e) {
     g.strokeStyle = snow ? 'rgba(235,238,242,0.55)' : 'rgba(190,170,130,0.5)'; g.lineWidth = 1;
     g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
   }
+  if (ramp && e.buildT >= 1) drawRamp(g, e, ramp, snow);
+}
+// Ramps (owner, 2026-11-26: "id like for vehicle to come out on ramps that go down to the actual ground. and they actually
+// come out and drive down it"): a structure with an exit (world.js addBuilding exitCell: War Factory, Barracks, Refinery,
+// Service Depot) standing above the ground at its door gets a ramp from the door straight out (+y) down to the ground,
+// RAMP_W wide, as long as it needs to be no steeper than RAMP_S view px per world px (RAMP_MIN..RAMP_MAX). Units on it, or
+// rolling out of the door (art.js emergePos), are drawn at its height (standLift). Looks only: the rules do not change.
+const RAMP_W = CELL * 1.5, RAMP_S = 0.55, RAMP_MIN = CELL, RAMP_MAX = CELL * 4, RAMP_DROP = 3;
+let rampMemo = new WeakMap(), rampNow = null;
+function rampOf(e) {
+  if (!e.def.exit || e.exitCell === undefined || !LOOK.hills || !G || !G.hgt) return null;
+  let r = rampMemo.get(e);
+  if (r !== undefined) return r;
+  const L = bldLift(e), xc = (cellX(e.exitCell) + 0.5) * CELL, y0 = (e.cy + e.h) * CELL;
+  r = null;
+  if (L - gLift(xc, y0) >= RAMP_DROP) {
+    let len = RAMP_MIN;
+    while (len < RAMP_MAX && (L - gLift(xc, y0 + len)) / len > RAMP_S) len += 4;
+    len = Math.min(len, RAMP_MAX);
+    r = { e, L, xa: xc - RAMP_W / 2, xb: xc + RAMP_W / 2, y0, y1: y0 + len, y00: e.cy * CELL, Le: Math.min(L, gLift(xc, y0 + len)) };
+  }
+  rampMemo.set(e, r);
+  return r;
+}
+function rampsNow() {
+  if (rampNow && rampNow.g === G && rampNow.t === G.t && rampNow.n === G.entities.length) return rampNow.list;
+  const list = [];
+  for (const e of G.entities) if (e.alive && e.kind === 'bld' && e.def.exit && e.buildT >= 1) { const r = rampOf(e); if (r) list.push(r); }
+  rampNow = { g: G, t: G.t, n: G.entities.length, list };
+  return list;
+}
+// The height a ground unit at (x, y) is drawn at: the ground's, or a ramp's (or the structure's floor inside its door).
+function standLift(x, y) {
+  const g0 = gLift(x, y);
+  if (!LOOK.hills || !G || !G.hgt) return g0;
+  for (const r of rampsNow()) {
+    if (x < r.xa || x > r.xb || y < r.y00 || y > r.y1) continue;
+    const h = y <= r.y0 ? r.L : r.L + (r.Le - r.L) * (y - r.y0) / (r.y1 - r.y0);
+    return Math.max(g0, h);
+  }
+  return g0;
+}
+// (In drawFoundation, the structure's lifted transform:) the ramp's sides down to the ground, then its deck.
+function drawRamp(g, e, r, snow) {
+  const L = r.L, dn = (x, y, d) => [x - LIFT_V[0] * d, y - LIFT_V[1] * d];
+  const deckD = (y) => (y <= r.y0 ? 0 : (L - r.Le) * (y - r.y0) / (r.y1 - r.y0));   // how far below the floor the deck is
+  const N = 6, side = (x) => {
+    const top = [], bot = [];
+    for (let i = 0; i <= N; i++) { const y = r.y0 + (r.y1 - r.y0) * i / N; top.push(dn(x, y, deckD(y))); bot.push(dn(x, y, Math.max(deckD(y), L - gLift(x, y)))); }
+    return top.concat(bot.reverse());
+  };
+  // Its own depth with WebGL (its far end stands well in front of the structure's footprint): tested against the ground only.
+  const glR = typeof GLR === 'object' && GLR && GLR.listDepth;
+  if (glR) GLR.listDepth(Math.max(viewDepth(r.xa, r.y1), viewDepth(r.xb, r.y1)) + 2);
+  const base = snow ? [96, 96, 98] : [84, 78, 68];
+  for (const x of [r.xa, r.xb]) {
+    if (viewDepth(x - (r.xa + r.xb) / 2, 0) <= 0) continue;   // (only the side toward the camera shows)
+    const [vx] = toView(x - (r.xa + r.xb) / 2, 0), lit = vx < 0 ? 0.92 : 0.62;
+    g.fillStyle = `rgb(${base.map((v) => Math.round(v * lit)).join(',')})`;
+    const pts = side(x); g.beginPath(); g.moveTo(...pts[0]); for (const p of pts.slice(1)) g.lineTo(...p); g.closePath(); g.fill();
+  }
+  // The deck: steel plate, a ridge across every 5 world px, yellow and black edges.
+  const a = dn(r.xa, r.y0, 0), b = dn(r.xb, r.y0, 0), c = dn(r.xb, r.y1, L - r.Le), d = dn(r.xa, r.y1, L - r.Le);
+  g.fillStyle = snow ? '#7d8084' : '#6c6a64';
+  g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.lineTo(...c); g.lineTo(...d); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(30,30,28,0.45)'; g.lineWidth = 0.8;
+  for (let y = r.y0 + 4; y < r.y1 - 1; y += 5) { const D = deckD(y); g.beginPath(); g.moveTo(...dn(r.xa + 2, y, D)); g.lineTo(...dn(r.xb - 2, y, D)); g.stroke(); }
+  for (const [x, col] of [[r.xa + 0.8, '#d8b13a'], [r.xb - 0.8, '#d8b13a']]) {
+    g.strokeStyle = col; g.lineWidth = 1.4; g.setLineDash && g.setLineDash([3, 3]);
+    g.beginPath(); g.moveTo(...dn(x, r.y0, 0)); g.lineTo(...dn(x, r.y1, L - r.Le)); g.stroke();
+    g.setLineDash && g.setLineDash([]);
+  }
+  if (glR) GLR.listDepth(Math.max(viewDepth(e.cx * CELL, (e.cy + e.h) * CELL), viewDepth((e.cx + e.w) * CELL, (e.cy + e.h) * CELL), viewDepth(e.cx * CELL, e.cy * CELL), viewDepth((e.cx + e.w) * CELL, e.cy * CELL)) + 2);
 }
 function hillPt(x, y, extra) { return liftPt(x, y, gLift(x, y) + (extra || 0)); }
 // fn() drawn with g's transform moved up the screen by the lift at (x, y).
-function onHill(g, x, y, fn) {
-  const L = gLift(x, y);
+function onHill(g, x, y, fn, lift) {   // (lift: given instead of the ground's, e.g. look.js standLift)
+  const L = lift === undefined ? gLift(x, y) : lift;
   if (!L) return fn();
   if (!LIFT_V) LIFT_V = fromView(0, -1);
   const m = g.getTransform();

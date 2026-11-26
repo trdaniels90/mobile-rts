@@ -3241,3 +3241,14 @@ below Frostlight's 21 x 21 = 441 tiles:
   wider, as a block of packed earth and stone (grey on snow maps) down to the ground at each corner, only the faces toward the
   camera, lit by the sun's side, courses every 6 view px and a pale lip. Nothing on level ground. Checked on that slope in WebGL
   and `?gl=off`.
+- **Ramps** (owner, same day: "if its built like that on stilts its fine, but id like for vehicle to come out on ramps that go
+  down to the actual ground. and they actually come out and drive down it"; looks only, rules unchanged): a structure with an
+  exit (War Factory, Barracks, Refinery, Service Depot) whose floor stands `RAMP_DROP` (3) view px or more above the ground at
+  its door gets a ramp from the door straight out (+y, over the exit cell), `RAMP_W` (1.5 cells) wide, `RAMP_MIN`..`RAMP_MAX`
+  (1..4 cells) long, no steeper than `RAMP_S` where it can be (look.js `rampOf`, kept per structure in a WeakMap; `drawRamp`
+  from `drawFoundation`: the side toward the camera down to the ground, a steel deck with ridges and yellow edges; with WebGL
+  its own list depth, the far end's, as pictures are tested against the ground only). Ground units are drawn at
+  `standLift(x, y)`: a ramp's height on it, the structure's floor inside its door, else the ground (ui.js list loop through
+  `onHill`'s new `lift` argument, and `unitSpot` for bars and brackets); a vehicle rolling out of the door uses art.js
+  `emergePos`. Video (Frostlight, factory on a 20 px drop, 68 px ramp): Rangers roll out and drive down it; WebGL and `?gl=off`.
+  Not done: tank tracks on the ramp are drawn on the ground under it.

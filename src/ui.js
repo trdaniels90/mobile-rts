@@ -953,7 +953,8 @@ function draw() {
       toList();
       if (e.kind === 'tree') { drawTree(lv, e); lap('tree'); DP.nTree++; continue; }   // (lifted in drawTree)
       const [hx, hy] = hillAt(e);
-      onHill(lv, hx, hy, () => drawOne(e, lv));
+      if (e.kind === 'unit') { const [px, py] = emergePos(e); onHill(lv, hx, hy, () => drawOne(e, lv), standLift(px, py)); }   // (on a ramp: look.js)
+      else onHill(lv, hx, hy, () => drawOne(e, lv));
     }
     toList();
     // gl.js (stage 3): the recording goes on past the list: smoke, blasts, the edge's haze, shots, effects and aircraft are
@@ -1365,7 +1366,7 @@ function draw() {
     return [Math.min(...xs), Math.min(...ys) - CELL * 0.8 * VK - L, Math.max(...xs), Math.max(...ys) - L];
   }
   // A unit on the view plane, raised by its height and h more.
-  const unitSpot = (e, h) => toView(...liftPt(e.x, e.y, (e.alt || 0) + (h || 0) + gLift(e.x, e.y)));
+  const unitSpot = (e, h) => toView(...liftPt(e.x, e.y, (e.alt || 0) + (h || 0) + (e.cls === 'air' ? gLift(e.x, e.y) : standLift(e.x, e.y))));   // (on a ramp: look.js)
   function pick(wx, wy, slop) {
     const [X, Y] = toView(...hillPt(wx, wy));   // (the tap's spot: s2w gives the point on the raised ground)
     let best = null, bd = Infinity;
