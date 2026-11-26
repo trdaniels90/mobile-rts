@@ -62,6 +62,11 @@ function craterSink(x, y) {
 }
 const hillMax = () => HG_MAX * VK * HILL_DRAW;
 // The world point that shows where (x, y) does on the raised ground (for things drawn in world coordinates).
+// A structure is drawn raised by the lift under its middle (onHill), so its lights (windows, beacons, the spill on the
+// ground in front, its own glow) use that lift too: lifted by the ground under each light, they slid off it on a slope
+// (owner, 2026-11-26: "slopes mess up building lights"). bldUp: the h to pass a light adder at (x, y) for that.
+function bldLift(e) { return gLift((e.cx + e.w / 2) * CELL, (e.cy + e.h / 2) * CELL); }
+function bldUp(e, x, y) { return bldLift(e) - gLift(x, y); }
 function hillPt(x, y, extra) { return liftPt(x, y, gLift(x, y) + (extra || 0)); }
 // fn() drawn with g's transform moved up the screen by the lift at (x, y).
 function onHill(g, x, y, fn) {
@@ -193,7 +198,8 @@ function lookDayLights(vx, vy, vw, vh, night) {
   const add = (x, y, r, a, col, h, f) => { [x, y] = toView(...liftPt(x, y, (h || 0) + gLift(x, y))); if (near(x, y, r)) lights.push([x, y, r, Math.max(0, Math.min(1, a)), col, f || 1]); };
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.defense || !G.seen[idx(e.cx, e.cy)]) continue;   // (defences give off no light: owner)
-    add((e.cx + e.w / 2) * CELL, (e.cy + e.h) * CELL - 4, 20 + e.w * 8, 0.45, 'warm');
+    const x = (e.cx + e.w / 2) * CELL, y = (e.cy + e.h) * CELL - 4;
+    add(x, y, 20 + e.w * 8, 0.45, 'warm', bldUp(e, x, y));
   }
   for (const fx of G.effects) {
     if (fx.t < 0) continue;
@@ -747,10 +753,12 @@ drawLamps.init = () => {
     win: lookGlowPic('rgba(255,226,160,1)', 'rgba(255,180,90,0.4)', 'rgba(255,140,40,0)'), beam: lookGlowPic('rgba(255,250,225,0.9)', 'rgba(255,245,210,0.35)', 'rgba(255,240,200,0)') };
 };
 function drawLampsOn(g, vx, vy, k, t, near) {
-  const P = lampPics, scr = (x, y, h) => { const [X, Y] = toView(...liftPt(x, y, h + gLift(x, y))); return [(X - vx) * k, (Y - vy) * k, X, Y]; };
+  let L = 0;   // (the structure's own lift: bldLift)
+  const P = lampPics, scr = (x, y, h) => { const [X, Y] = toView(...liftPt(x, y, h + L)); return [(X - vx) * k, (Y - vy) * k, X, Y]; };
   g.save(); g.globalCompositeOperation = 'lighter';
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.defense || !G.seen[idx(e.cx, e.cy)]) continue;   // defences: no lamps at all (owner: it did not look right on them)
+    L = bldLift(e);
     const ox = e.cx * CELL, oy = e.cy * CELL, [, , cX, cY] = scr(ox + e.w * CELL / 2, oy + e.h * CELL / 2, 0);
     if (!near(cX, cY, 160)) continue;
     const Ls = structLamps(e.type, e.faction), ph = (e.id * 0.37) % 1, dark = e.hp < e.maxHp * 0.3;
@@ -1238,7 +1246,7 @@ function poolLights(add, strength, box) {
   // Window light spilling onto the ground in front of structures (not defences: owner).
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.defense || e.hp < e.maxHp * 0.3 || !G.seen[idx(e.cx, e.cy)]) continue;
-    for (const [x, y] of windowSpill(e)) add(x, y, 22, 0.5 * strength, 'pwarm', 0, VIEW.F);
+    for (const [x, y] of windowSpill(e)) add(x, y, 22, 0.5 * strength, 'pwarm', bldUp(e, x, y), VIEW.F);
   }
   // Ore glows faintly gold, gems a cold violet: one soft light per cell on screen.
   if (box) {
