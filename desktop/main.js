@@ -44,9 +44,18 @@ function setZoom(z) {
   win.webContents.setZoomFactor(z);
   try { fs.writeFileSync(zoomFile(), JSON.stringify({ z })); } catch (_) {}
 }
+// Full screen (the game's Settings button, or F11), remembered between runs: the app opens the way it was left.
+// Full screen covers the whole monitor, taskbar included.
+const windowFile = () => path.join(app.getPath('userData'), 'window.json');
+function loadFull() { try { return !!JSON.parse(fs.readFileSync(windowFile(), 'utf8')).full; } catch (_) { return false; } }
+function saveFull(full) { try { fs.writeFileSync(windowFile(), JSON.stringify({ full: !!full })); } catch (_) {} }
+ipcMain.handle('rh-fullscreen', (e, on) => {
+  if (win && !win.isDestroyed() && typeof on === 'boolean') win.setFullScreen(on);
+  return !!(win && !win.isDestroyed() && win.isFullScreen());
+});
 function createWindow() {
   win = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 800, minHeight: 500,
+    width: 1280, height: 800, minWidth: 800, minHeight: 500, fullscreen: loadFull(),
     backgroundColor: '#000000', autoHideMenuBar: true, title: 'Red Horizon',
     icon: path.join(__dirname, 'game', 'icons', 'icon-512.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, autoplayPolicy: 'no-user-gesture-required' },
@@ -55,6 +64,9 @@ function createWindow() {
   Menu.setApplicationMenu(MAC ? Menu.buildFromTemplate([{ role: 'appMenu' }, { label: 'View', submenu: [{ role: 'togglefullscreen' }] }, { role: 'windowMenu' }]) : null);
   win.webContents.on('did-finish-load', () => { win.webContents.setZoomFactor(loadZoom()); if (content) content.confirm(); });
   win.loadURL('app://game/index.html');
+  const fullChanged = (full) => { saveFull(full); if (!win.isDestroyed()) win.webContents.send('rh-fullscreen-changed', full); };
+  win.on('enter-full-screen', () => fullChanged(true));
+  win.on('leave-full-screen', () => fullChanged(false));
   // The game's page died (a graphics driver crash took the window black, 2026.11.20, RTX 5080): load it again rather than
   // leave a black window. The game notes it died drawing with WebGL (gl.js crash guard, for the match report)
   // and comes back with WebGL again: since 2026-11-22 WebGL is the only way it draws for players.

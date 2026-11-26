@@ -1287,6 +1287,11 @@ recorder usage at the top of record.js).
 - Local test: `cd desktop && npm install && npm start`. Installer: `npm run dist` (Windows). CI does the release.
 - The installer is unsigned, so Windows SmartScreen warns on first run until a code-signing certificate is added.
 - The app's game version equals the web version, so it matches the game server.
+- **Full screen** (owner, 2026-11-26: "I can still see my taskbar"): Settings > Graphics has "Full screen: on/off", shown only in
+  the app (preload.js `rhDesktop.fullScreen(on)` / `onFullScreen`; ui.js hides it on the web and in an older app). Real full
+  screen (`win.setFullScreen`), taskbar covered. Remembered in userData/window.json and the app opens that way; F11 (and
+  Shift+Esc to leave) still work and the button follows them. Default off. Windows gets the new shell with the next installer;
+  a Mac app on the old shell just shows no button.
 
 ## Claude token tracker (2026.11.16)
 

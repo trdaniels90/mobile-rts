@@ -2311,6 +2311,16 @@ function draw() {
       : HD.pref !== HD.on ? 'Takes effect the next time the game opens.'
       : HD.on ? 'Sharp, smooth units and buildings. Uses more graphics power and memory.' : 'Classic pixel look.';
   }
+  // Full screen (the PC and Mac app only: preload.js rhDesktop.fullScreen; an older app without it shows no button). The app
+  // remembers it and opens that way; F11 switches it too, and the button follows.
+  if (window.rhDesktop && rhDesktop.fullScreen) {
+    const fb = $('fullBtn');
+    const show = (on) => { fb.setAttribute('aria-pressed', String(on)); fb.textContent = 'Full screen: ' + (on ? 'on' : 'off'); };
+    fb.hidden = $('fullStatus').hidden = false;
+    fb.addEventListener('click', () => rhDesktop.fullScreen(fb.getAttribute('aria-pressed') !== 'true').then(show, () => {}));
+    if (rhDesktop.onFullScreen) rhDesktop.onFullScreen(show);
+    rhDesktop.fullScreen().then(show, () => {});
+  }
   function syncFps() {
     const b = $('fpsBtn');
     b.setAttribute('aria-pressed', String(full60));
