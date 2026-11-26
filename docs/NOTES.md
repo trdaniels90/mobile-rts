@@ -3013,6 +3013,11 @@ stretched 2x to 7x (zoom x screen sharpness) with no smoothing.
   structure going up, anything the sheets lack) is rendered at 2x with soft shadows, from the ordinary (1x detail) models:
   sharper but still stepped. About 4x the time of an ordinary sprite (a structure ~90 ms once).
 - **Cost:** the GPU fills 4x the pixels. Measure on the owner's iPhone before it is ever the default.
+- **Death effects in HD (2026-11-26):** the thrown wheels, hull plates and ragdolls are drawn as shapes, not sprites, so the sheets
+  do not cover them. In an HD frame (`FRAME_RS` > 1) art.js draws them finer. `pxLine` steps and sits on the frame's half pixels,
+  so limbs are smooth. A ragdoll's outline is half a pixel, its head round with the helmet, and its hands and boots smaller.
+  A `wheel` has 28 points, not 12, plus a tyre wall, rim lip, hub cap and five bolts that turn as it rolls. A `frag` plate gets a
+  lit edge and a shaded edge. Without HD, the drawing is unchanged.
 - Windows app: desktop/scripts/prep.js copies `sprites-hd` and `normals-hd`. (It does not copy `normals` or `cliffs`, before
   this change too.)
 
