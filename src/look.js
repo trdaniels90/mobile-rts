@@ -67,6 +67,45 @@ const hillMax = () => HG_MAX * VK * HILL_DRAW;
 // (owner, 2026-11-26: "slopes mess up building lights"). bldUp: the h to pass a light adder at (x, y) for that.
 function bldLift(e) { return gLift((e.cx + e.w / 2) * CELL, (e.cy + e.h / 2) * CELL); }
 function bldUp(e, x, y) { return bldLift(e) - gLift(x, y); }
+// A structure on a slope stands level at its middle's height, so on the downhill side its edge hangs above the ground and the
+// pad painted on the ground (art.js bibDecal) showed below it (owner, 2026-11-26: "the base below it looks wrong now").
+// drawFoundation (ui.js drawOne, before the structure, in its lifted transform): a footing of packed earth and stone from the
+// footprint (a little wider) down to the ground at each corner, its faces lit by the sun's side; nothing on level ground.
+const FOUND_M = 3;
+function drawFoundation(g, e) {
+  if (!LOOK.hills || !G || !G.hgt) return;
+  const L = bldLift(e), x0 = e.cx * CELL - FOUND_M, y0 = e.cy * CELL - FOUND_M, x1 = (e.cx + e.w) * CELL + FOUND_M, y1 = (e.cy + e.h) * CELL + FOUND_M;
+  const P = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], D = P.map(([x, y]) => Math.max(0, L - gLift(x, y)));
+  if (Math.max(...D) < 1) return;
+  if (!LIFT_V) LIFT_V = fromView(0, -1);
+  const down = (i) => [P[i][0] - LIFT_V[0] * D[i], P[i][1] - LIFT_V[1] * D[i]];
+  const snow = typeof snowy === 'function' && snowy(), base = snow ? [104, 102, 100] : [92, 78, 58];
+  const faces = [];
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    if (D[i] < 0.5 && D[j] < 0.5) continue;
+    const mx = (P[i][0] + P[j][0]) / 2, my = (P[i][1] + P[j][1]) / 2, nx = mx - (x0 + x1) / 2, ny = my - (y0 + y1) / 2;
+    if (viewDepth(nx, ny) <= 0) continue;   // (faces turned away from the camera are hidden behind the others)
+    const [vx] = toView(nx, ny), lit = 0.78 - 0.22 * Math.sign(vx) * Math.min(1, Math.abs(vx) / (Math.hypot(nx, ny) || 1) * 1.4);
+    faces.push({ i, j, d: viewDepth(mx, my), lit });
+  }
+  faces.sort((a, b) => a.d - b.d);
+  for (const f of faces) {
+    const a = P[f.i], b = P[f.j], bd = down(f.j), ad = down(f.i), [r0, g0, b0] = base.map((v) => Math.round(v * f.lit));
+    g.fillStyle = `rgb(${r0},${g0},${b0})`;
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(bd[0], bd[1]); g.lineTo(ad[0], ad[1]); g.closePath(); g.fill();
+    // Courses of stone every 6 view px down the face, and a pale lip along the top.
+    g.strokeStyle = `rgba(0,0,0,0.22)`; g.lineWidth = 0.8;
+    const n = Math.floor(Math.max(D[f.i], D[f.j]) / 6);
+    for (let k = 1; k <= n; k++) {
+      const da = Math.min(D[f.i], k * 6), db = Math.min(D[f.j], k * 6);
+      if (da >= D[f.i] && db >= D[f.j]) break;
+      g.beginPath(); g.moveTo(a[0] - LIFT_V[0] * da, a[1] - LIFT_V[1] * da); g.lineTo(b[0] - LIFT_V[0] * db, b[1] - LIFT_V[1] * db); g.stroke();
+    }
+    g.strokeStyle = snow ? 'rgba(235,238,242,0.55)' : 'rgba(190,170,130,0.5)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+  }
+}
 function hillPt(x, y, extra) { return liftPt(x, y, gLift(x, y) + (extra || 0)); }
 // fn() drawn with g's transform moved up the screen by the lift at (x, y).
 function onHill(g, x, y, fn) {

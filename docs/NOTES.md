@@ -106,8 +106,8 @@ recorder usage at the top of record.js).
     - Taps: `s2w` gives the point of the raised ground under the finger (a few steps down the screen by the lift);
       `pick` and the double-tap select compare on the screen with the lifted spots.
     - Not lifted (on low ground anyway): water and its foam (heights are 0 near water), bridges and broken spans, pigeons.
-    - Left for later: structures stand at their middle's height, their pads follow the slope (bases are on level ground, so
-      only an expansion on a hillside shows it); the minimap and debrief are flat; the camera's edge limits ignore the lift.
+    - Structures stand at their middle's height, their pads follow the slope (bases are on level ground, so only an
+      expansion on a hillside shows it): since 2026-11-26 a footing fills the gap ("Structure lights on slopes" below). Left for later: the minimap and debrief are flat; the camera's edge limits ignore the lift.
   - **Taller hills, made 2026-11-19 (owner: "lets tackle this"; video sent, verdict pending):** the hills are drawn
     `HILL_DRAW` (2.5) times as tall as `G.hgt` (up to about 62 view px). **No rule changes:** reach and sight compare heights as
     a share of `HG_MAX`, and slope speed uses `G.hgt` itself, so only the picture is taller (no mode question needed: both
@@ -3235,3 +3235,9 @@ below Frostlight's 21 x 21 = 441 tiles:
 - Headless (1280 x 720, `?hd=1&hdground=1`, Frostlight, six jumps to far corners, 20 frames each): before, 25-68 tile-frames popping
   in a jump and up to 28 frames with ground missing (only 400 tiles ever painted); now 0 and 0, all 441 painted. No errors.
 - Phones are unchanged (HD ground is off there by default; their caps stay).
+- **Footings** (owner, same day, after the fix above: "the base below it looks wrong now"): the pad painted on the ground (art.js
+  `bibDecal`) follows the slope, so on the downhill side it showed below the level structure. look.js `drawFoundation` (ui.js
+  `drawOne`, before `drawStructure`, in its lifted transform; not for camouflaged structures): the footprint, `FOUND_M` (3) px
+  wider, as a block of packed earth and stone (grey on snow maps) down to the ground at each corner, only the faces toward the
+  camera, lit by the sun's side, courses every 6 view px and a pale lip. Nothing on level ground. Checked on that slope in WebGL
+  and `?gl=off`.

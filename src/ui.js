@@ -911,7 +911,7 @@ function draw() {
     // Each on the raised ground (look.js onHill): a structure or house at the middle of its footprint.
     const hillAt = (e) => (big(e) ? [(e.cx + e.w / 2) * CELL, (e.cy + e.h / 2) * CELL] : [posOf(e).x, posOf(e).y]);
     const drawOne = (e, v) => {   // (v: the view canvas, or gl.js's recorder while WebGL draws the list)
-      if (e.kind === 'bld') { drawStructure(v, e, G.t); lookAlive(v, e); lap('bld'); }   // (lookAlive: lookfx.js, living structures)
+      if (e.kind === 'bld') { if (!e.def.camo) drawFoundation(v, e); drawStructure(v, e, G.t); lookAlive(v, e); lap('bld'); }   // (lookAlive: lookfx.js, living structures)
       else if (e.kind === 'house') { drawHouse(v, e); lap('bld'); }
       else if (e.kind === 'prop') { drawProp(v, e); lap('misc'); }
       else if (e.kind === 'folk') { drawFolk(v, e.v); lap('misc'); }
