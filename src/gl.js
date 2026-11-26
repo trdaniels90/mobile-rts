@@ -246,11 +246,11 @@ void main() {
     S.mesh.set(k, m);
     return m;
   }
-  function upload(k, t) {
+  function upload(k, t, A) {
     let e = S.tex.get(k);
     if (e && e.t === t && e.ver === t.ver && !!e.d === !!t.d) { e.used = S.frame; return e; }
     if (!e) {
-      if (S.tex.size >= (GROUND_ROOMY ? TEX_MAX : Math.round(TEX_MAX / ((G.ground.K || 1) ** 2)))) {   // the least recently drawn let go (a phone with HD ground: a quarter as many, each four times the size)
+      if (S.tex.size >= (GROUND_ROOMY ? Math.max(TEX_MAX, A.n * A.n) : Math.round(TEX_MAX / ((G.ground.K || 1) ** 2)))) {   // the least recently drawn let go (a phone with HD ground: a quarter as many, each four times the size; a computer keeps every tile)
         let old = null; for (const [kk, x] of S.tex) if (!old || x.used < old[1].used) old = [kk, x];
         gl.deleteTexture(old[1].g); if (old[1].d) gl.deleteTexture(old[1].d); S.tex.delete(old[0]);
       }
@@ -365,11 +365,12 @@ void main() {
         return true;
       }
       let up = 0;
+      R.gPop = 0;   // (tiles on screen this frame still a stand-in or fading in: tests)
       for (const k of A.tilesIn(sx, sy, sw, sh)) {
         const t = A.tile(k), m = meshOf(k, A), [x0, y0] = A.at(k);
         let e = null;
         if (t && (up < 6 || S.tex.has(k))) {   // (a few new uploads a frame)
-          const had = S.tex.get(k); e = upload(k, t);
+          const had = S.tex.get(k); e = upload(k, t, A);
           if (!had || had.ver !== t.ver) up++;
           if (!had && S.frame > 2) e.born = now;   // (new on screen: fades in over the stand-in; not the first frames, behind the card)
         }
@@ -380,6 +381,7 @@ void main() {
           fade = Math.max(0, Math.min(1, a, b));
           if (a >= 1) e.born = 0;
         }
+        if (!e || fade < 1) R.gPop++;
         gl.uniform2f(loc.uT0, x0, y0); gl.uniform1f(loc.uLowOnly, e ? 0 : 1); gl.uniform1f(loc.uFade, fade);
         gl.uniform1f(loc.uPvOn, S.pv && S.pvShown && S.pvShown[k] ? 1 : 0);
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, e ? e.g : R.none);
@@ -395,7 +397,16 @@ void main() {
         for (const k of A.tilesIn(sx - T, sy - T, sw + 2 * T, sh + 2 * T)) {
           if (up >= 6) break;
           const t = A.tile(k);
-          if (t && !S.tex.has(k)) { upload(k, t); up++; }
+          if (t && !S.tex.has(k)) { upload(k, t, A); up++; }
+        }
+      }
+      // A computer (GROUND_ROOMY) keeps every tile on the GPU: the painted ones not uploaded yet go up in the background, two a
+      // frame, so a radar jump finds the whole ground there (owner, HD ground on Frostlight: "ground detail popping in").
+      if (GROUND_ROOMY && S.tex.size < A.n * A.n) {
+        const N = A.n * A.n;
+        for (let i = 0, put = 0; i < N && put < 2; i++) {
+          const k = S.fill = ((S.fill || 0) + 1) % N, t = A.tile(k);
+          if (t && !S.tex.has(k)) { upload(k, t, A); put++; }
         }
       }
       return true;   // (kept in the GL canvas: listBegin records what is drawn over it, listEnd puts the frame into v once)

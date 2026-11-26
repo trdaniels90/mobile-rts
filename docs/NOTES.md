@@ -3207,3 +3207,17 @@ the server: drawing went 17 -> 37 ms as the trees in view went 120 -> 437 -> 814
 - **Report** (report.js): each minute's `res` (lowest drawing resolution, pixels a CSS pixel: ui.js `autoRes` steps it down when frames
   run slow) and `z` (lowest zoom). That match could not show whether autoRes had already stepped the iPad down; its drawing time was
   CPU (shadows, ground, crags), which fewer pixels do not help.
+
+## HD ground: no pop-in on radar jumps on a computer (2026-11-26, after 2026.11.26.2, not released, looks and memory only, both modes)
+
+Owner (PC, 2560 x 1370 at 1.5x, Frostlight 3 v 3, match 486b9bc9): "when zooming around the map by clicking on the radar im noticing
+ground detail popping in". The report showed frames with ground missing and tiles painted again right after jumps (minutes 10, 12,
+14-16). HD ground has no baked sheets, so no stage 6: the ground came from art.js tiles and gl.js tile textures, and both were capped
+below Frostlight's 21 x 21 = 441 tiles:
+- art.js `keepN`: a roomy computer with HD ground kept 400 tiles (now all, `n * n`: ~1 MB a tile, Frostlight ~440 MB).
+- gl.js `upload`: at most `TEX_MAX` (140) tile textures, 6 new uploads a frame, so a jump showed the blurred preview and faded the
+  detail in. A `GROUND_ROOMY` device now keeps every tile, and painted tiles not on the GPU yet go up in the background, two a frame.
+- `GLR.gPop`: tiles on screen in the last frame still a stand-in or fading in (tests).
+- Headless (1280 x 720, `?hd=1&hdground=1`, Frostlight, six jumps to far corners, 20 frames each): before, 25-68 tile-frames popping
+  in a jump and up to 28 frames with ground missing (only 400 tiles ever painted); now 0 and 0, all 441 painted. No errors.
+- Phones are unchanged (HD ground is off there by default; their caps stay).

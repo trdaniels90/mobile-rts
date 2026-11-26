@@ -1664,9 +1664,10 @@ function makeGround(painter, legacy, baked) {
   const K = legacy || baked ? 1 : GK, TK = T * K;
   const tileCanvas = () => { const c = spare.pop(); if (!c) return mkCanvas(TK, TK); const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, TK, TK); return c; };
   const tileOf = (tx, ty) => ty * n + tx;
-  // How many painted tiles are kept: a roomy computer all of them (HD ground: 400, about 400 MB at 512 px a tile), a phone
-  // those round the view (HD ground: a quarter as many, each four times the memory).
-  const keepN = (seen) => (GROUND_ROOMY ? (K > 1 ? 400 : n * n) : Math.max(Math.round(140 / (K * K)), seen * 3));
+  // How many painted tiles are kept: a roomy computer all of them (HD ground too: ~1 MB a tile at 512 px, Frostlight's 441
+  // ~440 MB; a cap of 400 had tiles let go and painted again after radar jumps), a phone those round the view (HD ground: a
+  // quarter as many, each four times the memory).
+  const keepN = (seen) => (GROUND_ROOMY ? n * n : Math.max(Math.round(140 / (K * K)), seen * 3));
   const at = (k) => [(k % n) * T, Math.floor(k / n) * T];
   // With workers: the tiles wanted, in order (on screen nearest the middle first, then the ring round it), those
   // being worked out, and those whose pixels are back and wait to be finished on the main thread.
