@@ -871,6 +871,7 @@ function drawLampsOn(g, vx, vy, k, t, near) {
   g.save(); g.globalCompositeOperation = 'lighter';
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || e.def.defense || !G.seen[idx(e.cx, e.cy)]) continue;   // defences: no lamps at all (owner: it did not look right on them)
+    if (e.hp < e.maxHp * DMG_AT[2]) continue;   // (coming down, models.js slumpModel: its peaks are not where they were)
     L = bldLift(e);
     const ox = e.cx * CELL, oy = e.cy * CELL, [, , cX, cY] = scr(ox + e.w * CELL / 2, oy + e.h * CELL / 2, 0);
     if (!near(cX, cY, 160)) continue;
