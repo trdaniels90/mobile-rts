@@ -821,23 +821,33 @@ function drawRagBody(g, fx) {
   const pants = burnt ? BURNT.deep : cssOf(K.pants), skin = burnt ? '#3a2e26' : K.skin;
   const head = fx.unitType === 'pilot' ? '#cfcab8' : fx.unitType === 'technician' ? '#4a3a2a' : fx.unitType === 'grenadier' ? '#5d6236' : cssOf(K.helm);
   const L = (i) => liftPt(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]), X = (i) => L(i)[0], Y = (i) => L(i)[1], Zk = (i) => P[i * 3 + 2] * 4 + P[i * 3 + 1];
-  const parts = [];
-  const seg = (i, j, w, col) => parts.push({ k: (Zk(i) + Zk(j)) / 2, f: (dark) => pxLine(g, X(i), Y(i), X(j), Y(j), dark ? w + 1 : w, dark ? '#16120e' : col) });
+  const parts = [], hd = FRAME_RS > 1, ol = hd ? 0.5 : 1;   // (HD: a half-pixel outline, as the HD soldiers' sprites have)
+  const seg = (i, j, w, col) => parts.push({ k: (Zk(i) + Zk(j)) / 2, f: (dark) => pxLine(g, X(i), Y(i), X(j), Y(j), dark ? w + ol : w, dark ? '#16120e' : col) });
   seg(2, 7, 1, pants); seg(7, 9, 1, pants); seg(2, 8, 1, pants); seg(8, 10, 1, pants);   // (thin: soldiers are drawn at INF_SCALE)
   seg(1, 2, 2, tunic); seg(3, 4, 2, tunic); seg(3, 5, 1, sleeve); seg(4, 6, 1, sleeve);
   if (fx.gun) {
     const q = fx.gun.P, rk = fx.unitType === 'rocket';
-    parts.push({ k: (q[2] + q[5]) * 2 + (q[1] + q[4]) / 2, f: (dark) => pxLine(g, ...liftPt(q[0], q[1], q[2]), ...liftPt(q[3], q[4], q[5]), (rk ? 2 : 1) + (dark ? 1 : 0), dark ? '#16120e' : rk ? '#56603a' : C.gun) });
+    parts.push({ k: (q[2] + q[5]) * 2 + (q[1] + q[4]) / 2, f: (dark) => pxLine(g, ...liftPt(q[0], q[1], q[2]), ...liftPt(q[3], q[4], q[5]), (rk ? 2 : 1) + (dark ? ol : 0), dark ? '#16120e' : rk ? '#56603a' : C.gun) });
   }
   parts.sort((a, b) => a.k - b.k);
   for (const p of parts) p.f(true);
   for (const p of parts) p.f(false);
   // Boots, hands, then the head with its helmet on the side away from the neck.
+  const hx = X(0), hy = Y(0), ux = hx - X(1), uy = hy - Y(1), ul = Math.hypot(ux, uy) || 1;
+  if (hd) {   // HD: boots, hands and a round head with its helmet, at the frame's half pixels
+    const R = frameRound, dot = (x, y, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(R(x * 2) / 2, R(y * 2) / 2, r, 0, 7); g.fill(); };
+    g.fillStyle = '#121210';
+    for (const i of [9, 10]) g.fillRect(R(X(i) - 0.75), R(Y(i) - 0.75), 1.5, 1.5);
+    g.fillStyle = skin;
+    for (const i of [5, 6]) g.fillRect(R(X(i) - 0.5), R(Y(i) - 0.5), 1, 1);
+    dot(hx, hy, 1.5, '#16120e'); dot(hx, hy, 1.1, skin);
+    dot(hx + ux / ul * 0.6, hy + uy / ul * 0.6, 1.05, burnt ? BURNT.light : head);
+    return;
+  }
   g.fillStyle = '#121210';
   for (const i of [9, 10]) g.fillRect(Math.round(X(i) - 1), Math.round(Y(i) - 1), 2, 2);
   g.fillStyle = skin;
   for (const i of [5, 6]) g.fillRect(Math.round(X(i)), Math.round(Y(i)), 1, 1);
-  const hx = X(0), hy = Y(0), ux = hx - X(1), uy = hy - Y(1), ul = Math.hypot(ux, uy) || 1;
   g.fillStyle = '#16120e'; g.fillRect(Math.round(hx - 1.5), Math.round(hy - 1.5), 3, 3);
   g.fillStyle = skin; g.fillRect(Math.round(hx - 1), Math.round(hy - 1), 2, 2);
   g.fillStyle = burnt ? BURNT.light : head;
@@ -860,12 +870,13 @@ function drawPool(g, fx, k) {
   g.fillRect(Math.round(cx - s * 0.3), Math.round(cy - s * 0.25), s > 3 ? 2 : 1, 1);
 }
 // Pixel-crisp line with a square brush.
+// In an HD frame (FRAME_RS 2) it steps and sits on the frame's half pixels, so a slanted limb is smooth, not stair-stepped.
 function pxLine(g, x0, y0, x1, y1, w, col) {
   g.fillStyle = col;
-  const n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
+  const rs = FRAME_RS, n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) * rs));
   for (let k = 0; k <= n; k++) {
     const x = x0 + (x1 - x0) * k / n, y = y0 + (y1 - y0) * k / n;
-    g.fillRect(Math.round(x - w / 2), Math.round(y - w / 2), w, w);
+    g.fillRect(frameRound(x - w / 2), frameRound(y - w / 2), w, w);
   }
 }
 // A settled ragdoll painted into the ground for good: a dark stain, then the body a shade dimmer.
@@ -3354,6 +3365,10 @@ function drawEffect(g, fx) {
       if (fx.alt > 0.5) { g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(Math.round(fx.x + shx - fx.w / 2), Math.round(fx.y + shy), Math.ceil(fx.w), 1); }
       g.save(); g.translate(...liftPt(fx.x, fx.y, fx.alt)); g.rotate(fx.rot); g.scale(1, 0.6 + 0.4 * Math.abs(Math.cos(fx.rot * 1.7)));
       g.fillStyle = fx.color; g.fillRect(-fx.w / 2, -fx.h / 2, fx.w, fx.h);
+      if (FRAME_RS > 1 && fx.w >= 2 && fx.h >= 1.5) {   // HD: a lit edge and a shaded edge, so a plate reads as metal with thickness
+        g.fillStyle = 'rgba(255,255,255,0.28)'; g.fillRect(-fx.w / 2, -fx.h / 2, fx.w, 0.5);
+        g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(-fx.w / 2, fx.h / 2 - 0.5, fx.w, 0.5);
+      }
       if (fx.burning && fx.t < 3) { g.fillStyle = Math.random() < 0.5 ? 'rgba(255,170,60,0.9)' : 'rgba(255,110,30,0.9)'; g.fillRect(-1, -1, 2, 2); }
       g.restore(); g.globalAlpha = 1;
       break;
@@ -3368,10 +3383,11 @@ function drawEffect(g, fx) {
       const ch = Math.cos(fx.hd), sh = Math.sin(fx.hd), cl = Math.cos(fx.lean), sl = Math.sin(fx.lean);
       const ax = -sh * cl, ay = ch * cl, az = sl;                       // the axle
       const ux = ch, uy = sh, vx = -az * uy, vy = az * ux, vz = ax * uy - ay * ux;   // two directions in the wheel's face
+      const hd = FRAME_RS > 1, NP = hd ? 28 : 12;   // (HD: rounder, with a tyre wall and five bolts round the hub)
       const disc = (rr, col, rot) => {
         g.fillStyle = col; g.beginPath();
-        for (let i = 0; i < 12; i++) {
-          const q = i / 12 * Math.PI * 2 + (rot || 0), c = Math.cos(q) * rr, s2 = Math.sin(q) * rr;
+        for (let i = 0; i < NP; i++) {
+          const q = i / NP * Math.PI * 2 + (rot || 0), c = Math.cos(q) * rr, s2 = Math.sin(q) * rr;
           const [px, py] = liftPt(fx.x + ux * c + vx * s2, fx.y + uy * c + vy * s2, fx.z + vz * s2);
           if (i) g.lineTo(px, py); else g.moveTo(px, py);
         }
@@ -3380,9 +3396,19 @@ function drawEffect(g, fx) {
       const fl = fx.burn > 0 && Math.random() < 0.5;
       disc(R + 0.5, '#121210');                                       // dark outline, so it reads against the ground
       disc(R, fx.burn > 0 ? '#24221f' : '#3a3833');
-      disc(R * 0.55, '#8a8a80');
-      const c = Math.cos(fx.roll) * R * 0.3, s2 = Math.sin(fx.roll) * R * 0.3, [bx, by] = liftPt(fx.x + ux * c + vx * s2, fx.y + uy * c + vy * s2, fx.z + vz * s2);
-      g.fillStyle = '#9a9a90'; g.fillRect(Math.round(bx), Math.round(by), 1, 1);
+      const on = (rr, q) => { const c = Math.cos(q) * rr, s2 = Math.sin(q) * rr; return liftPt(fx.x + ux * c + vx * s2, fx.y + uy * c + vy * s2, fx.z + vz * s2); };
+      if (hd) {
+        disc(R * 0.8, fx.burn > 0 ? '#2c2a26' : '#46443e');   // the tyre's wall, a little lighter than the tread
+        disc(R * 0.6, '#1c1b18');                            // the rim's lip
+        disc(R * 0.55, fx.burn > 0 ? '#5a5852' : '#8a8a80');
+        disc(R * 0.22, fx.burn > 0 ? '#3a3833' : '#6a6a62');  // the hub cap
+        g.fillStyle = fx.burn > 0 ? '#6a6862' : '#b0b0a6';
+        for (let i = 0; i < 5; i++) { const [bx, by] = on(R * 0.38, fx.roll + i * 1.2566); g.fillRect(frameRound(bx - 0.25), frameRound(by - 0.25), 0.5, 0.5); }
+      } else {
+        disc(R * 0.55, '#8a8a80');
+        const [bx, by] = on(R * 0.3, fx.roll);
+        g.fillStyle = '#9a9a90'; g.fillRect(Math.round(bx), Math.round(by), 1, 1);
+      }
       if (fl) { const [fx2, fy2] = liftPt(fx.x, fx.y, fx.z + R); g.fillStyle = Math.random() < 0.5 ? 'rgba(255,170,60,0.85)' : 'rgba(255,110,30,0.85)'; g.fillRect(Math.round(fx2 - 1), Math.round(fy2 - 1), 2, 2); }
       g.globalAlpha = 1;
       break;
