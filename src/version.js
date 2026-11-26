@@ -6,6 +6,8 @@
 const RELEASES = [
   { v: '2026.11.26.3', date: '26 November 2026', title: 'Structures come down in pieces', groups: [
     ['New', [
+      'Online battles: CHAT and PING buttons. Chat to everyone or just your team, with quick messages (Enter on a computer). Ping the map or radar to show allies a spot (Alt+click on a computer).',
+      'Online page: a list of open games on the server to join with one tap, instead of room codes. Codes are still used for phone to phone play when the server cannot be reached.',
       'Badly damaged structures start to give way: part of the roof cracks and sags, with rubble at its foot.',
       'Destroyed structures and houses no longer vanish: they shudder, break into jagged pieces of themselves and come down in a smouldering heap.',
       'Structures on slopes stand on footings of earth and stone, and factories have ramps from their doors down to the ground.',
