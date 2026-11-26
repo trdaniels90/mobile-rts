@@ -3174,19 +3174,37 @@ depending on damage dealt". Nothing in the battle changes (health, cells, timing
   the SAM keep the stage 2 model (`slumps`), so heads never float. At stage 3 the turning parts (radar dish, yard crane),
   flags, banners and look.js roof lamps are not drawn (their spots may have fallen). Heads, spinners and the crane take at
   most stage 2 (art.js `drawStructure`). Village houses use the same stages.
-- **Bigger chunks** (world.js `structureDamageFx`): reaching a new stage throws slabs (3 to 7 px) as well as scraps; reaching
-  stage 3 is a heavy event: more slabs from every hole, a bigger dust cloud, the `collapse` sound and a small shake. At stage
-  3 a piece falls off every 0.6 to 1.8 s.
-- **The fall** (world.js `fallDown`, `updateFall`, `FALL_T` 1.6 s; art.js `drawFall`): a destroyed structure or house no
-  longer vanishes. A `fall` effect draws its stage 3 model shuddering for a moment, then sinking into its footprint with
-  gathering speed (`fallSink`), cut off along the footprint's front edges as a structure going up is (`drawBuildUp`). Big
-  chunks break off its top as it goes, dust rolls out from its rim, and when it lands dust bursts along the ground and
-  smoulders start; the stump left fades out over the rubble decal in 1.5 s (life `FALL_T + 3.5` s). The cells are free at
-  once, as before. ui.js sorts the effect in with the structures (`kind: 'fall'`, a `big` item) and only where the viewer has
-  seen. The death blasts after the first two are smaller (6 to 11 px) so the fall shows through.
-- **Online:** the host sends the one `fall` effect; each copy runs the chunks and dust itself (`updateFall` in the effects
-  pass, `G.inFx`), so nothing more goes over the network. The game server runs `updateFall` too (cheap, no drawing).
-- **Bakes:** damaged models are made at runtime, never baked, so no baked picture changes, but the bake manifests hash
-  models.js: `bake-sprites.js --check` (and `--hd`) report stale until the owner refreshes the manifests at release.
-- Tested: `tools/sim/village.js` (all pass), a headless computer 2 v 2 (`teams.js`), and a Playwright run through each
-  stage and the fall of a War Factory, Power Plant and Construction Yard (screenshots, no page errors).
+- **Lumps of the structure** (models.js `debrisSet`, `debrisSprite`; effect `vchunk`, drawn in art.js `drawEffect`, moved by
+  world.js `updateFrag`): a dozen small pieces (radius 1.6 to 3.4 voxels) cut from each type's own walls and roof, broken
+  edges bare concrete (`cutFace`), tumbling (4 tip steps of 45 degrees, 8 facings) with a shadow. Reaching a new stage
+  throws lumps as well as scraps; stage 3 is a heavy event (more lumps from every hole, a bigger dust cloud, the `collapse`
+  sound, a small shake) and drops a lump every 0.6 to 1.8 s after; about half the hits knock one off.
+- **Coming down in pieces** (models.js `pieceSet`, `pieceGen`, `tipModel`, `partSprite`; world.js `fallDown`, `fallParts`,
+  `stepParts`, `updateFall`; art.js `drawFall`). A destroyed structure or house no longer vanishes. Its model at the damage
+  stage it had reached (`fx.st`, from `dmgSeen`; houses 2) is split into 6 to 28 pieces (about one per 1400 voxels: nearest
+  of random seeds, worked out per 2x2x2 block with a jittered spot, so the breaks are rough), the faces where pieces broke
+  apart recoloured as cracked concrete; the bottom layer is the foundation and stays. Each piece's model is centred on its
+  middle and tipped in 3D in steps of `TILT_STEP` (22.5 degrees) about its own level axis by turning its voxels (8
+  sub-points each, so no holes); each step is rendered once and cached per type, colours and stage. Motion: it stands
+  shuddering, then gives way from a random point outward (delays 0.3 to 1 s); pieces fall under `FALL_G` (110 voxels/s/s),
+  thrown outward more the higher they were, tipping as they fall (slabs over 1500 voxels up to 80 degrees, smaller ones
+  tumbling), bounce once, then slide to a stop; a tall piece topples on over, the rest lean (`tt`), flat ones lie. Dust where
+  each lands, a shadow under each piece in the air. The heap stays, smoulders and fades out over the rubble decal by 9 s.
+  Pieces never start below where they were (`floor` is at most their bottom). The cells are free at once, as before. ui.js
+  sorts the effect in with the structures (`kind: 'fall'`, a `big` item), only where the viewer has seen. The death blasts
+  after the first two are smaller so the pieces show.
+- **Cost:** pieces are made in the background (`pumpPieces`, about 4 ms a tick; the split is a generator that yields every
+  4096 voxels) from a structure's first hit, for the stage it shows. One coming down before its pieces are ready stands
+  shuddering until they are (asked first: `urgent`), then falls from that moment (`fallParts` `from`). Measured on a
+  desktop: about 1 s of background ticks for a Construction Yard, worst tick 9 ms; a tipped step about 2 ms a piece, made
+  under the frame's sprite budget with the nearest step already made standing in. `pieceSet(..., now)` makes a set at once
+  (tests only).
+- **Online:** the host sends the one `fall` effect (with `st`); the pieces exist only on a copy that draws it (art.js makes
+  them, `fallParts`) and move in its effects pass, so nothing more goes over the network, and the game server, which never
+  draws, only runs the dust. Lumps are made in the effects pass on every copy (`G.inFx`, not sent).
+- **Not a slide:** the first version sank the whole picture into its footprint (cut off as a structure going up is); asked
+  for real pieces and no sliding, it was replaced by the above.
+- **Bakes:** damaged models and pieces are made at runtime, never baked, so no baked picture changes, but the bake manifests
+  hash models.js: `bake-sprites.js --check` (and `--hd`) report stale until the owner refreshes the manifests at release.
+- Tested: `tools/sim/village.js`, a headless computer 2 v 2 (`teams.js`), and Playwright runs through each stage and the
+  fall of a War Factory, and of a Tech Center destroyed unhurt (screenshots, video, no page errors).

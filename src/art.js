@@ -2508,6 +2508,7 @@ function drawStructure(g, b, t) {
   if (b.sellT > 0) k = Math.min(k, b.sellT / 1.2);
   if (k < 1) { drawBuildUp(g, b, s, x, y, k, b.sellT > 0, camo); return; }
   const st = dmgStage(b), body = st ? damagedSprite(b.type, b.faction, st, camo) : s, stage = Math.min(2, st);   // (heads and turning parts: two stages)
+  if (b.hp < b.maxHp) pieceSet(b.type, b.faction, camo, false, st);   // (what it will break into, made ahead in the background once hit: drawFall)
   blit(g, body, x, y);
   // A Specialist's charge on it (world.js demolish): the whole structure flashes red, faster as the fuse runs down (both sides see it).
   if (b.c4T > G.t) {
@@ -2565,29 +2566,41 @@ function drawStructure(g, b, t) {
   }
 }
 
-// A destroyed structure or house coming down (world.js fallDown): its most damaged model (models.js slumpModel) sinking into
-// its footprint, cut off along the footprint's front edges as a structure still going up is (drawBuildUp), shuddering
-// as it gives way; the stump left fades out over the rubble.
+// A destroyed structure or house coming down (world.js fallDown): until its pieces (models.js pieceSet) start to move, its
+// model at the damage it had reached (fx.st) shuddering; then its foundation and every piece where world.js stepParts has it, back to front, each
+// at its tilt, with a shadow on the ground under those in the air. The heap fades out at the end over the rubble.
 function drawFall(g, fx) {
   drawVar = fx.v | 0;
-  const camo = fx.btype === 'pillbox' ? groundColour(fx) : undefined, s = damagedSprite(fx.btype, fx.faction, 3, camo);
-  const x = fx.cx * CELL, y = fx.cy * CELL, W = fx.w * CELL, Hh = fx.h * CELL;
-  const mdl = modelCache.get('S' + fx.btype + camoPal(fx.faction, camo).key), hFull = (mdl ? mdl.d : picH(s.img) / VK) * VK;
-  const k = Math.min(1, fx.t / FALL_T), sink = fallSink(k) * hFull, fade = Math.max(0, Math.min(1, (fx.life - fx.t) / 1.5));
-  const shake = k < 0.7 ? Math.sin(fx.t * 57 + fx.seed) * (k < 0.18 ? 0.9 : 1.6) * (1 - k) : 0;
+  const camo = fx.btype === 'pillbox' ? groundColour(fx) : undefined, x = fx.cx * CELL, y = fx.cy * CELL;
+  const fade = Math.max(0, Math.min(1, (fx.life - fx.t) / 2));
   if (fade <= 0) return;
-  const B = [x + W, y], C = [x, y + Hh], D = [x + W, y + Hh], up = hFull + 40;
-  g.save(); g.beginPath();
-  g.moveTo(C[0], C[1]); g.lineTo(D[0], D[1]); g.lineTo(B[0], B[1]); g.lineTo(...liftPt(B[0], B[1], up)); g.lineTo(...liftPt(C[0], C[1], up)); g.closePath(); g.clip();
+  // (Pieces not made yet, as for a structure destroyed unhurt: it stands shuddering while the background makes them, and
+  // then comes down from that moment.)
+  const st = fx.st === undefined ? 3 : fx.st, set = pieceSet(fx.btype, fx.faction, camo, false, st, true);
+  if (!set && !fx.parts) fx.wait = fx.t;
+  if (set && !fx.parts) fallParts(fx, set.parts.map((q) => ({ x: q.x, y: q.y, cz: q.cz, z0: q.z0, h: q.h, hr: q.hr, n: q.n, ax: q.ax, ay: q.ay })), fx.wait !== undefined && fx.wait < FALL_T + 1 ? fx.wait : 0);
+  const t0 = fx.t - (fx.from || 0), shake = !fx.parts || t0 < 1 ? Math.sin(fx.t * 57 + fx.seed) * 0.9 * (1 - Math.min(1, Math.max(0, t0))) : 0;
+  if (!fx.parts || fx.parts.every((p) => p.st === 0)) { blit(g, st ? damagedSprite(fx.btype, fx.faction, st, camo) : structureSprite(fx.btype, fx.faction, camo), x + shake, y + shake * 0.4, false); return; }
   g.globalAlpha = fade;
-  blit(g, s, ...liftPt(x + shake, y + shake * 0.4, -sink), false);
-  g.restore(); g.globalAlpha = 1;
+  blit(g, baseSprite(set), x, y, false);
+  const key = (p) => viewDepth(p.x + p.dx, p.y + p.dy) * VK + (p.cz + p.dz) * VIEW.F;   // (as voxel.js renderVox orders voxels)
+  const order = fx.parts.slice().sort((a, b) => key(a) - key(b));
+  for (const p of order) {
+    const wx = x + p.x + p.dx + (p.st ? 0 : shake), wy = y + p.y + p.dy, step = Math.round(Math.abs(p.tl) / TILT_STEP) % 8;
+    if (p.st === 1 && p.dz < -2) {   // in the air: its shadow on the ground
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(wx, wy, p.hr * 0.9, p.hr * 0.6, 0, 0, 7); g.fill();
+    }
+    const ps = partSprite(set, p.i, step);
+    blit(g, ps.s, ...liftPt(wx, wy, (p.cz + p.dz - ps.zc) * VK), false);
+  }
+  g.globalAlpha = 1;
 }
 // A village house (world.js genVillage; models.js houseModel): neutral, so no side colours. Damaged copies as for any
 // structure; a fallen house is only rubble in the ground.
 function drawHouse(g, h) {
   drawVar = 0;
   const type = houseStructure(h.type), stage = dmgStage(h), s = structureSprite(type, 'allies');
+  if (stage >= 2) pieceSet(type, 'allies', undefined, false, 2);   // (made ahead: drawFall; a house falls from stage 2)
   const fort = h.n ? fortSprite(type, stage) : null;   // held: sandbags and wire (models.js fortifyModel)
   blit(g, fort || (stage ? damagedSprite(type, 'allies', stage) : s), h.cx * CELL, h.cy * CELL);
   if (type.startsWith('hv:fountain') && stage < 2) fountainWater(g, h);
@@ -3381,6 +3394,19 @@ function drawEffect(g, fx) {
       const [sx, sy] = at(-1.5);
       g.fillStyle = '#2b2b27'; g.fillRect(Math.round(sx - 2.5), Math.round(sy - 2.5), 5, 5);
       blit(g, infSprite({ type: 'pilot', faction: fx.faction, face: fx.face }, palFor(fx.faction), 4), ...at(-3), false);
+      break;
+    }
+    case 'vchunk': {
+      // A lump knocked off a structure (world.js structureDamageFx; models.js debrisSet): tumbling as it flies, a shadow below.
+      const set = debrisSet(fx.btype, fx.faction), fade = Math.min(1, (fx.life - fx.t) / 1.5);
+      if (!set.parts.length) break;
+      g.globalAlpha = fade;
+      const hgt = fx.alt / VK, [shx, shy] = fromView(hgt * SHADOW_DX, hgt * SHADOW_DY * VIEW.F);
+      if (fx.alt > 0.5) { g.fillStyle = 'rgba(0,0,0,0.22)'; g.beginPath(); g.ellipse(fx.x + shx, fx.y + shy, 2.5, 1.5, 0, 0, 7); g.fill(); }
+      const step = ((Math.floor(Math.abs(fx.rot) / (Math.PI / 4)) % 4) + 4) % 4, face = ((Math.floor(fx.rot * 1.3 / (Math.PI / 4)) % 8) + 8) % 8;
+      const d = debrisSprite(set, fx.i | 0, step, face);
+      blit(g, d.s, ...liftPt(fx.x, fx.y, fx.alt - d.zc * VK), false);
+      g.globalAlpha = 1;
       break;
     }
     case 'frag': {
