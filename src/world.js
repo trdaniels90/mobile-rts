@@ -6177,9 +6177,12 @@ function spreadOre(f) {
 // ORE_REGROW_PER_SIDE cells a field per tick for each side in the battle (4 in a 2 v 2, 6 in a 3 v 3; one in a
 // 1 v 1), and a nearly bare cell (under a third of what it can hold) grows back twice as fast, so a scraped-out
 // field recovers in a couple of minutes instead of several.
-// TEST: ORE_REST seconds a mined cell waits before it regrows (team games), TEAM_BARE_BOOST the double growth on bare cells.
+// In team games a cell an Ore Truck has just mined waits ORE_REST seconds before it grows back (G.oreMinedT, the time
+// each cell was last mined; host only, saved), so the fields by the refineries run down while untouched fields stay full
+// and trucks spread out (owner, 2026-11-26: in 3 v 3 "ore trucks never really leave peoples spawns"). Saves from before
+// have no G.oreMinedT and regrow as they did. The other two are kept as switches for tests (tools/sim/ore-econ.js ORE_TWEAK).
 const TEAM_ORE_RICH = 1.5;
-let ORE_REGROW_PER_SIDE = 1, TEAM_BARE_BOOST = true, ORE_REST = 0;
+let ORE_REGROW_PER_SIDE = 1, TEAM_BARE_BOOST = true, ORE_REST = 40;
 function growOre() {
   const r = Math.random, rich = G.oreRich || 1, team = rich > 1, grows = team ? Math.round(G.teams.length * ORE_REGROW_PER_SIDE) : 1;
   const rest = team && ORE_REST && G.oreMinedT;

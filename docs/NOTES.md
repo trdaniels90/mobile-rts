@@ -1747,6 +1747,19 @@ Owner: "with the new camera angle lets add better physics to our plane and helic
   tumbling and bouncing; `crashLanding` (wreck, fire, its 30 damage) where it hit. So no skid after a bounce (the skid's 35 / 60
   damage now only comes from a jet that lands without bouncing). Headless: 19 of 20 test jets broke up, one went in nose first.
 
+## Mined ore rests in team games (2026-11-26, not released, owner's pick for both modes; the server must match)
+
+- Owner: in 3 v 3 "ore trucks never really leave peoples spawns". Team fields regrow `ORE_REGROW_PER_SIDE` x sides cells per tick
+  (6 in a 3 v 3), so home fields never fell below `FIELD_EMPTY`; about 80% of all income was regrowth.
+- Now (team games only, world.js `growOre`) a cell mined within `ORE_REST` 40 s does not regrow (`G.oreMinedT`, Float32Array of
+  the time each cell was last mined, set where trucks take ore; host only, saved; older saves lack it and regrow as before).
+  `ORE_REGROW_PER_SIDE` and `TEAM_BARE_BOOST` are `let` switches for tests: `ORE_TWEAK='...' node tools/sim/ore-econ.js`.
+- Tests, `ore-econ.js <repo> 6 15` (bridge, Hard, seed 1000), "away" = trucks on a field other than the two nearest their start,
+  at 5 / 10 / 15 min:
+  - Before: away 30 / 36 / 49%, income a side a minute 5.7k / 19.2k / 17.6k, 45k ore left at 15 min.
+  - Rest 40 s (picked): away 30 / 47 / 72%, income 5.3k / 14.8k / 10.0k, 53k left.
+  - Rest plus half regrowth and no bare-cell boost (rejected): away 29 / 76 / 63%, income 5.5k / 10.3k / 4.2k, 7k left (map mined out).
+
 ## Ore Trucks stay on the field they are sent to (bug fix, both modes)
 
 - Owner: "if i tell ore trucks to harvest a specific field they need to keep going to that field until its empty". A truck sent to ore
