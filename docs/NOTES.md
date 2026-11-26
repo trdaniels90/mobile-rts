@@ -3207,3 +3207,12 @@ the server: drawing went 17 -> 37 ms as the trees in view went 120 -> 437 -> 814
 - **Report** (report.js): each minute's `res` (lowest drawing resolution, pixels a CSS pixel: ui.js `autoRes` steps it down when frames
   run slow) and `z` (lowest zoom). That match could not show whether autoRes had already stepped the iPad down; its drawing time was
   CPU (shadows, ground, crags), which fewer pixels do not help.
+
+## Structure lights on slopes (2026-11-26, bug fix, both modes, looks only)
+
+Owner: "slopes mess up building lights" (screenshot: Frostlight, glows off to the side of the War Factory and Power Plant).
+A structure is drawn raised by the lift under its middle (`onHill`), but its lights were raised by the ground under each light:
+look.js `drawLampsOn` (lit windows, red beacons), `poolLights` window spill, `lookDayLights`' and art.js `nightLights`' glow in
+front of it. On a slope they slid up or down off the structure. Now all use the structure's own lift: look.js `bldLift(e)`, and
+`bldUp(e, x, y)` (the `h` to pass a light adder). Computer-built bases are flat (no change there); a War Factory placed by
+hand on a 47 px slope on Frostlight: beacons above the roof, the door glow well below it before, on the structure after.

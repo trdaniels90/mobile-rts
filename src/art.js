@@ -1341,7 +1341,8 @@ function nightLights(vx, vy, vw, vh, night) {
   for (const e of G.entities) {
     if (!e.alive || e.kind !== 'bld' || e.buildT < 1 || !(G.seen[idx(e.cx, e.cy)])) continue;
     if (typeof LOOK !== 'undefined' && LOOK.lamps && e.def.defense) continue;   // (look.js test: defences give off no light, owner)
-    add((e.cx + e.w / 2) * CELL, (e.cy + e.h) * CELL - 4, 26 + e.w * 10, 0.75, true);
+    const x = (e.cx + e.w / 2) * CELL, y = (e.cy + e.h) * CELL - 4;
+    add(x, y, 26 + e.w * 10, 0.75, true, typeof bldUp === 'function' ? bldUp(e, x, y) : 0);   // (at the structure's own lift: look.js bldUp)
   }
   for (const fx of G.effects) {
     if (fx.t < 0) continue;
