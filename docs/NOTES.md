@@ -3323,6 +3323,7 @@ below Frostlight's 21 x 21 = 441 tiles:
   rooms in their lobby with a free place, at most 50) when the page opens and every 4 s while it is open with no game; Refresh asks at once.
   Join uses the room's code underneath (`Net.join(code, true)`); a room that has just started or closed gives a message, with no phone
   to phone search. A hosted server game says it is listed under Open games; no code is shown.
+- Each row starts with a picture of the room's map (`MAPS[id].img`, as on the map cards); it changes when the leader picks another map.
 - **Codes only as the fallback:** when the server cannot be reached or runs another version, the page says so and shows the 4-letter
   code form, and hosting falls back to phone to phone with a code, as before.
 - Every hosted game is public (no private rooms yet). The server tests (`server.js`, `server-teams.js`, `give-credits.js`,

@@ -791,3 +791,5 @@ body.spectate #sidebar .sb-buttons, body.spectate #sidebar .sb-strips, body.spec
 .on-rooms li b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .on-rooms li small { opacity: 0.8; }
 .on-count { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.on-room-map { flex: none; width: 64px; height: 64px; object-fit: cover; background: #2a2a24; border: 1px solid rgba(90,74,42,0.6); }
+@media (max-height: 440px) { .on-room-map { width: 52px; height: 52px; } }

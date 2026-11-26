@@ -845,7 +845,8 @@ const Online = (() => {
     return `<ul class="on-rooms">${rooms.rooms.map((r) => {
       const map = MAPS[validMap(r.map)] ? MAPS[validMap(r.map)].name : r.map, B = BATTLES[r.mode];
       const what = [(B && B.online) || r.mode, map, B && B.coop ? DIFF_NAME[r.diff] || '' : '', r.resume ? 'saved battle' : ''].filter(Boolean).join(' · ');
-      return `<li><div><b>${esc(r.name || 'Commander')}</b><small>${esc(what)}</small></div><span class="on-count">${r.players} / ${r.max}</span>
+      const img = MAPS[validMap(r.map)] && MAPS[validMap(r.map)].img;
+      return `<li>${img ? `<img class="on-room-map" src="${esc(img)}" alt="${esc(map)}" width="64" height="64" loading="lazy">` : '<span class="on-room-map"></span>'}<div><b>${esc(r.name || 'Commander')}</b><small>${esc(what)}</small></div><span class="on-count">${r.players} / ${r.max}</span>
         <button type="button" class="pf-btn on-go" data-on="joinroom" data-v="${esc(r.code)}">Join</button></li>`;
     }).join('')}</ul>`;
   }
