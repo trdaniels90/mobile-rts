@@ -4,6 +4,18 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.26', date: '26 November 2026', title: 'Headlights, sharper HD battle debris', groups: [
+    ['New', [
+      'Ore Trucks switch on their headlights after dark, lighting the ground ahead of them: all night on night maps, and as dusk falls on maps with day and night.',
+      'Attack move now sends your armed aircraft too.',
+      'Windows app: a Full screen option in Settings, remembered between runs (F11 still works).',
+    ]],
+    ['Improved', [
+      'HD graphics: thrown wheels, armour plates and falling soldiers are drawn in finer detail.',
+      'Mobile SAMs keep to the back of the army instead of leading the charge.',
+      'The AA Gun\'s muzzle flash and shells now come from the ends of its barrels.',
+    ]],
+  ] },
   { v: '2026.11.25.4', date: '25 November 2026', title: 'Vehicles come apart, attack move', groups: [
     ['New', [
       'Vehicles come apart when destroyed: wheels are blown off and go tumbling, bounce and roll away before toppling over; tanks throw road wheels and lengths of track, and plates of armour fly.',
