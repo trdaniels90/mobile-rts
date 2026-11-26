@@ -1265,6 +1265,11 @@ function draw() {
     drawVar = team.variant | 0;
     const hx = (p.cx + d.w / 2) * CELL, hy = (p.cy + d.h / 2) * CELL;   // (on the raised ground, as the structure will stand: look.js)
     onHill(v, hx, hy, () => drawPlacing(v, p, d, team));
+    // A defence: a dashed ring of its weapon's reach, measured from its middle as it aims (world.js updateBuilding)
+    if (d.weapon) onHill(v, hx, hy, () => {
+      v.strokeStyle = p.ok ? 'rgba(242,242,234,0.85)' : 'rgba(255,90,74,0.85)'; v.lineWidth = 1;
+      v.setLineDash([4, 3]); v.beginPath(); v.arc(hx, hy, d.weapon.range, 0, 7); v.stroke(); v.setLineDash([]);
+    });
   }
   function drawPlacing(v, p, d, team) {
     drawGhost(v, p.type, team.faction, p.cx, p.cy);
