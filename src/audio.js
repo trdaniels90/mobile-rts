@@ -648,10 +648,20 @@ registerProcessor('sfx-mix', SfxMix);
   }
   const clips = typeof VOICE_CLIPS !== 'undefined' ? VOICE_CLIPS : {};
   // Warm up the most frequent lines so the first announcement is not delayed by decoding.
+  // Spread out (a few clips at a time, in the background): all at once it ran inside the first tap (Skirmish) and held
+  // the menu up for a long moment on iPhones and iPads. The soundtrack's instruments only when there is a soundtrack.
   function preload() {
-    for (const k of ['eva:building', 'eva:construction complete', 'eva:unit ready', 'eva:our base is under attack']) if (clips[k]) clipBuffer(clips[k], () => {});
-    for (const list of Object.values(RECORDED)) for (const b64 of list) clipBuffer(b64, () => {});
-    loadMusic();
+    const todo = [];
+    for (const k of ['eva:building', 'eva:construction complete', 'eva:unit ready', 'eva:our base is under attack']) if (clips[k]) todo.push(clips[k]);
+    for (const list of Object.values(RECORDED)) for (const b64 of list) todo.push(b64);
+    let i = 0;
+    const step = () => {
+      const t0 = performance.now();
+      while (i < todo.length && performance.now() - t0 < 4) clipBuffer(todo[i++], () => {});
+      if (i < todo.length) setTimeout(step, 50);
+      else if (SONGS.length) loadMusic();
+    };
+    setTimeout(step, 300);
   }
   function say(msg) {
     const b64 = clips['eva:' + msg.toLowerCase().replace(/[.!]$/, '')];

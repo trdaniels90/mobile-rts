@@ -343,19 +343,29 @@ const SpriteSheets = (() => {
       const ns = nm && nm.sprites === m.hash && nm.sheets.find((x) => x.of === sh.file);
       if (ns) { const r2 = await fetch(ndir + ns.file + '?h=' + nm.hash).catch(() => null); if (r2 && r2.ok) nbmp = await createImageBitmap(await r2.blob()).catch(() => null); }
     }
-    for (let i = 0; i < sh.sprites.length; i += 64) {   // a few at a time, so loading never holds up a frame
-      await Promise.all(sh.sprites.slice(i, i + 64).map(async (e) => {
-        if (spriteCache2.has(e[0])) return;
-        const s = { img: await cut(e[1], e[2], e[3], e[4]), ox: e[5], oy: e[6] };
-        s.img._ox = e[5]; s.img._oy = e[6];   // (uprightCtx)
-        if (K > 1) s.img._k = K;
-        if (nbmp) s.img._nrm = await createImageBitmap(nbmp, e[1], e[2], e[3], e[4]);
-        if (e.length > 7) { s.sh = await cut(e[7], e[8], e[9], e[10]); s.sox = e[11]; s.soy = e[12]; s.sh._ox = e[11]; s.sh._oy = e[12]; if (K > 1) s.sh._k = K; }
-        if (spriteCache2.has(e[0])) return;
-        spriteCache2.set(e[0], s);
-        const mk = e[0].slice(0, e[0].lastIndexOf('|'));
-        if (!spriteAny.has(mk)) spriteAny.set(mk, s);
-      }));
+    // A few at a time, so loading never holds up a frame. Cutting a picture is work on the page's own thread on iPhones
+    // and iPads (three per sprite with WebGL: picture, normals, shadow), so while no battle is loading (the start menu,
+    // where this begins) each slice gets a few milliseconds and the menu answers between them; a battle's Loading card
+    // takes bigger slices.
+    const one = async (e) => {
+      if (spriteCache2.has(e[0])) return;
+      // (all three cuts asked for at once: what they cost on this thread falls inside the slice that asked)
+      const pi = cut(e[1], e[2], e[3], e[4]), pn = nbmp ? createImageBitmap(nbmp, e[1], e[2], e[3], e[4]) : null, ps = e.length > 7 ? cut(e[7], e[8], e[9], e[10]) : null;
+      const s = { img: await pi, ox: e[5], oy: e[6] };
+      s.img._ox = e[5]; s.img._oy = e[6];   // (uprightCtx)
+      if (K > 1) s.img._k = K;
+      if (pn) s.img._nrm = await pn;
+      if (ps) { s.sh = await ps; s.sox = e[11]; s.soy = e[12]; s.sh._ox = e[11]; s.sh._oy = e[12]; if (K > 1) s.sh._k = K; }
+      if (spriteCache2.has(e[0])) return;
+      spriteCache2.set(e[0], s);
+      const mk = e[0].slice(0, e[0].lastIndexOf('|'));
+      if (!spriteAny.has(mk)) spriteAny.set(mk, s);
+    };
+    for (let i = 0; i < sh.sprites.length;) {
+      const rush = typeof G !== 'undefined' && G && !G.paused, t0 = performance.now(), batch = [];
+      while (i < sh.sprites.length && batch.length < 64 && (batch.length < 4 || performance.now() - t0 < (rush ? 24 : 5))) batch.push(one(sh.sprites[i++]));
+      await Promise.all(batch);
+      if (!rush) await new Promise((r) => setTimeout(r, 30));
     }
     if (bmp.close) bmp.close();
     if (nbmp && nbmp.close) nbmp.close();
@@ -1116,7 +1126,14 @@ function isoTreeBlocks(g, list, rim, vx, vy, VW, VH) {
   const n = list.length;
   treeFar = treeFar ? n > TREE_NEAR_N : n > TREE_FAR_N;
   const T = G.ground && G.ground.trees;
-  if (!treeFar || !T || (LOOK.hills && G.hgt)) { treeShadows(g, list); dropTreeBlocks(); return list; }   // (raised ground, look.js: trees one by one, so hills can hide them)
+  if (T && LOOK.hills && G.hgt) {   // (raised ground, look.js: trees one by one, so hills can hide them; their shadows from cached blocks when many)
+    dropTreeBlocks();
+    shadowFar = shadowFar ? n > SHADOW_NEAR_N : n > SHADOW_FAR_N;
+    if (shadowFar) shadowBlocks(g, list, rim, vx, vy, VW, VH); else { treeShadows(g, list); dropShadowBlocks(); }
+    return list;
+  }
+  dropShadowBlocks();
+  if (!treeFar || !T) { treeShadows(g, list); dropTreeBlocks(); return list; }
   if (!treeBlocks || treeBlocks.trees !== T || treeBlocks.rim !== rim) {
     const map = new Map(), add = (src, tr, i, k) => { let b = map.get(k); if (!b) map.set(k, b = { idx: [], c: null, sig: -1, used: 0 }); b.idx.push([src, i]); };
     T.forEach((tr, i) => add(T, tr, i, treeKey(tr.x, tr.y)));
@@ -1152,6 +1169,7 @@ function isoTreeBlocks(g, list, rim, vx, vy, VW, VH) {
       treeFrame = { t, force: 0, lean: 0, ux: 1, uy: 0, tf: c.getTransform() };   // standing still
       for (const e of still) drawTree(c, e);
       treeFrame = keep;
+      b.c._ver = (b.c._ver || 0) + 1;   // (WebGL: upload the picture again when a block is redrawn, as when a tree has burnt)
     }
     b.used = now; ready.add(key); order.push(b, bx, by);
   }
@@ -1164,6 +1182,62 @@ function isoTreeBlocks(g, list, rim, vx, vy, VW, VH) {
   treeShadows(g, rest);
   dropTreeBlocks(Math.max(24, shown * 2));
   return rest;
+}
+// Tree shadows on raised ground (look.js hills), where the trees themselves are drawn one by one: the shadows of standing
+// and burnt trees drawn once into blocks of the view plane and kept, like isoTreeBlocks's blocks (owner's co-op 24a2bd9e,
+// Heron Fen on an iPad: 800 trees in a wide view, 11 ms a frame in shadows drawn one by one). The same picture: a shadow lies
+// on the ground under everything sorted after it, and drawing them all into a block first blends the same (source-over).
+// Burning trees (fading from one shadow to the other) and blocks not made yet this frame are drawn one by one.
+const SHADOW_FAR_N = 260, SHADOW_NEAR_N = 200;
+let shadowBlk = null, shadowFar = false;   // { trees, rim, hg, map: key -> { idx, c, sig, used } }
+// The block a tree's shadow goes in: by where it shows on the raised ground (lifted up to ~75 view px), so it stays inside.
+function liftKey(x, y) { const [X, Y] = toView(x, y), L = gLift(x, y, true); return Math.floor((Y - L) / TREE_BLOCK) * 65536 + Math.floor(X / TREE_BLOCK) + 32768; }
+function shadowBlocks(g, list, rim, vx, vy, VW, VH) {
+  const T = G.ground.trees;
+  if (!shadowBlk || shadowBlk.trees !== T || shadowBlk.rim !== rim || shadowBlk.hg !== G.hgt) {
+    const map = new Map(), add = (src, i, k) => { let b = map.get(k); if (!b) map.set(k, b = { idx: [], c: null, sig: -1, used: 0 }); b.idx.push([src, i]); };
+    T.forEach((tr, i) => add(T, i, liftKey(tr.x, tr.y)));
+    (rim || []).forEach((tr, i) => add(rim, i, liftKey(tr.x, tr.y)));
+    shadowBlk = { trees: T, rim, hg: G.hgt, map };
+  }
+  const fire = G.treeFire || null, t = G.t, now = performance.now();
+  const state = (src, i) => { if (src !== T || !fire || fire[i] === undefined) return 0; return t - fire[i] >= TREE_BURN ? 2 : 1; };
+  let built = 0;
+  const ready = new Set(), m = g.getTransform(), t0 = performance.now();
+  const bx0 = Math.floor((vx - TREE_BLOCK_PAD) / TREE_BLOCK), bx1 = Math.floor((vx + VW + TREE_BLOCK_PAD) / TREE_BLOCK);
+  const by0 = Math.floor((vy - TREE_BLOCK_PAD) / TREE_BLOCK), by1 = Math.floor((vy + VH + TREE_BLOCK_PAD * 3) / TREE_BLOCK);
+  const order = [];
+  for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++) {
+    const key = by * 65536 + bx + 32768, b = shadowBlk.map.get(key);
+    if (!b) continue;
+    let sig = 0;
+    if (fire) for (const [src, i] of b.idx) sig = (sig * 3 + state(src, i)) % 1000000007;
+    if (!b.c || sig !== b.sig) {
+      if (built >= TREE_BLOCK_BUILD && performance.now() - t0 > TREE_BLOCK_MS) continue;   // not made yet: drawn one by one this frame
+      built++;
+      b.sig = sig;
+      const S = TREE_BLOCK + 2 * TREE_BLOCK_PAD;
+      if (!b.c) { b.c = mkCanvas(S, S); b.c._shade = true; }
+      const c = uprightCtx(b.c.getContext('2d')), ox = bx * TREE_BLOCK - TREE_BLOCK_PAD, oy = by * TREE_BLOCK - TREE_BLOCK_PAD;
+      c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, S, S);
+      c.setTransform(VIEW.c, VIEW.s * VIEW.F, -VIEW.s, VIEW.c * VIEW.F, -ox, -oy);   // world -> this block (as ui.js toWorld)
+      c.upright = false; c.imageSmoothingEnabled = false;
+      treeShadows(c, b.idx.filter(([src, i]) => state(src, i) !== 1).map(([src, i]) => ({ tr: src[i], p: state(src, i) === 2 ? 1 : 0 })));
+      b.c._ver = (b.c._ver || 0) + 1;
+    }
+    b.used = now; ready.add(key); order.push(b, bx, by);
+  }
+  g.setTransform(1, 0, 0, 1, -vx, -vy);   // view plane
+  for (let k = 0; k < order.length; k += 3) (g._rawDraw || CanvasRenderingContext2D.prototype.drawImage).call(g, order[k].c, order[k + 1] * TREE_BLOCK - TREE_BLOCK_PAD, order[k + 2] * TREE_BLOCK - TREE_BLOCK_PAD);
+  g.setTransform(m);
+  treeShadows(g, list.filter((e) => e.p > 0 && e.p < 1 || !ready.has(liftKey(e.x, e.y))));
+  dropShadowBlocks(Math.max(24, (bx1 - bx0 + 1) * (by1 - by0 + 1) * 2));
+}
+function dropShadowBlocks(most = Infinity) {
+  if (!shadowBlk) return;
+  const now = performance.now(), made = [];
+  for (const b of shadowBlk.map.values()) if (b.c) { if (now - b.used > TREE_BLOCK_KEEP) b.c = null; else made.push(b); }
+  if (made.length > most) { made.sort((a, b) => a.used - b.used); for (let i = 0; i < made.length - most; i++) made[i].c = null; }
 }
 function dropTreeBlocks(most = Infinity) {   // blocks no far view has used for TREE_BLOCK_KEEP, and the oldest beyond `most`
   if (!treeBlocks) return;

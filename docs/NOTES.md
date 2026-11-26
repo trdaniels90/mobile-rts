@@ -2458,6 +2458,21 @@ taps and scrolls. Now four static frames are made once per radar size (`radarNoi
 the sidebar and radar are not updated at all while the menu covers a paused battle (`still` in `frame`). In a headless
 iPhone profile at 4x CPU throttle, the repeating 100 to 180 ms long tasks on the menu went to none.
 
+## Main menu and Skirmish answer on iPhone and iPad (2026-11-26, not released, performance only, both modes)
+
+- Owner, 2026-11-26: "on the iphone and ipad the main menu lags and is un responsive for a while, when you click on skirmish
+  it is un responsive again".
+- Menu: the baked sprite sheets start loading at once (art.js `SpriteSheets.need` at load) and were cut 64 sprites at a
+  time with no pause, three `createImageBitmap`s each with WebGL (picture, normals, shadow): about 15,000 cuts, which
+  Safari does on the page's own thread. Now `load` cuts in slices: while no battle runs (`G` paused or missing: the start
+  menu) about 5 ms of cutting, then a 30 ms gap; once a battle is loading (Loading card) slices of up to 24 ms, no gap.
+  The menu loads all three sheets in about 6 s (headless iPhone, 4x CPU throttle) and answers meanwhile.
+- Skirmish: the first tap starts the sound (audio.js `init`), whose `preload` decoded every effect and voice clip and the 56
+  soundtrack instrument clips inside that tap. Now it decodes a few milliseconds' worth every 50 ms, starting 300 ms
+  later, and the instruments only when `SONGS` has a track.
+- Measured (headless iPhone, 4x throttle): long tasks on the menu after the loading screen, 6 (up to 365 ms) to none; the
+  Skirmish tap, 377 ms to 171 ms (what is left is making the AudioContext and its reverb).
+
 ## Loading screen (after 2026.11.22.1, looks only, both modes)
 
 `#splash` at the top of the body in `index.html` (its own inline style, so it paints before `style.css` and the scripts
@@ -3208,3 +3223,22 @@ depending on damage dealt". Nothing in the battle changes (health, cells, timing
   hash models.js: `bake-sprites.js --check` (and `--hd`) report stale until the owner refreshes the manifests at release.
 - Tested: `tools/sim/village.js`, a headless computer 2 v 2 (`teams.js`), and Playwright runs through each stage and the
   fall of a War Factory, and of a Tech Center destroyed unhurt (screenshots, video, no page errors).
+
+## Tree shadows from cached blocks on hilly maps; resolution and zoom in match reports (2026-11-26, after 2026.11.26.1, not released, both modes, speed and reporting only)
+
+Owner's co-op 24a2bd9e/9594e5fa (Heron Fen, 2 v AI on the game server): DSM4LIFE's iPad (1180 x 788 at 2x) fell from ~30 to 17 fps at
+minute 33 and stayed there to the end. Not the battle (its own simulation under 1 ms, and it stayed at 17 when the units halved) nor
+the server: drawing went 17 -> 37 ms as the trees in view went 120 -> 437 -> 814 (a wide view over the woods), tree shadows 3 -> 11 ms.
+- **Why:** on maps with raised ground (look.js hills, every map with `G.hgt`) `isoTreeBlocks` never used its cached far-view blocks,
+  so every tree's shadow was drawn one by one through `onHill`.
+- **art.js `shadowBlocks`:** there, with over `SHADOW_FAR_N` (260) trees in view (off again under `SHADOW_NEAR_N` 200), the shadows
+  of standing and burnt trees are drawn once into 640 x 640 blocks of the view plane (`TREE_BLOCK`, same build budget and keep rules
+  as the tree blocks) and kept; burning trees and blocks not made yet are drawn one by one. Trees stay one by one (hills hide them).
+  Blocks are keyed by where the shadow shows on the raised ground (`liftKey`, lift without craters) so none is cut at a block's edge.
+  Same picture: an offscreen compare of 620 trees' shadows at a whole-pixel camera: 159 of 85,000 pixels off by under 8 (rounding).
+  Headless iPad size, Heron Fen woods (919 trees in view), CPU 4x slowed: `tsh` 6.6 -> 0.7-1 ms a frame.
+- The tree blocks (and these) now bump `_ver` when redrawn, so WebGL uploads the new picture (a block redrawn after a tree burnt
+  kept its old texture).
+- **Report** (report.js): each minute's `res` (lowest drawing resolution, pixels a CSS pixel: ui.js `autoRes` steps it down when frames
+  run slow) and `z` (lowest zoom). That match could not show whether autoRes had already stepped the iPad down; its drawing time was
+  CPU (shadows, ground, crags), which fewer pixels do not help.
