@@ -2775,6 +2775,7 @@ function muzzle(src, t) {
       return { x: src.x + Math.cos(sa) * 13, y: src.y + Math.sin(sa) * 13 - 4, h: 4 };
     }
     if (src.type === 'ftur') return { x: src.cx * CELL + 12, y: src.cy * CELL + 13 - 25 * VK, h: 25 * VK };
+    if (HEAD_TIPS[src.type]) return headTip(src, src.shots || 0);
     const h = HEADS[src.type];
     const hx = src.cx * CELL + h[1], hy = src.cy * CELL + h[2] - (h[3] + 2) * VK;
     return { x: hx + Math.cos(src.tface) * 13, y: hy + Math.sin(src.tface) * 13, h: (h[3] + 2) * VK };
@@ -2790,6 +2791,13 @@ function muzzle(src, t) {
   if (s && s.tesla) return { x: src.x, y: src.y - (turretZ(src.def) + TESLA_TOP) * VK, h: (turretZ(src.def) + TESLA_TOP) * VK };   // the Tesla Tank: from the ball on its coil
   const len = s.tur ? s.tur + s.barrel : 8, z = (turretZ(src.def) + 1.5) * VK;
   return { x: src.x + Math.cos(src.tface) * len, y: src.y + Math.sin(src.tface) * len - z, h: z };
+}
+// The end of barrel n of a head with HEAD_TIPS (models.js), as muzzle gives it. Twin barrels take turns: shot n from
+// barrel n % 2 (art.js lights the flash on the one that fired last, shots - 1).
+function headTip(b, n) {
+  const h = HEADS[b.type], t = HEAD_TIPS[b.type], c = Math.cos(b.tface), s = Math.sin(b.tface);
+  const side = (n % 2 ? 1 : -1) * t[1], z = (h[3] + t[2]) * VK;
+  return { x: b.cx * CELL + h[1] + c * t[0] - s * side, y: b.cy * CELL + h[2] + s * t[0] + c * side - z, h: z };
 }
 const TESLA_TOP = 10;   // height of the glowing cap on the Tesla Tank's dome above its turret's base (models.js teslaTurret)
 // Infantry under fire: seconds they stay prone after the last hit, the share of damage they take

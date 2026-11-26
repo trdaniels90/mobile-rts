@@ -2528,6 +2528,8 @@ function drawStructure(g, b, t) {
     blit(g, headSprite(b.type, b.faction, b.tface, stage), hx, hy, false);
     if (b.type === 'ftur') {   // a burst of fire at the projector's mouth, not a gun flash
       if (b.fireT > 0) { g.fillStyle = 'rgba(255,140,40,0.85)'; g.beginPath(); g.arc(hx + Math.cos(b.tface) * 10, hy + Math.sin(b.tface) * 10 - 3, 4 + Math.random() * 2, 0, 7); g.fill(); }
+    } else if (b.fireT > 0 && HEAD_TIPS[b.type]) {   // at the end of the barrel that fired (the AA Gun's point at the sky)
+      const m = headTip(b, Math.max(0, (b.shots || 1) - 1)); flash(g, ...liftPt(m.x, m.y + m.h, m.h), 2);
     } else if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
   }
   const sp = SPINNERS[b.type] && SPINNERS[b.type][b.faction];

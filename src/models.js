@@ -5119,6 +5119,10 @@ function camoPal(faction, col) {
   if (!p) { p = { ...base, key: k, camo: col }; camoPals.set(k, p); }
   return p;
 }
+// Where a head's barrels end, for the shot and its muzzle flash (world.js headTip): [out along the barrels, each barrel's
+// distance either side of the middle, height above the head's pivot] in model voxels. The AA Gun's twin barrels point up
+// at the sky, so its flashes sit high above the head, one barrel and then the other.
+const HEAD_TIPS = { aagun: [9.5, 2, 10] };
 // Turning parts that are not weapons: type, then faction -> [builder, pivot x, pivot y, pivot height]. Same layout as HEADS
 // (built round its own pivot), but kept apart: HEADS is keyed by type only and world.js muzzle reads it.
 const SPINNERS = {
