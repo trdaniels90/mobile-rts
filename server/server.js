@@ -16,6 +16,7 @@
 //                    { k: 'team' } (move to the other alliance) | { k: 'go' } (leader)
 //                    { k: 'mate', slot } (leader, co-op: an open place on the players' team to the computer and back)
 //                    { k: 'saves' } (leader, co-op: list saved battles) | { k: 'load', id } (leader: continue one; id null: a new battle)
+//                    { k: 'chat', text, team } | { k: 'mark', x, y } (a map ping, to the sender's team) (chat.js; passed on by relayTalk)
 //                    'c' orders | 'ping' | 'away' | 'back' | 'resume' | 'quit' | 'savequit' (co-op: save and leave, for everyone) | 'bye'
 //   (create and join also carry pids: the player's ids, a signed-in account's and the phone's, for finding their saves)
 //   server -> phone: { k: 'room', code, lead } | { k: 'err', why: 'none' | 'full' | 'version' | 'busy' }
@@ -459,6 +460,32 @@ function leave(R, s) {
   if (R.phase === 'lobby') removeSeat(R, s);
 }
 
+// Chat and map pings between players (src/chat.js): chat to everyone or to the sender's team, pings to the team only,
+// with the sender's name and side put on here. At most 12 a player in 10 seconds.
+function allyOfSeat(R, s) {
+  if (R.phase === 'battle' && R.G && R.G.teams[s.side]) return R.G.teams[s.side].ally;
+  const x = R.slots[s.slot];
+  return x ? x.ally : -1;
+}
+function relayTalk(R, s, m) {
+  const now = Date.now();
+  s.talk = (s.talk || []).filter((t) => now - t < 10000);
+  if (s.talk.length >= 12) return;
+  s.talk.push(now);
+  const team = m.k === 'mark' || !!m.team, ally = allyOfSeat(R, s);
+  let out;
+  if (m.k === 'chat') {
+    const text = String(m.text == null ? '' : m.text).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 160);
+    if (!text) return;
+    out = { k: 'chat', from: s.name, side: s.side, team, text };
+  } else {
+    const x = Number(m.x), y = Number(m.y);
+    if (!isFinite(x) || !isFinite(y)) return;
+    out = { k: 'mark', from: s.name, side: s.side, x: Math.round(x), y: Math.round(y) };
+  }
+  for (const o of R.seats) if (o !== s && o.ws && !o.left && (!team || allyOfSeat(R, o) === ally)) send(o.ws, out);
+}
+
 function onMessage(ws, m, st) {
   const R = st.room, s = st.seat;
   if (m.k === 'ping') { send(ws, { k: 'pong', t: m.t }); if (s) s.heard = Date.now(); return; }
@@ -508,6 +535,7 @@ function onMessage(ws, m, st) {
   }
   s.heard = Date.now();
   const lead = R.seats[0] === s, lobby = R.phase === 'lobby';
+  if (m.k === 'chat' || m.k === 'mark') { relayTalk(R, s, m); return; }
   if (lobby && R.resume && (m.k === 'lobby' || m.k === 'setup' || m.k === 'faction' || m.k === 'team')) { sendLobby(R); return; }   // a saved battle's sides are fixed
   if (m.k === 'saves' && lead && lobby) {
     const pids = [].concat(...R.seats.map((o) => o.pids));

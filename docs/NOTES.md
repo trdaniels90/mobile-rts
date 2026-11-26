@@ -3252,3 +3252,18 @@ below Frostlight's 21 x 21 = 441 tiles:
   `onHill`'s new `lift` argument, and `unitSpot` for bars and brackets); a vehicle rolling out of the door uses art.js
   `emergePos`. Video (Frostlight, factory on a 20 px drop, 68 px ramp): Rangers roll out and drive down it; WebGL and `?gl=off`.
   Not done: tank tracks on the ramp are drawn on the ground under it.
+
+## Chat and map pings in online battles (2026-11-26, not released, online only; the server must match)
+
+- `src/chat.js` (the `Chat` module), sent through `Net.talk` (net.js). Messages `{ k: 'chat', text, team }` and `{ k: 'mark', x, y }`
+  (world pixels). The server's `relayTalk` puts on the sender's name and side and passes chat to everyone or the sender's alliance,
+  pings to the alliance only (at most 12 a player in 10 s; text cleaned, 160 characters). Phone to phone (1 v 1) they go straight to
+  the other phone. Nothing touches the battle. An older server ignores them.
+- **Buttons** CHAT and PING at the bottom left of the battlefield (above the console in portrait), only in an online battle; PING
+  only with another player on your side. The chat box: Team / All (team games), a text field, quick messages. Computers: Enter opens
+  team chat, Shift+Enter chat to everyone, Enter sends, Escape closes; Alt+click on the map or radar pings.
+- **Pings:** PING, then a tap on the map or radar. Allies see rings and a pin with the sender's name (ui.js `hud`, `Chat.drawView`), a
+  pulse on the radar (`Chat.drawRadar`) and a log line; tapping the line moves the camera there (`UIBridge.lookAt`). One ping a player,
+  8 s. Phones keep drawing every frame while a ping is up (`skipFrame`).
+- Tested with a throwaway script (server in-process, a 2 v 2 with iPhone, iPad, PC and portrait iPhone pages): team chat only to the ally,
+  all chat to all, pings only to the ally, Alt+click, quick messages, no page errors.

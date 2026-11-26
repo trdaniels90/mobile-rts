@@ -469,6 +469,8 @@
   // Saved co-op battles: this phone's match row for each (save id -> match id), so a continued battle is the same match.
   const coopMatches = () => { try { return JSON.parse(localStorage.getItem('rh-coop-matches')) || {}; } catch (_) { return {}; } };
   // A co-op battle saved and closed (by anyone in it): no result; back to the menu, on the online page that says how to continue.
+  UIBridge.lookAt = (x, y) => { if (G) centerOn(x, y); };   // chat.js: a ping's line in the chat log
+  UIBridge.eva = (msg) => evaCalm(msg, 3);
   UIBridge.saved = (by) => {
     Report.park();
     endPlace();
@@ -1138,6 +1140,7 @@ function draw() {
         } else v.drawImage(shroudCanvas, fx0 / CELL, fy0 / CELL, (fx1 - fx0) / CELL, (fy1 - fy0) / CELL, fx0, fy0, fx1 - fx0, fy1 - fy0);
       }
       v.imageSmoothingEnabled = false;
+      if (Chat.busy) { onView(); Chat.drawView(v, (x, y) => toView(...hillPt(x, y))); toWorld(); }   // allies' map pings (chat.js)
 
   drawPlacement(v);
     };
@@ -1345,6 +1348,7 @@ function draw() {
       rctx.fillStyle = vividOf(G.teams[e.team].pal.light); rctx.fillRect(x, y, dot, dot);
     }
     rctx.drawImage(shroudCanvas, 0, 0, Wr, Hr);
+    Chat.drawRadar(rctx, Wr / WORLD, DPR);   // allies' map pings (chat.js)
     rctx.strokeStyle = '#f2f2ea'; rctx.lineWidth = Math.max(1, DPR);
     rctx.beginPath();   // what the screen shows: a diamond on the map in the iso view
     [[0, 0], [W, 0], [W, H], [0, H]].forEach(([sx, sy], i) => { const p = s2w(sx, sy); rctx[i ? 'lineTo' : 'moveTo'](p.x / CELL * k, p.y / CELL * k); });
@@ -1398,9 +1402,10 @@ function draw() {
   let aimSpan = null, spanSig = '', wallArmed = null, aimMove = false;
   function setAimMove(on) { aimMove = !!on; ui.autoBtn.classList.toggle('amove', aimMove); }
   const WALL_SELL_GAP = 600;   // ms: a second tap on your own wall sooner than this is part of a double tap, not a confirmation
-  function tap(sx, sy, shift) {
+  function tap(sx, sy, shift, alt) {
     if (!G || G.over) return;
     const w = s2w(sx, sy);
+    if (Chat.armed || (alt && Chat.canPing)) { Chat.ping(w.x, w.y); return; }   // a map ping for allies (chat.js)
     if (G.place) { placeTap(w); return; }
     if (aimMove) {   // Attack move (picked under the AUTO button): this tap is the spot; one trip, then it is off again
       setAimMove(false);
@@ -1702,7 +1707,7 @@ function draw() {
     if (e.pointerType === 'mouse') {
       if (e.button === 2) { if (G && G.place) endPlace(); else if (G) select([]); return; }
       if (e.button === 1) { gesture = { type: 'pan', id: e.pointerId, sx: p.x, sy: p.y, moved: true }; return; }
-      gesture = { type: 'maybeBox', id: e.pointerId, sx: p.x, sy: p.y, ex: p.x, ey: p.y, moved: false, shift: e.shiftKey };
+      gesture = { type: 'maybeBox', id: e.pointerId, sx: p.x, sy: p.y, ex: p.x, ey: p.y, moved: false, shift: e.shiftKey, alt: e.altKey };
       return;
     }
     if (pointers.size === 2) {
@@ -1748,7 +1753,7 @@ function draw() {
     gesture = null;
     if (cancelled || !G) return;
     if (g.type === 'box' && g.moved) boxSelect(g.sx, g.sy, g.ex, g.ey, g.shift);
-    else if (!g.moved) tap(g.sx, g.sy, g.shift);
+    else if (!g.moved) tap(g.sx, g.sy, g.shift, g.alt);
   }
   canvas.addEventListener('pointerup', (e) => endPointer(e, false));
   canvas.addEventListener('pointercancel', (e) => endPointer(e, true));
@@ -1766,7 +1771,7 @@ function draw() {
     if (!G || (e.target.closest && e.target.closest('input, textarea'))) return;   // typing a name, not commanding
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     keys.add(k);
-    if (k === 'Escape') { if (G.place) endPlace(); else select([]); }
+    if (k === 'Escape') { if (Chat.armed) Chat.disarm(); else if (G.place) endPlace(); else select([]); }
     if (k === 'h') { const cy = G.entities.find((b) => b.team === G.me && b.type === 'cy') || buildingsOf(G.me)[0]; if (cy) centerOn(cy.x, cy.y); }
     if (k === 'p' || k === ' ') { e.preventDefault(); togglePause(); }
   });
@@ -1779,7 +1784,12 @@ function draw() {
     const r = radar.getBoundingClientRect();
     centerOn((e.clientX - r.left) / r.width * WORLD, (e.clientY - r.top) / r.height * WORLD);
   }
-  radar.addEventListener('pointerdown', (e) => { e.preventDefault(); radarDrag = true; try { radar.setPointerCapture(e.pointerId); } catch (_) {} radarJump(e); });
+  radar.addEventListener('pointerdown', (e) => {
+    if (G && radarOn() && (Chat.armed || (e.altKey && Chat.canPing))) {   // a ping on the radar (chat.js)
+      e.preventDefault(); const r = radar.getBoundingClientRect();
+      Chat.ping((e.clientX - r.left) / r.width * WORLD, (e.clientY - r.top) / r.height * WORLD); return;
+    }
+    e.preventDefault(); radarDrag = true; try { radar.setPointerCapture(e.pointerId); } catch (_) {} radarJump(e); });
   radar.addEventListener('pointermove', (e) => { if (radarDrag) radarJump(e); });
   radar.addEventListener('pointerup', () => { radarDrag = false; });
   radar.addEventListener('pointercancel', () => { radarDrag = false; });
@@ -2623,6 +2633,7 @@ function draw() {
       guard('sidebar', () => updateSidebar(1 / 60));
       guard('radar', () => drawRadar(1 / 60));
     }
+    guard('chat', Chat.tick);
     guard('cameos', warmCameos);
     if (G && !G.paused) guard('sprites', () => warmSprites(2, ...Object.values(s2w(W / 2, H / 2))));
     if (G) {   // how smoothly this device runs the battle (Report: stats.frames); paused and loading frames too (freezes)
@@ -2685,7 +2696,7 @@ function draw() {
   for (const ev of ['pointerdown', 'pointermove', 'touchstart', 'touchmove', 'wheel', 'keydown'])
     window.addEventListener(ev, () => { lastInput = performance.now(); }, { capture: true, passive: true });
   function skipFrame(now) {
-    if (!touchScr || full60 || !G || G.paused || G.over || document.hidden) return false;
+    if (!touchScr || full60 || !G || G.paused || G.over || document.hidden || Chat.busy) return false;
     const c = cam.x + ',' + cam.y + ',' + cam.z;
     if (c !== camIdle) { camIdle = c; lastInput = Math.max(lastInput, now); }
     if (now - lastInput < IDLE_MS) return false;

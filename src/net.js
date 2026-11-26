@@ -420,6 +420,8 @@ const Net = (() => {
   function loadSave(id) { if (onServer() && lobby.me === 'host') { lobby.saves = null; lobby.saveErr = null; send({ k: 'load', id: id || null }); listener(); } }
   // In a co-op battle on the server: save it and end it for everyone, to be continued from the lobby later.
   const canSave = () => inBattle() && lobby && lobby.via === 'server' && !!lobby.save;
+  // Chat and map pings (chat.js): to the server, which passes them on, or straight to the other phone.
+  function talk(m) { if (inBattle() && lobby && lobby.connected) send(m); }
   function saveAndLeave() { if (canSave()) send({ k: 'savequit' }); }
   function setMate(slot) { if (onServer() && lobby.me === 'host') send({ k: 'mate', slot }); }   // co-op: computer teammate in an open place
   function startBattle() {
@@ -510,6 +512,7 @@ const Net = (() => {
       hud();
       UIBridge.saved(by);
     }
+    else if ((m.k === 'chat' || m.k === 'mark') && inBattle() && typeof Chat !== 'undefined') Chat.receive(m);   // chat and map pings (chat.js)
     else if (m.k === 'left' && inBattle()) hooks.eva(`${String(m.name || 'A player').slice(0, 20)} has left: the computer takes over`);
     else if (m.k === 's' && role === 'guest') applySnapshot(m);
     else if (m.k === 'end' && role === 'guest') applyEnd(m);
@@ -723,7 +726,7 @@ const Net = (() => {
   }
 
   return {
-    host, join, leave, swapSides, setMap, setMode, setDiff, setFaction, switchTeam, setMate, startBattle, listSaves, loadSave, saveAndLeave, get canSave() { return canSave(); }, surrender, watch, rematch, hostTick, guestStep, hookHost, netStats,
+    host, join, leave, swapSides, setMap, setMode, setDiff, setFaction, switchTeam, setMate, startBattle, listSaves, loadSave, saveAndLeave, get canSave() { return canSave(); }, surrender, watch, rematch, talk, hostTick, guestStep, hookHost, netStats,
     get role() { return role; }, get lobby() { return lobby; }, get waiting() { return !!wait; },
     // For tests: drop the connection without a word, and a shorter wait.
     test: { drop() { const L = link; if (L) { try { L.pc.close(); } catch (_) {} } lost(); }, waitLimit(s) { WAIT_LIMIT = s; }, get resyncs() { return resyncs; } },
