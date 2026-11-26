@@ -5,6 +5,7 @@ const vm = require('vm');
 const [root, n = '4', mins = '30', map = 'bridge', seed = '1000'] = process.argv.slice(2);
 const headless = require(root + '/server/headless.js');
 const ctx = headless.load(), run = (s) => vm.runInContext(s, ctx);
+if (process.env.ORE_TWEAK) run(process.env.ORE_TWEAK);
 const sides = Array.from({ length: +n }, (_, i) => `{ faction: '${i % 2 ? 'soviets' : 'allies'}', ally: ${i < +n / 2 ? 0 : 1}, ai: true }`).join(',');
 run(`newWorld('allies', 'hard', ${+seed}, 0, false, '${map}', [${sides}]); for (const t of G.teams) t.auto = true; G.me = -1; 0`);
 const t0 = Date.now(); let last = run('G.teams.map((t) => t.stats.harvested)');
@@ -14,7 +15,7 @@ for (let m = 1; m <= +mins; m++) {
   for (let i = 0; i < 1800 && !run('G.over'); i++) ctx.get('update')(1 / 30);
   if (m % 5 === 0) {
     const h = run('G.teams.map((t) => t.stats.harvested)');
-    console.log(JSON.stringify({ min: m, ore: ore(), incomePerMin: h.map((v, i) => Math.round((v - last[i]) / 5)), trucks: run('G.teams.map((t) => unitsOf(t.id).filter((u) => u.def.harvester).length)'), cpu: Math.round((Date.now() - t0) / 1000) }));
+    console.log(JSON.stringify({ min: m, ore: ore(), incomePerMin: h.map((v, i) => Math.round((v - last[i]) / 5)), away: run(`(() => { let a = 0, n = 0; for (const u of G.entities) { if (!u.alive || !u.def.harvester || !u.field) continue; const st = G.teams[u.team].start, near = G.oreFields.filter((f) => !f.gem).map((f) => [Math.hypot(f.cx - st.cx, f.cy - st.cy), f]).sort((x, y) => x[0] - y[0]).slice(0, 2).map((x) => x[1]); n++; if (!near.includes(u.field)) a++; } return Math.round(100 * a / Math.max(1, n)) + '%'; })()`), trucks: run('G.teams.map((t) => unitsOf(t.id).filter((u) => u.def.harvester).length)'), cpu: Math.round((Date.now() - t0) / 1000) }));
     last = h;
   }
 }

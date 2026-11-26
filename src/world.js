@@ -50,7 +50,7 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
     t: 0, seed, mapId, diff: DIFFICULTY[diffKey], diffKey, nextId: 1,
     entities: [], byId: new Map(), effects: [], projectiles: [], pathQueue: [], groups: [],
     terr: new Uint8Array(NCELLS), block: new Uint8Array(NCELLS), bld: new Int32Array(NCELLS), resv: new Uint8Array(NCELLS),
-    ore: new Uint16Array(NCELLS), gem: new Uint8Array(NCELLS), oreRich: teams.length > 2 ? TEAM_ORE_RICH : 1, fog, me, seen: fog[me] || fog[0], shroudDirty: true, oreFields: [],
+    ore: new Uint16Array(NCELLS), oreMinedT: new Float32Array(NCELLS).fill(-1e9), gem: new Uint8Array(NCELLS), oreRich: teams.length > 2 ? TEAM_ORE_RICH : 1, fog, me, seen: fog[me] || fog[0], shroudDirty: true, oreFields: [],
     selection: [], place: null, over: null, paused: false,
     timers: { power: 0, shroud: 0, ore: 0, ai: 0, win: 0, log: 0 },
     log: { samples: [], events: [], fallen: [], waves: teams.map(() => 0), lastH: teams.map(() => 0) },   // for the debrief
@@ -4676,7 +4676,7 @@ function updateHarvester(u, dt) {
       if (u.htimer >= 0.3) {
         u.htimer = 0;
         const c = u.hcell, take = Math.min(60, G.ore[c], cap - u.load);
-        G.ore[c] -= take; u.load += take;
+        G.ore[c] -= take; u.load += take; if (G.oreMinedT) G.oreMinedT[c] = G.t;
         if (G.gem[c]) u.bonus = (u.bonus || 0) + take;   // gems are worth twice as much as ore
         if (u.load >= cap) { u.hs = 'return'; u.hcell = -1; }
         else if (G.ore[c] <= 0) nextOreCell(u);
@@ -6177,9 +6177,12 @@ function spreadOre(f) {
 // ORE_REGROW_PER_SIDE cells a field per tick for each side in the battle (4 in a 2 v 2, 6 in a 3 v 3; one in a
 // 1 v 1), and a nearly bare cell (under a third of what it can hold) grows back twice as fast, so a scraped-out
 // field recovers in a couple of minutes instead of several.
-const TEAM_ORE_RICH = 1.5, ORE_REGROW_PER_SIDE = 1;
+// TEST: ORE_REST seconds a mined cell waits before it regrows (team games), TEAM_BARE_BOOST the double growth on bare cells.
+const TEAM_ORE_RICH = 1.5;
+let ORE_REGROW_PER_SIDE = 1, TEAM_BARE_BOOST = true, ORE_REST = 0;
 function growOre() {
-  const r = Math.random, rich = G.oreRich || 1, team = rich > 1, grows = team ? G.teams.length * ORE_REGROW_PER_SIDE : 1;
+  const r = Math.random, rich = G.oreRich || 1, team = rich > 1, grows = team ? Math.round(G.teams.length * ORE_REGROW_PER_SIDE) : 1;
+  const rest = team && ORE_REST && G.oreMinedT;
   for (const f of G.oreFields) {
     updateFieldRest(f);
     if (f.gem) continue;   // gems never grow back
@@ -6189,7 +6192,8 @@ function growOre() {
       const x = Math.floor(f.cx + Math.cos(a) * d), y = Math.floor(f.cy + Math.sin(a) * d);
       const c = inMap(x, y) ? idx(x, y) : -1;
       const cap = Math.round(Math.min(ORE_MAX, (60 + (1 - Math.min(1, d / f.r)) * 190) * f.rich) * rich);
-      if (c >= 0 && !G.block[c] && !G.bld[c] && G.ore[c] < cap) G.ore[c] = Math.min(cap, G.ore[c] + (team && G.ore[c] < cap / 3 ? 30 : 15));
+      if (rest && c >= 0 && G.t - G.oreMinedT[c] < ORE_REST) continue;
+      if (c >= 0 && !G.block[c] && !G.bld[c] && G.ore[c] < cap) G.ore[c] = Math.min(cap, G.ore[c] + (team && TEAM_BARE_BOOST && G.ore[c] < cap / 3 ? 30 : 15));
     }
   }
 }
