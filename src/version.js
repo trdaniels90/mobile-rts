@@ -4,6 +4,14 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.26.5', date: '26 November 2026', title: 'Smoother late game in big battles', groups: [
+    ['New', [
+      'Placing a defence shows a ring of how far it will shoot: white where it can stand, red where it cannot.',
+    ]],
+    ['Improved', [
+      'Big team games run smoother late on: the computer players\' thinking and route-finding take far less time, so fewer stutters when bases fall and armies cross the map.',
+    ]],
+  ] },
   { v: '2026.11.26.4', date: '26 November 2026', title: 'Map pictures in the game list', groups: [
     ['New', [
       'Online page: each open game shows a picture of its map.',
