@@ -2512,13 +2512,15 @@ function drawStructure(g, b, t) {
   const head = HEADS[b.type];
   if (b.type === 'sam') drawSamHead(g, b, x, y, stage);
   else if (head) {
-    const kick = b.type === 'turret' ? recoil(b) * 1.6 : 0;   // the Gun Turret's head kicks back when it fires
-    const [lx, ly] = liftPt(x + head[1], y + head[2], head[3] * VK), hx = lx - Math.cos(b.tface) * kick, hy = ly - Math.sin(b.tface) * kick * 0.6;
+    // The Gun Turret's head kicks back when it fires; the AA Gun's twin barrels point up, so its head kicks back and down
+    const rk = b.type === 'turret' || b.type === 'aagun' ? recoil(b) : 0, kick = rk * (b.type === 'aagun' ? 1 : 1.6), drop = b.type === 'aagun' ? rk * 1.5 : 0;
+    const [lx, ly] = liftPt(x + head[1] - Math.cos(b.tface) * kick, y + head[2] - Math.sin(b.tface) * kick * 0.6, (head[3] - drop) * VK);
+    const [ox, oy] = liftPt(x + head[1], y + head[2], head[3] * VK), hx = lx, hy = ly;
     blit(g, headSprite(b.type, b.faction, b.tface, stage), hx, hy, false);
     if (b.type === 'ftur') {   // a burst of fire at the projector's mouth, not a gun flash
       if (b.fireT > 0) { g.fillStyle = 'rgba(255,140,40,0.85)'; g.beginPath(); g.arc(hx + Math.cos(b.tface) * 10, hy + Math.sin(b.tface) * 10 - 3, 4 + Math.random() * 2, 0, 7); g.fill(); }
     } else if (b.fireT > 0 && HEAD_TIPS[b.type]) {   // at the end of the barrel that fired (the AA Gun's point at the sky)
-      const m = headTip(b, Math.max(0, (b.shots || 1) - 1)); flash(g, ...liftPt(m.x, m.y + m.h, m.h), 2);
+      const m = headTip(b, Math.max(0, (b.shots || 1) - 1)), [fx, fy] = liftPt(m.x, m.y + m.h, m.h); flash(g, fx + hx - ox, fy + hy - oy, 2);
     } else if (b.fireT > 0) flash(g, hx + Math.cos(b.tface) * 14, hy + Math.sin(b.tface) * 14 - 2, 2);
   }
   const sp = SPINNERS[b.type] && SPINNERS[b.type][b.faction];
