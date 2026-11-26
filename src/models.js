@@ -5143,10 +5143,26 @@ function structureSprite(type, faction, camo) {
   const pal = camoPal(faction, camo);
   return sprite('S' + type + pal.key, () => STRUCTURES[type](pal, faction), 0, 0);
 }
-function headSprite(type, faction, angle, stage) {
-  const pal = palFor(faction), h = HEADS[type], key = 'H' + type + pal.key;
-  if (stage) return facingSprite(key + 'd' + stage, () => scorchModel(model(key, () => h[0](pal)), stage, type), angle, FACINGS, { shadow: false });
-  return facingSprite(key, () => h[0](pal), angle, FACINGS, { shadow: false });
+// part: for a head with HEAD_BARRELS, 0 is the head without its barrels and -1 / 1 the barrel on that side (model y < 0 / > 0).
+function headSprite(type, faction, angle, stage, part) {
+  const pal = palFor(faction), h = HEADS[type], hb = HEAD_BARRELS[type], p = hb ? part || 0 : 0;
+  const key = 'H' + type + pal.key + (p ? (p < 0 ? 'L' : 'R') : '');
+  const build = hb ? () => splitHead(model('H' + type + pal.key + 'W', () => h[0](pal)), hb.cut, p) : () => h[0](pal);
+  if (stage) return facingSprite(key + 'd' + stage, () => scorchModel(model(key, build), stage, type), angle, FACINGS, { shadow: false });
+  return facingSprite(key, build, angle, FACINGS, { shadow: false });
+}
+// A head's barrels drawn apart from it, so each recoils on its own (art.js): cut picks a barrel's voxels (model x, y, z),
+// axis is the way the barrels point (out, up; a unit vector). The AA Gun's twin barrels rise at about 42 degrees.
+const HEAD_BARRELS = { aagun: { cut: (x, y, z) => x >= 4 && z >= 6, axis: [0.74, 0.67] } };
+function splitHead(m, cut, part) {
+  const c = copyModel(m);
+  for (let z = 0; z < c.d; z++) for (let y = 0; y < c.h; y++) for (let x = 0; x < c.w; x++) {
+    const i = (z * c.h + y) * c.w + x;
+    if (c.col[i] < 0) continue;
+    const Y = y + c.y0, barrel = cut(x + c.x0, Y, z);
+    if (part === 0 ? barrel : !barrel || (Y < 0) !== (part < 0)) c.col[i] = -1;
+  }
+  return c;
 }
 
 // ---------------------------------------------------------------------------
