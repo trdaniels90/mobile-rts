@@ -567,10 +567,14 @@ function paintRuts(d, roads, X0, Y0, w, h, K = 1) {
 // standLift); ships under it are drawn before it (ui.js draw, decksOver). The rules do not change: the deck's cells are walked
 // and sailed exactly as before.
 const BRIDGE_RAMP = 52, BRIDGE_EDGE = 3;
-const bridgeTop = (L) => Math.max(9, Math.min(16, 7 + L / 40));
+// Short crossings (under BRIDGE_RAISE cells: Berlin's, Rivergate City's, Heron Fen's footbridges) lie flat on the banks, as
+// their maps were made; longer ones stand higher the longer they are, from 4 to 16 px. world.js bridgePiers uses the same cut.
+const bridgeTop = (L) => (L < BRIDGE_RAISE * CELL ? 0 : Math.max(4, Math.min(16, 4 + (L - BRIDGE_RAISE * CELL) / 28)));
 function bridgeGround(g, L, bw, concrete) {
   const h = bw / 2;
-  g.fillStyle = concrete ? 'rgba(10,20,30,0.5)' : 'rgba(10,20,30,0.45)'; g.fillRect(BRIDGE_RAMP * 0.6, -h + 9, L - BRIDGE_RAMP * 1.2, bw);   // shadow on the water, cast off the raised deck
+  const raised = bridgeTop(L) > 0;   // (a flat bridge's shadow as before: just off its edge; a raised one's further off, clear of the banks)
+  g.fillStyle = concrete ? 'rgba(10,20,30,0.5)' : 'rgba(10,20,30,0.45)';
+  if (raised) g.fillRect(BRIDGE_RAMP * 0.6, -h + 9, L - BRIDGE_RAMP * 1.2, bw); else g.fillRect(4, -h + (concrete ? 7 : 6), L - 8, bw);
   for (const u0 of concrete ? [-8, L - 10] : [-6, L - 10]) {                                // abutments
     const w = concrete ? 18 : 16, e = concrete ? 4 : 3;
     g.fillStyle = concrete ? '#7c7e82' : '#6f6a5e'; g.fillRect(u0, -h - e, w, bw + 2 * e);
