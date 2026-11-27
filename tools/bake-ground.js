@@ -22,7 +22,7 @@ const outDir = path.join(root, 'grounds'), QUALITY = 0.8;
   await p.goto('file://' + path.resolve(root) + '/index.html'); await p.waitForTimeout(800);
   // What the ground is painted with: the painting functions' source, scenery (models.js, voxel.js), and each map's key.
   const info = await p.evaluate(() => {
-    const src = [rng, groundPixels, mesaTops, groundPainter, cliffCells, paintCliffs, paintRuts, fordStone, concreteBridge, groundSeed, groundKey,
+    const src = [rng, groundPixels, mesaTops, groundPainter, cliffCells, paintCliffs, paintRuts, fordStone, bridgeGround, groundSeed, groundKey,
       cliffLookFor, cliffHeight, cliffPts, cliffShadowPaint, mesaShade, hash3, lookPatchTile, patchPicMake, dressFor, dressOne, lookDress, bakeTileLook].map(String).join('\n')
       + JSON.stringify([CLIFF_UP, CLIFF_TOP, CLIFF_SL, CLIFF_SDX, CLIFF_SDY, CLIFF_SA, LOOK, DRESS_TILE]);
     const maps = {};

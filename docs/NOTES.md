@@ -3361,11 +3361,18 @@ below Frostlight's 21 x 21 = 441 tiles:
   middle, `muzzle` follows), `shipWhole` (cameos, sinking); `navyard` and `subpen` in `STRUCTURES`; a foam wake while moving (`shipWake`);
   cameos on a water background. Not baked: models.js changed, so `bake-sprites.js --check` (and `--hd`) report stale until the owner rebakes
   at release; until then ships and the yards are rendered live.
-- **Under a bridge (looks only):** bridges are painted into the ground, so a ship would be drawn on top of the deck. art.js `bridgeDeck`
-  keeps each bridge's own pixels once (the ground painted with and without it; what differs, rails and shadow included); ui.js draw takes a
-  ship with a deck cell within its length (`decksOver`) out of the sorted list, draws it with the ground and then those decks over it, so
-  units on the bridge still draw on top. Ground-plane pictures like a destroyed span's ruin, so both renderers draw it. (Clipping the ship
-  was not an option: gl.js does not clip pictures.)
+- **Raised bridges on piers (looks only, every map with bridges):** the ground keeps only each bridge's shadow on the water and its
+  abutments (art.js `bridgeGround`); the deck is drawn every frame above the water (`drawBridges`): it climbs off each abutment over
+  `BRIDGE_RAMP` (52 px, at most 35% of the bridge) and stands `bridgeTop(L)` (9 to 16 view px, longer bridges higher) over the middle,
+  on concrete piers every 46 px (slabs a little wider than the deck, so they show under its edge, foam at the waterline) or pairs of
+  timber piles with cross braces every 22 px, with a `BRIDGE_EDGE` (3 px) edge. The top is cut in `BRIDGE_SLICE` slices, each lifted
+  to its height, overlapping and drawn lowest first (no seams on the ramps). Ground-plane drawing like a destroyed span's ruin, so
+  both renderers draw it; nothing over a span that is down. ui.js draw: the ground, its moving water (cliffItems), ships under a
+  bridge (`decksOver`: a deck cell within the ship's length plus the deck's rise), then `drawBridges`, then the sorted list: land units
+  on a deck are lifted to its height (`deckLift`, look.js `standLift`; ships pass `wet` and stay on the water), and so are effects
+  there. The rules do not change. **Baked grounds:** `bridgeGround` replaced `concreteBridge` in tools/bake-ground.js's hash, so
+  `bake-ground.js --check` reports stale; until the owner rebakes, the baked tiles (used over http) still hold the old painted decks
+  under the raised ones (pages opened from a file paint the ground live and are right).
 - **Computer** (ai.js, every difficulty): `aiNaval` (once, `team.naval`, plain data): the nearest open water of `NAVAL_BODY` (300) cells within
   `NAVAL_REACH` (32) cells of its start with an enemy start within `NAVAL_FOE` (14) cells of it. With one, after a War Factory and two
   refineries it builds its yard (`aiNavalNext`, `aiWaterSpot`); out of reach, up to `NAVAL_CREEP` (4) Power Plants go up toward the water

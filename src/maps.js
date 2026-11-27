@@ -186,7 +186,7 @@ const MAPS = {
     blurb: 'A big winter map for big battles. The north fights the south across the snow: a long lake with three bridges and a line of creeks lie between them, old roads wind through the middle, and lakes sit in the corners. Ore and gems lie all over. Snow falls in some battles.',
     info: '210 × 210 cells · 8 start positions · made for 3 v 3',
     theme: 'snow',   // painted as winter (paintTerrain, the minimap, map pictures, base pads, camouflage)
-    bridge: 'concrete',   // concrete bridges (art.js concreteBridge) instead of timber
+    bridge: 'concrete',   // concrete bridges (art.js concreteDeck) instead of timber
     weather: { kind: 'snow', chance: 0.5 },   // rolled per battle (rollWeather in art.js); looks only
     size: 210,   // cells a side (setMapSize); the 126-cell design at 5/3 (168 until 2026.11.12)
     // The north (start positions 0-3) against the south (4-7), each alliance on its own half (newWorld): a 1 v 1
@@ -423,7 +423,7 @@ const MAPS = {
     img: 'maps/lakes.png',
     blurb: 'A big island of lakes for 3 v 3. The north fights the south round the lakes in the middle: four bridges cross them, and narrow land joins the flanks. Every base has ore of its own, with gems behind each and out by the lakes. North of the middle, a plateau ringed by cliffs looks down over a big ore field: one ramp up its back. Some battles are fought in a thunderstorm.',
     info: '192 × 192 cells · 6 start positions · made for 3 v 3',
-    bridge: 'concrete',   // concrete bridges (art.js concreteBridge)
+    bridge: 'concrete',   // concrete bridges (art.js concreteDeck)
     bridgeW: 4,   // its traced bridges (6 to 10 cells wide) trimmed to 4 across (world.js genLayoutMap; owner, 2026-11-24)
     weather: { kind: 'rain', chance: 0.5 },   // rolled per battle (rollWeather in art.js); looks only. Rain brings lightning (drawWeather)
     size: 192,   // cells a side: the design at twice its size (96 design cells, so each is 2 x 2 game cells; 96 until 2026.11.14.5, which ran out of ore)
@@ -647,7 +647,7 @@ const MAPS = {
     info: '132 × 132 cells · 4 start positions · made for 2 v 2',
     size: 132,   // cells a side (setMapSize); the 75-cell design at 1.76
     breakable: true,   // its bridge spans can be destroyed and rebuilt (world.js addSpan)
-    bridge: 'concrete',   // concrete bridges (art.js concreteBridge) instead of timber
+    bridge: 'concrete',   // concrete bridges (art.js concreteDeck) instead of timber
     // The north-east (start positions 0-1) against the south-west (2-3), each alliance on its own side of the lakes
     // (newWorld): a 1 v 1 starts one player on each. (The tool lists starts west first; they are reordered here.)
     teams: [[0, 1], [2, 3]],

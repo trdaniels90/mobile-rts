@@ -138,8 +138,9 @@ function rampsNow() {
   return list;
 }
 // The height a ground unit at (x, y) is drawn at: the ground's, or a ramp's (or the structure's floor inside its door).
-function standLift(x, y) {
-  const g0 = gLift(x, y);
+// (wet: a ship, which is never lifted onto a bridge's deck above it: art.js deckLift)
+function standLift(x, y, wet) {
+  const g0 = gLift(x, y) + (wet || typeof deckLift !== 'function' ? 0 : deckLift(x, y));
   if (!LOOK.hills || !G || !G.hgt) return g0;
   for (const r of rampsNow()) {
     if (x < r.xa || x > r.xb || y < r.y00 || y > r.y1) continue;

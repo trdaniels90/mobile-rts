@@ -488,19 +488,7 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
       const x1 = Math.ceil(Math.max(...corners.map((c) => c[0]))) + 2, y1 = Math.ceil(Math.max(...corners.map((c) => c[1]))) + 2;
       const c = mkCanvas((x1 - x0) * GK, (y1 - y0) * GK), g = c.getContext('2d');   // (HD ground: at its pixels per world pixel)
       g.scale(GK, GK); g.translate(b.a.x - x0, b.a.y - y0); g.rotate(ang);
-      if (bridgeKind === 'concrete') concreteBridge(g, L, bw, seed, snow);
-      else {   // timber
-        g.fillStyle = 'rgba(10,20,30,0.45)'; g.fillRect(4, -bw / 2 + 6, L - 8, bw);              // shadow on the water
-        for (const u0 of [-6, L - 10]) { g.fillStyle = '#6f6a5e'; g.fillRect(u0, -bw / 2 - 3, 16, bw + 6); g.fillStyle = '#56524a'; g.fillRect(u0, bw / 2 + 1, 16, 2); }
-        for (let x = 6; x < L - 6; x += 22) { g.fillStyle = '#2e2418'; g.fillRect(x, -bw / 2 + 1, 3, bw + 6); }   // piles
-        g.fillStyle = '#6b5638'; g.fillRect(0, -bw / 2, L, bw);
-        for (let x = 0, i = 0; x < L; x += 3, i++) {
-          g.fillStyle = ['#7a6342', '#634f33', '#705a3b', '#5a4730'][(i * 7 + (i >> 2)) % 4];
-          g.fillRect(x, -bw / 2 + 2, 2, bw - 4);
-        }
-        g.fillStyle = '#3a2d1d'; g.fillRect(0, -bw / 2, L, 2); g.fillRect(0, bw / 2 - 2, L, 2);
-        for (let x = 2; x < L; x += 10) { g.fillStyle = '#2a2015'; g.fillRect(x, -bw / 2 - 1, 2, 3); g.fillRect(x, bw / 2 - 2, 2, 3); }
-      }
+      bridgeGround(g, L, bw, bridgeKind === 'concrete');   // (the deck itself stands above the water: drawBridges)
       return { c, x: x0, y: y0 };
     });
     P = { bridges: bridgePics, stamps, trees };
@@ -571,21 +559,39 @@ function paintRuts(d, roads, X0, Y0, w, h, K = 1) {
     }
   }
 }
-// A concrete road bridge, drawn along +x from 0 to L, bw wide: square piers and abutments, a pale speckled deck with
-// expansion joints and worn wheel tracks, kerbs and parapets with their posts. In winter, snow banked against the
-// parapets and slush in the tracks.
-function concreteBridge(g, L, bw, seed, snow) {
+// Bridges stand above the water on piers (looks only; owner's ask through a contributor, 2026-11-27: "pylons and elevated ... so
+// ships going under them look natural"). On the ground only what lies on it: the deck's shadow on the water and the stone or
+// concrete abutments at each end (bridgeGround). The deck is drawn every frame raised above the water (drawBridges): it climbs
+// from the abutments over BRIDGE_RAMP and stands bridgeTop(L) view px up over the middle, on piers (concrete) or pairs of
+// piles (timber), with its edge showing (BRIDGE_EDGE px thick). Land units on it are drawn at its height (deckLift, look.js
+// standLift); ships under it are drawn before it (ui.js draw, decksOver). The rules do not change: the deck's cells are walked
+// and sailed exactly as before.
+const BRIDGE_RAMP = 52, BRIDGE_EDGE = 3;
+const bridgeTop = (L) => Math.max(9, Math.min(16, 7 + L / 40));
+function bridgeGround(g, L, bw, concrete) {
+  const h = bw / 2;
+  g.fillStyle = concrete ? 'rgba(10,20,30,0.5)' : 'rgba(10,20,30,0.45)'; g.fillRect(BRIDGE_RAMP * 0.6, -h + 9, L - BRIDGE_RAMP * 1.2, bw);   // shadow on the water, cast off the raised deck
+  for (const u0 of concrete ? [-8, L - 10] : [-6, L - 10]) {                                // abutments
+    const w = concrete ? 18 : 16, e = concrete ? 4 : 3;
+    g.fillStyle = concrete ? '#7c7e82' : '#6f6a5e'; g.fillRect(u0, -h - e, w, bw + 2 * e);
+    g.fillStyle = concrete ? '#5a5c60' : '#56524a'; g.fillRect(u0, h + e - 2, w, 2);
+    if (concrete) { g.fillStyle = '#9a9ca0'; g.fillRect(u0, -h - e, w, 1); }
+  }
+}
+// The deck's top, along +x from 0 to L, bw wide, in its own picture (bridgeDeckPic). Timber: planks, edge beams and rail posts.
+function timberDeck(g, L, bw) {
+  g.fillStyle = '#6b5638'; g.fillRect(0, -bw / 2, L, bw);
+  for (let x = 0, i = 0; x < L; x += 3, i++) {
+    g.fillStyle = ['#7a6342', '#634f33', '#705a3b', '#5a4730'][(i * 7 + (i >> 2)) % 4];
+    g.fillRect(x, -bw / 2 + 2, 2, bw - 4);
+  }
+  g.fillStyle = '#3a2d1d'; g.fillRect(0, -bw / 2, L, 2); g.fillRect(0, bw / 2 - 2, L, 2);
+  for (let x = 2; x < L; x += 10) { g.fillStyle = '#2a2015'; g.fillRect(x, -bw / 2 - 1, 2, 3); g.fillRect(x, bw / 2 - 2, 2, 3); }
+}
+// Concrete: a pale speckled deck with expansion joints and worn wheel tracks, kerbs and parapets with their posts. In winter, snow
+// banked against the parapets and slush in the tracks.
+function concreteDeck(g, L, bw, seed, snow) {
   const r = rng(seed ^ 0x6c1e2b), h = bw / 2;
-  g.fillStyle = 'rgba(10,20,30,0.5)'; g.fillRect(4, -h + 7, L - 8, bw);                      // shadow on the water
-  for (let x = 30; x < L - 24; x += 46) {                                                   // piers, showing past the deck
-    g.fillStyle = '#4c4e52'; g.fillRect(x, -h - 3, 10, bw + 7);
-    g.fillStyle = '#6e7074'; g.fillRect(x, -h - 3, 10, 2);
-  }
-  for (const u0 of [-8, L - 10]) {                                                          // abutments
-    g.fillStyle = '#7c7e82'; g.fillRect(u0, -h - 4, 18, bw + 8);
-    g.fillStyle = '#5a5c60'; g.fillRect(u0, h + 2, 18, 2);
-    g.fillStyle = '#9a9ca0'; g.fillRect(u0, -h - 4, 18, 1);
-  }
   const deck = [[132, 134, 138], [142, 144, 148], [150, 152, 156], [124, 126, 130]];
   for (let y = -h; y < h; y++) for (let x = 0; x < L; x++) {
     const v = r(), t = deck[v < 0.55 ? 1 : v < 0.8 ? 2 : v < 0.95 ? 0 : 3];
@@ -2210,56 +2216,111 @@ function emergePos(u) {
   const e = ek * (2 - ek);
   return [u.outX + (u.x - u.outX) * e, u.outY + (u.y - u.outY) * e];
 }
-// Ships under a bridge (looks only): the bridges are painted into the ground, so a ship would be drawn over the deck. Each bridge's
-// own pixels (the ground painted with it and without it: what differs, its rails and shadow included) are kept as a picture once
-// (bridgeDeck), and the part round a ship that has a deck cell under it is drawn again over the ship (shipUnderDeck). In the ground
-// plane, like a destroyed span's ruin, so the WebGL renderer draws it as a picture too. A destroyed span's cells are left out.
-const bridgeDecks = new WeakMap();
-function bridgeDeck(b) {
-  let pic = bridgeDecks.get(b);
-  if (pic !== undefined) return pic;
-  pic = null;
-  try {
-    const m = MAPS[validMap(G.mapId)], M = b.w / 2 + 22;
-    const X0 = Math.floor(Math.min(b.a.x, b.b.x) - M), Y0 = Math.floor(Math.min(b.a.y, b.b.y) - M), w = Math.ceil(Math.abs(b.a.x - b.b.x) + 2 * M), h = Math.ceil(Math.abs(b.a.y - b.b.y) + 2 * M);
-    const painter = (bridges) => groundPainter(G.terr, groundSeed(G), G.road, bridges, G.cliff, G.ford, mapTheme(G.mapId), m.bridge, G.hgt, mesaTops(G.mapId));
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    const o = document.createElement('canvas'); o.width = w; o.height = h;
-    const terr = G.terr;
-    painter([b]).paint(c.getContext('2d'), X0, Y0, w, h);
-    painter([]).paint(o.getContext('2d'), X0, Y0, w, h);
-    const g = c.getContext('2d'), A = g.getImageData(0, 0, w, h), B = o.getContext('2d').getImageData(0, 0, w, h);
-    for (let i = 0; i < A.data.length; i += 4) {
-      const d = Math.abs(A.data[i] - B.data[i]) + Math.abs(A.data[i + 1] - B.data[i + 1]) + Math.abs(A.data[i + 2] - B.data[i + 2]);
-      if (d < 6) A.data[i + 3] = 0;
-    }
-    g.putImageData(A, 0, 0);
-    pic = { c, x: X0, y: Y0, w, h };
-  } catch (_) { pic = null; }
-  bridgeDecks.set(b, pic);
-  return pic;
+// The raised bridges (see bridgeGround): each bridge's geometry and deck picture, worked out once per battle (bridgeOf).
+const bridgeInfo = new WeakMap();
+function bridgeOf(b) {
+  let B = bridgeInfo.get(b);
+  if (B) return B;
+  const dx = b.b.x - b.a.x, dy = b.b.y - b.a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, bw = b.w;
+  const m = MAPS[validMap(G.mapId)], concrete = m.bridge === 'concrete', snow = mapTheme(G.mapId) === 'snow';
+  B = { L, ux, uy, ang: Math.atan2(dy, dx), bw, concrete, top: bridgeTop(L), ramp: Math.min(BRIDGE_RAMP, L * 0.35), pic: null,
+        x0: Math.min(b.a.x, b.b.x) - bw - 30, y0: Math.min(b.a.y, b.b.y) - bw - 30, x1: Math.max(b.a.x, b.b.x) + bw + 30, y1: Math.max(b.a.y, b.b.y) + bw + 30 };
+  if (typeof document !== 'undefined') {
+    const K = 2, c = mkCanvas(Math.ceil(L * K), Math.ceil((bw + 4) * K)), g = c.getContext('2d');
+    g.scale(K, K); g.translate(0, bw / 2 + 2);
+    if (concrete) concreteDeck(g, L, bw, groundSeed(G), snow); else timberDeck(g, L, bw);
+    B.pic = c; B.K = K;
+  }
+  bridgeInfo.set(b, B);
+  return B;
 }
-// The bridges whose deck a ship is under now (a deck cell within its length of it), or none. ui.js draw takes such a ship out of the
-// sorted list and draws it with the ground, then those bridges' decks over it (drawDeck), then everything else as usual, so a tank
-// on the bridge still stands on top.
+// How high the deck stands t px along a bridge (view px): rising off each abutment, level over the middle.
+function deckAt(B, t) {
+  const e = Math.max(0, Math.min(1, Math.min(t, B.L - t) / B.ramp));
+  return B.top * e * e * (3 - 2 * e);
+}
+// The deck's height under a world point (0 off every bridge, and on a span that is down): what land units on it are lifted by.
+function deckLift(x, y) {
+  if (!G || !G.bridges || !G.bridges.length) return 0;
+  const c = cellOfPos(Math.max(0, Math.min(WORLD - 1, x)), Math.max(0, Math.min(WORLD - 1, y)));
+  if (G.terr[c] !== 5 || (G.ford && G.ford[c])) return 0;
+  let best = 0;
+  for (const b of G.bridges) {
+    const B = bridgeOf(b), px = x - b.a.x, py = y - b.a.y, t = px * B.ux + py * B.uy, v = -px * B.uy + py * B.ux;
+    if (t < -4 || t > B.L + 4 || Math.abs(v) > B.bw / 2 + CELL) continue;
+    best = Math.max(best, deckAt(B, Math.max(0, Math.min(B.L, t))));
+  }
+  return best;
+}
+// Every bridge in view (x0..x1, y0..y1 world px), raised: its piers or piles first, then the deck's edge, then its top in slices
+// each lifted to its height. In the ground plane (like a destroyed span's ruin), so both renderers draw it; called by ui.js draw
+// after the ground and the ships under bridges, before everything else.
+const BRIDGE_SLICE = 4;
+function drawBridges(g, x0, y0, x1, y1) {
+  if (!G || !G.bridges || !G.bridges.length) return;
+  const LV = fromView(0, -1), up = g.upright;
+  g.upright = false;
+  const quad = (pts, col) => { g.fillStyle = col; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); g.fill(); };
+  try {
+    for (const b of G.bridges) {
+      const B = bridgeOf(b);
+      if (!B.pic || B.x1 < x0 || B.x0 > x1 || B.y1 < y0 || B.y0 > y1) continue;
+      const at = (t, v, h) => [b.a.x + B.ux * t - B.uy * v + LV[0] * h, b.a.y + B.uy * t + B.ux * v + LV[1] * h];
+      const standing = (t) => { const p = at(t, 0, 0), c = cellOfPos(Math.max(0, Math.min(WORLD - 1, p[0])), Math.max(0, Math.min(WORLD - 1, p[1]))); return G.terr[c] !== 4; };   // (not over a span that is down)
+      const hw = B.bw / 2;
+      // Piers (concrete: a slab across the deck, two faces) or pairs of piles (timber), from the water up to the deck's underside.
+      const gap = B.concrete ? 46 : 22;
+      for (let t = B.ramp * 0.5 + gap * 0.5; t < B.L - B.ramp * 0.5; t += gap) {
+        const h = deckAt(B, t) - BRIDGE_EDGE;
+        if (h < 1.5 || !standing(t)) continue;
+        if (B.concrete) {
+          const v0 = -hw - 2, v1 = hw + 2, d = 6;   // (a little wider than the deck, so they show under its edge)
+          quad([at(t, v0, 0), at(t, v1, 0), at(t, v1, h), at(t, v0, h)], '#5a5c60');
+          quad([at(t + d, v0, 0), at(t + d, v1, 0), at(t + d, v1, h), at(t + d, v0, h)], '#46484c');
+          quad([at(t, v1, 0), at(t + d, v1, 0), at(t + d, v1, h), at(t, v1, h)], '#6c6e72');
+          quad([at(t, v0, 0), at(t + d, v0, 0), at(t + d, v0, h), at(t, v0, h)], '#6c6e72');
+          quad([at(t - 1, v0 - 1, 0), at(t + d + 1, v0 - 1, 0), at(t + d + 1, v1 + 1, 0), at(t - 1, v1 + 1, 0)], 'rgba(220,232,238,0.35)');   // a ring of foam at the waterline
+        } else {
+          for (const v of [-hw - 0.5, hw + 0.5]) {
+            quad([at(t, v - 1.2, 0), at(t + 2.6, v - 1.2, 0), at(t + 2.6, v - 1.2, h), at(t, v - 1.2, h)], '#2e2418');
+            quad([at(t, v + 1.2, 0), at(t + 2.6, v + 1.2, 0), at(t + 2.6, v + 1.2, h), at(t, v + 1.2, h)], '#3b2e1f');
+          }
+          quad([at(t + 0.6, -hw - 0.5, h * 0.35), at(t + 2, -hw - 0.5, h * 0.35), at(t + 2, hw + 0.5, h * 0.75), at(t + 0.6, hw + 0.5, h * 0.75)], '#31261a');   // a cross brace
+        }
+      }
+      // The deck's edge, both sides, a slice at a time (the far side is mostly covered by the top).
+      const edge = B.concrete ? ['#55575b', '#6a6c70'] : ['#3a2d1d', '#4a3a26'];
+      for (let t = 0; t < B.L; t += BRIDGE_SLICE) {
+        const t1 = Math.min(B.L, t + BRIDGE_SLICE), h0 = deckAt(B, t), h1 = deckAt(B, t1);
+        if (h0 + h1 < 0.5 || !standing((t + t1) / 2)) continue;
+        for (const [v, col] of [[-hw - 1, edge[1]], [hw + 1, edge[0]]]) quad([at(t, v, h0), at(t1 + 0.4, v, h1), at(t1 + 0.4, v, Math.max(0, h1 - BRIDGE_EDGE)), at(t, v, Math.max(0, h0 - BRIDGE_EDGE))], col);
+      }
+      // The top, in slices each overlapping the next by 2 px, the higher drawn last (on a ramp, no gap shows between two heights).
+      const sl = [];
+      for (let t = 0; t < B.L; t += BRIDGE_SLICE) { const w = Math.min(BRIDGE_SLICE, B.L - t); if (standing(t + w / 2)) sl.push([t, w, deckAt(B, t + w / 2)]); }
+      sl.sort((p, q) => p[2] - q[2]);
+      for (const [t, w, h] of sl) {
+        const m = g.getTransform(), a0 = Math.max(0, t - 1), a1 = Math.min(B.L, t + w + 1);
+        g.translate(b.a.x + LV[0] * h, b.a.y + LV[1] * h); g.rotate(B.ang);
+        g.drawImage(B.pic, a0 * B.K, 0, (a1 - a0) * B.K, B.pic.height, a0, -hw - 2, a1 - a0, B.bw + 4);
+        g.setTransform(m);
+      }
+    }
+  } finally { g.upright = up; }
+}
+// Whether a ship is under a bridge now (a deck cell within its length, and the deck's height, of it). ui.js draw takes such a ship
+// out of the sorted list and draws it with the ground, then the raised bridges over it (drawBridges), then everything else as
+// usual, so a tank on the bridge still stands on top.
 function decksOver(u) {
   if (!G.bridges || !G.bridges.length || typeof document === 'undefined') return null;
-  const R = u.def.size.len / 2 + 4, cx0 = Math.floor((u.x - R) / CELL), cx1 = Math.floor((u.x + R) / CELL), cy0 = Math.floor((u.y - R) / CELL), cy1 = Math.floor((u.y + R) / CELL);
+  const R = u.def.size.len / 2 + 4 + 16, cx0 = Math.floor((u.x - R) / CELL), cx1 = Math.floor((u.x + R) / CELL), cy0 = Math.floor((u.y - R) / CELL), cy1 = Math.floor((u.y + R) / CELL);
   let under = false;
   for (let y = cy0; y <= cy1 && !under; y++) for (let x = cx0; x <= cx1; x++) {
     if (!inMap(x, y)) continue;
     const c = idx(x, y);
     if (G.terr[c] === 5 && !(G.ford && G.ford[c])) { under = true; break; }
   }
-  if (!under) return null;
-  const out = G.bridges.filter((b) => { const P = bridgeDeck(b); return P && u.x + R > P.x && u.x - R < P.x + P.w && u.y + R > P.y && u.y - R < P.y + P.h; });
-  return out.length ? out : null;
-}
-function drawDeck(g, b) {
-  const P = bridgeDeck(b);
-  if (!P) return;
-  const up = g.upright; g.upright = false;
-  try { g.drawImage(P.c, P.x, P.y); } finally { g.upright = up; }
+  return under;
 }
 // A ship under way: a white V of foam spreading from its stern and a bow wave, drawn on the water under it (looks only).
 function shipWake(g, u, t) {

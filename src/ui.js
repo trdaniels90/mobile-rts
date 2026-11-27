@@ -857,21 +857,12 @@ function draw() {
       ? onScr(fx.x, fx.y, 120, 100, 400) || onScr(fx.x2, fx.y2, 120, 100, 400) || onScr((fx.x + fx.x2) / 2, (fx.y + fx.y2) / 2, 120, 100, 400)
       : onScr(fx.x, fx.y, fx.type === 'bolt' ? 360 : 120, 100, 400);
     const ground = [], air = [], underDeck = [];
-    let dk = null;
     for (const e of G.entities) {
       if (!inView(e) || !visibleToPlayer(e)) continue;
       // Parked aircraft too, so they show on top of their Helipad or Airfield.
       if (e.kind === 'unit' && e.cls === 'air') air.push(e);
-      else if (e.kind === 'unit' && e.def.naval && (dk = decksOver(e))) underDeck.push([e, dk]);   // (a ship under a bridge: below)
+      else if (e.kind === 'unit' && e.def.naval && decksOver(e)) underDeck.push(e);   // (a ship under a bridge: below)
       else ground.push(e);
-    }
-    // Ships under a bridge (art.js decksOver): drawn now, with the ground, then the bridges' decks over them; units on the deck are
-    // drawn later with everything else, on top.
-    if (underDeck.length) {
-      const decks = new Set();
-      for (const [e, bs] of underDeck) { if (glRec) GLR.listDepth(viewDepth(e.x, e.y) + 10); onHill(v, e.x, e.y, () => drawUnit(v, e, G.t)); for (const b of bs) decks.add(b); }
-      if (glRec) GLR.listDepth(null);
-      for (const b of decks) drawDeck(v, b);
     }
     // Village houses on explored ground (world.js genVillage), sorted in with everything else.
     for (const t of trees) ground.push(t);
@@ -882,6 +873,11 @@ function draw() {
     for (const fx of G.effects) if (fx.type === 'fall' && fx.t >= 0 && inView(fx) && G.seen[cellOfPos(fx.x, fx.y)]) ground.push({ kind: 'fall', fx, cx: fx.cx, cy: fx.cy, w: fx.w, h: fx.h, x: fx.x, y: fx.y });
     lap('list');
     lookView = v; cliffItems(ground, x0, y0, x1, y1, onScr);   // tall rock (look.js prototype, off by default)
+    // Ships under a bridge (art.js decksOver): drawn now, after the ground and its moving water (cliffItems: look.js drawWater); then the raised bridges (art.js drawBridges) over them.
+    // Units on a deck are drawn later with everything else, lifted to its height (look.js standLift), on top.
+    for (const e of underDeck) { if (glRec) GLR.listDepth(viewDepth(e.x, e.y) + 10); onHill(v, e.x, e.y, () => drawUnit(v, e, G.t)); }
+    if (glRec) GLR.listDepth(null);
+    drawBridges(v, ox - 60, oy - 60, ox + bw + 60, oy + bh + 60);
     lap('crag');   // the crags in view found (and any made)
     for (const f of G.folk || []) if (f.st !== 'in' && inView(f) && G.seen[cellOfPos(f.x, f.y)]) ground.push({ kind: 'folk', v: f, y: f.y });
     for (const c of G.hens || []) if (inView(c) && G.seen[cellOfPos(c.x, c.y)]) ground.push({ kind: 'hen', v: c, y: c.y });
@@ -969,7 +965,7 @@ function draw() {
       toList();
       if (e.kind === 'tree') { drawTree(lv, e); lap('tree'); DP.nTree++; continue; }   // (lifted in drawTree)
       const [hx, hy] = hillAt(e);
-      if (e.kind === 'unit') { const [px, py] = emergePos(e); onHill(lv, hx, hy, () => drawOne(e, lv), standLift(px, py)); }   // (on a ramp: look.js)
+      if (e.kind === 'unit') { const [px, py] = emergePos(e); onHill(lv, hx, hy, () => drawOne(e, lv), standLift(px, py, e.def.naval)); }   // (on a ramp: look.js)
       else onHill(lv, hx, hy, () => drawOne(e, lv));
     }
     toList();
@@ -1055,7 +1051,7 @@ function draw() {
       DP.nFx++;
       // Up in the air (rising smoke and flames, world.js updateEffects): drawn that high straight up the screen; and on the
       // raised ground (look.js gLift; a tracer's or bolt's far end by the ground there).
-      const gx = fx.x, gy = fx.y, hx = fx.x2, hy = fx.y2, L = (fx.lift || 0) + gLift(gx, gy), L2 = hx !== undefined ? gLift(hx, hy) : 0;
+      const gx = fx.x, gy = fx.y, hx = fx.x2, hy = fx.y2, L = (fx.lift || 0) + gLift(gx, gy) + deckLift(gx, gy), L2 = hx !== undefined ? gLift(hx, hy) : 0;
       glDepth(viewDepth(gx, gy) + 10);
       if (!L && !L2) { drawEffect(v, fx); continue; }
       [fx.x, fx.y] = liftPt(gx, gy, L);
@@ -1390,7 +1386,7 @@ function draw() {
     return [Math.min(...xs), Math.min(...ys) - CELL * 0.8 * VK - L, Math.max(...xs), Math.max(...ys) - L];
   }
   // A unit on the view plane, raised by its height and h more.
-  const unitSpot = (e, h) => toView(...liftPt(e.x, e.y, (e.alt || 0) + (h || 0) + (e.cls === 'air' ? gLift(e.x, e.y) : standLift(e.x, e.y))));   // (on a ramp: look.js)
+  const unitSpot = (e, h) => toView(...liftPt(e.x, e.y, (e.alt || 0) + (h || 0) + (e.cls === 'air' ? gLift(e.x, e.y) : standLift(e.x, e.y, e.def && e.def.naval))));   // (on a ramp: look.js)
   function pick(wx, wy, slop) {
     const [X, Y] = toView(...hillPt(wx, wy));   // (the tap's spot: s2w gives the point on the raised ground)
     let best = null, bd = Infinity;
