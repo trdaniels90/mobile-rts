@@ -2210,6 +2210,57 @@ function emergePos(u) {
   const e = ek * (2 - ek);
   return [u.outX + (u.x - u.outX) * e, u.outY + (u.y - u.outY) * e];
 }
+// Ships under a bridge (looks only): the bridges are painted into the ground, so a ship would be drawn over the deck. Each bridge's
+// own pixels (the ground painted with it and without it: what differs, its rails and shadow included) are kept as a picture once
+// (bridgeDeck), and the part round a ship that has a deck cell under it is drawn again over the ship (shipUnderDeck). In the ground
+// plane, like a destroyed span's ruin, so the WebGL renderer draws it as a picture too. A destroyed span's cells are left out.
+const bridgeDecks = new WeakMap();
+function bridgeDeck(b) {
+  let pic = bridgeDecks.get(b);
+  if (pic !== undefined) return pic;
+  pic = null;
+  try {
+    const m = MAPS[validMap(G.mapId)], M = b.w / 2 + 22;
+    const X0 = Math.floor(Math.min(b.a.x, b.b.x) - M), Y0 = Math.floor(Math.min(b.a.y, b.b.y) - M), w = Math.ceil(Math.abs(b.a.x - b.b.x) + 2 * M), h = Math.ceil(Math.abs(b.a.y - b.b.y) + 2 * M);
+    const painter = (bridges) => groundPainter(G.terr, groundSeed(G), G.road, bridges, G.cliff, G.ford, mapTheme(G.mapId), m.bridge, G.hgt, mesaTops(G.mapId));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const o = document.createElement('canvas'); o.width = w; o.height = h;
+    const terr = G.terr;
+    painter([b]).paint(c.getContext('2d'), X0, Y0, w, h);
+    painter([]).paint(o.getContext('2d'), X0, Y0, w, h);
+    const g = c.getContext('2d'), A = g.getImageData(0, 0, w, h), B = o.getContext('2d').getImageData(0, 0, w, h);
+    for (let i = 0; i < A.data.length; i += 4) {
+      const d = Math.abs(A.data[i] - B.data[i]) + Math.abs(A.data[i + 1] - B.data[i + 1]) + Math.abs(A.data[i + 2] - B.data[i + 2]);
+      if (d < 6) A.data[i + 3] = 0;
+    }
+    g.putImageData(A, 0, 0);
+    pic = { c, x: X0, y: Y0, w, h };
+  } catch (_) { pic = null; }
+  bridgeDecks.set(b, pic);
+  return pic;
+}
+// The bridges whose deck a ship is under now (a deck cell within its length of it), or none. ui.js draw takes such a ship out of the
+// sorted list and draws it with the ground, then those bridges' decks over it (drawDeck), then everything else as usual, so a tank
+// on the bridge still stands on top.
+function decksOver(u) {
+  if (!G.bridges || !G.bridges.length || typeof document === 'undefined') return null;
+  const R = u.def.size.len / 2 + 4, cx0 = Math.floor((u.x - R) / CELL), cx1 = Math.floor((u.x + R) / CELL), cy0 = Math.floor((u.y - R) / CELL), cy1 = Math.floor((u.y + R) / CELL);
+  let under = false;
+  for (let y = cy0; y <= cy1 && !under; y++) for (let x = cx0; x <= cx1; x++) {
+    if (!inMap(x, y)) continue;
+    const c = idx(x, y);
+    if (G.terr[c] === 5 && !(G.ford && G.ford[c])) { under = true; break; }
+  }
+  if (!under) return null;
+  const out = G.bridges.filter((b) => { const P = bridgeDeck(b); return P && u.x + R > P.x && u.x - R < P.x + P.w && u.y + R > P.y && u.y - R < P.y + P.h; });
+  return out.length ? out : null;
+}
+function drawDeck(g, b) {
+  const P = bridgeDeck(b);
+  if (!P) return;
+  const up = g.upright; g.upright = false;
+  try { g.drawImage(P.c, P.x, P.y); } finally { g.upright = up; }
+}
 // A ship under way: a white V of foam spreading from its stern and a bow wave, drawn on the water under it (looks only).
 function shipWake(g, u, t) {
   const L = u.def.size.len / 2, c = Math.cos(u.face), s = Math.sin(u.face), a = g.globalAlpha;

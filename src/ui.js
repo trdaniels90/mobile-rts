@@ -856,11 +856,22 @@ function draw() {
     const fxShows = (fx) => fx.x2 !== undefined
       ? onScr(fx.x, fx.y, 120, 100, 400) || onScr(fx.x2, fx.y2, 120, 100, 400) || onScr((fx.x + fx.x2) / 2, (fx.y + fx.y2) / 2, 120, 100, 400)
       : onScr(fx.x, fx.y, fx.type === 'bolt' ? 360 : 120, 100, 400);
-    const ground = [], air = [];
+    const ground = [], air = [], underDeck = [];
+    let dk = null;
     for (const e of G.entities) {
       if (!inView(e) || !visibleToPlayer(e)) continue;
       // Parked aircraft too, so they show on top of their Helipad or Airfield.
-      if (e.kind === 'unit' && e.cls === 'air') air.push(e); else ground.push(e);
+      if (e.kind === 'unit' && e.cls === 'air') air.push(e);
+      else if (e.kind === 'unit' && e.def.naval && (dk = decksOver(e))) underDeck.push([e, dk]);   // (a ship under a bridge: below)
+      else ground.push(e);
+    }
+    // Ships under a bridge (art.js decksOver): drawn now, with the ground, then the bridges' decks over them; units on the deck are
+    // drawn later with everything else, on top.
+    if (underDeck.length) {
+      const decks = new Set();
+      for (const [e, bs] of underDeck) { if (glRec) GLR.listDepth(viewDepth(e.x, e.y) + 10); onHill(v, e.x, e.y, () => drawUnit(v, e, G.t)); for (const b of bs) decks.add(b); }
+      if (glRec) GLR.listDepth(null);
+      for (const b of decks) drawDeck(v, b);
     }
     // Village houses on explored ground (world.js genVillage), sorted in with everything else.
     for (const t of trees) ground.push(t);

@@ -3361,6 +3361,11 @@ below Frostlight's 21 x 21 = 441 tiles:
   middle, `muzzle` follows), `shipWhole` (cameos, sinking); `navyard` and `subpen` in `STRUCTURES`; a foam wake while moving (`shipWake`);
   cameos on a water background. Not baked: models.js changed, so `bake-sprites.js --check` (and `--hd`) report stale until the owner rebakes
   at release; until then ships and the yards are rendered live.
+- **Under a bridge (looks only):** bridges are painted into the ground, so a ship would be drawn on top of the deck. art.js `bridgeDeck`
+  keeps each bridge's own pixels once (the ground painted with and without it; what differs, rails and shadow included); ui.js draw takes a
+  ship with a deck cell within its length (`decksOver`) out of the sorted list, draws it with the ground and then those decks over it, so
+  units on the bridge still draw on top. Ground-plane pictures like a destroyed span's ruin, so both renderers draw it. (Clipping the ship
+  was not an option: gl.js does not clip pictures.)
 - **Computer** (ai.js, every difficulty): `aiNaval` (once, `team.naval`, plain data): the nearest open water of `NAVAL_BODY` (300) cells within
   `NAVAL_REACH` (32) cells of its start with an enemy start within `NAVAL_FOE` (14) cells of it. With one, after a War Factory and two
   refineries it builds its yard (`aiNavalNext`, `aiWaterSpot`); out of reach, up to `NAVAL_CREEP` (4) Power Plants go up toward the water
