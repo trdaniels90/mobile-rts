@@ -1229,7 +1229,7 @@ function aiFleet(team, c, money, capped) {
 // them, once all are waiting at `up` FERRY_WAIT s after the first was full with at least FERRY_MIN aboard each. Each puts its load
 // ashore at its own spot along the beach by `down` (they hunt on, unloadOne) and comes back. Units of a wave launched otherwise walk to
 // the beach nearest the enemy and wait there to be picked up (world.js stuckWatch leaves them be).
-const FERRY_WANT = { easy: 1, normal: 2, hard: 3 }, FERRY_MIN = 3, FERRY_WAIT = 90;
+const FERRY_WANT = { easy: 1, normal: 2, hard: 3 }, FERRY_MIN = 3, FERRY_WAIT = 90, SCOUT_PARTY = 3;
 function aiStrait(team) {
   const P = team.naval;
   if (P.strait !== undefined) return P.strait;
@@ -1289,6 +1289,7 @@ function aiFerry(team) {
     const f = t.ferry || (t.ferry = { st: 'load', since: G.t });
     const n = (t.cargo || []).length, near = (p, r) => Math.hypot(t.x - p.x, t.y - p.y) < CELL * r;
     if (f.st === 'home') f.st = 'load';   // (older saves)
+    if (f.scout) { if (t.order.type === 'move') continue; f.scout = false; f.spot = null; }   // (sent along the enemy coast to look: aiScout)
     if (f.st === 'load') {
       // Its own spot against the beach by `up` (chosen once a trip), where it stands still while they come aboard.
       if (!f.spot) { const k = lifts.indexOf(t) - (lifts.length - 1) / 2, ax = -(cellY(S.down) - cellY(S.up)), ay = cellX(S.down) - cellX(S.up), al = Math.hypot(ax, ay) || 1;
@@ -1299,11 +1300,13 @@ function aiFerry(team) {
       if (room > 0) {
         // Who goes: a launched wave still on its own island, and (once its first attack is due) the army waiting at home: its
         // attack planner finds no way to walk to the enemy, so the ferries carry the waves instead.
-        const due = G.t >= aiOf(team).firstWave * 0.75;
+        // While it has found no enemy base (aiScout asked for a party: team.scoutParty), a few of the waiting army go as scouts.
+        const party = !enemyBaseKnown(team.id) && team.scoutParty && G.t - team.scoutParty < 30;
+        const due = G.t >= aiOf(team).firstWave * 0.75 && (enemyBaseKnown(team.id) || party);
         const fare = unitsOf(team.id).filter((u) => (u.cls === 'inf' || u.cls === 'veh') && !u.def.naval && u.def.weapon && !u.def.harvester && !u.def.deploys && !u.def.engineer &&
           !u.defending && !u.homeGuard && !u.chute && !u.inHouse && !u.manual && !taken.has(u.id) && land[cellOfPos(u.x, u.y)] === home &&
           (u.order.type === 'hunt' || u.order.type === 'attack' || (due && u.order.type === 'guard' && u.staged && !u.order.hold)))
-          .sort((a, b) => dist(a, t) - dist(b, t)).slice(0, room);
+          .sort((a, b) => (party ? b.def.speed - a.def.speed : 0) || dist(a, t) - dist(b, t)).slice(0, party ? Math.max(0, SCOUT_PARTY - n - (t.def.carry - n - room)) : room);
         if (fare.length) { commandBoard(fare, t); for (const u of fare) taken.add(u.id); }
       }
       continue;
@@ -1321,13 +1324,19 @@ function aiFerry(team) {
     }
   }
   // The convoy: every Transport loading is full (or the wait is over), then they all sail together.
-  const loading = lifts.filter((t) => t.ferry && t.ferry.st === 'load');
+  const loading = lifts.filter((t) => t.ferry && t.ferry.st === 'load' && !t.ferry.scout);
   if (!loading.length) return;
   const P = team.naval, cargo = (t) => (t.cargo || []).length;
   const allFull = loading.every((t) => cargo(t) >= t.def.carry);
   if (!P.fullT && loading.some((t) => cargo(t) >= t.def.carry)) P.fullT = G.t;
   const allThere = loading.every((t) => t.ferry.spot && Math.hypot(t.x - t.ferry.spot.x, t.y - t.ferry.spot.y) < CELL * 4);
   const waited = P.fullT && G.t - P.fullT > FERRY_WAIT && allThere && loading.every((t) => cargo(t) >= FERRY_MIN);
+  // A scouting party (no enemy base found yet) does not wait for full loads: the first Transport with it aboard goes alone.
+  if (!enemyBaseKnown(team.id) && !allFull && !waited) {
+    const go = loading.find((t) => cargo(t) >= SCOUT_PARTY && !G.entities.some((e) => e.alive && e.order && e.order.type === 'board' && e.order.target === t));
+    if (go) { const w = beachSpot(down.x, down.y, 3, shipBody(go)) || down; go.ferry.st = 'go'; go.ferry.to = { x: w.x, y: w.y }; go.ferry.spot = null; setGuard(go, w.x, w.y); goTo(go, w.x, w.y); }
+    return;
+  }
   if (!allFull && !waited) return;
   P.fullT = 0;
   const ax = -(cellY(S.down) - cellY(S.up)), ay = cellX(S.down) - cellX(S.up), al = Math.hypot(ax, ay) || 1;   // along the far beach
@@ -1773,7 +1782,7 @@ function aiScout(team, ready, more) {
   if (!spots.length) for (let y = 4; y < MAP - 4; y += 8) for (let x = 4; x < MAP - 4; x += 8) if (!seen(x, y)) spots.push({ cx: x, cy: y });
   if (!spots.length) return;
   // The scout carries on to the nearest spot from where it is; a new one sets out from home.
-  const kept = s.u && s.u.alive && !s.u.retreat && !(s.u.cls === 'air' && airEmpty(s.u)) ? s.u : null;
+  const kept = s.u && s.u.alive && !s.u.retreat && !(s.u.cls === 'air' && airEmpty(s.u)) && !(s.u.ferry && s.u.ferry.st !== 'load') ? s.u : null;
   if (more && !kept && G.t < (s.again || 0)) return;
   const from = kept ? { cx: kept.x / CELL, cy: kept.y / CELL } : home;
   const near = (p) => Math.hypot(p.cx - from.cx, p.cy - from.cy);
@@ -1788,7 +1797,15 @@ function aiScout(team, ready, more) {
   if (powerReady(team, 'spy')) { launchPower(team, 'spy', x, y); s.until = G.t + 20; return; }
   const heli = unitsOf(team.id).find((u) => u.def.fly === 'heli' && !u.interceptor && !u.repairHold && (u.as === 'landed' || u.order.type === 'guard'));
   const pool = more ? idleGround(team).filter((u) => u.staged && u.def.weapon && !u.def.harvester && !u.def.deploys && !u.manual && !u.defending && !u.assisting) : ready;
-  const runner = pool.filter((u) => !u.def.harvester).sort((a, b) => b.def.speed - a.def.speed)[0];
+  // Across the sea (Twin Isles): only a runner that can walk there goes on foot; otherwise a warship (or an empty Transport)
+  // sails to the coast nearest the spot, and the ferries take a scouting party over (aiFerry, team.scoutParty).
+  const L = aiLandmass(), there = L[idx(Math.round(to.cx), Math.round(to.cy))], walks = (u) => !there || L[cellOfPos(u.x, u.y)] === there;
+  const runner = pool.filter((u) => !u.def.harvester && !u.def.naval && walks(u)).sort((a, b) => b.def.speed - a.def.speed)[0];
+  const isle = there && team.start && there !== L[idx(team.start.cx, team.start.cy)];
+  if (isle) team.scoutParty = G.t;
+  const boat = isle && !heli && !(kept && (kept.cls === 'air' || kept.def.naval)) ? unitsOf(team.id).filter((u) => u.def.naval && !u.def.sub && u.order.type === 'guard' && !(u.cargo && u.cargo.length) && !(u.def.ferry && G.entities.some((e) => e.alive && e.order && e.order.type === 'board' && e.order.target === u)))
+    .sort((a, b) => (!!a.def.ferry - !!b.def.ferry) || b.def.speed - a.def.speed)[0] : null;
+  if (boat) { if (boat.ferry) boat.ferry.scout = true; commandMove([boat], x, y); s.u = boat; return; }
   // Something faster than the scout (a helicopter, or a vehicle over half as fast again) takes over.
   const faster = (heli && kept && kept.cls !== 'air') || (runner && kept && kept.cls !== 'air' && runner.def.speed > kept.def.speed * 1.5);
   const u = kept && !faster ? kept : heli || runner;
@@ -1806,6 +1823,7 @@ function aiScoutDone(team) {
   const u = s.u; s.u = null;
   if (!u.alive) return;
   if (u.cls === 'air') { setGuard(u); u.order.pad = true; u.staged = true; return; }
+  if (u.def.naval) { if (u.ferry) { u.ferry.scout = false; u.ferry.spot = null; } setGuard(u, u.x, u.y); return; }
   const r = spotDealer(team)(u, rallyPoint(team).x, rallyPoint(team).y);
   setGuard(u, r.x, r.y); u.staged = true; goTo(u, r.x, r.y);
 }

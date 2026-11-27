@@ -103,9 +103,6 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
   }
   updatePower();
   revealAround();
-  // A map with `revealStarts` (Twin Isles: no scout could walk to the other island): every side starts knowing the ground
-  // round each other side's start, so its bases are known (knownTo) and the computer's waves have somewhere to go.
-  if (MAPS[G.mapId] && MAPS[G.mapId].revealStarts) for (const t of teams) for (const o of teams) if (o !== t && o.start) revealCircle(o.start.cx + 0.5, o.start.cy + 0.5, 9, G.fog[t.id]);
   return G;
 }
 // Which side this device shows. Switching it redraws the map from that side's view.
@@ -5567,6 +5564,17 @@ function nothingKnown(u) {
   if (!u.alive) return;
   notify(team, 'unknown', 'Enemy base not located', 20);   // (says nothing for the computer)
   if (u.cls === 'air') { setGuard(u); u.order.pad = true; u.staged = !u.oneStrike; u.oneStrike = false; return; }
+  // The computer's units landed on another island (Twin Isles: a scouting party, or a wave with no target left): they explore it,
+  // the start positions on it they have not seen first, then ground they have not, and hunt again every so often (rehunt).
+  if (team.isAI && typeof aiLandmass === 'function' && !u.def.naval) {
+    const L = aiLandmass(), here = L[cellOfPos(u.x, u.y)], home = team.start && L[idx(team.start.cx, team.start.cy)];
+    if (here && home && here !== home) {
+      const fog = G.fog[u.team], unseen = (cx, cy) => !fog[idx(cx, cy)];
+      let to = G.spawns.filter((p) => L[idx(p.cx, p.cy)] === here && unseen(p.cx, p.cy)).sort((a, b) => Math.hypot(a.cx * CELL - u.x, a.cy * CELL - u.y) - Math.hypot(b.cx * CELL - u.x, b.cy * CELL - u.y))[0];
+      for (let k = 0; k < 80 && !to; k++) { const c = (Math.random() * NCELLS) | 0; if (L[c] === here && !fog[c]) to = { cx: cellX(c), cy: cellY(c) }; }
+      if (to) { const x = (to.cx + 0.5) * CELL, y = (to.cy + 0.5) * CELL; setGuard(u, x, y); u.staged = false; u.rehunt = G.t + 12; goTo(u, x, y); return; }
+    }
+  }
   const s = scatterSpot(team);
   setGuard(u, s.x, s.y); u.staged = true; goTo(u, s.x, s.y);
 }

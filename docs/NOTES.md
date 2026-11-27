@@ -3455,13 +3455,18 @@ below Frostlight's 21 x 21 = 441 tiles:
   quarter worked out and mirrored both ways (the four starts alike): each base near its island's outer coast (so it has water for a
   Naval Yard or Submarine Pen), ore by it and in the island's middle, a gem field on the strait's shore. Ground baked
   (`grounds/isles`), preview `maps/isles.png`, both in sw.js.
-- **`revealStarts`** (maps.js, world.js newWorld): every side starts knowing the ground round each other side's start, so the bases
-  are known (`knownTo`, `enemyBaseKnown`): no scout could walk there, and the computer's waves need a target.
+- **Scouting** (contributor's pick: "scout by sea, land, and air"; nothing is revealed at the start, for anyone): the computer's
+  aiScout, once its first-wave time is up, sends the Spy Plane (with an Airfield) or a helicopter as on every map; a walking scout
+  only where it can walk (`aiLandmass`); otherwise an idle warship or an empty Transport (`ferry.scout`) sails to the coast nearest
+  the spot; and it asks for a scouting party (`team.scoutParty`): its Transports take `SCOUT_PARTY` (3) of the fastest waiting units
+  over without waiting for a full load. A computer unit on another island with nothing known to attack (world.js nothingKnown)
+  explores it: the start positions there it has not seen, then unseen ground, hunting again every 12 s (`rehunt`). Tested (headless
+  1 v 1s): bases found at 9:52 to 15:10 by APCs, Transports along the coast, Hinds and an Attack Helicopter, then full convoys.
 - **The computer across the sea** (ai.js, every difficulty): `aiNaval` works out `isle` (no foe's start on its own landmass,
   `aiLandmass`) and then accepts water that reaches the foe's island within `NAVAL_ISLE` (40) cells. `aiFleet` builds Transports first
   (`FERRY_WANT`: Easy 1, Normal 2, Hard 3). `aiStrait` finds the shortest crossing once (two floods over the water from each shore):
   `up` by its own shore, `down` by the foe's. `aiFerry`: each Transport waits at `up` while launched units still on its island, and
-  (from 0.75 of its first-wave time) its waiting army, are sent aboard. They cross together as a convoy (contributor's pick: "wait for
+  (from 0.75 of its first-wave time, once it has found an enemy base) its waiting army, are sent aboard. They cross together as a convoy (contributor's pick: "wait for
   a full load and cross together"): when every Transport loading is full, or, if the army is too small, once all are at `up` and
   `FERRY_WAIT` (90) s have passed since the first was full, with `FERRY_MIN` (3) aboard each (`team.naval.fullT`). Each lands at its own
   spot along the far beach (3 cells apart; in to `down` if its spot is too far from land), they hunt on, and the Transports come back. world.js stuckWatch leaves such a side's hunting and boarding

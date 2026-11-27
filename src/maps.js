@@ -1791,8 +1791,6 @@ const MAPS = {
     // West island (start positions 0-1) against the east island (2-3); a 1 v 1 starts one player on each (newWorld).
     teams: [[0, 1], [2, 3]],
     teamSize: 2,
-    // Every side knows where the other bases are from the start (world.js newWorld): no scout could walk there.
-    revealStarts: true,
     // A fixed layout, made by python3 tools/make-isles-map.py (mirrored both ways, so the four starts are alike).
     spawns: [[20,30],[20,113],[123,30],[123,113]],
     gems: [[56,66,2.6],[56,77,2.6],[87,66,2.6],[87,77,2.6]],
