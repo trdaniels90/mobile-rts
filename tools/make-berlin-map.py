@@ -69,7 +69,8 @@ WALL_W, STRIP = 1.15, 5.0
 GAPS = both([(20, 28), (66, 74)], lambda g: (N - g[1], N - g[0]))
 
 # The Spree, from the Havel in the west to the middle (its twin runs on east to the lake there); half width.
-SPREE_W = [(34, 132), (46, 124), (58, 120), (70, 123), (82, 114), (92, 104), (100, 100)]
+# It runs straight west to east for a few cells either side of each bridge, so each bridge is a clean span straight across.
+SPREE_W = [(34, 132), (46, 124), (57, 121.5), (71, 121.5), (78, 117), (82, 108.5), (94, 108.5), (100, 100)]
 SPREE = SPREE_W + turn_line(SPREE_W)[1:]
 SPREE_HW = 2.6
 BRIDGES = both([(64, 2.6), (88, 2.6)], lambda b: (N - b[0], b[1]))   # bridges across the river: x of the middle, half width
@@ -94,7 +95,7 @@ ROADS = both([   # roads: [points], half width
     ([(52, 49), (60, 38), (70, 38)], 1.3),                    # Charlottenburg to Wedding
     ([(22.5, 168.5), (40, 160), (44, 150)], 1.6),             # south-west base past Tempelhof
     ([(40, 153), (56, 152), (66, 150)], 1.4),                            # Tempelhof's apron road to Kreuzberg
-    ([(80, 127), (82, 116), (88, 104), (88, 96), (80, 88), (64, 75)], 1.5),   # Kreuzberg over the bridge to Charlottenburg
+    ([(80, 127), (84, 118), (88, 113), (88, 103), (88, 96), (80, 88), (64, 75)], 1.5),   # Kreuzberg over the bridge to Charlottenburg
     ([(64, 112), (64, 132), (69, 138)], 1.3),                 # the west bridge to Kreuzberg
     ([(64, 112), (60, 96), (52, 75)], 1.3),                   # and on north to Charlottenburg
     ([(24.5, 26.5), (22, 60), (18.5, 92.5)], 1.3),            # between the allies' bases
@@ -130,7 +131,8 @@ def in_gap(y):
 
 
 def water(x, y):
-    dr = line_dist(x, y, SPREE) + (cnoise(x, y, 4, 7) - 0.5) * 0.5
+    calm = any(abs(x - bx) < hw + 3 for bx, hw in BRIDGES)   # straight banks by the bridges
+    dr = line_dist(x, y, SPREE) + (0 if calm else (cnoise(x, y, 4, 7) - 0.5) * 0.5)
     if dr < SPREE_HW: return True
     return any(math.hypot((x - cx) / rx, (y - cy) / ry) + (cnoise(x, y, 3, 5) - 0.5) * 0.25 < 1 for (cx, cy, rx, ry) in LAKES)
 

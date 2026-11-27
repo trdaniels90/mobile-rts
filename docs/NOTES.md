@@ -867,7 +867,7 @@ recorder usage at the top of record.js).
   side and floodlights (`lamps`) along it. Four checkpoints open it (`GAPS`), two north and two south of the river; the Spree crosses it in
   the middle. It is ordinary rock, so it cannot be blasted through (neutral wall pieces from the walls layer would need changes to
   `G.wallTeam`, netcore and the UI: a possible follow-up).
-- **The Spree** winds from the Havel lake (west) to its twin lake (east), two concrete bridges on each side of the Wall. Six districts
+- **The Spree** winds from the Havel lake (west) to its twin lake (east), two concrete bridges on each side of the Wall. It runs straight west-east with smooth banks for a few cells either side of each bridge, so each bridge is a clean north-south rectangle of deck cells: on a slanting stretch the run came out a parallelogram, which genLayoutMap drew as a slab lying along the river. Six districts
   (`squares`, 117 plots, about 175 houses a battle), the Tiergarten and its twin park (woods with paths), the old airfield (open ground,
   a runway road) south-west and its twin north-east.
 - Checked: all six starts connect (flood fill from each base); `node tools/sim/teams.js <repo> 1 8 berlin 3v3`: no errors, 38 s CPU,
