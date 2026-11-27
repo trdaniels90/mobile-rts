@@ -3364,8 +3364,12 @@ below Frostlight's 21 x 21 = 441 tiles:
 - **Raised bridges on piers (looks only, every map with bridges):** the ground keeps only each bridge's shadow on the water and its
   abutments (art.js `bridgeGround`); the deck is drawn every frame above the water (`drawBridges`): it climbs off each abutment over
   `BRIDGE_RAMP` (52 px, at most 35% of the bridge) and stands `bridgeTop(L)` (9 to 16 view px, longer bridges higher) over the middle,
-  on concrete piers every 46 px (slabs a little wider than the deck, so they show under its edge, foam at the waterline) or pairs of
-  timber piles with cross braces every 22 px, with a `BRIDGE_EDGE` (3 px) edge. The top is cut in `BRIDGE_SLICE` slices, each lifted
+  on concrete piers (slabs a little wider than the deck, so they show under its edge, foam at the waterline) or timber bents (two
+  rows of three piles, cross braces), with a `BRIDGE_EDGE` (3 px) edge. **Piers block ships** (contributor's ask: "take the path of
+  an opening"; ships only, both modes, the server must match): world.js `bridgePiers` spreads them evenly `PIER_GAP` cells apart
+  (concrete 5, timber 4: openings of 4 and 3 cells) over water, clear of the abutments; `pierCells` (the cells across the deck at
+  each) are left out of `navCells`, so ships route through the openings; drawBridges draws them at the same places. Land units
+  crossing are not affected. Tested in naval.js (`underBridge`: a Destroyer crosses, never in a pier cell). The top is cut in `BRIDGE_SLICE` slices, each lifted
   to its height, overlapping and drawn lowest first (no seams on the ramps). Ground-plane drawing like a destroyed span's ruin, so
   both renderers draw it; nothing over a span that is down. ui.js draw: the ground, its moving water (cliffItems), ships under a
   bridge (`decksOver`: a deck cell within the ship's length plus the deck's rise), then `drawBridges`, then the sorted list: land units

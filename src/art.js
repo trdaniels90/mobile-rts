@@ -2268,24 +2268,26 @@ function drawBridges(g, x0, y0, x1, y1) {
       const at = (t, v, h) => [b.a.x + B.ux * t - B.uy * v + LV[0] * h, b.a.y + B.uy * t + B.ux * v + LV[1] * h];
       const standing = (t) => { const p = at(t, 0, 0), c = cellOfPos(Math.max(0, Math.min(WORLD - 1, p[0])), Math.max(0, Math.min(WORLD - 1, p[1]))); return G.terr[c] !== 4; };   // (not over a span that is down)
       const hw = B.bw / 2;
-      // Piers (concrete: a slab across the deck, two faces) or pairs of piles (timber), from the water up to the deck's underside.
-      const gap = B.concrete ? 46 : 22;
-      for (let t = B.ramp * 0.5 + gap * 0.5; t < B.L - B.ramp * 0.5; t += gap) {
-        const h = deckAt(B, t) - BRIDGE_EDGE;
-        if (h < 1.5 || !standing(t)) continue;
+      // Piers (concrete: a slab across the deck, two faces) or bents of piles (timber), from the water up to the deck's underside, where
+      // world.js bridgePiers puts them (ships sail between them, not through).
+      for (const t0 of bridgePiers(b)) {
+        const h = deckAt(B, t0) - BRIDGE_EDGE;
+        if (h < 1.5) continue;
         if (B.concrete) {
-          const v0 = -hw - 2, v1 = hw + 2, d = 6;   // (a little wider than the deck, so they show under its edge)
+          const v0 = -hw - 2, v1 = hw + 2, d = 8, t = t0 - d / 2;
           quad([at(t, v0, 0), at(t, v1, 0), at(t, v1, h), at(t, v0, h)], '#5a5c60');
           quad([at(t + d, v0, 0), at(t + d, v1, 0), at(t + d, v1, h), at(t + d, v0, h)], '#46484c');
           quad([at(t, v1, 0), at(t + d, v1, 0), at(t + d, v1, h), at(t, v1, h)], '#6c6e72');
           quad([at(t, v0, 0), at(t + d, v0, 0), at(t + d, v0, h), at(t, v0, h)], '#6c6e72');
           quad([at(t - 1, v0 - 1, 0), at(t + d + 1, v0 - 1, 0), at(t + d + 1, v1 + 1, 0), at(t - 1, v1 + 1, 0)], 'rgba(220,232,238,0.35)');   // a ring of foam at the waterline
         } else {
-          for (const v of [-hw - 0.5, hw + 0.5]) {
+          for (const t of [t0 - 3.5, t0 + 0.9]) for (const v of [-hw - 0.5, 0, hw + 0.5]) {
             quad([at(t, v - 1.2, 0), at(t + 2.6, v - 1.2, 0), at(t + 2.6, v - 1.2, h), at(t, v - 1.2, h)], '#2e2418');
             quad([at(t, v + 1.2, 0), at(t + 2.6, v + 1.2, 0), at(t + 2.6, v + 1.2, h), at(t, v + 1.2, h)], '#3b2e1f');
           }
-          quad([at(t + 0.6, -hw - 0.5, h * 0.35), at(t + 2, -hw - 0.5, h * 0.35), at(t + 2, hw + 0.5, h * 0.75), at(t + 0.6, hw + 0.5, h * 0.75)], '#31261a');   // a cross brace
+          quad([at(t0 - 2.5, -hw - 0.5, h * 0.3), at(t0 - 1, -hw - 0.5, h * 0.3), at(t0 - 1, hw + 0.5, h * 0.8), at(t0 - 2.5, hw + 0.5, h * 0.8)], '#31261a');   // cross braces
+          quad([at(t0 + 1, -hw - 0.5, h * 0.8), at(t0 + 2.5, -hw - 0.5, h * 0.8), at(t0 + 2.5, hw + 0.5, h * 0.3), at(t0 + 1, hw + 0.5, h * 0.3)], '#31261a');
+          quad([at(t0 - 4, -hw - 1.5, 0), at(t0 + 4, -hw - 1.5, 0), at(t0 + 4, hw + 1.5, 0), at(t0 - 4, hw + 1.5, 0)], 'rgba(220,232,238,0.25)');
         }
       }
       // The deck's edge, both sides, a slice at a time (the far side is mostly covered by the top).

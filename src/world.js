@@ -1634,6 +1634,7 @@ function navCells() {
     const c = y * MAP + x, t = G.terr[c];
     if (t === 4 || (t === 5 && !(G.ford && G.ford[c]))) cells[c] = 1;
   }
+  for (const b of G.bridges || []) for (const c of pierCells(b)) cells[c] = 0;   // (ships go between a bridge's piers, never through one)
   for (let c0 = 0; c0 < NCELLS; c0++) {
     if (!cells[c0] || body[c0]) continue;
     const id = sizes.length, q = [c0];
@@ -1663,6 +1664,34 @@ function navCells() {
   }
   NAV = { G, n: NCELLS, cells, body, sizes, near, nearBody };
   return NAV;
+}
+// A bridge's piers (concrete) or bents of piles (timber): where they stand along it, t px from its end a, PIER_GAP cells apart
+// (an opening of PIER_GAP - 1 cells between two), spread evenly, only over water and clear of the abutments. Ships cannot sail
+// through the cells they stand in (navCells); art.js drawBridges draws them there. Fixed by the map, so every copy agrees.
+const PIER_GAP = { concrete: 5, timber: 4 };
+function bridgePiers(b) {
+  if (b._piers && b._piersG === G) return b._piers;
+  const dx = b.b.x - b.a.x, dy = b.b.y - b.a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
+  const S = (PIER_GAP[(MAPS[G.mapId] && MAPS[G.mapId].bridge) === 'concrete' ? 'concrete' : 'timber']) * CELL, n = Math.max(0, Math.floor((L - CELL * 2) / S));
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    const t = (L - (n - 1) * S) / 2 + k * S;
+    if (t < CELL * 1.5 || t > L - CELL * 1.5) continue;
+    const c = cellOfPos(Math.max(0, Math.min(WORLD - 1, b.a.x + ux * t)), Math.max(0, Math.min(WORLD - 1, b.a.y + uy * t)));
+    if (G.terr[c] === 5 && !(G.ford && G.ford[c])) out.push(t);
+  }
+  Object.defineProperty(b, '_piers', { value: out, writable: true, configurable: true, enumerable: false });   // (kept off saves and snapshots)
+  Object.defineProperty(b, '_piersG', { value: G, writable: true, configurable: true, enumerable: false });
+  return out;
+}
+// The cells a bridge's piers stand in: across the deck's width (and a little past it) at each pier.
+function pierCells(b) {
+  const dx = b.b.x - b.a.x, dy = b.b.y - b.a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, hw = b.w / 2 + 2, out = new Set();
+  for (const t of bridgePiers(b)) for (let v = -hw; v <= hw; v += 4) {
+    const x = b.a.x + ux * t - uy * v, y = b.a.y + uy * t + ux * v;
+    if (x > 0 && y > 0 && x < WORLD && y < WORLD) out.add(cellOfPos(x, y));
+  }
+  return out;
 }
 const navFree = (c) => !!navCells().cells[c] && !G.bld[c];
 const navBodyOf = (x, y) => navCells().body[cellOfPos(x, y)];

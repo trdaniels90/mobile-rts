@@ -95,6 +95,20 @@ const out = {};
     // Sunk with soldiers aboard: all lost.
     const lost0 = me.stats.lost; damage(lst, 99999, 'AP', null); step(0.5);
     r.sunkWithCargo = me.stats.lost - lost0 === 2 && !lst.alive;
+    // Under a bridge: through an opening between its piers, never through a pier.
+    r.underBridge = 'no bridge';
+    for (const br of G.bridges || []) {
+      const L = Math.hypot(br.b.x - br.a.x, br.b.y - br.a.y), ux = (br.b.x - br.a.x) / L, uy = (br.b.y - br.a.y) / L, nx = -uy, ny = ux;
+      const ok = (x, y) => { const c = cellOfPos(x, y); return G.terr[c] === 4 && N.cells[c]; };
+      const mx = (br.a.x + br.b.x) / 2, my = (br.a.y + br.b.y) / 2;
+      if (![1, -1].every((sd) => [3, 5, 7].every((d) => ok(mx + nx * CELL * d * sd, my + ny * CELL * d * sd)))) continue;
+      const piers = pierCells(br), from = { x: mx + nx * CELL * 7, y: my + ny * CELL * 7 }, to = { x: mx - nx * CELL * 7, y: my - ny * CELL * 7 };
+      const s2 = addUnit('destroyer', me, from.x, from.y); setGuard(s2, from.x, from.y); s2.hp = s2.maxHp = 1e6;
+      let hitPier = 0; commandMove([s2], to.x, to.y);
+      step(25, () => { if (piers.has(cellOfPos(s2.x, s2.y))) hitPier++; });
+      r.underBridge = { piers: bridgePiers(br).length, crossed: Math.hypot(s2.x - to.x, s2.y - to.y) < CELL * 2, hitPier };
+      s2.alive = false; break;
+    }
     // The yard destroyed: no rubble on the water, side keeps going.
     kill(yard, null); step(1);
     r.yardGone = !yard.alive;
@@ -128,5 +142,6 @@ const want = ['yardAfterPower', 'placeWater', 'placeLandRefused', 'yardPlaced', 
   'cannotReachFoeYard', 'unloadAtSeaRefused', 'landedOnLand', 'forgedRefused', 'sunkWithCargo', 'yardGone'];
 const bad = want.filter((k) => out[k] !== true);
 if (out.dryCells || out.ferryDry || out.ferryAboard !== 5 || out.ferryVehicles !== 2 || out.ferryUnloaded !== 5 || out.yardNeeds.some(Boolean)) bad.push('ferry/dry/needs');
+if (typeof out.underBridge === 'object' && (!out.underBridge.crossed || out.underBridge.hitPier || !out.underBridge.piers)) bad.push('underBridge');
 if (out.ai.err || (out.ai.plans.some((p) => p && p.ok) && (!out.ai.everSeen.yards || !out.ai.everSeen.ships))) bad.push('ai');   // (on a map where its water reaches no enemy the computer builds no yard)
 console.log(bad.length ? 'FAIL ' + bad.join(', ') : 'PASS');
