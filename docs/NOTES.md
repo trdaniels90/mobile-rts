@@ -3403,6 +3403,12 @@ below Frostlight's 21 x 21 = 441 tiles:
 - **Transports** (`ferry`, carry 5): take any ground unit, vehicles too (`canFerry`). Selected units + tap your Transport: they walk to the
   shore by it and board (within `FERRY_BOARD_R`, or settled within 4.5 cells); a Transport out of their reach comes in to them. UNLOAD HERE
   puts them on land within `FERRY_SHORE` (3) cells, refused out at sea ("Move the Transport to the shore"). Sunk with units aboard: all lost.
+- **Loading and landing look like it (looks, and a little timing):** a Transport comes right in to the beach (the computer's to water
+  against it: ai.js `beachSpot`) and turns its bow ramp to the land (`ferryTurn`) while troops come aboard or before it unloads.
+  Troops walk to the ramp (`bowRamp`) and board within `FERRY_BOARD_R` (1.2 cells) of it, or settled within 4.5 cells (a crowd),
+  never while it is still moving; each is drawn walking up the ramp and fading into the hold (the `board` effect, art.js
+  drawBoarding). Unloading, one every 0.55 s, each comes down the ramp and walks ashore at a walk (`u.outD`, drawn like a vehicle out
+  of the War Factory door: art.js drawUnit, emergePos).
 - **Death:** a ship sinks (`shipSinks`, the `sink` effect in art.js: the hull settles and fades), no wreck, crater or crew.
 - **Looks:** models.js `gunboatModel`, `destroyerModel`, `subModel`, `lstModel`, `lcuModel`, `shipTurret` (turret `size.fwd` ahead of the
   middle, `muzzle` follows), `shipWhole` (cameos, sinking); `navyard` and `subpen` in `STRUCTURES`; a foam wake while moving (`shipWake`);

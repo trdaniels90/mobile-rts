@@ -4572,6 +4572,8 @@ function updateUnit(u, dt) {
     if (d) goTo(u, d.x, d.y, true);
   }
   if (u.def.sub) updateSub(u, dt);
+  if (u.def.ferry && !u.unload && (u.boardT = (u.boardT || 0) - dt) <= 0) { u.boardT = 0.25; u.boarding = boardersOf(u).length > 0; }
+  if (u.def.ferry && u.boarding && !u.unload) ferryTurn(u, dt);   // troops coming aboard: the ramp to the shore
   if (u.unload) updateUnload(u, dt);
   if (u.order.type === 'board') { updateBoard(u); if (u.alive) { followPath(u, dt); checkStuck(u, dt); } return; }
   if (u.order.type === 'garrison') { updateEnterHouse(u); if (u.alive && !u.inHouse) { followPath(u, dt); checkStuck(u, dt); } return; }
@@ -5732,6 +5734,7 @@ function unloadOne(h, ai) {
   if (r.type !== 'pilot' && r.type !== 'technician') team.stats.units--;   // counted when it was trained
   u.hp = Math.min(u.maxHp, r.hp); u.rank = r.rank || 0; u.kills = r.kills || 0; u.killWorth = r.kw || 0; u.born = r.born;
   u.face = u.tface = Math.atan2(p.y - h.y, p.x - h.x);
+  if (h.def.ferry) { const r = bowRamp(h); u.outT = G.t; u.outX = r.x; u.outY = r.y; u.outD = walkTime(u.def, r.x, r.y, u.x, u.y); u.face = u.tface = Math.atan2(u.y - r.y, u.x - r.x); }   // down the ramp and ashore (art.js drawUnit)
   if (ai === 'guard') { setGuard(u, p.x, p.y); u.staged = true; }
   else if (ai === 'wait') { setGuard(u, p.x, p.y); u.staged = false; u.liftWait = G.t + LIFT_HOLD_MAX; }   // (the computer's drop with a wave: aiLiftRelease sends it in)
   else if (ai || team.isAI) { setHunt(u); u.staged = false; }
@@ -5745,11 +5748,13 @@ function updateBoard(u) {
   const h = u.order.target;
   if (h && h.def && h.def.ferry) {   // a naval Transport: down to the shore beside it and aboard
     if (!h.alive || h.team !== u.team || (h.cargo || []).length >= h.def.carry) { setGuard(u, u.x, u.y); if (teamOf(u).isAI) u.staged = true; return; }
-    const d = Math.hypot(h.x - u.x, h.y - u.y), settled = !u.dest && !u.needPath;
-    if (d < h.def.r + FERRY_BOARD_R || (settled && d < CELL * 4.5)) { climbIn(u, h); return; }   // (settled at the edge of a crowd on the shore: near enough)
+    const r = bowRamp(h), d = Math.hypot(r.x - u.x, r.y - u.y), settled = !u.dest && !u.needPath, still = !h.dest && !h.needPath;
+    // Aboard over the bow ramp: once at it, or settled close by at the edge of a crowd on the shore (drawn walking up it: the
+    // 'board' effect, art.js). Not while the Transport is still coming in.
+    if (still && (d < FERRY_BOARD_R || (settled && d < CELL * 4.5))) { climbIn(u, h); return; }
     // Waiting on the shore with the Transport out of reach: it comes in to the water nearest them (unless it is under way).
-    if (settled && h.order.type === 'guard' && !h.dest && !h.needPath) { setGuard(h, u.x, u.y); goTo(h, u.x, u.y); }
-    if (settled || (u.dest && Math.hypot(u.dest.x - h.x, u.dest.y - h.y) > CELL)) goTo(u, h.x, h.y);
+    if (settled && h.order.type === 'guard' && still && d >= CELL * 4.5) { setGuard(h, u.x, u.y); goTo(h, u.x, u.y); }
+    if (settled || (u.dest && Math.hypot(u.dest.x - r.x, u.dest.y - r.y) > CELL)) goTo(u, r.x, r.y);
     return;
   }
   if (h && h.def && h.def.apc) {   // an APC: walk up to it wherever it is and climb in
@@ -5765,6 +5770,10 @@ function updateBoard(u) {
   if (settled && d > LIFT_BOARD_R) goTo(u, o.x, o.y);
 }
 function climbIn(u, h) {
+  if (h.def.ferry) {   // walked up the ramp (looks only: the unit is aboard at once)
+    const r = bowRamp(h);
+    G.effects.push({ type: 'board', ut: u.type, faction: u.faction, team: u.team, v: teamOf(u).variant | 0, x0: u.x, y0: u.y, x: r.x, y: r.y, t: 0, life: walkTime(u.def, u.x, u.y, r.x, r.y) });
+  }
   (h.cargo || (h.cargo = [])).push({ type: u.type, hp: u.hp, rank: u.rank || 0, kills: u.kills || 0, kw: u.killWorth || 0, born: u.born });
   if (u.inHouse) leaveHouse(u);
   u.alive = false;   // aboard (made again when it unloads); not a loss
@@ -5812,8 +5821,21 @@ function liftTo(u, x, y) {
 // they had; the rest are lost. Host only, like every new entity.
 const APC_BOARD_R = CELL * 0.9, APC_DROP_GAP = 0.3, APC_ESCAPE = 0.5, APC_ESCAPE_HP = 0.5;
 // A naval Transport (`ferry`) lets them out only onto land within FERRY_SHORE cells of it (shoreCell).
-const FERRY_BOARD_R = CELL * 2, FERRY_SHORE = 3;
+const FERRY_BOARD_R = CELL * 1.2, FERRY_SHORE = 3;
 const shoreCell = (h) => nearestFreeCell(cellOfPos(h.x, h.y), FERRY_SHORE);
+// The bow ramp of a naval Transport (its bow is +x on the model): where units walk aboard and come ashore.
+const bowRamp = (h) => ({ x: h.x + Math.cos(h.face) * (h.def.size.len / 2 - 3), y: h.y + Math.sin(h.face) * (h.def.size.len / 2 - 3) });
+// A Transport loading or unloading at the shore turns its bow (and ramp) to the nearest land; true once it points there.
+function ferryTurn(u, dt) {
+  if (u.dest || u.needPath) return false;
+  const c = shoreCell(u);
+  if (c < 0) return false;
+  const p = cellCenter(c), want = Math.atan2(p.y - u.y, p.x - u.x);
+  u.face = turnToward(u.face, want, u.def.turn * dt); u.tface = u.face;
+  return Math.abs(angDiff(want, u.face)) < 0.35;
+}
+// How long a unit takes to walk from (x0, y0) to (x1, y1), for the looks of boarding and landing (at least 0.35 s, at most 2.5).
+const walkTime = (def, x0, y0, x1, y1) => Math.max(0.35, Math.min(2.5, Math.hypot(x1 - x0, y1 - y0) / Math.max(20, def.speed || 30)));
 function commandUnload(units) {
   for (const u of units) {
     if (!u || !u.alive || u.kind !== 'unit' || !(u.def.apc || u.def.ferry) || !(u.cargo && u.cargo.length)) continue;
@@ -5824,8 +5846,9 @@ function updateUnload(u, dt) {
   if (!u.cargo || !u.cargo.length || u.order.type !== 'guard') { u.unload = false; return; }
   if (u.moving) return;
   if ((u.unloadT = (u.unloadT || 0) - dt) > 0) return;
-  u.unloadT = APC_DROP_GAP;
   if (u.def.ferry && shoreCell(u) < 0) { u.unload = false; say(u.team, 'Move the Transport to the shore'); return; }
+  if (u.def.ferry && !ferryTurn(u, dt)) { u.unloadT = 0; return; }   // the ramp to the shore first
+  u.unloadT = u.def.ferry ? 0.55 : APC_DROP_GAP;
   unloadOne(u);
   if (!u.cargo.length) u.unload = false;
 }

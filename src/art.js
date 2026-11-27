@@ -2212,7 +2212,7 @@ const INF_ANIM = new WeakMap(), WALK = [1, 12, 2, 13];   // per soldier: when th
 // coming out of the dark over EMERGE.
 // Where a vehicle rolling out of the War Factory is drawn (drawUnit), for the height it is drawn at (look.js standLift).
 function emergePos(u) {
-  const ek = u.outT == null ? 1 : (G.t - u.outT) / EMERGE;
+  const ek = u.outT == null ? 1 : (G.t - u.outT) / (u.outD || EMERGE);
   if (!(ek >= 0 && ek < 1)) return [u.x, u.y];
   const e = ek * (2 - ek);
   return [u.outX + (u.x - u.outX) * e, u.outY + (u.y - u.outY) * e];
@@ -2345,12 +2345,27 @@ function shipWake(g, u, t) {
   g.globalAlpha = a;
 }
 function drawUnit(g, u, t) {
-  const ek = u.outT == null ? 1 : (G.t - u.outT) / EMERGE;
+  const ek = u.outT == null ? 1 : (G.t - u.outT) / (u.outD || EMERGE);
   if (!(ek >= 0 && ek < 1)) return drawUnitBody(g, u, t);
-  const x = u.x, y = u.y, e = ek * (2 - ek), a = g.globalAlpha;
+  const x = u.x, y = u.y, e = u.outD ? ek : ek * (2 - ek), a = g.globalAlpha, mv = u.moving, an = u.anim;   // (outD: coming down a Transport's ramp, at a walk)
   u.x = u.outX + (x - u.outX) * e; u.y = u.outY + (y - u.outY) * e;
-  g.globalAlpha = a * Math.min(1, 0.25 + ek * 1.5);
-  try { drawUnitBody(g, u, t); } finally { u.x = x; u.y = y; g.globalAlpha = a; }
+  if (u.outD) { u.moving = true; u.anim = ek * Math.hypot(x - u.outX, y - u.outY); }
+  g.globalAlpha = a * (u.outD ? Math.min(1, 0.4 + ek * 3) : Math.min(1, 0.25 + ek * 1.5));
+  try { drawUnitBody(g, u, t); } finally { u.x = x; u.y = y; u.moving = mv; u.anim = an; g.globalAlpha = a; }
+}
+// A unit walking up a Transport's ramp (world.js climbIn): drawn walking from where it stood to the ramp, fading into the hold.
+const boardFakes = new WeakMap();
+function drawBoarding(g, fx) {
+  const d = UNIT_DEFS[fx.ut];
+  if (!d || !G.teams[fx.team]) return;
+  let u = boardFakes.get(fx);
+  const L = Math.hypot(fx.x - fx.x0, fx.y - fx.y0), face = Math.atan2(fx.y - fx.y0, fx.x - fx.x0);
+  if (!u) boardFakes.set(fx, u = { id: -1, kind: 'unit', type: fx.ut, def: d, cls: d.cls, team: fx.team, faction: fx.faction, face, tface: face, hp: 1, maxHp: 1, alive: true, moving: true, anim: 0, fireT: 0, x: 0, y: 0 });
+  const k = Math.max(0, Math.min(1, fx.t / fx.life));
+  u.x = fx.x0 + (fx.x - fx.x0) * k; u.y = fx.y0 + (fx.y - fx.y0) * k; u.anim = k * L;
+  const a = g.globalAlpha;
+  g.globalAlpha = a * (k < 0.75 ? 1 : Math.max(0, 1 - (k - 0.75) / 0.25));
+  try { drawUnitBody(g, u, G.t); } finally { g.globalAlpha = a; }
 }
 function drawUnitBody(g, u, t) {
   drawVar = G.teams[u.team].variant | 0;
@@ -3688,6 +3703,7 @@ function drawEffect(g, fx) {
       g.globalAlpha = 1;
       break;
     }
+    case 'board': drawBoarding(g, fx); break;
     case 'sink': {   // a ship going down (world.js shipSinks): it settles lower and fades into the water, with bubbles
       const pal = palFor(fx.faction), sp = facingSprite('Nw' + fx.ut + pal.key, () => shipWhole(pal, fx.ut), fx.face);
       const a = g.globalAlpha;

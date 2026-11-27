@@ -1256,11 +1256,27 @@ function aiStrait(team) {
   let up = -1, down = -1, bu = Infinity, bdn = Infinity;
   const toFoe = (c) => Math.hypot(cellX(c) - foe.start.cx, cellY(c) - foe.start.cy) * 0.05, toHome = (c) => Math.hypot(cellX(c) - team.start.cx, cellY(c) - team.start.cy) * 0.05;
   for (let c = 0; c < NCELLS; c++) {
-    if (dh[c] === 1 && df[c] >= 0 && df[c] + toHome(c) < bu) { bu = df[c] + toHome(c); up = c; }       // (a cell off the beach, so it can come right in)
-    if (df[c] === 1 && dh[c] >= 0 && dh[c] + toFoe(c) < bdn) { bdn = dh[c] + toFoe(c); down = c; }
+    if (dh[c] === 0 && df[c] >= 0 && df[c] + toHome(c) < bu) { bu = df[c] + toHome(c); up = c; }       // (water against the beach: it comes right in)
+    if (df[c] === 0 && dh[c] >= 0 && dh[c] + toFoe(c) < bdn) { bdn = dh[c] + toFoe(c); down = c; }
   }
   if (up >= 0 && down >= 0) P.strait = { up, down };
   return P.strait;
+}
+// The nearest open water against the beach (a cell beside land units can stand on) within r cells of (x, y), in `body`.
+function beachSpot(x, y, r, body) {
+  const N = navCells(), cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+  let best = null, bd = Infinity;
+  for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) {
+    const X = cx + i, Y = cy + j;
+    if (!inMap(X, Y)) continue;
+    const c = idx(X, Y);
+    if (!navFree(c) || G.terr[c] !== 4 || (body && N.body[c] !== body) || G.resv[c]) continue;
+    let shore = false;
+    for (let k = 0; k < 4 && !shore; k++) { const a = X + DIRS8[k][0], b = Y + DIRS8[k][1]; if (inMap(a, b) && passableAt((a + 0.5) * CELL, (b + 0.5) * CELL)) shore = true; }
+    const d = Math.hypot(i, j);
+    if (shore && d < bd) { bd = d; best = cellCenter(c); }
+  }
+  return best;
 }
 function aiFerry(team) {
   const S = aiStrait(team);
@@ -1274,7 +1290,11 @@ function aiFerry(team) {
     const n = (t.cargo || []).length, near = (p, r) => Math.hypot(t.x - p.x, t.y - p.y) < CELL * r;
     if (f.st === 'home') f.st = 'load';   // (older saves)
     if (f.st === 'load') {
-      if (!near(up, 3)) { if (!t.dest && !t.needPath) { const w = waterSpot(up.x, up.y, 2.5, shipBody(t)) || up; setGuard(t, w.x, w.y); goTo(t, w.x, w.y); } continue; }
+      // Its own spot against the beach by `up` (chosen once a trip), where it stands still while they come aboard.
+      if (!f.spot) { const k = lifts.indexOf(t) - (lifts.length - 1) / 2, ax = -(cellY(S.down) - cellY(S.up)), ay = cellX(S.down) - cellX(S.up), al = Math.hypot(ax, ay) || 1;
+        f.spot = beachSpot(up.x + ax / al * CELL * k * 2.5, up.y + ay / al * CELL * k * 2.5, 3, shipBody(t)) || up; }
+      const at = near(f.spot, 1.5) || (!t.dest && !t.needPath && near(f.spot, 4));
+      if (!at) { if (!t.dest && !t.needPath) { setGuard(t, f.spot.x, f.spot.y); goTo(t, f.spot.x, f.spot.y); } continue; }
       const room = t.def.carry - n - unitsOf(team.id).filter((u) => u.order.type === 'board' && u.order.target === t).length;
       if (room > 0) {
         // Who goes: a launched wave still on its own island, and (once its first attack is due) the army waiting at home: its
@@ -1295,7 +1315,7 @@ function aiFerry(team) {
       continue;
     }
     if (f.st === 'drop') {
-      if (!(t.cargo || []).length) { f.st = 'load'; f.to = null; const w = waterSpot(up.x, up.y, 2.5, shipBody(t)) || up; setGuard(t, w.x, w.y); goTo(t, w.x, w.y); }
+      if (!(t.cargo || []).length) { f.st = 'load'; f.to = null; f.spot = null; }
       else if (shoreCell(t) < 0) { if (!t.dest && !t.needPath) { setGuard(t, down.x, down.y); goTo(t, down.x, down.y); } }   // (its spot too far from the beach: in to the landing point)
       else if (!t.unload) commandUnload([t]);
     }
@@ -1306,15 +1326,15 @@ function aiFerry(team) {
   const P = team.naval, cargo = (t) => (t.cargo || []).length;
   const allFull = loading.every((t) => cargo(t) >= t.def.carry);
   if (!P.fullT && loading.some((t) => cargo(t) >= t.def.carry)) P.fullT = G.t;
-  const allThere = loading.every((t) => Math.hypot(t.x - up.x, t.y - up.y) < CELL * 4);
+  const allThere = loading.every((t) => t.ferry.spot && Math.hypot(t.x - t.ferry.spot.x, t.y - t.ferry.spot.y) < CELL * 4);
   const waited = P.fullT && G.t - P.fullT > FERRY_WAIT && allThere && loading.every((t) => cargo(t) >= FERRY_MIN);
   if (!allFull && !waited) return;
   P.fullT = 0;
   const ax = -(cellY(S.down) - cellY(S.up)), ay = cellX(S.down) - cellX(S.up), al = Math.hypot(ax, ay) || 1;   // along the far beach
   loading.forEach((t, i) => {
     const k = (i - (loading.length - 1) / 2) * 3, sx = down.x + ax / al * CELL * k, sy = down.y + ay / al * CELL * k;
-    const w = waterSpot(sx, sy, 2, shipBody(t)) || down;
-    t.ferry.st = 'go'; t.ferry.to = { x: w.x, y: w.y };
+    const w = beachSpot(sx, sy, 3, shipBody(t)) || down;
+    t.ferry.st = 'go'; t.ferry.to = { x: w.x, y: w.y }; t.ferry.spot = null;
     setGuard(t, w.x, w.y); goTo(t, w.x, w.y);
   });
 }
