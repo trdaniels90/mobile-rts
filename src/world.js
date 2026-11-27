@@ -202,6 +202,7 @@ function makeHeights(mapId) {
   // ease (its cliffs and ramps are in the layout); the low ground only gentle swells (low x the usual hills).
   const pl = MAPS[validMap(mapId)].plateau;
   const mesas = MAPS[validMap(mapId)].mesas || [];
+  const flats = MAPS[validMap(mapId)].flats || [];   // [x0, y0, x1, y1, ease]: level boxes (cells)
   for (let y = 0; y < MAP; y++) for (let x = 0; x < MAP; x++) {
     const c = y * MAP + x;
     let v = raw(x + 0.5, y + 0.5);
@@ -217,6 +218,10 @@ function makeHeights(mapId) {
       const along = dx * m.ramp[0] + dy * m.ramp[1], across = Math.abs(-dx * m.ramp[1] + dy * m.ramp[0]);
       if (along > 0) v = Math.max(v, T * (1 - S(Math.max(0, Math.min(1, (along - m.top) / m.rampLen))))
         * (1 - S(Math.max(0, Math.min(1, (across - m.rampW) / 2)))));
+    }
+    for (const [a, b, c2, d2, ease] of flats) {   // a map's `flats` (Rivergate City): level ground in a box, easing into the hills
+      const out = Math.hypot(Math.max(0, a - x, x - c2), Math.max(0, b - y, y - d2));
+      v *= S(Math.min(1, out / ease));
     }
     v *= S(Math.min(1, (wd[c] === 255 ? 6 : wd[c]) / 5));   // down to the water's edge
     h[c] = G.terr[c] >= 4 ? 0 : v;

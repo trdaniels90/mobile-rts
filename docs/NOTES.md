@@ -897,6 +897,28 @@ recorder usage at the top of record.js).
 - Its south-east bridge's lower span is as long as it is wide (7 x 7 cells), and `genLayoutMap` drew a square run west-east. A square run now
   runs north-south when the water is to its west and east (world.js; the other maps have no square runs, their bakes are unchanged).
 
+## Map "Rivergate City" (contributor's map by JGFortanelli, branch `friend/city-map`, needs the owner's OK, not released)
+
+- `MAPS.city` in maps.js: **144 x 144**, `teamSize: 2` (1 v 1, 2 v 2, co-op), 4 starts (west 0-1 against east 2-3), laid out by
+  `python3 tools/make-city-map.py` (no design picture: the north-west quarter worked out in code and mirrored both ways; it prints
+  `squares`, `lamps`, `spawns`, `gems`, `lots` and `rows` to paste over the entry).
+- A river 8 cells wide runs the whole height of the map down the middle; the only crossings are three concrete bridges
+  (`bridge: 'concrete'`, `breakable: true`): the north and south boulevards (6 wide) and the main avenue (8 wide) in the middle.
+  With every bridge down the banks are cut off (`map-check.js`), as on Twin Lakes; Engineers rebuild spans.
+- **Level city** (`flats: [[34, 12, 109, 131, 8]]`, world.js `makeHeights`: per box, the hills times 0 inside, easing back
+  over `ease` cells). Without it the north and south banks stood about 24 high and fell to the water over 4 cells, so the deck
+  ends were painted onto the slope and looked curved (contributor: "not curved at the edges"). Other maps have no `flats`, unchanged.
+- The city on each bank: a street grid (dirt `,`, streets 3 wide), 12 blocks per bank of about 10 x 10. The buildings are the
+  village houses (`village: true`, world.js `genVillage`) rolled on the blocks in `lots` (about 170 a battle). Two plazas per bank
+  by the main bridge (`squares`, expanded 1 cell into the streets so a church fits on a neighbouring block: a fountain, market stalls
+  and a church each) and two park blocks of woods. Street lamps along the streets, `daynight: true`, no weather (rain only where the owner says).
+- Ore: four fields per start (three by the base, one forward by the city's west side), gems north of the city and by the avenue
+  between the bases (24 fields' worth of cells in all, `map-check.js`).
+- Its mood is `MOOD.city` (look.js, a cool grey). Ground baked (`grounds/city/`; the other maps' sheets came out
+  byte-identical), picture `maps/city.png` (`make-map-previews.js`), both in sw.js.
+- Checked: all four starts connect; `node tools/sim/map-check.js <repo>` OK; `node tools/sim/teams.js <repo> 1 10 city` (computer 2 v 2:
+  about 580 units by minute 8, first kills around minute 8-10, no errors); Explore this map in a browser, no page errors.
+
 ## Attack ground, bridges that can be destroyed, Engineers (contributor's change by JGFortanelli, not released, both modes, needs the owner's OK)
 
 - **Attack ground** (`commandAttackGround(units, x, y)` in world.js; ATTACK GROUND on the selection bar for fighters, then a
