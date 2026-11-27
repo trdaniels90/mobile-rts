@@ -3452,8 +3452,10 @@ below Frostlight's 21 x 21 = 441 tiles:
   `aiLandmass`) and then accepts water that reaches the foe's island within `NAVAL_ISLE` (40) cells. `aiFleet` builds Transports first
   (`FERRY_WANT`: Easy 1, Normal 2, Hard 3). `aiStrait` finds the shortest crossing once (two floods over the water from each shore):
   `up` by its own shore, `down` by the foe's. `aiFerry`: each Transport waits at `up` while launched units still on its island, and
-  (from 0.75 of its first-wave time) its waiting army, are sent aboard; it sails when full or with `FERRY_MIN` (3) aboard after
-  `FERRY_WAIT` (45) s, unloads at `down` (they hunt on), and comes back. world.js stuckWatch leaves such a side's hunting and boarding
+  (from 0.75 of its first-wave time) its waiting army, are sent aboard. They cross together as a convoy (contributor's pick: "wait for
+  a full load and cross together"): when every Transport loading is full, or, if the army is too small, once all are at `up` and
+  `FERRY_WAIT` (90) s have passed since the first was full, with `FERRY_MIN` (3) aboard each (`team.naval.fullT`). Each lands at its own
+  spot along the far beach (3 cells apart; in to `down` if its spot is too far from land), they hunt on, and the Transports come back. world.js stuckWatch leaves such a side's hunting and boarding
   units be (they wait on the beach for a ride).
 - Tested headless (computer against computer): a Normal 1 v 1 for 22 minutes (one side landed up to 12 units at once and destroyed 6
   structures; the other lost its Transports to the first side's warships), and a Hard 2 v 2 (all four built yards and Transports by

@@ -1224,10 +1224,12 @@ function aiFleet(team, c, money, capped) {
 // `down`, open water by the foe's island's shore, found by two floods over the water from each shore. Each Transport
 // (u.ferry, plain data) waits at `up` while launched units (a wave hunting or attacking, still on its own island) are
 // sent aboard, and once its first attack is due (0.75 of its first-wave time) the army waiting at home too (its attack
-// planner finds no way to walk to the enemy, so this is how its waves go); it sails when full, or with FERRY_MIN aboard after
-// FERRY_WAIT s, puts them ashore at `down` (they hunt on, unloadOne), and comes back. Units of a wave launched otherwise walk to
+// planner finds no way to walk to the enemy, so this is how its waves go). The Transports cross together, as a convoy: when every
+// one loading is full (owner's contributor's pick: "wait for a full load and cross together"), or, when the army is too small to fill
+// them, once all are waiting at `up` FERRY_WAIT s after the first was full with at least FERRY_MIN aboard each. Each puts its load
+// ashore at its own spot along the beach by `down` (they hunt on, unloadOne) and comes back. Units of a wave launched otherwise walk to
 // the beach nearest the enemy and wait there to be picked up (world.js stuckWatch leaves them be).
-const FERRY_WANT = { easy: 1, normal: 2, hard: 3 }, FERRY_MIN = 3, FERRY_WAIT = 45;
+const FERRY_WANT = { easy: 1, normal: 2, hard: 3 }, FERRY_MIN = 3, FERRY_WAIT = 90;
 function aiStrait(team) {
   const P = team.naval;
   if (P.strait !== undefined) return P.strait;
@@ -1266,12 +1268,13 @@ function aiFerry(team) {
   const up = cellCenter(S.up), down = cellCenter(S.down), land = aiLandmass(), home = land[idx(team.start.cx, team.start.cy)];
   const taken = new Set();
   for (const u of unitsOf(team.id)) if (u.order.type === 'board' && u.order.target) taken.add(u.id);
-  for (const t of unitsOf(team.id).filter((u) => u.def.ferry)) {
+  const lifts = unitsOf(team.id).filter((u) => u.def.ferry);
+  for (const t of lifts) {
     const f = t.ferry || (t.ferry = { st: 'load', since: G.t });
     const n = (t.cargo || []).length, near = (p, r) => Math.hypot(t.x - p.x, t.y - p.y) < CELL * r;
     if (f.st === 'home') f.st = 'load';   // (older saves)
     if (f.st === 'load') {
-      if (!near(up, 2.5)) { if (!t.dest && !t.needPath) { setGuard(t, up.x, up.y); goTo(t, up.x, up.y); } f.since = G.t; continue; }
+      if (!near(up, 3)) { if (!t.dest && !t.needPath) { const w = waterSpot(up.x, up.y, 2.5, shipBody(t)) || up; setGuard(t, w.x, w.y); goTo(t, w.x, w.y); } continue; }
       const room = t.def.carry - n - unitsOf(team.id).filter((u) => u.order.type === 'board' && u.order.target === t).length;
       if (room > 0) {
         // Who goes: a launched wave still on its own island, and (once its first attack is due) the army waiting at home: its
@@ -1283,19 +1286,37 @@ function aiFerry(team) {
           .sort((a, b) => dist(a, t) - dist(b, t)).slice(0, room);
         if (fare.length) { commandBoard(fare, t); for (const u of fare) taken.add(u.id); }
       }
-      if (n >= t.def.carry || (n >= FERRY_MIN && G.t - f.since > FERRY_WAIT)) { f.st = 'go'; setGuard(t, down.x, down.y); goTo(t, down.x, down.y); }
       continue;
     }
     if (f.st === 'go') {
-      if (near(down, 3) || (!t.dest && !t.needPath && near(down, 6))) { commandUnload([t]); f.st = 'drop'; }
-      else if (!t.dest && !t.needPath) goTo(t, down.x, down.y);
+      const at = f.to || down;
+      if (near(at, 2.5) || (!t.dest && !t.needPath && near(at, 6))) { commandUnload([t]); f.st = 'drop'; }
+      else if (!t.dest && !t.needPath) goTo(t, at.x, at.y);
       continue;
     }
     if (f.st === 'drop') {
-      if (!n) { f.st = 'load'; f.since = G.t; setGuard(t, up.x, up.y); goTo(t, up.x, up.y); }
+      if (!(t.cargo || []).length) { f.st = 'load'; f.to = null; const w = waterSpot(up.x, up.y, 2.5, shipBody(t)) || up; setGuard(t, w.x, w.y); goTo(t, w.x, w.y); }
+      else if (shoreCell(t) < 0) { if (!t.dest && !t.needPath) { setGuard(t, down.x, down.y); goTo(t, down.x, down.y); } }   // (its spot too far from the beach: in to the landing point)
       else if (!t.unload) commandUnload([t]);
     }
   }
+  // The convoy: every Transport loading is full (or the wait is over), then they all sail together.
+  const loading = lifts.filter((t) => t.ferry && t.ferry.st === 'load');
+  if (!loading.length) return;
+  const P = team.naval, cargo = (t) => (t.cargo || []).length;
+  const allFull = loading.every((t) => cargo(t) >= t.def.carry);
+  if (!P.fullT && loading.some((t) => cargo(t) >= t.def.carry)) P.fullT = G.t;
+  const allThere = loading.every((t) => Math.hypot(t.x - up.x, t.y - up.y) < CELL * 4);
+  const waited = P.fullT && G.t - P.fullT > FERRY_WAIT && allThere && loading.every((t) => cargo(t) >= FERRY_MIN);
+  if (!allFull && !waited) return;
+  P.fullT = 0;
+  const ax = -(cellY(S.down) - cellY(S.up)), ay = cellX(S.down) - cellX(S.up), al = Math.hypot(ax, ay) || 1;   // along the far beach
+  loading.forEach((t, i) => {
+    const k = (i - (loading.length - 1) / 2) * 3, sx = down.x + ax / al * CELL * k, sy = down.y + ay / al * CELL * k;
+    const w = waterSpot(sx, sy, 2, shipBody(t)) || down;
+    t.ferry.st = 'go'; t.ferry.to = { x: w.x, y: w.y };
+    setGuard(t, w.x, w.y); goTo(t, w.x, w.y);
+  });
 }
 function aiThink(team) {
   aiBridges(team);
