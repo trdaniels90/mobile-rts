@@ -880,6 +880,9 @@ recorder usage at the top of record.js).
 - A river 8 cells wide runs the whole height of the map down the middle; the only crossings are three concrete bridges
   (`bridge: 'concrete'`, `breakable: true`): the north and south boulevards (6 wide) and the main avenue (8 wide) in the middle.
   With every bridge down the banks are cut off (`map-check.js`), as on Twin Lakes; Engineers rebuild spans.
+- **Level city** (`flats: [[34, 12, 109, 131, 8]]`, world.js `makeHeights`: per box, the hills times 0 inside, easing back
+  over `ease` cells). Without it the north and south banks stood about 24 high and fell to the water over 4 cells, so the deck
+  ends were painted onto the slope and looked curved (contributor: "not curved at the edges"). Other maps have no `flats`, unchanged.
 - The city on each bank: a street grid (dirt `,`, streets 3 wide), 12 blocks per bank of about 10 x 10. The buildings are the
   village houses (`village: true`, world.js `genVillage`) rolled on the blocks in `lots` (about 170 a battle). Two plazas per bank
   by the main bridge (`squares`, expanded 1 cell into the streets so a church fits on a neighbouring block: a fountain, market stalls
