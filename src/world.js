@@ -612,14 +612,16 @@ function genLayoutMap(m) {
       G.bridges.push({ a: { x: (cx + ux * u0) * CELL, y: (cy + uy * u0) * CELL }, b: { x: (cx + ux * u1) * CELL, y: (cy + uy * u1) * CELL }, w: w * CELL });
       continue;
     }
-    // A square run (Twin Lakes' short span) crosses the water: it runs north-south when the water is to its west and east.
+    // A run crosses the water, bank to bank: it runs north-south when the water is to its west and east, west-east when it is to
+    // its north and south, whatever its shape (Berlin's wide crossings are longer along the river than across it). Only when the
+    // water says nothing (none beside it, or as much on every side) does the shape decide: along its longer side.
     let wide = x1 - x0 >= y1 - y0;
-    if (x1 - x0 === y1 - y0) {
+    {
       const wet = (x, y) => (inMap(x, y) && T[idx(x, y)] === 4 ? 1 : 0);
       let we = 0, ns = 0;
       for (let y = y0; y < y1; y++) we += wet(x0 - 1, y) + wet(x1, y);
       for (let x = x0; x < x1; x++) ns += wet(x, y0 - 1) + wet(x, y1);
-      wide = we <= ns;
+      if (we !== ns) wide = we < ns;
     }
     G.bridges.push(wide
       ? { a: { x: x0 * CELL, y: (y0 + y1) / 2 * CELL }, b: { x: x1 * CELL, y: (y0 + y1) / 2 * CELL }, w: (y1 - y0 + 0.4) * CELL }
@@ -1689,11 +1691,10 @@ function navCells() {
 // A bridge's piers (concrete) or bents of piles (timber): where they stand along it, t px from its end a, PIER_GAP cells apart
 // (an opening of PIER_GAP - 1 cells between two), spread evenly, only over water and clear of the abutments. Ships cannot sail
 // through the cells they stand in (navCells); art.js drawBridges draws them there. Fixed by the map, so every copy agrees.
-const PIER_GAP = { concrete: 5, timber: 4 }, BRIDGE_RAISE = 9;   // (cells: shorter bridges lie flat, with no piers: art.js bridgeTop)
+const PIER_GAP = { concrete: 5, timber: 4 };
 function bridgePiers(b) {
   if (b._piers && b._piersG === G) return b._piers;
   const dx = b.b.x - b.a.x, dy = b.b.y - b.a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
-  if (L < BRIDGE_RAISE * CELL) { Object.defineProperty(b, '_piers', { value: [], writable: true, configurable: true, enumerable: false }); Object.defineProperty(b, '_piersG', { value: G, writable: true, configurable: true, enumerable: false }); return b._piers; }
   const S = (PIER_GAP[(MAPS[G.mapId] && MAPS[G.mapId].bridge) === 'concrete' ? 'concrete' : 'timber']) * CELL, n = Math.max(0, Math.floor((L - CELL * 2) / S));
   const out = [];
   for (let k = 0; k < n; k++) {

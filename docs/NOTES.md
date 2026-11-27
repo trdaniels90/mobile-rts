@@ -3410,8 +3410,10 @@ below Frostlight's 21 x 21 = 441 tiles:
   at release; until then ships and the yards are rendered live.
 - **Raised bridges on piers (looks only, every map with bridges):** the ground keeps only each bridge's shadow on the water and its
   abutments (art.js `bridgeGround`); the deck is drawn every frame above the water (`drawBridges`): it climbs off each abutment over
-  `BRIDGE_RAMP` (52 px, at most 35% of the bridge) and stands `bridgeTop(L)` over the middle: 0 under `BRIDGE_RAISE` (9) cells (short
-  crossings lie flat on the banks as their maps were made, with no piers: Berlin, Rivergate City, Heron Fen), then 4 to 16 view px, longer higher,
+  `BRIDGE_RAMP` (52 px, at most 35% of the bridge) and stands `bridgeTop(L)` (9 to 16 view px, longer higher) over the middle; a jetty
+  (Heron Fen: one end out over the water) climbs only off its land end and stays level to the other. A bridge runs bank to bank:
+  world.js genLayoutMap takes its direction from where the water lies beside its run of cells (water west and east: north-south),
+  its shape only when the water does not say (Berlin's wide crossings had been laid along the river, the hump water to water),
   on concrete piers (slabs a little wider than the deck, so they show under its edge, foam at the waterline) or timber bents (two
   rows of three piles, cross braces), with a `BRIDGE_EDGE` (3 px) edge. **Piers block ships** (contributor's ask: "take the path of
   an opening"; ships only, both modes, the server must match): world.js `bridgePiers` spreads them evenly `PIER_GAP` cells apart
