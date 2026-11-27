@@ -1689,10 +1689,11 @@ function navCells() {
 // A bridge's piers (concrete) or bents of piles (timber): where they stand along it, t px from its end a, PIER_GAP cells apart
 // (an opening of PIER_GAP - 1 cells between two), spread evenly, only over water and clear of the abutments. Ships cannot sail
 // through the cells they stand in (navCells); art.js drawBridges draws them there. Fixed by the map, so every copy agrees.
-const PIER_GAP = { concrete: 5, timber: 4 };
+const PIER_GAP = { concrete: 5, timber: 4 }, BRIDGE_RAISE = 9;   // (cells: shorter bridges lie flat, with no piers: art.js bridgeTop)
 function bridgePiers(b) {
   if (b._piers && b._piersG === G) return b._piers;
   const dx = b.b.x - b.a.x, dy = b.b.y - b.a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
+  if (L < BRIDGE_RAISE * CELL) { Object.defineProperty(b, '_piers', { value: [], writable: true, configurable: true, enumerable: false }); Object.defineProperty(b, '_piersG', { value: G, writable: true, configurable: true, enumerable: false }); return b._piers; }
   const S = (PIER_GAP[(MAPS[G.mapId] && MAPS[G.mapId].bridge) === 'concrete' ? 'concrete' : 'timber']) * CELL, n = Math.max(0, Math.floor((L - CELL * 2) / S));
   const out = [];
   for (let k = 0; k < n; k++) {
