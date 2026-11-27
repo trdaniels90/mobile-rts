@@ -3409,6 +3409,9 @@ below Frostlight's 21 x 21 = 441 tiles:
   never while it is still moving; each is drawn walking up the ramp and fading into the hold (the `board` effect, art.js
   drawBoarding). Unloading, one every 0.55 s, each comes down the ramp and walks ashore at a walk (`u.outD`, drawn like a vehicle out
   of the War Factory door: art.js drawUnit, emergePos).
+- **WebGL depth:** a picture is tested against the ground at its base plus a margin (10 for units); a ship reaches up to its length
+  toward the camera from its middle, so ships get `10 + size.len` (ui.js draw, also for ships under bridges), or the water cut off
+  their near end (a contributor saw it on Transports pointing at the camera).
 - **Death:** a ship sinks (`shipSinks`, the `sink` effect in art.js: the hull settles and fades), no wreck, crater or crew.
 - **Looks:** models.js `gunboatModel`, `destroyerModel`, `subModel`, `lstModel`, `lcuModel`, `shipTurret` (turret `size.fwd` ahead of the
   middle, `muzzle` follows), `shipWhole` (cameos, sinking); `navyard` and `subpen` in `STRUCTURES`; a foam wake while moving (`shipWake`);

@@ -875,7 +875,7 @@ function draw() {
     lookView = v; cliffItems(ground, x0, y0, x1, y1, onScr);   // tall rock (look.js prototype, off by default)
     // Ships under a bridge (art.js decksOver): drawn now, after the ground and its moving water (cliffItems: look.js drawWater); then the raised bridges (art.js drawBridges) over them.
     // Units on a deck are drawn later with everything else, lifted to its height (look.js standLift), on top.
-    for (const e of underDeck) { if (glRec) GLR.listDepth(viewDepth(e.x, e.y) + 10); onHill(v, e.x, e.y, () => drawUnit(v, e, G.t)); }
+    for (const e of underDeck) { if (glRec) GLR.listDepth(viewDepth(e.x, e.y) + 10 + e.def.size.len); onHill(v, e.x, e.y, () => drawUnit(v, e, G.t)); }
     if (glRec) GLR.listDepth(null);
     drawBridges(v, ox - 60, oy - 60, ox + bw + 60, oy + bh + 60);
     lap('crag');   // the crags in view found (and any made)
@@ -957,7 +957,7 @@ function draw() {
     const toList = () => { if (scr) { lv.setTransform(WM); lv.upright = scrUp; scr = false; } };
     for (const e of ground) {
       if (occs) { while (oi < occs.length && occs[oi].key - 6 <= e._key) reHill(occs[oi++]); drawn.push(drawnBox(e)); }
-      if (glList) GLR.listDepth(e._key + (big(e) ? 2 : e.kind === 'tree' ? 14 : e.kind === 'cliff' ? 16 : 10 + craterSink(...hillAt(e))));
+      if (glList) GLR.listDepth(e._key + (big(e) ? 2 : e.kind === 'tree' ? 14 : e.kind === 'cliff' ? 16 : e.kind === 'unit' && e.def.naval ? 10 + e.def.size.len : 10 + craterSink(...hillAt(e))));   // (a ship reaches its length toward the camera from its middle: tested against the water that far in front, its near end was cut off)
       if (fastCliff && e.kind === 'cliff') {
         if (!scr) { scrUp = lv.upright; lv.upright = false; lv.setTransform(1, 0, 0, 1, 0, 0); scr = true; }
         drawCliffAt(lv, e, WM); lap('bld'); continue;
