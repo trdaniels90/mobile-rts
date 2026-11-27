@@ -857,6 +857,23 @@ recorder usage at the top of record.js).
 - `weather: { kind: 'rain', chance: 0.5 }` as on Lakeside: rain, lightning and the bolts that land (gameplay, both modes,
   server must match). `boltStrike` can now hit a village house too (it burns for 10% of its health like a building).
 
+## Map "Berlin", a 3 v 3 divided city (contributor's map by JGFortanelli, not released, both modes, needs the owner's OK)
+
+- `MAPS.berlin` in maps.js: **200 x 200**, `teamSize: 3` (2 v 2 and 3 v 3), west of the city (starts 0-2) against the east (3-5),
+  `daynight`, concrete bridges, no weather (no rain without the owner's word). Laid out by `python3 tools/make-berlin-map.py [--png out.png]`
+  (prints `squares`, `lamps`, `spawns`, `gems`, `lots`, `rows` to paste over the entry); every feature is listed for the west and turned
+  half round the middle, and the tool asserts the halves match. An original layout after the city's Cold War geography, nothing traced.
+- **The Wall:** a jagged line of rock (`'#'`, drawn as a long raised crag) from the north edge to the south, with a bare death strip either
+  side and floodlights (`lamps`) along it. Four checkpoints open it (`GAPS`), two north and two south of the river; the Spree crosses it in
+  the middle. It is ordinary rock, so it cannot be blasted through (neutral wall pieces from the walls layer would need changes to
+  `G.wallTeam`, netcore and the UI: a possible follow-up).
+- **The Spree** winds from the Havel lake (west) to its twin lake (east), two concrete bridges on each side of the Wall. Six districts
+  (`squares`, 117 plots, about 175 houses a battle), the Tiergarten and its twin park (woods with paths), the old airfield (open ground,
+  a runway road) south-west and its twin north-east.
+- Checked: all six starts connect (flood fill from each base); `node tools/sim/teams.js <repo> 1 8 berlin 3v3`: no errors, 38 s CPU,
+  ~700 units by minute 6 (no waves yet by minute 8, as on Frostlight Valley). Ground baked (`grounds/berlin/`, ~6 MB), crags baked
+  (`cliffs/berlin/`, `cliffs-hd/berlin/`), picture `maps/berlin.png` (make-map-previews.js), both in `ART`/`FILES` in sw.js.
+
 ## Map "Twin Lakes" (contributor's map by JGFortanelli, owner OK'd, not released)
 
 - `MAPS.twinlakes` in maps.js: **132 x 132** cells, 4 start positions, `teamSize: 2` (1 v 1, 2 v 2, co-op). Two lakes run from the
