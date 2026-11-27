@@ -67,11 +67,12 @@ function aiNextStructure(team, c, slot = 'structure') {
   const wants = [
     ['refinery', 1], ['barracks', 1], ['refinery', fast ? 2 : 1],
     [antiInf, Math.min(1, capInf)], ['factory', 1], [defense, Math.min(1, capMain)], ['refinery', 2], ['dome', 1], ['depot', 1],
-    ['tech', 1], ['helipad', 1], [antiInf, Math.min(2, capInf)], [defense, Math.min(2, capMain)], [aa, Math.min(1, aaWant)], ['airfield', 1],
+    ['naval', 1], ['tech', 1], ['helipad', 1], [antiInf, Math.min(2, capInf)], [defense, Math.min(2, capMain)], [aa, Math.min(1, aaWant)], ['airfield', 1],
     ['factory', 2], [defense, Math.min(3, capMain)], [aa, aaWant], ['refinery', 3], [defense, Math.min(4, capMain)],
     ['refinery', A.econ.refineries],
   ];
   for (const [type, want] of wants) {
+    if (type === 'naval') { const r = aiNavalNext(team, n, take, slot); if (r) return r; continue; }
     const count = type === 'refinery' ? Math.min(want, refCap) : want;
     if (n(type) >= count || !available(team, type)) continue;
     { const r = take(type); if (r) return r; }
@@ -428,6 +429,9 @@ function aiBase2Next(team, b2, c) {
   return null;
 }
 function aiFindSpot(team, type, at) {
+  if (BUILD_DEFS[type].water) return aiWaterSpot(team, type);
+  const creep = !at && team.naval && team.naval.creeping && !BUILD_DEFS[type].defense && type !== 'refinery' ? aiCreepSpot(team, type) : null;
+  if (creep) { team.naval.creeping = false; team.naval.creep++; return creep; }
   const cy = aiMainYard(team) || G.entities.find((e) => e.alive && e.team === team.id && e.type === 'cy');
   const lonely = !at && type === 'refinery' && aiOutpostForRefinery(team);
   const d = BUILD_DEFS[type], foe = enemyOf(team).start;
@@ -1108,6 +1112,84 @@ function aiRebuild(team, c) {
   if (pool.length) sellStructure(pool[0]);
   return true;
 }
+// --- Ships (every difficulty, both modes) -------------------------------------------------------------------------------
+// Once a battle (team.naval, plain data): the nearest stretch of open water of at least NAVAL_BODY cells within NAVAL_REACH cells
+// of its start that an enemy base lies near (within NAVAL_FOE cells of that water). With one, after its first War Factory and
+// second refinery it builds a Naval Yard or Submarine Pen there (aiNavalNext); when no spot is in reach of its buildings yet, up
+// to NAVAL_CREEP Power Plants go up on the side nearest the water first (aiCreepSpot). Then it keeps a small fleet (aiFleet):
+// Gunboats and Destroyers (Allies) or Submarines (Soviets), waiting by the yard until NAVAL_SAIL are ready, then hunting whatever
+// they can reach from the water. No Transports.
+const NAVAL_BODY = 300, NAVAL_REACH = 32, NAVAL_FOE = 14, NAVAL_CREEP = 4, NAVAL_SAIL = 3;
+const shipYardOf = (team) => (team.faction === 'allies' ? 'navyard' : 'subpen');
+function aiNaval(team) {
+  if (team.naval) return team.naval;
+  const N = navCells(), s = team.start || { cx: MAP / 2, cy: MAP / 2 };
+  const fits = (x, y) => { for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) if (!N.cells[idx(x + i, y + j)]) return false; return true; };
+  const foes = G.teams.filter((t) => hostile(team.id, t.id) && t.start);
+  let best = -1, bd = Infinity, body = 0;
+  for (let y = 1; y < MAP - 4; y++) for (let x = 1; x < MAP - 4; x++) {
+    const c = idx(x, y), b = N.body[c];
+    if (!b || N.sizes[b] < NAVAL_BODY) continue;
+    const d = Math.hypot(x + 1.5 - s.cx, y + 1.5 - s.cy);
+    if (d >= bd || d > NAVAL_REACH || !fits(x, y)) continue;
+    if (!foes.some((t) => { const k = idx(t.start.cx, t.start.cy); return N.nearBody[k] === b && N.near[k] <= NAVAL_FOE; })) continue;
+    bd = d; best = c; body = b;
+  }
+  team.naval = { ok: best >= 0, water: best, body, creep: 0, creeping: false, spotT: -99, spot: null };
+  return team.naval;
+}
+function aiNavalNext(team, n, take, slot) {
+  const yard = shipYardOf(team), P = aiNaval(team);
+  if (!P.ok || slot !== 'structure' || n(yard) >= 1 || n('factory') < 1 || n('refinery') < 2 || !available(team, yard)) return null;
+  if (aiWaterSpot(team, yard)) return take(yard);
+  if (P.creep < NAVAL_CREEP && available(team, 'power') && team.credits > 800) { P.creeping = true; return take('power'); }
+  return null;
+}
+// Where a Naval Yard or Submarine Pen goes: the spot in reach of its buildings nearest its home, in the water it planned for.
+// (Looked for at most every 4 s: the answer is kept in team.naval.spot.)
+function aiWaterSpot(team, type) {
+  const P = aiNaval(team);
+  if (!P.ok) return null;
+  if (G.t - P.spotT < 4) return P.spot && canPlace(team, type, P.spot.cx, P.spot.cy, 1) ? P.spot : null;
+  P.spotT = G.t; P.spot = null;
+  const N = navCells(), mine = buildingsOf(team.id), s = team.start;
+  let bd = Infinity;
+  for (const b of mine) for (let y = b.cy - BUILD_RANGE - 3; y <= b.cy + b.h + BUILD_RANGE; y++) for (let x = b.cx - BUILD_RANGE - 3; x <= b.cx + b.w + BUILD_RANGE; x++) {
+    if (!inMap(x, y) || N.body[idx(x, y)] !== P.body) continue;
+    const d = Math.hypot(x - s.cx, y - s.cy);
+    if (d < bd && canPlace(team, type, x, y, 1)) { bd = d; P.spot = { cx: x, cy: y }; }
+  }
+  return P.spot;
+}
+// A Power Plant (or any structure) placed to bring the base nearer its planned water: the spot in reach nearest that water.
+function aiCreepSpot(team, type) {
+  const P = team.naval, tx = cellX(P.water), ty = cellY(P.water), mine = buildingsOf(team.id), d = BUILD_DEFS[type];
+  let best = null, bd = Infinity;
+  for (let i = 0; i < 240 && mine.length; i++) {
+    const b = mine[i % mine.length], a = Math.random() * Math.PI * 2, r = 2 + Math.random() * (BUILD_RANGE + 1);
+    const cx = Math.round(b.cx + b.w / 2 + Math.cos(a) * (r + b.w / 2) - d.w / 2), cy = Math.round(b.cy + b.h / 2 + Math.sin(a) * (r + b.h / 2) - d.h / 2);
+    const dd = Math.hypot(cx - tx, cy - ty);
+    if (dd < bd && canPlace(team, type, cx, cy, 1)) { bd = dd; best = { cx, cy }; }
+  }
+  return best;
+}
+function aiFleet(team, c, money, capped) {
+  const yard = shipYardOf(team);
+  if (!c[yard]) return;
+  const fleet = unitsOf(team.id).filter((u) => u.def.naval && u.def.weapon);
+  const want = G.diffKey === 'easy' ? 2 : G.diffKey === 'hard' ? 6 : 4;
+  const foeShips = enemyUnitsOf(team.id).filter((u) => u.def.naval && !camoHidden(u, team.id)).length;
+  if (!capped && money > 700 && !(team.queues.naval || []).length && fleet.length < want + Math.min(3, foeShips)) {
+    const pick = team.faction === 'soviets' ? 'sub' : Math.random() < (foeShips ? 0.6 : 0.4) ? 'destroyer' : 'gunboat';
+    if (available(team, pick)) startProduction(team, pick);
+  }
+  const home = buildingsOf(team.id).find((b) => b.type === yard);
+  const waiting = fleet.filter((u) => u.order.type === 'guard' && !u.manual);
+  if (waiting.length >= NAVAL_SAIL || (foeShips && waiting.length)) for (const u of waiting) setHunt(u);
+  for (const u of fleet) if (u.order.type === 'hunt' && u.hp < u.maxHp * 0.3 && home) {   // badly hurt: back to the yard
+    const s = waterSpot(home.x, home.y, 5, shipBody(u)); if (s) { setGuard(u, s.x, s.y); goTo(u, s.x, s.y); }
+  }
+}
 function aiThink(team) {
   aiBridges(team);
   aiApcs(team);
@@ -1279,6 +1361,7 @@ function aiThink(team) {
     const pick = opts[Math.floor(Math.random() * opts.length)];
     startProduction(team, available(team, pick) ? pick : pick === 'mammoth' ? 'htank' : 'mtank');
   }
+  aiFleet(team, c, money, capped);
   // Tech Center upgrades (Normal and Hard): researched once there is money to spare (the Allies' Comanche program).
   if (aiOf(team).planner && !team.research && c.tech && money > 2500) for (const id in UPGRADES) if (canResearch(team, id)) { startResearch(team, id); break; }
   // Helicopters and jets have their own queues; against aircraft it leans on fighters.

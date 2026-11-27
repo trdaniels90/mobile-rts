@@ -614,7 +614,7 @@
     return true;
   };
   const houseSeen = (h) => G.seen[idx(h.cx, h.cy)] || G.seen[idx(h.cx + h.w - 1, h.cy + h.h - 1)];
-  const visibleToPlayer = (e) => !e.inHouse && (alliedSides(e.team, G.me) || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y)));
+  const visibleToPlayer = (e) => !e.inHouse && (alliedSides(e.team, G.me) || (!camoHidden(e, G.me) && (e.kind === 'bld' ? (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y))));
 
 const gateAnim = new Map();   // cell -> { v: how far a gate's barrier is down (0 to 1), t: when last drawn }
 // Phones keep at most SPRITE_KEEP sprites made in play (owner, 2026-11-21, after a 3 v 3 crashed a phone: "1", lighter
@@ -1020,6 +1020,12 @@ function draw() {
         return;
       }
       if (p.kind === 'fireball') { fireStream(v, p); return; }
+      if (p.kind === 'torpedo') {   // just under the water: a dark body with a white trail of froth
+        for (let i = 1; i <= 3; i++) { v.fillStyle = `rgba(230,240,242,${0.6 - i * 0.15})`; v.fillRect(Math.round(p.x - ca * (2 + i * 2)), Math.round(p.y - sa * (2 + i * 2)), 1, 1); }
+        v.fillStyle = '#20262a'; v.fillRect(Math.round(p.x - ca * 1.5 - 0.5), Math.round(p.y - sa * 1.5 - 0.5), 2, 1); v.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+        return;
+      }
+      if (p.kind === 'depth') { v.fillStyle = '#2c2a24'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 3); v.fillStyle = '#5a564a'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 1, 1); return; }
       if (p.kind === 'shell') { v.fillStyle = '#ffe9a0'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 2); v.fillStyle = 'rgba(255,200,90,0.5)'; v.fillRect(Math.round(p.x - ca * 3), Math.round(p.y - sa * 3), 1, 1); }
       else if (p.kind === 'flak') { v.fillStyle = '#ffd36a'; v.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
       else if (p.atgm) {   // a long-range anti-tank missile: a slim white body, dark seeker, a bright motor
@@ -1270,7 +1276,7 @@ function draw() {
     drawGhost(v, p.type, team.faction, p.cx, p.cy);
     for (let y = 0; y < d.h; y++) for (let x = 0; x < d.w; x++) {
       const c = idx(p.cx + x, p.cy + y);
-      const bad = !inMap(p.cx + x, p.cy + y) || G.block[c] || G.bld[c] || G.ore[c] || G.resv[c];
+      const bad = !inMap(p.cx + x, p.cy + y) || (d.water ? !navFree(c) : G.block[c] || G.bld[c] || G.ore[c]) || G.resv[c];   // (a Naval Yard or Submarine Pen: open water)
       v.fillStyle = bad || !p.ok ? 'rgba(220,40,30,0.45)' : 'rgba(240,240,230,0.28)';
       v.fillRect((p.cx + x) * CELL, (p.cy + y) * CELL, CELL, CELL);
       v.strokeStyle = bad || !p.ok ? '#ff5a4a' : '#f2f2ea'; v.lineWidth = 1;
@@ -1445,8 +1451,8 @@ function draw() {
     const e = pick(w.x, w.y, slop);
     const mine = ownUnits();
     // Your own transport under the tap with infantry selected: they board it (it comes down beside them).
-    if (e && e.kind === 'unit' && e.alive && e.team === G.me && (e.def.lift || e.def.apc)) {
-      const inf = mine.filter((u) => canBoard(u));
+    if (e && e.kind === 'unit' && e.alive && e.team === G.me && (e.def.lift || e.def.apc || e.def.ferry)) {
+      const inf = mine.filter((u) => u !== e && boards(u, e));   // (a naval Transport takes vehicles too)
       if (inf.length) { commandBoard(inf, e); marker(e.x, e.y, '#3ed04a'); Sound.ack('inf'); return; }
     }
     // A village house under the tap: infantry selected go in (if it is free or yours); your own garrison is selected
@@ -1535,7 +1541,7 @@ function draw() {
     G.place = { type };
     select([]);
     const d = BUILD_DEFS[type];
-    ui.placeText.textContent = isTouch ? `Tap near your base to place the ${d.name}` : `Click near your base to place the ${d.name}`;
+    ui.placeText.textContent = `${isTouch ? 'Tap' : 'Click'} ${d.water ? 'open water' : ''} near your base to place the ${d.name}`.replace('  ', ' ');
     ui.placeOk.hidden = !isTouch;
     ui.placebar.hidden = false;
     refreshPlaceBtn();
@@ -1809,7 +1815,7 @@ function draw() {
   // Left column builds structures, right column builds units, as on the classic sidebar.
   let cameoSig = { L: '', R: '' };
   const cameoEls = new Map();
-  const UNIT_ORDER = ['infantry', 'vehicle', 'heli', 'jet'];
+  const UNIT_ORDER = ['infantry', 'vehicle', 'heli', 'jet', 'naval'];
   function stripTypes(team, side) {
     if (side === 'L') {
       const powers = (hasBuilt(team, 'airfield') ? Object.keys(POWERS).filter((k) => hasPower(team, k)).map((k) => 'pw:' + k) : [])   // (Close Air Support once researched)
@@ -2238,7 +2244,7 @@ function draw() {
     else if (act === 'unload') {
       const full = own.filter((x) => x.kind === 'unit' && x.def.carry && (x.cargo || []).length);
       for (const u of full.filter((x) => x.def.lift)) commandMove([u], u.x, u.y);
-      const apcs = full.filter((x) => x.def.apc);
+      const apcs = full.filter((x) => x.def.apc || x.def.ferry);
       if (apcs.length) commandUnload(apcs);
       Sound.ack(apcs.length ? 'veh' : 'air');
     }

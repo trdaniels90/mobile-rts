@@ -122,7 +122,7 @@ function makeTeam(id, faction, isAI) {
   return {
     id, faction, isAI, pal: FACTIONS[faction].pal, credits: 10000, shown: 10000, start: null,
     power: { prod: 0, use: 0 }, low: false, auto: !!isAI, focusSide: null,
-    queues: { structure: null, defense: null, infantry: [], vehicle: [], heli: [], jet: [] },
+    queues: { structure: null, defense: null, infantry: [], vehicle: [], heli: [], jet: [], naval: [] },
     stats: { built: 0, units: 0, lost: 0, killed: 0, bldKilled: 0, bldLost: 0, harvested: 0 },
     cool: {}, powers: { spy: 0, para: 0, bomb: 0, cas: 0 }, upgrades: {}, research: null, defending: false, calm: 0, allyCalm: 0, assist: false, assistSide: null, harvHit: null,
   };
@@ -812,7 +812,7 @@ const BREACH_CROWD = 8;    // a group this big widens a gap it would squeeze thr
 const CHOKE_NEAR = 25;     // cells: only gaps this far along its way count
 function breachWalls(team) {
   if (!G.wallN) return;
-  const units = unitsOf(team.id).filter((u) => u.cls !== 'air' && u.def.weapon && !u.def.harvester && !u.chute);
+  const units = unitsOf(team.id).filter((u) => u.cls !== 'air' && !u.def.naval && u.def.weapon && !u.def.harvester && !u.chute);
   // Back to the hunt once the wall is down.
   for (const u of units) if (u.breach && !(u.order.type === 'attack' && u.order.target.alive)) { u.breach = false; if (u.order.type === 'guard' || u.order.type === 'attack') setHunt(u); }   // (an attack order whose wall just fell: its own look round has not stood it down yet)
   const hunters = units.filter((u) => u.order.type === 'hunt' && !u.breach && !(u.target && u.target.alive));
@@ -1615,7 +1615,187 @@ function softBlocks(c) {
   if (!MOVER) return true;
   return d.wire ? MOVER.cls === 'inf' : !alliedSides(MOVER.team, G.wallTeam[c]);
 }
-const freeCell = (c) => !G.block[c] && !G.bld[c] && !(G.wallN && softBlocks(c));
+const freeCell = (c) => (MOVER && MOVER.def && MOVER.def.naval ? navFree(c) : !G.block[c] && !G.bld[c] && !(G.wallN && softBlocks(c)));
+
+// --- Ships: open water (naval units, data.js `naval`) ---------------------------------------------------------------------
+// A ship moves only on open water: lake or river cells (terr 4), and under a bridge deck (terr 5 that is not a ford: a span
+// down or up, ships pass under it). Not on fords or the map's outer cell. Worked out from the map once a battle (kept off G,
+// so it is never saved or sent: a loaded or online copy works it out again), and with it:
+//   body: which stretch of water each cell is in (1, 2...; 0 on land), and its size in cells (sizes[body]);
+//   near / nearBody: how far each cell is from the nearest open water, in cells up to NAV_NEAR (255 further), and which body that
+//   water is in. A ship can reach a target when the target is near water of its own body (shipReach).
+// MOVER (the unit a path or a step is for) being a ship turns freeCell, and so findPath, tryMove and nearestFreeCell, to water.
+const NAV_NEAR = 16;
+let NAV = null;
+function navCells() {
+  if (NAV && NAV.G === G && NAV.n === NCELLS) return NAV;
+  const cells = new Uint8Array(NCELLS), body = new Int16Array(NCELLS), near = new Uint8Array(NCELLS).fill(255), nearBody = new Int16Array(NCELLS), sizes = [0];
+  for (let y = 1; y < MAP - 1; y++) for (let x = 1; x < MAP - 1; x++) {
+    const c = y * MAP + x, t = G.terr[c];
+    if (t === 4 || (t === 5 && !(G.ford && G.ford[c]))) cells[c] = 1;
+  }
+  for (let c0 = 0; c0 < NCELLS; c0++) {
+    if (!cells[c0] || body[c0]) continue;
+    const id = sizes.length, q = [c0];
+    body[c0] = id;
+    for (let i = 0; i < q.length; i++) {
+      const x = cellX(q[i]), y = cellY(q[i]);
+      for (let k = 0; k < 4; k++) {
+        const nx = x + DIRS8[k][0], ny = y + DIRS8[k][1], n = ny * MAP + nx;
+        if (inMap(nx, ny) && cells[n] && !body[n]) { body[n] = id; q.push(n); }
+      }
+    }
+    sizes.push(q.length);
+  }
+  const q = [];
+  for (let c = 0; c < NCELLS; c++) if (cells[c]) { near[c] = 0; nearBody[c] = body[c]; q.push(c); }
+  for (let i = 0; i < q.length; i++) {
+    const c = q[i], d = near[c];
+    if (d >= NAV_NEAR) continue;
+    const x = cellX(c), y = cellY(c);
+    for (let k = 0; k < 8; k++) {
+      const nx = x + DIRS8[k][0], ny = y + DIRS8[k][1];
+      if (!inMap(nx, ny)) continue;
+      const n = ny * MAP + nx;
+      if (near[n] !== 255) continue;
+      near[n] = d + 1; nearBody[n] = nearBody[c]; q.push(n);
+    }
+  }
+  NAV = { G, n: NCELLS, cells, body, sizes, near, nearBody };
+  return NAV;
+}
+const navFree = (c) => !!navCells().cells[c] && !G.bld[c];
+const navBodyOf = (x, y) => navCells().body[cellOfPos(x, y)];
+// The body of water a ship is on (its cell, or the nearest water if it was pushed onto a shore cell).
+function shipBody(u) {
+  const N = navCells(), c = cellOfPos(u.x, u.y);
+  return N.body[c] || N.nearBody[c];
+}
+// Can ship u fire on t with weapon w from somewhere on its own water: t (a structure: its nearest cell) lies within w's reach of
+// water in u's body. (Measured cell to cell from the nearest water, so a hair generous: a ship that gets there and finds it just
+// out of reach is let go by engage.)
+function shipReach(u, t, w) {
+  if (!w || !t) return false;
+  if (t.kind === 'unit' && isAirborne(t)) return true;
+  const N = navCells(), b = shipBody(u), reach = wRange(u, w) / CELL + 0.75;
+  if (!b) return false;
+  if (t.kind === 'bld' || t.kind === 'span' || t.kind === 'house') {
+    for (let y = t.cy; y < t.cy + t.h; y++) for (let x = t.cx; x < t.cx + t.w; x++) {
+      if (!inMap(x, y)) continue;
+      const c = idx(x, y);
+      if (N.nearBody[c] === b && N.near[c] <= reach) return true;
+    }
+    return false;
+  }
+  const c = cellOfPos(Math.max(0, Math.min(WORLD - 1, t.x)), Math.max(0, Math.min(WORLD - 1, t.y)));
+  return N.nearBody[c] === b && N.near[c] <= reach;
+}
+function shipCanHit(u, t) {
+  if (!u.def.naval) return true;
+  const w = canHit(u.def.weapon, t) ? u.def.weapon : canHit(u.def.weapon2, t) ? u.def.weapon2 : null;
+  return !!w && shipReach(u, t, w);
+}
+// Open water round a structure in the water (Naval Yard, Submarine Pen): where its ships come out. The cell below its middle when
+// it is open, else the nearest open cell next to it; -1 when there is none.
+// (A cell that opens onto real water: a flood from it, not through the footprint, finds NAV_OPEN cells; a pocket by the shore would
+// trap every ship built.)
+const NAV_OPEN = 40;
+function navOpens(start, b) {
+  const seen = new Set([start]), q = [start];
+  for (let i = 0; i < q.length && q.length < NAV_OPEN; i++) {
+    const x = cellX(q[i]), y = cellY(q[i]);
+    for (let k = 0; k < 4; k++) {
+      const nx = x + DIRS8[k][0], ny = y + DIRS8[k][1];
+      if (!inMap(nx, ny) || (nx >= b.cx && nx < b.cx + b.w && ny >= b.cy && ny < b.cy + b.h)) continue;
+      const n = idx(nx, ny);
+      if (!seen.has(n) && navFree(n)) { seen.add(n); q.push(n); }
+    }
+  }
+  return q.length >= NAV_OPEN;
+}
+function navExit(b) {
+  const want = idx(b.cx + Math.floor(b.w / 2), Math.min(MAP - 1, b.cy + b.h));
+  if (navFree(want) && !G.resv[want] && navOpens(want, b)) return want;
+  let best = -1, bd = Infinity;
+  for (let y = b.cy - 1; y <= b.cy + b.h; y++) for (let x = b.cx - 1; x <= b.cx + b.w; x++) {
+    if (!inMap(x, y) || (x >= b.cx && x < b.cx + b.w && y >= b.cy && y < b.cy + b.h)) continue;
+    const c = idx(x, y);
+    if (!navFree(c) || G.resv[c] || !navOpens(c, b)) continue;
+    const d = Math.hypot(x - cellX(want), y - cellY(want));
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best;
+}
+// A free spot of open water within r cells of (x, y), in the same body as `body` when given (a ship waiting by its yard).
+function waterSpot(x, y, r, body) {
+  const N = navCells();
+  for (let k = 0; k < 24; k++) {
+    const a = Math.random() * Math.PI * 2, d = (1 + Math.random() * (r - 1)) * CELL, c = cellOfPos(Math.max(0, Math.min(WORLD - 1, x + Math.cos(a) * d)), Math.max(0, Math.min(WORLD - 1, y + Math.sin(a) * d)));
+    if (navFree(c) && !G.resv[c] && (!body || N.body[c] === body)) return cellCenter(c);
+  }
+  return null;
+}
+// Submarines (`sub`): submerged unless exposed. Surfaces for SUB_REVEAL s when it fires (fireWeapon) or is hit (damage); spotted while
+// an enemy ship with `detect` (Gunboat, Destroyer) or an enemy Naval Yard or Submarine Pen is within SUB_DETECT. Host only (the
+// guest's copy reads `exposed`, as for the Pillbox).
+const SUB_DETECT = CELL * 4, SUB_REVEAL = 3;
+function updateSub(u, dt) {
+  u.revealT = Math.max(0, (u.revealT || 0) - dt);
+  if ((u.detT = (u.detT || 0) - dt) <= 0) {
+    u.detT = 0.4;
+    u.spotted = false;
+    look: for (const bk of nearBuckets(u.x, u.y, SUB_DETECT + CELL * 2)) for (const o of bk) {
+      if (!o.alive || o.team === undefined || !hostile(o.team, u.team) || !((o.kind === 'unit' && o.def.detect) || (o.kind === 'bld' && o.def.water))) continue;
+      if (distTo(o, u) < SUB_DETECT) { u.spotted = true; break look; }
+    }
+  }
+  u.exposed = u.revealT > 0 || u.spotted;
+}
+// A ship hunting (Auto Attack, the computer's fleets): the nearest enemy it can reach from its own water: a structure its side knows
+// of, or a unit its side sees now. Null when there is none.
+function shipHunt(u) {
+  const sees = spottedBy(u.team);
+  let best = null, bd = Infinity;
+  for (const e of G.entities) {
+    if (!e.alive || e.team === undefined || !hostile(e.team, u.team) || e.sellT > 0) continue;
+    if (e.kind === 'bld') { if (!targetable(u.team, e)) continue; }
+    else if (e.kind !== 'unit' || e.def.scripted || e.inHouse || e.chute > 0 || isAirborne(e) || camoHidden(e, u.team) || !sees(e)) continue;
+    if (!shipCanHit(u, e)) continue;
+    const d = Math.hypot(e.x - u.x, e.y - u.y) - (e.kind === 'unit' && e.def.naval ? CELL * 6 : 0);   // enemy ships first
+    if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+// One look round for a hunting ship: after the nearest target it can reach (fired on as soon as it is in reach, even past its sight),
+// else out across its water to somewhere its side has not seen yet.
+function shipHuntStep(u) {
+  const t = shipHunt(u);
+  if (t) {
+    const w = canHit(u.def.weapon, t) ? u.def.weapon : u.def.weapon2;
+    if (w && distTo(u, t) <= wRange(u, w) && clearShot(u, t, w)) { u.target = t; return; }
+    if (u.huntTarget !== t || (!u.dest && !u.needPath)) { u.huntTarget = t; goTo(u, t.x, t.y); }
+    return;
+  }
+  u.huntTarget = null;
+  if (u.dest || u.needPath) return;
+  const N = navCells(), b = shipBody(u), fog = G.fog[u.team];
+  let spot = null;
+  for (let k = 0; k < 60 && !spot; k++) {
+    const c = (Math.random() * NCELLS) | 0;
+    if (N.body[c] === b && !G.bld[c] && (!fog[c] || k > 40)) spot = cellCenter(c);
+  }
+  if (spot) goTo(u, spot.x, spot.y);
+}
+// A ship lost: a blast and a burst of spray, and it goes down (art.js draws the 'sink' effect: the hull settling into the water). No
+// wreck, crater or crew: whoever is aboard a Transport goes down with it (kill).
+function shipSinks(e, seed) {
+  hooks.sfx('explodeVeh', e.x, e.y);
+  G.effects.push({ type: 'expl', x: e.x, y: e.y - 4, size: 14, t: 0, life: 0.8, seed, debris: true });
+  waterSplash(e.x, e.y, true);
+  G.effects.push({ type: 'sink', x: e.x, y: e.y, face: e.face, tface: e.tface || e.face, ut: e.type, faction: e.faction, v: teamOf(e).variant | 0, t: 0, life: 4.5 });
+  for (let i = 0; i < 3; i++) G.effects.push({ type: 'fire', x: e.x + (Math.random() - 0.5) * 10, y: e.y + (Math.random() - 0.5) * 6, t: -i * 0.2, life: 1.6 + Math.random() });
+  for (let i = 0; i < 6; i++) G.effects.push({ type: 'smoke', x: e.x + (Math.random() - 0.5) * 12, y: e.y + (Math.random() - 0.5) * 6, r: 4 + Math.random() * 3, t: -i * 0.15, life: 2.6, alpha: 0.55, color: '#4a4844', vy: -10, vx: 3 });
+}
 function passableAt(x, y) {
   if (x < 2 || y < 2 || x > WORLD - 2 || y > WORLD - 2) return false;
   return freeCell(cellOfPos(x, y));
@@ -1692,7 +1872,7 @@ function pathField(sx, sy, maxCost) {
 function findPath(sx, sy, tx, ty, rad) {
   let s = cellOfPos(sx, sy), t = cellOfPos(tx, ty);
   const exactEnd = freeCell(t);
-  if (!exactEnd) t = nearestFreeCell(t, 12);
+  if (!exactEnd) t = nearestFreeCell(t, MOVER && MOVER.def && MOVER.def.naval ? NAV_NEAR + 4 : 12);   // (a ship sent inland: the nearest water)
   if (!freeCell(s)) s = nearestFreeCell(s, 3);
   if (s < 0 || t < 0) return null;
   if (s === t) return [exactEnd ? { x: tx, y: ty } : cellCenter(t)];   // (a goal inside water or rock: stop at the nearest open cell, never push at the goal itself)
@@ -1799,7 +1979,7 @@ function goTo(u, x, y, force, auto) {
 // tanks is a narrower column, not a ball. Their pace spread only slows them (never past top speed).
 const LANE_LOOSE = 70, LANE_TIGHT = 10, TIGHT_CHANCE = 0.3, LANE_VEH_LOOSE = 100, LANE_VEH_TIGHT = 50;
 function assignLane(u) {
-  if ((u.cls !== 'inf' && u.cls !== 'veh') || u.def.harvester || u.def.deploys) { u.lane = 0; u.paceMul = 1; return; }
+  if ((u.cls !== 'inf' && u.cls !== 'veh') || u.def.harvester || u.def.deploys || u.def.naval) { u.lane = 0; u.paceMul = 1; return; }
   if (!G.laneRoll || G.t - G.laneRoll.t > 2) G.laneRoll = { t: G.t, tight: Math.random() < TIGHT_CHANCE, n: 0, off: Math.random() };
   const r = G.laneRoll, frac = (r.n++ * 0.618034 + r.off) % 1, veh = u.cls === 'veh';
   u.lane = (frac * 2 - 1) * (veh ? (r.tight ? LANE_VEH_TIGHT : LANE_VEH_LOOSE) : r.tight ? LANE_TIGHT : LANE_LOOSE);
@@ -1968,7 +2148,8 @@ function addBuilding(type, team, cx, cy) {
   for (let y = cy; y < cy + d.h; y++) for (let x = cx; x < cx + d.w; x++) G.bld[idx(x, y)] = b.id;
   fillCraters(cx, cy, d.w, d.h);   // (craters under it filled: digCrater)
   if (d.exit) { b.exitCell = idx(cx + Math.floor(d.w / 2), cy + d.h); G.resv[b.exitCell] = 1; }
-  if (G.tctx && !d.camo) bibDecal(G.tctx, cx * CELL, cy * CELL, d.w * CELL, d.h * CELL, b.id * 977, b.type);   // (a camouflaged structure leaves no pad to give it away)
+  if (d.water) { const c = navExit(b); if (c >= 0) { b.exitCell = c; G.resv[c] = 1; } }   // (its ships come out here)
+  if (G.tctx && !d.camo && !d.water) bibDecal(G.tctx, cx * CELL, cy * CELL, d.w * CELL, d.h * CELL, b.id * 977, b.type);   // (a camouflaged structure leaves no pad to give it away)
   if (G.tctx && d.depot) padDecal(G.tctx, cellX(b.exitCell) * CELL, cellY(b.exitCell) * CELL);
   G.entities.push(b); G.byId.set(b.id, b);
   team.stats.built++;
@@ -2019,6 +2200,9 @@ const missileMark = (t) => isTank(t) || (t.kind === 'unit' && !!t.def.harvester)
 function canHit(w, t) {
   if (!w) return false;
   if (t.kind === 'unit' && isAirborne(t)) return !!w.air && !(w.heliOnly && t.def.fly === 'jet');   // heliOnly weapons cannot reach jets
+  if (w.subOnly) return t.kind === 'unit' && !!t.def.sub;   // depth charges: submarines only, seen or not
+  if (w.naval) return (t.kind === 'unit' && !!t.def.naval) || (t.kind === 'bld' && !!t.def.water);   // torpedoes: ships and structures in the water
+  if (t.kind === 'unit' && t.def.sub && !t.exposed) return false;   // a submerged Submarine: depth charges only
   if (w.tanksOnly && !missileMark(t)) return false;    // the Comanche's missiles: tanks and Ore Trucks
   if (w.spareTanks && missileMark(t)) return false;    // its chain gun leaves those to the missiles (airWeapons lifts this once they are spent)
   return w.ground !== false;
@@ -2133,7 +2317,8 @@ function acquire(src, range, weapons, visible, favour) {
     if (!e.alive || !hostile(e.team, src.team) || e.sellT > 0) continue;
     if (Math.abs(e.x - src.x) > range + CELL * 3 || Math.abs(e.y - src.y) > range + CELL * 3) continue;   // far off: no need to measure (structures are at most 4 cells across)
     if (!weapons.some((w) => canHit(w, e))) continue;
-    if (e.kind === 'bld' && camoHidden(e, src.team)) continue;
+    if (camoHidden(e, src.team)) continue;
+    if (src.def && src.def.naval && !weapons.some((w) => w && canHit(w, e) && shipReach(src, e, w))) continue;   // a ship: only what it can reach from its own water
     if (e.kind === 'bld' && src.def && src.def.demo && (e.c4T || src.clearT > G.t)) continue;   // a Specialist leaves a structure already set to blow, and gets clear of his own
     if (visible && !visible(e)) continue;
     const d = distTo(src, e);
@@ -2163,12 +2348,14 @@ function knownTo(tid, b) {
 // cannot be seen, picked, targeted or aimed at by either side's units, and the host never tells an
 // online guest it exists (net.js `shown`). `exposed` is the flag the guest's copy reads.
 const CAMO_DETECT = CELL * 3, CAMO_REVEAL = 4;
-const camoHidden = (b, viewer) => b.kind === 'bld' && !!b.def.camo && !alliedSides(b.team, viewer) && !b.exposed;
+// A Submarine (`sub`) is hidden the same way while submerged (exposed: SUB_REVEAL s after it fires or is hit, or with an enemy
+// ship that has `detect`, or a Naval Yard or Submarine Pen, within SUB_DETECT: updateSub).
+const camoHidden = (b, viewer) => (b.kind === 'bld' ? !!b.def.camo : b.kind === 'unit' && !!b.def.sub) && !alliedSides(b.team, viewer) && !b.exposed;
 const targetable = (team, b) => knownTo(team, b) && !camoHidden(b, team);
 // The win rule: production buildings keep a side in the fight, and so does a Mobile Construction Yard
 // still driving. Once a side has no production building left, the enemy knows where its Mobile
 // Construction Yards are (lastStand), so a hidden one cannot drag the battle out.
-const PRODUCTION = ['cy', 'barracks', 'factory', 'helipad', 'airfield'];
+const PRODUCTION = ['cy', 'barracks', 'factory', 'helipad', 'airfield', 'navyard', 'subpen'];
 const hasProduction = (tid) => G.entities.some((e) => e.alive && e.kind === 'bld' && e.team === tid && PRODUCTION.includes(e.type));
 const mcvsOf = (tid) => G.entities.filter((e) => e.alive && e.kind === 'unit' && e.team === tid && e.def.deploys === 'cy');
 const inTheFight = (tid) => hasProduction(tid) || mcvsOf(tid).length > 0;
@@ -2391,7 +2578,7 @@ function launchAll(team) {
 // base's call, only as many as it takes. Aircraft stay out of it. Runs once a second.
 // ---------------------------------------------------------------------------
 const alliesOf = (team) => G.teams.filter((o) => o !== team && o.ally === team.ally && !o.out && buildingsOf(o.id).length);
-const idleGround = (team) => unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.defending && !u.assisting && !u.homeward && !u.manual &&
+const idleGround = (team) => unitsOf(team.id).filter((u) => u.def.weapon && !u.def.naval && !u.def.harvester && !u.def.scripted && !u.chute && !u.defending && !u.assisting && !u.homeward && !u.manual &&
   u.cls !== 'air' && u.order.type === 'guard' && !u.order.hold);
 // The ally a human's Ally button defends: the one picked (`team.assistSide`) while it is still in the fight, else the first.
 function assistAlly(team) {
@@ -2644,7 +2831,7 @@ function defendBase(team) {
   // The computer also recalls attack waves still on its own half of the map; past halfway they press on.
   const ecy = buildingsOf(enemyOf(team).id).find((b) => b.type === 'cy'), own = mine.find((b) => b.type === 'cy');
   const homeHalf = (u) => !ecy || !own || dist(u, own) < dist(u, ecy);
-  let army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward && !u.manual &&
+  let army = unitsOf(team.id).filter((u) => u.def.weapon && !u.def.naval && !u.def.harvester && !u.def.scripted && !u.chute && !u.homeward && !u.manual &&
     (u.cls !== 'air' || (!airEmpty(u) && (u.as === 'landed' && u.def.fly !== 'jet' ? padReady(u) : !u.rearming) && u.order.type === 'guard' && !u.order.hold)) &&
     (u.defending || idle(u) || (team.isAI && !G.diff.ai.planner && u.cls !== 'air' && !truckOnly && homeHalf(u))));
   if (!threats.length) {
@@ -2822,7 +3009,7 @@ function setHunt(u) { u.order = { type: 'hunt' }; u.target = null; u.huntTarget 
 // ---------------------------------------------------------------------------
 const SAM_FUEL = 3;   // SAM Sites have the longest burn: they are the answer to aircraft that fly away
 const AA_FUEL = 1.5;   // anti-air missiles fly this many times their weapon's range, then burn out (a weapon's own `fuel` overrides it)
-const PROJ_SPEED = { shell: 430, rocket: 250, missile: 330, flak: 560, fireball: 230 };
+const PROJ_SPEED = { shell: 430, rocket: 250, missile: 330, flak: 560, fireball: 230, torpedo: 150, depth: 170 };
 
 // A garrisoned soldier's shots leave a window on the wall facing the target (models.js FORT_INFO: the house's windows on its
 // south and east faces, mirrored onto the north and west walls), not the middle of the roof. Each soldier keeps to one
@@ -2868,6 +3055,8 @@ function muzzle(src, t) {
     return { x: src.x + Math.cos(src.face) * r, y: src.y + Math.sin(src.face) * r - h, h };
   }
   const s = src.def.size;
+  if (src.def.sub) return { x: src.x + Math.cos(src.face) * 14, y: src.y + Math.sin(src.face) * 14, h: 0 };   // torpedoes leave the bow at the waterline
+  if (s && s.fwd) { const z = (turretZ(src.def) + 1.5) * VK, len = s.tur + s.barrel; return { x: src.x + Math.cos(src.face) * s.fwd + Math.cos(src.tface) * len, y: src.y + Math.sin(src.face) * s.fwd + Math.sin(src.tface) * len - z, h: z }; }   // a ship's gun on the foredeck
   if (s && s.tesla) return { x: src.x, y: src.y - (turretZ(src.def) + TESLA_TOP) * VK, h: (turretZ(src.def) + TESLA_TOP) * VK };   // the Tesla Tank: from the ball on its coil
   const len = s.tur ? s.tur + s.barrel : 8, z = (turretZ(src.def) + 1.5) * VK;
   return { x: src.x + Math.cos(src.tface) * len, y: src.y + Math.sin(src.tface) * len - z, h: z };
@@ -2985,7 +3174,8 @@ function fireWeapon(src, w, t, follow) {
   if (src.kind === 'bld' && (src.type === 'turret' || src.type === 'pillbox')) barrelSmoke(src, m);
   src.fireT = w.proj === 'grenade' ? 0.35 : 0.1;
   src.shots = (src.shots || 0) + 1;
-  src.shotAt = G.t;   // the gun's recoil (art.js recoil)   // online copies light their own muzzle flash when this changes (net.js)
+  src.shotAt = G.t;   // the gun's recoil (art.js recoil)
+  if (src.def && src.def.sub) { src.revealT = SUB_REVEAL; src.exposed = true; }   // a Submarine surfaces to fire   // online copies light their own muzzle flash when this changes (net.js)
   if (w.sound === 'redeye' && src.cls === 'inf') src.aaUntil = G.t + 1.1;
   if (src.kind === 'unit' && src.def.setup) {   // MG Team: a puff of smoke from the muzzle every round, and the hot barrel smoking on after a burst
     const fx = Math.cos(src.face), fy = Math.sin(src.face);
@@ -3154,6 +3344,9 @@ function updateProjectiles(dt) {
         const h = projH(p);
         G.effects.push(p.atgm ? { type: 'smoke', x: p.x, y: p.y + h, lift: h, r: 2, t: 0, life: 2.2, alpha: 0.6, color: '#e6e4de', vx: 1, vy: -1.5 } : p.thick ? { type: 'smoke', x: p.x, y: p.y + h, lift: h, r: 2.4, t: 0, life: 1.3, alpha: 0.5, color: '#c9c7c0', vx: 2, vy: -2 } : { type: 'smoke', x: p.x, y: p.y + h, lift: h, r: 1.6, t: 0, life: 0.5, alpha: 0.5, color: '#9a968c' });
       }
+    } else if (p.kind === 'torpedo') {   // a line of bubbles on the water behind it
+      p.trail -= dt;
+      if (p.trail <= 0 && !G.remote) { p.trail = 0.06; G.effects.push({ type: 'smoke', x: p.x, y: p.y, r: 1.6, t: 0, life: 1.4, alpha: 0.55, color: '#e4eef2' }); }
     } else if (p.kind === 'fireball') {
       p.trail -= dt;
       if (p.trail <= 0) { p.trail = 0.035; const h = projH(p); G.effects.push({ type: 'smoke', x: p.x, y: p.y + h, lift: h, r: 2, t: 0, life: 0.45, alpha: 0.45, color: '#3a3733' }); }
@@ -3577,6 +3770,10 @@ function impact(kind, x, y, inAir, h) {
   if (kind === 'flak') {
     flakBurst(x, y - h, 0, h);
     G.effects.push({ type: 'spark', x, y, lift: h, t: 0, life: 0.1 });
+  } else if (kind === 'torpedo' || kind === 'depth' || (!inAir && wetAt(x, y - h))) {   // a hit in the water: a column of spray, no scorch
+    hooks.sfx(kind === 'shell' ? 'hitSmall' : 'hitMed', x, y);
+    if (kind !== 'depth') G.effects.push({ type: 'expl', x, y, lift: h, size: kind === 'torpedo' ? 9 : 6, t: 0, life: 0.45, seed: (Math.random() * 1e6) | 0 });
+    waterSplash(x, y - h, kind === 'torpedo' || kind === 'depth');
   } else {
     hooks.sfx(kind === 'shell' ? 'hitSmall' : 'hitMed', x, y);
     const size = kind === 'shell' ? 6 : 8;
@@ -3625,6 +3822,7 @@ function damage(t, amount, wh, attacker, from, splashed) {
     if (!t.alive) return;
   }
   if (t.kind === 'bld' && t.def.camo && !(attacker && alliedSides(attacker.team, t.team))) t.revealT = CAMO_REVEAL;   // being hit gives it away
+  if (t.kind === 'unit' && t.def.sub) { t.revealT = SUB_REVEAL; t.exposed = true; }
   // As in Red Alert: whoever fires at a support plane (Spy Plane, Paratroopers transport, bomber)
   // gives away where it stands, to either side.
   if (t.def && t.def.scripted && attacker && hostile(attacker.team, t.team)) revealCircle(attacker.x / CELL, attacker.y / CELL, 2.5, G.fog[t.team]);
@@ -3776,6 +3974,8 @@ function kill(e, attacker, wh, from) {
       for (const [f, sd] of [[3, -3], [-6, 6]]) ragdoll({ ...e, type: 'rifle', x: e.x + (f * ca - sd * sa) * INF_SCALE, y: e.y + (f * sa + sd * ca) * INF_SCALE }, wh, from);
     } else if (e.cls === 'inf') {
       ragdoll(e, wh, from);
+    } else if (e.def.naval) {
+      shipSinks(e, seed);
     } else if (e.cls === 'veh') {
       const cook = e.def.draw === 'tank' && Math.random() < 0.35;   // ammunition cook-off
       hooks.sfx('explodeVeh', e.x, e.y);
@@ -3821,9 +4021,10 @@ function kill(e, attacker, wh, from) {
         G.effects.push({ type: 'expl', x: (e.cx + Math.random() * e.w) * CELL, y: (e.cy + Math.random() * e.h) * CELL, size: i < 2 ? 9 + Math.random() * 6 : 5 + Math.random() * 3,
           t: -i * 0.18, life: 0.8, seed: seed + i, debris: i % 2 === 0 });   // (after the first two, smaller: the fall shows through, fallDown)
       }
-      rubble(G.tctx, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL, seed);
+      if (e.def.water) for (let i = 0; i < 4; i++) waterSplash((e.cx + Math.random() * e.w) * CELL, (e.cy + Math.random() * e.h) * CELL, true);   // in the water: no rubble or crater
+      else rubble(G.tctx, e.cx * CELL, e.cy * CELL, e.w * CELL, e.h * CELL, seed);
       fallDown(e, e.type, e.faction, G.teams[e.team].variant | 0, seed);
-      if (!e.def.defense || e.w * e.h > 1) craterAt(e.x, e.y, 6 + Math.min(4, e.w * e.h * 0.5));   // its fall digs a crater (digCrater)
+      if (!e.def.water && (!e.def.defense || e.w * e.h > 1)) craterAt(e.x, e.y, 6 + Math.min(4, e.w * e.h * 0.5));   // its fall digs a crater (digCrater)
       notify(team, 'slost', 'Structure lost', 4);
     } else escapeSurvivors(e, true);   // sold: the staff walk out
   }
@@ -4315,6 +4516,7 @@ function updateUnit(u, dt) {
     const d = u.dest; leaveHouse(u);
     if (d) goTo(u, d.x, d.y, true);
   }
+  if (u.def.sub) updateSub(u, dt);
   if (u.unload) updateUnload(u, dt);
   if (u.order.type === 'board') { updateBoard(u); if (u.alive) { followPath(u, dt); checkStuck(u, dt); } return; }
   if (u.order.type === 'garrison') { updateEnterHouse(u); if (u.alive && !u.inHouse) { followPath(u, dt); checkStuck(u, dt); } return; }
@@ -4365,6 +4567,8 @@ function updateUnit(u, dt) {
       if (!u.target) {
         if ((o.type === 'hunt' || o.amove) && aaOnly(u) && trailArmy(u, o)) {
           // (an anti-aircraft unit keeping to the back of the army: trailArmy moves it)
+        } else if (o.type === 'hunt' && u.def.naval) {
+          shipHuntStep(u);
         } else if (o.type === 'hunt') {
           if (teamOf(u).isAI) detourToSite(u);
           const b = nearestEnemyBuilding(u);
@@ -4411,6 +4615,10 @@ const breachReach = (u) => (u.def.weapon && wRange(u, u.def.weapon)) || 0;   // 
 function engage(u, t, dt) {
   const w = canHit(u.def.weapon, t) ? u.def.weapon : u.def.weapon2 && canHit(u.def.weapon2, t) ? u.def.weapon2 : null;
   if (!w) { u.target = null; return; }   // e.g. a helicopter that took off out of a rifleman's reach
+  if (u.def.naval && !shipReach(u, t, w)) {   // a ship told to fire on something it cannot reach from its water
+    if (u.order.type === 'attack' && u.order.target === t) { setGuard(u, u.x, u.y); say(u.team, 'Target out of reach'); }
+    u.target = null; return;
+  }
   if (u.def.demo && t.kind === 'bld' && hostile(u.team, t.team)) { demolish(u, t, dt); return; }   // a Specialist: explosives, not bullets
   const d = distTo(u, t);
   const ang = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
@@ -4836,7 +5044,7 @@ function updateHarvester(u, dt) {
 // every quarter second for 1% of its price, so a full repair costs half its price); the rest wait
 // to one side until the pad is free. Repaired, it goes back to waiting around the base like a new
 // unit (Ore Trucks back to harvesting).
-const canService = (u) => u.alive && u.kind === 'unit' && u.cls === 'veh' && !u.def.scripted;
+const canService = (u) => u.alive && u.kind === 'unit' && u.cls === 'veh' && !u.def.scripted && !u.def.naval;
 function depotFor(u) {
   let best = null, bd = Infinity;
   for (const e of G.entities) {
@@ -5371,6 +5579,9 @@ function flyHeli(u, x, y, dt) {
 // A guard order on its pad (setGuard + pad) flies it home to land and be repaired. Shot down, everyone aboard is lost.
 const LIFT_WAIT = 25, LIFT_DROP_GAP = 0.25, LIFT_BOARD_R = CELL * 1.5, ASSAULT_MIN = 4, ASSAULT_REACH = 14;
 const canBoard = (u) => !!u && u.kind === 'unit' && u.alive && u.cls === 'inf' && !u.chute && !u.def.scripted && u.type !== 'pilot';
+// A naval Transport (`ferry`) also takes vehicles: any ground unit but another ship.
+const canFerry = (u) => canBoard(u) || (!!u && u.kind === 'unit' && u.alive && u.cls === 'veh' && !u.def.naval && !u.def.scripted && !(u.cargo && u.cargo.length));
+const boards = (u, h) => (h && h.def && h.def.ferry ? canFerry(u) : canBoard(u));
 const boardersOf = (h) => G.entities.filter((u) => u.alive && u.kind === 'unit' && u.order.type === 'board' && u.order.target === h);
 const liftWaiting = (h) => !!h && h.alive && h.kind === 'unit' && !!h.def.lift && h.order.type === 'lift' && h.order.step === 'pick';
 // Ready for an Air Assault: empty, not on a job, not badly hurt.
@@ -5459,8 +5670,10 @@ function unloadOne(h, ai) {
   const a = Math.random() * Math.PI * 2, k = 1 + Math.random() * 1.5;
   let c = cellOfPos(Math.max(0, Math.min(WORLD - 1, h.x + Math.cos(a) * CELL * k)), Math.max(0, Math.min(WORLD - 1, h.y + Math.sin(a) * CELL * k)));
   if (!freeCell(c)) c = nearestFreeCell(cellOfPos(h.x, h.y), 4);
+  if (h.def.ferry && (c < 0 || Math.random() < 0.5)) { const s = shoreCell(h); if (s >= 0) c = s; }   // (ashore: the nearest land, or a spot near it)
   const p = c >= 0 ? cellCenter(c) : { x: h.x, y: h.y };
-  const u = addUnit(r.type, team, h.x + (p.x - h.x) * 0.4, h.y + (p.y - h.y) * 0.4);
+  const k0 = h.def.ferry ? 1 : 0.4;   // (out of a Transport straight onto the land: never onto the water)
+  const u = addUnit(r.type, team, h.x + (p.x - h.x) * k0, h.y + (p.y - h.y) * k0);
   if (r.type !== 'pilot' && r.type !== 'technician') team.stats.units--;   // counted when it was trained
   u.hp = Math.min(u.maxHp, r.hp); u.rank = r.rank || 0; u.kills = r.kills || 0; u.killWorth = r.kw || 0; u.born = r.born;
   u.face = u.tface = Math.atan2(p.y - h.y, p.x - h.x);
@@ -5475,6 +5688,15 @@ function unloadOne(h, ai) {
 // Infantry ordered aboard walk to where the transport is landing and climb in.
 function updateBoard(u) {
   const h = u.order.target;
+  if (h && h.def && h.def.ferry) {   // a naval Transport: down to the shore beside it and aboard
+    if (!h.alive || h.team !== u.team || (h.cargo || []).length >= h.def.carry) { setGuard(u, u.x, u.y); if (teamOf(u).isAI) u.staged = true; return; }
+    const d = Math.hypot(h.x - u.x, h.y - u.y), settled = !u.dest && !u.needPath;
+    if (d < h.def.r + FERRY_BOARD_R || (settled && d < CELL * 4.5)) { climbIn(u, h); return; }   // (settled at the edge of a crowd on the shore: near enough)
+    // Waiting on the shore with the Transport out of reach: it comes in to the water nearest them (unless it is under way).
+    if (settled && h.order.type === 'guard' && !h.dest && !h.needPath) { setGuard(h, u.x, u.y); goTo(h, u.x, u.y); }
+    if (settled || (u.dest && Math.hypot(u.dest.x - h.x, u.dest.y - h.y) > CELL)) goTo(u, h.x, h.y);
+    return;
+  }
   if (h && h.def && h.def.apc) {   // an APC: walk up to it wherever it is and climb in
     if (!h.alive || h.team !== u.team || (h.cargo || []).length >= h.def.carry) { setGuard(u, u.x, u.y); if (teamOf(u).isAI) { u.staged = true; u.raidCrew = false; } return; }
     const d = Math.hypot(h.x - u.x, h.y - u.y), settled = !u.dest && !u.needPath;
@@ -5495,14 +5717,14 @@ function climbIn(u, h) {
 }
 // Infantry selected, a transport tapped: it comes and lands beside them (or waits where it is parked) and they get in.
 function commandBoard(units, h) {
-  if (!h || !h.alive || h.kind !== 'unit' || !(h.def.lift || h.def.apc)) return;
-  const inf = units.filter((u) => canBoard(u) && u.team === h.team).sort((a, b) => dist(a, h) - dist(b, h));
+  if (!h || !h.alive || h.kind !== 'unit' || !(h.def.lift || h.def.apc || h.def.ferry)) return;
+  const inf = units.filter((u) => u !== h && boards(u, h) && u.team === h.team).sort((a, b) => dist(a, h) - dist(b, h));
   if (!inf.length) return;
   const room = h.def.carry - (h.cargo || []).length - boardersOf(h).filter((b) => !inf.includes(b)).length;
   if (room <= 0) { say(h.team, 'Transport full'); return; }
   const go = inf.slice(0, room);
   if (inf.length > room) say(h.team, 'Transport full');
-  if (h.def.apc) {
+  if (h.def.apc || h.def.ferry) {
     for (const u of go) {
       u.order = { type: 'board', target: h }; u.target = null; u.staged = false; u.defending = false; u.homeward = false; u.assisting = false; takeOver(u, 'move');
       goTo(u, h.x, h.y);
@@ -5534,9 +5756,12 @@ function liftTo(u, x, y) {
 // Destroyed with soldiers aboard (kill): each gets out of the wreck with APC_ESCAPE chance, with APC_ESCAPE_HP of the health
 // they had; the rest are lost. Host only, like every new entity.
 const APC_BOARD_R = CELL * 0.9, APC_DROP_GAP = 0.3, APC_ESCAPE = 0.5, APC_ESCAPE_HP = 0.5;
+// A naval Transport (`ferry`) lets them out only onto land within FERRY_SHORE cells of it (shoreCell).
+const FERRY_BOARD_R = CELL * 2, FERRY_SHORE = 3;
+const shoreCell = (h) => nearestFreeCell(cellOfPos(h.x, h.y), FERRY_SHORE);
 function commandUnload(units) {
   for (const u of units) {
-    if (!u || !u.alive || u.kind !== 'unit' || !u.def.apc || !(u.cargo && u.cargo.length)) continue;
+    if (!u || !u.alive || u.kind !== 'unit' || !(u.def.apc || u.def.ferry) || !(u.cargo && u.cargo.length)) continue;
     setGuard(u, u.x, u.y); u.target = null; u.unload = true; u.unloadT = 0;
   }
 }
@@ -5545,6 +5770,7 @@ function updateUnload(u, dt) {
   if (u.moving) return;
   if ((u.unloadT = (u.unloadT || 0) - dt) > 0) return;
   u.unloadT = APC_DROP_GAP;
+  if (u.def.ferry && shoreCell(u) < 0) { u.unload = false; say(u.team, 'Move the Transport to the shore'); return; }
   unloadOne(u);
   if (!u.cargo.length) u.unload = false;
 }
@@ -5732,7 +5958,7 @@ function casFoes(u, x, y, r) {
   const out = [];
   for (const e of G.entities) {
     if (!e.alive || !hostile(e.team, u.team) || isAirborne(e) || e.inHouse || e.chute) continue;
-    if (e.kind === 'bld' ? camoHidden(e, u.team) : e.kind !== 'unit') continue;
+    if ((e.kind !== 'bld' && e.kind !== 'unit') || camoHidden(e, u.team)) continue;
     if (Math.hypot(e.x - x, e.y - y) <= r + (e.kind === 'bld' ? CELL : 0)) out.push(e);
   }
   return out;
@@ -5912,7 +6138,10 @@ const BUILD_RANGE = 6;
 function canPlace(team, type, cx, cy, gap) {
   const d = BUILD_DEFS[type];
   if (cx < 1 || cy < 1 || cx + d.w > MAP - 1 || cy + d.h + (d.exit ? 1 : 0) > MAP - 1) return false;
-  for (let y = cy; y < cy + d.h; y++) for (let x = cx; x < cx + d.w; x++) {
+  if (d.water) {   // a Naval Yard or Submarine Pen: every cell open water, with open water beside it for its ships
+    for (let y = cy; y < cy + d.h; y++) for (let x = cx; x < cx + d.w; x++) { const c = idx(x, y); if (G.terr[c] !== 4 || !navFree(c) || G.resv[c] || G.wall[c]) return false; }   // (open water: not a bridge deck)
+    if (navExit({ cx, cy, w: d.w, h: d.h }) < 0) return false;
+  } else for (let y = cy; y < cy + d.h; y++) for (let x = cx; x < cx + d.w; x++) {
     const c = idx(x, y);
     if (G.block[c] || G.bld[c] || G.ore[c] > 0 || G.resv[c] || G.wall[c]) return false;
   }
@@ -6075,7 +6304,7 @@ function cancelProduction(team, type) {
 // Each extra Barracks, War Factory, Helicopter Base or Airfield speeds up its queue: 1.5x with two,
 // 2x with three, at most 2.5x. Production still runs one unit at a time per queue.
 const PRODUCER_BOOST = [1, 1, 1.5, 2, 2.5];
-const BOOSTED = new Set(['barracks', 'factory', 'helipad', 'airfield', 'cy']);   // structures count Construction Yards
+const BOOSTED = new Set(['barracks', 'factory', 'helipad', 'airfield', 'cy', 'navyard', 'subpen']);   // structures count Construction Yards
 function producerBoost(team, def, cat) {
   const by = isBuildCat(cat) ? 'cy' : def.producer;
   if (!BOOSTED.has(by)) return 1;
@@ -6085,7 +6314,7 @@ function producerBoost(team, def, cat) {
 // The item a queue is working on: the first one whose producer still stands, so a jet queued
 // after the Airfield was lost does not hold up the helicopters behind it.
 function activeItem(team, cat) {
-  const list = team.queues[cat];
+  const list = team.queues[cat] || (team.queues[cat] = []);   // (a save from before the naval queue)
   return list.find((i) => available(team, i.type)) || list[0];
 }
 function updateProduction(team, dt) {
@@ -6158,6 +6387,16 @@ function spawnUnit(team, type, from) {
     // The computer's new aircraft wait for its next air strike (launchGroups, AIR_STRIKE_GAP).
     if (team.auto && !oneWave(u) && !team.isAI) launchAircraft(u);
     return u;
+  } else if (d.naval) {   // a ship: out onto the water beside its yard, then waits nearby (or at the rally point)
+    let c = p.exitCell;
+    if (c === undefined || !navFree(c)) c = navExit(p);
+    const pos = c >= 0 ? cellCenter(c) : { x: p.x, y: (p.cy + p.h) * CELL };
+    u = addUnit(type, team, pos.x, pos.y);
+    u.face = u.tface = Math.PI / 2;
+    const s = (p.rally && waterSpot(p.rally.x, p.rally.y, 3, navBodyOf(pos.x, pos.y))) || waterSpot(p.x, p.y, 5, navBodyOf(pos.x, pos.y)) || pos;
+    setGuard(u, s.x, s.y); u.staged = false;
+    goTo(u, s.x, s.y);
+    return u;
   } else {
     let c = p.exitCell;
     if (c === undefined || !freeCell(c)) c = nearestFreeCell(idx(p.cx + Math.floor(p.w / 2), p.cy + p.h), 6);
@@ -6187,7 +6426,7 @@ function rallySpot(r) {
   return c === undefined || c < 0 ? { x: r.x, y: r.y } : cellCenter(c);
 }
 // Primary building and rally points, for Barracks and War Factories (both modes, orders online).
-const canRally = (b) => !!(b && b.alive && b.kind === 'bld' && b.def.exit && !b.def.depot && Object.values(UNIT_DEFS).some((d) => d.producer === b.type && d.cls !== 'air'));
+const canRally = (b) => !!(b && b.alive && b.kind === 'bld' && (b.def.exit || b.def.water) && !b.def.depot && Object.values(UNIT_DEFS).some((d) => d.producer === b.type && d.cls !== 'air'));
 function setPrimary(b) {
   if (!canRally(b)) return;
   for (const e of G.entities) if (e.kind === 'bld' && e.team === b.team && e.type === b.type) e.primary = false;
@@ -6525,7 +6764,7 @@ function separate() {
       const b = buckets.get(base + (bx + ox) * 200 + by + oy);
       if (!b) continue;
       for (const o of b) {
-        if (o.id <= a.id) continue;
+        if (o.id <= a.id || (!air && !!a.def.naval !== !!o.def.naval)) continue;   // (a ship and a land unit never shove each other: a shore, a bridge over it)
         // Ground units keep a little more than their own size apart (they used to overlap by 15%,
         // and a fight became one ball), allies more than strangers.
         // A unit squeezing past (followPath) is not pushed by its allies, and does not push them: the friend in its way is moved aside instead.
@@ -6644,7 +6883,7 @@ function stuckWatch() {
   if (!STUCK_SEEN || STUCK_SEEN.g !== G) { STUCK_SEEN = new Map(); STUCK_SEEN.g = G; STUCK_SEEN.n = 0; STUCK_SEEN.last = -999; }
   const found = [];
   for (const u of G.entities) {
-    if (!u.alive || u.kind !== 'unit' || u.cls === 'air' || u.def.harvester || u.def.scripted || !u.def.speed || u.def.deploys || u.def.engineer || !G.teams[u.team].isAI) continue;
+    if (!u.alive || u.kind !== 'unit' || u.cls === 'air' || u.def.harvester || u.def.scripted || !u.def.speed || u.def.deploys || u.def.engineer || u.def.naval || !G.teams[u.team].isAI) continue;
     const o = u.order.type;
     if (o === 'repair' || o === 'engineer' || u.repairing || u.chute > 0) { STUCK_SEEN.delete(u.id); continue; }
     if (!(o === 'hunt' || o === 'attack' || o === 'move' || u.assisting || u.dest || u.needPath)) { STUCK_SEEN.delete(u.id); continue; }

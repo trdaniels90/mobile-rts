@@ -43,7 +43,7 @@ const NetCore = (() => {
   // Fields a remote player never needs: the host's own timers and bookkeeping. `anim` (the walk
   // cycle) the remote copy keeps itself.
   const SKIP = new Set(['def', 'c4By', 'plantT', 'demoAt', 'rehunt', 'smokeT', 'clearT', 'burnBy', 'burnTick', 'unloadT', 'capU', 'raidCrew', 'apcBack', 'liftWait', 'cover', 'coverBan', 'healT', 'lowT', 'strafe', 'path', 'pathIdx', 'needPath', 'lastX', 'lastY', 'stuckN', 'stuckT', 'think', 'cd', 'cd2', 'extT', 'sent', 'fan', 'apT', 'apA', 'slideT', 'dockU', 'qSpot', 'qRef', 'dockBest', 'dockBan', 'aiMove', 'stallN', 'pathT', 'waitLeader', 'waitSince', 'waitBan',
-    'smokeT', 'revealT', 'dmgSeen', 'dmgHp', 'dropT', 'dmgFxT', 'popK', 'popHold', 'anim', 'htimer', 'hcell', 'crowdT', 'cornerT', 'prog', 'squeezeT', 'nearBest', 'clankT', 'final', 'roll', 'rollTo', 'fireT', 'shotAt', 'twinNext', 'twinTarget', 'plumeT', 'flareT', 'jetOn', 'jetD', 'jetSeen', 'burnT', 'bayHold', 'lockOn', 'bayN', 'lock']);   // fireT: the copy lights the flash itself from `shots`
+    'smokeT', 'revealT', 'dmgSeen', 'dmgHp', 'dropT', 'dmgFxT', 'popK', 'popHold', 'anim', 'htimer', 'hcell', 'crowdT', 'cornerT', 'prog', 'squeezeT', 'nearBest', 'clankT', 'final', 'roll', 'rollTo', 'fireT', 'shotAt', 'twinNext', 'twinTarget', 'plumeT', 'flareT', 'jetOn', 'jetD', 'jetSeen', 'burnT', 'bayHold', 'lockOn', 'bayN', 'lock', 'detT', 'spotted']);   // fireT: the copy lights the flash itself from `shots`
   const COARSE = new Set(['x', 'y', 'alt']);   // to a tenth of a pixel
   const OBJ = '\u0000';   // marks an object field, kept as JSON for comparing
   function field(v) {
@@ -78,7 +78,8 @@ const NetCore = (() => {
     const seen = (x, y) => !!view[cellOfPos(x, y)];
     function shown(x, last) {
       if (friendly(x.team, P.side)) return true;
-      if (x.kind === 'bld' && camoHidden(x, P.side) && !last) return false;   // a camouflaged structure is not mentioned until it gives itself away
+      if (x.kind === 'unit' && camoHidden(x, P.side)) return !!(last && last.exposed);   // a Submarine diving: one last snapshot (exposed: false), then nothing until it surfaces
+      if (camoHidden(x, P.side) && !last) return false;   // a camouflaged structure is not mentioned until it gives itself away
       if (x.kind === 'bld') return seen(x.cx * CELL + 1, x.cy * CELL + 1) || seen((x.cx + x.w) * CELL - 1, (x.cy + x.h) * CELL - 1);
       return seen(x.x, x.y) || (last && typeof last.x === 'number' && seen(last.x, last.y));
     }

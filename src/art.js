@@ -2210,6 +2210,21 @@ function emergePos(u) {
   const e = ek * (2 - ek);
   return [u.outX + (u.x - u.outX) * e, u.outY + (u.y - u.outY) * e];
 }
+// A ship under way: a white V of foam spreading from its stern and a bow wave, drawn on the water under it (looks only).
+function shipWake(g, u, t) {
+  const L = u.def.size.len / 2, c = Math.cos(u.face), s = Math.sin(u.face), a = g.globalAlpha;
+  for (let k = 0; k < 7; k++) {
+    const back = L - 2 + k * 3.2, side = 1 + k * 1.1, fade = 1 - k / 7, wob = Math.sin(t * 9 + k * 1.7 + u.id) * 0.6;
+    for (const sd of [-1, 1]) {
+      g.globalAlpha = a * 0.55 * fade;
+      g.fillStyle = k < 2 ? '#f2f6f6' : '#d8e6ea';
+      g.fillRect(Math.round(u.x - c * back - s * sd * (side + wob)), Math.round(u.y - s * back + c * sd * (side + wob)), k < 3 ? 2 : 1, 1);
+    }
+  }
+  g.globalAlpha = a * 0.6; g.fillStyle = '#eef4f4';
+  for (const sd of [-1, 1]) g.fillRect(Math.round(u.x + c * (L - 1) - s * sd * 2.5), Math.round(u.y + s * (L - 1) + c * sd * 2.5), 2, 1);
+  g.globalAlpha = a;
+}
 function drawUnit(g, u, t) {
   const ek = u.outT == null ? 1 : (G.t - u.outT) / EMERGE;
   if (!(ek >= 0 && ek < 1)) return drawUnitBody(g, u, t);
@@ -2325,10 +2340,15 @@ function drawUnitBody(g, u, t) {
   // A tank gun firing kicks the turret back along the barrel (recoil); the hull stays put.
   const rk = u.def.weapon && u.def.weapon.proj === 'shell' && !isAirborne(u) ? recoil(u) : 0;
   const kick = rk * (u.type === 'mammoth' || u.type === 'htank' ? 2 : 1.6);
-  const hullAt = blit(g, hullSprite(u, pal), u.x, u.y);
+  const ship = u.def.draw === 'ship', a0 = g.globalAlpha;
+  if (ship) {
+    if (u.moving) shipWake(g, u, t);
+    if (u.def.sub && !u.exposed) g.globalAlpha = a0 * 0.4;   // submerged: your own side sees its outline under the water (the enemy nothing)
+  }
+  const hullAt = blit(g, hullSprite(u, pal), u.x, u.y, ship && u.def.sub && !u.exposed ? false : undefined);
   const ts = turretSprite(u, pal);
   if (ts) {
-    const z = turretZ(u.def) * VK, off = u.def.draw === 'jeep' ? -3 : u.def.draw === 'apc' ? 0 : -1;
+    const z = turretZ(u.def) * VK, off = u.def.draw === 'jeep' ? -3 : u.def.draw === 'apc' ? 0 : ship ? u.def.size.fwd || 0 : -1;
     const [lx, ly] = liftPt(u.x, u.y, z), tx = lx + Math.cos(u.face) * off - Math.cos(u.tface) * kick, ty = ly + Math.sin(u.face) * off - Math.sin(u.tface) * kick * 0.6;
     blit(g, ts, tx, ty, false, hullAt);   // (a whole-pixel offset from the hull: the turret stays put on it as the tank moves)
     if (u.fireT > 0) {
@@ -2337,7 +2357,8 @@ function drawUnitBody(g, u, t) {
       flash(g, tx + Math.cos(u.tface) * len + Math.sin(u.tface) * side, ty + Math.sin(u.tface) * len - Math.cos(u.tface) * side - 1.5, u.def.draw === 'jeep' || u.def.draw === 'apc' ? 1 : 2);
     }
   }
-  if (u.def.apc) cargoPips(g, u);
+  g.globalAlpha = a0;
+  if (u.def.apc || u.def.ferry) cargoPips(g, u);
   // On a Service Depot's pad: the blinking green cross, and sparks from the work.
   if (u.repairing) {
     if (Math.floor(t * 3) % 2) {
@@ -3548,6 +3569,17 @@ function drawEffect(g, fx) {
       g.globalAlpha = 1;
       break;
     }
+    case 'sink': {   // a ship going down (world.js shipSinks): it settles lower and fades into the water, with bubbles
+      const pal = palFor(fx.faction), sp = facingSprite('Nw' + fx.ut + pal.key, () => shipWhole(pal, fx.ut), fx.face);
+      const a = g.globalAlpha;
+      g.globalAlpha = a * Math.max(0, 1 - k * 1.15);
+      blit(g, sp, fx.x, fx.y + k * 5, false);
+      g.globalAlpha = a * (1 - k) * 0.8; g.fillStyle = '#e8f0f2';
+      const r = rng((fx.x * 7 + fx.y) | 0);
+      for (let i = 0; i < 6; i++) { const ph = (k * 3 + r()) % 1; g.fillRect(Math.round(fx.x + (r() - 0.5) * 18), Math.round(fx.y + (r() - 0.5) * 8 - ph * 2), 1, 1); }
+      g.globalAlpha = a;
+      break;
+    }
     case 'ring': {
       g.globalAlpha = 1 - k;
       g.strokeStyle = fx.color; g.lineWidth = 1;
@@ -3578,7 +3610,8 @@ function cameoURL(type, faction, variant) {
 function makeCameo(type, faction, key) {
   const W = 64, H = 48, c = mkCanvas(W, H), g = c.getContext('2d');
   const grd = g.createLinearGradient(0, 0, 0, H);
-  grd.addColorStop(0, '#26313b'); grd.addColorStop(0.5, '#46525c'); grd.addColorStop(0.52, '#4c5530'); grd.addColorStop(1, '#262c16');
+  const wet = (UNIT_DEFS[type] && UNIT_DEFS[type].naval) || (BUILD_DEFS[type] && BUILD_DEFS[type].water);   // ships and yards: on water
+  grd.addColorStop(0, '#26313b'); grd.addColorStop(0.5, '#46525c'); grd.addColorStop(0.52, wet ? '#35607a' : '#4c5530'); grd.addColorStop(1, wet ? '#1a3346' : '#262c16');
   g.fillStyle = grd; g.fillRect(0, 0, W, H);
   const pal = palFor(faction);
   let mdl, angle = -0.55, scale;
@@ -3602,9 +3635,10 @@ function makeCameo(type, faction, key) {
     else if (d.draw === 'mcv') mdl = mcvModel(pal);
     else if (d.draw === 'arty') mdl = artyModel(pal);
     else if (d.draw === 'v2') mdl = v2Model(pal, true, 1);   // shown raised
+    else if (d.draw === 'ship') mdl = shipWhole(pal, type);   // (with its gun on)
     else if (d.fly === 'heli') mdl = type === 'hind' ? hindModel(pal) : type === 'comanche' ? comancheModel(pal, 1) : type === 'chinook' ? chinookModel(pal) : type === 'halo' ? haloModel(pal) : heliModel(pal);   // (the Comanche with its bays open)
     else mdl = jetModel(pal, type === 'mig');
-    scale = d.setup && d.cls === 'inf' ? 2 : d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.lift ? 1.3 : d.fly ? 1.7 : d.size && d.size.len > 22 ? 1.9 : 2.3;
+    scale = d.setup && d.cls === 'inf' ? 2 : d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.lift ? 1.3 : d.fly ? 1.7 : d.naval ? (d.size.len > 36 ? 1.35 : 1.55) : d.size && d.size.len > 22 ? 1.9 : 2.3;
   }
   const s = renderVox(mdl, angle, { scale, shadow: false });
   const dx = Math.round((W - s.img.width) / 2), dy = Math.round((H - s.img.height) / 2 + (BUILD_DEFS[type] ? 0 : 3) - (power ? 6 : 0));

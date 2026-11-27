@@ -3328,3 +3328,47 @@ below Frostlight's 21 x 21 = 441 tiles:
   code form, and hosting falls back to phone to phone with a code, as before.
 - Every hosted game is public (no private rooms yet). The server tests (`server.js`, `server-teams.js`, `give-credits.js`,
   `team-beaten.js`, `coop-save-ui.js`) now join from the list.
+
+## Ships: Naval Yard, Submarine Pen and naval units (contributor's change by JGFortanelli, branch `friend/naval-units`, not released; owner OK'd for both modes; the server must match)
+
+- **Structures** (data.js `water: true`): Naval Yard (Allies, $1000) and Submarine Pen (Soviets, $800), 3 x 3, 1000 health, -30 power,
+  need a Construction Yard and a Power Plant. `canPlace`: every cell open water (`G.terr` 4, not a bridge deck), within build reach of
+  the base like any structure, and an exit cell that opens onto real water (`navExit`, `navOpens`: a flood of `NAV_OPEN` cells, so a
+  pocket by the shore never traps ships). No slab decal; destroyed, splashes instead of rubble and crater. Both count as production
+  (`PRODUCTION`, the win rule) and speed their queue when doubled (`BOOSTED`). Rally points work (`canRally`).
+- **Ships** (`naval: true`, `cls: 'veh'`, queue `naval`, sidebar after the jets): Allies Transport `lst` $700, Gunboat $500, Destroyer
+  $1000; Soviets Transport `lcu` $700, Submarine `sub` $950. OpenRA's cost, health, armour and speed at the game's scale.
+- **Water movement:** `navCells()` (world.js, kept off G, rebuilt per battle: never saved or sent): open water cells (terr 4, and terr 5 that
+  is not a ford: ships pass under bridges), water bodies and their sizes, and for every cell the distance to the nearest water (`near`, up to
+  `NAV_NEAR` 16) and its body. `freeCell` turns to `navFree` while `MOVER` is a ship, so `findPath`, `tryMove`, `los` and `nearestFreeCell`
+  all keep ships on water; a ship sent inland goes to the nearest water. Ships and land units never shove each other (`separate`).
+- **Reach** (`shipReach`, `shipCanHit`): a ship only takes targets within its weapon's range of water in its own body (`acquire`), drops an
+  unreachable ordered target ("Target out of reach"), and hunts (`shipHuntStep`: the nearest reachable known structure or seen unit, enemy
+  ships first; nothing known: out over unexplored water). Ships are left out of the land army code (waves, base defence, ally help, wall
+  breaching, the stuck watch, Service Depots).
+- **Weapons:** Gunboat deck gun (AP) and Destroyer missiles (HE, 2-round burst, 216 px, also hit aircraft); both carry depth charges
+  (`wh: 'DC'`, `subOnly`). Submarine torpedoes (`wh: 'TORP'`, `naval`: only ships and structures in the water, 216 px). New projectiles
+  `torpedo` (bubble trail) and `depth`; hits on the water make spray, never scorch (`impact`). Sounds `torpedo`, `depth` (audio.js, synthesized).
+- **Submarines:** hidden like the Pillbox (`camoHidden` now covers units with `sub`): not drawn, picked, targeted or sent online to the
+  other side (netcore sends one last snapshot with `exposed: false` as it dives). Exposed `SUB_REVEAL` (3 s) after firing or being hit, or
+  while an enemy ship with `detect` (Gunboat, Destroyer) or an enemy Naval Yard / Submarine Pen is within `SUB_DETECT` (4 cells)
+  (`updateSub`). Submerged, only depth charges hit it (`canHit`). Your own submerged Submarine is drawn faint.
+- **Transports** (`ferry`, carry 5): take any ground unit, vehicles too (`canFerry`). Selected units + tap your Transport: they walk to the
+  shore by it and board (within `FERRY_BOARD_R`, or settled within 4.5 cells); a Transport out of their reach comes in to them. UNLOAD HERE
+  puts them on land within `FERRY_SHORE` (3) cells, refused out at sea ("Move the Transport to the shore"). Sunk with units aboard: all lost.
+- **Death:** a ship sinks (`shipSinks`, the `sink` effect in art.js: the hull settles and fades), no wreck, crater or crew.
+- **Looks:** models.js `gunboatModel`, `destroyerModel`, `subModel`, `lstModel`, `lcuModel`, `shipTurret` (turret `size.fwd` ahead of the
+  middle, `muzzle` follows), `shipWhole` (cameos, sinking); `navyard` and `subpen` in `STRUCTURES`; a foam wake while moving (`shipWake`);
+  cameos on a water background. Not baked: models.js changed, so `bake-sprites.js --check` (and `--hd`) report stale until the owner rebakes
+  at release; until then ships and the yards are rendered live.
+- **Computer** (ai.js, every difficulty): `aiNaval` (once, `team.naval`, plain data): the nearest open water of `NAVAL_BODY` (300) cells within
+  `NAVAL_REACH` (32) cells of its start with an enemy start within `NAVAL_FOE` (14) cells of it. With one, after a War Factory and two
+  refineries it builds its yard (`aiNavalNext`, `aiWaterSpot`); out of reach, up to `NAVAL_CREEP` (4) Power Plants go up toward the water
+  first (`aiCreepSpot`). `aiFleet`: 2 / 4 / 6 warships by difficulty (more against an enemy fleet), Gunboats and Destroyers or Submarines;
+  they wait by the yard until `NAVAL_SAIL` (3) are ready, then hunt; badly hurt ones go back. No computer Transports yet. On maps where
+  its water reaches no enemy (Lakeside's starts, for example) it builds no yard.
+- **Online:** orders reuse `commandBoard` and `commandUnload` (netcore COMMANDS); `detT` and `spotted` are not sent. The game server must
+  run this version for online play.
+- **Old saves:** a save without the naval queue gets one (`activeItem`).
+- Test: `node tools/sim/naval.js <repo> [map] [minutes]` (PASS on Twin Lakes, A Bridge Too Far and Lakeside); `apc.js` and a 20-minute
+  computer 1 v 1 on A Bridge Too Far (`teams.js`) still run clean.
