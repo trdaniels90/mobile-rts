@@ -1119,23 +1119,46 @@ function aiRebuild(team, c) {
 // to NAVAL_CREEP Power Plants go up on the side nearest the water first (aiCreepSpot). Then it keeps a small fleet (aiFleet):
 // Gunboats and Destroyers (Allies) or Submarines (Soviets), waiting by the yard until NAVAL_SAIL are ready, then hunting whatever
 // they can reach from the water. No Transports.
-const NAVAL_BODY = 300, NAVAL_REACH = 32, NAVAL_FOE = 14, NAVAL_CREEP = 4, NAVAL_SAIL = 3;
+const NAVAL_BODY = 300, NAVAL_REACH = 32, NAVAL_FOE = 14, NAVAL_ISLE = 40, NAVAL_CREEP = 4, NAVAL_SAIL = 3;
+// Which piece of land each cell is on (0: water): kept per battle off G (not saved), for telling islands apart.
+let landmassOf = null;
+function aiLandmass() {
+  if (landmassOf && landmassOf.G === G && landmassOf.n === NCELLS) return landmassOf.a;
+  const a = new Int16Array(NCELLS);
+  let id = 0;
+  for (let c0 = 0; c0 < NCELLS; c0++) {
+    if (a[c0] || G.terr[c0] === 4) continue;
+    a[c0] = ++id;
+    const q = [c0];
+    for (let i = 0; i < q.length; i++) for (let k = 0; k < 4; k++) {
+      const x = cellX(q[i]) + DIRS8[k][0], y = cellY(q[i]) + DIRS8[k][1];
+      if (!inMap(x, y)) continue;
+      const n = idx(x, y);
+      if (!a[n] && G.terr[n] !== 4) { a[n] = id; q.push(n); }
+    }
+  }
+  landmassOf = { G, n: NCELLS, a };
+  return a;
+}
 const shipYardOf = (team) => (team.faction === 'allies' ? 'navyard' : 'subpen');
 function aiNaval(team) {
   if (team.naval) return team.naval;
   const N = navCells(), s = team.start || { cx: MAP / 2, cy: MAP / 2 };
   const fits = (x, y) => { for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) if (!N.cells[idx(x + i, y + j)]) return false; return true; };
   const foes = G.teams.filter((t) => hostile(team.id, t.id) && t.start);
+  // Cut off by sea (Twin Isles): no foe's start can be walked to from its own. Then the sea is the way to the enemy, and any of
+  // its water that reaches the foe's island (NAVAL_ISLE cells off it) will do for the yard.
+  const land = aiLandmass(), isle = !foes.some((t) => land[idx(t.start.cx, t.start.cy)] === land[idx(Math.round(s.cx), Math.round(s.cy))]);
   let best = -1, bd = Infinity, body = 0;
   for (let y = 1; y < MAP - 4; y++) for (let x = 1; x < MAP - 4; x++) {
     const c = idx(x, y), b = N.body[c];
     if (!b || N.sizes[b] < NAVAL_BODY) continue;
     const d = Math.hypot(x + 1.5 - s.cx, y + 1.5 - s.cy);
     if (d >= bd || d > NAVAL_REACH || !fits(x, y)) continue;
-    if (!foes.some((t) => { const k = idx(t.start.cx, t.start.cy); return N.nearBody[k] === b && N.near[k] <= NAVAL_FOE; })) continue;
+    if (!foes.some((t) => { const k = idx(t.start.cx, t.start.cy); return N.nearBody[k] === b && N.near[k] <= (isle ? NAVAL_ISLE : NAVAL_FOE); })) continue;
     bd = d; best = c; body = b;
   }
-  team.naval = { ok: best >= 0, water: best, body, creep: 0, creeping: false, spotT: -99, spot: null };
+  team.naval = { ok: best >= 0, water: best, body, creep: 0, creeping: false, spotT: -99, spot: null, isle };
   return team.naval;
 }
 function aiNavalNext(team, n, take, slot) {
@@ -1178,6 +1201,12 @@ function aiFleet(team, c, money, capped) {
   if (!c[yard]) return;
   const fleet = unitsOf(team.id).filter((u) => u.def.naval && u.def.weapon);
   const want = G.diffKey === 'easy' ? 2 : G.diffKey === 'hard' ? 6 : 4;
+  // Cut off by sea: Transports to carry the army across come first (aiFerry), as many as FERRY_WANT.
+  if (team.naval && team.naval.isle) {
+    const lift = team.faction === 'allies' ? 'lst' : 'lcu', have = unitsOf(team.id).filter((u) => u.type === lift).length + (team.queues.naval || []).filter((i) => i.type === lift).length;
+    if (have < FERRY_WANT[G.diffKey] && money > 600 && !(team.queues.naval || []).length && available(team, lift)) startProduction(team, lift);
+    aiFerry(team);
+  }
   const foeShips = enemyUnitsOf(team.id).filter((u) => u.def.naval && !camoHidden(u, team.id)).length;
   if (!capped && money > 700 && !(team.queues.naval || []).length && fleet.length < want + Math.min(3, foeShips)) {
     const pick = team.faction === 'soviets' ? 'sub' : Math.random() < (foeShips ? 0.6 : 0.4) ? 'destroyer' : 'gunboat';
@@ -1188,6 +1217,84 @@ function aiFleet(team, c, money, capped) {
   if (waiting.length >= NAVAL_SAIL || (foeShips && waiting.length)) for (const u of waiting) setHunt(u);
   for (const u of fleet) if (u.order.type === 'hunt' && u.hp < u.maxHp * 0.3 && home) {   // badly hurt: back to the yard
     const s = waterSpot(home.x, home.y, 5, shipBody(u)); if (s) { setGuard(u, s.x, s.y); goTo(u, s.x, s.y); }
+  }
+}
+// --- Carrying the army across the sea (Twin Isles; every difficulty) -------------------------------------------------
+// Where the crossing is shortest (aiStrait, once a battle, team.naval.strait): `up`, open water by its own shore, and
+// `down`, open water by the foe's island's shore, found by two floods over the water from each shore. Each Transport
+// (u.ferry, plain data) waits at `up` while launched units (a wave hunting or attacking, still on its own island) are
+// sent aboard, and once its first attack is due (0.75 of its first-wave time) the army waiting at home too (its attack
+// planner finds no way to walk to the enemy, so this is how its waves go); it sails when full, or with FERRY_MIN aboard after
+// FERRY_WAIT s, puts them ashore at `down` (they hunt on, unloadOne), and comes back. Units of a wave launched otherwise walk to
+// the beach nearest the enemy and wait there to be picked up (world.js stuckWatch leaves them be).
+const FERRY_WANT = { easy: 1, normal: 2, hard: 3 }, FERRY_MIN = 3, FERRY_WAIT = 45;
+function aiStrait(team) {
+  const P = team.naval;
+  if (P.strait !== undefined) return P.strait;
+  P.strait = null;
+  const N = navCells(), land = aiLandmass(), home = land[idx(team.start.cx, team.start.cy)];
+  const foe = G.teams.filter((t) => hostile(team.id, t.id) && t.start).sort((a, b) => Math.hypot(a.start.cx - team.start.cx, a.start.cy - team.start.cy) - Math.hypot(b.start.cx - team.start.cx, b.start.cy - team.start.cy))[0];
+  if (!foe) return null;
+  const there = land[idx(foe.start.cx, foe.start.cy)];
+  const flood = (isle) => {
+    const d = new Int32Array(NCELLS).fill(-1), q = [];
+    for (let c = 0; c < NCELLS; c++) {
+      if (!N.cells[c] || G.terr[c] !== 4) continue;
+      for (let k = 0; k < 4; k++) { const x = cellX(c) + DIRS8[k][0], y = cellY(c) + DIRS8[k][1]; if (inMap(x, y) && land[idx(x, y)] === isle) { d[c] = 0; q.push(c); break; } }
+    }
+    for (let i = 0; i < q.length; i++) for (let k = 0; k < 4; k++) {
+      const x = cellX(q[i]) + DIRS8[k][0], y = cellY(q[i]) + DIRS8[k][1];
+      if (!inMap(x, y)) continue;
+      const n = idx(x, y);
+      if (d[n] < 0 && N.cells[n]) { d[n] = d[q[i]] + 1; q.push(n); }
+    }
+    return d;
+  };
+  const dh = flood(home), df = flood(there);
+  let up = -1, down = -1, bu = Infinity, bdn = Infinity;
+  const toFoe = (c) => Math.hypot(cellX(c) - foe.start.cx, cellY(c) - foe.start.cy) * 0.05, toHome = (c) => Math.hypot(cellX(c) - team.start.cx, cellY(c) - team.start.cy) * 0.05;
+  for (let c = 0; c < NCELLS; c++) {
+    if (dh[c] === 1 && df[c] >= 0 && df[c] + toHome(c) < bu) { bu = df[c] + toHome(c); up = c; }       // (a cell off the beach, so it can come right in)
+    if (df[c] === 1 && dh[c] >= 0 && dh[c] + toFoe(c) < bdn) { bdn = dh[c] + toFoe(c); down = c; }
+  }
+  if (up >= 0 && down >= 0) P.strait = { up, down };
+  return P.strait;
+}
+function aiFerry(team) {
+  const S = aiStrait(team);
+  if (!S) return;
+  const up = cellCenter(S.up), down = cellCenter(S.down), land = aiLandmass(), home = land[idx(team.start.cx, team.start.cy)];
+  const taken = new Set();
+  for (const u of unitsOf(team.id)) if (u.order.type === 'board' && u.order.target) taken.add(u.id);
+  for (const t of unitsOf(team.id).filter((u) => u.def.ferry)) {
+    const f = t.ferry || (t.ferry = { st: 'load', since: G.t });
+    const n = (t.cargo || []).length, near = (p, r) => Math.hypot(t.x - p.x, t.y - p.y) < CELL * r;
+    if (f.st === 'home') f.st = 'load';   // (older saves)
+    if (f.st === 'load') {
+      if (!near(up, 2.5)) { if (!t.dest && !t.needPath) { setGuard(t, up.x, up.y); goTo(t, up.x, up.y); } f.since = G.t; continue; }
+      const room = t.def.carry - n - unitsOf(team.id).filter((u) => u.order.type === 'board' && u.order.target === t).length;
+      if (room > 0) {
+        // Who goes: a launched wave still on its own island, and (once its first attack is due) the army waiting at home: its
+        // attack planner finds no way to walk to the enemy, so the ferries carry the waves instead.
+        const due = G.t >= aiOf(team).firstWave * 0.75;
+        const fare = unitsOf(team.id).filter((u) => (u.cls === 'inf' || u.cls === 'veh') && !u.def.naval && u.def.weapon && !u.def.harvester && !u.def.deploys && !u.def.engineer &&
+          !u.defending && !u.homeGuard && !u.chute && !u.inHouse && !u.manual && !taken.has(u.id) && land[cellOfPos(u.x, u.y)] === home &&
+          (u.order.type === 'hunt' || u.order.type === 'attack' || (due && u.order.type === 'guard' && u.staged && !u.order.hold)))
+          .sort((a, b) => dist(a, t) - dist(b, t)).slice(0, room);
+        if (fare.length) { commandBoard(fare, t); for (const u of fare) taken.add(u.id); }
+      }
+      if (n >= t.def.carry || (n >= FERRY_MIN && G.t - f.since > FERRY_WAIT)) { f.st = 'go'; setGuard(t, down.x, down.y); goTo(t, down.x, down.y); }
+      continue;
+    }
+    if (f.st === 'go') {
+      if (near(down, 3) || (!t.dest && !t.needPath && near(down, 6))) { commandUnload([t]); f.st = 'drop'; }
+      else if (!t.dest && !t.needPath) goTo(t, down.x, down.y);
+      continue;
+    }
+    if (f.st === 'drop') {
+      if (!n) { f.st = 'load'; f.since = G.t; setGuard(t, up.x, up.y); goTo(t, up.x, up.y); }
+      else if (!t.unload) commandUnload([t]);
+    }
   }
 }
 function aiThink(team) {

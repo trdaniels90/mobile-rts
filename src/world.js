@@ -103,6 +103,9 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
   }
   updatePower();
   revealAround();
+  // A map with `revealStarts` (Twin Isles: no scout could walk to the other island): every side starts knowing the ground
+  // round each other side's start, so its bases are known (knownTo) and the computer's waves have somewhere to go.
+  if (MAPS[G.mapId] && MAPS[G.mapId].revealStarts) for (const t of teams) for (const o of teams) if (o !== t && o.start) revealCircle(o.start.cx + 0.5, o.start.cy + 0.5, 9, G.fog[t.id]);
   return G;
 }
 // Which side this device shows. Switching it redraws the map from that side's view.
@@ -6930,12 +6933,14 @@ function pileWatch() {
     return;
   }
 }
+const o_isWaiting = (u) => u.order.type === 'hunt' || u.order.type === 'attack' || u.order.type === 'board';
 function stuckWatch() {
   if (G.remote) return;
   if (!STUCK_SEEN || STUCK_SEEN.g !== G) { STUCK_SEEN = new Map(); STUCK_SEEN.g = G; STUCK_SEEN.n = 0; STUCK_SEEN.last = -999; }
   const found = [];
   for (const u of G.entities) {
     if (!u.alive || u.kind !== 'unit' || u.cls === 'air' || u.def.harvester || u.def.scripted || !u.def.speed || u.def.deploys || u.def.engineer || u.def.naval || !G.teams[u.team].isAI) continue;
+    if (G.teams[u.team].naval && G.teams[u.team].naval.isle && o_isWaiting(u)) continue;   // (cut off by sea: a wave waiting on the beach for a Transport, ai.js aiFerry)
     const o = u.order.type;
     if (o === 'repair' || o === 'engineer' || u.repairing || u.chute > 0) { STUCK_SEEN.delete(u.id); continue; }
     if (!(o === 'hunt' || o === 'attack' || o === 'move' || u.assisting || u.dest || u.needPath)) { STUCK_SEEN.delete(u.id); continue; }

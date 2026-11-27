@@ -71,6 +71,8 @@ The layout of "Twin Lakes" is traced the same way from a pixel map design by JGF
 (`maps/designs/twinlakes.png`, redrawn one colour per cell from their picture; the bridges were narrowed
 and are concrete).
 
+"Twin Isles" is an original layout made in code (`tools/make-isles-map.py`) for a contributor (JGFortanelli).
+
 ## Engineer
 
 The Engineer's look (helmet, olive tactical vest with pouches, knee pads) follows a reference figure supplied by

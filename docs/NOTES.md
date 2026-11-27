@@ -3438,3 +3438,23 @@ below Frostlight's 21 x 21 = 441 tiles:
 - **Old saves:** a save without the naval queue gets one (`activeItem`).
 - Test: `node tools/sim/naval.js <repo> [map] [minutes]` (PASS on Twin Lakes, A Bridge Too Far and Lakeside); `apc.js` and a 20-minute
   computer 1 v 1 on A Bridge Too Far (`teams.js`) still run clean.
+
+## Map "Twin Isles", a naval map (contributor's change by JGFortanelli, branch `friend/naval-and-maps`, not released; the server must match)
+
+- **Layout** (`tools/make-isles-map.py`, 144 cells, 2 v 2 or 1 v 1): two islands, west and east, across a strait (about 12 cells at
+  its narrowest, in the middle), open sea all round, no bridges or fords: the only ways to the enemy are by sea and by air. One
+  quarter worked out and mirrored both ways (the four starts alike): each base near its island's outer coast (so it has water for a
+  Naval Yard or Submarine Pen), ore by it and in the island's middle, a gem field on the strait's shore. Ground baked
+  (`grounds/isles`), preview `maps/isles.png`, both in sw.js.
+- **`revealStarts`** (maps.js, world.js newWorld): every side starts knowing the ground round each other side's start, so the bases
+  are known (`knownTo`, `enemyBaseKnown`): no scout could walk there, and the computer's waves need a target.
+- **The computer across the sea** (ai.js, every difficulty): `aiNaval` works out `isle` (no foe's start on its own landmass,
+  `aiLandmass`) and then accepts water that reaches the foe's island within `NAVAL_ISLE` (40) cells. `aiFleet` builds Transports first
+  (`FERRY_WANT`: Easy 1, Normal 2, Hard 3). `aiStrait` finds the shortest crossing once (two floods over the water from each shore):
+  `up` by its own shore, `down` by the foe's. `aiFerry`: each Transport waits at `up` while launched units still on its island, and
+  (from 0.75 of its first-wave time) its waiting army, are sent aboard; it sails when full or with `FERRY_MIN` (3) aboard after
+  `FERRY_WAIT` (45) s, unloads at `down` (they hunt on), and comes back. world.js stuckWatch leaves such a side's hunting and boarding
+  units be (they wait on the beach for a ride).
+- Tested headless (computer against computer): a Normal 1 v 1 for 22 minutes (one side landed up to 12 units at once and destroyed 6
+  structures; the other lost its Transports to the first side's warships), and a Hard 2 v 2 (all four built yards and Transports by
+  minute 9; two had landed 12 and 9 units).
