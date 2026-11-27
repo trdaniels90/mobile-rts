@@ -6390,7 +6390,7 @@ function spawnUnit(team, type, from) {
   } else if (d.naval) {   // a ship: out onto the water beside its yard, then waits nearby (or at the rally point)
     let c = p.exitCell;
     if (c === undefined || !navFree(c)) c = navExit(p);
-    const pos = c >= 0 ? cellCenter(c) : { x: p.x, y: (p.cy + p.h) * CELL };
+    const pos = c >= 0 ? cellCenter(c) : { x: p.x, y: p.y };   // (no open exit: the middle of the yard, which is water, never the shore)
     u = addUnit(type, team, pos.x, pos.y);
     u.face = u.tface = Math.PI / 2;
     const s = (p.rally && waterSpot(p.rally.x, p.rally.y, 3, navBodyOf(pos.x, pos.y))) || waterSpot(p.x, p.y, 5, navBodyOf(pos.x, pos.y)) || pos;
