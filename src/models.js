@@ -791,11 +791,15 @@ function subModel(pal) {
 // Soviets: a squarer landing barge with twin side walls, a bridge on the starboard side and a red bow door.
 function lstModel(pal) {
   const m = new VModel(-19, -8, 19, 8, 16);
-  shipHull(m, -17, 15, 7, 4, 4, pal, 0);
-  m.clear(-9, -5, 2, 13, 5, 6);                                                   // the well deck
-  m.box(-9, -5, 2, 13, 5, 2.6, SHIP.deckD, M_ROUGH);
-  m.paintTop(-9, -5, 13, 5, (x, y) => ((x + 9) % 5 === 0 ? '#5e625a' : undefined));
-  solidV(m, 13, -5, 1, 17, 5, 6, (x, y, z) => z < 1.4 + (17 - x) * 1.15, SHIP.hullD, M_METAL);   // the bow ramp
+  shipHull(m, -17, 15, 7, 4, 8, pal, 1.5);                                       // (a rounded bow)
+  m.clear(-9, -5, 2, 8, 5, 6);                                                    // the well deck, closed at the bow
+  m.box(-9, -5, 2, 8, 5, 2.6, SHIP.deckD, M_ROUGH);
+  m.paintTop(-9, -5, 8, 5, (x, y) => ((x + 9) % 5 === 0 ? '#5e625a' : undefined));
+  m.box(8, -5, 2, 9, 5, 5, SHIP.hullD, M_METAL);                                  // the inner ramp, raised against the bow
+  m.paint(8, -5, 2, 9, 5, 5, (x, y, z) => (Math.abs(y + 0.5) % 3 < 1 ? '#3b4246' : undefined));
+  m.paint(9, -7, 1, 16, 7, 5, (x, y) => (Math.abs(y + 0.5) < 0.6 ? SHIP.boot : undefined));   // the bow doors' seam
+  m.paintTop(9, -6, 16, 6, (x, y) => (Math.abs(y + 0.5) < 0.6 ? SHIP.boot : (x === 12 && Math.abs(y) < 3) ? '#a6aaa2' : undefined));   // foredeck, a hatch
+  m.box(12, -0.5, 5.5, 13, 0.5, 8, C.steel, M_METAL);                             // jack staff
   m.box(-17, -6, 4, -10, 6, 10, C.wall, M_MATTE);                                // bridge aft
   m.box(-11, -5, 7, -10, 5, 9, C.glass, M_GLASS);
   m.box(-17.5, -6.5, 10, -9.5, 6.5, 11, pal.main, M_METAL);
@@ -805,13 +809,16 @@ function lstModel(pal) {
 }
 function lcuModel(pal) {
   const m = new VModel(-19, -8, 19, 8, 15);
-  m.box(-17, -7, 0, 16, 7, 4, SHIP.hull, M_METAL);                                // square barge hull
-  m.paint(-17, -7, 0, 16, 7, 1, () => SHIP.boot);
-  m.paint(-17, -7, 2, 16, 7, 3, (x, y) => (Math.abs(y) > 5.6 ? pal.dark : undefined));
-  m.clear(-12, -5, 2, 16, 5, 5);
-  m.box(-12, -5, 2, 16, 5, 2.6, SHIP.deckD, M_ROUGH);
-  m.box(-17, -7, 4, 16, -5, 6, SHIP.hullD, M_METAL); m.box(-17, 5, 4, 16, 7, 6, SHIP.hullD, M_METAL);   // side walls
-  m.box(15, -5, 1, 16.5, 5, 6, SHIP.red, M_METAL);                                // bow door
+  m.box(-17, -7, 0, 13, 7, 4, SHIP.hull, M_METAL);                                // square barge hull
+  m.paint(-17, -7, 0, 13, 7, 1, () => SHIP.boot);
+  m.paint(-17, -7, 2, 13, 7, 3, (x, y) => (Math.abs(y) > 5.6 ? pal.dark : undefined));
+  m.clear(-12, -5, 2, 13, 5, 5);
+  m.box(-12, -5, 2, 13, 5, 2.6, SHIP.deckD, M_ROUGH);
+  m.box(-17, -7, 4, 13, -5, 6, SHIP.hullD, M_METAL); m.box(-17, 5, 4, 13, 7, 6, SHIP.hullD, M_METAL);   // side walls
+  // The bow ramp, raised and closed: a thick plate across the whole bow, leaning out a little, on hinges, hazard-striped.
+  solidV(m, 13, -7, 0, 17.5, 7, 7, (x, y, z) => x < 13 + 2.2 + z * 0.3 && x > 13 + z * 0.3, SHIP.red, M_METAL);
+  m.paint(13, -7, 0, 17.5, 7, 7, (x, y, z) => (z >= 5 && (Math.floor(x + y + z) % 4 < 2) ? C.yellow : z < 1 ? SHIP.boot : undefined));
+  for (const y of [-6, 5]) m.box(12, y, 3, 14, y + 1, 5, C.gun, M_METAL);                                       // hinges
   m.box(-17, 1, 6, -10, 7, 12, C.wallD, M_MATTE);                                 // bridge on the starboard side
   m.box(-11, 1, 9, -10, 7, 11, C.glass, M_GLASS);
   m.box(-17.5, 0.5, 12, -9.5, 7.5, 13, pal.main, M_METAL);
