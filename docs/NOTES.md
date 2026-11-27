@@ -3424,9 +3424,9 @@ below Frostlight's 21 x 21 = 441 tiles:
   both renderers draw it; nothing over a span that is down. ui.js draw: the ground, its moving water (cliffItems), ships under a
   bridge (`decksOver`: a deck cell within the ship's length plus the deck's rise), then `drawBridges`, then the sorted list: land units
   on a deck are lifted to its height (`deckLift`, look.js `standLift`; ships pass `wet` and stay on the water), and so are effects
-  there. The rules do not change. **Baked grounds:** `bridgeGround` replaced `concreteBridge` in tools/bake-ground.js's hash, so
-  `bake-ground.js --check` reports stale; until the owner rebakes, the baked tiles (used over http) still hold the old painted decks
-  under the raised ones (pages opened from a file paint the ground live and are right).
+  there. The rules do not change. **Baked grounds:** rebaked on `friend/naval-and-maps` (with Berlin and Rivergate City; 35 sheets
+  changed, those with bridges); `bridgeGround` and `bridgeTop` are in tools/bake-ground.js's hash. `friend/naval-units` on its own is
+  not rebaked (its `--check` reports stale).
 - **Computer** (ai.js, every difficulty): `aiNaval` (once, `team.naval`, plain data): the nearest open water of `NAVAL_BODY` (300) cells within
   `NAVAL_REACH` (32) cells of its start with an enemy start within `NAVAL_FOE` (14) cells of it. With one, after a War Factory and two
   refineries it builds its yard (`aiNavalNext`, `aiWaterSpot`); out of reach, up to `NAVAL_CREEP` (4) Power Plants go up toward the water
