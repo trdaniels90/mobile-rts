@@ -863,10 +863,18 @@ recorder usage at the top of record.js).
   `daynight`, concrete bridges, no weather (no rain without the owner's word). Laid out by `python3 tools/make-berlin-map.py [--png out.png]`
   (prints `squares`, `lamps`, `spawns`, `gems`, `lots`, `rows` to paste over the entry); every feature is listed for the west and turned
   half round the middle, and the tool asserts the halves match. An original layout after the city's Cold War geography, nothing traced.
-- **The Wall:** a jagged line of rock (`'#'`, drawn as a long raised crag) from the north edge to the south, with a bare death strip either
-  side and floodlights (`lamps`) along it. Four checkpoints open it (`GAPS`), two north and two south of the river; the Spree crosses it in
-  the middle. It is ordinary rock, so it cannot be blasted through (neutral wall pieces from the walls layer would need changes to
-  `G.wallTeam`, netcore and the UI: a possible follow-up).
+- **The Wall:** a jagged line of concrete pieces (`'W'` in the rows: a track cell with a piece of the walls layer on it) from the north
+  edge to the south, one cell thick (laid as diagonal and straight runs, like a player's `wallLine`) and right down to the water where the
+  Spree crosses it, with a bare death strip either side and floodlights (`lamps`) along it. Four checkpoints open it (`GAPS`), two north
+  and two south of the river. Sealed otherwise (flood fill with the checkpoints shut reaches no east base).
+  - The pieces belong to nobody: `G.wallTeam` = `WALL_NEUTRAL` (15, data.js; no side has that id, and netcore packs a side in 4 bits).
+    Concrete's health (300); anyone can shoot one down with Attack ground (tapping a piece with fighters selected orders it, ui.js),
+    nobody can sell one, and the computer never targets it (units on Auto Attack only shoot through *hostile* walls, and the
+    checkpoints mean they are never walled off). Three Medium Tanks take a piece down in about 5 s.
+  - `mapWallCells(m)` (world.js) lists a map's `'W'` cells; `genLayoutMap` lays them at its very end (it rebuilds `G.block` from the
+    ground partway through, which wiped them when laid earlier). Online, the remote copy lays them too, so netcore seeds `P.wallSent`
+    with them and sends only changes (a piece shot down out of sight goes when the cell is next seen).
+  - Gameplay change for both modes (the server must match): needs the owner's OK.
 - **The Spree** winds from the Havel lake (west) to its twin lake (east), two concrete bridges on each side of the Wall. It runs straight west-east with smooth banks for a few cells either side of each bridge, so each bridge is a clean north-south rectangle of deck cells: on a slanting stretch the run came out a parallelogram, which genLayoutMap drew as a slab lying along the river. Six districts
   (`squares`, 117 plots, about 175 houses a battle), the Tiergarten and its twin park (woods with paths), the old airfield (open ground,
   a runway road) south-west and its twin north-east.

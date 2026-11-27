@@ -123,7 +123,13 @@ const NetCore = (() => {
     }
     // Walls and gates: the cells that changed, where this player can see (with the ore, every fifth snapshot).
     if (G.wallEver && (P.snapN - 1) % ORE_EVERY === 0) {
-      if (!P.wallSent || P.wallSent.length !== NCELLS) P.wallSent = new Uint32Array(NCELLS);
+      if (!P.wallSent || P.wallSent.length !== NCELLS) {
+        P.wallSent = new Uint32Array(NCELLS);
+        // The map's own wall: the remote copy laid it too (genLayoutMap), so only its changes are sent (a piece shot down
+        // out of their sight still goes when they next see the cell).
+        const d = WALLS.concrete, v0 = d.id | (WALL_NEUTRAL << 4) | (d.hp << 8);
+        for (const c of mapWallCells(MAPS[G.mapId])) P.wallSent[c] = v0;
+      }
       const w = [];
       for (let i = 0; i < NCELLS; i++) {
         const v = G.wall[i] | (G.wallTeam[i] << 4) | (G.wallHp[i] << 8);

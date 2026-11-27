@@ -4,7 +4,7 @@
     python3 tools/make-berlin-map.py [--png out.png]
 
 A divided city for 3 v 3 (or 2 v 2): three bases in the west of the city against three in the east. The Wall runs
-north to south through the middle, a jagged line of concrete and rubble (rock) with a bare death strip either side;
+north to south through the middle, a jagged line of concrete pieces that can be shot down, with a bare death strip either side;
 four checkpoints open it, two north and two south of the river. The Spree winds west to east through the middle,
 from the Havel lake in the west to the lake in the east, with two bridges on each side of the Wall. Each half has
 three districts (neighbourhoods of houses on a street grid, each round a square), a big park (the Tiergarten in the
@@ -13,7 +13,8 @@ Only the ground is laid out here (rows, start positions, gem fields, the distric
 lamps); the houses are rolled each battle from its seed (world.js genVillage). Every feature is listed once for the
 west and turned half round the middle for the east (P below), so the two alliances' halves are alike.
 An original layout inspired by the city's Cold War geography; no map or picture was traced.
-Codes: '.' grass, ',' road, 'T' woods, '#' rock (the Wall), '~' water, '=' bridge, 'o' ore.
+Codes: '.' grass, ',' road, 'T' woods, '#' rock (rubble), '~' water, '=' bridge, 'o' ore, 'W' a piece of the Wall
+(neutral concrete on a track, which anyone can shoot down with Attack ground).
 """
 import math
 import sys
@@ -64,8 +65,29 @@ BASE_CLEAR = 15
 # The Wall: a jagged line from the north edge to the middle (its twin carries it on to the south edge). Its gaps are the
 # checkpoints (y from, y to), listed for the north half. The death strip is bare ground either side of it.
 WALL_N = [(97, -2), (103, 14), (99, 30), (106, 44), (101, 60), (95, 74), (99, 88), (100, 100)]
+# The pieces of the Wall ('W': neutral concrete, world.js genLayoutMap): each stretch of the line laid cell by cell as a
+# diagonal run and a straight one, the longer first (as world.js wallLine lays a player's wall), north half only; the
+# south half is their twins.
+WALL_CELLS = set()
+
+
+def lay_wall():
+    pts = [(97, 0), (103, 14), (99, 30), (106, 44), (101, 60), (95, 74), (99, 88), (99, 99)]
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        ax, ay, sx, sy = abs(x1 - x0), abs(y1 - y0), (x1 > x0) - (x1 < x0), (y1 > y0) - (y1 < y0)
+        nd, ns = min(ax, ay), max(ax, ay) - min(ax, ay)
+        st = (sx, 0) if ax > ay else (0, sy)
+        runs = [((sx, sy), nd), (st, ns)] if nd >= ns else [(st, ns), ((sx, sy), nd)]
+        x, y = x0, y0
+        WALL_CELLS.add((x, y))
+        for (dx, dy), n in runs:
+            for _ in range(n): x += dx; y += dy; WALL_CELLS.add((x, y))
+    for (x, y) in list(WALL_CELLS): WALL_CELLS.add((N - 1 - x, N - 1 - y))
+
+
+lay_wall()
 WALL = WALL_N + turn_line(WALL_N)[1:]
-WALL_W, STRIP = 1.15, 5.0
+STRIP = 5.0
 GAPS = both([(20, 28), (66, 74)], lambda g: (N - g[1], N - g[0]))
 
 # The Spree, from the Havel in the west to the middle (its twin runs on east to the lake there); half width.
@@ -143,9 +165,9 @@ def cell(x, y):
         if any(abs(x - bx) < hw for bx, hw in BRIDGES) and line_dist(x, y, SPREE) < SPREE_HW + 1: return '='
         return '~'
     if any(abs(x - bx) < hw for bx, hw in BRIDGES) and line_dist(x, y, SPREE) < SPREE_HW + 3: return ','   # bridge approaches
-    if line_dist(x, y, SPREE) < SPREE_HW + 1.2: return '.'   # the embankment
     dw = line_dist(x, y, WALL)
-    if dw < WALL_W and not in_gap(y): return '#'
+    if (int(x), int(y)) in WALL_CELLS and not in_gap(y): return 'W'   # (right down to the water: no way round its end)
+    if line_dist(x, y, SPREE) < SPREE_HW + 1.2: return '.'   # the embankment
     if dw < STRIP: return ',' if in_gap(y) and dw < 2.5 else '.'
     d = district_at(x, y)
     if d: return ',' if d == 'lane' else '.'
@@ -233,7 +255,7 @@ def main():
     print('    ],')
     if '--png' in sys.argv:
         from PIL import Image, ImageDraw
-        col = {'.': (120, 160, 90), ',': (150, 140, 128), 'T': (40, 80, 45), '#': (200, 200, 200), '~': (70, 120, 180), '=': (120, 90, 60), 'o': (200, 160, 60)}
+        col = {'.': (120, 160, 90), ',': (150, 140, 128), 'T': (40, 80, 45), '#': (200, 200, 200), '~': (70, 120, 180), '=': (120, 90, 60), 'W': (235, 235, 235), 'o': (200, 160, 60)}
         im = Image.new('RGB', (N, N))
         im.putdata([col[grid[y][x]] for y in range(N) for x in range(N)])
         im = im.resize((N * 4, N * 4), Image.NEAREST)

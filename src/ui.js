@@ -1467,7 +1467,7 @@ function draw() {
     const wc = cellOfPos(Math.max(0, Math.min(WORLD - 1, w.x)), Math.max(0, Math.min(WORLD - 1, w.y)));
     if (!e && G.wallN && G.wall[wc] && G.seen[wc]) {
       const wd = WALL_BY_ID[G.wall[wc]], now = performance.now();
-      if (hostile(G.wallTeam[wc], G.me)) {
+      if (hostile(G.wallTeam[wc], G.me) || G.wallTeam[wc] === WALL_NEUTRAL) {   // (the map's own wall belongs to nobody)
         const able = mine.filter((u) => !u.def.harvester && (u.def.weapon || u.cls === 'air'));
         if (able.length) { commandAttackGround(able, w.x, w.y); marker((cellX(wc) + 0.5) * CELL, (cellY(wc) + 0.5) * CELL, '#ff4a3a'); Sound.ack(able[0].cls === 'inf' ? 'attack' : able[0].cls); return; }
       } else if (G.wallTeam[wc] === G.me && !mine.length) {

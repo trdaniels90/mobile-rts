@@ -62,6 +62,9 @@ const WALLS = {
 const WALL_BY_ID = [null];
 for (const k in WALLS) { WALLS[k].key = k; WALL_BY_ID[WALLS[k].id] = WALLS[k]; }
 const WALL_LINE_MAX = 40;   // pieces in one line
+// Pieces laid by the map itself ('W' in a map's rows: Berlin's Wall) belong to nobody: G.wallTeam holds WALL_NEUTRAL (no side
+// has that id; netcore sends a side in 4 bits). Concrete; anyone may shoot at them (Attack ground), no one sells them.
+const WALL_NEUTRAL = 15;
 
 // A bridge span that can be destroyed (maps with `breakable` in MAPS; world.js addSpan): neutral, never fired on unless
 // ordered (Attack ground), armoured like a structure. Down, an Engineer rebuilds it (the computer trains one for it: ai.js aiBridges).
