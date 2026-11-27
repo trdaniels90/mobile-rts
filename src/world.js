@@ -503,7 +503,7 @@ function genMap(seed) {
 function genLayoutMap(m) {
   G.cliff = new Uint8Array(NCELLS);   // rock painted as cliff ridges (art.js paintCliffs), not loose boulders
   G.ford = new Uint8Array(NCELLS);    // shallow water units can cross: walkable like a bridge, painted as a creek bed
-  const T = G.terr, code = { '.': 0, ',': 1, 'T': 2, '#': 3, '~': 4, '=': 5, 'f': 5, 'o': 0 }, oreAt = [];
+  const T = G.terr, code = { '.': 0, ',': 1, 'T': 2, '#': 3, '~': 4, '=': 5, 'f': 5, 'o': 0, 'W': 1 }, oreAt = [];
   m.rows.forEach((row, y) => {
     let x = 0;
     for (const [, n, ch] of row.matchAll(/(\d*)(\D)/g)) for (let k = +(n || 1); k-- > 0; x++) {
@@ -620,6 +620,8 @@ function genLayoutMap(m) {
       ? { a: { x: x0 * CELL, y: (y0 + y1) / 2 * CELL }, b: { x: x1 * CELL, y: (y0 + y1) / 2 * CELL }, w: (y1 - y0 + 0.4) * CELL }
       : { a: { x: (x0 + x1) / 2 * CELL, y: y0 * CELL }, b: { x: (x0 + x1) / 2 * CELL, y: y1 * CELL }, w: (x1 - x0 + 0.4) * CELL });
   }
+  // The map's own wall ('W', on a track): neutral concrete pieces (WALL_NEUTRAL), shot down like anyone's.
+  for (const c of mapWallCells(m)) setWall(c, WALLS.concrete.id, WALL_NEUTRAL, WALLS.concrete.hp);
 }
 
 // ---------------------------------------------------------------------------
@@ -672,6 +674,20 @@ function commandAttackGround(units, x, y) {
 // Walls and gates (WALLS in data.js): G.wall holds the kind of piece in each cell (0 none), G.wallTeam its side,
 // G.wallHp its health, G.wallN how many stand. Hard pieces also set G.block; wire and gates are judged by who is
 // moving (softBlocks). Saved with the game as they are; an online copy is sent the cells that changed (netcore).
+// The cells of a fixed map's own wall ('W' in its rows), worked out once a map.
+const mapWallMemo = new Map();
+function mapWallCells(m) {
+  if (!m || !m.rows) return [];
+  const key = m.rows;
+  if (mapWallMemo.has(key)) return mapWallMemo.get(key);
+  const out = [];
+  m.rows.forEach((row, y) => {
+    let x = 0;
+    for (const [, n, ch] of row.matchAll(/(\d*)(\D)/g)) for (let k = +(n || 1); k-- > 0; x++) if (ch === 'W' && inMap(x, y)) out.push(idx(x, y));
+  });
+  mapWallMemo.set(key, out);
+  return out;
+}
 function ensureWalls() {
   if (G.wall && G.wall.length === NCELLS) return;
   G.wall = new Uint8Array(NCELLS); G.wallTeam = new Uint8Array(NCELLS); G.wallHp = new Uint16Array(NCELLS); G.wallN = 0;
