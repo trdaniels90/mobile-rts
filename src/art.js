@@ -567,14 +567,11 @@ function paintRuts(d, roads, X0, Y0, w, h, K = 1) {
 // standLift); ships under it are drawn before it (ui.js draw, decksOver). The rules do not change: the deck's cells are walked
 // and sailed exactly as before.
 const BRIDGE_RAMP = 52, BRIDGE_EDGE = 3;
-// Short crossings (under BRIDGE_RAISE cells: Berlin's, Rivergate City's, Heron Fen's footbridges) lie flat on the banks, as
-// their maps were made; longer ones stand higher the longer they are, from 4 to 16 px. world.js bridgePiers uses the same cut.
-const bridgeTop = (L) => (L < BRIDGE_RAISE * CELL ? 0 : Math.max(4, Math.min(16, 4 + (L - BRIDGE_RAISE * CELL) / 28)));
+// Every bridge is raised, the longer the higher: 9 to 16 px over the middle.
+const bridgeTop = (L) => Math.max(9, Math.min(16, 7 + L / 40));
 function bridgeGround(g, L, bw, concrete) {
   const h = bw / 2;
-  const raised = bridgeTop(L) > 0;   // (a flat bridge's shadow as before: just off its edge; a raised one's further off, clear of the banks)
-  g.fillStyle = concrete ? 'rgba(10,20,30,0.5)' : 'rgba(10,20,30,0.45)';
-  if (raised) g.fillRect(BRIDGE_RAMP * 0.6, -h + 9, L - BRIDGE_RAMP * 1.2, bw); else g.fillRect(4, -h + (concrete ? 7 : 6), L - 8, bw);
+  g.fillStyle = concrete ? 'rgba(10,20,30,0.5)' : 'rgba(10,20,30,0.45)'; g.fillRect(Math.min(BRIDGE_RAMP, L * 0.35) * 0.6, -h + 9, L - Math.min(BRIDGE_RAMP, L * 0.35) * 1.2, bw);   // shadow on the water, cast off the raised deck
   for (const u0 of concrete ? [-8, L - 10] : [-6, L - 10]) {                                // abutments
     const w = concrete ? 18 : 16, e = concrete ? 4 : 3;
     g.fillStyle = concrete ? '#7c7e82' : '#6f6a5e'; g.fillRect(u0, -h - e, w, bw + 2 * e);
@@ -2227,7 +2224,11 @@ function bridgeOf(b) {
   if (B) return B;
   const dx = b.b.x - b.a.x, dy = b.b.y - b.a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, bw = b.w;
   const m = MAPS[validMap(G.mapId)], concrete = m.bridge === 'concrete', snow = mapTheme(G.mapId) === 'snow';
-  B = { L, ux, uy, ang: Math.atan2(dy, dx), bw, concrete, top: bridgeTop(L), ramp: Math.min(BRIDGE_RAMP, L * 0.35), pic: null,
+  // Which ends come down onto land: a jetty (Heron Fen) ends out over the water, level, with no ramp down at that end.
+  const onLand = (x, y) => G.terr[cellOfPos(Math.max(0, Math.min(WORLD - 1, x)), Math.max(0, Math.min(WORLD - 1, y)))] !== 4;
+  let landA = onLand(b.a.x - ux * 12, b.a.y - uy * 12), landB = onLand(b.b.x + ux * 12, b.b.y + uy * 12);
+  if (!landA && !landB) landA = landB = true;
+  B = { L, ux, uy, ang: Math.atan2(dy, dx), bw, concrete, top: bridgeTop(L), ramp: Math.min(BRIDGE_RAMP, L * (landA && landB ? 0.35 : 0.5)), landA, landB, pic: null,
         x0: Math.min(b.a.x, b.b.x) - bw - 30, y0: Math.min(b.a.y, b.b.y) - bw - 30, x1: Math.max(b.a.x, b.b.x) + bw + 30, y1: Math.max(b.a.y, b.b.y) + bw + 30 };
   if (typeof document !== 'undefined') {
     const K = 2, c = mkCanvas(Math.ceil(L * K), Math.ceil((bw + 4) * K)), g = c.getContext('2d');
@@ -2240,7 +2241,7 @@ function bridgeOf(b) {
 }
 // How high the deck stands t px along a bridge (view px): rising off each abutment, level over the middle.
 function deckAt(B, t) {
-  const e = Math.max(0, Math.min(1, Math.min(t, B.L - t) / B.ramp));
+  const e = Math.max(0, Math.min(1, Math.min(B.landA ? t : Infinity, B.landB ? B.L - t : Infinity) / B.ramp));
   return B.top * e * e * (3 - 2 * e);
 }
 // The deck's height under a world point (0 off every bridge, and on a span that is down): what land units on it are lifted by.
