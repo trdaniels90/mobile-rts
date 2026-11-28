@@ -166,10 +166,18 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
   // A 256-colour era look: a handful of tones per surface, picked with dithered noise.
   // Winter: snow in cold blue shades, the tracks trodden to grey slush, frosted stony shores, dark icy water.
   // Fen (marsh): olive grass, dark peaty mud, murky green-brown water, and its shallows (fords) weed and mud, not stones.
-  const GRASS = snow ? [[156, 166, 184], [178, 188, 204], [198, 207, 220], [216, 223, 233], [234, 239, 246]] : marsh ? [[34, 40, 24], [42, 50, 28], [52, 60, 32], [62, 69, 38], [78, 82, 46]] : [[30, 40, 24], [38, 50, 29], [46, 60, 34], [56, 70, 40], [70, 84, 48]];
-  const EARTH = snow ? [[98, 94, 92], [116, 112, 108], [134, 130, 126], [152, 150, 148]] : marsh ? [[48, 40, 30], [60, 50, 36], [72, 61, 44], [86, 73, 52]] : [[66, 55, 39], [80, 67, 47], [96, 81, 57], [112, 95, 67]];
-  const SANDS = snow ? [[142, 148, 158], [162, 168, 178], [182, 189, 199]] : marsh ? [[78, 72, 52], [92, 85, 61], [106, 98, 70]] : [[124, 111, 82], [140, 126, 94], [156, 142, 108]];
-  const WATER = snow ? [[30, 48, 68], [38, 58, 80], [48, 70, 94], [60, 84, 108]] : marsh ? [[30, 42, 38], [36, 50, 44], [44, 59, 50], [54, 69, 58]] : [[52, 80, 108], [62, 92, 122], [74, 106, 138], [90, 122, 154]];
+  // RA2: the temperate ground at Red Alert 2's level of detail (branch claude/ra2-models, 2026-11-28; original work, made
+  // from a study of how RA2's temperate tiles read, nothing copied): bright, saturated grass in clumps with light tufts and
+  // a few flowers, patches of rough ground with pebbles, warm tan dirt with stones, a drier worn rim where grass meets
+  // dirt, pale sand and brighter water. Snow and fen maps keep their own palettes.
+  const RA2 = !snow && !marsh;
+  const GRASS = snow ? [[156, 166, 184], [178, 188, 204], [198, 207, 220], [216, 223, 233], [234, 239, 246]] : marsh ? [[34, 40, 24], [42, 50, 28], [52, 60, 32], [62, 69, 38], [78, 82, 46]]
+    : [[46, 70, 28], [56, 84, 32], [66, 98, 36], [78, 112, 40], [92, 126, 46], [108, 140, 54]];
+  const EARTH = snow ? [[98, 94, 92], [116, 112, 108], [134, 130, 126], [152, 150, 148]] : marsh ? [[48, 40, 30], [60, 50, 36], [72, 61, 44], [86, 73, 52]]
+    : [[98, 78, 52], [116, 94, 64], [134, 110, 76], [150, 126, 88], [166, 142, 102]];
+  const SANDS = snow ? [[142, 148, 158], [162, 168, 178], [182, 189, 199]] : marsh ? [[78, 72, 52], [92, 85, 61], [106, 98, 70]] : [[170, 152, 106], [188, 170, 122], [204, 188, 138]];
+  const WATER = snow ? [[30, 48, 68], [38, 58, 80], [48, 70, 94], [60, 84, 108]] : marsh ? [[30, 42, 38], [36, 50, 44], [44, 59, 50], [54, 69, 58]] : [[38, 82, 118], [48, 96, 136], [60, 112, 152], [76, 128, 168]];
+  const ROUGH = [[52, 66, 30], [66, 78, 38], [84, 86, 48], [102, 92, 60]];   // RA2 rough ground: tired grass and bare earth
   const STROKE = snow ? 0.5 : 0.95;
   const SOFT = typeof LOOK_SOFT !== 'undefined' && LOOK_SOFT;   // (look.js test; in the workers, from their constants line)   // snow shows the blade tile only as soft wind ripples
   const pickTone = (pal, v) => pal[Math.max(0, Math.min(pal.length - 1, Math.floor(v * pal.length)))];
@@ -196,8 +204,8 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
       nearFlag[cy * MAP + cx] = f;
     }
     const grid = (s) => { const w = Math.ceil(WORLD / s) + 2, a = new Float32Array(w * w); for (let i = 0; i < a.length; i++) a[i] = r(); return { a, w, s }; };
-    const N1 = grid(10), N2 = grid(40), N3 = grid(160);
-    P = { dirt, water, ford, nearFlag, N1, N2, N3, cliff: cliffs ? cliffCells(terr, cliffs) : null,
+    const N1 = grid(10), N2 = grid(40), N3 = grid(160), N0 = RA2 ? grid(5) : null;
+    P = { dirt, water, ford, nearFlag, N0, N1, N2, N3, cliff: cliffs ? cliffCells(terr, cliffs) : null,
       tile: Uint8Array.from(GRASS_TILE, (c) => c.charCodeAt(0) - 48) };   // grass tone values 0-9; the size is a power of two
   }
   function noise(N, x, y) {
@@ -217,6 +225,29 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
     const TM = GRASS_TILE_N - 1, tile = P.tile, u0 = Math.floor(u), v0 = Math.floor(v), a = u - u0, b = v - v0;
     const r0 = (v0 & TM) * GRASS_TILE_N, r1 = ((v0 + 1) & TM) * GRASS_TILE_N, c0 = u0 & TM, c1 = (u0 + 1) & TM;
     return (tile[r0 + c0] * (1 - a) + tile[r0 + c1] * a) * (1 - b) + (tile[r1 + c0] * (1 - a) + tile[r1 + c1] * a) * b;
+  }
+  // RA2: pebbles and small stones on an S-px grid, about `keep` of the grid's cells holding one; [dx, dy, tone] inside one.
+  function pebble(x, y, S, keep) {
+    const gi = Math.floor(x / S), gj = Math.floor(y / S);
+    for (let j = gj - 1; j <= gj + 1; j++) for (let i = gi - 1; i <= gi + 1; i++) {
+      if (speck(i * 3 + 1, j * 5 + 2) > keep) continue;
+      const rad = 0.7 + speck(i * 3 + 2, j * 5 + 3) * 1.3, cx = (i + 0.2 + 0.6 * speck(i * 3 + 3, j * 5 + 4)) * S, cy = (j + 0.2 + 0.6 * speck(i * 7 + 3, j * 5 + 9)) * S;
+      const dx = (x - cx) / rad, dy = (y - cy) / (rad * 0.75);
+      if (dx * dx + dy * dy < 1) return [dx, dy, speck(i * 3 + 5, j * 5 + 6)];
+    }
+    return null;
+  }
+  // A pebble drawn on colour col: lit from the upper left, a dark rim; or the stone's shadow just below-right of it.
+  function stoneOn(col, x, y, S, keep, tint) {
+    const st = pebble(x, y, S, keep);
+    if (st) {
+      const [dx, dy, tone] = st, lit = -(dx + dy) * 0.5, rim = dx * dx + dy * dy > 0.6;
+      const b = [[118, 110, 96], [138, 130, 114], [156, 148, 130], [126, 116, 104]][Math.floor(tone * 4)];
+      const m = rim ? 0.66 : 1 + lit * 0.4;
+      return [b[0] * m * tint, b[1] * m * tint, b[2] * m * tint];
+    }
+    if (pebble(x - 0.9, y - 0.9, S, keep)) return [col[0] * 0.64, col[1] * 0.64, col[2] * 0.7];
+    return col;
   }
   // Paints world pixels (X0, Y0, w x h) into d, RGBA w x h. K (HD ground): K x K pixels per world pixel, d (w K) x (h K);
   // everything smooth is sampled at each small pixel's middle (x, y: world, fractional) and the grain (speck, the grass
@@ -241,14 +272,34 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
           const tA = (tileAt(x, y) - 4.5) * 1.7 + 4.5, tB = (tileAt(y + 29, x + 53) - 4.5) * 1.7 + 4.5, fA = tile[((yi + 71) & TM) * GRASS_TILE_N + ((xi + 17) & TM)];
           gt = ((tA + (tB - tA) * ms) * (1 - HD_FINE) + fA * HD_FINE) / 9;
         }
-        let col = pickTone(GRASS, hh * 1.1 - 0.12 + (gt - 0.5) * STROKE + (sp - 0.5) * 0.1);
-        if (sp > 0.992) col = GRASS[4];
+        let col, rough = 0;
+        if (RA2) {   // clumps (darker hollows, lighter tops), the blades, light tufts, rough patches, flowers, pebbles
+          const cl = noise(P.N0, x, y), cl2 = noise(P.N0, y, x);
+          col = pickTone(GRASS, hh * 0.95 - 0.06 + (gt - 0.5) * 0.8 + (cl - 0.5) * 0.7 + (sp - 0.5) * 0.14);
+          if (cl2 > 0.74 && sp > 0.55) col = GRASS[5];
+          rough = sm(Math.max(0, Math.min(1, (noise(N3, y, x) * 0.7 + noise(N2, y, x) * 0.3 - 0.6) / 0.1)));
+          if (rough > 0) {
+            const r = pickTone(ROUGH, (cl - 0.5) * 1.2 + (gt - 0.5) * 0.6 + (sp - 0.5) * 0.5 + 0.45);
+            col = [col[0] + (r[0] - col[0]) * rough, col[1] + (r[1] - col[1]) * rough, col[2] + (r[2] - col[2]) * rough];
+            if (rough > 0.5) col = stoneOn(col, x, y, 5, 0.22, 1);
+          }
+          if (noise(N2, x, y) > 0.62 && rough < 0.3 && sp > 0.9965) col = sp > 0.9984 ? [236, 214, 92] : [232, 230, 216];   // flowers
+        } else {
+          col = pickTone(GRASS, hh * 1.1 - 0.12 + (gt - 0.5) * STROKE + (sp - 0.5) * 0.1);
+          if (sp > 0.992) col = GRASS[4];
+        }
         const near = nearFlag[Math.min(MAP - 1, Math.max(0, Math.round(fy))) * MAP + Math.min(MAP - 1, Math.max(0, Math.round(fx)))];
         const dv = near & 1 ? bil(dirt, fx, fy) + (hh - 0.5) * 0.3 + (sp - 0.5) * (SOFT ? 0.03 : 0.12) : 0;
+        if (RA2 && dv > 0.16 && dv <= 0.34) {   // a dry, trodden rim where the grass gives out
+          const k = (dv - 0.16) / 0.18 * 0.55, dry = [128, 122, 66];
+          col = [col[0] + (dry[0] - col[0]) * k, col[1] + (dry[1] - col[1]) * k, col[2] + (dry[2] - col[2]) * k];
+        }
         if (SOFT && dv > 0.3) {   // (look.js test: grass fades into dirt over a band, worn and darker at the edge)
-          const e = pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6), k = sm(Math.min(1, (dv - 0.3) / 0.2)), wear = 1 - 0.18 * Math.sin(k * Math.PI);
+          let e = pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6 + (RA2 ? (noise(P.N0, x, y) - 0.5) * 0.5 : 0));
+          const k = sm(Math.min(1, (dv - 0.3) / (RA2 ? 0.12 : 0.2))), wear = 1 - (RA2 ? 0.12 : 0.18) * Math.sin(k * Math.PI);
+          if (RA2 && k > 0.5) e = stoneOn(e, x, y, 6, 0.3, 1.05);
           col = [(col[0] + (e[0] - col[0]) * k) * wear, (col[1] + (e[1] - col[1]) * k) * wear, (col[2] + (e[2] - col[2]) * k) * wear];
-        } else if (!SOFT && dv > 0.42) col = pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6);
+        } else if (!SOFT && dv > 0.42) col = RA2 ? stoneOn(pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6), x, y, 6, 0.3, 1.05) : pickTone(EARTH, hh * 1.2 - 0.1 + (sp - 0.5) * 0.6);
         const wv = near & 2 ? bil(water, fx, fy) + (hh - 0.5) * 0.22 : 0;
         if (wv > 0.5) {
           const crest = ((xi * 3 + yi * 7 + Math.floor(noise(N1, (x * 3) % WORLD, y) * 30 * K)) % (23 * K) === 0) && sp > 0.4;

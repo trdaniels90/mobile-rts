@@ -814,7 +814,7 @@ function conNoise(x, y, sc, k) {
   return (a + (b - a) * su) * (1 - sv) + (c + (d - c) * su) * sv;
 }
 function concreteDecal(tg, x, y, w, h, seed, type) {
-  const snow = snowy(), M = CON_M, X0 = x - M, Y0 = y - M, W = w + 2 * M, H = h + 2 * M;
+  const snow = snowy(), fen = G && mapTheme(G.mapId) === 'marsh', M = CON_M, X0 = x - M, Y0 = y - M, W = w + 2 * M, H = h + 2 * M;
   const slab = !!CON_SLABBED[type];
   const c = mkCanvas(W, H), g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
   for (let py = Y0; py < Y0 + H; py++) for (let px = X0; px < X0 + W; px++) {
@@ -840,7 +840,8 @@ function concreteDecal(tg, x, y, w, h, seed, type) {
     if (edge < 1 && grain > edge + 0.15) continue;   // a ragged edge
     let r, gg, b;
     if (snow) { const t = 62 + f * 22 + grain * 8; r = t; gg = t - 1; b = t + 2; if (grain > 0.93) { r += 60; gg += 62; b += 66; } }   // dark wet earth, flecks of snow
-    else { const t = 58 + f * 22 + grain * 8; r = t; gg = t * 0.86; b = t * 0.66; if (grain > 0.95) { r = gg = b = 96; } }          // trodden earth, pebbles
+    else if (fen) { const t = 58 + f * 22 + grain * 8; r = t; gg = t * 0.86; b = t * 0.66; if (grain > 0.95) { r = gg = b = 96; } }   // trodden earth, pebbles
+    else { const t = 106 + f * 26 + grain * 10; r = t; gg = t * 0.84; b = t * 0.6; if (grain > 0.95) { r = 156; gg = 146; b = 126; } else if (grain < 0.04) { r *= 0.7; gg *= 0.7; b *= 0.7; } }   // RA2 ground (branch claude/ra2-models): warm tan, stones
     d[q] = r; d[q + 1] = gg; d[q + 2] = b; d[q + 3] = 255;
   }
   g.putImageData(img, 0, 0);

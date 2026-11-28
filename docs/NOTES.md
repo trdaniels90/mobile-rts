@@ -24,6 +24,17 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
 - **Next steps proposed to the owner:** a 30 degree camera (`VIEW.elev`, true 2:1 diamonds) with units scaled up and a full rebake;
   a higher, glossier voxel light; RA2-proportioned models; an urban theatre; a metallic sidebar per side.
 
+## Red Alert 2 ground (branch claude/ra2-models only, 2026-11-28, looks only, both modes)
+
+- **Owner:** "do the ground terrain next, look up red alert 2 ground textures for reference, get to that exact detail". Studied
+  how RA2's temperate tiles read (60 x 30 tiles; green, rough, sand and pavement LAT transitions); nothing copied.
+- **art.js `groundPixels`, temperate maps only (`RA2`: not snow, not fen):** brighter, saturated `GRASS` (6 tones) in clumps (`N0`,
+  a 5 px noise) with light tufts, the blade tile kept; rough patches (`ROUGH`, from slow noise) with pebbles; a few yellow and
+  white flowers; warm tan `EARTH` with stones; a dry, trodden rim where grass gives way to dirt; paler `SANDS`, brighter `WATER`.
+  `pebble` / `stoneOn`: stones lit from the upper left with a dark rim and a shadow below-right (inside groundPixels, so the
+  workers have them). look.js `concreteDecal`: the worn ground round structures is warm tan with stones (fen maps as before).
+- Rebaked: `grounds/`, `cliffs/`, `cliffs-hd/` (their checks hash art.js).
+
 ## Red Alert 2 detail: the fine kit, Heavy Tank and Soviet War Factory (after 2026.11.26.5, not released, looks only, both modes)
 
 - **Owner (2026-11-28):** "do the heavy tank and war factory, looks only. try to get exactly to red alert 2's detail" (a sample; the
