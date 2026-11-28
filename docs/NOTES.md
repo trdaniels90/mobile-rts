@@ -24,6 +24,22 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
 - **Next steps proposed to the owner:** a 30 degree camera (`VIEW.elev`, true 2:1 diamonds) with units scaled up and a full rebake;
   a higher, glossier voxel light; RA2-proportioned models; an urban theatre; a metallic sidebar per side.
 
+## RA2 detail across the game (branch claude/ra2-models only, 2026-11-28, looks only, both modes)
+
+- **Owner:** "get everything in this game to red alert 2 fidelity" (units, buildings, ground, trees, civilian buildings). Kept on
+  `claude/ra2-models` until all of it is done (owner's rule).
+- **Automatic pass** (models.js `ra2Auto`, from `model()`): every HD model (the HD bake) not hand-detailed (`m.ra2`) gets panel
+  seams and rivets on metal, pour lines and grain on concrete and rough surfaces, links on tracks and tyres (`RA2_TRACK` colours),
+  then `vweather`. Classic models untouched.
+- **Trees** (`treeModel`, fine kit): leaf clusters over dark cores, lit toward the top and the sun; pines in ragged drooping tiers.
+  The trees are not in the sprite sheets, so with HD on `buildScenery` builds them at 4x (`fineModel`, VModel `fi`) and draws them
+  at HD.K (`renderFine`, as the bake's hd-vox). Costs a moment at the first battle.
+- **Village houses** (`houseDetail`, HD models only): tile courses, slate, thatch strands, fine brick, coursed stone, damp plaster,
+  sills, lintels, glazing bars, a panelled door, gutters.
+- **Hand-detailed so far:** Heavy Tank, Soviet War Factory, Grizzly (skirt bolts, wheels under the skirts, lights, stowage, cupola,
+  smoke dischargers, muzzle brake, stars), Ore Truck (hubs, grille, mirrors, beacons, exhaust, rails, ladder, bin ribs).
+- **Still to do:** every other unit (vehicles, aircraft, infantry) and structure by hand, snow and fen ground, crags.
+
 ## Red Alert 2 ground (branch claude/ra2-models only, 2026-11-28, looks only, both modes)
 
 - **Owner:** "do the ground terrain next, look up red alert 2 ground textures for reference, get to that exact detail". Studied

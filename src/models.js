@@ -6029,9 +6029,26 @@ function turretZ(d) { return d.size && d.size.tz !== undefined ? d.size.tz : TUR
 // of small leaf clusters, lighter toward the top and the sun (upper left), a few bright highlights. Pine: tiers of drooping,
 // ragged boughs narrowing to a point, lighter tips, snow lying on each tier on winter maps. Same box and heights as before.
 const LEAF = ['#1f3816', '#29491b', '#355c21', '#436f28', '#548330', '#6a9a3a'], PINE = ['#152a1c', '#1c3622', '#25442a', '#305233', '#3d623c'];
-function treeModel(seed, pine, snow) {
+// A model of D small voxels per world pixel, made in the game itself (not the HD bake): only the fine kit draws into it.
+// renderFine draws it at K pixels per world pixel, as the HD bake does (tools/hd-vox.js). For scenery the sheets lack.
+function fineModel(x0, y0, x1, y1, d, D) {
+  const m = new VModel(Math.floor(x0) * D, Math.floor(y0) * D, Math.ceil(x1) * D, Math.ceil(y1) * D, Math.ceil(d) * D);
+  m.vd = D;
+  return m;
+}
+function renderFine(m, K) {
+  const out = renderVox(m, 0, { scale: K / m.vd, fit: true, crisp: false });
+  out.ox /= K; out.oy /= K; out.img._ox = out.ox; out.img._oy = out.oy; out.img._k = K;
+  if (out.sh) {
+    const sh = softShadow(out.sh, K);
+    out.sox = out.sox / K - sh._pad / K; out.soy = out.soy / K - sh._pad / K;
+    sh._ox = out.sox; sh._oy = out.soy; sh._k = K; sh._shade = true; out.sh = sh;
+  }
+  return out;
+}
+function treeModel(seed, pine, snow, D) {
   const r = rng(seed);
-  const m = new VModel(-12, -12, 12, 12, 30);
+  const m = D ? fineModel(-12, -12, 12, 12, 30, D) : new VModel(-12, -12, 12, 12, 30);
   const ball = (cx, cy, cz, rad, c) => vfill(m, cx - rad, cy - rad, cz - rad, cx + rad, cy + rad, cz + rad, c, M_ROUGH, (x, y, z) => (x - cx) ** 2 + (y - cy) ** 2 + ((z - cz) * 1.15) ** 2 <= rad * rad);
   if (pine) {
     vcyl(m, 'z', 0, 6, 0, 0, 1.0, C.bark, M_ROUGH);
@@ -6160,9 +6177,11 @@ function gemModel(level, variant) {
 const scenery = { trees: [], pines: [], snowPines: [], burntTrees: [], burntPines: [], rocks: [], ore: [], gem: [] };
 function buildScenery() {
   if (scenery.trees.length) return;
-  for (let i = 0; i < 6; i++) scenery.trees.push(renderVox(treeModel(i * 97 + 3, false), 0));
-  for (let i = 0; i < 5; i++) scenery.pines.push(renderVox(treeModel(i * 71 + 11, true), 0));
-  for (let i = 0; i < 6; i++) scenery.snowPines.push(renderVox(treeModel(i * 71 + 11, true, true), 0));
+  // (HD graphics: the trees built at 4x detail and drawn at HD.K pixels per world pixel, as the baked sprites are)
+  const hd = typeof HD !== 'undefined' && HD.on && typeof softShadow === 'function', tree = (sd, pine, snow) => (hd ? renderFine(treeModel(sd, pine, snow, 4), HD.K) : renderVox(treeModel(sd, pine, snow), 0));
+  for (let i = 0; i < 6; i++) scenery.trees.push(tree(i * 97 + 3, false));
+  for (let i = 0; i < 5; i++) scenery.pines.push(tree(i * 71 + 11, true));
+  for (let i = 0; i < 6; i++) scenery.snowPines.push(tree(i * 71 + 11, true, true));
   for (let i = 0; i < 5; i++) scenery.burntTrees.push(renderVox(burntTreeModel(i * 97 + 3, false), 0));
   for (let i = 0; i < 5; i++) scenery.burntPines.push(renderVox(burntTreeModel(i * 71 + 11, true), 0));
   for (let i = 0; i < 5; i++) scenery.rocks.push(renderVox(rockModel(i * 53 + 7), 0, { flat: true }));   // (painted into the ground)

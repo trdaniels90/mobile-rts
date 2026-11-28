@@ -51,6 +51,12 @@ class VModel {
   }
   set(x, y, z, c, m) { const i = this.idx(x, y, z); if (i >= 0) { this.col[i] = c === null ? -1 : rgbInt(c); this.mat[i] = m || 0; } }
   get(x, y, z) { const i = this.idx(x, y, z); return i < 0 ? -1 : this.col[i]; }
+  // A small voxel by its own grid position (models made with fineModel: the fine kit's vfill / vpaint use it)
+  fi(X, Y, Z) {
+    X -= this.x0; Y -= this.y0;
+    if (X < 0 || Y < 0 || Z < 0 || X >= this.w || Y >= this.h || Z >= this.d) return -1;
+    return (Z * this.h + Y) * this.w + X;
+  }
   box(x0, y0, z0, x1, y1, z1, c, m) {
     c = c === null ? -1 : rgbInt(c);
     for (let z = Math.floor(z0); z < z1; z++) for (let y = Math.floor(y0); y < y1; y++) for (let x = Math.floor(x0); x < x1; x++) {
