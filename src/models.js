@@ -6116,6 +6116,7 @@ function fineModel(x0, y0, x1, y1, d, D) {
 }
 function renderFine(m, K) {
   const out = renderVox(m, 0, { scale: K / m.vd, fit: true, crisp: false });
+  if (typeof edgeDark === 'function') edgeDark(out.img);
   out.ox /= K; out.oy /= K; out.img._ox = out.ox; out.img._oy = out.oy; out.img._k = K;
   if (out.sh) {
     const sh = softShadow(out.sh, K);

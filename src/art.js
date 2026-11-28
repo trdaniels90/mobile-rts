@@ -63,6 +63,20 @@ function sdPic(img) {
   return c;
 }
 // A cast shadow's mask softened (HD): blurred by about a world pixel, its edge fading instead of stepping.
+// RA2's dark edges (branch claude/ra2-models): every HD picture's outermost pixels darkened, so units and structures stand
+// off the ground as in Red Alert 2's sprites. In place; for the HD bake (tools/hd-vox.js), HD sprites made in play, and
+// the trees (renderFine).
+function edgeDark(c) {
+  if (!c || !c.getContext) return c;
+  const g = c.getContext('2d'), W = c.width, H = c.height;
+  if (!W || !H) return c;
+  const img = g.getImageData(0, 0, W, H), d = img.data, a = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : d[(y * W + x) * 4 + 3]);
+  const edge = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 120 && (a(x - 1, y) < 60 || a(x + 1, y) < 60 || a(x, y - 1) < 60 || a(x, y + 1) < 60)) edge[y * W + x] = 1;
+  for (let i = 0; i < W * H; i++) if (edge[i]) { d[i * 4] *= 0.5; d[i * 4 + 1] *= 0.5; d[i * 4 + 2] *= 0.5; }
+  g.putImageData(img, 0, 0);
+  return c;
+}
 function softShadow(c, k) {
   const P = Math.ceil(k * 1.5), o = mkCanvas(c.width + 2 * P, c.height + 2 * P), g = o.getContext('2d');
   g.filter = `blur(${(k * 0.75).toFixed(2)}px)`; g.drawImage(c, P, P); g.filter = 'none';
@@ -172,11 +186,11 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
   // dirt, pale sand and brighter water. Snow and fen maps keep their own palettes.
   const RA2 = !snow && !marsh;
   const GRASS = snow ? [[156, 166, 184], [178, 188, 204], [198, 207, 220], [216, 223, 233], [234, 239, 246]] : marsh ? [[34, 40, 24], [42, 50, 28], [52, 60, 32], [62, 69, 38], [78, 82, 46]]
-    : [[46, 70, 28], [56, 84, 32], [66, 98, 36], [78, 112, 40], [92, 126, 46], [108, 140, 54]];
+    : [[64, 92, 26], [76, 106, 30], [90, 120, 34], [104, 134, 38], [120, 148, 44], [138, 162, 56]];   // RA2: bright yellow-green, flat
   const EARTH = snow ? [[98, 94, 92], [116, 112, 108], [134, 130, 126], [152, 150, 148]] : marsh ? [[48, 40, 30], [60, 50, 36], [72, 61, 44], [86, 73, 52]]
     : [[98, 78, 52], [116, 94, 64], [134, 110, 76], [150, 126, 88], [166, 142, 102]];
   const SANDS = snow ? [[142, 148, 158], [162, 168, 178], [182, 189, 199]] : marsh ? [[78, 72, 52], [92, 85, 61], [106, 98, 70]] : [[170, 152, 106], [188, 170, 122], [204, 188, 138]];
-  const WATER = snow ? [[30, 48, 68], [38, 58, 80], [48, 70, 94], [60, 84, 108]] : marsh ? [[30, 42, 38], [36, 50, 44], [44, 59, 50], [54, 69, 58]] : [[38, 82, 118], [48, 96, 136], [60, 112, 152], [76, 128, 168]];
+  const WATER = snow ? [[30, 48, 68], [38, 58, 80], [48, 70, 94], [60, 84, 108]] : marsh ? [[30, 42, 38], [36, 50, 44], [44, 59, 50], [54, 69, 58]] : [[20, 46, 104], [26, 58, 122], [34, 72, 140], [46, 88, 158]];   // RA2: deep, saturated blue
   const ROUGH = [[52, 66, 30], [66, 78, 38], [84, 86, 48], [102, 92, 60]];   // RA2 rough ground: tired grass and bare earth
   const STROKE = snow ? 0.5 : 0.95;
   const SOFT = typeof LOOK_SOFT !== 'undefined' && LOOK_SOFT;   // (look.js test; in the workers, from their constants line)   // snow shows the blade tile only as soft wind ripples
@@ -275,8 +289,8 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
         let col, rough = 0;
         if (RA2) {   // clumps (darker hollows, lighter tops), the blades, light tufts, rough patches, flowers, pebbles
           const cl = noise(P.N0, x, y), cl2 = noise(P.N0, y, x);
-          col = pickTone(GRASS, hh * 0.95 - 0.06 + (gt - 0.5) * 0.8 + (cl - 0.5) * 0.7 + (sp - 0.5) * 0.14);
-          if (cl2 > 0.74 && sp > 0.55) col = GRASS[5];
+          col = pickTone(GRASS, hh * 0.7 + 0.08 + (gt - 0.5) * 0.45 + (cl - 0.5) * 0.35 + (sp - 0.5) * 0.18);   // (flat and fine-grained, as RA2's)
+          if (cl2 > 0.8 && sp > 0.6) col = GRASS[5];
           rough = sm(Math.max(0, Math.min(1, (noise(N3, y, x) * 0.7 + noise(N2, y, x) * 0.3 - 0.6) / 0.1)));
           if (rough > 0) {
             const r = pickTone(ROUGH, (cl - 0.5) * 1.2 + (gt - 0.5) * 0.6 + (sp - 0.5) * 0.5 + 0.45);
@@ -446,6 +460,7 @@ if (HD.on && typeof sprite === 'function') {
     const s = orig(mkey, build, angle, fkey, o);
     if (!s || s._hd || !s.img || s.img._k || (typeof ImageBitmap !== 'undefined' && s.img instanceof ImageBitmap)) return s;   // (baked: as it is)
     s._hd = true;
+    if (!(opts && opts.normal)) edgeDark(s.img);
     s.ox /= div; s.oy /= div; s.img._ox = s.ox; s.img._oy = s.oy; s.img._k = K;
     if (s.sh) {
       const sh = softShadow(s.sh, K);

@@ -127,6 +127,7 @@ function installHdVox(D, K) {
     const o = Object.assign({}, opts), scale = o.scale || 1, div = o.fit ? K : scale * K;
     o.scale = scale * K / m.vd; o.fit = true; o.crisp = false;
     const out = render0(m, angle, o);
+    if (typeof edgeDark === 'function') edgeDark(out.img);   // RA2's dark edges (art.js)
     out.ox /= div; out.oy /= div; out.img._ox = out.ox; out.img._oy = out.oy; out.img._k = K;
     if (out.sh) {
       const sh = softShadow(out.sh, K);
