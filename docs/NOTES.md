@@ -2,6 +2,24 @@
 
 Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the section for the part of the game you are changing; add notes for new features here, newest last.
 
+## Red Alert 2 colours (test setting, after 2026.11.26.5, not released, looks only, both modes)
+
+- **Goal (owner, 2026-11-28):** move toward Red Alert 2's look, one step at a time; step 1 is RA2's bright, saturated midday light,
+  as its own setting next to the Tiberian Sun mood ("if it turns out well then I will replace it"). Original work only.
+- **Setting:** Settings > Graphics, "Colours: Tiberian Sun / Red Alert 2 (test)" (look.js `LOOK_STYLE`, `setLookStyle`, kept in
+  localStorage `rh-style`; `?style=ra2` / `?style=ts` in the address wins). Switches at once, mid-battle too. Default: Tiberian Sun.
+- **What it changes** (look.js `RA2_BASE`, per theme `RA2_MOOD`, picked by `lookMood` instead of `MOOD`): saturation pushed up
+  (`sat` below 0: gl.js mixes away from grey; the 2D way cannot boost, so there colours are only left unmuted), a grade a little
+  above white (brighter; above 255 works in WebGL only), a soft high warm light, thin shade, no vignette, no cloud shadows
+  (`cloud` 0: drawLook and gl.js `uCloudK`), weaker light pools by day. Weather and day/night still apply on top.
+- **RA2 night (owner asked, 2026-11-28, after seeing the TS night unchanged):** look.js `nightStyle()` gives the night shade's colour,
+  strength and the lights' glow per style; art.js `drawNightRest` and gl.js (`uNightC`, the warm pass) use it. RA2: moonlit blue
+  (26, 44, 96) at 0.5 instead of navy (6, 12, 34) at 0.62, lamps and windows glowing 1.7x; its saturation boost is kept at night
+  (gl.js `uSat`: a negative sat is not faded by the night). TS night unchanged.
+- **Preview:** `node tools/look/record.js <repo> <out> ra2 [secs] [still]` (before = TS colours, after = RA2), MP4 via `tools/look/video.sh`.
+- **Next steps proposed to the owner:** a 30 degree camera (`VIEW.elev`, true 2:1 diamonds) with units scaled up and a full rebake;
+  a higher, glossier voxel light; RA2-proportioned models; an urban theatre; a metallic sidebar per side.
+
 ## Tiberian Sun look (WORK IN PROGRESS, prototype off by default; looks only, both modes)
 
 **Goal (owner, 2026-11-19):** bring the game's look closer to Tiberian Sun's (original work only, nothing copied). A prototype in

@@ -1360,7 +1360,7 @@ function nightLights(vx, vy, vw, vh, night) {
   return lights;
 }
 function drawNightRest(g, vx, vy, k, t, night, near, vis, n, nW, nH, nk, W, H, lights) {
-  n.fillStyle = `rgba(6,12,34,${(0.62 * night).toFixed(3)})`; n.fillRect(0, 0, nW, nH);
+  const NS = nightStyle(); n.fillStyle = `rgba(${NS.c},${(NS.a * night).toFixed(3)})`; n.fillRect(0, 0, nW, nH);
   n.globalCompositeOperation = 'destination-out';
   for (const [x, y, r, a] of lights) {
     const flick = 0.92 + Math.random() * 0.08;
@@ -1372,7 +1372,7 @@ function drawNightRest(g, vx, vy, k, t, night, near, vis, n, nW, nH, nk, W, H, l
   g.save(); g.globalCompositeOperation = 'lighter';
   for (const [x, y, r, a, w] of lights) {
     if (!w) continue;
-    g.globalAlpha = 0.12 * a * night; g.drawImage(lampGlowPic || lightPic, (x - vx - r * 0.6) * k, (y - vy - r * 0.6) * k, r * 1.2 * k, r * 1.2 * k);
+    g.globalAlpha = Math.min(1, 0.12 * NS.glow * a * night); g.drawImage(lampGlowPic || lightPic, (x - vx - r * 0.6) * k, (y - vy - r * 0.6) * k, r * 1.2 * k, r * 1.2 * k);
   }
   g.restore();
   navLights(g, vx, vy, k, t, night, near, vis);
