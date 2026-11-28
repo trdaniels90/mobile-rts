@@ -94,6 +94,13 @@
     const k = d <= 1 ? 1 : Math.max(0, 1 - (d - 1) * 0.8);
     shakeAmp = Math.min(12, Math.max(shakeAmp, amp * k));
   };
+  // Is a point on screen or near it (within half a screen)? For effects that only need making where they can be seen
+  // (world.js plantSmoke), so a big base's plumes off screen cost nothing.
+  hooks.nearView = (x, y) => {
+    const hw = W / cam.z / 2, hh = H / cam.z / 2;
+    [x, y] = toView(x, y);
+    return Math.abs(x - (cam.x + hw)) < hw * 2 && Math.abs(y - (cam.y + hh)) < hh * 2 + 60;
+  };
   hooks.sfx = (name, x, y) => {
     if (!G) return;
     const hw = W / cam.z / 2, hh = H / cam.z / 2;
@@ -2351,9 +2358,9 @@ function draw() {
   function syncFps() {
     const b = $('fpsBtn');
     b.setAttribute('aria-pressed', String(full60));
-    b.textContent = 'Always 60 fps: ' + (full60 ? 'on' : 'off');
-    $('fpsStatus').textContent = full60 ? 'Smoothest, but the phone runs warmer and uses more battery.'
-      : 'Cooler: 60 fps while you touch the screen, 30 while you watch.';
+    b.textContent = 'Frame rate: ' + (full60 ? '60 fps' : '30 fps');
+    $('fpsStatus').textContent = full60 ? 'Smoothest, but the device runs warmer and uses more battery.'
+      : 'Cooler and lighter on the battery. Switch to 60 fps for smoother scrolling.';
   }
   $('trackBtn').addEventListener('click', () => { Sound.init(); Sound.setOption('music', true); Sound.music.skip(); syncMenuChoices(); });
   for (const [id, key] of [['musicVol', 'musicVol'], ['sfxVol', 'sfxVol']]) {
@@ -2701,22 +2708,16 @@ function draw() {
   }
   function guard(where, fn) { try { return fn(); } catch (e) { Report.oops(where, e); } }
   // The next frame is asked for first, so nothing that goes wrong in this one can stop the loop.
-  // Smart 30/60 on phones (owner, 2026-11-22: "still getting a little hot"; picked over a fixed 30, 40 or 45, which a
-  // 60 Hz screen shows unevenly): while a battle runs and nobody has touched the screen or moved the camera for IDLE_MS,
-  // every other frame is skipped whole (30 fps). The battle steps 30 times a second anyway (STEP), so nothing is lost
-  // but the in-between frames. A touch, a drag or a camera that is still moving brings 60 back at once. Computers
-  // always draw every frame. The menu's "Always 60 fps" (localStorage rh-full60) turns it off.
-  const IDLE_MS = 1200;
-  let full60 = false, lastInput = -1e9, lastFrame = 0, camIdle = '';
+  // 30 or 60 fps on phones and iPads (owner, 2026-11-28: "lets make a toggle for 30 or 60fps not the hybrid we have now
+  // and make 30fps the default"; replaced the smart 30/60 of 2026-11-22, which went to 60 at every touch, so a played
+  // battle ran near 60 and the phones got hot). At 30, while a battle runs every other frame is skipped whole: the battle
+  // steps 30 times a second anyway (STEP), so only the in-between frames go. Menus, pause and loading are not affected.
+  // Computers always draw every frame. The menu's "Frame rate" (localStorage rh-full60 '1' for 60) switches it.
+  let full60 = false, lastFrame = 0;
   try { full60 = localStorage.getItem('rh-full60') === '1'; } catch (_) {}
-  for (const ev of ['pointerdown', 'pointermove', 'touchstart', 'touchmove', 'wheel', 'keydown'])
-    window.addEventListener(ev, () => { lastInput = performance.now(); }, { capture: true, passive: true });
   function skipFrame(now) {
-    if (!touchScr || full60 || !G || G.paused || G.over || document.hidden || Chat.busy) return false;
-    const c = cam.x + ',' + cam.y + ',' + cam.z;
-    if (c !== camIdle) { camIdle = c; lastInput = Math.max(lastInput, now); }
-    if (now - lastInput < IDLE_MS) return false;
-    return now - lastFrame < 25;
+    if (!touchScr || full60 || !G || G.paused || G.over || document.hidden) return false;
+    return now - lastFrame < 29;   // a 60 Hz screen draws every 2nd frame, a 120 Hz one every 4th: 30 either way
   }
   function loop(now) { requestAnimationFrame(loop); if (skipFrame(now)) return; lastFrame = now; frame(now); }
 

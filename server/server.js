@@ -73,7 +73,9 @@ function rpc(fn, p) {
 function rpcJson(fn, p) {
   return fetch(SUPA.url + 'rest/v1/rpc/' + fn, { method: 'POST', signal: AbortSignal.timeout(20000),
     headers: { apikey: SUPA.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_token: SUPA.token, p }) })
-    .then((r) => { if (!r.ok) throw new Error(fn + ' ' + r.status); return r.json(); });
+    // coop_save_put and coop_save_drop answer nothing (an empty body): that is success, not a JSON error.
+    .then((r) => { if (!r.ok) throw new Error(fn + ' ' + r.status); return r.text(); })
+    .then((t) => (t ? JSON.parse(t) : null));
 }
 
 // ---------------------------------------------------------------------------

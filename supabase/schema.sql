@@ -45,6 +45,13 @@ returns void language sql security definer set search_path = '' as $$
   where id = p_id and device_id = p_device and ended_at is null;
 $$;
 
+-- A match's black box (stats.crash, from match_crash) is kept when later numbers replace its stats: a battle continued
+-- after the page died reports into the same row, and used to wipe it (2026-11-28).
+create or replace function public.keep_crash(p_old jsonb, p_new jsonb)
+returns jsonb language sql immutable set search_path = '' as $$
+  select case when p_old ? 'crash' and not (p_new ? 'crash') then p_new || jsonb_build_object('crash', p_old->'crash') else p_new end;
+$$;
+
 -- Progress while a match runs: the heartbeat plus the debrief numbers so far, so a match the
 -- app was closed on keeps its numbers up to its last minute. Only the starting device, and only
 -- until the match has ended.
@@ -53,7 +60,7 @@ returns void language sql security definer set search_path = '' as $$
   update public.matches
   set last_seen = now(),
       duration_s = case when p_duration between 0 and 86400 then p_duration else duration_s end,
-      stats = case when octet_length(p_stats::text) <= 100000 then p_stats else stats end
+      stats = case when octet_length(p_stats::text) <= 100000 then public.keep_crash(stats, p_stats) else stats end
   where id = p_id and device_id = p_device and ended_at is null;
 $$;
 
@@ -61,7 +68,7 @@ create or replace function public.match_end(p_id uuid, p_device uuid, p_result t
 returns void language sql security definer set search_path = '' as $$
   update public.matches
   set ended_at = now(), last_seen = now(), result = p_result, duration_s = p_duration,
-      stats = case when octet_length(p_stats::text) <= 100000 then p_stats else stats end
+      stats = case when octet_length(p_stats::text) <= 100000 then public.keep_crash(stats, p_stats) else stats end
   where id = p_id and device_id = p_device and ended_at is null
     and p_result in ('win', 'loss', 'quit');
 $$;
