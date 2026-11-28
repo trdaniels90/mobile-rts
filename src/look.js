@@ -668,7 +668,12 @@ function cliffPic(L, c, noShadow, K = 1) {
         if (ledge) v += 0.8; else if (ledgeZ < 1.6 && z > 3) v -= 0.7;   // the ledge's lit top, the shadow under it
         v = Math.min(v, ROCK.length - 2.2);   // (faces never take the palest tones: stepped tops stay readable as rock)
       }
-      let t = ROCK[Math.max(0, Math.min(ROCK.length - 1, Math.floor(v)))];
+      if (steep > 0.3) {   // big forms: buttresses and bulges a few px across, lit on their sun side, shaded on the other
+        const B = Math.sin((fx - fy) * 0.55 + hash3(Math.floor((fx - fy) / 9), 0, 51) * 6.3) + 0.5 * Math.sin((fx + fy) * 0.31 + z * 0.12);
+        v += B * 0.9;
+      }
+      const vc = Math.max(0, Math.min(ROCK.length - 1.001, v)), ti = Math.floor(vc), ta = vc - ti;   // smooth, not banded
+      let t = [ROCK[ti][0] + (ROCK[ti + 1][0] - ROCK[ti][0]) * ta, ROCK[ti][1] + (ROCK[ti + 1][1] - ROCK[ti][1]) * ta, ROCK[ti][2] + (ROCK[ti + 1][2] - ROCK[ti][2]) * ta];
       if (steep > 0.3 && hash3(Math.floor(fx / 4), Math.floor(fy / 4), 23) > 0.62) t = [t[0] * 1.12, t[1] * 0.92, t[2] * 0.74];   // warm mineral stains
       if (ledge) {
         const sn = L.snow ? [232, 238, 246] : [222, 192, 150], k = L.snow ? 0.9 : 0.35, n = hash3(xi, yi, Math.floor(z));   // snow, or pale sandstone (no moss: RA2's faces are bare)
@@ -678,11 +683,11 @@ function cliffPic(L, c, noShadow, K = 1) {
         const j = ((yi - cy * CELL * K) * CELL * K + xi - cx * CELL * K) * 4, m = tAbs && h0 + z > tAbs - 3 ? 1 : Math.min(1, (0.55 - steep) * 3);
         t = [t[0] + (gcol[j] * lev - t[0]) * m, t[1] + (gcol[j + 1] * lev - t[1]) * m, t[2] + (gcol[j + 2] * lev - t[2]) * m];
       } else if (py - yTop < 2 * K && steep < 0.55 && hz > top * CLIFF_UP * 0.82) {   // the top: grass over the rock (RA2: the field's own green; only at the crag's top, not down its faces), lit by the sun
-        const gr = L.snow ? [214, 220, 230] : [80, 124, 42], k = 0.8 + lit * 0.35 + (hash3(xi, yi, 13) - 0.5) * 0.3, m = Math.min(1, (0.55 - steep) * 3);
+        const gr = L.snow ? [214, 220, 230] : [84, 102, 40], k = 0.8 + lit * 0.35 + (hash3(xi, yi, 13) - 0.5) * 0.3, m = Math.min(1, (0.55 - steep) * 3);
         t = [t[0] + (gr[0] * k - t[0]) * m, t[1] + (gr[1] * k - t[1]) * m, t[2] + (gr[2] * k - t[2]) * m];
       } else if (!gcol && steep >= 0.3) {   // RA2 rim: grass hanging over the edge, ragged, a dark line of shade under it
         const lip = Math.min(top * CLIFF_UP * 0.12, 0.6 + hash3(Math.floor(fx * 1.3), Math.floor(fy * 1.3), 41) * 1.4), dz = top * CLIFF_UP - z;
-        if (dz < lip) { const gr = L.snow ? [222, 228, 238] : [74, 116, 38], k = 0.78 + lit * 0.3 + (hash3(xi, yi, Math.floor(z * 2)) - 0.5) * 0.3; t = [gr[0] * k, gr[1] * k, gr[2] * k]; }
+        if (dz < lip) { const gr = L.snow ? [222, 228, 238] : [78, 96, 38], k = 0.78 + lit * 0.3 + (hash3(xi, yi, Math.floor(z * 2)) - 0.5) * 0.3; t = [gr[0] * k, gr[1] * k, gr[2] * k]; }
         else if (dz < lip + 0.8) t = [t[0] * 0.55, t[1] * 0.55, t[2] * 0.55];
       }
       if (z < 2.5 && steep >= 0.3 && hash3(Math.floor(fx * 2), Math.floor(fy * 2), Math.floor(z * 2) + 43) > 0.45) {   // scree at the foot

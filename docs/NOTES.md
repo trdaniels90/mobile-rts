@@ -54,6 +54,10 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
   own green on it, a ragged grassy rim hanging over the edge (`lip`, at most 12% of the crag's height) with a dark line of shade
   under it, bare faces (no moss: pale sandstone ledges; snow stays on winter ledges), scree at the foot. Rolling hills unchanged.
   Not done: ramps up onto crags (gameplay; Lakeside's mesa already has one), the mesa's own rim drawing.
+- **"Their cliffs and ground textures just look more real" (owner, 2026-11-28):** grass is now natural olive (`GRASSN`, blended
+  smoothly between tones, not picked from a few: the banding looked artificial) with noise at four scales, dry yellow-tan patches,
+  dark clumps and specks of bare earth; crag rock is blended smoothly too and has big forms (buttresses and bulges lit on their sun
+  side), and crag tops the same olive.
 - **Still to do:** every other unit (vehicles, aircraft, infantry) and structure by hand, snow and fen ground, crags.
 
 ## Red Alert 2 ground (branch claude/ra2-models only, 2026-11-28, looks only, both modes)

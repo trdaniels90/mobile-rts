@@ -191,6 +191,7 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
     : [[98, 78, 52], [116, 94, 64], [134, 110, 76], [150, 126, 88], [166, 142, 102]];
   const SANDS = snow ? [[142, 148, 158], [162, 168, 178], [182, 189, 199]] : marsh ? [[78, 72, 52], [92, 85, 61], [106, 98, 70]] : [[170, 152, 106], [188, 170, 122], [204, 188, 138]];
   const WATER = snow ? [[30, 48, 68], [38, 58, 80], [48, 70, 94], [60, 84, 108]] : marsh ? [[30, 42, 38], [36, 50, 44], [44, 59, 50], [54, 69, 58]] : [[20, 46, 104], [26, 58, 122], [34, 72, 140], [46, 88, 158]];   // RA2: deep, saturated blue
+  const GRASSN = [[44, 60, 24], [58, 76, 30], [72, 92, 36], [88, 106, 42], [104, 118, 52], [122, 130, 64]];   // RA2 natural olive greens (blended)
   const ROUGH = [[52, 66, 30], [66, 78, 38], [84, 86, 48], [102, 92, 60]];   // RA2 rough ground: tired grass and bare earth
   const STROKE = snow ? 0.5 : 0.95;
   const SOFT = typeof LOOK_SOFT !== 'undefined' && LOOK_SOFT;   // (look.js test; in the workers, from their constants line)   // snow shows the blade tile only as soft wind ripples
@@ -288,9 +289,16 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
         }
         let col, rough = 0;
         if (RA2) {   // clumps (darker hollows, lighter tops), the blades, light tufts, rough patches, flowers, pebbles
-          const cl = noise(P.N0, x, y), cl2 = noise(P.N0, y, x);
-          col = pickTone(GRASS, hh * 0.7 + 0.08 + (gt - 0.5) * 0.45 + (cl - 0.5) * 0.35 + (sp - 0.5) * 0.18);   // (flat and fine-grained, as RA2's)
-          if (cl2 > 0.8 && sp > 0.6) col = GRASS[5];
+          // Natural grass (owner: RA2's "just look more real"): olive greens blended smoothly (no banding) by noise at four
+          // scales, the blades, dry yellow-tan patches, darker clumps, and specks of bare earth.
+          const cl = noise(P.N0, x, y), cl2 = noise(P.N0, y, x), n2b = noise(N2, y, x), n3b = noise(N3, y, x);
+          const v = Math.max(0, Math.min(0.999, 0.18 + hh * 0.42 + (cl - 0.5) * 0.4 + (gt - 0.5) * 0.36 + (sp - 0.5) * 0.22));
+          const f = v * (GRASSN.length - 1), i0 = Math.floor(f), a = f - i0, c0 = GRASSN[i0], c1 = GRASSN[i0 + 1];
+          col = [c0[0] + (c1[0] - c0[0]) * a, c0[1] + (c1[1] - c0[1]) * a, c0[2] + (c1[2] - c0[2]) * a];
+          const dry = sm(Math.max(0, Math.min(1, (n2b * 0.6 + n3b * 0.4 - 0.52) / 0.16))) * (0.55 + (cl2 - 0.5) * 0.6);
+          if (dry > 0) col = [col[0] + (150 - col[0]) * dry * 0.6, col[1] + (138 - col[1]) * dry * 0.45, col[2] + (80 - col[2]) * dry * 0.5];
+          if (cl2 > 0.82 && sp > 0.5) col = [col[0] * 0.78, col[1] * 0.82, col[2] * 0.76];          // a dark clump
+          if (sp > 0.985 - dry * 0.04) col = sp > 0.996 ? [138, 116, 84] : [96, 80, 56];             // bare earth
           rough = sm(Math.max(0, Math.min(1, (noise(N3, y, x) * 0.7 + noise(N2, y, x) * 0.3 - 0.6) / 0.1)));
           if (rough > 0) {
             const r = pickTone(ROUGH, (cl - 0.5) * 1.2 + (gt - 0.5) * 0.6 + (sp - 0.5) * 0.5 + 0.45);
