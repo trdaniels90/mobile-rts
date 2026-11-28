@@ -68,6 +68,98 @@ function shadeInt(hex, k) {
   const c = rgbInt(hex), r = Math.min(255, ((c >> 16) & 255) * k), g = Math.min(255, ((c >> 8) & 255) * k), b = Math.min(255, (c & 255) * k);
   return (r << 16) | (g << 8) | b;
 }
+// ---- The fine kit (Red Alert 2 detail, 2026-11-28) ------------------------------------------------------------------
+// Shapes placed in world pixels with fractions (to a quarter pixel), for detail finer than a design voxel: rivets, panel
+// seams, grilles, hatches, track links. On a model built at HD detail (tools/hd-vox.js: m.vd small voxels per world
+// pixel) every small voxel whose centre is inside is filled, so the detail shows in HD graphics; on an ordinary model
+// (one voxel per world pixel) the same call fills the voxels whose centres are inside, so the shapes keep their size and
+// the finest detail drops out. test(x, y, z) (world units, the small voxel's centre) cuts any shape out of the box.
+function vfill(m, x0, y0, z0, x1, y1, z1, c, mt, test) {
+  const D = m.vd || 1, col = c === null ? -1 : rgbInt(c);
+  const X0 = Math.floor(x0 * D), Y0 = Math.floor(y0 * D), Z0 = Math.max(0, Math.floor(z0 * D)), X1 = Math.ceil(x1 * D), Y1 = Math.ceil(y1 * D), Z1 = Math.ceil(z1 * D);
+  for (let Z = Z0; Z < Z1; Z++) {
+    const cz = (Z + 0.5) / D;
+    if (cz < z0 || cz >= z1) continue;
+    for (let Y = Y0; Y < Y1; Y++) {
+      const cy = (Y + 0.5) / D;
+      if (cy < y0 || cy >= y1) continue;
+      for (let X = X0; X < X1; X++) {
+        const cx = (X + 0.5) / D;
+        if (cx < x0 || cx >= x1 || (test && !test(cx, cy, cz))) continue;
+        const i = m.vd ? m.fi(X, Y, Z) : m.idx(X, Y, Z);
+        if (i >= 0) { m.col[i] = col; m.mat[i] = mt || 0; }
+      }
+    }
+  }
+}
+// Repaint what is already there in a box: fn(x, y, z, colour, material, i) (world units) returns a colour, or nothing to
+// keep it; with `skin` only the voxels on the surface (an empty neighbour).
+function vpaint(m, x0, y0, z0, x1, y1, z1, fn, skin) {
+  const D = m.vd || 1, W = m.w, H = m.h, Dd = m.d;
+  const ox = m.x0, oy = m.y0;   // (in small voxels on an HD model, in voxels on an ordinary one)
+  const X0 = Math.max(0, Math.floor(x0 * D) - ox), Y0 = Math.max(0, Math.floor(y0 * D) - oy), Z0 = Math.max(0, Math.floor(z0 * D));
+  const X1 = Math.min(W, Math.ceil(x1 * D) - ox), Y1 = Math.min(H, Math.ceil(y1 * D) - oy), Z1 = Math.min(Dd, Math.ceil(z1 * D));
+  const at = (x, y, z) => (x < 0 || y < 0 || z < 0 || x >= W || y >= H || z >= Dd ? -1 : m.col[(z * H + y) * W + x]);
+  for (let z = Z0; z < Z1; z++) for (let y = Y0; y < Y1; y++) for (let x = X0; x < X1; x++) {
+    const i = (z * H + y) * W + x, c = m.col[i];
+    if (c < 0) continue;
+    if (skin && at(x + 1, y, z) >= 0 && at(x - 1, y, z) >= 0 && at(x, y + 1, z) >= 0 && at(x, y - 1, z) >= 0 && at(x, y, z + 1) >= 0) continue;
+    const v = fn((x + ox + 0.5) / D, (y + oy + 0.5) / D, (z + 0.5) / D, c, m.mat[i], i);
+    if (v !== undefined && v !== null) m.col[i] = rgbInt(v);
+  }
+}
+// A cylinder along x, y or z (axis 'x' | 'y' | 'z') from a to b, centre (u, v) across it, radius r.
+function vcyl(m, axis, a, b, u, v, r, c, mt) {
+  if (axis === 'x') vfill(m, a, u - r, v - r, b, u + r, v + r, c, mt, (x, y, z) => (y - u) ** 2 + (z - v) ** 2 <= r * r);
+  else if (axis === 'y') vfill(m, u - r, a, v - r, u + r, b, v + r, c, mt, (x, y, z) => (x - u) ** 2 + (z - v) ** 2 <= r * r);
+  else vfill(m, u - r, v - r, a, u + r, v + r, b, c, mt, (x, y) => (x - u) ** 2 + (y - v) ** 2 <= r * r);
+}
+// A prism from polygon `lo` at z0 to polygon `hi` at z1 (same number of corners, blended between): sloped armour, a
+// faceted turret. Corners as [x, y], in order round the outline.
+function vprism(m, lo, hi, z0, z1, c, mt) {
+  const xs = lo.concat(hi).map((p) => p[0]), ys = lo.concat(hi).map((p) => p[1]);
+  vfill(m, Math.min(...xs), Math.min(...ys), z0, Math.max(...xs), Math.max(...ys), z1, c, mt, (x, y, z) => {
+    const t = (z - z0) / (z1 - z0); let inside = false;
+    for (let i = 0, j = lo.length - 1; i < lo.length; j = i++) {
+      const xi = lo[i][0] + (hi[i][0] - lo[i][0]) * t, yi = lo[i][1] + (hi[i][1] - lo[i][1]) * t;
+      const xj = lo[j][0] + (hi[j][0] - lo[j][0]) * t, yj = lo[j][1] + (hi[j][1] - lo[j][1]) * t;
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  });
+}
+// Weathering on the fine grid: a soft dirt rising from the ground, paint worn pale on exposed top edges, grime in the
+// corners, a fine mottle; glow and glass untouched. dirt: how high (world px) the dust reaches; k: strength 0-1.
+function vweather(m, dirt, k, dustCol) {
+  const D = m.vd || 1, W = m.w, H = m.h, Dd = m.d, col = m.col, mat = m.mat, dust = rgbInt(dustCol || '#6b5a44');
+  const at = (x, y, z) => (x < 0 || y < 0 || z < 0 || x >= W || y >= H || z >= Dd ? -1 : col[(z * H + y) * W + x]);
+  const out = new Int32Array(col);
+  const mix = (c, d, f) => { const ch = (s) => Math.round(((c >> s) & 255) * (1 - f) + ((d >> s) & 255) * f); return (ch(16) << 16) | (ch(8) << 8) | ch(0); };
+  for (let z = 0; z < Dd; z++) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = (z * H + y) * W + x, c = col[i];
+    if (c < 0 || mat[i] === M_GLOW || mat[i] === M_GLASS) continue;
+    const up = at(x, y, z + 1) < 0, open = (at(x + 1, y, z) < 0) + (at(x - 1, y, z) < 0) + (at(x, y + 1, z) < 0) + (at(x, y - 1, z) < 0);
+    if (!up && !open) continue;
+    let r = c, h = z / D;
+    const n = hash3(x + m.x0, y + m.y0, z), n2 = hash3(Math.floor((x + m.x0) / 3), Math.floor((y + m.y0) / 3), Math.floor(z / 3) + 77);
+    if (h < dirt) r = mix(r, dust, k * 0.55 * (1 - h / dirt) * (0.6 + 0.4 * n2));                // dust and mud low down
+    if (up && open) r = mix(r, 0xffffff, k * 0.12);                                                // top edges catch the light (clean, as RA2)
+    if (!up && open && at(x, y, z + 1) >= 0 && n2 > 0.72) r = mix(r, 0x000000, k * 0.14);       // rain streaks under ledges
+    const f = 1 + (n - 0.5) * 0.035 * k;
+    out[i] = mix(r, f > 1 ? 0xffffff : 0, Math.abs(f - 1));
+  }
+  col.set(out);
+  return m;
+}
+// Rows of rivets or bolts along a line (world px), every `step`, as tiny bumps of colour c on the surface.
+function vrivets(m, x0, y0, z0, x1, y1, z1, step, c, r) {
+  const L = Math.hypot(x1 - x0, y1 - y0, z1 - z0), n = Math.max(1, Math.floor(L / step)); r = r || 0.3;
+  for (let i = 0; i <= n; i++) {
+    const t = n ? i / n : 0, x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t, z = z0 + (z1 - z0) * t;
+    vfill(m, x - r, y - r, z - r, x + r, y + r, z + r, c, M_METAL);
+  }
+}
+
 function hazardV(m, x0, y0, z0, x1, y1, z1) {
   m.box(x0, y0, z0, x1, y1, z1, C.yellow, M_MATTE);
   m.paint(x0, y0, z0, x1, y1, z1, (x, y, z) => ((x + y + z) >> 1) % 2 ? C.black : undefined);
@@ -85,81 +177,154 @@ function sandbagsV(m, x0, y0, x1, y1, h) {
 // tracks barely showing, a wide low turret with two dark hatches, a white aerial at the rear right and
 // two thick black guns side by side.
 const HEAVY_RED = { key: 'soviets', main: '#c9170d', light: '#f0604a', dark: '#8c0d08', deep: '#2b0604' };
-// BLENDER:htank begin
+// Soviet Heavy Tank at Red Alert 2 detail (2026-11-28, owner: "try to get exactly to Red Alert 2's detail"): the owner's
+// design kept (long low red hull, faceted shield turret wide at the back, two big dark oval hatches, twin short thick
+// guns, white aerial with a red tip at the rear right; tools/blender/htank.py was the earlier voxel version, now replaced
+// here by hand) and built with the fine kit (vfill and friends) so HD graphics shows it at a quarter pixel: track links,
+// road wheels, sprocket and idler, fenders with tool boxes and a tow cable, a sloped glacis with headlights, spare track
+// links and a driver's vision block, an engine grille, exhausts and fuel drums at the rear, panel seams and rivets; on the
+// turret a cast mantlet, guns with fume extractors and slotted muzzle brakes, ringed hatches with periscopes, smoke
+// dischargers, a searchlight, a stowage rack, grab rails and a white star. Same boxes as before (hull x -15..14, y -10..11;
+// turret pivot 0, 0 sitting at z 6; muzzles at x 14).
+const HT = { rub: '#1d1b18', link: '#2e2c28', linkH: '#4a463e', wheel: '#3d3c35', tyre: '#1a1917', hub: '#6a675d', gun: '#24211d', gunD: '#141210',
+  steel: '#5d6264', steelL: '#868b8a', olive: '#4f5634', oliveD: '#3b4027', hatch: '#151110', glass: '#29404c', white: '#ece9df', tip: '#c01810' };
 function heavyHull(pal, s) {
   const P = pal.key === 'soviets' ? HEAVY_RED : pal;
   const m = new VModel(-15, -10, 14, 11, 8);
-  m.box(-13, -8, 0, 9, -6, 2, '#1c1a17', M_ROUGH);
-  m.box(-13, 6, 0, 9, 8, 2, '#1c1a17', M_ROUGH);
-  m.box(-14, -8, 2, 10, 8, 4, P.main, M_METAL);
-  m.box(10, -7, 2, 11, 7, 4, P.main, M_METAL);
-  m.box(-14, -8, 4, 10, -7, 5, P.main, M_METAL);
-  m.box(-14, -7, 4, 10, -6, 5, P.light, M_METAL);
-  m.box(-14, -6, 4, 8, 6, 5, P.main, M_METAL);
-  m.box(8, -6, 4, 10, 7, 5, P.light, M_METAL);
-  m.box(-14, 6, 4, 8, 7, 5, P.light, M_METAL);
-  m.box(-14, 7, 4, 10, 8, 5, P.main, M_METAL);
-  m.box(-13, -6, 5, 9, 6, 6, P.light, M_METAL);
-  m.box(-13, -3, 6, -10, 3, 7, P.dark, M_METAL);
-  return m;
+  const dk = mixHex(P.main, '#000000', 0.42), seam = mixHex(P.main, '#000000', 0.3), rivet = mixHex(P.main, P.light, 0.6);
+  // tracks: a rubber-and-steel loop with rounded ends, links all round, road wheels, sprocket (rear) and idler (front)
+  for (const sd of [-1, 1]) {
+    const y0 = sd < 0 ? -8.75 : 5.75, y1 = y0 + 3, yo = sd < 0 ? y0 : y1;
+    const end = (x, z) => (x < -12.5 ? (x + 12.5) ** 2 + (z - 1.5) ** 2 <= 2.3 : x > 9.5 ? (x - 9.5) ** 2 + (z - 1.5) ** 2 <= 2.3 : true);
+    vfill(m, -14, y0, 0, 11, y1, 3, HT.rub, M_ROUGH, (x, y, z) => end(x, z));
+    vpaint(m, -14, y0, 0, 11, y1, 3, (x, y, z) => { const u = ((x + 20) % 0.75 + 0.75) % 0.75; return u < 0.25 ? HT.linkH : u < 0.5 ? HT.link : undefined; }, true);
+    vfill(m, -12.4, sd < 0 ? y0 - 0.2 : y1 - 0.3, 0.75, 9.4, sd < 0 ? y0 + 0.3 : y1 + 0.2, 2.25, HT.tyre, M_ROUGH);   // the gap between the runs, dark
+    for (let i = 0; i < 6; i++) {
+      const x = -10.3 + i * 3.65;
+      vcyl(m, 'y', yo - 0.45, yo + 0.45, x, 1.5, 1.2, HT.tyre, M_ROUGH);
+      vcyl(m, 'y', yo - 0.55, yo + 0.55, x, 1.5, 0.95, HT.wheel, M_METAL);
+      vcyl(m, 'y', yo - 0.65, yo + 0.65, x, 1.5, 0.38, HT.hub, M_METAL);
+    }
+    for (const [x, r] of [[-12.6, 1.4], [9.6, 1.25]]) {
+      vcyl(m, 'y', yo - 0.6, yo + 0.6, x, 1.5, r, HT.wheel, M_METAL);
+      vfill(m, x - r - 0.3, yo - 0.5, 1.5 - r - 0.3, x + r + 0.3, yo + 0.5, 1.5 + r + 0.3, HT.steel, M_METAL, (px, py, pz) => {
+        const a = Math.atan2(pz - 1.5, px - x), d = Math.hypot(px - x, pz - 1.5);
+        return d > r - 0.1 && d < r + 0.3 && (((a / (Math.PI / 6)) % 1) + 1) % 1 < 0.45;   // sprocket teeth
+      });
+      vcyl(m, 'y', yo - 0.7, yo + 0.7, x, 1.5, 0.4, HT.hub, M_METAL);
+    }
+  }
+  // the belly between the tracks, and the hull: long and low, a sloped glacis at the front, a short slope at the back
+  vfill(m, -13.5, -5.75, 0.6, 10, 5.75, 3, dk, M_METAL);
+  vfill(m, -14.2, -8.4, 3, 11.4, 8.4, 5.3, P.main, M_METAL, (x, y, z) => z <= 5.3 - Math.max(0, x - 7.6) * 0.82 && z <= 5.3 - Math.max(0, -13.4 - x) * 1.6);
+  vfill(m, 9.6, -5.75, 2, 11.2, 5.75, 3, P.main, M_METAL, (x, y, z) => z <= 3.6 - (x - 9.6) * 0.5);   // the lower nose
+  // fenders over the tracks, a lip at the front
+  for (const sd of [-1, 1]) {
+    const f0 = sd < 0 ? -9 : 8.4 - 0.4, f1 = sd < 0 ? -8.4 + 0.4 : 9;
+    vfill(m, -14.4, Math.min(f0, f1), 3, 11.2, Math.max(f0, f1), 3.35, P.main, M_METAL);
+    vfill(m, 10.4, Math.min(f0, f1), 2.3, 11.5, Math.max(f0, f1), 3.35, P.main, M_METAL, (x, y, z) => z >= 3.35 - (x - 10.4) * 0.95);
+  }
+  // the deck the turret sits on: pale, its front sloping down into the glacis
+  vfill(m, -13, -6.3, 5.3, 8.6, 6.3, 6, P.light, M_METAL, (x, y, z) => z <= 6 - Math.max(0, x - 7.2) * 0.9);
+  // panel seams and rivet rows
+  vpaint(m, -15, -10, 3, 12, 11, 6, (x, y, z) => {
+    const ax = Math.abs(x - -7.5) < 0.13 || Math.abs(x - 1.2) < 0.13 || Math.abs(x - 7.6) < 0.13;
+    const sideSeam = Math.abs(y) > 8.1 && Math.abs(z - 4.1) < 0.13;
+    if ((ax && z > 3.4) || sideSeam) return seam;
+  }, true);
+  for (const sd of [-1, 1]) {
+    vrivets(m, -13.6, sd * 8.45, 4.75, 7.2, sd * 8.45, 4.75, 1.3, rivet, 0.22);
+    vrivets(m, -12.6, sd * 6.35, 5.85, 7, sd * 6.35, 5.85, 1.4, rivet, 0.2);
+  }
+  // the glacis: headlights with guards, a driver's vision block, spare track links, tow hooks
+  for (const sd of [-1, 1]) {
+    vcyl(m, 'x', 8.7, 9.7, sd * 6.2, 4.7, 0.62, HT.steel, M_METAL);
+    vcyl(m, 'x', 9.7, 9.95, sd * 6.2, 4.7, 0.48, '#fff2c4', M_GLOW);
+    vfill(m, 9.2, sd * 6.2 - 0.85, 5.25, 10.1, sd * 6.2 + 0.85, 5.45, HT.steel, M_METAL);
+    vfill(m, 10.9, sd * 4 - 0.45, 2.2, 11.9, sd * 4 + 0.45, 2.9, HT.gunD, M_METAL, (x, y, z) => !(x > 11.2 && z < 2.6 && Math.abs(y - sd * 4) < 0.2));
+  }
+  vfill(m, 8.2, -3.9, 5.2, 9.1, -1.6, 5.75, HT.gunD, M_METAL);
+  vfill(m, 8.95, -3.7, 5.25, 9.25, -1.8, 5.6, HT.glass, M_GLASS);
+  vpaint(m, 7.9, 0.6, 3.2, 11.6, 5.2, 6, (x, y, z) => (((x + 20) % 0.9) < 0.3 ? HT.linkH : HT.link), true);
+  // fender stowage: tool boxes, a jack block, a tow cable along the right fender
+  vfill(m, -12.6, -8.85, 3.35, -8.2, -6.9, 4.5, HT.olive, M_MATTE);
+  vfill(m, -12.6, -8.85, 4.3, -8.2, -6.9, 4.5, HT.oliveD, M_MATTE);
+  for (const x of [-11.6, -9.2]) vfill(m, x, -8.95, 3.7, x + 0.4, -8.75, 4.1, HT.steelL, M_METAL);
+  vfill(m, 3, -8.8, 3.35, 5.6, -7, 4.2, '#5a4430', M_ROUGH);
+  vcyl(m, 'x', -11, 6.8, 7.55, 3.62, 0.24, '#2a2a28', M_METAL);
+  for (const x of [-11.2, 6.8]) vcyl(m, 'y', 7.1, 8, x, 3.62, 0.38, '#2a2a28', M_METAL);
+  // the engine deck: a grille, a raised hatch, exhausts and two fuel drums across the back
+  vfill(m, -12.8, -4.6, 6, -8.4, 4.6, 6.35, HT.steel, M_METAL);
+  vpaint(m, -12.8, -4.6, 6, -8.4, 4.6, 6.4, (x, y, z) => (((x + 20) % 0.55) < 0.25 && Math.abs(y) < 4.3 ? HT.gunD : undefined), true);
+  vfill(m, -7.9, -2.6, 6, -5.2, 2.6, 6.45, mixHex(P.light, '#000000', 0.1), M_METAL);
+  vrivets(m, -7.7, -2.4, 6.45, -5.4, -2.4, 6.45, 0.8, rivet, 0.18); vrivets(m, -7.7, 2.4, 6.45, -5.4, 2.4, 6.45, 0.8, rivet, 0.18);
+  for (const sd of [-1, 1]) {
+    vfill(m, -14.6, sd * 6.6 - 0.9, 3.7, -13.6, sd * 6.6 + 0.9, 5, HT.gun, M_METAL);
+    vfill(m, -14.75, sd * 6.6 - 0.55, 4, -14.5, sd * 6.6 + 0.55, 4.7, '#0b0a09', M_MATTE);
+    vcyl(m, 'y', sd < 0 ? -5.4 : 1.4, sd < 0 ? -1.4 : 5.4, -14.25, 5.9, 0.92, HT.olive, M_METAL);
+    for (const yb of sd < 0 ? [-4.5, -2.3] : [2.3, 4.5]) vcyl(m, 'y', yb - 0.15, yb + 0.15, -14.25, 5.9, 0.98, HT.oliveD, M_METAL);
+  }
+  return vweather(m, 2.6, 0.9, '#6b5a44');
 }
 function heavyTurret(pal, s) {
   const P = pal.key === 'soviets' ? HEAVY_RED : pal;
-  const m = new VModel(-9, -9, 21, 9, 9);
-  m.box(-7, -8, 0, 0, 8, 1, P.main, M_METAL);
-  m.box(-9, -7, 0, -7, 7, 1, P.main, M_METAL);
-  m.box(0, -7, 0, 2, 7, 1, P.main, M_METAL);
-  m.box(2, -6, 0, 4, 6, 1, P.main, M_METAL);
-  m.box(4, -5, 0, 5, -4, 1, P.main, M_METAL);
-  m.box(4, -4, 0, 14, -2, 3, '#16120f', M_METAL);
-  m.box(4, -2, 0, 7, -1, 4, '#16120f', M_METAL);
-  m.box(12, -2, 0, 14, -1, 3, '#16120f', M_METAL);
-  m.box(4, -1, 0, 5, 1, 4, P.main, M_METAL);
-  m.box(4, 1, 0, 7, 4, 4, '#16120f', M_METAL);
-  m.box(12, 1, 0, 14, 4, 3, '#16120f', M_METAL);
-  m.box(7, 2, 0, 12, 4, 3, '#16120f', M_METAL);
-  m.box(4, 4, 0, 5, 5, 1, P.main, M_METAL);
-  m.box(-8, -7, 1, 1, 7, 3, P.main, M_METAL);
-  m.box(-9, -6, 1, -8, 6, 2, P.main, M_METAL);
-  m.box(1, -6, 1, 3, 6, 2, P.main, M_METAL);
-  m.box(3, -5, 1, 4, 5, 3, P.main, M_METAL);
-  m.box(4, -5, 1, 7, -4, 3, '#16120f', M_METAL);
-  m.box(12, -5, 1, 14, -4, 2, '#16120f', M_METAL);
-  m.box(7, -2, 1, 12, -1, 3, '#16120f', M_METAL);
-  m.box(7, 1, 1, 12, 2, 3, '#16120f', M_METAL);
-  m.box(4, 4, 1, 7, 5, 3, '#16120f', M_METAL);
-  m.box(12, 4, 1, 14, 5, 2, '#16120f', M_METAL);
-  m.box(1, -6, 2, 2, 6, 4, P.main, M_METAL);
-  m.box(2, -5, 2, 3, 5, 4, P.main, M_METAL);
-  m.box(-7, -7, 3, 0, -6, 4, P.main, M_METAL);
-  m.box(-8, -6, 3, -4, -2, 4, P.main, M_METAL);
-  m.box(-4, -6, 3, -2, -1, 4, '#120403', M_MATTE);
-  m.box(-2, -6, 3, 1, -5, 4, P.main, M_METAL);
-  m.box(-2, -5, 3, -1, -1, 4, '#120403', M_MATTE);
-  m.box(-1, -5, 3, 1, 6, 4, P.main, M_METAL);
-  m.box(3, -4, 3, 4, 4, 4, P.main, M_METAL);
-  m.box(4, -4, 3, 7, -2, 4, '#16120f', M_METAL);
-  m.box(12, -4, 3, 14, -2, 4, '#16120f', M_METAL);
-  m.box(-8, -2, 3, -6, 1, 5, P.light, M_METAL);
-  m.box(-6, -2, 3, -4, 7, 4, P.main, M_METAL);
-  m.box(-4, -1, 3, -1, 1, 4, P.main, M_METAL);
-  m.box(-8, 1, 3, -6, 6, 4, P.main, M_METAL);
-  m.box(-4, 1, 3, -1, 5, 4, '#120403', M_MATTE);
-  m.box(12, 2, 3, 14, 4, 4, '#16120f', M_METAL);
-  m.box(-4, 5, 3, -2, 6, 4, '#120403', M_MATTE);
-  m.box(-2, 5, 3, -1, 7, 4, P.main, M_METAL);
-  m.box(-7, 6, 3, -6, 7, 4, P.main, M_METAL);
-  m.box(-4, 6, 3, -2, 7, 4, P.main, M_METAL);
-  m.box(-1, 6, 3, 0, 7, 4, P.main, M_METAL);
-  m.box(-3, -5, 4, -2, -2, 5, '#120403', M_MATTE);
-  m.box(-4, -4, 4, -3, -3, 5, '#120403', M_MATTE);
-  m.box(-3, 2, 4, -2, 5, 5, '#120403', M_MATTE);
-  m.box(-4, 3, 4, -3, 4, 5, '#120403', M_MATTE);
-  m.box(-7, 4, 4, -5, 5, 8, '#f2f0e8', M_MATTE);
-  m.box(-7, 4, 8, -5, 5, 9, '#c01810', M_MATTE);
-  return m;
+  const m = new VModel(-9, -9, 21, 9, 10);
+  const seam = mixHex(P.main, '#000000', 0.3), rivet = mixHex(P.main, P.light, 0.6);
+  const BASE = [[-9.0, -6.9], [-9.0, 6.9], [-6.5, 8.0], [-0.5, 8.0], [3.4, 5.8], [5.6, 4.3], [5.6, -4.3], [3.4, -5.8], [-0.5, -8.0], [-6.5, -8.0]];
+  const TOP = [[-8.0, -5.7], [-8.0, 5.7], [-6.0, 6.7], [-0.5, 6.7], [2.8, 4.7], [4.6, 3.4], [4.6, -3.4], [2.8, -4.7], [-0.5, -6.7], [-6.0, -6.7]];
+  vcyl(m, 'z', 0, 0.5, 0, 0, 6.3, mixHex(P.main, '#000000', 0.5), M_METAL);                      // the turret ring
+  vprism(m, BASE, TOP, 0.3, 3.8, P.main, M_METAL);                                               // the shield: wide at the back, sloped sides
+  vpaint(m, -9, -9, 0, 6, 9, 4, (x, y, z) => (Math.abs(z - 1.6) < 0.12 && x < 3 ? seam : undefined), true);   // the weld line round it
+  for (const sd of [-1, 1]) vrivets(m, -7.6, sd * 5.9, 3.85, -0.8, sd * 6.5, 3.85, 1.2, rivet, 0.2);
+  // the mantlet and the twin guns: thick, with fume extractors and slotted muzzle brakes
+  vfill(m, 3.6, -4.6, 0.5, 6.4, 4.6, 3.3, mixHex(P.main, '#000000', 0.18), M_METAL, (x, y, z) => (x - 3.6) * 0.55 + Math.abs(z - 1.9) * 0.6 < 2);
+  for (const sd of [-1, 1]) {
+    const y = sd * 2.6;
+    vcyl(m, 'x', 5.6, 7.6, y, 1.8, 1.65, HT.gun, M_METAL);
+    vcyl(m, 'x', 7.6, 12.2, y, 1.8, 1.3, HT.gun, M_METAL);
+    vcyl(m, 'x', 9.1, 10.7, y, 1.8, 1.55, HT.gun, M_METAL);
+    vpaint(m, 9.1, y - 1.5, 0, 10.7, y + 1.5, 4, (x) => (x < 9.3 || x > 10.5 ? HT.gunD : undefined), true);
+    vcyl(m, 'x', 12.2, 14, y, 1.8, 1.6, HT.gun, M_METAL);
+    vfill(m, 12.5, y - 1.6, 0, 13.7, y + 1.6, 4, null, 0, (x, yy, z) => Math.abs(yy - y) > 0.7 && ((x - 12.5) % 0.6) > 0.3 && Math.abs(z - 1.8) < 0.5);   // brake slots
+    vcyl(m, 'x', 13.6, 14, y, 1.8, 0.62, '#050404', M_MATTE);
+  }
+  for (const sd of [-1, 1]) for (const z of [1, 2.6]) vrivets(m, 6.35, sd * 4.1, z, 6.35, sd * 1.2, z, 1.4, rivet, 0.2);
+  // two big oval hatches, ringed, hinged, with periscopes in front
+  for (const sd of [-1, 1]) {
+    const y = sd * 3.3;
+    vfill(m, -5.1, y - 2.5, 3.4, -0.1, y + 2.5, 4.7, HT.steel, M_METAL, (x, yy, z) => ((x + 2.6) / 2.45) ** 2 + ((yy - y) / 2.25) ** 2 + ((z - 3.4) / 1) ** 2 <= 1);
+    vfill(m, -4.7, y - 2.1, 3.4, -0.5, y + 2.1, 4.8, HT.hatch, M_METAL, (x, yy, z) => ((x + 2.6) / 2.05) ** 2 + ((yy - y) / 1.85) ** 2 + ((z - 3.5) / 1.25) ** 2 <= 1);
+    vfill(m, -4.9, y - 0.5, 4.1, -4.3, y + 0.5, 4.55, HT.steelL, M_METAL);                     // hinge
+    vfill(m, -2, y - 0.6, 4.65, -1.6, y + 0.6, 4.85, HT.steelL, M_METAL);                      // handle
+    vfill(m, 0.2, y - 0.9, 3.7, 0.9, y + 0.9, 4.3, HT.gunD, M_METAL);
+    vfill(m, 0.85, y - 0.75, 3.8, 1.05, y + 0.75, 4.2, HT.glass, M_GLASS);
+  }
+  // smoke dischargers either side at the front, a searchlight on the left
+  for (const sd of [-1, 1]) for (let k = 0; k < 3; k++) vcyl(m, 'x', 2.2, 3.5, sd * (4.6 + k * 0.62), 2.9, 0.27, HT.gunD, M_METAL);
+  vcyl(m, 'x', 2.6, 4.2, -5.3, 4.2, 0.62, HT.steel, M_METAL);
+  vcyl(m, 'x', 4.2, 4.4, -5.3, 4.2, 0.5, '#fff6d8', M_GLOW);
+  vfill(m, 2.9, -5.5, 3.6, 3.5, -5.1, 4.2, HT.steel, M_METAL);
+  // the stowage rack round the back, a rolled tarpaulin in it
+  vfill(m, -9.9, -5.6, 1.4, -8.8, 5.6, 3.6, HT.steel, M_METAL, (x, y, z) => x > -9.1 || z < 1.6 || z > 3.4 || Math.abs(y) > 5.4 || ((y + 20) % 1.4) < 0.3);
+  vcyl(m, 'y', -5, 5, -8.4, 2.9, 0.8, HT.olive, M_ROUGH);
+  vpaint(m, -9.3, -5, 2, -7.5, 5, 3.8, (x, y) => (Math.abs(Math.abs(y) - 2.6) < 0.2 ? HT.oliveD : undefined), true);
+  // grab rails on the flanks, a ventilator dome, the white aerial with its red tip
+  for (const sd of [-1, 1]) {
+    vfill(m, -6, sd * 7.35 - 0.15, 2.4, -1.2, sd * 7.35 + 0.15, 2.7, HT.steelL, M_METAL);
+    for (const x of [-6, -1.5]) vfill(m, x, Math.min(sd * 7, sd * 7.4), 2.4, x + 0.3, Math.max(sd * 7, sd * 7.4), 2.7, HT.steelL, M_METAL);
+  }
+  vcyl(m, 'z', 3.8, 4.5, -6.6, 0, 0.85, HT.steel, M_METAL);
+  vpaint(m, -7.5, -1, 4.2, -5.7, 1, 4.6, (x) => ((x + 20) % 0.5 < 0.2 ? HT.gunD : undefined), true);
+  vcyl(m, 'z', 3.7, 4.3, -6, 4.75, 0.6, HT.steel, M_METAL);
+  vcyl(m, 'z', 4.3, 8.7, -6, 4.75, 0.34, HT.white, M_MATTE);
+  vcyl(m, 'z', 8.7, 9.6, -6, 4.75, 0.38, HT.tip, M_MATTE);
+  // a white star on each flank
+  for (const sd of [-1, 1]) vpaint(m, -5, sd < 0 ? -9 : 5, 0.6, -0.2, sd < 0 ? -5 : 9, 3.4, (x, y, z) => {
+    const dx = x + 2.6, dz = z - 2, a = Math.atan2(dz, dx * sd) - Math.PI / 2, r = Math.hypot(dx, dz), k = Math.abs(((a / (Math.PI * 2 / 5)) % 1 + 1) % 1 - 0.5) * 2;
+    return r < 1.25 * (0.4 + 0.6 * k * k) ? HT.white : undefined;
+  }, true);
+  return vweather(m, 0, 0.8);
 }
-// BLENDER:htank end
 // Soviet Mammoth Tank, copied from the reference: two big rounded red track pods either side of a
 // central hull with orange panels, a turret with a round grey emblem hatch, dark missile boxes at its
 // sides, two white aerials at the rear and a pair of slim grey guns.
