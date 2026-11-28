@@ -186,7 +186,7 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
   // dirt, pale sand and brighter water. Snow and fen maps keep their own palettes.
   const RA2 = !snow && !marsh;
   const GRASS = snow ? [[156, 166, 184], [178, 188, 204], [198, 207, 220], [216, 223, 233], [234, 239, 246]] : marsh ? [[34, 40, 24], [42, 50, 28], [52, 60, 32], [62, 69, 38], [78, 82, 46]]
-    : [[64, 92, 26], [76, 106, 30], [90, 120, 34], [104, 134, 38], [120, 148, 44], [138, 162, 56]];   // RA2: bright yellow-green, flat
+    : [[46, 84, 28], [56, 98, 32], [66, 112, 36], [78, 126, 40], [92, 140, 46], [108, 154, 56]];   // RA2: a clear mid-green, flat (owner: the yellow in the reference was a blast's light)
   const EARTH = snow ? [[98, 94, 92], [116, 112, 108], [134, 130, 126], [152, 150, 148]] : marsh ? [[48, 40, 30], [60, 50, 36], [72, 61, 44], [86, 73, 52]]
     : [[98, 78, 52], [116, 94, 64], [134, 110, 76], [150, 126, 88], [166, 142, 102]];
   const SANDS = snow ? [[142, 148, 158], [162, 168, 178], [182, 189, 199]] : marsh ? [[78, 72, 52], [92, 85, 61], [106, 98, 70]] : [[170, 152, 106], [188, 170, 122], [204, 188, 138]];
