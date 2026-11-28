@@ -58,6 +58,15 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
   smoothly between tones, not picked from a few: the banding looked artificial) with noise at four scales, dry yellow-tan patches,
   dark clumps and specks of bare earth; crag rock is blended smoothly too and has big forms (buttresses and bulges lit on their sun
   side), and crag tops the same olive.
+- **3D rock (owner: "Do proper 3D rock", 2026-11-28):** look.js `cliffRock3D` (`CLIFF_3D`): each crag cell is a voxel model (K small
+  voxels per world px) built from the crag's smoothed height field over the cell and a margin, every voxel's column height looked up
+  through a 3D noise warp stretched up the face (`rockNoise`: buttresses, gullies, bulges, overhangs; flat tops stay put), coloured
+  as sandstone strata with streaks and stains (snow on upward-facing rock on winter maps), grass on top with a ragged lip, scree at
+  the foot; rendered by renderVox (its sun, normals, ambient occlusion). The margin's rock is `M_GHOST` (voxel.js: solid for light
+  and shade, never drawn) and each cell overlaps its neighbours 3 px, drawn without the sprite outline (`noEdge`), so cells meet
+  without seams. Also fixed: `big` (a ridge's height factor) blended between cell middles (it stepped at cell edges). cliffPic
+  keeps its old column drawing for the shadow only. Cost: ~4 ms a cell, ~21 ms in HD (baked for fixed maps; in play at most one
+  past the frame's time).
 - **Still to do:** every other unit (vehicles, aircraft, infantry) and structure by hand, snow and fen ground, crags.
 
 ## Red Alert 2 ground (branch claude/ra2-models only, 2026-11-28, looks only, both modes)

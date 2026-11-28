@@ -28,7 +28,7 @@ const SUPER = 2;                   // supersampling for soft, anti-aliased edges
 const LIGHT = (() => { const v = [-0.62, 0.22, 0.75], l = Math.hypot(...v); return v.map((x) => x / l); })();
 const HALF = (() => { const v = [LIGHT[0], LIGHT[1] + 0.6, LIGHT[2] + 0.8], l = Math.hypot(...v); return v.map((x) => x / l); })();
 const SHADOW_DX = -LIGHT[0] / LIGHT[2], SHADOW_DY = -LIGHT[1] / LIGHT[2];
-const M_MATTE = 0, M_METAL = 1, M_GLASS = 2, M_GLOW = 3, M_ROUGH = 4;
+const M_MATTE = 0, M_METAL = 1, M_GLASS = 2, M_GLOW = 3, M_ROUGH = 4, M_GHOST = 9;   // M_GHOST: counts as solid for light and shade, never drawn (look.js 3D crags: the neighbours' rock)
 
 function rgbInt(c) { return typeof c === 'number' ? c : parseInt(c.slice(1), 16); }
 function hash3(x, y, z) {
@@ -119,7 +119,7 @@ function surfaceOf(m) {
   const filled = (x, y, z) => z < 0 || (x >= 0 && y >= 0 && x < w && y < h && z < d && m.col[(z * h + y) * w + x] >= 0);
   for (let z = 0; z < d; z++) for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const i = (z * h + y) * w + x;
-    if (m.col[i] < 0) continue;
+    if (m.col[i] < 0 || m.mat[i] === M_GHOST) continue;
     if (filled(x + 1, y, z) && filled(x - 1, y, z) && filled(x, y + 1, z) && filled(x, y - 1, z) && filled(x, y, z + 1)) continue;
     let ax = 0, ay = 0, az = 0, occ = 0;
     for (let dz = -1; dz <= 1; dz++) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
@@ -203,7 +203,7 @@ function renderVox(m, angle, opts) {
       for (let xx = Math.max(0, x0); xx < Math.min(BW, x1); xx++) buf[row + xx] = pix;
     }
   }
-  const img = downsample(buf, BW, BH, W, H, false, opts.crisp);
+  const img = downsample(buf, BW, BH, W, H, false, opts.crisp, opts.noEdge);
   const fit = opts.fit ? scale : 1;   // fit: offsets in the scaled picture's pixels (a smaller sprite at the same spot)
   const out = { img, ox: minX * fit, oy: minY * fit };
   img._ox = out.ox; img._oy = out.oy;   // (the sprite's origin: art.js uprightCtx stands it at the projected spot)
@@ -225,7 +225,7 @@ function renderVox(m, angle, opts) {
 }
 
 // `crisp` keeps hard pixel edges (for tiny sprites such as infantry) instead of soft coverage.
-function downsample(buf, BW, BH, W, H, shadow, crisp) {
+function downsample(buf, BW, BH, W, H, shadow, crisp, noEdge) {
   const c = mkCanvas(W, H), g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
   const SS = SUPER * SUPER;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -248,7 +248,7 @@ function downsample(buf, BW, BH, W, H, shadow, crisp) {
     }
     d[o] = r / a; d[o + 1] = gg / a; d[o + 2] = b / a; d[o + 3] = Math.round(a / SS * 255);
   }
-  if (!shadow) {
+  if (!shadow && !noEdge) {   // (noEdge: look.js 3D crags, whose cells meet edge to edge)
     const k = crisp ? 0.42 : 0.62;
     // Darken the silhouette edge for the crisp outline of pre-rendered sprites.
     const alpha = new Uint8Array(W * H);

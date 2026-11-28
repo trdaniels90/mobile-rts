@@ -566,8 +566,12 @@ function cliffHeight(cells) {
     let q = (mound(x, y) - 0.5) * (oreCell.size ? oreFade(x, y) : 1);
     if (bare.size) { const c = Math.floor(y / CELL) * MAP + Math.floor(x / CELL); if (bare.has(c)) q = Math.max(q, 0.12 * (1 - Math.hypot(x / CELL - (c % MAP + 0.5), y / CELL - ((c / MAP | 0) + 0.5)) / 0.75)); }
     if (q <= 0) return 0;
-    const s = Math.min(1, q / 0.22), l = cells.get(Math.floor(y / CELL) * MAP + Math.floor(x / CELL));
-    const big = Math.min(1, 0.3 + (l ? l.length / 2 : 0) / 9);   // a lone rock stays a boulder; a ridge rises full height
+    const s = Math.min(1, q / 0.22);
+    // a lone rock stays a boulder; a ridge rises full height (blended between cell middles: per cell, neighbouring tops stood
+    // at different heights and the steps showed as lines across the rock)
+    const fx = x / CELL - 0.5, fy = y / CELL - 0.5, ix = Math.floor(fx), iy = Math.floor(fy), ax = fx - ix, ay = fy - iy;
+    const bg = (i, j) => { const l = cells.get(j * MAP + i); return Math.min(1, 0.3 + (l ? l.length / 2 : 0) / 9); };
+    const big = (bg(ix, iy) * (1 - ax) + bg(ix + 1, iy) * ax) * (1 - ay) + (bg(ix, iy + 1) * (1 - ax) + bg(ix + 1, iy + 1) * ax) * ay;
     return topOf(c === undefined ? Math.floor(y / CELL) * MAP + Math.floor(x / CELL) : c) * big * s * s * (3 - 2 * s) + (hash3(x >> 2, y >> 2, 21) - 0.5) * 1.5;
   };
 }
@@ -609,7 +613,7 @@ function cliffPts(L, c, K = 1) {
   }
   let tAbs = 0;   // the mesa's top (drawn units)
   if (ms) for (const m of ms) if (Math.hypot(cx + 0.5 - m.x, cy + 0.5 - m.y) < m.r + 1.5) tAbs = HG_MAX * (m.h || 1) * HILL_DRAW;
-  return { pts, top, gcol, h0: h0 * HILL_DRAW, tAbs };
+  return { pts, top, gcol, h0: h0 * HILL_DRAW, tAbs, sm, N, B };
 }
 // Its shadow falls away from the sun: CLIFF_SL x its height along (CLIFF_SDX, CLIFF_SDY) on the ground (world px), drawn
 // at CLIFF_SA (each crag's own: where two meet, darker).
@@ -622,13 +626,14 @@ const mesaShade = (z, x, y) => z > hgtAt(x, y, true) * HILL_DRAW + 1;
 // stay in view pixels.
 function cliffPic(L, c, noShadow, K = 1) {
   const cx = c % MAP, cy = (c / MAP) | 0, mx = (cx + 0.5) * CELL, my = (cy + 0.5) * CELL;
-  const { pts, top, gcol, h0, tAbs } = cliffPts(L, c, K);
+  const { pts, top, gcol, h0, tAbs, sm: hsm, N: hN, B: hB } = cliffPts(L, c, K);
   if (!pts.length) return null;
   const up = top * CLIFF_UP * VK;
   const lev = gcol ? 1 + (h0 + top) / HILL_DRAW * 0.005 * (typeof HILL_SHADE !== 'undefined' ? HILL_SHADE : 1) : 1;   // (groundPixels' light on level ground that high)
   const cs = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => toView(a * CELL / 2, b * CELL / 2));
-  const X0 = Math.floor(Math.min(...cs.map((p) => p[0]))) - 2, X1 = Math.ceil(Math.max(...cs.map((p) => p[0]))) + 2;
-  const Y0 = Math.floor(Math.min(...cs.map((p) => p[1])) - up) - 2, Y1 = Math.ceil(Math.max(...cs.map((p) => p[1]))) + 2;
+  const pad = CLIFF_3D ? 7 : 2;   // (3D rock: room for the faces' bulges)
+  const X0 = Math.floor(Math.min(...cs.map((p) => p[0]))) - pad, X1 = Math.ceil(Math.max(...cs.map((p) => p[0]))) + pad;
+  const Y0 = Math.floor(Math.min(...cs.map((p) => p[1])) - up) - pad, Y1 = Math.ceil(Math.max(...cs.map((p) => p[1]))) + pad;
   const W = X1 - X0, H = Y1 - Y0, WK = W * K, HK = H * K, pic = mkCanvas(WK, HK), ctx = pic.getContext('2d'), img = ctx.createImageData(WK, HK), d = img.data;
   // Its shadow on the ground, away from the sun (to the screen's right and a little down), drawn under everything.
   const SL = CLIFF_SL, [sdx, sdy] = toView(CLIFF_SDX, CLIFF_SDY), sx1 = X1 + Math.ceil(top * CLIFF_UP * SL * sdx) + 2, sy1 = Y1 + Math.ceil(top * CLIFF_UP * SL * Math.max(0, sdy)) + 2;
@@ -649,6 +654,7 @@ function cliffPic(L, c, noShadow, K = 1) {
       const qx = Math.round((vX - X0 + sdx * st) * K), qy = Math.round((vY - Y0 + sdy * st) * K);
       if (qx >= 0 && qx < SWK - 1 && qy >= 0 && qy < SHK) sm2[qy * SWK + qx] = sm2[qy * SWK + qx + 1] = 1;
     }
+    if (CLIFF_3D) continue;   // (3D rock: the picture is rendered below; only the shadow is worked out here)
     const px0 = Math.round((vX - X0) * K - 0.5), yTop = Math.round((vY - hz * VK - Y0) * K), yBot = Math.round((vY - Y0) * K);
     for (let py = yTop; py <= yBot; py++) {
       const z = hz - (py - yTop) / (VK * K);   // the height of this pixel of the column
@@ -701,6 +707,7 @@ function cliffPic(L, c, noShadow, K = 1) {
     }
   }
   ctx.putImageData(img, 0, 0);
+  if (CLIFF_3D) cliffRock3D(ctx, L, c, K, { hsm, hN, hB, top, gcol, h0, tAbs, X0, Y0, ROCK });
   if (K > 1) pic._k = K;
   if (!sm2) return { c: pic, sh: null, X0, Y0, w: W, h: H, k: K };
   const shp = mkCanvas(SWK, SHK), sc = shp.getContext('2d'), si = sc.createImageData(SWK, SHK);
@@ -708,6 +715,72 @@ function cliffPic(L, c, noShadow, K = 1) {
   sc.putImageData(si, 0, 0);
   if (K > 1) shp._k = K;
   return { c: pic, sh: shp, X0, Y0, w: W, h: H, k: K };
+}
+// ---- 3D rock (branch claude/ra2-models; owner: "Do proper 3D rock") -------------------------------------------------------
+// A crag cell as a real voxel model, rendered by voxel.js renderVox (its sun, normals, ambient occlusion, metal-free rock):
+// the crag's own smoothed height field (cliffPts) over the cell and a margin, each column's height warped through 3D noise
+// so the faces bulge, overhang and break into buttresses and boulders while flat tops stay flat; sandstone in strata, streaks
+// and mineral stains, the field's grass (or snow) on the tops, a ragged lip, scree at the foot. The margin's rock is
+// M_GHOST: it shades the cell's edges as if the neighbours were there, but is drawn by their own pictures, so the cells meet
+// without seams. K small voxels per world pixel (1, or 2 for HD), drawn at K pixels per world pixel.
+const CLIFF_3D = true;
+function rockNoise(x, y, z, s) {   // smooth 3D value noise, 0..1
+  const fx = x / s, fy = y / s, fz = z / s, x0 = Math.floor(fx), y0 = Math.floor(fy), z0 = Math.floor(fz), tx = fx - x0, ty = fy - y0, tz = fz - z0;
+  const S = (t) => t * t * (3 - 2 * t), u = S(tx), v = S(ty), w = S(tz);
+  const h = (i, j, k) => hash3(x0 + i, y0 + j, z0 + k + 977);
+  const a = h(0, 0, 0) + (h(1, 0, 0) - h(0, 0, 0)) * u, b = h(0, 1, 0) + (h(1, 1, 0) - h(0, 1, 0)) * u, c0 = h(0, 0, 1) + (h(1, 0, 1) - h(0, 0, 1)) * u, d = h(0, 1, 1) + (h(1, 1, 1) - h(0, 1, 1)) * u;
+  const e = a + (b - a) * v, f = c0 + (d - c0) * v;
+  return e + (f - e) * w;
+}
+function cliffRock3D(ctx, L, c, K, o) {
+  const cx = c % MAP, cy = (c / MAP) | 0, N = o.hN, B = o.hB, sm = o.hsm;
+  const gx0 = cx * CELL * K - B, gy0 = cy * CELL * K - B;   // the height grid's corner (fine grid)
+  const mxK = (cx + 0.5) * CELL * K, myK = (cy + 0.5) * CELL * K;   // the cell's middle (fine grid): the model's origin
+  const hAt = (X, Y) => { const i = X - gx0, j = Y - gy0; return i < 0 || j < 0 || i >= N || j >= N ? 0 : sm[j * N + i]; };
+  const W = K * 3.4, maxZ = Math.ceil((o.top * CLIFF_UP + 2) * K) + 2;
+  const m = new VModel(gx0 - mxK, gy0 - myK, gx0 - mxK + N, gy0 - myK + N, maxZ);
+  m.vd = K;
+  const ms = G.hgt && MAPS[validMap(G.mapId)].mesas;
+  const R = o.ROCK, tone = (v) => { const q = Math.max(0, Math.min(R.length - 1.001, v)), i = Math.floor(q), a = q - i; return [R[i][0] + (R[i + 1][0] - R[i][0]) * a, R[i][1] + (R[i + 1][1] - R[i][1]) * a, R[i][2] + (R[i + 1][2] - R[i][2]) * a]; };
+  const rgb = (t) => ((Math.max(0, Math.min(255, t[0] | 0)) << 16) | (Math.max(0, Math.min(255, t[1] | 0)) << 8) | Math.max(0, Math.min(255, t[2] | 0)));
+  const cellX0 = cx * CELL * K, cellY0 = cy * CELL * K, cellX1 = cellX0 + CELL * K, cellY1 = cellY0 + CELL * K;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const X = gx0 + i, Y = gy0 + j, wx = X / K, wy = Y / K;
+    const ov = 3 * K, own = X >= cellX0 - ov && X < cellX1 + ov && Y >= cellY0 - ov && Y < cellY1 + ov;   // (overlapping the neighbours a pixel: no gaps)
+    const foot = ms ? Math.max(0, (hgtAt(wx + 0.5, wy + 0.5, true) * HILL_DRAW - o.h0)) * K : 0;
+    for (let Z = Math.floor(foot); Z < maxZ; Z++) {
+      const z = Z / K;
+      // warp: look up the height a little to the side, by 3D noise (two scales): bulges, overhangs, buttresses
+      const n1 = rockNoise(wx, wy, z * 0.4, 5) - 0.5, n2 = rockNoise(wx + 40, wy, z * 0.7, 2.2) - 0.5, n3 = rockNoise(wx, wy + 40, z * 0.4, 5) - 0.5;   // (stretched up the face: buttresses and gullies)
+      const dx = Math.round((n1 * 1.6 + n2 * 0.6) * W), dy = Math.round((n3 * 1.6 - n2 * 0.6) * W);
+      const h = hAt(X + dx, Y + dy) * CLIFF_UP, h0 = hAt(X, Y) * CLIFF_UP;
+      const H = Math.min(h, h0 + 1.5);   // (flat tops stay put; the warp only moves the faces)
+      if (H <= 0.4 || z >= H) continue;
+      const idx = (Z * m.h + j) * m.w + i;
+      if (!own) { m.col[idx] = 0; m.mat[idx] = M_GHOST; continue; }
+      const lipD = H - z, flat = Math.abs(hAt(X + K, Y) - hAt(X - K, Y)) + Math.abs(hAt(X, Y + K) - hAt(X, Y - K)) < 0.9;
+      let t;
+      if (lipD < 1 / K + 0.01 && flat) {   // the top: the field's grass (a mesa: the ground's own colour), or snow
+        if (o.gcol && o.tAbs) { const q = ((Y - cellY0) * CELL * K + X - cellX0) * 4; t = [o.gcol[q], o.gcol[q + 1], o.gcol[q + 2]]; }
+        else t = L.snow ? [226, 232, 240] : [84, 102, 40];
+        const n = hash3(X, Y, 61); t = [t[0] * (0.88 + n * 0.2), t[1] * (0.88 + n * 0.2), t[2] * (0.88 + n * 0.2)];
+      } else if (lipD < 0.6 + hash3(X >> 1, Y >> 1, 63) * 0.9 && o.top * CLIFF_UP - z < 1.8) {   // grass (or snow) hanging over the rim
+        const n = hash3(X, Y, Z); t = L.snow ? [216 + n * 20, 222 + n * 20, 232 + n * 16] : [72 + n * 20, 90 + n * 22, 34 + n * 12];
+      } else {
+        // sandstone: strata by height, streaks down the face, a stain here and there, darker toward the foot
+        let v = 3.7 + (rockNoise(wx, wy, z, 1.4) - 0.5) * 1.6 + Math.sin(z * 1.7 + rockNoise(wx, wy, 0, 6) * 5) * 0.5 + (hash3(X >> 1, Y >> 1, 67) - 0.5) * 0.6;
+        if (z < 3) v -= (3 - z) * 0.35;
+        t = tone(v);
+        if (rockNoise(wx + 90, wy, z, 4) > 0.66) t = [t[0] * 1.08, t[1] * 0.9, t[2] * 0.72];
+        if (L.snow && lipD < 1 / K + 0.01 && rockNoise(wx, wy + 90, z * 2, 2) > 0.3) { const n = hash3(X, Y, Z + 79); t = [212 + n * 24, 220 + n * 22, 232 + n * 16]; }   // snow lying on ledges (upward-facing rock only)
+        if (z < 1.6 && hash3(X, Y, Z + 71) > 0.5) { const sc = L.snow ? [196, 202, 212] : [168, 152, 124], n = 0.75 + hash3(X, Y, 73) * 0.4; t = [sc[0] * n, sc[1] * n, sc[2] * n]; }
+      }
+      m.col[idx] = rgb(t); m.mat[idx] = M_ROUGH;
+    }
+  }
+  const out = renderVox(m, 0, { scale: 1, fit: true, crisp: false, shadow: false, noEdge: true });   // (noEdge: no dark outline where the cells meet)
+  if (!out || !out.img) return;
+  ctx.drawImage(out.img, Math.round(-o.X0 * K + out.ox), Math.round(-o.Y0 * K + out.oy));
 }
 // For tools/bake-ground.js: the crags' shadows painted into the ground at world (x0, y0, w, h) of g (at its 0, 0), as
 // cliffPic draws them on the ground in play (each crag's shadow at CLIFF_SA, lying in the world, so the ground's own hills
@@ -763,7 +836,7 @@ function cliffItems(list, x0, y0, x1, y1, shows) {
     if (x < x0 - 40 || x > x1 + 40 || y < y0 - 40 || y > y1 + 120 || !shows(x, y) || !G.seen[c]) continue;
     let p = L.pics.get(c);
     if (p === undefined) {
-      if (made > 8 && performance.now() >= until) { behind = true; continue; }
+      if (made > (CLIFF_3D ? 0 : 8) && performance.now() >= until) { behind = true; continue; }   // (3D rock costs more a cell: one past the frame's time at most)
       made++; p = cliffPic(L, c, noSh, GK); L.pics.set(c, p);
       if (p && L.frame > 3) p.born = now;   // (made while on screen: it rises in over CLIFF_FADE rather than popping up)
     }
