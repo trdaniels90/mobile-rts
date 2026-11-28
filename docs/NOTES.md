@@ -20,32 +20,6 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
 - **Next steps proposed to the owner:** a 30 degree camera (`VIEW.elev`, true 2:1 diamonds) with units scaled up and a full rebake;
   a higher, glossier voxel light; RA2-proportioned models; an urban theatre; a metallic sidebar per side.
 
-## Red Alert 2 detail: the fine kit, Heavy Tank and Soviet War Factory (after 2026.11.26.5, not released, looks only, both modes)
-
-- **Owner (2026-11-28):** "do the heavy tank and war factory, looks only. try to get exactly to red alert 2's detail" (a sample; the
-  rest follows if the owner likes it). Original designs only; the owner's own designs kept (silhouettes, colours, anchors).
-- **Why ours looked plainer:** RA2 builds about 43 voxels per cell and paints detail in; our models were boxes on the 24-per-cell
-  design grid, and HD graphics (tools/hd-vox.js, 4x) only rounded the curves. The detail has to be designed finer than a voxel.
-- **The fine kit (models.js, after shadeInt):** `vfill` (a box in world px with fractions, cut by `test(x, y, z)`), `vpaint` (repaint,
-  `skin` = surface only), `vcyl`, `vprism` (a polygon blended to another: sloped armour, faceted turrets), `vrivets`, `vweather`
-  (dust low down, lit top edges, streaks, a faint mottle). On an HD model (`m.vd` small voxels per world px) it fills the small voxels
-  (a quarter pixel), on an ordinary one the whole voxels whose centres are inside: same shapes, the finest detail drops out (classic
-  sprites look much as before). Works with every VModel method, so a model can mix the two.
-- **Heavy Tank (`heavyHull` / `heavyTurret`, models.js; replaces the BLENDER:htank block, so tools/blender/htank.py is out of date):**
-  track links, six road wheels a side, toothed sprocket and idler, fenders with tool boxes, a jack block and a tow cable, sloped
-  glacis with guarded headlights, vision block, spare links and tow hooks, engine grille, exhausts, fuel drums, panel seams and rivet
-  rows; turret: the same shield outline, a cast mantlet, thicker twin guns with fume extractors and slotted muzzle brakes, ringed
-  hatches with hinges and periscopes, smoke dischargers, searchlight, stowage rack with tarpaulin, grab rails, vent dome, the white
-  aerial with its red tip, a white star on each flank. Same boxes and anchors (muzzles x 14, `tz` 6).
-- **Soviet War Factory (lookstructs.js `factory_soviets`):** brick base course, precast panels with joints, pilasters with caps, the band
-  with a white pinstripe, steel-framed windows (a few panes lit), corrugated vault with trusses, rust, glazed ridge, catwalk, turbine
-  vents, a round star window in the east gable, ladder, the door in an I-beam frame with fine hazard stripes, rivets, beacons, lamps
-  and a star plate, stacks with bands and ladder rungs, a pipe run with valves, a transformer, chevrons on the apron. Anchors kept:
-  door x 20-52 / y 44-46 / z 1-16 (factoryDoor), banners (bannersV), stacks (60, 8) and (66, 8), footprint.
-- **Previews:** `node tools/look/model-preview.js <repo> <out.png> <type> [faction] [hd 1/0] [scale]` (env `PICK` facings for units).
-- **Limits:** the detail shows with HD graphics on (2 px per world px; a tank about 50 px across, as big as RA2's). Classic keeps
-  the 1 px sprites. RA2's own art is crisper (hand-finished 8-bit pixels); ours is soft-edged. Sheets rebaked (classic, HD, normals).
-
 ## Tiberian Sun look (WORK IN PROGRESS, prototype off by default; looks only, both modes)
 
 **Goal (owner, 2026-11-19):** bring the game's look closer to Tiberian Sun's (original work only, nothing copied). A prototype in
