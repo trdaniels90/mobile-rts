@@ -10,6 +10,7 @@ const fs = require('fs');
 // scene 'base':   a pan over a built base, battle paused; before = light only, after = light + concrete (two passes, the ground repainted).
 // scene 'hills':  River Crossing, tanks fighting over the hilliest ground near our base; before = the ground flat (as stage 1), after
 //                 = the raised ground (LOOK.hills). The camera drifts slowly. Each frame drawn twice.
+// scene 'ra2':   as 'battle' with the whole look on; before = the Tiberian Sun colours, after = the Red Alert 2 test (LOOK_STYLE).
 // Frames go to <out>/a and <out>/b (PNG, 15 a second); make the MP4 with tools/look/video.sh.
 const [root, out, scene = 'cliffs', secs = '12', still] = process.argv.slice(2);
 (async () => {
@@ -19,12 +20,13 @@ const [root, out, scene = 'cliffs', secs = '12', still] = process.argv.slice(2);
   await p.route(/fonts|supabase/, (r) => r.abort());
   await p.goto('file://' + root + '/index.html'); await p.waitForTimeout(800);
   await p.click('#startBtn');
-  const map = scene === 'battle' ? 'bridge' : 'river';
+  const map = scene === 'battle' || scene === 'ra2' ? 'bridge' : 'river';
   await p.click(`#maps [data-map="${map}"]`); await p.click('#maps [data-map-go]'); await p.waitForTimeout(1000);
   const info = await p.evaluate((scene) => {
     const ps = window.__ps;
     LOOK.light = scene !== 'battle';
     if (scene === 'hills') LOOK.light = LOOK.cliffs = LOOK.concrete = LOOK.lamps = LOOK.ground = LOOK.water = true; LOOK.cliffs = LOOK.concrete = scene === 'lamps' || scene === 'smoke'; LOOK.lamps = LOOK.ground = scene === 'smoke'; LOOK.smoke = false;
+    if (scene === 'ra2') for (const k in LOOK) LOOK[k] = true;
     for (const t of G.teams) { t.isAI = true; t.auto = false; }
     for (let i = 0; i < 6 * 60 * 30; i++) ps.update(1 / 30);   // bases built
     G.teams[G.me].isAI = false;
@@ -55,7 +57,7 @@ const [root, out, scene = 'cliffs', secs = '12', still] = process.argv.slice(2);
     }
     if (scene !== 'base') {
       const army = ['mtank', 'rifle', 'htank', 'rocket', 'ltank', 'grenadier', 'mtank', 'arty'];
-      const free = (x, y) => { const c = cellOfPos(x, y); return c !== false && G.terr[c] <= 1 && !G.cliff[c]; };
+      const free = (x, y) => { const c = cellOfPos(x, y); return c !== false && G.terr[c] <= 1 && !(G.cliff && G.cliff[c]); };
       let n = 0;
       for (let i = 0; i < 400 && n < 20; i++) { const x = mx - 200 + (i % 20) * 13, y = my - 130 + Math.floor(i / 20) * 13; if (free(x, y)) { addUnit(army[n % army.length], G.teams[G.me], x, y); n++; } }
       n = 0;
@@ -80,6 +82,7 @@ const [root, out, scene = 'cliffs', secs = '12', still] = process.argv.slice(2);
   const shot = (dir, f) => p.screenshot({ path: `${out}/${dir}/${String(f).padStart(4, '0')}.png` });
   // Ground tiles painted, and (cliffs) every crag's picture made, so none pops in during the recording.
   await p.evaluate((scene) => { if (scene === 'cliffs' || scene === 'lamps' || scene === 'smoke') LOOK.cliffs = true; return new Promise((r) => setTimeout(r, 4000)); }, scene);
+  await p.waitForFunction(() => { const d = document.getElementById('deploying'); return !d || d.hidden || getComputedStyle(d).display === 'none' || getComputedStyle(d).opacity === '0'; }, null, { timeout: 60000 }).catch(() => p.evaluate(() => { const d = document.getElementById('deploying'); if (d) d.remove(); }));
   fs.mkdirSync(out + '/a', { recursive: true }); fs.mkdirSync(out + '/b', { recursive: true });
   const N = still ? 1 : +secs * 15;
   if (scene === 'base') {   // a slow pan, twice
@@ -90,12 +93,13 @@ const [root, out, scene = 'cliffs', secs = '12', still] = process.argv.slice(2);
       for (let f = 0; f < N; f++) { await pan(f); await raf(); await raf(); await shot(dir, f); }
     }
   } else {
-    const keys = scene === 'hills' ? ['hills'] : scene === 'battle' ? ['light'] : scene === 'lamps' ? ['lamps', 'ground'] : scene === 'smoke' ? ['smoke'] : ['cliffs'];
+    const keys = scene === 'ra2' ? [] : scene === 'hills' ? ['hills'] : scene === 'battle' ? ['light'] : scene === 'lamps' ? ['lamps', 'ground'] : scene === 'smoke' ? ['smoke'] : ['cliffs'];
     for (let f = 0; f < N; f++) {
       if (scene === 'hills') await p.evaluate((f) => __aim(__mid.x - 160 + f * 2.6, __mid.y - 40 + f * 0.7, 1.6), f);
       await p.evaluate((keys) => { const ps = window.__ps; G.paused = false; ps.update(1 / 30); ps.update(1 / 30); G.paused = true; for (const k of keys) LOOK[k] = false; }, keys);
+      if (scene === 'ra2') await p.evaluate(() => setLookStyle('ts'));
       await raf(); await shot('a', f);
-      await p.evaluate((keys) => { for (const k of keys) LOOK[k] = true; }, keys); await raf(); await shot('b', f);
+      await p.evaluate(([keys, scene]) => { for (const k of keys) LOOK[k] = true; if (scene === 'ra2') setLookStyle('ra2'); }, [keys, scene]); await raf(); await shot('b', f);
     }
   }
   console.log('tracks', await p.evaluate(() => lookTracks ? lookTracks.list.length : null));

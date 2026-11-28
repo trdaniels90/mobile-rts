@@ -1433,7 +1433,7 @@ void main() {
       gl.uniform1f(loc3.uSat, M.sat * dn); gl.uniform3f(loc3.uGrade, ...M.grade.map((c) => Math.round(255 - (255 - c) * dn) / 255));
       gl.uniform4f(loc3.uSun, ...c4(M.sun, dn)); gl.uniform4f(loc3.uShade, ...c4(M.shade, dn)); gl.uniform4f(loc3.uHaze, ...c4(M.haze, dn));
       gl.uniform4f(loc3.uTint, ...c4(M.tint, dn)); gl.uniform4f(loc3.uVig, ...c4(M.vig, dn));
-      gl.uniform1f(loc3.uGlowK, 0.3 * (0.5 + 0.5 * dn)); gl.uniform1f(loc3.uCloudK, dn > 0.02 ? dn : 0);
+      gl.uniform1f(loc3.uGlowK, 0.3 * (0.5 + 0.5 * dn)); const ck = dn * (M.cloud === undefined ? 1 : M.cloud); gl.uniform1f(loc3.uCloudK, ck > 0.02 ? ck : 0);
     }
     gl.bindBuffer(gl.ARRAY_BUFFER, tri); gl.enableVertexAttribArray(loc3.aQ); gl.vertexAttribPointer(loc3.aQ, 2, gl.FLOAT, false, 8, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3); R.calls++;

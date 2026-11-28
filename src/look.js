@@ -296,7 +296,8 @@ function drawLook(g, vx, vy, vw, vh, k, t, night) {
     hz.addColorStop(0, rgba(M.haze, dn)); hz.addColorStop(1, rgba(M.haze, dn * 0.35));
     g.globalCompositeOperation = 'screen'; g.fillStyle = hz; g.fillRect(0, 0, W, H);
   }
-  if (dn > 0.02) { g.globalAlpha = dn; cloudShadows(g, vx, vy, k, t); g.globalAlpha = 1; }
+  const ck = dn * (M.cloud === undefined ? 1 : M.cloud);
+  if (ck > 0.02) { g.globalAlpha = ck; cloudShadows(g, vx, vy, k, t); g.globalAlpha = 1; }
   g.restore();
   if (!lookPics) lookPoolPics();   // (day/night maps drawn the 2D way could get here first: "reading 'sh'" of null)
   const L = lookPics, lights = lookDayLights(vx, vy, vw, vh, night);
@@ -378,6 +379,26 @@ const MOOD = {
   rain: { sat: 0.46, grade: [194, 202, 212], sun: [205, 210, 220, 0.14], shade: [20, 30, 46, 0.32], haze: [172, 182, 194, 0.2], tint: [10, 16, 26, 0.3], vig: [0, 4, 10, 0.5], pool: 1.4 },   // overcast
   snowfall: { haze: [238, 242, 250, 0.26], sun: [235, 240, 250, 0.3] },
 };
+// ---- Red Alert 2 style (LOOK_STYLE 'ra2', a test next to the Tiberian Sun look; looks only, both modes) -------------
+// The owner's pick (2026-11-28): try RA2's bright, saturated daylight as its own setting (menu Settings > Graphics, kept in
+// rh-style, or ?style=ra2 / ?style=ts in the address), and replace the TS mood with it if it turns out well. Instead of TS's
+// muted colours, cool grade, low sun, cloud shadows and vignette: colours pushed past their own saturation (sat below 0;
+// the WebGL renderer only: the 2D way cannot boost, so there it only leaves them unmuted), a near-white grade a little
+// brighter than the picture (above 255: WebGL only, 2D clamps), a soft high midday light, thin shade, no clouds (cloud 0),
+// no vignette. Per theme a slight tint; weather still pulls it toward overcast or a snowy haze.
+const RA2_BASE = { sat: -0.28, grade: [276, 272, 260], sun: [255, 244, 220, 0.34], shade: [40, 50, 80, 0.08], haze: [200, 215, 230, 0],
+  tint: [10, 14, 24, 0.08], vig: [0, 0, 0, 0], pool: 0.6, cloud: 0 };
+const RA2_MOOD = {
+  snow: { sat: -0.12, grade: [252, 258, 266], sun: [246, 250, 255, 0.22], shade: [30, 60, 120, 0.14] },
+  desert: { sat: -0.16, grade: [266, 258, 240], sun: [255, 232, 190, 0.26] },
+  marsh: { sat: -0.12, grade: [252, 258, 250], haze: [220, 228, 222, 0.08] },
+};
+let LOOK_STYLE = (() => {
+  const q = typeof location !== 'undefined' ? (location.search.match(/[?&]style=(ra2|ts)\b/) || [])[1] : null;
+  if (q) return q;
+  try { return localStorage.getItem('rh-style') === 'ra2' ? 'ra2' : 'ts'; } catch (_) { return 'ts'; }
+})();
+function setLookStyle(s) { LOOK_STYLE = s === 'ra2' ? 'ra2' : 'ts'; moodCache = null; try { localStorage.setItem('rh-style', LOOK_STYLE); } catch (_) {} }
 let moodCache = null;
 // Maps with day and night (MAPS daynight, every one now and later): their day is lit clearly brighter than the mood's
 // usual afternoon, so day and night are easy to tell apart (owner, 2026-11-21: "It's just hard to tell when it's
@@ -391,9 +412,11 @@ function dayLift(id, m) {
     grade: m.grade.map((v) => Math.round(v + (255 - v) * DAY_LIFT.grade)), sat: m.sat * DAY_LIFT.sat };
 }
 function lookMood(t) {
-  if (!LOOK.mood || !G) return MOOD_BASE;
+  if (!LOOK.mood || !G) return LOOK_STYLE === 'ra2' ? { ...MOOD_BASE, ...RA2_BASE } : MOOD_BASE;
   const id = validMap(G.mapId), th = mapTheme(G.mapId);
-  if (!moodCache || moodCache.g !== G) moodCache = { g: G, m: dayLift(id, { ...MOOD_BASE, ...(MOOD[th === 'snow' || th === 'desert' ? th : id] || {}) }) };
+  if (!moodCache || moodCache.g !== G || moodCache.s !== LOOK_STYLE) moodCache = { g: G, s: LOOK_STYLE, m: dayLift(id, LOOK_STYLE === 'ra2'
+    ? { ...MOOD_BASE, ...RA2_BASE, ...(RA2_MOOD[th === 'snow' || th === 'desert' ? th : id] || {}) }
+    : { ...MOOD_BASE, ...(MOOD[th === 'snow' || th === 'desert' ? th : id] || {}) }) };
   const m = moodCache.m, w = G.weather;
   if (!w) return m;
   const o = MOOD[w.kind === 'rain' ? 'rain' : 'snowfall'], f = Math.min(1, weatherLevel(w, t)) * 0.8, out = {};

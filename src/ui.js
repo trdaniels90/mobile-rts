@@ -2315,6 +2315,14 @@ function draw() {
     if (HD.pref && (!G || G.over)) { location.reload(); return; }
     syncMenuChoices();
   });
+  // Colours (look.js LOOK_STYLE): the Tiberian Sun mood or the Red Alert 2 test (bright, saturated daylight). Changes at once.
+  $('styleBtn').addEventListener('click', () => { setLookStyle(LOOK_STYLE === 'ra2' ? 'ts' : 'ra2'); syncMenuChoices(); });
+  function syncStyle() {
+    const b = $('styleBtn'), ra2 = LOOK_STYLE === 'ra2';
+    b.setAttribute('aria-pressed', String(ra2));
+    b.textContent = 'Colours: ' + (ra2 ? 'Red Alert 2 (test)' : 'Tiberian Sun');
+    $('styleStatus').textContent = ra2 ? 'Bright, saturated midday light in the spirit of Red Alert 2. A test, still being tuned.' : 'Muted colours, a low sun and drifting cloud shadows.';
+  }
   function syncHd() {
     const g = $('hdGroundBtn');
     g.hidden = $('hdGroundStatus').hidden = !HD.pref;
@@ -2358,7 +2366,7 @@ function draw() {
     for (const b of ui.menu.querySelectorAll('[data-audio]')) b.setAttribute('aria-pressed', String(!!Sound.settings[b.dataset.audio]));
     $('trackName').textContent = '· ' + Sound.music.name;
     $('audioStatus').textContent = 'Sound: ' + Sound.status();
-    syncFps(); syncHd();
+    syncFps(); syncHd(); syncStyle();
     for (const b of setupEl.querySelectorAll('[data-faction]')) b.setAttribute('aria-pressed', String(b.dataset.faction === faction));
     for (const b of setupEl.querySelectorAll('[data-diff]')) b.setAttribute('aria-pressed', String(b.dataset.diff === diffKey));
     ui.menu.dataset.faction = faction;
