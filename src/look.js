@@ -398,6 +398,12 @@ let LOOK_STYLE = (() => {
   if (q) return q;
   try { return localStorage.getItem('rh-style') === 'ra2' ? 'ra2' : 'ts'; } catch (_) { return 'ts'; }
 })();
+// The night (art.js drawNight, gl.js uNightC / the warm pass) per style: the shade's colour and strength where nothing is lit,
+// and how strong lamps, windows and fires glow. RA2: moonlit blue, lighter, so the ground and units stay readable, and the
+// lights brighter; its colours keep their boost at night (gl.js uSat).
+function nightStyle() {
+  return LOOK_STYLE === 'ra2' ? { c: [26, 44, 96], a: 0.5, glow: 1.7 } : { c: [6, 12, 34], a: 0.62, glow: 1 };
+}
 function setLookStyle(s) { LOOK_STYLE = s === 'ra2' ? 'ra2' : 'ts'; moodCache = null; try { localStorage.setItem('rh-style', LOOK_STYLE); } catch (_) {} }
 let moodCache = null;
 // Maps with day and night (MAPS daynight, every one now and later): their day is lit clearly brighter than the mood's

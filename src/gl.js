@@ -1284,7 +1284,7 @@ uniform sampler2D uScene, uNrm, uSh, uGlow, uWarm, uPool, uCloud;
 uniform vec2 uSize, uOrg, uCam, uScr, uHalf;
 uniform float uLook, uSat, uGlowK, uCloudK, uWarmK, uNight, uT, uNrmK;
 uniform float uSunK, uSunSt, uGroundSt, uHD, uHS, uAmb, uRS; uniform vec3 uBakeL, uSunL, uSunC; uniform vec2 uRot, uSunG;
-uniform vec3 uGrade; uniform vec4 uSun, uShade, uHaze, uTint, uVig;
+uniform vec3 uGrade; uniform vec4 uNightC; uniform vec4 uSun, uShade, uHaze, uTint, uVig;
 float sl(float b, float s) { float d = b <= 0.25 ? ((16.0 * b - 12.0) * b + 4.0) * b : sqrt(b); return s <= 0.5 ? b - (1.0 - 2.0 * s) * b * (1.0 - b) : b + (2.0 * s - 1.0) * (d - b); }
 float lightAt(vec2 uv) { vec4 h = texture(uSh, uv); return (1.0 - h.r) + (1.0 - h.g) + dot(texture(uGlow, uv).rgb + texture(uWarm, uv).rgb, vec3(0.333)); }
 void main() {
@@ -1336,7 +1336,7 @@ void main() {
   if (uWarmK > 0.0) c = mix(c, c * vec3(1.0, 0.6667, 0.4314), uWarmK);   // art.js drawNight: dusk and dawn
   if (uNight > 0.0) {
     float lit = clamp((1.0 - texture(uSh, uv).g) * nf, 0.0, 1.0);
-    c = mix(c, vec3(0.0235, 0.047, 0.1333), 0.62 * uNight * (1.0 - lit));
+    c = mix(c, uNightC.rgb, uNightC.a * uNight * (1.0 - lit));
     c = min(c + texture(uWarm, uv).rgb * nf, 1.0);
   }
   o = vec4(clamp(c, 0.0, 1.0), 1.0);
@@ -1346,7 +1346,7 @@ void main() {
     P3 = gl.createProgram(); gl.attachShader(P3, mk(gl.VERTEX_SHADER, VS3)); gl.attachShader(P3, mk(gl.FRAGMENT_SHADER, FS3)); gl.linkProgram(P3);
     if (!gl.getProgramParameter(P3, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(P3));
     loc3 = { aQ: gl.getAttribLocation(P3, 'aQ') };
-    for (const n of ['uScene', 'uNrm', 'uSh', 'uGlow', 'uWarm', 'uPool', 'uCloud', 'uSize', 'uRS', 'uOrg', 'uCam', 'uScr', 'uHalf', 'uLook', 'uSat', 'uGlowK', 'uCloudK', 'uWarmK', 'uNight', 'uT', 'uNrmK', 'uGrade', 'uSun', 'uShade', 'uHaze', 'uTint', 'uVig', 'uSunK', 'uSunSt', 'uGroundSt', 'uHD', 'uHS', 'uBakeL', 'uSunL', 'uRot', 'uSunG', 'uAmb', 'uSunC']) loc3[n] = gl.getUniformLocation(P3, n);
+    for (const n of ['uScene', 'uNrm', 'uSh', 'uGlow', 'uWarm', 'uPool', 'uCloud', 'uSize', 'uRS', 'uOrg', 'uCam', 'uScr', 'uHalf', 'uLook', 'uSat', 'uGlowK', 'uCloudK', 'uWarmK', 'uNight', 'uT', 'uNrmK', 'uGrade', 'uSun', 'uShade', 'uHaze', 'uTint', 'uVig', 'uSunK', 'uSunSt', 'uGroundSt', 'uHD', 'uHS', 'uBakeL', 'uSunL', 'uRot', 'uSunG', 'uAmb', 'uSunC', 'uNightC']) loc3[n] = gl.getUniformLocation(P3, n);
     tri = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, tri); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
   }
   // Soft pictures (lights) into a light buffer: [picture, view x, view y, w, h, alpha]; the blend set by the caller.
@@ -1407,7 +1407,7 @@ void main() {
     gl.blendEquation(gl.FUNC_ADD);
     // 2: the night's warm light, added
     to(2, 0, 0, 0, 0); gl.blendFunc(gl.ONE, gl.ONE);
-    if (nightOn) { const gp = (typeof lampGlowPic !== 'undefined' && lampGlowPic) || nightLightPic(); splat(nL.filter((l) => l[4]).map(([x, y, r, a]) => [gp, x - r * 0.6, y - r * 0.6, r * 1.2, r * 1.2, 0.12 * a * DN.night]), L, hw, hh, sc); }
+    if (nightOn) { const gp = (typeof lampGlowPic !== 'undefined' && lampGlowPic) || nightLightPic(); splat(nL.filter((l) => l[4]).map(([x, y, r, a]) => [gp, x - r * 0.6, y - r * 0.6, r * 1.2, r * 1.2, Math.min(1, 0.12 * nightStyle().glow * a * DN.night)]), L, hw, hh, sc); }
     // 3: the pools' colour by day, screened
     to(3, 0, 0, 0, 0); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR);
     splat(dayL.filter((l) => l[4][0] === 'p').map(([x, y, r, a, col, f]) => [Lp[col], x - r, y - r * f, r * 2, r * 2 * f, a * POOL_DAY]), L, hw, hh, sc);
@@ -1428,9 +1428,10 @@ void main() {
       gl.uniform1f(loc3.uHD, typeof HILL_DRAW !== 'undefined' ? HILL_DRAW : 1); gl.uniform1f(loc3.uHS, typeof HILL_SHADE !== 'undefined' ? HILL_SHADE : 1);
     }
     gl.uniform1f(loc3.uWarmK, L && DN.warm > 0.01 ? 0.32 * DN.warm : 0); gl.uniform1f(loc3.uNight, nightOn ? DN.night : 0);
+    { const NS = nightStyle(); gl.uniform4f(loc3.uNightC, NS.c[0] / 255, NS.c[1] / 255, NS.c[2] / 255, NS.a); }
     if (look) {
       const c4 = (c, m) => [c[0] / 255, c[1] / 255, c[2] / 255, c[3] * m];
-      gl.uniform1f(loc3.uSat, M.sat * dn); gl.uniform3f(loc3.uGrade, ...M.grade.map((c) => Math.round(255 - (255 - c) * dn) / 255));
+      gl.uniform1f(loc3.uSat, M.sat * (M.sat < 0 ? 1 : dn)); gl.uniform3f(loc3.uGrade, ...M.grade.map((c) => Math.round(255 - (255 - c) * dn) / 255));
       gl.uniform4f(loc3.uSun, ...c4(M.sun, dn)); gl.uniform4f(loc3.uShade, ...c4(M.shade, dn)); gl.uniform4f(loc3.uHaze, ...c4(M.haze, dn));
       gl.uniform4f(loc3.uTint, ...c4(M.tint, dn)); gl.uniform4f(loc3.uVig, ...c4(M.vig, dn));
       gl.uniform1f(loc3.uGlowK, 0.3 * (0.5 + 0.5 * dn)); const ck = dn * (M.cloud === undefined ? 1 : M.cloud); gl.uniform1f(loc3.uCloudK, ck > 0.02 ? ck : 0);
