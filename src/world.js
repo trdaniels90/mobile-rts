@@ -88,7 +88,10 @@ function newWorld(playerFaction, diffKey, seed, me = PLAYER, pvp = false, mapId 
   // the ground's layer, G.dctx the layer of bodies and wrecks above it, so later craters and scorch marks
   // never paint over them.
   newGround(G);
-  G.weather = rollWeather(mapId, seed);   // rain or snow for this battle, or none (looks only; art.js drawWeather)
+  // Rain or snow for this battle, or none (art.js drawWeather). Single player only (owner, 2026-11-28: "Remove rain and snow
+  // from all online matches. Keep it to single player skirmishes only"): every online battle (co-op and PvP, phones and the
+  // server) is made with pvp set.
+  G.weather = pvp ? null : rollWeather(mapId, seed);
 
   if (empty) { G.explore = true; for (const t of G.teams) t.isAI = false; }
   else for (const team of G.teams) {

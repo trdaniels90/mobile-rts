@@ -68,6 +68,7 @@ share globals. Read this file first (feature notes are in `docs/NOTES.md`); the 
 
 ## Rain and water (owner's rules, 2026-11-24)
 
+- **Rain and snow in single player only** (owner, 2026-11-28): online battles (co-op and PvP) never have weather (world.js `newWorld`: `pvp` means no `rollWeather`; the server clears it from a continued save).
 - **Rain only where the owner says.** Never add `weather: { kind: 'rain' }` to a map on your own; ask.
 - **A map with rain always gets the full rain look:** puddles and rivulets (look.js `lookPuddles`) and runoff from buildings
   (`lookRunoff`). Never gate these per map; a new rain effect goes on every rainy map.

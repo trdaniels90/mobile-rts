@@ -304,7 +304,7 @@ function start(R) {
     // A saved battle, made again from its save; then each side goes to whoever plays it now.
     try {
       ctx.__save = zlib.gunzipSync(Buffer.from(rs.state, 'base64')).toString();
-      R.run(`SaveGame.adopt(__save, mapSize(${JSON.stringify(rs.map)})); delete globalThis.__save; 0`);
+      R.run(`SaveGame.adopt(__save, mapSize(${JSON.stringify(rs.map)})); delete globalThis.__save; G.weather = null; 0`);   // (no weather online, even in a battle saved with some)
     } catch (e) {
       log(R.code, 'saved battle failed to load', e && e.stack);
       for (const s of R.seats) send(s.ws, { k: 'err', why: 'save' });

@@ -2912,6 +2912,11 @@ hand-over (`air`) 20-28 ms, list ~12, trees 8-14, structures 6-11.
   - Left in a frozen zoomed-out Lakeside scene: list ~4-8, bld ~4-7, trees ~2-4, units ~1-3 ms; "gnd" (20-38 here) is the
     software GPU and the resident ground being built, not comparable to a real PC (owner's reports: 1.3-7).
 ## Rain and water rules (owner, 2026-11-24)
+- **Single player only (owner, 2026-11-28: "Remove rain and snow from all online matches. Keep it to single player skirmishes
+  only"):** world.js `newWorld` rolls weather only without `pvp`, and every online battle (co-op and PvP, a hosting phone, a
+  guest, the server) is made with `pvp`; server.js clears `G.weather` from a continued co-op save. No weather online means no
+  lightning strikes (`lightningStrikes`) online either. Winter maps keep their snowy ground. Headless: 0 of 80 online worlds
+  with weather (Crossroads Village, Lakeside, Snowbound, Frostlight, seeds 1-20), 32 of 80 skirmishes.
 
 - Owner: "im not saying every map gets rain. only the maps i say do, however if they do get rain i want them to always get the building
   run off and puddles, however there are maps with water on the map like river and lakes that dont have movement".
