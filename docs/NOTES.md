@@ -3398,5 +3398,8 @@ went back to 60 at every touch), drawing 8-14 ms: the heat was steady near-60 fp
 - **Measuring like a phone headless:** Chromium reports `navigator.deviceMemory` 8, so the game takes it for a roomy computer
   (no sprite trim, RGBA ground). Override it to undefined in an init script (`Object.defineProperty(Navigator.prototype,
   'deviceMemory', { get: () => undefined })`) with an iPhone context.
-- **Still open:** soldiers' pictures made in play churn against `SPRITE_KEEP` (~860 remade in 32 s of a late 2 v 2 in view),
-  which is garbage for the phone to collect.
+- **Soldiers' pictures are not a problem on phones (checked):** opened from a file (tools/sim), the baked sheets do not load,
+  so every soldier frame is made in play and churns against `SPRITE_KEEP` (~860 remade in 32 s of a late 2 v 2). Served over
+  http as a phone gets it (`python3 -m http.server`, same 12 min battle, iPhone, no deviceMemory): 29 pictures made in 32 s
+  (houses, Construction Yard pieces), none of them soldiers; with HD on (`?hd=1`), 144 ejected pilots (`Ipilot*`, not a unit
+  type, so never baked) and some village props. Measure memory over http, never from a file.
