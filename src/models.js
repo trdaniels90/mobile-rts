@@ -23,8 +23,83 @@ function palFor(faction) {
 const modelCache = new Map();
 function model(key, build) {
   let m = modelCache.get(key);
-  if (!m) { m = build(); if (m && m.vd && !m.ra2 && !key.endsWith('~flat')) ra2Auto(m); modelCache.set(key, m); }
+  if (!m) {
+    m = build();
+    if (m && m.vd && !m.ra2 && !key.endsWith('~flat')) {
+      if (!m.dressed && /^[TJQFMRWV]/.test(key)) dressHull(m);   // ground vehicles' hulls (hullSprite keys)
+      if (!m.dressed && /^[tqm]/.test(key)) dressTurret(m);      // their turrets
+      ra2Auto(m);
+    }
+    modelCache.set(key, m);
+  }
   return m;
+}
+// RA2 dressing for any ground vehicle (HD models, branch claude/ra2-models): the hull is scanned for its real front, back,
+// sides and deck, and small parts are fitted onto those surfaces: guarded headlights and tow hooks on the front, tail
+// lights and an engine grille at the back, rows of rivets along the sides, stowage boxes on the rear deck. A turret gets
+// periscopes round its roof. Hand-detailed models set m.dressed (or m.ra2) and are left alone.
+function vScan(m) {
+  const D = m.vd, W = m.w, H = m.h, Dd = m.d, col = m.col;
+  const f = (X, Y, Z) => X >= 0 && Y >= 0 && Z >= 0 && X < W && Y < H && Z < Dd && col[(Z * H + Y) * W + X] >= 0;
+  let x0 = W, x1 = -1, y0 = H, y1 = -1, z1 = -1;
+  for (let Z = 0; Z < Dd; Z++) for (let Y = 0; Y < H; Y++) for (let X = 0; X < W; X++) if (col[(Z * H + Y) * W + X] >= 0) {
+    if (X < x0) x0 = X; if (X > x1) x1 = X; if (Y < y0) y0 = Y; if (Y > y1) y1 = Y; if (Z > z1) z1 = Z;
+  }
+  const wx = (X) => (X + m.x0) / D, wy = (Y) => (Y + m.y0) / D, wz = (Z) => Z / D;
+  return { D, f, x0, x1, y0, y1, z1, wx, wy, wz, ok: x1 >= 0,
+    front: (Y, Z) => { for (let X = W - 1; X >= 0; X--) if (f(X, Y, Z)) return X; return -1; },
+    back: (Y, Z) => { for (let X = 0; X < W; X++) if (f(X, Y, Z)) return X; return -1; },
+    left: (X, Z) => { for (let Y = 0; Y < H; Y++) if (f(X, Y, Z)) return Y; return -1; },
+    right: (X, Z) => { for (let Y = H - 1; Y >= 0; Y--) if (f(X, Y, Z)) return Y; return -1; },
+    top: (X, Y) => { for (let Z = Dd - 1; Z >= 0; Z--) if (f(X, Y, Z)) return Z; return -1; } };
+}
+function dressHull(m) {
+  const S = vScan(m);
+  if (!S.ok) return;
+  const { D, x0, x1, y0, y1, z1, wx, wy, wz } = S, ht = z1 + 1, Yat = (k) => Math.round(y0 + (y1 - y0) * k), steel = '#5d6264', dark = '#151513';
+  for (const k of [0.2, 0.8]) {
+    const Y = Yat(k), Zl = Math.round(ht * 0.55), Xf = S.front(Y, Zl), Xb = S.back(Y, Zl);
+    if (Xf >= 0) {
+      const fx = wx(Xf + 1), ly = wy(Y) + 0.5 / D, lz = wz(Zl);
+      vcyl(m, 'x', fx - 0.2, fx + 0.45, ly, lz, 0.48, steel, M_METAL);
+      vcyl(m, 'x', fx + 0.45, fx + 0.6, ly, lz, 0.36, '#fff2c4', M_GLOW);
+    }
+    if (Xb >= 0) { const bx = wx(Xb); vfill(m, bx - 0.25, wy(Y) - 0.4, wz(Zl) - 0.25, bx + 0.05, wy(Y) + 0.6, wz(Zl) + 0.25, '#ff3a28', M_GLOW); }
+    const Zh = Math.round(ht * 0.22), Xh = S.front(Yat(k < 0.5 ? 0.36 : 0.64), Zh);
+    if (Xh >= 0) { const hx = wx(Xh + 1), hy = wy(Yat(k < 0.5 ? 0.36 : 0.64)); vfill(m, hx - 0.1, hy - 0.3, wz(Zh) - 0.3, hx + 0.7, hy + 0.5, wz(Zh) + 0.3, dark, M_METAL); }
+  }
+  {   // the engine grille, on the back face
+    const Zg = Math.round(ht * 0.5), Y = Yat(0.5), Xb = S.back(Y, Zg);
+    if (Xb >= 0) { const bx = wx(Xb), w = (y1 - y0) / D * 0.18; vpaint(m, bx - 0.1, wy(Y) - w, wz(Zg) - 1.2, bx + 0.4, wy(Y) + w, wz(Zg) + 0.8, (x, y, z) => (((z + 20) % 0.5) < 0.2 ? dark : undefined), true); }
+  }
+  const Zr = Math.round(ht * 0.62);   // rivets along both sides
+  for (let X = x0 + D; X < x1 - D; X += Math.round(1.3 * D)) {
+    for (const side of [0, 1]) {
+      const Y = side ? S.right(X, Zr) : S.left(X, Zr);
+      if (Y < 0) continue;
+      const y = side ? wy(Y + 1) : wy(Y);
+      vfill(m, wx(X) - 0.18, y - 0.18, wz(Zr) - 0.18, wx(X) + 0.18, y + 0.18, wz(Zr) + 0.18, '#9a9a92', M_METAL);
+    }
+  }
+  for (const k of [0.25, 0.75]) {   // stowage on the rear deck
+    const X = Math.round(x0 + (x1 - x0) * 0.14), Y = Yat(k), Zt = S.top(X, Y);
+    if (Zt < 0 || Zt < ht * 0.5) continue;
+    const x = wx(X), y = wy(Y), z = wz(Zt + 1);
+    vfill(m, x - 1, y - 0.6, z, x + 1, y + 0.6, z + 0.6, '#4f5634', M_MATTE);
+    vfill(m, x - 1, y - 0.6, z + 0.45, x + 1, y + 0.6, z + 0.6, '#3b4027', M_MATTE);
+  }
+}
+function dressTurret(m) {
+  const S = vScan(m);
+  if (!S.ok) return;
+  const { D, x0, y0, y1, wx, wy, wz } = S, cx = Math.round(x0 + (S.x1 - x0) * 0.25), cy = Math.round((y0 + y1) / 2), r = (y1 - y0) / D * 0.28;
+  for (let a = 0; a < 4; a++) {   // periscopes round the roof, toward the back
+    const x = wx(cx) + Math.cos(a * 1.57 + 0.4) * r, y = wy(cy) + Math.sin(a * 1.57 + 0.4) * r;
+    const Zt = S.top(Math.round((x * D) - m.x0), Math.round((y * D) - m.y0));
+    if (Zt < 0) continue;
+    vfill(m, x - 0.3, y - 0.3, wz(Zt + 1), x + 0.3, y + 0.3, wz(Zt + 1) + 0.45, '#22262a', M_METAL);
+    vfill(m, x + 0.15, y - 0.25, wz(Zt + 1) + 0.05, x + 0.32, y + 0.25, wz(Zt + 1) + 0.38, '#29404c', M_GLASS);
+  }
 }
 // The RA2 detail pass (branch claude/ra2-models): every model built at HD detail (tools/hd-vox.js, the HD bake) that was
 // not hand-detailed (m.ra2) gets fine panel seams and rivets on its metal, pour lines and grain on concrete and rough
@@ -464,6 +539,7 @@ function grizzlyHull(pal, s) {
     }
     vpaint(m, -hl - 0.5, -2.2, 3, -hl + 0.5, 2.2, 5, (x, y, z) => (((z + 10) % 0.5) < 0.2 ? '#14172a' : undefined), true);   // rear grille
     vcyl(m, 'x', 4, 9, 0, 5.3, 0.35, '#5d6264', M_METAL);   // a tow cable on the deck
+    m.dressed = true;
   }
   return m;
 }
@@ -495,6 +571,7 @@ function grizzlyTurret(pal, s) {
       const dx = x - (-1 + f), dz = z - 2, rr = Math.hypot(dx, dz), a = Math.atan2(dz, dx * sd) - Math.PI / 2, k = Math.abs(((a / (Math.PI * 2 / 5)) % 1 + 1) % 1 - 0.5) * 2;
       return rr < 1.2 * (0.4 + 0.6 * k * k) ? '#eef0f4' : rr < 1.55 && rr > 1.3 ? '#eef0f4' : undefined;
     }, true);
+    m.dressed = true;
   }
   return m;
 }
@@ -1060,6 +1137,7 @@ function harvModel(pal, loaded) {
     vcyl(m, 'z', 14.2, 14.6, 0.5, -hw + 1.2, 0.55, '#151513', M_METAL);
     for (let z = 5.5; z < 10; z += 0.9) vfill(m, 0.6, hw - 0.4, z, 1.2, hw + 0.2, z + 0.2, '#c9c9c0', M_METAL);   // ladder rungs
     vpaint(m, -12.5, -hw, 7, 1.5, hw, 14, (x, y, z, c, mt) => (mt === M_METAL && Math.abs(((x + 20) % 2.5) - 1.25) < 0.15 ? '#4d4f49' : undefined), true);
+    m.dressed = true;
   }
   return m;
 }
