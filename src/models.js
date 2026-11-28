@@ -28,6 +28,7 @@ function model(key, build) {
     if (m && m.vd && !m.ra2 && !key.endsWith('~flat')) {
       if (!m.dressed && /^[TJQFMRWV]/.test(key)) dressHull(m);   // ground vehicles' hulls (hullSprite keys)
       if (!m.dressed && /^[tqm]/.test(key)) dressTurret(m);      // their turrets
+      if (!m.dressed && key[0] === 'S' && !key.startsWith('Shv') && !key.includes('~')) dressStructure(m, key);   // structures
       ra2Auto(m);
     }
     modelCache.set(key, m);
@@ -99,6 +100,72 @@ function dressTurret(m) {
     if (Zt < 0) continue;
     vfill(m, x - 0.3, y - 0.3, wz(Zt + 1), x + 0.3, y + 0.3, wz(Zt + 1) + 0.45, '#22262a', M_METAL);
     vfill(m, x + 0.15, y - 0.25, wz(Zt + 1) + 0.05, x + 0.32, y + 0.25, wz(Zt + 1) + 0.38, '#29404c', M_GLASS);
+  }
+}
+// RA2 dressing for any structure (HD models, branch claude/ra2-models; from the owner's RA2 base shots): the model is
+// scanned for its pad, walls, roofs and windows, and fitted with a hazard-striped pad edge, framed and barred windows with a
+// lit top row, rooftop clutter (vents and AC units with grilles) on each wide flat roof, railings where a roof edge drops
+// away, and a thin team-colour trim under the main roof's edge. Hand-detailed models set m.dressed or m.ra2.
+function dressStructure(m, key) {
+  const S = vScan(m);
+  if (!S.ok) return;
+  if (key && key.includes('allies')) {   // RA2's Allies build in bright silver-white: greys lifted, a touch of blue
+    const col0 = m.col;
+    for (let i = 0; i < col0.length; i++) {
+      const c = col0[i]; if (c < 0 || m.mat[i] === M_GLOW || m.mat[i] === M_GLASS || m.mat[i] === M_GHOST) continue;
+      const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      if (mx - mn > 28 || mx < 60) continue;
+      const k = 0.38;
+      col0[i] = (Math.round(r + (226 - r) * k) << 16) | (Math.round(g + (230 - g) * k) << 8) | Math.round(b + (238 - b) * k);
+    }
+  }
+  const { D, x0, x1, y0, y1, z1, wx, wy, wz } = S, W = m.w, col = m.col, mat = m.mat;
+  const top = (X, Y) => S.top(X, Y), steelD = '#3d4244', steel = '#666c6e', steelL = '#9aa0a2', haz = '#c9a227', blk = '#1c1c1a';
+  // the pad: its own top (z within a voxel or two of the ground), a hazard band along its two edges the camera sees
+  const padZ = (() => { let n = 0, s0 = 0; for (let X = x0; X <= x1; X += D) { const Z = top(X, y1); if (Z >= 0 && Z < 3 * D) { n++; s0 += Z; } } return n ? Math.round(s0 / n) : -1; })();
+  if (padZ >= 0) {
+    const zt = wz(padZ + 1);
+    vpaint(m, wx(x0), wy(y1) - 0.9, zt - 0.3, wx(x1 + 1), wy(y1 + 1), zt + 0.05, (x, y, z) => (((x + y) % 1.2) < 0.6 ? haz : blk), true);
+    vpaint(m, wx(x1) - 0.9, wy(y0), zt - 0.3, wx(x1 + 1), wy(y1 + 1), zt + 0.05, (x, y, z) => (((x + y) % 1.2) < 0.6 ? haz : blk), true);
+  }
+  // windows: frames and bars on the glass, the top row lit
+  vpaint(m, wx(x0), wy(y0), 0, wx(x1 + 1), wy(y1 + 1), wz(z1 + 1), (x, y, z, c, mt, i) => {
+    if (mt !== M_GLASS) return;
+    const above = i + W * m.h < col.length ? col[i + W * m.h] : -1, amat = i + W * m.h < col.length ? mat[i + W * m.h] : 0;
+    if (above >= 0 && amat !== M_GLASS) return mixHex('#' + (c >>> 0).toString(16).padStart(6, '0'), '#ffffff', 0.35);   // the top row catches the light
+    const u = (x + y) % 1.5;
+    if (u < 0.25 || (z % 2) < 0.25) return steelD;
+  }, true);
+  // roofs: the highest flat areas; clutter on them, railings where they drop
+  const flats = [];
+  for (let Y = y0 + 2 * D; Y < y1 - 2 * D; Y += 3 * D) for (let X = x0 + 2 * D; X < x1 - 2 * D; X += 3 * D) {
+    const Z = top(X, Y); if (Z < 6 * D) continue;
+    if (Math.abs(top(X + 2 * D, Y) - Z) <= 1 && Math.abs(top(X - 2 * D, Y) - Z) <= 1 && Math.abs(top(X, Y + 2 * D) - Z) <= 1 && Math.abs(top(X, Y - 2 * D) - Z) <= 1) flats.push([X, Y, Z]);
+  }
+  let n = 0;
+  for (const [X, Y, Z] of flats) {
+    if (hash3(X, Y, Z) > 0.18 || n > 5) continue;
+    n++;
+    const x = wx(X), y = wy(Y), z = wz(Z + 1), big = hash3(X, Y, 3) > 0.5;
+    if (big) {   // an AC unit: a box with a round fan grille
+      vfill(m, x - 1.4, y - 1, z, x + 1.4, y + 1, z + 1.2, steel, M_METAL);
+      vcyl(m, 'z', z + 1.2, z + 1.35, x - 0.5, y, 0.7, blk, M_METAL);
+      vpaint(m, x - 1.4, y - 1, z, x + 1.4, y + 1, z + 1.2, (xx, yy, zz) => (((zz + 10) % 0.4) < 0.15 && zz < z + 1.1 ? steelD : undefined), true);
+    } else {   // a vent stack with a cap
+      vcyl(m, 'z', z, z + 1.6, x, y, 0.45, steelL, M_METAL);
+      vcyl(m, 'z', z + 1.6, z + 1.9, x, y, 0.7, steelD, M_METAL);
+    }
+  }
+  // railings along roof edges that drop more than 3 px, on the main roof's level
+  const roofZ = flats.length ? flats.reduce((a, f) => Math.max(a, f[2]), 0) : -1;
+  if (roofZ > 0) for (let Y = y0; Y <= y1; Y += D) for (let X = x0; X <= x1; X += D) {
+    const Z = top(X, Y); if (Math.abs(Z - roofZ) > 1) continue;
+    const drop = Math.min(top(X + D, Y), top(X, Y + D));
+    if (drop >= 0 && Z - drop < 3 * D && drop >= 0) continue;
+    if (top(X + D, Y) >= Z - 1 && top(X, Y + D) >= Z - 1) continue;
+    const x = wx(X) + 0.5, y = wy(Y) + 0.5, z = wz(Z + 1);
+    vfill(m, x - 0.15, y - 0.15, z + 0.7, x + 0.15, y + 0.15, z + 0.85, steelL, M_METAL);
+    if (((X + Y) / D) % 3 === 0) vfill(m, x - 0.1, y - 0.1, z, x + 0.1, y + 0.1, z + 0.85, steelL, M_METAL);
   }
 }
 // The RA2 detail pass (branch claude/ra2-models): every model built at HD detail (tools/hd-vox.js, the HD bake) that was

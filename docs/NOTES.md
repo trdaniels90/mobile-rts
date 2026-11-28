@@ -67,6 +67,11 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
   without seams. Also fixed: `big` (a ridge's height factor) blended between cell middles (it stepped at cell edges). cliffPic
   keeps its old column drawing for the shadow only. Cost: ~4 ms a cell, ~21 ms in HD (baked for fixed maps; in play at most one
   past the frame's time).
+- **Every structure dressed (models.js `dressStructure`, HD models; from the owner's RA2 base shots):** hazard bands on the pad's
+  two camera-side edges, framed and barred windows with a lit top row, rooftop clutter (AC units with fan grilles, vent stacks)
+  on wide flat roofs, railings where the main roof drops away; Allied structures' greys lifted toward RA2's silver-white.
+  Village houses (`Shv`) excluded. Hand-detailed ones (m.dressed / m.ra2) skipped.
+- **Bake sizes (3D rock):** cliffs/ 24 to 44 MB, cliffs-hd/ 75 to 148 MB (fetched per map; HD only when HD is on).
 - **Still to do:** every other unit (vehicles, aircraft, infantry) and structure by hand, snow and fen ground, crags.
 
 ## Red Alert 2 ground (branch claude/ra2-models only, 2026-11-28, looks only, both modes)
