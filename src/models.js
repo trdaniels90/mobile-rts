@@ -23,7 +23,42 @@ function palFor(faction) {
 const modelCache = new Map();
 function model(key, build) {
   let m = modelCache.get(key);
-  if (!m) { m = build(); modelCache.set(key, m); }
+  if (!m) { m = build(); if (m && m.vd && !m.ra2 && !key.endsWith('~flat')) ra2Auto(m); modelCache.set(key, m); }
+  return m;
+}
+// The RA2 detail pass (branch claude/ra2-models): every model built at HD detail (tools/hd-vox.js, the HD bake) that was
+// not hand-detailed (m.ra2) gets fine panel seams and rivets on its metal, pour lines and grain on concrete and rough
+// surfaces, then vweather (dust low down, lit top edges, streaks). Spacing grows with the model (units 5 px, structures 8).
+// Classic (one voxel per pixel) models are left alone: the detail is finer than their voxels.
+function ra2Auto(m) {
+  const D = m.vd, W = m.w, H = m.h, Dd = m.d, col = m.col, mat = m.mat;
+  const big = W / D > 40 || H / D > 40, sp = big ? 8 : 5, spz = big ? 5 : 3.5, t = 0.26;
+  const at = (x, y, z) => (x < 0 || y < 0 || z < 0 || x >= W || y >= H || z >= Dd ? -1 : col[(z * H + y) * W + x]);
+  const mul = (c, k) => (Math.min(255, Math.round(((c >> 16) & 255) * k)) << 16) | (Math.min(255, Math.round(((c >> 8) & 255) * k)) << 8) | Math.min(255, Math.round((c & 255) * k));
+  const near = (v, s) => { const r = ((v % s) + s) % s; return r < t || s - r < t * 0.01; };
+  for (let z = 0; z < Dd; z++) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = (z * H + y) * W + x, c = col[i], mt = mat[i];
+    if (c < 0 || mt === M_GLOW || mt === M_GLASS) continue;
+    const top = at(x, y, z + 1) < 0, sx = at(x + 1, y, z) < 0 || at(x - 1, y, z) < 0, sy = at(x, y + 1, z) < 0 || at(x, y - 1, z) < 0;
+    if (!top && !sx && !sy) continue;
+    const wx = (x + m.x0 + 0.5) / D, wy = (y + m.y0 + 0.5) / D, wz = (z + 0.5) / D;
+    const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255, grey = Math.max(r, g, b) - Math.min(r, g, b) < 26;
+    let k = 1;
+    if (mt === M_METAL) {
+      const seam = top ? near(wx, sp) || near(wy, sp) : sx ? near(wy, sp) || near(wz, spz) : near(wx, sp) || near(wz, spz);
+      if (seam) k = 0.8;
+      else {
+        const rv = top ? (near(wx - 0.5, sp) || near(wx + 0.5, sp)) && near(wy, 1.25) : sx ? near(wz - 0.5, spz) && near(wy, 1.25) : near(wz - 0.5, spz) && near(wx, 1.25);
+        if (rv) k = 1.16;
+      }
+    } else if (mt === M_ROUGH || (mt === M_MATTE && grey)) {
+      if (!top && near(wz, big ? 6 : 4)) k = 0.86;                                   // pour lines
+      const n = hash3(x + m.x0, y + m.y0, z);
+      k *= n > 0.9 ? 1.1 : n < 0.08 ? 0.88 : 1;
+    }
+    if (k !== 1) col[i] = mul(c, k);
+  }
+  vweather(m, big ? 4 : 2.2, 0.6);
   return m;
 }
 const spriteCache2 = new Map();
@@ -264,6 +299,7 @@ function heavyHull(pal, s) {
     vcyl(m, 'y', sd < 0 ? -5.4 : 1.4, sd < 0 ? -1.4 : 5.4, -14.25, 5.9, 0.92, HT.olive, M_METAL);
     for (const yb of sd < 0 ? [-4.5, -2.3] : [2.3, 4.5]) vcyl(m, 'y', yb - 0.15, yb + 0.15, -14.25, 5.9, 0.98, HT.oliveD, M_METAL);
   }
+  m.ra2 = true;
   return vweather(m, 2.6, 0.9, '#6b5a44');
 }
 function heavyTurret(pal, s) {
@@ -323,6 +359,7 @@ function heavyTurret(pal, s) {
     const dx = x + 2.6, dz = z - 2, a = Math.atan2(dz, dx * sd) - Math.PI / 2, r = Math.hypot(dx, dz), k = Math.abs(((a / (Math.PI * 2 / 5)) % 1 + 1) % 1 - 0.5) * 2;
     return r < 1.25 * (0.4 + 0.6 * k * k) ? HT.white : undefined;
   }, true);
+  m.ra2 = true;
   return vweather(m, 0, 0.8);
 }
 // Soviet Mammoth Tank, copied from the reference: two big rounded red track pods either side of a

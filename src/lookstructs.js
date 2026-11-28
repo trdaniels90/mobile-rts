@@ -575,6 +575,7 @@ const TS_MODELS = {
     vfill(m, 61, 2.5, 22.8, 66, 6, 26, steelD, M_METAL);
     for (const x of [62, 64]) { vcyl(m, 'z', 26, 27.6, x, 4.2, 0.4, '#8b6b4a', M_MATTE); vcyl(m, 'z', 27.6, 28, x, 4.2, 0.55, '#8b6b4a', M_MATTE); }
     tsFlood(m, 3, 47, 19); tsFlood(m, 67, 47, 19);
+    m.ra2 = true;
     return vweather(m, 5, 0.75, '#6a5d4a');
   },
 };
