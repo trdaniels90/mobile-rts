@@ -70,7 +70,7 @@ const SPOT = { name: 'Ground', armor: 'bld', r: 0 };
 const SPAN = { name: 'Bridge', hp: 6000, armor: 'bld', r: 20 };
 // A village house (maps with `village`; world.js genVillage): neutral, hurt by blasts near it and by an ordered attack.
 const HOUSE = { name: 'House', armor: 'bld', r: 20 };
-const INF_SCALE = 0.65;   // soldiers are drawn at this share of their voxel models' size (owner's pick after a Red Alert comparison): sprites, muzzles, aim heights, bodies. Looks only
+const INF_SCALE = 0.85;   // soldiers are drawn at this share of their voxel models' size (owner's pick: 0.65 after a Red Alert comparison, 0.85 on 2026-11-28 to match RA2 (branch claude/ra2-models)): sprites, muzzles, aim heights, bodies. Looks only
 const BUILD_UP = 2.5;   // seconds a structure takes to go up once placed (world.js updateBuilding; art.js drawBuildUp); both modes, the server must match
 const WARHEADS = {
   SA:    { inf: 1.0, light: 0.55, heavy: 0.25, bld: 0.3, air: 0.6 },   // small arms

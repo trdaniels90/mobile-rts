@@ -633,8 +633,9 @@ function cliffPic(L, c, noShadow, K = 1) {
   // Its shadow on the ground, away from the sun (to the screen's right and a little down), drawn under everything.
   const SL = CLIFF_SL, [sdx, sdy] = toView(CLIFF_SDX, CLIFF_SDY), sx1 = X1 + Math.ceil(top * CLIFF_UP * SL * sdx) + 2, sy1 = Y1 + Math.ceil(top * CLIFF_UP * SL * Math.max(0, sdy)) + 2;
   const SW = sx1 - X0, SH = sy1 - Y0, SWK = SW * K, SHK = SH * K, sm2 = noShadow ? null : new Uint8Array(SWK * SHK);
-  const ROCK = L.snow ? [[40, 42, 50], [58, 60, 68], [80, 82, 92], [104, 106, 116], [150, 156, 170], [206, 214, 226], [236, 240, 247]]
-    : [[44, 34, 26], [62, 49, 36], [84, 67, 49], [108, 88, 65], [134, 112, 84], [162, 139, 106], [190, 168, 132]];
+  // RA2 rock (branch claude/ra2-models, from the owner's reference shots): warm grey-brown, a touch cooler on winter maps
+  const ROCK = L.snow ? [[46, 42, 40], [66, 60, 56], [90, 82, 76], [116, 108, 100], [142, 134, 126], [170, 164, 158], [200, 196, 192]]
+    : [[48, 40, 34], [70, 58, 48], [96, 80, 64], [122, 104, 84], [148, 128, 104], [172, 152, 124], [196, 178, 148]];
   const Lx = -0.8, Ly = 0.3, Lz = 0.6, Ll = Math.hypot(Lx, Ly, Lz);   // towards the sun: the screen's upper left
   pts.sort((a, b) => viewDepth(a[0], a[1]) - viewDepth(b[0], b[1]));   // back to front
   for (const [x, y, h, gx, gy, f, xi, yi] of pts) {
@@ -656,7 +657,21 @@ function cliffPic(L, c, noShadow, K = 1) {
       if (steep > 0.45 && ((z + hash3(Math.floor(x) >> 3, Math.floor(y) >> 3, 5) * 3) % 8) < 1.2) v -= 0.8;   // strata on the faces
       if (z < 4) v -= (4 - z) * 0.3;                                                     // darker at the foot
       if (py === yTop && steep < 0.5) v += 0.4;                                          // a lit lip on flat tops
+      // RA2 faces: vertical streaks down the rock, cracks, ledges that catch the light (snow or moss lying on them)
+      const fx = xi / K, fy = yi / K, ledgeZ = (z + hash3(Math.floor(fx) >> 2, Math.floor(fy) >> 2, 29) * 5) % 6.5;
+      const ledge = steep > 0.3 && z > 3 && ledgeZ < 0.9 && hash3(Math.floor(fx / 3), Math.floor(fy / 3), Math.floor(z / 6.5) + 31) > 0.3;
+      if (steep > 0.3) {
+        v += (hash3(Math.floor(fx / 1.5), Math.floor(fy / 1.5), 21) - 0.5) * 1.3;
+        if (hash3(Math.floor(fx * 1.5), Math.floor(fy * 1.5), Math.floor(z / 2.5)) > 0.95) v -= 1.6;
+        if (ledge) v += 0.8; else if (ledgeZ < 1.6 && z > 3) v -= 0.7;   // the ledge's lit top, the shadow under it
+        v = Math.min(v, ROCK.length - 2.2);   // (faces never take the palest tones: stepped tops stay readable as rock)
+      }
       let t = ROCK[Math.max(0, Math.min(ROCK.length - 1, Math.floor(v)))];
+      if (steep > 0.3 && hash3(Math.floor(fx / 4), Math.floor(fy / 4), 23) > 0.62) t = [t[0] * 1.12, t[1] * 0.92, t[2] * 0.74];   // warm mineral stains
+      if (ledge) {
+        const sn = L.snow ? [232, 238, 246] : [86, 112, 44], k = L.snow ? 0.9 : 0.55, n = hash3(xi, yi, Math.floor(z)) ;
+        if (L.snow || n > 0.35) t = [t[0] + (sn[0] * (0.85 + lit * 0.15) - t[0]) * k, t[1] + (sn[1] * (0.85 + lit * 0.15) - t[1]) * k, t[2] + (sn[2] * (0.85 + lit * 0.15) - t[2]) * k];
+      }
       if (gcol && ((py - yTop < 3 * K && steep < 0.55) || (tAbs && h0 + z > tAbs - 3))) {   // a mesa's top (and rock just under its level): the ground's grass
         const j = ((yi - cy * CELL * K) * CELL * K + xi - cx * CELL * K) * 4, m = tAbs && h0 + z > tAbs - 3 ? 1 : Math.min(1, (0.55 - steep) * 3);
         t = [t[0] + (gcol[j] * lev - t[0]) * m, t[1] + (gcol[j + 1] * lev - t[1]) * m, t[2] + (gcol[j + 2] * lev - t[2]) * m];

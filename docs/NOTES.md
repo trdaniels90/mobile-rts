@@ -38,6 +38,12 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
   sills, lintels, glazing bars, a panelled door, gutters.
 - **Hand-detailed so far:** Heavy Tank, Soviet War Factory, Grizzly (skirt bolts, wheels under the skirts, lights, stowage, cupola,
   smoke dischargers, muzzle brake, stars), Ore Truck (hubs, grille, mirrors, beacons, exhaust, rails, ladder, bin ribs).
+- **From the owner's reference shots (six RA2 screenshots, 2026-11-28):** dark sprite edges (art.js `edgeDark`: the HD bake, HD
+  sprites made in play, `renderFine` trees), flatter yellow-green grass, deep blue water, soldiers at `INF_SCALE` 0.85 (owner:
+  "yes make soldiers bigger"; was 0.65; muzzles and aim heights follow, so the server must run the same version), crags (look.js
+  `cliffPic`): warm grey-brown rock, vertical streaks, cracks, mineral stains, ledges that catch the light with snow (winter) or moss
+  on them; faces kept off the palest tones so stepped plateaus stay readable. Every ground vehicle dressed by scanning its hull
+  (`dressHull` / `dressTurret`: lights, hooks, grille, rivets, stowage, periscopes).
 - **Still to do:** every other unit (vehicles, aircraft, infantry) and structure by hand, snow and fen ground, crags.
 
 ## Red Alert 2 ground (branch claude/ra2-models only, 2026-11-28, looks only, both modes)
