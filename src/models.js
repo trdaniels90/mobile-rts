@@ -30,6 +30,7 @@ function model(key, build) {
 // not hand-detailed (m.ra2) gets fine panel seams and rivets on its metal, pour lines and grain on concrete and rough
 // surfaces, then vweather (dust low down, lit top edges, streaks). Spacing grows with the model (units 5 px, structures 8).
 // Classic (one voxel per pixel) models are left alone: the detail is finer than their voxels.
+const RA2_TRACK = new Set(['#2a2925', '#3b3a34', '#1c1a17', '#2a2a26'].map(rgbInt));
 function ra2Auto(m) {
   const D = m.vd, W = m.w, H = m.h, Dd = m.d, col = m.col, mat = m.mat;
   const big = W / D > 40 || H / D > 40, sp = big ? 8 : 5, spz = big ? 5 : 3.5, t = 0.26;
@@ -44,6 +45,11 @@ function ra2Auto(m) {
     const wx = (x + m.x0 + 0.5) / D, wy = (y + m.y0 + 0.5) / D, wz = (z + 0.5) / D;
     const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255, grey = Math.max(r, g, b) - Math.min(r, g, b) < 26;
     let k = 1;
+    if (RA2_TRACK.has(c)) {   // tracks and tyres: links across them, every 0.75 px
+      const u = ((wx + 40) % 0.75 + 0.75) % 0.75;
+      col[i] = mul(c, u < 0.25 ? 1.45 : u < 0.5 ? 0.85 : 1.05);
+      continue;
+    }
     if (mt === M_METAL) {
       const seam = top ? near(wx, sp) || near(wy, sp) : sx ? near(wy, sp) || near(wz, spz) : near(wx, sp) || near(wz, spz);
       if (seam) k = 0.8;
@@ -445,6 +451,20 @@ function grizzlyHull(pal, s) {
   m.box(hl - 1, -hw + sk, 2, hl, hw - sk, 4, P.dark, M_METAL);
   for (let x = -hl + 2; x < -hl + 7; x += 2) m.box(x, -2, 5, x + 1, 2, 6, P.dark, M_METAL);   // rear engine vents
   m.paint(-hl, -hw, 2, hl, hw, 6, (x, y, z, c) => (hash3(x, y, z) > 0.95 && c === rgbInt(P.main)) ? P.dark : undefined);
+  if (m.vd) {   // RA2 detail (HD): skirt bolts, road wheels peeping under the skirts, headlights, tow hooks, a grille and stowage
+    const rv = mixHex(P.main, P.light, 0.6);
+    for (const sd of [-1, 1]) {
+      const yo = sd < 0 ? -hw : hw;
+      vrivets(m, -hl + 0.8, yo, 4.4, hl - 0.8, yo, 4.4, 1.2, rv, 0.2);
+      for (let x = -hl + 2.2; x < hl - 1; x += 3.4) vcyl(m, 'y', yo - 0.3, yo + 0.3, x, 1.05, 0.9, '#3d3c35', M_METAL);
+      vfill(m, hl - 0.4, sd * 4.6 - 0.6, 3.6, hl + 0.3, sd * 4.6 + 0.6, 4.4, '#c9cdd4', M_METAL);
+      vfill(m, hl + 0.2, sd * 4.6 - 0.45, 3.7, hl + 0.4, sd * 4.6 + 0.45, 4.3, '#fff2c4', M_GLOW);
+      vfill(m, hl, sd * 2.6 - 0.4, 1.6, hl + 0.9, sd * 2.6 + 0.4, 2.3, '#14172a', M_METAL);
+      vfill(m, -hl + 1.5, sd * 4.1 - 0.9, 5, -hl + 4.5, sd * 4.1 + 0.9, 5.6, '#4f5634', M_MATTE);   // stowage boxes
+    }
+    vpaint(m, -hl - 0.5, -2.2, 3, -hl + 0.5, 2.2, 5, (x, y, z) => (((z + 10) % 0.5) < 0.2 ? '#14172a' : undefined), true);   // rear grille
+    vcyl(m, 'x', 4, 9, 0, 5.3, 0.35, '#5d6264', M_METAL);   // a tow cable on the deck
+  }
   return m;
 }
 function grizzlyTurret(pal, s) {
@@ -459,6 +479,23 @@ function grizzlyTurret(pal, s) {
   m.cylX(r + f, reach, 0, 2, 1.0, '#16182a', M_METAL);                              // thin black gun
   m.cylX(reach - 2, reach, 0, 2, 1.3, '#16182a', M_METAL);
   m.line(-r - rb + 1 + f, w - 1, 4, -r - rb + 1 + f, w - 1, 9, '#1c2033');                      // aerial, rear right
+  if (m.vd) {   // RA2 detail (HD): a commander's cupola with periscopes, hatch rims, smoke dischargers, a fume extractor and
+    // muzzle brake on the gun, mantlet bolts, a stowage bin at the back, an Allied star on each side
+    const rv = mixHex(P.turret, P.turretHi, 0.6);
+    for (const y of [-3.2, 3.2]) vfill(m, -4.3 + f, y - 2.3, 4.6, 0.3 + f, y + 2.3, 5.25, '#5b6178', M_METAL, (x, yy) => { const d = Math.hypot(x - (-2 + f), yy - y); return d > 1.7 && d < 2.3; });
+    vcyl(m, 'z', 5, 5.9, -2 + f, -3.2, 1.3, P.turretHi, M_METAL);
+    for (let a = 0; a < 6; a++) { const x = -2 + f + Math.cos(a) * 1.25, y = -3.2 + Math.sin(a) * 1.25; vfill(m, x - 0.25, y - 0.25, 5.6, x + 0.25, y + 0.25, 6.1, '#29404c', M_GLASS); }
+    for (const sd of [-1, 1]) for (let k = 0; k < 3; k++) vcyl(m, 'x', r - 1.2 + f, r + 0.2 + f, sd * (w - 0.6 - k * 0.6), 3.4, 0.26, '#14172a', M_METAL);
+    vcyl(m, 'x', r + f + 4.5, r + f + 6.5, 0, 2, 1.3, '#16182a', M_METAL);
+    vpaint(m, reach - 2, -1.5, 0.5, reach, 1.5, 3.5, (x) => ((x % 0.6) < 0.25 ? '#2c3048' : undefined), true);
+    for (const z of [0.8, 3.2]) vrivets(m, r + 1 + f, -2.4, z, r + 1 + f, 2.4, z, 1.2, rv, 0.2);
+    vfill(m, -r - rb - 1.4 + f, -w + 1.2, 1, -r - rb + f, w - 1.2, 3.6, '#4f5634', M_MATTE);
+    vpaint(m, -r - rb - 1.5 + f, -w, 1, -r - rb + f, w, 3.7, (x, y) => (((y + 20) % 2) < 0.25 ? '#3b4027' : undefined), true);
+    for (const sd of [-1, 1]) vpaint(m, -4 + f, sd < 0 ? -w - 0.5 : w - 1, 0.3, 2 + f, sd < 0 ? -w + 1 : w + 0.5, 3.8, (x, y, z) => {
+      const dx = x - (-1 + f), dz = z - 2, rr = Math.hypot(dx, dz), a = Math.atan2(dz, dx * sd) - Math.PI / 2, k = Math.abs(((a / (Math.PI * 2 / 5)) % 1 + 1) % 1 - 0.5) * 2;
+      return rr < 1.2 * (0.4 + 0.6 * k * k) ? '#eef0f4' : rr < 1.55 && rr > 1.3 ? '#eef0f4' : undefined;
+    }, true);
+  }
   return m;
 }
 // BLENDER:ltank begin
@@ -1005,6 +1042,25 @@ function harvModel(pal, loaded) {
   // Tail lights and rear stripes
   m.box(-hl, -hw + 1, 4, -hl + 1, hw - 1, 6, pal.dark, M_METAL);
   hazardV(m, -hl, -hw + 1, 3, -hl + 1, hw - 1, 4);
+  if (m.vd) {   // RA2 detail (HD): wheel hubs with bolts, a slatted grille, window frames, mirrors, beacons on the cab, an
+    // exhaust stack, handrails and a ladder, ribs and rivets on the ore bin, tail lights
+    for (const x of [-6.5, 6.5]) for (const yo of [-hw - 0.05, hw + 0.05]) {
+      vcyl(m, 'y', yo - 0.25, yo + 0.25, x, 3.4, 1.1, '#8a8a80', M_METAL);
+      for (let a = 0; a < 5; a++) vcyl(m, 'y', yo - 0.35, yo + 0.35, x + Math.cos(a * 1.257) * 0.75, 3.4 + Math.sin(a * 1.257) * 0.75, 0.15, '#3b3a34', M_METAL);
+    }
+    vpaint(m, hl - 1.2, -hw + 1, 4, hl + 0.1, hw - 1, 8, (x, y, z) => (((y + 20) % 0.6) < 0.25 ? '#151513' : '#6a6c66'), true);
+    for (const sd of [-1, 1]) {
+      vfill(m, 7.6, sd * (hw + 0.2) - 0.25, 10.5, 8.6, sd * (hw + 0.2) + 0.25, 11.6, '#2a2c2e', M_METAL);       // mirrors
+      vfill(m, 2.5, sd * 4.5 - 0.4, 13, 3.3, sd * 4.5 + 0.4, 13.6, '#ff9a2a', M_GLOW);                          // beacons
+      vfill(m, -hl + 0.6, sd * 5.2 - 0.5, 4.6, -hl + 1.1 - 1, sd * 5.2 + 0.5, 5.4, '#ff3a28', M_GLOW);          // tail lights
+      vfill(m, -11, sd * (hw - 0.4) - 0.15, 8.6, 0.5, sd * (hw - 0.4) + 0.15, 8.9, '#c9c9c0', M_METAL);         // handrails
+    }
+    vpaint(m, 1, -hw - 0.1, 5, 8.1, hw + 0.1, 12, (x, y, z, c, mt) => (mt === M_GLASS && (Math.abs(z - 9.5) < 0.12 || Math.abs(x - 4) < 0.12) ? '#2a2c2e' : undefined), true);
+    vcyl(m, 'z', 6, 14.5, 0.5, -hw + 1.2, 0.45, '#3a3a36', M_METAL);
+    vcyl(m, 'z', 14.2, 14.6, 0.5, -hw + 1.2, 0.55, '#151513', M_METAL);
+    for (let z = 5.5; z < 10; z += 0.9) vfill(m, 0.6, hw - 0.4, z, 1.2, hw + 0.2, z + 0.2, '#c9c9c0', M_METAL);   // ladder rungs
+    vpaint(m, -12.5, -hw, 7, 1.5, hw, 14, (x, y, z, c, mt) => (mt === M_METAL && Math.abs(((x + 20) % 2.5) - 1.25) < 0.15 ? '#4d4f49' : undefined), true);
+  }
   return m;
 }
 
