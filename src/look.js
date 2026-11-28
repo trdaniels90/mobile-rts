@@ -138,8 +138,9 @@ function rampsNow() {
   return list;
 }
 // The height a ground unit at (x, y) is drawn at: the ground's, or a ramp's (or the structure's floor inside its door).
-function standLift(x, y) {
-  const g0 = gLift(x, y);
+// (wet: a ship, which is never lifted onto a bridge's deck above it: art.js deckLift)
+function standLift(x, y, wet) {
+  const g0 = gLift(x, y) + (wet || typeof deckLift !== 'function' ? 0 : deckLift(x, y));
   if (!LOOK.hills || !G || !G.hgt) return g0;
   for (const r of rampsNow()) {
     if (x < r.xa || x > r.xb || y < r.y00 || y > r.y1) continue;
@@ -374,6 +375,7 @@ const MOOD = {
   twinlakes: { sat: 0.18, grade: [236, 226, 206], sun: [255, 196, 120, 0.7], shade: [60, 32, 22, 0.36], haze: [245, 222, 182, 0.1], tint: [24, 14, 6, 0.2], vig: [22, 8, 0, 0.4] },   // late summer, dry and warm
   marsh: { sat: 0.34, grade: [214, 222, 214], sun: [255, 196, 140, 0.5], shade: [24, 44, 58, 0.42], haze: [214, 222, 218, 0.2], tint: [12, 22, 22, 0.26], vig: [6, 12, 14, 0.46] },     // fen at dawn: grey-green, a low warm sun through the mist
   village: { sat: 0.2, grade: [232, 228, 214], sun: [255, 212, 150, 0.6], shade: [30, 30, 64, 0.38], haze: [236, 226, 206, 0.08], vig: [8, 6, 10, 0.38] },                          // pastoral, golden by day
+  city: { sat: 0.12, grade: [226, 228, 232], sun: [255, 220, 176, 0.55], shade: [34, 40, 66, 0.4], haze: [220, 224, 230, 0.1], vig: [10, 10, 16, 0.4] },                          // a grey city, cool shadows
   snow: { sat: 0.3, grade: [226, 236, 250], sun: [242, 246, 255, 0.55], shade: [20, 52, 115, 0.44], haze: [236, 243, 255, 0.17], tint: [10, 24, 54, 0.18], vig: [0, 12, 34, 0.32] },   // cold and bright (snowbound, frost)
   desert: { sat: 0.14, grade: [244, 226, 196], sun: [255, 190, 110, 0.75], shade: [85, 42, 20, 0.36], haze: [250, 226, 186, 0.15], tint: [30, 16, 4, 0.18], vig: [32, 12, 0, 0.38] },  // warm (for a desert theme)
   rain: { sat: 0.46, grade: [194, 202, 212], sun: [205, 210, 220, 0.14], shade: [20, 30, 46, 0.32], haze: [172, 182, 194, 0.2], tint: [10, 16, 26, 0.3], vig: [0, 4, 10, 0.5], pool: 1.4 },   // overcast

@@ -722,6 +722,144 @@ function btrTurret(pal, frame) {
   m.box(1, 1, 2, 2, 2, 3, C.glass, M_GLASS);                                       // sight
   return m;
 }
+// ---------------------------------------------------------------------------
+// Ships (data.js `draw: 'ship'`): original designs in the game's style, +x the bow, z 0 the waterline. Grey steel hulls with the
+// side's colour on the deck houses and a band along the hull, so a fleet reads at a glance. The gun turrets (shipTurret) turn on
+// their own, sitting `size.fwd` ahead of the middle at `size.tz`.
+const SHIP = { hull: '#5d656b', hullD: '#454c51', deck: '#8b8f86', deckD: '#74786f', boot: '#2e3438', red: '#7a2a24' };
+// A hull from x0 (stern) to x1 (bow): full half-width hw back from x1 - taper, narrowing to a point at the bow, from the waterline
+// to deck height dz (a little higher at the bow: sheer). Below z 1 a dark boot-top; the deck in planks of deck grey.
+function shipHull(m, x0, x1, hw, dz, taper, pal, sheer = 1) {
+  solidV(m, x0, -hw, 0, x1 + 1, hw, dz + sheer + 1, (x, y, z) => {
+    const k = Math.max(0, (x - (x1 - taper)) / taper), w = hw * (1 - k * k * 0.92) - (z < 1 ? 0.6 : 0);
+    const top = dz + sheer * Math.max(0, k);
+    return Math.abs(y) < w && z < top;
+  }, SHIP.hull, M_METAL);
+  m.paint(x0, -hw, 0, x1 + 1, hw, 1, () => SHIP.boot);
+  m.paint(x0, -hw, Math.max(1, dz - 2), x1 + 1, hw, dz - 1, (x, y) => (Math.abs(y) > hw - 1.6 ? pal.dark : undefined));   // the band in the side's colour
+  m.paintTop(x0, -hw, x1 + 1, hw, (x, y) => (m.get(x, y, Math.floor(dz)) >= 0 || m.get(x, y, Math.floor(dz - 1)) >= 0 ? (x % 4 === 0 ? SHIP.deckD : SHIP.deck) : undefined));
+}
+// Gunboat (Allies): a fast patrol boat. A long low hull, a small wheelhouse amidships with a radar mast, depth-charge racks aft.
+function gunboatModel(pal) {
+  const m = new VModel(-16, -6, 17, 6, 14);
+  shipHull(m, -14, 14, 4.5, 3, 10, pal, 1.5);
+  m.box(-4, -3, 3, 3, 3, 7, C.wall, M_MATTE);                                   // wheelhouse
+  m.box(1, -3, 5, 3, 3, 6.5, C.glass, M_GLASS);
+  m.box(-5, -3.5, 7, 3.5, 3.5, 8, pal.main, M_METAL);                          // roof in the side's colour
+  m.line(-1, 0, 8, -1, 0, 13, C.steel, M_METAL); m.box(-2.5, -1, 11, 0.5, 1, 11.6, C.steel, M_METAL);   // mast and radar bar
+  m.set(-1, 0, 13, pal.light, M_GLOW);
+  for (const y of [-3, 2]) { m.box(-14, y, 3, -10, y + 1, 4.2, SHIP.boot, M_METAL); m.cylX(-13.5, -10.5, y + 0.5, 4.4, 0.6, '#3d3a32', M_METAL); }   // depth charges
+  m.box(-9, -1, 3, -6, 1, 4, SHIP.deckD, M_METAL);                              // engine hatch
+  return m;
+}
+// Destroyer (Allies): a long hull, a tall forward bridge, a funnel and a lattice mast with a radar dish, a helicopter spot aft.
+function destroyerModel(pal) {
+  const m = new VModel(-22, -8, 23, 8, 22);
+  shipHull(m, -20, 20, 6, 4, 14, pal, 2);
+  m.box(-3, -4, 4, 6, 4, 11, C.wall, M_MATTE);                                  // bridge block
+  m.box(4, -4, 8, 6, 4, 10, C.glass, M_GLASS);
+  m.box(-4, -4.5, 11, 6.5, 4.5, 12, pal.main, M_METAL);
+  m.box(-1, -2.5, 12, 4, 2.5, 14, C.wallD, M_MATTE);                            // upper bridge
+  m.cylZ(-7.5, 0, 4, 14, 2.4, C.wallD, M_MATTE); m.cylZ(-7.5, 0, 13, 15, 2.4, C.black, M_METAL);   // funnel, sooty top
+  m.paint(-10, -3, 11, -5, 3, 12, (x, y, z) => (z === 11 ? pal.main : undefined));
+  for (const [x, y] of [[0, -1], [0, 1], [2, 0]]) m.line(x, y, 14, 1, 0, 20, C.steel, M_METAL);   // lattice mast
+  m.ellipsoid(1, 0, 20.5, 2, 0.8, 1, C.steel, M_METAL); m.set(1, 0, 21, pal.light, M_GLOW);
+  m.box(-12, -3, 4, -9, 3, 7, C.wall, M_MATTE);                                 // aft deckhouse
+  m.paintTop(-20, -5, -13, 5, (x, y) => ((x === -17 && Math.abs(y) < 2.5) || (Math.abs(y) < 0.6 && x >= -18 && x <= -16) ? C.white : undefined));   // the H of the helicopter spot
+  for (const y of [-4, 3]) m.box(-20, y, 4, -18, y + 1, 5.2, '#3d3a32', M_METAL);   // depth-charge racks
+  m.box(14, -0.5, 6, 15, 0.5, 9, C.steel, M_METAL);                              // jack staff at the bow
+  return m;
+}
+// Submarine (Soviets): a long black cigar of a hull, low in the water, a tall sail (conning tower) with a periscope and the side's
+// colour on its top, diving planes on the sail and at the stern, a screw guard.
+function subModel(pal) {
+  const m = new VModel(-18, -6, 17, 6, 13), dark = '#262b2f', darkL = '#363c41';
+  for (let x = -16; x <= 15; x++) {
+    const k = x / 16, r = 3.6 * Math.sqrt(Math.max(0, 1 - Math.pow(Math.abs(k + (k < 0 ? 0.05 : 0)), 3)));
+    if (r > 0.4) m.cylX(x, x + 1, 0, 1.2, r, x > 12 ? darkL : dark, M_METAL);
+  }
+  m.clear(-18, -6, -2, 17, 6, 0);
+  m.box(-1, -1.6, 2, 6, 1.6, 8, dark, M_METAL);                                 // the sail
+  m.box(0, -1.6, 7, 6, 1.6, 8, pal.main, M_METAL);
+  m.box(1, -3.5, 5, 3, 3.5, 5.6, darkL, M_METAL);                               // sail planes
+  m.line(2, 0, 8, 2, 0, 11, C.steel, M_METAL); m.line(4, 0, 8, 4, 0, 10, C.steel, M_METAL);   // periscope, mast
+  m.box(-15, -4, 0.6, -13, 4, 1.2, darkL, M_METAL); m.box(-15, -0.5, 0.6, -13, 0.5, 3.4, darkL, M_METAL);   // stern planes, rudder
+  m.box(8, -0.5, 2.3, 11, 0.5, 2.8, SHIP.red, M_MATTE);                          // a red marking forward on the casing
+  return m;
+}
+// Transports. Allies: a landing ship with a bow ramp, an open well deck for vehicles and troops and the bridge right aft.
+// Soviets: a squarer landing barge with twin side walls, a bridge on the starboard side and a red bow door.
+function lstModel(pal) {
+  const m = new VModel(-19, -8, 19, 8, 16);
+  shipHull(m, -17, 15, 7, 4, 8, pal, 1.5);                                       // (a rounded bow)
+  m.clear(-9, -5, 2, 8, 5, 6);                                                    // the well deck, closed at the bow
+  m.box(-9, -5, 2, 8, 5, 2.6, SHIP.deckD, M_ROUGH);
+  m.paintTop(-9, -5, 8, 5, (x, y) => ((x + 9) % 5 === 0 ? '#5e625a' : undefined));
+  m.box(8, -5, 2, 9, 5, 5, SHIP.hullD, M_METAL);                                  // the inner ramp, raised against the bow
+  m.paint(8, -5, 2, 9, 5, 5, (x, y, z) => (Math.abs(y + 0.5) % 3 < 1 ? '#3b4246' : undefined));
+  m.paint(9, -7, 1, 16, 7, 5, (x, y) => (Math.abs(y + 0.5) < 0.6 ? SHIP.boot : undefined));   // the bow doors' seam
+  m.paintTop(9, -6, 16, 6, (x, y) => (Math.abs(y + 0.5) < 0.6 ? SHIP.boot : (x === 12 && Math.abs(y) < 3) ? '#a6aaa2' : undefined));   // foredeck, a hatch
+  m.box(12, -0.5, 5.5, 13, 0.5, 8, C.steel, M_METAL);                             // jack staff
+  m.box(-17, -6, 4, -10, 6, 10, C.wall, M_MATTE);                                // bridge aft
+  m.box(-11, -5, 7, -10, 5, 9, C.glass, M_GLASS);
+  m.box(-17.5, -6.5, 10, -9.5, 6.5, 11, pal.main, M_METAL);
+  m.line(-14, 0, 11, -14, 0, 15, C.steel, M_METAL); m.set(-14, 0, 15, pal.light, M_GLOW);
+  m.box(-16, -2, 11, -13, 2, 12.5, C.wallD, M_MATTE);
+  return m;
+}
+function lcuModel(pal) {
+  const m = new VModel(-19, -8, 19, 8, 15);
+  m.box(-17, -7, 0, 13, 7, 4, SHIP.hull, M_METAL);                                // square barge hull
+  m.paint(-17, -7, 0, 13, 7, 1, () => SHIP.boot);
+  m.paint(-17, -7, 2, 13, 7, 3, (x, y) => (Math.abs(y) > 5.6 ? pal.dark : undefined));
+  m.clear(-12, -5, 2, 13, 5, 5);
+  m.box(-12, -5, 2, 13, 5, 2.6, SHIP.deckD, M_ROUGH);
+  m.box(-17, -7, 4, 13, -5, 6, SHIP.hullD, M_METAL); m.box(-17, 5, 4, 13, 7, 6, SHIP.hullD, M_METAL);   // side walls
+  // The bow ramp, raised and closed: a thick plate across the whole bow, leaning out a little, on hinges, hazard-striped.
+  solidV(m, 13, -7, 0, 17.5, 7, 7, (x, y, z) => x < 13 + 2.2 + z * 0.3 && x > 13 + z * 0.3, SHIP.red, M_METAL);
+  m.paint(13, -7, 0, 17.5, 7, 7, (x, y, z) => (z >= 5 && (Math.floor(x + y + z) % 4 < 2) ? C.yellow : z < 1 ? SHIP.boot : undefined));
+  for (const y of [-6, 5]) m.box(12, y, 3, 14, y + 1, 5, C.gun, M_METAL);                                       // hinges
+  m.box(-17, 1, 6, -10, 7, 12, C.wallD, M_MATTE);                                 // bridge on the starboard side
+  m.box(-11, 1, 9, -10, 7, 11, C.glass, M_GLASS);
+  m.box(-17.5, 0.5, 12, -9.5, 7.5, 13, pal.main, M_METAL);
+  m.cylZ(-15, -4, 4, 9, 1.3, '#3a3a36', M_METAL); m.cylZ(-15, -4, 9, 10, 1.3, C.black, M_METAL);   // exhaust
+  m.line(-13, 4, 13, -13, 4, 14.5, C.steel, M_METAL); m.set(-13, 4, 14.5, pal.light, M_GLOW);
+  return m;
+}
+// The guns, built round their turning point. Gunboat: a small round mount with one barrel and a shield. Destroyer: a box launcher
+// of four missile tubes on a turntable, tipped up a little.
+function shipTurret(pal, type) {
+  if (type === 'destroyer') {
+    const m = new VModel(-4, -4, 7, 4, 6);
+    m.cylZ(0, 0, 0, 1, 3, SHIP.hullD, M_METAL);
+    solidV(m, -3, -3, 1, 6, 3, 5, (x, y, z) => z > 1 + (x + 3) * 0.12 && z < 4.2 + (x + 3) * 0.12, C.wallD, M_MATTE);
+    m.paint(-3, -3, 1, 7, 3, 6, (x, y, z) => (x >= 5 && Math.abs(y) < 2.5 && (Math.round(y + 3) % 3 === 1) && z >= 2 && z < 5 ? C.black : undefined));   // tube mouths
+    m.box(-3, -3, 4, 1, 3, 5, pal.main, M_METAL);
+    return m;
+  }
+  const m = new VModel(-4, -3, 10, 3, 5);
+  m.cylZ(0, 0, 0, 2.2, 2.6, C.wallD, M_METAL);
+  m.box(1, -2, 1, 2.5, 2, 3.6, pal.main, M_METAL);                                // shield
+  m.cylX(2, 9, 0, 1.6, 0.7, C.gun, M_METAL);
+  return m;
+}
+function shipModel(pal, type) {
+  return type === 'gunboat' ? gunboatModel(pal) : type === 'destroyer' ? destroyerModel(pal) : type === 'sub' ? subModel(pal) : type === 'lcu' ? lcuModel(pal) : lstModel(pal);
+}
+// A ship with its turret set on it (cameos, the sinking ship).
+function shipWhole(pal, type) {
+  const d = UNIT_DEFS[type], m = copyModel(shipModel(pal, type));
+  if (!d.size.tur) return m;
+  const t = shipTurret(pal, type), z0 = Math.round(turretZ(d)), fx = Math.round(d.size.fwd || 0);
+  for (let z = 0; z < t.d; z++) for (let y = 0; y < t.h; y++) for (let x = 0; x < t.w; x++) {
+    const i = (z * t.h + y) * t.w + x;
+    if (t.col[i] < 0) continue;
+    const j = m.idx(t.x0 + x + fx, t.y0 + y, z + z0);
+    if (j >= 0) { m.col[j] = t.col[i]; m.mat[j] = t.mat[i]; }
+  }
+  m.surf = null;
+  return m;
+}
 // Mobile Outpost: a six-wheeled truck carrying a command shelter, mast and folded radar dish.
 function fobModel(pal) {
   const hl = 11, hw = 7;
@@ -2165,6 +2303,63 @@ const STRUCTURES = {
     m.box(62, 26, 1, 70, 40, 12, C.wall, M_MATTE);                       // control booth
     m.box(62, 39, 5, 70, 40, 10, C.glass, M_GLASS);
     m.set(66, 33, 12, '#ff4a30', M_GLOW);
+    return m;
+  },
+  // Naval Yard (Allies), in the water: two concrete piers joined by a quay at the back, the slip between them open to the south
+  // (where its ships come out), a yellow gantry crane over the slip, the yard office on the quay, crates and bollards, lights at the
+  // pier heads. No slab: the water shows through the slip.
+  navyard(pal) {
+    const m = new VModel(-2, -2, 74, 74, 42);
+    const pier = (x0, y0, x1, y1) => {
+      m.box(x0, y0, 0, x1, y1, 5, C.conc, M_ROUGH);
+      m.paint(x0, y0, 0, x1, y1, 2, (x, y, z) => (hash3(x, y, z) > 0.6 ? '#4e5552' : C.concD));   // weed and wet below the deck
+      m.paintTop(x0, y0, x1, y1, (x, y) => ((x - x0) % 8 === 0 || (y - y0) % 8 === 0 ? C.concD : hash3(x, y, 3) > 0.92 ? '#7c7a71' : undefined));
+    };
+    pier(2, 2, 70, 18); pier(2, 18, 18, 70); pier(54, 18, 70, 70);
+    for (const x of [18, 53]) m.paint(x, 18, 4, x + 1, 70, 5, (X, y) => (((y >> 1) + (x > 20 ? 1 : 0)) % 2 ? C.yellow : C.black));   // slip edges
+    for (const [x, y] of [[16, 24], [16, 40], [16, 56], [55, 24], [55, 40], [55, 56]]) m.cylZ(x + 0.5, y, 5, 7, 1, C.black, M_METAL);   // bollards
+    // The yard office on the quay: white walls, glass along the front, a roof in the side's colour, a radio mast.
+    m.box(24, 4, 5, 48, 15, 16, C.wall, M_MATTE);
+    m.box(25, 14, 9, 47, 15, 13, C.glass, M_GLASS);
+    m.box(23, 3, 16, 49, 16, 17, pal.main, M_METAL);
+    m.paint(23, 3, 16, 49, 16, 17, (x) => (x % 6 === 0 ? pal.dark : undefined));
+    m.line(44, 8, 17, 44, 8, 30, C.steel, M_METAL); m.set(44, 8, 30, '#ff4a30', M_GLOW);
+    // Gantry crane spanning the slip on the two piers.
+    for (const x of [8, 62]) for (const y of [30, 44]) m.box(x, y, 5, x + 2, y + 2, 32, C.yellow, M_METAL);
+    m.box(8, 30, 32, 64, 32, 35, C.yellow, M_METAL); m.box(8, 44, 32, 64, 46, 35, C.yellow, M_METAL);
+    m.paint(8, 30, 32, 64, 46, 35, (x, y, z) => ((x + z) % 4 === 0 ? '#8a6c12' : undefined));
+    m.box(33, 32, 31, 39, 44, 35, '#3d3c37', M_METAL);                             // the trolley
+    m.line(36, 38, 31, 36, 38, 14, C.black); m.box(34, 36, 12, 38, 40, 14, C.gun, M_METAL);   // hook
+    // Stores on the left pier, a fuel tank on the right one.
+    for (const [x, y, h] of [[5, 22, 5], [10, 22, 4], [5, 28, 4], [5, 48, 5], [10, 52, 3]]) m.box(x, y, 5, x + 4, y + 4, 5 + h, (x + y) % 3 ? '#4b4d3a' : '#5a4a32', M_MATTE);
+    m.cylZ(63, 60, 5, 14, 4.5, C.steel, M_METAL); m.box(59, 58, 14, 67, 62, 15, pal.main, M_METAL);
+    for (const x of [4, 66]) m.box(x, 66, 5, x + 2, 68, 9, pal.light, M_GLOW);   // pier-head lights
+    return m;
+  },
+  // Submarine Pen (Soviets), in the water: a massive bunker of grey-green concrete with a thick roof, an arched pen opening to the
+  // south, dark inside, over the water its submarines come out on; two short breakwaters in front, a red star over the arch, a
+  // ventilation tower and an aerial on the roof.
+  subpen(pal) {
+    const m = new VModel(-2, -2, 74, 74, 40), cw = '#7d8273', cwD = '#646a5c';
+    m.box(3, 3, 0, 69, 46, 20, cw, M_ROUGH);
+    m.paint(3, 3, 0, 69, 46, 2, (x, y, z) => (hash3(x, y, z) > 0.55 ? '#4a5048' : cwD));
+    m.paint(3, 3, 2, 69, 46, 20, (x, y, z) => ((x % 9 === 0 || z % 6 === 0) ? cwD : hash3(x >> 1, y, z >> 1) > 0.9 ? '#8e927f' : undefined));
+    m.box(1, 1, 20, 71, 48, 24, cwD, M_ROUGH);                                      // the thick roof slab
+    m.box(1, 1, 24, 71, 48, 25, pal.main, M_METAL);
+    m.paint(1, 1, 24, 71, 48, 25, (x, y) => ((x + y) % 10 === 0 ? pal.dark : undefined));
+    // The pen: an arch through the front, dark water inside.
+    for (let x = 20; x < 52; x++) {
+      const k = (x + 0.5 - 36) / 16, top = Math.round(6 + 10 * Math.sqrt(Math.max(0, 1 - k * k)));
+      m.clear(x, 20, 0, x + 1, 47, top);
+      m.box(x, 20, 0, x + 1, 21, top, '#141a1c', M_MATTE);                         // the gloom at the back of the pen
+      m.set(x, 46, top, '#565b50', M_ROUGH);                                          // the arch's lip
+    }
+    starFront(m, 36, 46, 19.5, 2.6, C.red);
+    for (const x of [8, 64]) m.box(x - 2, 46, 6, x + 2, 47, 10, '#2a2e2a', M_METAL);   // vents in the front wall
+    // Breakwaters either side of the way out.
+    for (const x0 of [8, 54]) { m.box(x0, 46, 0, x0 + 10, 70, 5, cw, M_ROUGH); m.paint(x0, 46, 0, x0 + 10, 70, 2, () => cwD); m.box(x0 + 4, 66, 5, x0 + 6, 68, 8, pal.light, M_GLOW); }
+    m.box(52, 8, 25, 62, 18, 33, cw, M_ROUGH); m.box(53, 9, 33, 61, 17, 34, '#2a2e2a', M_METAL);   // ventilation tower
+    m.line(12, 10, 25, 12, 10, 38, C.steel, M_METAL); m.set(12, 10, 38, '#ff4a30', M_GLOW);   // aerial
     return m;
   },
   // Four landing pads, one in each quarter (centres 24 and 72), round a tower in the middle. The
@@ -5617,6 +5812,7 @@ function hullSprite(u, pal) {
   if (d.draw === 'arty') return facingSprite('R' + key, () => artyModel(pal), u.face);
   if (d.draw === 'v2') { const loaded = !(u.cd > 1.2), st = Math.round((u.setup || 0) * V2_STEPS); return facingSprite('W' + key + loaded + st, () => v2Model(pal, loaded, st / V2_STEPS), u.face); }
   if (d.draw === 'harv') { const full = (u.load || 0) > d.capacity * 0.3; return facingSprite('V' + key + full, () => harvModel(pal, full), u.face); }
+  if (d.draw === 'ship') return facingSprite('N' + key, () => shipModel(pal, d.type), u.face);
   const ab = airBuild(u, pal);
   return facingSprite(ab[0], ab[1], u.face);
 }
@@ -5696,6 +5892,7 @@ function turretSprite(u, pal) {
   if (d.draw === 'tank') return facingSprite('t' + d.type + pal.key, () => tankTurret(pal, d.size), u.tface, FACINGS, { shadow: false });
   if (d.draw === 'jeep') return facingSprite('m' + pal.key, () => mgModel(pal), u.tface, FACINGS, { shadow: false });
   if (d.draw === 'apc') { const f = apcFrame(u); return facingSprite('q' + d.type + pal.key + f, () => d.type === 'btr' ? btrTurret(pal, f) : apcTurret(pal, f), u.tface, FACINGS, { shadow: false }); }
+  if (d.draw === 'ship' && d.size.tur) return facingSprite('n' + d.type + pal.key, () => shipTurret(pal, d.type), u.tface, FACINGS, { shadow: false });
   return null;
 }
 // Crouching: the standing figure with the thighs folded away, so the body sits lower.

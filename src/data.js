@@ -62,6 +62,9 @@ const WALLS = {
 const WALL_BY_ID = [null];
 for (const k in WALLS) { WALLS[k].key = k; WALL_BY_ID[WALLS[k].id] = WALLS[k]; }
 const WALL_LINE_MAX = 40;   // pieces in one line
+// Pieces laid by the map itself ('W' in a map's rows: Berlin's Wall) belong to nobody: G.wallTeam holds WALL_NEUTRAL (no side
+// has that id; netcore sends a side in 4 bits). Concrete; anyone may shoot at them (Attack ground), no one sells them.
+const WALL_NEUTRAL = 15;
 
 // A bridge span that can be destroyed (maps with `breakable` in MAPS; world.js addSpan): neutral, never fired on unless
 // ordered (Attack ground), armoured like a structure. Down, an Engineer rebuilds it (the computer trains one for it: ai.js aiBridges).
@@ -88,6 +91,8 @@ const WARHEADS = {
   CG:    { inf: 1.0, light: 0.8,  heavy: 0.2,  bld: 0.25, air: 0.6 },  // the Comanche's 20 mm chain gun: infantry and light vehicles, little against tanks
   SN:    { inf: 1.0, light: 0.1,  heavy: 0.03, bld: 0.03, air: 0 },    // the Sniper's rifle: one man at a time, next to nothing against armour
   TD:    { inf: 0.2, light: 0.9,  heavy: 1.0,  bld: 0.4, air: 0 },     // the Tank Destroyer's high-velocity gun: armour piercing, wasted on soldiers and walls
+  TORP:  { inf: 0,   light: 1.0,  heavy: 1.0,  bld: 1.0, air: 0 },     // the Submarine's torpedoes: only ships and structures standing in the water (w.naval)
+  DC:    { inf: 0,   light: 1.0,  heavy: 1.0,  bld: 0,   air: 0 },     // depth charges: only submarines (w.subOnly)
 };
 
 // cls: inf | veh | air.  cat: which sidebar tab builds it.  speed in px/s, sight in cells.
@@ -256,6 +261,40 @@ const UNIT_DEFS = {
     name: 'Mobile Construction Yard', cls: 'veh', cat: 'vehicle', producer: 'factory', req: ['depot'], factions: ['allies', 'soviets'], draw: 'mcv',
     cost: 2500, hp: 1200, armor: 'heavy', speed: 35, turn: 2, sight: 5, r: 12, size: { len: 28, wid: 16 }, deploys: 'cy',
   },
+  // --- Ships (naval units, `naval`: cls 'veh' that moves on open water only; world.js navCells). Built at the Naval Yard (Allies) or
+  // Submarine Pen (Soviets), which stand in the water. OpenRA's Red Alert numbers (cost, health, armour, speed at the same scale as the
+  // vehicles), weapons fitted to this game's warheads. `detect`: spots a submerged Submarine within SUB_DETECT (world.js).
+  // Transports (`ferry`, unarmed): carry up to `carry` ground units, soldiers or vehicles; they board from the shore beside it and
+  // UNLOAD HERE puts them ashore (world.js unloadOne). One type per side, as for the APCs (wrecks are drawn from the type alone).
+  lst: {
+    name: 'Transport', cls: 'veh', naval: true, cat: 'naval', producer: 'navyard', factions: ['allies'], draw: 'ship', ferry: true, carry: 5,
+    cost: 700, hp: 350, armor: 'heavy', speed: 66, turn: 1.6, sight: 6, r: 13, size: { len: 34, wid: 14, tz: 6 },
+  },
+  lcu: {
+    name: 'Transport', cls: 'veh', naval: true, cat: 'naval', producer: 'subpen', factions: ['soviets'], draw: 'ship', ferry: true, carry: 5,
+    cost: 700, hp: 350, armor: 'heavy', speed: 66, turn: 1.6, sight: 6, r: 13, size: { len: 34, wid: 14, tz: 6 },
+  },
+  // Gunboat (Allies): a fast patrol boat with a deck gun, and depth charges for submarines.
+  gunboat: {
+    name: 'Gunboat', cls: 'veh', naval: true, cat: 'naval', producer: 'navyard', factions: ['allies'], draw: 'ship', detect: true,
+    cost: 500, hp: 200, armor: 'heavy', speed: 83, turn: 2.6, sight: 7, r: 10, size: { len: 28, wid: 9, tur: 3, barrel: 7, tz: 6, fwd: 7 },
+    weapon: { dmg: 25, rof: 1.2, range: 132, wh: 'AP', proj: 'shell', sound: 'cannonLight' },
+    weapon2: { dmg: 80, rof: 3, range: 96, wh: 'DC', proj: 'depth', subOnly: true },
+  },
+  // Destroyer (Allies): slower and tougher, with a long-reaching missile launcher that also fires at aircraft, and depth charges.
+  destroyer: {
+    name: 'Destroyer', cls: 'veh', naval: true, cat: 'naval', producer: 'navyard', factions: ['allies'], draw: 'ship', detect: true,
+    cost: 1000, hp: 400, armor: 'heavy', speed: 50, turn: 1.8, sight: 7, r: 13, size: { len: 40, wid: 12, tur: 4, barrel: 4, tz: 9, fwd: 9 },
+    weapon: { dmg: 30, rof: 2, range: 216, wh: 'HE', proj: 'rocket', air: true, burst: 2, gap: 0.25, sound: 'redeye' },
+    weapon2: { dmg: 80, rof: 3, range: 120, wh: 'DC', proj: 'depth', subOnly: true },
+  },
+  // Submarine (Soviets): runs submerged, unseen and only hit by depth charges, until it fires (it surfaces for SUB_REVEAL s) or an
+  // enemy ship with `detect` comes near. Torpedoes hit only ships and structures in the water.
+  sub: {
+    name: 'Submarine', cls: 'veh', naval: true, cat: 'naval', producer: 'subpen', factions: ['soviets'], draw: 'ship', sub: true, fixed: true,
+    cost: 950, hp: 250, armor: 'light', speed: 46, turn: 1.8, sight: 6, r: 11, size: { len: 32, wid: 8, tz: 2 },
+    weapon: { dmg: 175, rof: 3.2, range: 216, wh: 'TORP', proj: 'torpedo', naval: true },
+  },
   // Closer to the original Red Alert: the Allied helicopter's Hellfires are anti-armour (6 a sortie,
   // 4 cells), the Hind's chain gun shreds infantry (12 bursts a sortie, 5 cells).
   heli: {
@@ -352,6 +391,10 @@ const BUILD_DEFS = {
   ftur:     { name: 'Flame Tower',  w: 1, h: 1, hp: 400,  power: -20, cost: 600,  req: ['barracks'], factions: ['soviets'], defense: true,
               weapon: { dmg: 40, rof: 2.0, range: 130, wh: 'FIRE', proj: 'fireball', burst: 2, gap: 0.3, splash: 18,
                         jet: { dps: 10, width: 7 } } },   // jet: the stream of fire burns what stands in it between shots (world.js flameBurn)
+  // Naval Yard (Allies) and Submarine Pen (Soviets): stand in open water (`water`: every cell of the footprint, world.js canPlace), within
+  // reach of the base like any structure; ships come out of the water beside them. Need a Construction Yard and a Power Plant.
+  navyard:  { name: 'Naval Yard',   w: 3, h: 3, hp: 1000, power: -30, cost: 1000, req: ['power'], factions: ['allies'], water: true, sight: 6 },
+  subpen:   { name: 'Submarine Pen', w: 3, h: 3, hp: 1000, power: -30, cost: 800, req: ['power'], factions: ['soviets'], water: true, sight: 6 },
   sam:      { name: 'SAM Site',     w: 2, h: 1, hp: 400,  power: -20, cost: 750,  req: ['barracks'], factions: ['soviets'], defense: true, antiAir: true,
               weapon: { dmg: 50, rof: 1.3, range: 195, wh: 'HE', proj: 'missile', air: true, ground: false, needsPower: true } },
 };
@@ -415,8 +458,8 @@ const DIFFICULTY = {
       econ: { fast: true, refineries: 5, trucks: 10, truckFirst: true } } },
 };
 
-// Build queues: one each for structures, infantry, vehicles, helicopters (Helipad) and jets (Airfield).
-const CATEGORIES = ['structure', 'defense', 'infantry', 'vehicle', 'heli', 'jet'];
+// Build queues: one each for structures, infantry, vehicles, helicopters (Helipad), jets (Airfield) and ships (Naval Yard / Submarine Pen).
+const CATEGORIES = ['structure', 'defense', 'infantry', 'vehicle', 'heli', 'jet', 'naval'];
 
 // Air Assault (sidebar, with a transport helicopter): see world.js commandAirAssault.
 const ASSAULT = { name: 'Air Assault' };

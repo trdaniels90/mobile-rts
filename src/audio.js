@@ -277,6 +277,20 @@ const Sound = (() => {
       noiseHit(t + 0.11, 0.6, 'bandpass', 1800, 6500, 1.6, 0.7, o, 0.03);
       tone(t + 0.11, 'sawtooth', 500, 2300, 0.5, 0.05, o);
     },
+    // A torpedo leaving its tube: a hollow thump of compressed air, then the hiss and burble of it running under the water.
+    torpedo(t, o) {
+      tone(t, 'sine', 95, 50, 0.22, 0.7, o);
+      noiseHit(t, 0.08, 'lowpass', 600, 250, 0.8, 0.7, o);
+      noiseHit(t + 0.06, 0.9, 'bandpass', 1500, 700, 0.9, 0.35, o, 0.05);
+      tone(t + 0.08, 'triangle', 240, 180, 0.7, 0.04, o);
+    },
+    // A depth charge rolled off the stern: a clunk of the rack, a small plop.
+    depth(t, o) {
+      noiseHit(t, 0.03, 'bandpass', 1800, 1200, 1.2, 0.5, o);
+      tone(t, 'square', 210, 160, 0.05, 0.12, o);
+      tone(t + 0.12, 'sine', 300, 120, 0.12, 0.35, o);
+      noiseHit(t + 0.12, 0.25, 'bandpass', 2200, 900, 0.8, 0.3, o, 0.03);
+    },
     // Wreckage into the water: a deep plunge, then a wash of spray falling back.
     splash(t, o, s) {
       tone(t, 'sine', 120, 45, 0.3, 0.7, o);

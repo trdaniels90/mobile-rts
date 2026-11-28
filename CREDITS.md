@@ -71,6 +71,8 @@ The layout of "Twin Lakes" is traced the same way from a pixel map design by JGF
 (`maps/designs/twinlakes.png`, redrawn one colour per cell from their picture; the bridges were narrowed
 and are concrete).
 
+"Twin Isles" is an original layout made in code (`tools/make-isles-map.py`) for a contributor (JGFortanelli).
+
 ## Engineer
 
 The Engineer's look (helmet, olive tactical vest with pouches, knee pads) follows a reference figure supplied by
@@ -95,3 +97,10 @@ geometry, textures or video frames are used in the game.
 
 The Soviet Flame Tower is a hand-built voxel model (`tools/blender/ftur.py`) that takes its general design
 from an AI-generated reference picture supplied by a contributor. The picture itself is not used in the game.
+
+## Ships and naval structures (contributor's change by JGFortanelli)
+
+The Naval Yard, Submarine Pen, Transports, Gunboat, Destroyer and Submarine are original voxel models written in code
+(`src/models.js`: `navyard`, `subpen`, `shipModel`, `shipTurret`), drawn for this game in the style of its other units.
+No outside art or reference pictures were used. Their numbers follow OpenRA's Red Alert rules (GPL), as for the other
+units. The torpedo and depth-charge sounds are synthesized in `src/audio.js`.

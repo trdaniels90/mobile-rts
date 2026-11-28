@@ -38,6 +38,7 @@ Supabase.
 | `walls.js` | Headless: walls and gates: laying a line (rules, prices), what each kind stops, gates and alliances, wire under tracks, ordered fire only, selling, Auto Attack units shooting a way through, online snapshot and orders |
 | `rally.js` | Headless: units from an Outpost Barracks stay there, PRIMARY picks the Barracks, a rally point gathers new units, fallback when the primary is lost |
 | `village.js` | Headless: Crossroads Village houses: seeded layout, blocking, blast and ordered damage, collapse, online snapshot, a computer 2 v 2 |
+| `naval.js` | Headless: ships (`<repo> [map] [minutes]`, default Twin Lakes): yards only in open water and after a Power Plant, ships stay on the water, a Gunboat spots and sinks a submerged Submarine, torpedo and depth-charge targets, out-of-reach targets, the Transport carrying 2 tanks and 3 soldiers ashore (refused at sea), a forged order, sunk with cargo, a Destroyer under a bridge through an opening between its piers; then a computer 1 v 1 that builds yards and fleets. Ends PASS or FAIL |
 | `mg-team.js` | Headless: the MG Team sets up before firing, packs before moving, is dug in once set up, and a staged fight against riflemen |
 | `tesla-tank.js` | Headless: the Tesla Tank's upgrade, bolt, damage, and no shots at aircraft |
 | `tank-destroyer.js` | Headless: the Tank Destroyer needs a Tech Center, turns its hull to aim, out-ranges a tank, little to infantry, no shots at aircraft, a duel with a Heavy Tank |

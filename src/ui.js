@@ -621,7 +621,7 @@
     return true;
   };
   const houseSeen = (h) => G.seen[idx(h.cx, h.cy)] || G.seen[idx(h.cx + h.w - 1, h.cy + h.h - 1)];
-  const visibleToPlayer = (e) => !e.inHouse && (alliedSides(e.team, G.me) || (e.kind === 'bld' ? !camoHidden(e, G.me) && (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y)));
+  const visibleToPlayer = (e) => !e.inHouse && (alliedSides(e.team, G.me) || (!camoHidden(e, G.me) && (e.kind === 'bld' ? (G.seen[idx(e.cx, e.cy)] || G.seen[idx(e.cx + e.w - 1, e.cy + e.h - 1)]) : seenAt(e.x, e.y))));
 
 const gateAnim = new Map();   // cell -> { v: how far a gate's barrier is down (0 to 1), t: when last drawn }
 // Phones keep at most SPRITE_KEEP sprites made in play (owner, 2026-11-21, after a 3 v 3 crashed a phone: "1", lighter
@@ -863,11 +863,13 @@ function draw() {
     const fxShows = (fx) => fx.x2 !== undefined
       ? onScr(fx.x, fx.y, 120, 100, 400) || onScr(fx.x2, fx.y2, 120, 100, 400) || onScr((fx.x + fx.x2) / 2, (fx.y + fx.y2) / 2, 120, 100, 400)
       : onScr(fx.x, fx.y, fx.type === 'bolt' ? 360 : 120, 100, 400);
-    const ground = [], air = [];
+    const ground = [], air = [], underDeck = [];
     for (const e of G.entities) {
       if (!inView(e) || !visibleToPlayer(e)) continue;
       // Parked aircraft too, so they show on top of their Helipad or Airfield.
-      if (e.kind === 'unit' && e.cls === 'air') air.push(e); else ground.push(e);
+      if (e.kind === 'unit' && e.cls === 'air') air.push(e);
+      else if (e.kind === 'unit' && e.def.naval && decksOver(e)) underDeck.push(e);   // (a ship under a bridge: below)
+      else ground.push(e);
     }
     // Village houses on explored ground (world.js genVillage), sorted in with everything else.
     for (const t of trees) ground.push(t);
@@ -878,6 +880,11 @@ function draw() {
     for (const fx of G.effects) if (fx.type === 'fall' && fx.t >= 0 && inView(fx) && G.seen[cellOfPos(fx.x, fx.y)]) ground.push({ kind: 'fall', fx, cx: fx.cx, cy: fx.cy, w: fx.w, h: fx.h, x: fx.x, y: fx.y });
     lap('list');
     lookView = v; cliffItems(ground, x0, y0, x1, y1, onScr);   // tall rock (look.js prototype, off by default)
+    // Ships under a bridge (art.js decksOver): drawn now, after the ground and its moving water (cliffItems: look.js drawWater); then the raised bridges (art.js drawBridges) over them.
+    // Units on a deck are drawn later with everything else, lifted to its height (look.js standLift), on top.
+    for (const e of underDeck) { if (glRec) GLR.listDepth(viewDepth(e.x, e.y) + 10 + e.def.size.len); onHill(v, e.x, e.y, () => drawUnit(v, e, G.t)); }
+    if (glRec) GLR.listDepth(null);
+    drawBridges(v, ox - 60, oy - 60, ox + bw + 60, oy + bh + 60);
     lap('crag');   // the crags in view found (and any made)
     for (const f of G.folk || []) if (f.st !== 'in' && inView(f) && G.seen[cellOfPos(f.x, f.y)]) ground.push({ kind: 'folk', v: f, y: f.y });
     for (const c of G.hens || []) if (inView(c) && G.seen[cellOfPos(c.x, c.y)]) ground.push({ kind: 'hen', v: c, y: c.y });
@@ -957,7 +964,7 @@ function draw() {
     const toList = () => { if (scr) { lv.setTransform(WM); lv.upright = scrUp; scr = false; } };
     for (const e of ground) {
       if (occs) { while (oi < occs.length && occs[oi].key - 6 <= e._key) reHill(occs[oi++]); drawn.push(drawnBox(e)); }
-      if (glList) GLR.listDepth(e._key + (big(e) ? 2 : e.kind === 'tree' ? 14 : e.kind === 'cliff' ? 16 : 10 + craterSink(...hillAt(e))));
+      if (glList) GLR.listDepth(e._key + (big(e) ? 2 : e.kind === 'tree' ? 14 : e.kind === 'cliff' ? 16 : e.kind === 'unit' && e.def.naval ? 10 + e.def.size.len : 10 + craterSink(...hillAt(e))));   // (a ship reaches its length toward the camera from its middle: tested against the water that far in front, its near end was cut off)
       if (fastCliff && e.kind === 'cliff') {
         if (!scr) { scrUp = lv.upright; lv.upright = false; lv.setTransform(1, 0, 0, 1, 0, 0); scr = true; }
         drawCliffAt(lv, e, WM); lap('bld'); continue;
@@ -965,7 +972,7 @@ function draw() {
       toList();
       if (e.kind === 'tree') { drawTree(lv, e); lap('tree'); DP.nTree++; continue; }   // (lifted in drawTree)
       const [hx, hy] = hillAt(e);
-      if (e.kind === 'unit') { const [px, py] = emergePos(e); onHill(lv, hx, hy, () => drawOne(e, lv), standLift(px, py)); }   // (on a ramp: look.js)
+      if (e.kind === 'unit') { const [px, py] = emergePos(e); onHill(lv, hx, hy, () => drawOne(e, lv), standLift(px, py, e.def.naval)); }   // (on a ramp: look.js)
       else onHill(lv, hx, hy, () => drawOne(e, lv));
     }
     toList();
@@ -1027,6 +1034,12 @@ function draw() {
         return;
       }
       if (p.kind === 'fireball') { fireStream(v, p); return; }
+      if (p.kind === 'torpedo') {   // just under the water: a dark body with a white trail of froth
+        for (let i = 1; i <= 3; i++) { v.fillStyle = `rgba(230,240,242,${0.6 - i * 0.15})`; v.fillRect(Math.round(p.x - ca * (2 + i * 2)), Math.round(p.y - sa * (2 + i * 2)), 1, 1); }
+        v.fillStyle = '#20262a'; v.fillRect(Math.round(p.x - ca * 1.5 - 0.5), Math.round(p.y - sa * 1.5 - 0.5), 2, 1); v.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+        return;
+      }
+      if (p.kind === 'depth') { v.fillStyle = '#2c2a24'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 3); v.fillStyle = '#5a564a'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 1, 1); return; }
       if (p.kind === 'shell') { v.fillStyle = '#ffe9a0'; v.fillRect(Math.round(p.x - 1), Math.round(p.y - 1), 2, 2); v.fillStyle = 'rgba(255,200,90,0.5)'; v.fillRect(Math.round(p.x - ca * 3), Math.round(p.y - sa * 3), 1, 1); }
       else if (p.kind === 'flak') { v.fillStyle = '#ffd36a'; v.fillRect(Math.round(p.x), Math.round(p.y), 1, 1); }
       else if (p.atgm) {   // a long-range anti-tank missile: a slim white body, dark seeker, a bright motor
@@ -1045,7 +1058,7 @@ function draw() {
       DP.nFx++;
       // Up in the air (rising smoke and flames, world.js updateEffects): drawn that high straight up the screen; and on the
       // raised ground (look.js gLift; a tracer's or bolt's far end by the ground there).
-      const gx = fx.x, gy = fx.y, hx = fx.x2, hy = fx.y2, L = (fx.lift || 0) + gLift(gx, gy), L2 = hx !== undefined ? gLift(hx, hy) : 0;
+      const gx = fx.x, gy = fx.y, hx = fx.x2, hy = fx.y2, L = (fx.lift || 0) + gLift(gx, gy) + deckLift(gx, gy), L2 = hx !== undefined ? gLift(hx, hy) : 0;
       glDepth(viewDepth(gx, gy) + 10);
       if (!L && !L2) { drawEffect(v, fx); continue; }
       [fx.x, fx.y] = liftPt(gx, gy, L);
@@ -1282,7 +1295,7 @@ function draw() {
     drawGhost(v, p.type, team.faction, p.cx, p.cy);
     for (let y = 0; y < d.h; y++) for (let x = 0; x < d.w; x++) {
       const c = idx(p.cx + x, p.cy + y);
-      const bad = !inMap(p.cx + x, p.cy + y) || G.block[c] || G.bld[c] || G.ore[c] || G.resv[c];
+      const bad = !inMap(p.cx + x, p.cy + y) || (d.water ? !navFree(c) : G.block[c] || G.bld[c] || G.ore[c]) || G.resv[c];   // (a Naval Yard or Submarine Pen: open water)
       v.fillStyle = bad || !p.ok ? 'rgba(220,40,30,0.45)' : 'rgba(240,240,230,0.28)';
       v.fillRect((p.cx + x) * CELL, (p.cy + y) * CELL, CELL, CELL);
       v.strokeStyle = bad || !p.ok ? '#ff5a4a' : '#f2f2ea'; v.lineWidth = 1;
@@ -1385,7 +1398,7 @@ function draw() {
     return [Math.min(...xs), Math.min(...ys) - CELL * 0.8 * VK - L, Math.max(...xs), Math.max(...ys) - L];
   }
   // A unit on the view plane, raised by its height and h more.
-  const unitSpot = (e, h) => toView(...liftPt(e.x, e.y, (e.alt || 0) + (h || 0) + (e.cls === 'air' ? gLift(e.x, e.y) : standLift(e.x, e.y))));   // (on a ramp: look.js)
+  const unitSpot = (e, h) => toView(...liftPt(e.x, e.y, (e.alt || 0) + (h || 0) + (e.cls === 'air' ? gLift(e.x, e.y) : standLift(e.x, e.y, e.def && e.def.naval))));   // (on a ramp: look.js)
   function pick(wx, wy, slop) {
     const [X, Y] = toView(...hillPt(wx, wy));   // (the tap's spot: s2w gives the point on the raised ground)
     let best = null, bd = Infinity;
@@ -1457,8 +1470,8 @@ function draw() {
     const e = pick(w.x, w.y, slop);
     const mine = ownUnits();
     // Your own transport under the tap with infantry selected: they board it (it comes down beside them).
-    if (e && e.kind === 'unit' && e.alive && e.team === G.me && (e.def.lift || e.def.apc)) {
-      const inf = mine.filter((u) => canBoard(u));
+    if (e && e.kind === 'unit' && e.alive && e.team === G.me && (e.def.lift || e.def.apc || e.def.ferry)) {
+      const inf = mine.filter((u) => u !== e && boards(u, e));   // (a naval Transport takes vehicles too)
       if (inf.length) { commandBoard(inf, e); marker(e.x, e.y, '#3ed04a'); Sound.ack('inf'); return; }
     }
     // A village house under the tap: infantry selected go in (if it is free or yours); your own garrison is selected
@@ -1479,7 +1492,7 @@ function draw() {
     const wc = cellOfPos(Math.max(0, Math.min(WORLD - 1, w.x)), Math.max(0, Math.min(WORLD - 1, w.y)));
     if (!e && G.wallN && G.wall[wc] && G.seen[wc]) {
       const wd = WALL_BY_ID[G.wall[wc]], now = performance.now();
-      if (hostile(G.wallTeam[wc], G.me)) {
+      if (hostile(G.wallTeam[wc], G.me) || G.wallTeam[wc] === WALL_NEUTRAL) {   // (the map's own wall belongs to nobody)
         const able = mine.filter((u) => !u.def.harvester && (u.def.weapon || u.cls === 'air'));
         if (able.length) { commandAttackGround(able, w.x, w.y); marker((cellX(wc) + 0.5) * CELL, (cellY(wc) + 0.5) * CELL, '#ff4a3a'); Sound.ack(able[0].cls === 'inf' ? 'attack' : able[0].cls); return; }
       } else if (G.wallTeam[wc] === G.me && !mine.length) {
@@ -1547,7 +1560,7 @@ function draw() {
     G.place = { type };
     select([]);
     const d = BUILD_DEFS[type];
-    ui.placeText.textContent = isTouch ? `Tap near your base to place the ${d.name}` : `Click near your base to place the ${d.name}`;
+    ui.placeText.textContent = `${isTouch ? 'Tap' : 'Click'} ${d.water ? 'open water' : ''} near your base to place the ${d.name}`.replace('  ', ' ');
     ui.placeOk.hidden = !isTouch;
     ui.placebar.hidden = false;
     refreshPlaceBtn();
@@ -1821,7 +1834,7 @@ function draw() {
   // Left column builds structures, right column builds units, as on the classic sidebar.
   let cameoSig = { L: '', R: '' };
   const cameoEls = new Map();
-  const UNIT_ORDER = ['infantry', 'vehicle', 'heli', 'jet'];
+  const UNIT_ORDER = ['infantry', 'vehicle', 'heli', 'jet', 'naval'];
   function stripTypes(team, side) {
     if (side === 'L') {
       const powers = (hasBuilt(team, 'airfield') ? Object.keys(POWERS).filter((k) => hasPower(team, k)).map((k) => 'pw:' + k) : [])   // (Close Air Support once researched)
@@ -2250,7 +2263,7 @@ function draw() {
     else if (act === 'unload') {
       const full = own.filter((x) => x.kind === 'unit' && x.def.carry && (x.cargo || []).length);
       for (const u of full.filter((x) => x.def.lift)) commandMove([u], u.x, u.y);
-      const apcs = full.filter((x) => x.def.apc);
+      const apcs = full.filter((x) => x.def.apc || x.def.ferry);
       if (apcs.length) commandUnload(apcs);
       Sound.ack(apcs.length ? 'veh' : 'air');
     }

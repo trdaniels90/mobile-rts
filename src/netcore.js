@@ -43,7 +43,7 @@ const NetCore = (() => {
   // Fields a remote player never needs: the host's own timers and bookkeeping. `anim` (the walk
   // cycle) the remote copy keeps itself.
   const SKIP = new Set(['def', 'c4By', 'plantT', 'demoAt', 'rehunt', 'smokeT', 'clearT', 'burnBy', 'burnTick', 'unloadT', 'capU', 'raidCrew', 'apcBack', 'liftWait', 'cover', 'coverBan', 'healT', 'lowT', 'strafe', 'path', 'pathIdx', 'needPath', 'lastX', 'lastY', 'stuckN', 'stuckT', 'think', 'cd', 'cd2', 'extT', 'sent', 'fan', 'apT', 'apA', 'slideT', 'dockU', 'qSpot', 'qRef', 'dockBest', 'dockBan', 'aiMove', 'stallN', 'pathT', 'waitLeader', 'waitSince', 'waitBan',
-    'smokeT', 'revealT', 'dmgSeen', 'dmgHp', 'dropT', 'dmgFxT', 'popK', 'popHold', 'anim', 'htimer', 'hcell', 'crowdT', 'cornerT', 'prog', 'squeezeT', 'nearBest', 'clankT', 'final', 'roll', 'rollTo', 'fireT', 'shotAt', 'twinNext', 'twinTarget', 'plumeT', 'flareT', 'jetOn', 'jetD', 'jetSeen', 'burnT', 'bayHold', 'lockOn', 'bayN', 'lock']);   // fireT: the copy lights the flash itself from `shots`
+    'smokeT', 'revealT', 'dmgSeen', 'dmgHp', 'dropT', 'dmgFxT', 'popK', 'popHold', 'anim', 'htimer', 'hcell', 'crowdT', 'cornerT', 'prog', 'squeezeT', 'nearBest', 'clankT', 'final', 'roll', 'rollTo', 'fireT', 'shotAt', 'twinNext', 'twinTarget', 'plumeT', 'flareT', 'jetOn', 'jetD', 'jetSeen', 'burnT', 'bayHold', 'lockOn', 'bayN', 'lock', 'detT', 'spotted', 'boardT']);   // fireT: the copy lights the flash itself from `shots`
   const COARSE = new Set(['x', 'y', 'alt']);   // to a tenth of a pixel
   const OBJ = '\u0000';   // marks an object field, kept as JSON for comparing
   function field(v) {
@@ -78,7 +78,8 @@ const NetCore = (() => {
     const seen = (x, y) => !!view[cellOfPos(x, y)];
     function shown(x, last) {
       if (friendly(x.team, P.side)) return true;
-      if (x.kind === 'bld' && camoHidden(x, P.side) && !last) return false;   // a camouflaged structure is not mentioned until it gives itself away
+      if (x.kind === 'unit' && camoHidden(x, P.side)) return !!(last && last.exposed);   // a Submarine diving: one last snapshot (exposed: false), then nothing until it surfaces
+      if (camoHidden(x, P.side) && !last) return false;   // a camouflaged structure is not mentioned until it gives itself away
       if (x.kind === 'bld') return seen(x.cx * CELL + 1, x.cy * CELL + 1) || seen((x.cx + x.w) * CELL - 1, (x.cy + x.h) * CELL - 1);
       return seen(x.x, x.y) || (last && typeof last.x === 'number' && seen(last.x, last.y));
     }
@@ -123,7 +124,13 @@ const NetCore = (() => {
     }
     // Walls and gates: the cells that changed, where this player can see (with the ore, every fifth snapshot).
     if (G.wallEver && (P.snapN - 1) % ORE_EVERY === 0) {
-      if (!P.wallSent || P.wallSent.length !== NCELLS) P.wallSent = new Uint32Array(NCELLS);
+      if (!P.wallSent || P.wallSent.length !== NCELLS) {
+        P.wallSent = new Uint32Array(NCELLS);
+        // The map's own wall: the remote copy laid it too (genLayoutMap), so only its changes are sent (a piece shot down
+        // out of their sight still goes when they next see the cell).
+        const d = WALLS.concrete, v0 = d.id | (WALL_NEUTRAL << 4) | (d.hp << 8);
+        for (const c of mapWallCells(MAPS[G.mapId])) P.wallSent[c] = v0;
+      }
       const w = [];
       for (let i = 0; i < NCELLS; i++) {
         const v = G.wall[i] | (G.wallTeam[i] << 4) | (G.wallHp[i] << 8);

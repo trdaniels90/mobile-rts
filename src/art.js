@@ -488,19 +488,7 @@ function groundPainter(terr, seed, roads, bridges, cliffs, fords, theme, bridgeK
       const x1 = Math.ceil(Math.max(...corners.map((c) => c[0]))) + 2, y1 = Math.ceil(Math.max(...corners.map((c) => c[1]))) + 2;
       const c = mkCanvas((x1 - x0) * GK, (y1 - y0) * GK), g = c.getContext('2d');   // (HD ground: at its pixels per world pixel)
       g.scale(GK, GK); g.translate(b.a.x - x0, b.a.y - y0); g.rotate(ang);
-      if (bridgeKind === 'concrete') concreteBridge(g, L, bw, seed, snow);
-      else {   // timber
-        g.fillStyle = 'rgba(10,20,30,0.45)'; g.fillRect(4, -bw / 2 + 6, L - 8, bw);              // shadow on the water
-        for (const u0 of [-6, L - 10]) { g.fillStyle = '#6f6a5e'; g.fillRect(u0, -bw / 2 - 3, 16, bw + 6); g.fillStyle = '#56524a'; g.fillRect(u0, bw / 2 + 1, 16, 2); }
-        for (let x = 6; x < L - 6; x += 22) { g.fillStyle = '#2e2418'; g.fillRect(x, -bw / 2 + 1, 3, bw + 6); }   // piles
-        g.fillStyle = '#6b5638'; g.fillRect(0, -bw / 2, L, bw);
-        for (let x = 0, i = 0; x < L; x += 3, i++) {
-          g.fillStyle = ['#7a6342', '#634f33', '#705a3b', '#5a4730'][(i * 7 + (i >> 2)) % 4];
-          g.fillRect(x, -bw / 2 + 2, 2, bw - 4);
-        }
-        g.fillStyle = '#3a2d1d'; g.fillRect(0, -bw / 2, L, 2); g.fillRect(0, bw / 2 - 2, L, 2);
-        for (let x = 2; x < L; x += 10) { g.fillStyle = '#2a2015'; g.fillRect(x, -bw / 2 - 1, 2, 3); g.fillRect(x, bw / 2 - 2, 2, 3); }
-      }
+      bridgeGround(g, L, bw, bridgeKind === 'concrete');   // (the deck itself stands above the water: drawBridges)
       return { c, x: x0, y: y0 };
     });
     P = { bridges: bridgePics, stamps, trees };
@@ -571,21 +559,40 @@ function paintRuts(d, roads, X0, Y0, w, h, K = 1) {
     }
   }
 }
-// A concrete road bridge, drawn along +x from 0 to L, bw wide: square piers and abutments, a pale speckled deck with
-// expansion joints and worn wheel tracks, kerbs and parapets with their posts. In winter, snow banked against the
-// parapets and slush in the tracks.
-function concreteBridge(g, L, bw, seed, snow) {
+// Bridges stand above the water on piers (looks only; owner's ask through a contributor, 2026-11-27: "pylons and elevated ... so
+// ships going under them look natural"). On the ground only what lies on it: the deck's shadow on the water and the stone or
+// concrete abutments at each end (bridgeGround). The deck is drawn every frame raised above the water (drawBridges): it climbs
+// from the abutments over BRIDGE_RAMP and stands bridgeTop(L) view px up over the middle, on piers (concrete) or pairs of
+// piles (timber), with its edge showing (BRIDGE_EDGE px thick). Land units on it are drawn at its height (deckLift, look.js
+// standLift); ships under it are drawn before it (ui.js draw, decksOver). The rules do not change: the deck's cells are walked
+// and sailed exactly as before.
+const BRIDGE_RAMP = 52, BRIDGE_EDGE = 3;
+// Every bridge is raised, the longer the higher: 9 to 16 px over the middle.
+const bridgeTop = (L) => Math.max(9, Math.min(16, 7 + L / 40));
+function bridgeGround(g, L, bw, concrete) {
+  const h = bw / 2;
+  g.fillStyle = concrete ? 'rgba(10,20,30,0.5)' : 'rgba(10,20,30,0.45)'; g.fillRect(Math.min(BRIDGE_RAMP, L * 0.35) * 0.6, -h + 9, L - Math.min(BRIDGE_RAMP, L * 0.35) * 1.2, bw);   // shadow on the water, cast off the raised deck
+  for (const u0 of concrete ? [-8, L - 10] : [-6, L - 10]) {                                // abutments
+    const w = concrete ? 18 : 16, e = concrete ? 4 : 3;
+    g.fillStyle = concrete ? '#7c7e82' : '#6f6a5e'; g.fillRect(u0, -h - e, w, bw + 2 * e);
+    g.fillStyle = concrete ? '#5a5c60' : '#56524a'; g.fillRect(u0, h + e - 2, w, 2);
+    if (concrete) { g.fillStyle = '#9a9ca0'; g.fillRect(u0, -h - e, w, 1); }
+  }
+}
+// The deck's top, along +x from 0 to L, bw wide, in its own picture (bridgeDeckPic). Timber: planks, edge beams and rail posts.
+function timberDeck(g, L, bw) {
+  g.fillStyle = '#6b5638'; g.fillRect(0, -bw / 2, L, bw);
+  for (let x = 0, i = 0; x < L; x += 3, i++) {
+    g.fillStyle = ['#7a6342', '#634f33', '#705a3b', '#5a4730'][(i * 7 + (i >> 2)) % 4];
+    g.fillRect(x, -bw / 2 + 2, 2, bw - 4);
+  }
+  g.fillStyle = '#3a2d1d'; g.fillRect(0, -bw / 2, L, 2); g.fillRect(0, bw / 2 - 2, L, 2);
+  for (let x = 2; x < L; x += 10) { g.fillStyle = '#2a2015'; g.fillRect(x, -bw / 2 - 1, 2, 3); g.fillRect(x, bw / 2 - 2, 2, 3); }
+}
+// Concrete: a pale speckled deck with expansion joints and worn wheel tracks, kerbs and parapets with their posts. In winter, snow
+// banked against the parapets and slush in the tracks.
+function concreteDeck(g, L, bw, seed, snow) {
   const r = rng(seed ^ 0x6c1e2b), h = bw / 2;
-  g.fillStyle = 'rgba(10,20,30,0.5)'; g.fillRect(4, -h + 7, L - 8, bw);                      // shadow on the water
-  for (let x = 30; x < L - 24; x += 46) {                                                   // piers, showing past the deck
-    g.fillStyle = '#4c4e52'; g.fillRect(x, -h - 3, 10, bw + 7);
-    g.fillStyle = '#6e7074'; g.fillRect(x, -h - 3, 10, 2);
-  }
-  for (const u0 of [-8, L - 10]) {                                                          // abutments
-    g.fillStyle = '#7c7e82'; g.fillRect(u0, -h - 4, 18, bw + 8);
-    g.fillStyle = '#5a5c60'; g.fillRect(u0, h + 2, 18, 2);
-    g.fillStyle = '#9a9ca0'; g.fillRect(u0, -h - 4, 18, 1);
-  }
   const deck = [[132, 134, 138], [142, 144, 148], [150, 152, 156], [124, 126, 130]];
   for (let y = -h; y < h; y++) for (let x = 0; x < L; x++) {
     const v = r(), t = deck[v < 0.55 ? 1 : v < 0.8 ? 2 : v < 0.95 ? 0 : 3];
@@ -2205,18 +2212,160 @@ const INF_ANIM = new WeakMap(), WALK = [1, 12, 2, 13];   // per soldier: when th
 // coming out of the dark over EMERGE.
 // Where a vehicle rolling out of the War Factory is drawn (drawUnit), for the height it is drawn at (look.js standLift).
 function emergePos(u) {
-  const ek = u.outT == null ? 1 : (G.t - u.outT) / EMERGE;
+  const ek = u.outT == null ? 1 : (G.t - u.outT) / (u.outD || EMERGE);
   if (!(ek >= 0 && ek < 1)) return [u.x, u.y];
   const e = ek * (2 - ek);
   return [u.outX + (u.x - u.outX) * e, u.outY + (u.y - u.outY) * e];
 }
+// The raised bridges (see bridgeGround): each bridge's geometry and deck picture, worked out once per battle (bridgeOf).
+const bridgeInfo = new WeakMap();
+function bridgeOf(b) {
+  let B = bridgeInfo.get(b);
+  if (B) return B;
+  const dx = b.b.x - b.a.x, dy = b.b.y - b.a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, bw = b.w;
+  const m = MAPS[validMap(G.mapId)], concrete = m.bridge === 'concrete', snow = mapTheme(G.mapId) === 'snow';
+  // Which ends come down onto land: a jetty (Heron Fen) ends out over the water, level, with no ramp down at that end.
+  const onLand = (x, y) => G.terr[cellOfPos(Math.max(0, Math.min(WORLD - 1, x)), Math.max(0, Math.min(WORLD - 1, y)))] !== 4;
+  let landA = onLand(b.a.x - ux * 12, b.a.y - uy * 12), landB = onLand(b.b.x + ux * 12, b.b.y + uy * 12);
+  if (!landA && !landB) landA = landB = true;
+  B = { L, ux, uy, ang: Math.atan2(dy, dx), bw, concrete, top: bridgeTop(L), ramp: Math.min(BRIDGE_RAMP, L * (landA && landB ? 0.35 : 0.5)), landA, landB, pic: null,
+        x0: Math.min(b.a.x, b.b.x) - bw - 30, y0: Math.min(b.a.y, b.b.y) - bw - 30, x1: Math.max(b.a.x, b.b.x) + bw + 30, y1: Math.max(b.a.y, b.b.y) + bw + 30 };
+  if (typeof document !== 'undefined') {
+    const K = 2, c = mkCanvas(Math.ceil(L * K), Math.ceil((bw + 4) * K)), g = c.getContext('2d');
+    g.scale(K, K); g.translate(0, bw / 2 + 2);
+    if (concrete) concreteDeck(g, L, bw, groundSeed(G), snow); else timberDeck(g, L, bw);
+    B.pic = c; B.K = K;
+  }
+  bridgeInfo.set(b, B);
+  return B;
+}
+// How high the deck stands t px along a bridge (view px): rising off each abutment, level over the middle.
+function deckAt(B, t) {
+  const e = Math.max(0, Math.min(1, Math.min(B.landA ? t : Infinity, B.landB ? B.L - t : Infinity) / B.ramp));
+  return B.top * e * e * (3 - 2 * e);
+}
+// The deck's height under a world point (0 off every bridge, and on a span that is down): what land units on it are lifted by.
+function deckLift(x, y) {
+  if (!G || !G.bridges || !G.bridges.length) return 0;
+  const c = cellOfPos(Math.max(0, Math.min(WORLD - 1, x)), Math.max(0, Math.min(WORLD - 1, y)));
+  if (G.terr[c] !== 5 || (G.ford && G.ford[c])) return 0;
+  let best = 0;
+  for (const b of G.bridges) {
+    const B = bridgeOf(b), px = x - b.a.x, py = y - b.a.y, t = px * B.ux + py * B.uy, v = -px * B.uy + py * B.ux;
+    if (t < -4 || t > B.L + 4 || Math.abs(v) > B.bw / 2 + CELL) continue;
+    best = Math.max(best, deckAt(B, Math.max(0, Math.min(B.L, t))));
+  }
+  return best;
+}
+// Every bridge in view (x0..x1, y0..y1 world px), raised: its piers or piles first, then the deck's edge, then its top in slices
+// each lifted to its height. In the ground plane (like a destroyed span's ruin), so both renderers draw it; called by ui.js draw
+// after the ground and the ships under bridges, before everything else.
+const BRIDGE_SLICE = 4;
+function drawBridges(g, x0, y0, x1, y1) {
+  if (!G || !G.bridges || !G.bridges.length) return;
+  const LV = fromView(0, -1), up = g.upright;
+  g.upright = false;
+  const quad = (pts, col) => { g.fillStyle = col; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); g.fill(); };
+  try {
+    for (const b of G.bridges) {
+      const B = bridgeOf(b);
+      if (!B.pic || B.x1 < x0 || B.x0 > x1 || B.y1 < y0 || B.y0 > y1) continue;
+      const at = (t, v, h) => [b.a.x + B.ux * t - B.uy * v + LV[0] * h, b.a.y + B.uy * t + B.ux * v + LV[1] * h];
+      const standing = (t) => { const p = at(t, 0, 0), c = cellOfPos(Math.max(0, Math.min(WORLD - 1, p[0])), Math.max(0, Math.min(WORLD - 1, p[1]))); return G.terr[c] !== 4; };   // (not over a span that is down)
+      const hw = B.bw / 2;
+      // Piers (concrete: a slab across the deck, two faces) or bents of piles (timber), from the water up to the deck's underside, where
+      // world.js bridgePiers puts them (ships sail between them, not through).
+      for (const t0 of bridgePiers(b)) {
+        const h = deckAt(B, t0) - BRIDGE_EDGE;
+        if (h < 1.5) continue;
+        if (B.concrete) {
+          const v0 = -hw - 2, v1 = hw + 2, d = 8, t = t0 - d / 2;
+          quad([at(t, v0, 0), at(t, v1, 0), at(t, v1, h), at(t, v0, h)], '#5a5c60');
+          quad([at(t + d, v0, 0), at(t + d, v1, 0), at(t + d, v1, h), at(t + d, v0, h)], '#46484c');
+          quad([at(t, v1, 0), at(t + d, v1, 0), at(t + d, v1, h), at(t, v1, h)], '#6c6e72');
+          quad([at(t, v0, 0), at(t + d, v0, 0), at(t + d, v0, h), at(t, v0, h)], '#6c6e72');
+          quad([at(t - 1, v0 - 1, 0), at(t + d + 1, v0 - 1, 0), at(t + d + 1, v1 + 1, 0), at(t - 1, v1 + 1, 0)], 'rgba(220,232,238,0.35)');   // a ring of foam at the waterline
+        } else {
+          for (const t of [t0 - 3.5, t0 + 0.9]) for (const v of [-hw - 0.5, 0, hw + 0.5]) {
+            quad([at(t, v - 1.2, 0), at(t + 2.6, v - 1.2, 0), at(t + 2.6, v - 1.2, h), at(t, v - 1.2, h)], '#2e2418');
+            quad([at(t, v + 1.2, 0), at(t + 2.6, v + 1.2, 0), at(t + 2.6, v + 1.2, h), at(t, v + 1.2, h)], '#3b2e1f');
+          }
+          quad([at(t0 - 2.5, -hw - 0.5, h * 0.3), at(t0 - 1, -hw - 0.5, h * 0.3), at(t0 - 1, hw + 0.5, h * 0.8), at(t0 - 2.5, hw + 0.5, h * 0.8)], '#31261a');   // cross braces
+          quad([at(t0 + 1, -hw - 0.5, h * 0.8), at(t0 + 2.5, -hw - 0.5, h * 0.8), at(t0 + 2.5, hw + 0.5, h * 0.3), at(t0 + 1, hw + 0.5, h * 0.3)], '#31261a');
+          quad([at(t0 - 4, -hw - 1.5, 0), at(t0 + 4, -hw - 1.5, 0), at(t0 + 4, hw + 1.5, 0), at(t0 - 4, hw + 1.5, 0)], 'rgba(220,232,238,0.25)');
+        }
+      }
+      // The deck's edge, both sides, a slice at a time (the far side is mostly covered by the top).
+      const edge = B.concrete ? ['#55575b', '#6a6c70'] : ['#3a2d1d', '#4a3a26'];
+      for (let t = 0; t < B.L; t += BRIDGE_SLICE) {
+        const t1 = Math.min(B.L, t + BRIDGE_SLICE), h0 = deckAt(B, t), h1 = deckAt(B, t1);
+        if (h0 + h1 < 0.5 || !standing((t + t1) / 2)) continue;
+        for (const [v, col] of [[-hw - 1, edge[1]], [hw + 1, edge[0]]]) quad([at(t, v, h0), at(t1 + 0.4, v, h1), at(t1 + 0.4, v, Math.max(0, h1 - BRIDGE_EDGE)), at(t, v, Math.max(0, h0 - BRIDGE_EDGE))], col);
+      }
+      // The top, in slices each overlapping the next by 2 px, the higher drawn last (on a ramp, no gap shows between two heights).
+      const sl = [];
+      for (let t = 0; t < B.L; t += BRIDGE_SLICE) { const w = Math.min(BRIDGE_SLICE, B.L - t); if (standing(t + w / 2)) sl.push([t, w, deckAt(B, t + w / 2)]); }
+      sl.sort((p, q) => p[2] - q[2]);
+      for (const [t, w, h] of sl) {
+        const m = g.getTransform(), a0 = Math.max(0, t - 1), a1 = Math.min(B.L, t + w + 1);
+        g.translate(b.a.x + LV[0] * h, b.a.y + LV[1] * h); g.rotate(B.ang);
+        g.drawImage(B.pic, a0 * B.K, 0, (a1 - a0) * B.K, B.pic.height, a0, -hw - 2, a1 - a0, B.bw + 4);
+        g.setTransform(m);
+      }
+    }
+  } finally { g.upright = up; }
+}
+// Whether a ship is under a bridge now (a deck cell within its length, and the deck's height, of it). ui.js draw takes such a ship
+// out of the sorted list and draws it with the ground, then the raised bridges over it (drawBridges), then everything else as
+// usual, so a tank on the bridge still stands on top.
+function decksOver(u) {
+  if (!G.bridges || !G.bridges.length || typeof document === 'undefined') return null;
+  const R = u.def.size.len / 2 + 4 + 16, cx0 = Math.floor((u.x - R) / CELL), cx1 = Math.floor((u.x + R) / CELL), cy0 = Math.floor((u.y - R) / CELL), cy1 = Math.floor((u.y + R) / CELL);
+  let under = false;
+  for (let y = cy0; y <= cy1 && !under; y++) for (let x = cx0; x <= cx1; x++) {
+    if (!inMap(x, y)) continue;
+    const c = idx(x, y);
+    if (G.terr[c] === 5 && !(G.ford && G.ford[c])) { under = true; break; }
+  }
+  return under;
+}
+// A ship under way: a white V of foam spreading from its stern and a bow wave, drawn on the water under it (looks only).
+function shipWake(g, u, t) {
+  const L = u.def.size.len / 2, c = Math.cos(u.face), s = Math.sin(u.face), a = g.globalAlpha;
+  for (let k = 0; k < 7; k++) {
+    const back = L - 2 + k * 3.2, side = 1 + k * 1.1, fade = 1 - k / 7, wob = Math.sin(t * 9 + k * 1.7 + u.id) * 0.6;
+    for (const sd of [-1, 1]) {
+      g.globalAlpha = a * 0.55 * fade;
+      g.fillStyle = k < 2 ? '#f2f6f6' : '#d8e6ea';
+      g.fillRect(Math.round(u.x - c * back - s * sd * (side + wob)), Math.round(u.y - s * back + c * sd * (side + wob)), k < 3 ? 2 : 1, 1);
+    }
+  }
+  g.globalAlpha = a * 0.6; g.fillStyle = '#eef4f4';
+  for (const sd of [-1, 1]) g.fillRect(Math.round(u.x + c * (L - 1) - s * sd * 2.5), Math.round(u.y + s * (L - 1) + c * sd * 2.5), 2, 1);
+  g.globalAlpha = a;
+}
 function drawUnit(g, u, t) {
-  const ek = u.outT == null ? 1 : (G.t - u.outT) / EMERGE;
+  const ek = u.outT == null ? 1 : (G.t - u.outT) / (u.outD || EMERGE);
   if (!(ek >= 0 && ek < 1)) return drawUnitBody(g, u, t);
-  const x = u.x, y = u.y, e = ek * (2 - ek), a = g.globalAlpha;
+  const x = u.x, y = u.y, e = u.outD ? ek : ek * (2 - ek), a = g.globalAlpha, mv = u.moving, an = u.anim;   // (outD: coming down a Transport's ramp, at a walk)
   u.x = u.outX + (x - u.outX) * e; u.y = u.outY + (y - u.outY) * e;
-  g.globalAlpha = a * Math.min(1, 0.25 + ek * 1.5);
-  try { drawUnitBody(g, u, t); } finally { u.x = x; u.y = y; g.globalAlpha = a; }
+  if (u.outD) { u.moving = true; u.anim = ek * Math.hypot(x - u.outX, y - u.outY); }
+  g.globalAlpha = a * (u.outD ? Math.min(1, 0.4 + ek * 3) : Math.min(1, 0.25 + ek * 1.5));
+  try { drawUnitBody(g, u, t); } finally { u.x = x; u.y = y; u.moving = mv; u.anim = an; g.globalAlpha = a; }
+}
+// A unit walking up a Transport's ramp (world.js climbIn): drawn walking from where it stood to the ramp, fading into the hold.
+const boardFakes = new WeakMap();
+function drawBoarding(g, fx) {
+  const d = UNIT_DEFS[fx.ut];
+  if (!d || !G.teams[fx.team]) return;
+  let u = boardFakes.get(fx);
+  const L = Math.hypot(fx.x - fx.x0, fx.y - fx.y0), face = Math.atan2(fx.y - fx.y0, fx.x - fx.x0);
+  if (!u) boardFakes.set(fx, u = { id: -1, kind: 'unit', type: fx.ut, def: d, cls: d.cls, team: fx.team, faction: fx.faction, face, tface: face, hp: 1, maxHp: 1, alive: true, moving: true, anim: 0, fireT: 0, x: 0, y: 0 });
+  const k = Math.max(0, Math.min(1, fx.t / fx.life));
+  u.x = fx.x0 + (fx.x - fx.x0) * k; u.y = fx.y0 + (fx.y - fx.y0) * k; u.anim = k * L;
+  const a = g.globalAlpha;
+  g.globalAlpha = a * (k < 0.75 ? 1 : Math.max(0, 1 - (k - 0.75) / 0.25));
+  try { drawUnitBody(g, u, G.t); } finally { g.globalAlpha = a; }
 }
 function drawUnitBody(g, u, t) {
   drawVar = G.teams[u.team].variant | 0;
@@ -2325,10 +2474,15 @@ function drawUnitBody(g, u, t) {
   // A tank gun firing kicks the turret back along the barrel (recoil); the hull stays put.
   const rk = u.def.weapon && u.def.weapon.proj === 'shell' && !isAirborne(u) ? recoil(u) : 0;
   const kick = rk * (u.type === 'mammoth' || u.type === 'htank' ? 2 : 1.6);
-  const hullAt = blit(g, hullSprite(u, pal), u.x, u.y);
+  const ship = u.def.draw === 'ship', a0 = g.globalAlpha;
+  if (ship) {
+    if (u.moving) shipWake(g, u, t);
+    if (u.def.sub && !u.exposed) g.globalAlpha = a0 * 0.4;   // submerged: your own side sees its outline under the water (the enemy nothing)
+  }
+  const hullAt = blit(g, hullSprite(u, pal), u.x, u.y, ship && u.def.sub && !u.exposed ? false : undefined);
   const ts = turretSprite(u, pal);
   if (ts) {
-    const z = turretZ(u.def) * VK, off = u.def.draw === 'jeep' ? -3 : u.def.draw === 'apc' ? 0 : -1;
+    const z = turretZ(u.def) * VK, off = u.def.draw === 'jeep' ? -3 : u.def.draw === 'apc' ? 0 : ship ? u.def.size.fwd || 0 : -1;
     const [lx, ly] = liftPt(u.x, u.y, z), tx = lx + Math.cos(u.face) * off - Math.cos(u.tface) * kick, ty = ly + Math.sin(u.face) * off - Math.sin(u.tface) * kick * 0.6;
     blit(g, ts, tx, ty, false, hullAt);   // (a whole-pixel offset from the hull: the turret stays put on it as the tank moves)
     if (u.fireT > 0) {
@@ -2337,7 +2491,8 @@ function drawUnitBody(g, u, t) {
       flash(g, tx + Math.cos(u.tface) * len + Math.sin(u.tface) * side, ty + Math.sin(u.tface) * len - Math.cos(u.tface) * side - 1.5, u.def.draw === 'jeep' || u.def.draw === 'apc' ? 1 : 2);
     }
   }
-  if (u.def.apc) cargoPips(g, u);
+  g.globalAlpha = a0;
+  if (u.def.apc || u.def.ferry) cargoPips(g, u);
   // On a Service Depot's pad: the blinking green cross, and sparks from the work.
   if (u.repairing) {
     if (Math.floor(t * 3) % 2) {
@@ -3548,6 +3703,18 @@ function drawEffect(g, fx) {
       g.globalAlpha = 1;
       break;
     }
+    case 'board': drawBoarding(g, fx); break;
+    case 'sink': {   // a ship going down (world.js shipSinks): it settles lower and fades into the water, with bubbles
+      const pal = palFor(fx.faction), sp = facingSprite('Nw' + fx.ut + pal.key, () => shipWhole(pal, fx.ut), fx.face);
+      const a = g.globalAlpha;
+      g.globalAlpha = a * Math.max(0, 1 - k * 1.15);
+      blit(g, sp, fx.x, fx.y + k * 5, false);
+      g.globalAlpha = a * (1 - k) * 0.8; g.fillStyle = '#e8f0f2';
+      const r = rng((fx.x * 7 + fx.y) | 0);
+      for (let i = 0; i < 6; i++) { const ph = (k * 3 + r()) % 1; g.fillRect(Math.round(fx.x + (r() - 0.5) * 18), Math.round(fx.y + (r() - 0.5) * 8 - ph * 2), 1, 1); }
+      g.globalAlpha = a;
+      break;
+    }
     case 'ring': {
       g.globalAlpha = 1 - k;
       g.strokeStyle = fx.color; g.lineWidth = 1;
@@ -3578,7 +3745,8 @@ function cameoURL(type, faction, variant) {
 function makeCameo(type, faction, key) {
   const W = 64, H = 48, c = mkCanvas(W, H), g = c.getContext('2d');
   const grd = g.createLinearGradient(0, 0, 0, H);
-  grd.addColorStop(0, '#26313b'); grd.addColorStop(0.5, '#46525c'); grd.addColorStop(0.52, '#4c5530'); grd.addColorStop(1, '#262c16');
+  const wet = (UNIT_DEFS[type] && UNIT_DEFS[type].naval) || (BUILD_DEFS[type] && BUILD_DEFS[type].water);   // ships and yards: on water
+  grd.addColorStop(0, '#26313b'); grd.addColorStop(0.5, '#46525c'); grd.addColorStop(0.52, wet ? '#35607a' : '#4c5530'); grd.addColorStop(1, wet ? '#1a3346' : '#262c16');
   g.fillStyle = grd; g.fillRect(0, 0, W, H);
   const pal = palFor(faction);
   let mdl, angle = -0.55, scale;
@@ -3602,9 +3770,10 @@ function makeCameo(type, faction, key) {
     else if (d.draw === 'mcv') mdl = mcvModel(pal);
     else if (d.draw === 'arty') mdl = artyModel(pal);
     else if (d.draw === 'v2') mdl = v2Model(pal, true, 1);   // shown raised
+    else if (d.draw === 'ship') mdl = shipWhole(pal, type);   // (with its gun on)
     else if (d.fly === 'heli') mdl = type === 'hind' ? hindModel(pal) : type === 'comanche' ? comancheModel(pal, 1) : type === 'chinook' ? chinookModel(pal) : type === 'halo' ? haloModel(pal) : heliModel(pal);   // (the Comanche with its bays open)
     else mdl = jetModel(pal, type === 'mig');
-    scale = d.setup && d.cls === 'inf' ? 2 : d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.lift ? 1.3 : d.fly ? 1.7 : d.size && d.size.len > 22 ? 1.9 : 2.3;
+    scale = d.setup && d.cls === 'inf' ? 2 : d.cls === 'inf' ? 3.2 : d.fly === 'jet' ? 1.75 : d.lift ? 1.3 : d.fly ? 1.7 : d.naval ? (d.size.len > 36 ? 1.35 : 1.55) : d.size && d.size.len > 22 ? 1.9 : 2.3;
   }
   const s = renderVox(mdl, angle, { scale, shadow: false });
   const dx = Math.round((W - s.img.width) / 2), dy = Math.round((H - s.img.height) / 2 + (BUILD_DEFS[type] ? 0 : 3) - (power ? 6 : 0));

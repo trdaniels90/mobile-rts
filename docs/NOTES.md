@@ -879,6 +879,31 @@ recorder usage at the top of record.js).
 - `weather: { kind: 'rain', chance: 0.5 }` as on Lakeside: rain, lightning and the bolts that land (gameplay, both modes,
   server must match). `boltStrike` can now hit a village house too (it burns for 10% of its health like a building).
 
+## Map "Berlin", a 3 v 3 divided city (contributor's map by JGFortanelli, not released, both modes, needs the owner's OK)
+
+- `MAPS.berlin` in maps.js: **200 x 200**, `teamSize: 3` (2 v 2 and 3 v 3), west of the city (starts 0-2) against the east (3-5),
+  `daynight`, concrete bridges, no weather (no rain without the owner's word). Laid out by `python3 tools/make-berlin-map.py [--png out.png]`
+  (prints `squares`, `lamps`, `spawns`, `gems`, `lots`, `rows` to paste over the entry); every feature is listed for the west and turned
+  half round the middle, and the tool asserts the halves match. An original layout after the city's Cold War geography, nothing traced.
+- **The Wall:** a jagged line of concrete pieces (`'W'` in the rows: a track cell with a piece of the walls layer on it) from the north
+  edge to the south, one cell thick (laid as diagonal and straight runs, like a player's `wallLine`) and right down to the water where the
+  Spree crosses it, with a bare death strip either side and floodlights (`lamps`) along it. Four checkpoints open it (`GAPS`), two north
+  and two south of the river. Sealed otherwise (flood fill with the checkpoints shut reaches no east base).
+  - The pieces belong to nobody: `G.wallTeam` = `WALL_NEUTRAL` (15, data.js; no side has that id, and netcore packs a side in 4 bits).
+    Concrete's health (300); anyone can shoot one down with Attack ground (tapping a piece with fighters selected orders it, ui.js),
+    nobody can sell one, and the computer never targets it (units on Auto Attack only shoot through *hostile* walls, and the
+    checkpoints mean they are never walled off). Three Medium Tanks take a piece down in about 5 s.
+  - `mapWallCells(m)` (world.js) lists a map's `'W'` cells; `genLayoutMap` lays them at its very end (it rebuilds `G.block` from the
+    ground partway through, which wiped them when laid earlier). Online, the remote copy lays them too, so netcore seeds `P.wallSent`
+    with them and sends only changes (a piece shot down out of sight goes when the cell is next seen).
+  - Gameplay change for both modes (the server must match): needs the owner's OK.
+- **The Spree** winds from the Havel lake (west) to its twin lake (east), two concrete bridges on each side of the Wall. It runs straight west-east with smooth banks for a few cells either side of each bridge, so each bridge is a clean north-south rectangle of deck cells: on a slanting stretch the run came out a parallelogram, which genLayoutMap drew as a slab lying along the river. Six districts
+  (`squares`, 117 plots, about 175 houses a battle), the Tiergarten and its twin park (woods with paths), the old airfield (open ground,
+  a runway road) south-west and its twin north-east.
+- Checked: all six starts connect (flood fill from each base); `node tools/sim/teams.js <repo> 1 8 berlin 3v3`: no errors, 38 s CPU,
+  ~700 units by minute 6 (no waves yet by minute 8, as on Frostlight Valley). Ground baked (`grounds/berlin/`, ~6 MB), crags baked
+  (`cliffs/berlin/`, `cliffs-hd/berlin/`), picture `maps/berlin.png` (make-map-previews.js), both in `ART`/`FILES` in sw.js.
+
 ## Map "Twin Lakes" (contributor's map by JGFortanelli, owner OK'd, not released)
 
 - `MAPS.twinlakes` in maps.js: **132 x 132** cells, 4 start positions, `teamSize: 2` (1 v 1, 2 v 2, co-op). Two lakes run from the
@@ -893,6 +918,28 @@ recorder usage at the top of record.js).
 - Its id is `twinlakes` because the owner's Lakeside already uses `lakes`.
 - Its south-east bridge's lower span is as long as it is wide (7 x 7 cells), and `genLayoutMap` drew a square run west-east. A square run now
   runs north-south when the water is to its west and east (world.js; the other maps have no square runs, their bakes are unchanged).
+
+## Map "Rivergate City" (contributor's map by JGFortanelli, branch `friend/city-map`, needs the owner's OK, not released)
+
+- `MAPS.city` in maps.js: **144 x 144**, `teamSize: 2` (1 v 1, 2 v 2, co-op), 4 starts (west 0-1 against east 2-3), laid out by
+  `python3 tools/make-city-map.py` (no design picture: the north-west quarter worked out in code and mirrored both ways; it prints
+  `squares`, `lamps`, `spawns`, `gems`, `lots` and `rows` to paste over the entry).
+- A river 8 cells wide runs the whole height of the map down the middle; the only crossings are three concrete bridges
+  (`bridge: 'concrete'`, `breakable: true`): the north and south boulevards (6 wide) and the main avenue (8 wide) in the middle.
+  With every bridge down the banks are cut off (`map-check.js`), as on Twin Lakes; Engineers rebuild spans.
+- **Level city** (`flats: [[34, 12, 109, 131, 8]]`, world.js `makeHeights`: per box, the hills times 0 inside, easing back
+  over `ease` cells). Without it the north and south banks stood about 24 high and fell to the water over 4 cells, so the deck
+  ends were painted onto the slope and looked curved (contributor: "not curved at the edges"). Other maps have no `flats`, unchanged.
+- The city on each bank: a street grid (dirt `,`, streets 3 wide), 12 blocks per bank of about 10 x 10. The buildings are the
+  village houses (`village: true`, world.js `genVillage`) rolled on the blocks in `lots` (about 170 a battle). Two plazas per bank
+  by the main bridge (`squares`, expanded 1 cell into the streets so a church fits on a neighbouring block: a fountain, market stalls
+  and a church each) and two park blocks of woods. Street lamps along the streets, `daynight: true`, no weather (rain only where the owner says).
+- Ore: four fields per start (three by the base, one forward by the city's west side), gems north of the city and by the avenue
+  between the bases (24 fields' worth of cells in all, `map-check.js`).
+- Its mood is `MOOD.city` (look.js, a cool grey). Ground baked (`grounds/city/`; the other maps' sheets came out
+  byte-identical), picture `maps/city.png` (`make-map-previews.js`), both in sw.js.
+- Checked: all four starts connect; `node tools/sim/map-check.js <repo>` OK; `node tools/sim/teams.js <repo> 1 10 city` (computer 2 v 2:
+  about 580 units by minute 8, first kills around minute 8-10, no errors); Explore this map in a browser, no page errors.
 
 ## Attack ground, bridges that can be destroyed, Engineers (contributor's change by JGFortanelli, not released, both modes, needs the owner's OK)
 
@@ -3407,3 +3454,102 @@ went back to 60 at every touch), drawing 8-14 ms: the heat was steady near-60 fp
   http as a phone gets it (`python3 -m http.server`, same 12 min battle, iPhone, no deviceMemory): 29 pictures made in 32 s
   (houses, Construction Yard pieces), none of them soldiers; with HD on (`?hd=1`), 144 ejected pilots (`Ipilot*`, not a unit
   type, so never baked) and some village props. Measure memory over http, never from a file.
+
+## Ships: Naval Yard, Submarine Pen and naval units (contributor's change by JGFortanelli, branch `friend/naval-units`, not released; owner OK'd for both modes; the server must match)
+
+- **Structures** (data.js `water: true`): Naval Yard (Allies, $1000) and Submarine Pen (Soviets, $800), 3 x 3, 1000 health, -30 power,
+  need a Construction Yard and a Power Plant. `canPlace`: every cell open water (`G.terr` 4, not a bridge deck), within build reach of
+  the base like any structure, and an exit cell that opens onto real water (`navExit`, `navOpens`: a flood of `NAV_OPEN` cells, so a
+  pocket by the shore never traps ships). No slab decal; destroyed, splashes instead of rubble and crater. Both count as production
+  (`PRODUCTION`, the win rule) and speed their queue when doubled (`BOOSTED`). Rally points work (`canRally`).
+- **Ships** (`naval: true`, `cls: 'veh'`, queue `naval`, sidebar after the jets): Allies Transport `lst` $700, Gunboat $500, Destroyer
+  $1000; Soviets Transport `lcu` $700, Submarine `sub` $950. OpenRA's cost, health, armour and speed at the game's scale.
+- **Water movement:** `navCells()` (world.js, kept off G, rebuilt per battle: never saved or sent): open water cells (terr 4, and terr 5 that
+  is not a ford: ships pass under bridges), water bodies and their sizes, and for every cell the distance to the nearest water (`near`, up to
+  `NAV_NEAR` 16) and its body. `freeCell` turns to `navFree` while `MOVER` is a ship, so `findPath`, `tryMove`, `los` and `nearestFreeCell`
+  all keep ships on water; a ship sent inland goes to the nearest water. Ships and land units never shove each other (`separate`).
+- **Reach** (`shipReach`, `shipCanHit`): a ship only takes targets within its weapon's range of water in its own body (`acquire`), drops an
+  unreachable ordered target ("Target out of reach"), and hunts (`shipHuntStep`: the nearest reachable known structure or seen unit, enemy
+  ships first; nothing known: out over unexplored water). Ships are left out of the land army code (waves, base defence, ally help, wall
+  breaching, the stuck watch, Service Depots).
+- **Weapons:** Gunboat deck gun (AP) and Destroyer missiles (HE, 2-round burst, 216 px, also hit aircraft); both carry depth charges
+  (`wh: 'DC'`, `subOnly`). Submarine torpedoes (`wh: 'TORP'`, `naval`: only ships and structures in the water, 216 px). New projectiles
+  `torpedo` (bubble trail) and `depth`; hits on the water make spray, never scorch (`impact`). Sounds `torpedo`, `depth` (audio.js, synthesized).
+- **Submarines:** hidden like the Pillbox (`camoHidden` now covers units with `sub`): not drawn, picked, targeted or sent online to the
+  other side (netcore sends one last snapshot with `exposed: false` as it dives). Exposed `SUB_REVEAL` (3 s) after firing or being hit, or
+  while an enemy ship with `detect` (Gunboat, Destroyer) or an enemy Naval Yard / Submarine Pen is within `SUB_DETECT` (4 cells)
+  (`updateSub`). Submerged, only depth charges hit it (`canHit`). Your own submerged Submarine is drawn faint.
+- **Transports** (`ferry`, carry 5): take any ground unit, vehicles too (`canFerry`). Selected units + tap your Transport: they walk to the
+  shore by it and board (within `FERRY_BOARD_R`, or settled within 4.5 cells); a Transport out of their reach comes in to them. UNLOAD HERE
+  puts them on land within `FERRY_SHORE` (3) cells, refused out at sea ("Move the Transport to the shore"). Sunk with units aboard: all lost.
+- **Loading and landing look like it (looks, and a little timing):** a Transport comes right in to the beach (the computer's to water
+  against it: ai.js `beachSpot`) and turns its bow ramp to the land (`ferryTurn`) while troops come aboard or before it unloads.
+  Troops walk to the ramp (`bowRamp`) and board within `FERRY_BOARD_R` (1.2 cells) of it, or settled within 4.5 cells (a crowd),
+  never while it is still moving; each is drawn walking up the ramp and fading into the hold (the `board` effect, art.js
+  drawBoarding). Unloading, one every 0.55 s, each comes down the ramp and walks ashore at a walk (`u.outD`, drawn like a vehicle out
+  of the War Factory door: art.js drawUnit, emergePos).
+- **WebGL depth:** a picture is tested against the ground at its base plus a margin (10 for units); a ship reaches up to its length
+  toward the camera from its middle, so ships get `10 + size.len` (ui.js draw, also for ships under bridges), or the water cut off
+  their near end (a contributor saw it on Transports pointing at the camera).
+- **Death:** a ship sinks (`shipSinks`, the `sink` effect in art.js: the hull settles and fades), no wreck, crater or crew.
+- **Looks:** models.js `gunboatModel`, `destroyerModel`, `subModel`, `lstModel`, `lcuModel`, `shipTurret` (turret `size.fwd` ahead of the
+  middle, `muzzle` follows), `shipWhole` (cameos, sinking); `navyard` and `subpen` in `STRUCTURES`; a foam wake while moving (`shipWake`);
+  cameos on a water background. Not baked: models.js changed, so `bake-sprites.js --check` (and `--hd`) report stale until the owner rebakes
+  at release; until then ships and the yards are rendered live.
+- **Raised bridges on piers (looks only, every map with bridges):** the ground keeps only each bridge's shadow on the water and its
+  abutments (art.js `bridgeGround`); the deck is drawn every frame above the water (`drawBridges`): it climbs off each abutment over
+  `BRIDGE_RAMP` (52 px, at most 35% of the bridge) and stands `bridgeTop(L)` (9 to 16 view px, longer higher) over the middle; a jetty
+  (Heron Fen: one end out over the water) climbs only off its land end and stays level to the other. A bridge runs bank to bank:
+  world.js genLayoutMap takes its direction from where the water lies beside its run of cells (water west and east: north-south),
+  its shape only when the water does not say (Berlin's wide crossings had been laid along the river, the hump water to water),
+  on concrete piers (slabs a little wider than the deck, so they show under its edge, foam at the waterline) or timber bents (two
+  rows of three piles, cross braces), with a `BRIDGE_EDGE` (3 px) edge. **Piers block ships** (contributor's ask: "take the path of
+  an opening"; ships only, both modes, the server must match): world.js `bridgePiers` spreads them evenly `PIER_GAP` cells apart
+  (concrete 5, timber 4: openings of 4 and 3 cells) over water, clear of the abutments; `pierCells` (the cells across the deck at
+  each) are left out of `navCells`, so ships route through the openings; drawBridges draws them at the same places. Land units
+  crossing are not affected. Tested in naval.js (`underBridge`: a Destroyer crosses, never in a pier cell). The top is cut in `BRIDGE_SLICE` slices, each lifted
+  to its height, overlapping and drawn lowest first (no seams on the ramps). Ground-plane drawing like a destroyed span's ruin, so
+  both renderers draw it; nothing over a span that is down. ui.js draw: the ground, its moving water (cliffItems), ships under a
+  bridge (`decksOver`: a deck cell within the ship's length plus the deck's rise), then `drawBridges`, then the sorted list: land units
+  on a deck are lifted to its height (`deckLift`, look.js `standLift`; ships pass `wet` and stay on the water), and so are effects
+  there. The rules do not change. **Baked grounds:** rebaked on `friend/naval-and-maps` (with Berlin and Rivergate City; 35 sheets
+  changed, those with bridges); `bridgeGround` and `bridgeTop` are in tools/bake-ground.js's hash. `friend/naval-units` on its own is
+  not rebaked (its `--check` reports stale).
+- **Computer** (ai.js, every difficulty): `aiNaval` (once, `team.naval`, plain data): the nearest open water of `NAVAL_BODY` (300) cells within
+  `NAVAL_REACH` (32) cells of its start with an enemy start within `NAVAL_FOE` (14) cells of it. With one, after a War Factory and two
+  refineries it builds its yard (`aiNavalNext`, `aiWaterSpot`); out of reach, up to `NAVAL_CREEP` (4) Power Plants go up toward the water
+  first (`aiCreepSpot`). `aiFleet`: 2 / 4 / 6 warships by difficulty (more against an enemy fleet), Gunboats and Destroyers or Submarines;
+  they wait by the yard until `NAVAL_SAIL` (3) are ready, then hunt; badly hurt ones go back. No computer Transports yet. On maps where
+  its water reaches no enemy (Lakeside's starts, for example) it builds no yard.
+- **Online:** orders reuse `commandBoard` and `commandUnload` (netcore COMMANDS); `detT` and `spotted` are not sent. The game server must
+  run this version for online play.
+- **Old saves:** a save without the naval queue gets one (`activeItem`).
+- Test: `node tools/sim/naval.js <repo> [map] [minutes]` (PASS on Twin Lakes, A Bridge Too Far and Lakeside); `apc.js` and a 20-minute
+  computer 1 v 1 on A Bridge Too Far (`teams.js`) still run clean.
+
+## Map "Twin Isles", a naval map (contributor's change by JGFortanelli, branch `friend/naval-and-maps`, not released; the server must match)
+
+- **Layout** (`tools/make-isles-map.py`, 144 cells, 2 v 2 or 1 v 1): two islands, west and east, across a strait (about 12 cells at
+  its narrowest, in the middle), open sea all round, no bridges or fords: the only ways to the enemy are by sea and by air. One
+  quarter worked out and mirrored both ways (the four starts alike): each base near its island's outer coast (so it has water for a
+  Naval Yard or Submarine Pen), ore by it and in the island's middle, a gem field on the strait's shore. Ground baked
+  (`grounds/isles`), preview `maps/isles.png`, both in sw.js.
+- **Scouting** (contributor's pick: "scout by sea, land, and air"; nothing is revealed at the start, for anyone): the computer's
+  aiScout, once its first-wave time is up, sends the Spy Plane (with an Airfield) or a helicopter as on every map; a walking scout
+  only where it can walk (`aiLandmass`); otherwise an idle warship or an empty Transport (`ferry.scout`) sails to the coast nearest
+  the spot; and it asks for a scouting party (`team.scoutParty`): its Transports take `SCOUT_PARTY` (3) of the fastest waiting units
+  over without waiting for a full load. A computer unit on another island with nothing known to attack (world.js nothingKnown)
+  explores it: the start positions there it has not seen, then unseen ground, hunting again every 12 s (`rehunt`). Tested (headless
+  1 v 1s): bases found at 9:52 to 15:10 by APCs, Transports along the coast, Hinds and an Attack Helicopter, then full convoys.
+- **The computer across the sea** (ai.js, every difficulty): `aiNaval` works out `isle` (no foe's start on its own landmass,
+  `aiLandmass`) and then accepts water that reaches the foe's island within `NAVAL_ISLE` (40) cells. `aiFleet` builds Transports first
+  (`FERRY_WANT`: Easy 1, Normal 2, Hard 3). `aiStrait` finds the shortest crossing once (two floods over the water from each shore):
+  `up` by its own shore, `down` by the foe's. `aiFerry`: each Transport waits at `up` while launched units still on its island, and
+  (from 0.75 of its first-wave time, once it has found an enemy base) its waiting army, are sent aboard. They cross together as a convoy (contributor's pick: "wait for
+  a full load and cross together"): when every Transport loading is full, or, if the army is too small, once all are at `up` and
+  `FERRY_WAIT` (90) s have passed since the first was full, with `FERRY_MIN` (3) aboard each (`team.naval.fullT`). Each lands at its own
+  spot along the far beach (3 cells apart; in to `down` if its spot is too far from land), they hunt on, and the Transports come back. world.js stuckWatch leaves such a side's hunting and boarding
+  units be (they wait on the beach for a ride).
+- Tested headless (computer against computer): a Normal 1 v 1 for 22 minutes (one side landed up to 12 units at once and destroyed 6
+  structures; the other lost its Transports to the first side's warships), and a Hard 2 v 2 (all four built yards and Transports by
+  minute 9; two had landed 12 and 9 units).
