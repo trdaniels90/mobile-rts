@@ -5968,29 +5968,50 @@ function turretZ(d) { return d.size && d.size.tz !== undefined ? d.size.tz : TUR
 
 // Scenery: trees, boulders, ore, all rendered once.
 // snow: a pine with snow lying on the edge of each tier of boughs and on its tip.
+// Trees at Red Alert 2 detail (branch claude/ra2-models): built with the fine kit, so HD shows leaf clusters a quarter
+// pixel fine. Broadleaf: a trunk with a root flare and a few limbs, a canopy of 3-5 masses, each a dark core under dozens
+// of small leaf clusters, lighter toward the top and the sun (upper left), a few bright highlights. Pine: tiers of drooping,
+// ragged boughs narrowing to a point, lighter tips, snow lying on each tier on winter maps. Same box and heights as before.
+const LEAF = ['#1f3816', '#29491b', '#355c21', '#436f28', '#548330', '#6a9a3a'], PINE = ['#152a1c', '#1c3622', '#25442a', '#305233', '#3d623c'];
 function treeModel(seed, pine, snow) {
   const r = rng(seed);
   const m = new VModel(-12, -12, 12, 12, 30);
+  const ball = (cx, cy, cz, rad, c) => vfill(m, cx - rad, cy - rad, cz - rad, cx + rad, cy + rad, cz + rad, c, M_ROUGH, (x, y, z) => (x - cx) ** 2 + (y - cy) ** 2 + ((z - cz) * 1.15) ** 2 <= rad * rad);
   if (pine) {
-    m.cylZ(0, 0, 0, 5, 1.2, C.bark, M_ROUGH);
-    const top = 20 + Math.floor(r() * 7);
-    for (let z = 3; z < top; z++) {
-      const rad = (top - z) * 0.36 + (z % 4 === 0 ? 0.8 : 0);
-      for (let y = -9; y <= 9; y++) for (let x = -9; x <= 9; x++) {
-        const d = Math.hypot(x + 0.5, y + 0.5);
-        if (!(d <= rad && (d < rad - 1 || r() < 0.6))) continue;
-        const white = snow && ((z % 4 === 0 && d > rad - 2.2) || z >= top - 2 || (z % 4 === 1 && d > rad - 1.2 && r() < 0.5) || r() < 0.08);
-        m.set(x, y, z, white ? C.snow[Math.floor(r() * 2)] : C.pine[Math.floor(r() * 3)], M_ROUGH);
-      }
+    vcyl(m, 'z', 0, 6, 0, 0, 1.0, C.bark, M_ROUGH);
+    vcyl(m, 'z', 0, 0.8, 0, 0, 1.5, C.bark, M_ROUGH);
+    const top = 20 + Math.floor(r() * 7), tiers = 6 + Math.floor(r() * 2);
+    for (let k = 0; k < tiers; k++) {
+      const f = k / tiers, z0 = 3 + f * (top - 5), R = (1 - f) * 8 + 1.6, hgt = 3.4 - f * 1.2, ph = r() * 6.3;
+      vfill(m, -R - 0.5, -R - 0.5, z0, R + 0.5, R + 0.5, z0 + hgt, PINE[1], M_ROUGH, (x, y, z) => {
+        const d = Math.hypot(x, y), a = Math.atan2(y, x), rag = 0.75 + 0.25 * Math.sin(a * 7 + ph) + 0.12 * Math.sin(a * 13 + ph * 2);
+        return d <= R * rag * (1 - (z - z0) / hgt * 0.75) + 0.4 && z - z0 >= Math.max(0, (d / R) * 1.4 - 0.4);   // drooping underside
+      });
+      vpaint(m, -R - 1, -R - 1, z0, R + 1, R + 1, z0 + hgt, (x, y, z) => {
+        const d = Math.hypot(x, y) / R, lit = (-x - y) / (R * 2.8) + (z - z0) / hgt * 0.4 + (hash3(Math.floor(x * 4), Math.floor(y * 4), Math.floor(z * 4)) - 0.5) * 0.5;
+        if (snow && (z - z0) / hgt > 0.55 - d * 0.2 && hash3(Math.floor(x * 3), Math.floor(y * 3), k) > 0.25) return C.snow[(lit > 0.1) | 0];
+        return PINE[Math.max(0, Math.min(4, Math.round(1.6 + lit * 3 + d * 0.8)))];
+      }, true);
     }
+    vfill(m, -0.6, -0.6, top - 1, 0.6, 0.6, top + 0.6, snow ? C.snow[1] : PINE[3], M_ROUGH);
   } else {
-    m.cylZ(0, 0, 0, 9, 1.4, C.bark, M_ROUGH);
-    const blobs = 3 + Math.floor(r() * 3);
-    for (let i = 0; i < blobs; i++) {
-      const cx = (r() - 0.5) * 7, cy = (r() - 0.5) * 7, cz = 12 + r() * 6, rad = 4.5 + r() * 3;
-      for (let z = Math.floor(cz - rad); z < cz + rad; z++) for (let y = Math.floor(cy - rad); y < cy + rad; y++) for (let x = Math.floor(cx - rad); x < cx + rad; x++) {
-        const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy, (z + 0.5 - cz) * 1.2);
-        if (d < rad && (d < rad - 1.2 || r() < 0.55)) m.set(x, y, z, C.leaf[Math.max(0, Math.min(3, Math.floor(r() * 3 + (z - cz) / rad * 1.5 + 0.5)))], M_ROUGH);
+    vcyl(m, 'z', 0, 11, 0, 0, 1.15, C.bark, M_ROUGH);
+    vcyl(m, 'z', 0, 1, 0, 0, 1.7, C.bark, M_ROUGH);
+    vpaint(m, -2, -2, 0, 2, 2, 11, (x, y, z) => (hash3(Math.floor(x * 4), Math.floor(y * 4), Math.floor(z * 2)) > 0.7 ? '#3a2818' : (x + y < -0.6 ? '#5c4630' : undefined)), true);
+    const blobs = 3 + Math.floor(r() * 3), mass = [];
+    for (let i = 0; i < blobs; i++) mass.push([(r() - 0.5) * 7, (r() - 0.5) * 7, 12 + r() * 6, 4.5 + r() * 3]);
+    for (const [cx, cy, cz] of mass) {   // limbs from the trunk up into each mass
+      const n = 8;
+      for (let j = 0; j <= n; j++) { const t = j / n; vfill(m, cx * t - 0.5, cy * t - 0.5, 8 + (cz - 10) * t, cx * t + 0.5, cy * t + 0.5, 8.9 + (cz - 10) * t, C.bark, M_ROUGH); }
+    }
+    for (const [cx, cy, cz, rad] of mass) ball(cx, cy, cz, rad * 0.72, LEAF[0]);
+    for (const [cx, cy, cz, rad] of mass) {
+      const n = Math.round(rad * rad * 2.2);
+      for (let j = 0; j < n; j++) {
+        const u = r() * 2 - 1, a = r() * Math.PI * 2, s2 = Math.sqrt(1 - u * u), d = rad * (0.7 + r() * 0.3);
+        const x = cx + Math.cos(a) * s2 * d, y = cy + Math.sin(a) * s2 * d, z = cz + u * d * 0.85;
+        const lit = (z - cz) / rad * 1.3 + (-(x - cx) - (y - cy)) / rad * 0.6 + (r() - 0.5) * 0.8;
+        ball(x, y, z, 1.1 + r() * 0.9, LEAF[Math.max(0, Math.min(5, Math.round(2.3 + lit * 1.4)))]);
       }
     }
   }
@@ -6185,7 +6206,55 @@ function houseModel(type) {
   }
   m.ridge = ridge;
   FORT_INFO.set(type, { W, H, door: dx, wins, box: [bx0, by0, bx1, by1], flag: { x: Math.round(mx), y: Math.round(my), z: top + ridge } });
+  if (m.vd) houseDetail(m, { roofCol, thatch, slate: roofCol[0] === '#4e535c', walls, wallCol, top, alongX, hip, mx, my, bx0, by0, bx1, by1, wins, dx, frame, glass });
   return m;
+}
+// Village houses at Red Alert 2 detail (branch claude/ra2-models; HD models only, the detail is finer than a voxel):
+// roofs in courses of tiles (staggered, each tile its own shade, a shadow line under each course), slate smaller and
+// greyer, thatch in strands; fine brick with mortar, coursed stone, plaster with a damp base; windows with sills, lintels
+// and glazing bars; a panelled door with a brass knob; gutters under the eaves; then light weathering.
+function houseDetail(m, o) {
+  const roof = new Set([rgbInt(o.roofCol[0]), rgbInt(o.roofCol[1]), shadeInt(o.roofCol[0], 1.1)]), wall = rgbInt(o.wallCol);
+  const tone = (c, k) => shadeInt('#' + (c >>> 0).toString(16).padStart(6, '0'), k);
+  vpaint(m, o.bx0 - 2, o.by0 - 2, o.top - 1, o.bx1 + 2, o.by1 + 2, 64, (x, y, z, c) => {
+    if (!roof.has(c)) return;
+    const across = o.alongX ? y - o.my : x - o.mx, along = o.alongX ? x : y, d = Math.abs(across);
+    if (o.thatch) { const st = hash3(Math.floor(along * 3), Math.floor(d * 1.2), 3); return tone(c, 0.82 + st * 0.3 - (d % 2 < 0.3 ? 0.12 : 0)); }
+    const cw = o.slate ? 1 : 1.5, tw = o.slate ? 1.25 : 1.6, row = Math.floor(d / cw), u = (along + (row % 2) * tw / 2) / tw;
+    if (d % cw < 0.26) return tone(c, 0.62);                                                    // the shadow under each course
+    if (u % 1 < 0.14) return tone(c, 0.78);                                                     // the gap between tiles
+    return tone(c, 0.9 + hash3(Math.floor(u), row, 11) * 0.22 + (d % cw) / cw * 0.08);
+  }, true);
+  vpaint(m, o.bx0, o.by0, 0, o.bx1, o.by1, o.top + 30, (x, y, z, c) => {
+    if (c !== wall && !(o.walls === 'stone' && c === rgbInt('#9c968a'))) return;
+    const a = Math.abs(y - (o.by1 - 0.5)) < 0.6 || Math.abs(y - (o.by0 + 0.5)) < 0.6 ? x : y;
+    if (o.walls === 'brick') { const row = Math.floor(z / 0.5), u = (a + (row % 2) * 0.5) % 1; return (z % 0.5 < 0.13 || u < 0.13) ? '#a89c88' : tone(c, 0.9 + hash3(Math.floor(a + (row % 2) * 0.5), row, 4) * 0.2); }
+    if (o.walls === 'stone') { const row = Math.floor(z / 1.25), u = (a + hash3(row, 0, 8) * 3) % 2.5; return (z % 1.25 < 0.2 || u < 0.2) ? '#6d685e' : tone(c, 0.86 + hash3(Math.floor((a + hash3(row, 0, 8) * 3) / 2.5), row, 6) * 0.26); }
+    const n = hash3(Math.floor(x * 2), Math.floor(y * 2), Math.floor(z * 2));
+    return tone(c, (z < 3.5 ? 0.86 + z * 0.03 : 1) * (0.96 + n * 0.07));                    // plaster, damp at the foot
+  }, true);
+  for (const w of o.wins) {
+    const s = w.face === 's';
+    if (s) {
+      vfill(m, w.x - 0.3, w.y - 0.2, w.z - 0.4, w.x + 4.3, w.y + 0.45, w.z, '#d9d4c6', M_MATTE);            // sill
+      vfill(m, w.x - 0.2, w.y - 0.2, w.z + 5, w.x + 4.2, w.y + 0.3, w.z + 5.5, '#8a8274', M_ROUGH);         // lintel
+      vfill(m, w.x + 1.875, w.y - 1, w.z + 1, w.x + 2.125, w.y + 0.05, w.z + 4, o.frame, M_MATTE);
+      vfill(m, w.x + 1, w.y - 1, w.z + 2.4, w.x + 3, w.y + 0.05, w.z + 2.6, o.frame, M_MATTE);
+    } else {
+      vfill(m, w.x - 0.2, w.y - 0.3, w.z - 0.4, w.x + 0.45, w.y + 4.3, w.z, '#d9d4c6', M_MATTE);
+      vfill(m, w.x - 0.2, w.y - 0.2, w.z + 5, w.x + 0.3, w.y + 4.2, w.z + 5.5, '#8a8274', M_ROUGH);
+      vfill(m, w.x - 1, w.y + 1.875, w.z + 1, w.x + 0.05, w.y + 2.125, w.z + 4, o.frame, M_MATTE);
+      vfill(m, w.x - 1, w.y + 1, w.z + 2.4, w.x + 0.05, w.y + 3, w.z + 2.6, o.frame, M_MATTE);
+    }
+  }
+  vpaint(m, o.dx + 1, o.by1 - 1, 2, o.dx + 4, o.by1 + 0.1, 9, (x, y, z, c) => (Math.abs(x - (o.dx + 2.5)) < 0.13 || Math.abs(z - 5.5) < 0.13 ? tone(c, 0.7) : undefined), true);
+  vfill(m, o.dx + 3.2, o.by1, 5, o.dx + 3.6, o.by1 + 0.3, 5.4, '#c9a443', M_METAL);
+  if (!o.hip) for (const sd of [0, 1]) {   // gutters under the eaves on the long sides
+    if (o.alongX) vcyl(m, 'x', o.bx0 - 1, o.bx1 + 1, sd ? o.by1 + 0.6 : o.by0 - 0.6, o.top + 0.2, 0.3, '#4a4a48', M_METAL);
+    else vcyl(m, 'y', o.by0 - 1, o.by1 + 1, sd ? o.bx1 + 0.6 : o.bx0 - 0.6, o.top + 0.2, 0.3, '#4a4a48', M_METAL);
+  }
+  m.ra2 = true;
+  vweather(m, 2.5, 0.45, '#6f6250');
 }
 // Snow lying on a model: the top of every column of voxels from height z0 up (roofs, chimneys, fence rails, bushes)
 // turns white, a shade bluer under the ridge's lee. For the winter maps' houses (type ending ':s').
