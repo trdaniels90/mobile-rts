@@ -472,36 +472,110 @@ const TS_MODELS = {
     tsFlood(m, 3, 45, 17); tsFlood(m, 55, 47, 18);
     return tsWeather(m);
   },
-  // Soviet War Factory: a massive hall under a rusted barrel-vault roof, precast end walls with deep pilasters, red
-  // bands, the big door (x 20-52) under a star plate, banner rods (y 45, z 22), two tall banded stacks at the back.
+  // Soviet War Factory at Red Alert 2 detail (2026-11-28; owner: "try to get exactly to Red Alert 2's detail"), built with
+  // the fine kit (models.js vfill and friends, a quarter pixel in HD graphics). The same massive hall as before (the TS
+  // design): precast concrete walls on a brick base course with pilasters, a red band, a corrugated barrel-vault roof
+  // (ribs, arched trusses, a glazed ridge, rust, turbine vents, a catwalk), the big door (x 20-52, y 44-46, z 1-16:
+  // art.js rolls it up, models.js factoryDoor) in an I-beam frame with fine hazard stripes, lamps and beacons, a star
+  // plate over it, banner rods (y 45, z 22), lit factory windows with mullions, a round window in the east gable, a pipe
+  // run with valves and a transformer on the east side, two banded stacks (60, 8) and (66, 8), chevrons on the apron.
   factory_soviets(pal) {
     const m = new VModel(-2, -2, 74, 50, 44);
+    const conc = '#827e73', concL = '#948f83', concD = '#6a675e', joint = '#55524b', brick = '#7a3b2c', brickL = '#8e4a37', mortar = '#a59d8c';
+    const red = pal.main, redD = pal.dark, steel = TSC.steel, steelD = TSC.steelD, steelL = TSC.steelL;
+    // the plinth: a concrete apron with kerbs, joints, oil, and chevrons leading out of the door
     tsPlinth(m, 0, 0, 72, 48, 2);
-    tsBatter(m, 2, 4, 70, 44, 2, 5, 2, '#6a675e');
-    tsConc(m, 2, 4, 7, 70, 46, 22, '#7f7c72', 8);
-    for (const x of [2, 14, 56, 68]) tsConc(m, x, 44, 2, x + 2, 47, 23, '#6a675e');
-    tsBand(m, 2, 4, 70, 46, 18, 21, pal);
-    m.box(1, 3, 22, 71, 47, 23, '#66635a', M_ROUGH);
-    for (let y = 5; y < 45; y++) {                                                         // barrel vault, corrugated, rusting
-      const h = Math.round(Math.sqrt(Math.max(0, 21 * 21 - (y + 0.5 - 25) ** 2)) * 0.42);
-      if (h > 0) m.box(4, y, 23, 68, y + 1, 23 + h, (y % 2 ? TSC.rust : TSC.rustD), M_METAL);
+    vpaint(m, 18, 46, 1, 54, 48, 2.1, (x, y) => {
+      const c = Math.abs(x - 36) < 15 && ((Math.floor(Math.abs(x - 36) * 0.5 - (y - 46) * 0.9) % 2 + 2) % 2 === 0);
+      return c ? (Math.abs(x - 36) < 1.5 ? undefined : TSC.hazard) : undefined;
+    }, true);
+    // the walls: a brick base course, precast panels above, pilasters, a band in the side's colour, a cornice
+    vfill(m, 1.5, 3.5, 2, 70.5, 46.5, 7, brick, M_ROUGH);
+    vpaint(m, 1, 3, 2, 71, 47, 7, (x, y, z) => {
+      const row = Math.floor((z - 2) / 0.5), off = row % 2 ? 0.5 : 0, u = (x + y + off) % 1;
+      if ((z - 2) % 0.5 < 0.13 || u < 0.13) return mortar;
+      if (hash3(Math.floor(x + y + off), row, 5) > 0.7) return brickL;
+    }, true);
+    vfill(m, 2, 4, 7, 70, 46, 22, conc, M_ROUGH);
+    vpaint(m, 1, 3, 7, 71, 47, 22, (x, y, z) => {
+      const along = Math.abs(y - 46) < 0.3 || Math.abs(y - 4) < 0.3 ? x : y;
+      if (Math.abs((z - 7) % 5) < 0.14 || Math.abs((along % 6)) < 0.14) return joint;   // panel joints
+      const n = hash3(Math.floor(x * 2), Math.floor(y * 2), Math.floor(z * 2));
+      if (n > 0.93) return concL; if (n < 0.05) return concD;
+    }, true);
+    for (const x of [2, 14, 56, 68]) {
+      vfill(m, x, 44, 2, x + 2, 47, 23, concD, M_ROUGH);
+      vfill(m, x - 0.25, 43.75, 22.5, x + 2.25, 47.25, 23.5, concL, M_ROUGH);
     }
-    m.paint(4, 5, 23, 68, 45, 33, (x, y, z) => (x % 10 === 4 ? TSC.steelD : hash3(x, y, z) > 0.8 ? '#7a4e30' : undefined));
-    for (const x of [4, 67]) for (let y = 5; y < 45; y++) { const h = Math.round(Math.sqrt(Math.max(0, 21 * 21 - (y + 0.5 - 25) ** 2)) * 0.42); if (h > 0) m.box(x, y, 23, x + 1, y + 1, 24 + h, '#7f7c72', M_ROUGH); }
-    tsWinY(m, 3, 14, 45, 12, 15, 3); tsWinY(m, 57, 68, 45, 12, 15, 3);
+    for (const y of [4, 16, 28, 40]) vfill(m, 70, y, 2, 71, y + 2, 22.5, concD, M_ROUGH);   // east-side pilasters
+    vfill(m, 1.6, 3.6, 18, 70.4, 46.4, 21, red, M_METAL);
+    vfill(m, 1.6, 3.6, 18, 70.4, 46.4, 18.4, redD, M_METAL);
+    vpaint(m, 1, 3, 19.2, 71, 47, 19.7, () => C.white, true);
+    vfill(m, 1, 3, 22, 71, 47, 23, '#66635a', M_ROUGH);
+    // factory windows: steel-framed panes, some lit, under the band on the front and the east side
+    const pane = (u, z) => (hash3(Math.floor(u), z < 13 ? 0 : 1, 7) > 0.7 ? '#d8bd72' : Math.abs(z - 15.4) < 0.4 || Math.abs(z - 12.4) < 0.4 ? TSC.glassL : TSC.glass);   // whole panes: a few lit, a lighter top
+    for (const [x0, x1] of [[4, 13.6], [57, 67.6]]) vfill(m, x0, 46, 10, x1, 46.3, 16, TSC.glass, M_GLASS);
+    vpaint(m, 3.5, 45.9, 10, 68, 46.4, 16, (x, y, z) => (((x + 20) % 1.6) < 0.3 || Math.abs(z - 13) < 0.15 ? steelD : pane(x / 1.6, z)), true);
+    for (const y0 of [6, 30]) { vfill(m, 70, y0, 10, 70.3, y0 + 10, 16, TSC.glass, M_GLASS); vpaint(m, 69.9, y0, 10, 70.4, y0 + 10, 16, (x, y, z) => (((y + 20) % 1.6) < 0.3 || Math.abs(z - 13) < 0.15 ? steelD : pane(y / 1.6, z)), true); }
+    // the roof: a corrugated barrel vault with arched trusses, rust, a glazed ridge and a catwalk
+    const vault = (y) => Math.sqrt(Math.max(0, 21 * 21 - (y - 25) ** 2)) * 0.42;
+    vfill(m, 4, 4.5, 23, 68, 45.5, 33, TSC.rust, M_METAL, (x, y, z) => z - 23 <= vault(y));
+    vpaint(m, 4, 4, 23, 68, 46, 33, (x, y, z) => {
+      if (Math.abs(x - 36) < 1.2 && z > 31) return undefined;
+      if (((x - 4) % 8) < 0.5) return steelD;                                       // trusses
+      const rib = ((y + 20) % 0.75) < 0.3, rust = hash3(Math.floor(x / 3), Math.floor(y / 2), 9) > 0.62;
+      if (rust) return rib ? '#5a3220' : '#8a5634';
+      return rib ? TSC.rustD : '#7a6650';
+    }, true);
+    vfill(m, 4, 22.8, 31.5, 68, 27.2, 33.6, TSC.glass, M_GLASS, (x, y, z) => z - 23 <= vault(y) + 0.9);
+    vpaint(m, 4, 22, 31, 68, 28, 34, (x, y, z, c, mt) => (mt === M_GLASS && ((x + 20) % 2) < 0.35 ? steelD : undefined), true);
+    for (const x of [4, 67]) vfill(m, x, 4.5, 23, x + 1, 45.5, 34, concD, M_ROUGH, (xx, y, z) => z - 23 <= vault(y) + 0.8);   // gable copings
+    for (let x = 6; x < 66; x += 2) vfill(m, x, 20.5, 32.6, x + 0.25, 20.75, 34, steelL, M_METAL);   // catwalk rail posts
+    vfill(m, 5, 20.3, 33.6, 66, 20.8, 33.9, steelL, M_METAL);
+    vfill(m, 5, 18.6, 32, 66, 20.6, 32.4, steelD, M_METAL);
+    for (const [x, y] of [[12, 12], [28, 12], [44, 12], [12, 37], [28, 37], [52, 37]]) {     // turbine vents
+      const z = 23 + vault(y) - 0.4;
+      vcyl(m, 'z', z, z + 1.2, x, y, 1.3, steel, M_METAL);
+      vfill(m, x - 1.5, y - 1.5, z + 1.2, x + 1.5, y + 1.5, z + 2.6, steelL, M_METAL, (xx, yy, zz) => ((xx - x) ** 2 + (yy - y) ** 2) / 2.2 + ((zz - z - 1.2) / 1.4) ** 2 <= 1 && ((Math.atan2(yy - y, xx - x) + 7) % 0.7) < 0.45);
+    }
+    // the east gable: a round window with a star, a ladder
+    vfill(m, 70.8, 18, 25, 71.3, 32, 39, steel, M_METAL, (x, y, z) => (y - 25) ** 2 + (z - 31) ** 2 <= 16);
+    vfill(m, 71, 18, 25, 71.6, 32, 39, TSC.glassL, M_GLASS, (x, y, z) => (y - 25) ** 2 + (z - 31) ** 2 <= 10.2);
+    vpaint(m, 71, 21, 27, 72, 29, 35, (x, y, z) => { const r = Math.hypot(y - 25, z - 31), a = Math.atan2(z - 31, y - 25) - Math.PI / 2, k = Math.abs(((a / (Math.PI * 2 / 5)) % 1 + 1) % 1 - 0.5) * 2; return r < 2.6 * (0.4 + 0.6 * k * k) ? red : undefined; }, true);
+    tsLadder(m, 71, 42, 3, 23, 'x');
+    // the big door: slatted, in an I-beam frame with fine hazard stripes, lamps, beacons, and a star plate above it
     m.clear(20, 43, 1, 52, 47, 16);
-    m.box(20, 44, 1, 52, 45, 16, TSC.oliveD, M_METAL);
-    m.paint(20, 44, 1, 52, 45, 16, (x, y, z) => (z % 2 ? TSC.olive : undefined));
-    tsHazard(m, 18, 44, 2, 20, 47, 17); tsHazard(m, 52, 44, 2, 54, 47, 17);
-    tsPlate(m, 17, 44, 16, 55, 47, 21, TSC.steelD);
-    m.box(30, 46, 16, 42, 47, 21, pal.dark, M_METAL);
-    starFront(m, 36, 46, 18.5, 2.4, C.yellow);
-    m.box(20, 46, 0, 52, 48, 1, TSC.padD, M_ROUGH);
+    vfill(m, 20, 44, 1, 52, 45, 16, TSC.oliveD, M_METAL);
+    vpaint(m, 20, 44, 1, 52, 45.2, 16, (x, y, z) => (((z - 1) % 1) < 0.5 ? TSC.olive : ((z - 1) % 1) < 0.62 ? '#2c301e' : undefined), true);
+    for (const x0 of [18, 52]) {
+      vfill(m, x0, 44, 1, x0 + 2, 47, 17, steelD, M_METAL);
+      vpaint(m, x0, 46.5, 1, x0 + 2, 47.1, 17, (x, y, z) => (((x + z) % 1) < 0.5 ? TSC.hazard : TSC.black), true);
+      vrivets(m, x0 + 1, 47.05, 2, x0 + 1, 47.05, 16, 1.5, steelL, 0.2);
+    }
+    vfill(m, 17, 44, 16, 55, 47.2, 21.5, steelD, M_METAL);
+    vpaint(m, 17, 47, 16, 55, 47.3, 17, (x, y, z) => (((x + z) % 1) < 0.5 ? TSC.hazard : TSC.black), true);
+    vrivets(m, 17.6, 47.25, 20.9, 54.4, 47.25, 20.9, 1.4, steelL, 0.2);
+    vfill(m, 29, 47.2, 16.8, 43, 47.7, 21, redD, M_METAL);
+    vpaint(m, 29, 47.4, 16.8, 43, 48, 21, (x, y, z) => { const dx = x - 36, dz = z - 18.9, r = Math.hypot(dx, dz), a = Math.atan2(dz, dx) - Math.PI / 2, k = Math.abs(((a / (Math.PI * 2 / 5)) % 1 + 1) % 1 - 0.5) * 2; return r < 2.1 * (0.4 + 0.6 * k * k) ? C.yellow : r < 2.4 * (0.4 + 0.6 * k * k) ? '#7a5a10' : undefined; }, true);
+    for (const x of [21, 50]) { vfill(m, x, 47, 21.5, x + 1, 47.8, 22.5, steel, M_METAL); vcyl(m, 'z', 22.5, 23.3, x + 0.5, 47.4, 0.42, '#ff8a2a', M_GLOW); }   // beacons
+    for (const x of [24, 47]) { vfill(m, x, 47, 16.4, x + 1.2, 48, 17.2, steel, M_METAL); vfill(m, x + 0.1, 47.95, 16.5, x + 1.1, 48.1, 17, '#fff0c0', M_GLOW); }   // door lamps
+    vfill(m, 20, 46, 0, 52, 48, 1, TSC.padD, M_ROUGH);
     bannersV(m, 'factory');
-    for (const [x, y, h, r] of [[60, 8, 42, 2.8], [66, 8, 39, 2.4]]) stackV(m, x, y, 23, h, r, pal);
-    tsPipeX(m, 4, 56, 4, 24, 1.3);
+    // stacks: concrete, banded red and white near the top, ladder rings, dark caps
+    for (const [x, y, h, r] of [[60, 8, 42, 2.8], [66, 8, 39, 2.4]]) {
+      stackV(m, x, y, 23, h, r, pal);
+      for (let z = 25; z < h - 15; z += 3) vcyl(m, 'z', z, z + 0.3, x, y, r + 0.25, concD, M_ROUGH);
+      for (let z = 24; z < h - 1; z += 0.8) vfill(m, x - 0.5, y - r - 0.7, z, x + 0.5, y - r + 0.1, z + 0.22, steelL, M_METAL);
+    }
+    // a pipe run along the east wall with flanges and valve wheels, into the ground; a transformer on its pad
+    vcyl(m, 'y', 5, 44, 71.6, 8, 0.8, TSC.pipe, M_METAL);
+    for (let y = 7; y < 44; y += 4) vcyl(m, 'y', y, y + 0.4, 71.6, 8, 1.15, steelD, M_METAL);
+    vcyl(m, 'z', 1, 8, 71.6, 44, 0.8, TSC.pipe, M_METAL);
+    for (const y of [14, 34]) { vcyl(m, 'x', 72.4, 72.8, y, 8, 0.9, TSC.red, M_METAL); vcyl(m, 'x', 72.2, 72.8, y, 8, 0.4, TSC.red, M_METAL); }
+    vfill(m, 61, 2.5, 22.8, 66, 6, 26, steelD, M_METAL);
+    for (const x of [62, 64]) { vcyl(m, 'z', 26, 27.6, x, 4.2, 0.4, '#8b6b4a', M_MATTE); vcyl(m, 'z', 27.6, 28, x, 4.2, 0.55, '#8b6b4a', M_MATTE); }
     tsFlood(m, 3, 47, 19); tsFlood(m, 67, 47, 19);
-    return tsWeather(m);
+    return vweather(m, 5, 0.75, '#6a5d4a');
   },
 };
 // Every structure not redesigned yet (the Soviet Power Plant and Refinery among them) gets the weathering pass, strong.
