@@ -4,6 +4,21 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.28', date: '28 November 2026', title: 'Ships, three new maps, cooler phones', groups: [
+    ['New', [
+      'Ships (by JGFortanelli): the Naval Yard (Allies) and Submarine Pen (Soviets), built on open water near your base. Transports carry 5 soldiers or vehicles and beach at the shore to unload; the Allies get the Gunboat and the Destroyer, the Soviets the Submarine, unseen until it surfaces to fire. The computer builds fleets and ferries its army across the water.',
+      'New maps (by JGFortanelli): Berlin (3 v 3), a divided city whose Wall can be shot down; Rivergate City (2 v 2), a city split by a river with three bridges; and Twin Isles (2 v 2 or 1 v 1), two islands with no bridges, so the only way across is by sea or air.',
+      'Bridges now stand on piers or timber piles over the water, and ships sail under them.',
+      'Settings, Graphics: a test of Red Alert 2 colours, brighter and more colourful, with a moonlit blue night. Tiberian Sun colours stay the default.',
+    ]],
+    ['Changed', [
+      'Phones and iPads: a Frame rate setting, 30 fps (the new default, cooler and easier on the battery) or 60 fps. It replaces the automatic switching between the two.',
+    ]],
+    ['Fixed', [
+      'Phones getting hot and crashing late in big battles: smoke from power plants and refineries is only made near the screen, and a whole base falling at once makes fewer explosions.',
+      'Online co-op: saving a battle no longer reports a failure when it worked.',
+    ]],
+  ] },
   { v: '2026.11.26.5', date: '26 November 2026', title: 'Smoother late game in big battles', groups: [
     ['New', [
       'Placing a defence shows a ring of how far it will shoot: white where it can stand, red where it cannot.',
