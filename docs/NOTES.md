@@ -17,6 +17,10 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
   (26, 44, 96) at 0.5 instead of navy (6, 12, 34) at 0.62, lamps and windows glowing 1.7x; its saturation boost is kept at night
   (gl.js `uSat`: a negative sat is not faded by the night). TS night unchanged.
 - **Preview:** `node tools/look/record.js <repo> <out> ra2 [secs] [still]` (before = TS colours, after = RA2), MP4 via `tools/look/video.sh`.
+- **RA2 models (owner, 2026-11-28: "work on models separately, I don't want models pushed until all models are done"):** on the
+  feature branch `claude/ra2-models` only (the fine kit, Heavy Tank, Soviet War Factory, notes there). They were on this branch
+  briefly and were reverted here (commits 4732a11, 998384b); when all models are done, merge `claude/ra2-models` and revert those two
+  reverts, then rebake. Bring this branch into it now and then so it stays current.
 - **Next steps proposed to the owner:** a 30 degree camera (`VIEW.elev`, true 2:1 diamonds) with units scaled up and a full rebake;
   a higher, glossier voxel light; RA2-proportioned models; an urban theatre; a metallic sidebar per side.
 
