@@ -71,6 +71,8 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
   two camera-side edges, framed and barred windows with a lit top row, rooftop clutter (AC units with fan grilles, vent stacks)
   on wide flat roofs, railings where the main roof drops away; Allied structures' greys lifted toward RA2's silver-white.
   Village houses (`Shv`) excluded. Hand-detailed ones (m.dressed / m.ra2) skipped.
+- **Soviet structures (owner: "Do it", 2026-11-28):** `dressStructure` gives every Soviet structure light warm concrete (greys
+  lifted toward 206, 198, 184), a red brick base course with mortar on its walls 2 to 6 px up, and richer red trim.
 - **Bake sizes (3D rock):** cliffs/ 24 to 44 MB, cliffs-hd/ 75 to 148 MB (fetched per map; HD only when HD is on).
 - **Still to do:** every other unit (vehicles, aircraft, infantry) and structure by hand, snow and fen ground, crags.
 

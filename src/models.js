@@ -119,6 +119,27 @@ function dressStructure(m, key) {
       col0[i] = (Math.round(r + (226 - r) * k) << 16) | (Math.round(g + (230 - g) * k) << 8) | Math.round(b + (238 - b) * k);
     }
   }
+  if (key && key.includes('soviets')) {   // RA2's Soviets: light warm concrete, a red brick base course, strong red trim
+    const col0 = m.col, Wm = m.w, Hm = m.h, Dm = m.d, D0 = m.vd;
+    const at = (x, y, z) => (x < 0 || y < 0 || z < 0 || x >= Wm || y >= Hm || z >= Dm ? -1 : col0[(z * Hm + y) * Wm + x]);
+    for (let z = 0; z < Dm; z++) for (let y = 0; y < Hm; y++) for (let x = 0; x < Wm; x++) {
+      const i = (z * Hm + y) * Wm + x, c = col0[i];
+      if (c < 0 || m.mat[i] === M_GLOW || m.mat[i] === M_GLASS || m.mat[i] === M_GHOST) continue;
+      let r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      if (r > 120 && r > g * 1.6 && r > b * 1.6) { r = Math.min(255, r * 1.12); g *= 0.8; b *= 0.8; col0[i] = (r << 16) | (g << 8) | b; continue; }   // red: richer
+      if (mx - mn > 30 || mx < 40) continue;
+      const wz0 = z / D0, side = at(x + 1, y, z) < 0 || at(x, y + 1, z) < 0 || at(x - 1, y, z) < 0 || at(x, y - 1, z) < 0;
+      if (side && wz0 >= 2 && wz0 < 6) {   // brick base course on the walls
+        const wx0 = (x + m.x0) / D0, wy0 = (y + m.y0) / D0, row = Math.floor(wz0 / 0.5), u = (wx0 + wy0 + (row % 2) * 0.5) % 1;
+        const mort = (wz0 % 0.5) < 0.13 || u < 0.12, n = hash3(Math.floor(wx0 + wy0 + (row % 2) * 0.5), row, 4);
+        col0[i] = mort ? 0xa69c8a : (Math.round(134 + n * 26) << 16) | (Math.round(58 + n * 14) << 8) | Math.round(42 + n * 10);
+        continue;
+      }
+      const k = 0.42;   // concrete: lighter and warmer
+      col0[i] = (Math.round(r + (206 - r) * k) << 16) | (Math.round(g + (198 - g) * k) << 8) | Math.round(b + (184 - b) * k);
+    }
+  }
   const { D, x0, x1, y0, y1, z1, wx, wy, wz } = S, W = m.w, col = m.col, mat = m.mat;
   const top = (X, Y) => S.top(X, Y), steelD = '#3d4244', steel = '#666c6e', steelL = '#9aa0a2', haz = '#c9a227', blk = '#1c1c1a';
   // the pad: its own top (z within a voxel or two of the ground), a hazard band along its two edges the camera sees
