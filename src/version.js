@@ -4,6 +4,11 @@
 // version when it is next opened or brought back to the front, and offers to restart into it.
 // The What's New page on the menu shows them all.
 const RELEASES = [
+  { v: '2026.11.28.1', date: '28 November 2026', title: 'Clear skies online', groups: [
+    ['Changed', [
+      'Online battles (co-op and against other players) no longer have rain, snow or lightning. Skirmishes against the computer keep their weather.',
+    ]],
+  ] },
   { v: '2026.11.28', date: '28 November 2026', title: 'Ships, three new maps, cooler phones', groups: [
     ['New', [
       'Ships (by JGFortanelli): the Naval Yard (Allies) and Submarine Pen (Soviets), built on open water near your base. Transports carry 5 soldiers or vehicles and beach at the shore to unload; the Allies get the Gunboat and the Destroyer, the Soviets the Submarine, unseen until it surfaces to fire. The computer builds fleets and ferries its army across the water.',
