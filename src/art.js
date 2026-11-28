@@ -301,6 +301,10 @@ function groundPixels(terr, seed, roads, cliffs, fords, theme, hgt, mesas) {
         } else {
           col = pickTone(GRASS, hh * 1.1 - 0.12 + (gt - 0.5) * STROKE + (sp - 0.5) * 0.1);
           if (sp > 0.992) col = GRASS[4];
+          if (snow) {   // RA2 snow (branch claude/ra2-models): grass showing through in ragged patches
+            const pv = noise(N2, x, y) * 0.55 + noise(N1, x, y) * 0.3 + (sp - 0.5) * 0.25;
+            if (pv > 0.55) { const g = pickTone([[70, 84, 48], [86, 100, 58], [104, 116, 70], [128, 134, 96]], (pv - 0.55) * 2 + (gt - 0.5) * 0.8 + 0.3); col = pv < 0.59 ? [(col[0] + g[0]) / 2, (col[1] + g[1]) / 2, (col[2] + g[2]) / 2] : g; }
+          }
         }
         const near = nearFlag[Math.min(MAP - 1, Math.max(0, Math.round(fy))) * MAP + Math.min(MAP - 1, Math.max(0, Math.round(fx)))];
         const dv = near & 1 ? bil(dirt, fx, fy) + (hh - 0.5) * 0.3 + (sp - 0.5) * (SOFT ? 0.03 : 0.12) : 0;

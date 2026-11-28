@@ -635,7 +635,7 @@ function cliffPic(L, c, noShadow, K = 1) {
   const SW = sx1 - X0, SH = sy1 - Y0, SWK = SW * K, SHK = SH * K, sm2 = noShadow ? null : new Uint8Array(SWK * SHK);
   // RA2 rock (branch claude/ra2-models, from the owner's reference shots): warm grey-brown, a touch cooler on winter maps
   const ROCK = L.snow ? [[46, 42, 40], [66, 60, 56], [90, 82, 76], [116, 108, 100], [142, 134, 126], [170, 164, 158], [200, 196, 192]]
-    : [[48, 40, 34], [70, 58, 48], [96, 80, 64], [122, 104, 84], [148, 128, 104], [172, 152, 124], [196, 178, 148]];
+    : [[72, 46, 30], [106, 70, 44], [138, 96, 62], [164, 120, 80], [186, 144, 102], [204, 166, 124], [220, 188, 150]];   // temperate: RA2's orange sandstone
   const Lx = -0.8, Ly = 0.3, Lz = 0.6, Ll = Math.hypot(Lx, Ly, Lz);   // towards the sun: the screen's upper left
   pts.sort((a, b) => viewDepth(a[0], a[1]) - viewDepth(b[0], b[1]));   // back to front
   for (const [x, y, h, gx, gy, f, xi, yi] of pts) {
@@ -662,6 +662,8 @@ function cliffPic(L, c, noShadow, K = 1) {
       const ledge = steep > 0.3 && z > 3 && ledgeZ < 0.9 && hash3(Math.floor(fx / 3), Math.floor(fy / 3), Math.floor(z / 6.5) + 31) > 0.3;
       if (steep > 0.3) {
         v += (hash3(Math.floor(fx / 1.5), Math.floor(fy / 1.5), 21) - 0.5) * 1.3;
+        const gr = Math.sin((fx - fy) * 1.9 + hash3(Math.floor((fx - fy) / 3), 0, 27) * 6) ;   // deep vertical grooves: lit ridges, shadowed gullies
+        v += gr > 0.55 ? 0.9 : gr < -0.45 ? -1.4 : 0;
         if (hash3(Math.floor(fx * 1.5), Math.floor(fy * 1.5), Math.floor(z / 2.5)) > 0.95) v -= 1.6;
         if (ledge) v += 0.8; else if (ledgeZ < 1.6 && z > 3) v -= 0.7;   // the ledge's lit top, the shadow under it
         v = Math.min(v, ROCK.length - 2.2);   // (faces never take the palest tones: stepped tops stay readable as rock)

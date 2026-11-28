@@ -44,6 +44,10 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
   `cliffPic`): warm grey-brown rock, vertical streaks, cracks, mineral stains, ledges that catch the light with snow (winter) or moss
   on them; faces kept off the palest tones so stepped plateaus stay readable. Every ground vehicle dressed by scanning its hull
   (`dressHull` / `dressTurret`: lights, hooks, grille, rivets, stowage, periscopes).
+- **Second set of references (2026-11-28):** temperate crags are orange sandstone (`ROCK` in cliffPic) with deep vertical grooves
+  (lit ridges, shadowed gullies); winter crags stay grey-brown with snowy ledges. Snow ground has grass showing through in ragged
+  patches (art.js groundPixels, snow). Noted for later: RA2 asphalt roads (double yellow line, edge lines, kerbs, pavements), modern
+  city buildings (office blocks with window grids and rooftop units, brownstones, planters) for an urban map.
 - **Still to do:** every other unit (vehicles, aircraft, infantry) and structure by hand, snow and fen ground, crags.
 
 ## Red Alert 2 ground (branch claude/ra2-models only, 2026-11-28, looks only, both modes)
