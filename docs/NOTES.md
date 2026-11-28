@@ -48,6 +48,12 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
   (lit ridges, shadowed gullies); winter crags stay grey-brown with snowy ledges. Snow ground has grass showing through in ragged
   patches (art.js groundPixels, snow). Noted for later: RA2 asphalt roads (double yellow line, edge lines, kerbs, pavements), modern
   city buildings (office blocks with window grids and rooftop units, brownstones, planters) for an urban map.
+- **Crags like RA2's plateaus (owner's third set of references, 2026-11-28: "I don't want all the hills to look like this. But I
+  want the maps that do have areas that are supposed to be cliffs to look like this"; gameplay changes would be for both modes):**
+  look.js cliffPic: the top only at the crag's real top (was every column's top, which streaked sloping faces green), the field's
+  own green on it, a ragged grassy rim hanging over the edge (`lip`, at most 12% of the crag's height) with a dark line of shade
+  under it, bare faces (no moss: pale sandstone ledges; snow stays on winter ledges), scree at the foot. Rolling hills unchanged.
+  Not done: ramps up onto crags (gameplay; Lakeside's mesa already has one), the mesa's own rim drawing.
 - **Still to do:** every other unit (vehicles, aircraft, infantry) and structure by hand, snow and fen ground, crags.
 
 ## Red Alert 2 ground (branch claude/ra2-models only, 2026-11-28, looks only, both modes)
