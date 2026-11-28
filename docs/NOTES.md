@@ -73,6 +73,12 @@ Moved out of `CLAUDE.md` (2026-11-19) so sessions do not load them all. Read the
   Village houses (`Shv`) excluded. Hand-detailed ones (m.dressed / m.ra2) skipped.
 - **Soviet structures (owner: "Do it", 2026-11-28):** `dressStructure` gives every Soviet structure light warm concrete (greys
   lifted toward 206, 198, 184), a red brick base course with mortar on its walls 2 to 6 px up, and richer red trim.
+- **Soviet Barracks redesigned (owner: "Redesign the Soviets Barracks in red alert 2 art style", 2026-11-28; original design):**
+  lookstructs.js `barracks_soviets`: red brick drill hall on a battered concrete base, white quoins, string course and cornice,
+  tall arched white-framed windows (some lit), a steep steel roof with standing seams, a red ridge and dormer vents, a round-arched
+  stone gateway with the door at the old place (x 19-29, y 42-44, z 1-10), a gold star on a red shield over it, gate lamps, banner
+  rods (bannersV), a corner watchtower with a lit room, balcony and a red onion dome with a gold spire and a beacon, sandbag nests,
+  crates. Same footprint and anchors.
 - **Bake sizes (3D rock):** cliffs/ 24 to 44 MB, cliffs-hd/ 75 to 148 MB (fetched per map; HD only when HD is on).
 - **Still to do:** every other unit (vehicles, aircraft, infantry) and structure by hand, snow and fen ground, crags.
 

@@ -406,34 +406,101 @@ const TS_MODELS = {
     for (const [x, y] of [[4, 40], [40, 39]]) tsPlate(m, x, y, 1, x + 4, y + 3, 4, TSC.olive);   // crates
     return tsWeather(m);
   },
-  // Soviet Barracks: a precast blockhouse with a stepped parapet, a red band, slit windows, the door under a concrete
-  // hood (the banner rod at the old place: y 43, z 16), a small watch post on the roof, sandbags.
+  // Soviet Barracks in Red Alert 2's art style (owner, 2026-11-28: "Redesign the Soviets Barracks in red alert 2 art style";
+  // an original design, nothing copied): a red brick drill hall on a battered concrete base, a steep steel roof with a red
+  // ridge and dormer vents, a tall arched gateway (the door at the old place: x 19-29, y 42-44, z 1-10) under a gold star on a
+  // red shield, white-painted window frames, a corner watchtower with a lit room and an onion dome with a spire, banner rods
+  // at the old place (y 43, z 16), sandbag nests either side of the gate. Built with the fine kit (HD: a quarter pixel).
   barracks_soviets(pal) {
-    const m = new VModel(-2, -2, 54, 50, 34);
+    const m = new VModel(-2, -2, 54, 50, 52);
+    const brick = '#94402c', brickL = '#a8513a', brickD = '#73301f', mortar = '#b8ab96', conc = '#a8a294', concD = '#8a857a', concL = '#bdb8aa';
+    const roof = '#454b4d', roofD = '#33383a', roofL = '#5e6567', red = pal.main, redD = pal.dark, gold = '#e0b23a', goldD = '#a87c1c', white = '#e8e4da';
     tsPlinth(m, 0, 0, 48, 48, 1);
-    tsBatter(m, 4, 6, 44, 43, 1, 5, 3, '#6a675e');
-    tsConc(m, 4, 6, 6, 44, 44, 18, '#7f7c72', 8);
-    tsBand(m, 4, 6, 44, 44, 14, 17, pal);
-    m.box(3, 5, 18, 45, 45, 19, '#66635a', M_ROUGH);
-    m.box(5, 7, 19, 43, 43, 20, TSC.tar, M_ROUGH);
-    for (let x = 3; x < 45; x++) for (const y of [5, 44]) if (x % 4 < 2) m.set(x, y, 19, '#7f7c72', M_ROUGH);   // crenellated parapet
-    for (let y = 5; y < 45; y++) for (const x of [3, 44]) if (y % 4 < 2) m.set(x, y, 19, '#7f7c72', M_ROUGH);
-    tsWinY(m, 6, 18, 43, 10, 11, 3); tsWinY(m, 30, 42, 43, 10, 11, 3); tsWinX(m, 43, 9, 40, 10, 11, 3);
-    m.clear(19, 42, 1, 29, 44, 10); m.box(19, 42, 1, 29, 43, 10, TSC.oliveD, M_METAL);
-    m.paint(19, 42, 1, 29, 43, 10, (x, y, z) => (z % 2 ? TSC.olive : undefined));
-    m.box(17, 43, 10, 31, 46, 12, '#6a675e', M_ROUGH);                                    // door hood
+    // the base: battered concrete, a lit top edge
+    vfill(m, 3, 5, 1, 45, 45, 5, conc, M_ROUGH, (x, y, z) => { const o = (5 - z) * 0.35; return x > 3 + o - 0.35 && x < 45 - o + 0.35 && y > 5 + o - 0.35 && y < 45 - o + 0.35; });
+    vpaint(m, 2, 4, 1, 46, 46, 5, (x, y, z) => (z > 4.6 ? concL : (z % 1.5) < 0.15 ? concD : undefined), true);
+    // the hall: red brick, white quoins at the corners, a stone string course and cornice
+    vfill(m, 5, 7, 5, 43, 44, 20, brick, M_ROUGH);
+    vpaint(m, 4.5, 6.5, 5, 43.5, 44.5, 20, (x, y, z) => {
+      const along = Math.abs(y - 44) < 0.4 || Math.abs(y - 7) < 0.4 ? x : y, row = Math.floor((z - 5) / 0.75), u = (along + (row % 2) * 0.75) % 1.5;
+      const corner = (Math.abs(x - 5) < 1.6 || Math.abs(x - 43) < 1.6) && (Math.abs(y - 7) < 1.6 || Math.abs(y - 44) < 1.6);
+      if (corner) return row % 2 ? concL : white;
+      if (((z - 5) % 0.75) < 0.15 || u < 0.15) return mortar;
+      const n = hash3(Math.floor((along + (row % 2) * 0.75) / 1.5), row, 9);
+      return n > 0.8 ? brickL : n < 0.15 ? brickD : undefined;
+    }, true);
+    vfill(m, 4.6, 6.6, 12, 43.4, 44.4, 12.8, concL, M_ROUGH);                                  // string course
+    vfill(m, 4.2, 6.2, 19.4, 43.8, 44.8, 20.6, concL, M_ROUGH);                                // cornice
+    vpaint(m, 4, 6, 19.4, 44, 45, 20.6, (x, y, z) => (z < 19.7 ? concD : undefined), true);
+    // windows: tall, arched, white frames, a few lit; front (y 44) and east side (x 43)
+    const win = (cx, cy, face) => {
+      for (const z0 of [7, 14]) {
+        const lit = hash3(Math.round(cx), Math.round(cy), z0) > 0.55;
+        if (face === 's') {
+          vfill(m, cx - 1.6, cy - 0.3, z0 - 0.4, cx + 1.6, cy + 0.35, z0 + 4.4, white, M_MATTE, (x, y, z) => z < z0 + 3 || (x - cx) ** 2 + ((z - z0 - 3) * 1.4) ** 2 < 2.6);
+          vfill(m, cx - 1.1, cy - 0.3, z0, cx + 1.1, cy + 0.45, z0 + 4, lit ? '#e6c878' : TSC.glass, lit ? M_GLOW : M_GLASS, (x, y, z) => z < z0 + 3 || (x - cx) ** 2 + ((z - z0 - 3) * 1.4) ** 2 < 1.2);
+          vfill(m, cx - 0.12, cy - 0.3, z0, cx + 0.12, cy + 0.5, z0 + 4, white, M_MATTE);
+          vfill(m, cx - 1.1, cy - 0.3, z0 + 1.7, cx + 1.1, cy + 0.5, z0 + 1.9, white, M_MATTE);
+        } else {
+          vfill(m, cx - 0.35, cy - 1.6, z0 - 0.4, cx + 0.3, cy + 1.6, z0 + 4.4, white, M_MATTE, (x, y, z) => z < z0 + 3 || (y - cy) ** 2 + ((z - z0 - 3) * 1.4) ** 2 < 2.6);
+          vfill(m, cx - 0.45, cy - 1.1, z0, cx + 0.3, cy + 1.1, z0 + 4, lit ? '#e6c878' : TSC.glass, lit ? M_GLOW : M_GLASS, (x, y, z) => z < z0 + 3 || (y - cy) ** 2 + ((z - z0 - 3) * 1.4) ** 2 < 1.2);
+          vfill(m, cx - 0.5, cy - 0.12, z0, cx + 0.3, cy + 0.12, z0 + 4, white, M_MATTE);
+        }
+      }
+    };
+    for (const x of [9, 14, 34, 39]) win(x, 44, 's');
+    for (const y of [12, 18, 24, 30, 36]) win(43, y, 'e');
+    // the roof: steep steel, ridge along x, standing seams, a red ridge cap, dormer vents
+    for (let y = 6; y < 46; y += 0.25) {
+      const h = Math.max(0, 12 - Math.abs(y - 25.5) * 0.62);
+      vfill(m, 4, y, 20, 44, y + 0.25, 20.6 + h, roof, M_METAL);
+    }
+    vpaint(m, 3.5, 5.5, 20, 44.5, 46.5, 34, (x, y, z) => (((x + 20) % 1.5) < 0.22 ? roofD : z > 31.6 ? red : (z < 21.2 ? roofL : undefined)), true);
+    vfill(m, 4, 25, 31.8, 44, 26, 33, red, M_METAL);
+    for (const x of [12, 24, 36]) {   // dormer vents on the front slope
+      vfill(m, x - 1.8, 33, 22, x + 1.8, 38, 27, concL, M_ROUGH, (xx, yy, zz) => zz < 27 - (yy - 33) * 0 && zz < 20.6 + Math.max(0, 12 - Math.abs(yy - 25.5) * 0.62) + 2.6);
+      vfill(m, x - 1.4, 37.6, 22.5, x + 1.4, 38.2, 25.6, '#22262a', M_METAL);
+      vpaint(m, x - 1.4, 37.5, 22.5, x + 1.4, 38.3, 25.6, (xx, yy, zz) => ((zz % 0.6) < 0.25 ? roofL : undefined), true);
+      vfill(m, x - 2.2, 32.5, 27, x + 2.2, 38.6, 27.6, redD, M_METAL);
+    }
+    // the gateway: a tall round arch in a stone surround, the door inside it, a gold star on a red shield above
+    vfill(m, 16, 43.5, 1, 32, 46.2, 18, concL, M_ROUGH, (x, y, z) => z < 13 || (x - 24) ** 2 + ((z - 13) * 1.25) ** 2 < 64);
+    vpaint(m, 16, 43.5, 1, 32, 46.4, 18, (x, y, z) => (((z % 1.8) < 0.18) || (Math.abs(x - 24) > 6.2 && ((x - 16) % 3) < 0.18) ? concD : undefined), true);
+    m.clear(19, 42, 1, 29, 47, 13);
+    vfill(m, 19, 42, 1, 29, 47, 15, null, 0, (x, y, z) => z < 10 || (x - 24) ** 2 + ((z - 10) * 1.2) ** 2 < 25);
+    vfill(m, 19, 42, 1, 29, 43.2, 15, '#2a1d16', M_MATTE, (x, y, z) => z < 10 || (x - 24) ** 2 + ((z - 10) * 1.2) ** 2 < 25);   // the dark hall within
+    vfill(m, 19.4, 43, 1, 28.6, 43.6, 10, TSC.oliveD, M_METAL);                                                                     // the door
+    vpaint(m, 19.4, 42.9, 1, 28.6, 43.7, 10, (x, y, z) => (Math.abs(x - 24) < 0.15 || (z % 1) < 0.18 ? '#2c301e' : undefined), true);
+    for (const x of [20.5, 27.5]) vfill(m, x - 0.25, 43.5, 4.8, x + 0.25, 43.8, 5.3, gold, M_METAL);                                  // handles
+    vfill(m, 20.5, 46, 13.4, 27.5, 46.8, 19.6, red, M_METAL, (x, y, z) => z > 15 || Math.abs(x - 24) < (z - 13.4) * 2.2);         // the shield
+    vpaint(m, 20.5, 46.5, 13.4, 27.5, 47, 19.6, (x, y, z) => {
+      const dx = x - 24, dz = z - 17, r = Math.hypot(dx, dz), a = Math.atan2(dz, dx) - Math.PI / 2, k = Math.abs(((a / (Math.PI * 2 / 5)) % 1 + 1) % 1 - 0.5) * 2;
+      return r < 2.1 * (0.4 + 0.6 * k * k) ? gold : r < 2.5 * (0.4 + 0.6 * k * k) ? goldD : undefined;
+    }, true);
+    vfill(m, 19, 46.6, 19.6, 29, 47, 20, gold, M_METAL);
+    for (const x of [18.4, 29.6]) { vcyl(m, 'y', 45.5, 47.2, x, 16, 0.5, '#2a2c2e', M_METAL); vcyl(m, 'y', 47.2, 47.5, x, 16, 0.42, '#ffe3a0', M_GLOW); }   // gate lamps
     bannersV(m, 'barracks');
-    // watch post on the roof
-    tsConc(m, 8, 9, 20, 18, 19, 26, '#7f7c72', 8);
-    tsWinY(m, 9, 17, 18, 23, 24, 3); tsWinX(m, 17, 10, 18, 23, 24, 3);
-    m.box(7, 8, 26, 19, 20, 27, '#66635a', M_ROUGH);
-    tsMast(m, 9, 10, 27, 33);
-    starTop(m, 31, 25, 7, pal.main);
-    tsVent(m, 34, 34, 20, 4, 4, 2); tsFan(m, 38, 12, 20, 2.5);
-    tsPipeX(m, 20, 42, 41, 20.5, 1);
+    // the watchtower on the north-west corner: brick, a lit room with a balcony, an onion dome and spire
+    vfill(m, 4, 6, 5, 13, 15, 36, brick, M_ROUGH);
+    vpaint(m, 3.5, 5.5, 5, 13.5, 15.5, 36, (x, y, z) => { const row = Math.floor(z / 0.75), u = ((x + y) + (row % 2) * 0.75) % 1.5; return ((z % 0.75) < 0.15 || u < 0.15) ? mortar : undefined; }, true);
+    vfill(m, 3.4, 5.4, 30, 13.6, 15.6, 31, concL, M_ROUGH);
+    vfill(m, 4.4, 6.4, 31, 12.6, 14.6, 35.4, '#e6c878', M_GLOW);
+    for (const k of [5, 7.7, 10.4]) { vfill(m, k - 0.3 + 0.5, 14.4, 31, k + 0.3 + 0.5, 14.7, 35.4, white, M_MATTE); vfill(m, 12.4, k + 1, 31, 12.7, k + 1.6, 35.4, white, M_MATTE); }
+    vfill(m, 3, 5, 35.4, 14, 16, 36.4, concL, M_ROUGH);
+    vfill(m, 2.6, 4.6, 30.9, 14.4, 16.4, 31.2, '#2a2c2e', M_METAL);   // balcony rail
+    for (let k = 3; k < 14.5; k += 1.2) for (const [x, y] of [[k, 16.2], [14.2, k + 1.5]]) vfill(m, x - 0.08, y - 0.08, 31.2, x + 0.08, y + 0.08, 32.6, '#2a2c2e', M_METAL);
+    vfill(m, 2.6, 16.1, 32.5, 14.4, 16.3, 32.7, '#2a2c2e', M_METAL); vfill(m, 14.1, 4.6, 32.5, 14.3, 16.4, 32.7, '#2a2c2e', M_METAL);
+    vfill(m, 4, 6, 36.4, 13, 15, 44, red, M_METAL, (x, y, z) => { const t = (z - 36.4) / 7.6, r = 4.5 * Math.sin(Math.PI * Math.min(1, t * 1.25 + 0.15)) * (1 - t * 0.55); return (x - 8.5) ** 2 + (y - 10.5) ** 2 < r * r; });
+    vpaint(m, 3.5, 5.5, 36.4, 13.5, 15.5, 44, (x, y, z) => (((Math.atan2(y - 10.5, x - 8.5) + 7) % 0.8) < 0.12 ? redD : undefined), true);
+    vcyl(m, 'z', 43.5, 50, 8.5, 10.5, 0.22, gold, M_METAL);
+    vcyl(m, 'z', 46, 46.6, 8.5, 10.5, 0.55, gold, M_METAL);
+    vfill(m, 8.2, 10.2, 49.8, 8.8, 10.8, 50.4, '#ff3a28', M_GLOW);
+    // sandbag nests either side of the gate, a crate stack, a floodlight
     for (const x of [6, 34]) tsSandbags(m, x, 45, x + 8, 48, 3);
+    for (const [x, y, h] of [[38.5, 46.2, 2], [40.6, 46.2, 2], [39.5, 46.2, 4]]) vfill(m, x - 1, y - 1, h - 2, x + 1, y + 1, h, '#5a4a30', M_ROUGH);
     tsFlood(m, 16, 44, 12);
-    return tsWeather(m);
+    m.ra2 = true; m.dressed = true;
+    return vweather(m, 4, 0.6, '#6a5d4a');
   },
   // Allied War Factory: a big hall with a saw-tooth roof (glazed steps facing south), concrete walls with pilasters,
   // a team band, the big door (x 20-52, art.js rolls it up: factoryDoor) in an armoured frame with hazard jambs, an
