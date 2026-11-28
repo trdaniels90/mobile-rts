@@ -2443,6 +2443,11 @@ lost on snowy maps (owner: "hard to see units moving on the mini map"). A pulsin
 tried and taken out at the owner's request; dots of 3 and 2 points were tried and found too big (armies became blobs).
 
 ## Smart 30/60 fps on phones (2026-11-22, not released, both modes, heat only)
+**Replaced 2026-11-28 by a plain switch** (owner: "for phones and ipads lets make a toggle for 30 or 60fps not the hybrid we have
+now and make 30fps the default"; a co-op match on 2026-11-27 left both phones hot: touching brought 60 back, so a played battle
+ran at 42-52 fps). ui.js `skipFrame`: on a touch screen in a running battle, a frame is drawn only once 29 ms have passed since
+the last (60 Hz: every 2nd, 120 Hz: every 4th). Menu, Graphics: **Frame rate: 30 fps / 60 fps** (`#fpsBtn`, same `rh-full60`
+key, so anyone who picked "Always 60" keeps 60). Menus, pause and loading still draw every frame. The rest of this section is history.
 Owner: "Game is running way better on iPhones but it still getting a little hot". Their iPhone reports (2026.11.21-22) showed
 a steady 60 fps with the game's own code ~5 ms a frame, so the heat is the GPU drawing 60 frames a second. Owner picked smart
 30/60 over a fixed 30, 40 or 45 (40 and 45 show unevenly on a 60 Hz screen); computers untouched.
@@ -3353,3 +3358,27 @@ running to the 14,000-cell limit), sending groups 6% (most of it `defendAllies` 
 - Headless, minutes 14-26: average step 22.8 -> 20.7 ms, worst 110 -> 82 ms; units' thinking 10.6 -> 7.8 ms, sending
   groups 1.6 -> 1.0 ms (the two battles go differently, so route-finding varies run to run). Route waits (2 v 2, 12 min):
   90th percentile 1.47 -> 0.63 s. `ally-defend.js` passes.
+
+## Co-op crash at the end of a 2 v 2 (2026-11-28, not released, both modes; the server fix needs a deploy)
+Owner: "both phones got hot and my game crashed and went to a white screen towards the end". Match KFWL (2026.11.26.5,
+Crossroads Village, owner and York v two computers, server): the owner's iPhone page died at 29:48 (`frames.glCrash`) as the
+two computer bases fell (about 30 and 22 structures to 6 each in the last minute); it reloaded, took 45 s to load, and the
+battle was continued from its save twice (YXYK abandoned, HRQJ won). York's phone held 42-52 fps all game (the smart 30/60
+went back to 60 at every touch), drawing 8-14 ms: the heat was steady near-60 fps.
+- **Black box wiped (fixed, database):** the crash report (`match_crash`, `stats.crash`) was sent at the reload, then the
+  continued battle's `match_progress` replaced the whole of `stats`. `public.keep_crash(old, new)` (supabase/schema.sql)
+  keeps `crash` through `match_progress` and `match_end`. Applied to the project 2026-11-28.
+- **Server saves reported as failed (fixed, server.js `rpcJson`):** `coop_save_put` answers nothing, so `r.json()` threw
+  ("save: Unexpected end of JSON input", 19 times in KFWL) although the save was stored; Save and leave would answer `err save`.
+  An empty answer is now `null`.
+- **Plant smoke off screen (world.js `plantSmoke`, ui.js `hooks.nearView`):** every power plant and refinery the player had
+  uncovered puffed all game wherever the camera was: in a headless 2 v 2 on Crossroads Village (all computers, 12 min),
+  ~4,600 puffs made in 30 s, ~720 alive (of ~1,200 effects). Now only plants within half a screen of the view puff
+  (world.js's default `nearView` says yes, for the server and tests). 12 min: 374 effects (was 1,199).
+- **Structures falling together (world.js `structureFalls`):** more than 2 falling within 2 s get at most 4 blasts each, more
+  than 4 get 2 (were w x h + 2, with debris). Looks only.
+- **Measuring like a phone headless:** Chromium reports `navigator.deviceMemory` 8, so the game takes it for a roomy computer
+  (no sprite trim, RGBA ground). Override it to undefined in an init script (`Object.defineProperty(Navigator.prototype,
+  'deviceMemory', { get: () => undefined })`) with an iPhone context.
+- **Still open:** soldiers' pictures made in play churn against `SPRITE_KEEP` (~860 remade in 32 s of a late 2 v 2 in view),
+  which is garbage for the phone to collect.

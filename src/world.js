@@ -15,7 +15,7 @@ function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; wh
 function turnToward(cur, target, step) { const d = angDiff(target, cur); return Math.abs(d) <= step ? target : cur + Math.sign(d) * step; }
 
 // evaFor(side, msg): the announcer for a human side this device does not show (the PvP guest).
-let hooks = { eva() {}, evaFor() {}, gameOver() {}, sfx() {}, shake() {} };
+let hooks = { eva() {}, evaFor() {}, gameOver() {}, sfx() {}, shake() {}, nearView() { return true; } };
 
 // ---------------------------------------------------------------------------
 // New game
@@ -3787,6 +3787,14 @@ function tickWipe(t) {
   }
   t.wipe = keep.length ? keep : null;
 }
+// How many structures have fallen in the last 2 s, this one included (looks only: kill's blasts).
+let fallLog = [];
+function structureFalls() {
+  const now = G.t;
+  fallLog = fallLog.filter((t) => t > now - 2 && t <= now);
+  fallLog.push(now);
+  return fallLog.length;
+}
 function kill(e, attacker, wh, from) {
   if (e.inHouse) leaveHouse(e);   // (falls in the doorway)
   e.alive = false;
@@ -3871,7 +3879,9 @@ function kill(e, attacker, wh, from) {
       hooks.sfx('collapse', e.x, e.y);
       hooks.shake(e.x, e.y, 3 + e.w * e.h * 0.8);
       escapeSurvivors(e);
-      const n = e.w * e.h + 2;
+      // Many structures falling together (a base collapsing, a beaten side blowing up) each get fewer blasts, so the
+      // effects (and a phone's memory) do not pile up all at once (2026-11-28, a phone crashed as two bases fell).
+      const busy = structureFalls(), n = busy > 4 ? 2 : busy > 2 ? Math.min(4, e.w * e.h + 2) : e.w * e.h + 2;
       for (let i = 0; i < n; i++) {
         G.effects.push({ type: 'expl', x: (e.cx + Math.random() * e.w) * CELL, y: (e.cy + Math.random() * e.h) * CELL, size: i < 2 ? 9 + Math.random() * 6 : 5 + Math.random() * 3,
           t: -i * 0.18, life: 0.8, seed: seed + i, debris: i % 2 === 0 });   // (after the first two, smaller: the fall shows through, fallDown)
@@ -6924,6 +6934,7 @@ function plantSmoke(dt) {
   if (G.me < 0 || !G.seen) return;   // the game server draws nothing
   for (const b of G.entities) {
     if (!b.alive || b.kind !== 'bld' || (b.type !== 'power' && b.type !== 'apower' && b.type !== 'refinery') || !(b.buildT >= 1) || !G.seen[idx(b.cx, b.cy)]) continue;
+    if (!hooks.nearView(b.x, b.y)) { b.plumeT = 0; continue; }   // off screen: no plume (2026-11-28: ~700 puffs alive late in a 2 v 2, most never seen)
     const sov = b.faction === 'soviets', big = b.type === 'apower', ref = b.type === 'refinery';
     // kind of plume: Allied power plants a dark coal plume (old look), Soviet power plants white steam from the
     // cooling towers, Soviet refineries grey smoke from the chimneys, Allied refineries a faint vapour from the roof vents
